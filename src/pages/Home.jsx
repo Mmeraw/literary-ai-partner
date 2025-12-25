@@ -43,15 +43,16 @@ export default function Home() {
                         </p>
 
                         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-                            <Link to={createPageUrl('Evaluate')}>
+                            <Link to={createPageUrl('UploadManuscript')}>
                                 <Button size="lg" className="h-14 px-8 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
-                                    Start Evaluating
-                                    <ArrowRight className="w-5 h-5 ml-2" />
+                                    <BookOpen className="w-5 h-5 mr-2" />
+                                    Upload Full Manuscript
                                 </Button>
                             </Link>
-                            <Link to={createPageUrl('Criteria')}>
+                            <Link to={createPageUrl('Evaluate')}>
                                 <Button size="lg" variant="outline" className="h-14 px-8 text-lg border-slate-300">
-                                    View Criteria
+                                    <Sparkles className="w-5 h-5 mr-2" />
+                                    Quick Eval (2k words)
                                 </Button>
                             </Link>
                         </div>
