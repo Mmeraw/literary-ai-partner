@@ -35,7 +35,7 @@ export default function Layout({ children, currentPageName }) {
                             <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600">
                                 <BookOpen className="w-5 h-5 text-white" />
                             </div>
-                            <div className="hidden sm:block">
+                            <div>
                                 <div className="font-bold text-xl text-slate-900">
                                     Revision<span className="text-indigo-600">Grade</span>
                                 </div>
