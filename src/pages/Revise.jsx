@@ -309,14 +309,25 @@ export default function Revise() {
             <ChevronLeft className="w-4 h-4 mr-2" />
             Previous
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => handleNavigate('next')}
-            disabled={session.current_position >= session.suggestions.length - 1 || updateSessionMutation.isPending}
-          >
-            Next
-            <ChevronRight className="w-4 h-4 ml-2" />
-          </Button>
+          {session.current_position >= session.suggestions.length - 1 ? (
+            <Button
+              onClick={handleSaveAndExit}
+              disabled={updateSessionMutation.isPending}
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+            >
+              Complete
+              <Check className="w-4 h-4 ml-2" />
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={() => handleNavigate('next')}
+              disabled={updateSessionMutation.isPending}
+            >
+              Next
+              <ChevronRight className="w-4 h-4 ml-2" />
+            </Button>
+          )}
         </div>
 
         {/* Overall Feedback Modal */}
