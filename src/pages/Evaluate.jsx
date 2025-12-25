@@ -14,9 +14,9 @@ import CriteriaPanel from '@/components/evaluation/CriteriaPanel';
 import FinalOutput from '@/components/evaluation/FinalOutput';
 
 const LITERARY_CRITERIA = [
-    "voice_style", "opening_hook", "character_development", "dialogue",
-    "pacing", "world_building", "conflict_tension", "show_dont_tell",
-    "emotional_resonance", "prose_quality", "originality", "market_readiness"
+    "the_hook", "voice_narrative_style", "characters_introductions", "conflict_tension",
+    "thematic_resonance", "pacing_structural_flow", "dialogue_subtext", "worldbuilding_immersion",
+    "stakes_emotional_investment", "line_level_polish", "marketability_genre_fit", "agent_keep_reading"
 ];
 
 const WAVE_CRITERIA = [
@@ -59,18 +59,18 @@ ${text}
 """
 
 Evaluate against these 12 LITERARY AGENT CRITERIA:
-1. Voice & Style - Unique authorial voice
-2. Opening Hook - Compelling attention-grabbing
-3. Character Development - Believable, motivated characters
-4. Dialogue - Natural, character-revealing
-5. Pacing - Appropriate rhythm and momentum
-6. World Building - Immersive setting details
-7. Conflict & Tension - Compelling stakes
-8. Show Don't Tell - Active demonstration
-9. Emotional Resonance - Evokes genuine emotion
-10. Prose Quality - Clean sentence construction
-11. Originality - Fresh perspective
-12. Market Readiness - Polish for submission
+1. The Hook (First Page & First 5 Pages) - Does it pull reader in immediately with intrigue, tension, or unique voice?
+2. Voice & Narrative Style - Distinct, engaging voice matching story tone with fresh, vivid, intentional prose
+3. Characters & Their Introductions - Visceral character feel with actions/dialogue showing personality and motivations
+4. Conflict & Tension - Strong driving tension in every scene with escalating conflicts forcing difficult choices
+5. Thematic Resonance - Deep, layered themes woven naturally into character actions without being preachy
+6. Pacing & Structural Flow - Every chapter ends with momentum, tight purposeful scenes with good pace mix
+7. Dialogue & Subtext - Authentic dialogue with distinct rhythms revealing more than stated with unspoken meaning
+8. Worldbuilding & Immersion - World revealed organically with sensory details and lived-in atmosphere
+9. Stakes & Emotional Investment - Clear stakes with urgency in choices and reader emotional connection
+10. Line-Level Polish (Micro-Edits) - Tight, evocative prose with sentence rhythm matching scene intensity
+11. Marketability & Genre Fit - Fresh and original while fitting genre and being marketable with clear comp titles
+12. Would Agent Keep Reading? - High tension at page 50 with clear forward momentum making agent request more
 
 Also evaluate against the WAVE REVISION GUIDE covering: sentence variety, word economy, sensory details, active voice, verb strength, adverb usage, dialogue tags, beat placement, scene structure, transitions, tension maintenance, emotional beats, character voice, internal monologue, description balance, pacing rhythm.
 

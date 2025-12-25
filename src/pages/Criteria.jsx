@@ -13,88 +13,88 @@ import { motion } from "framer-motion";
 
 const LITERARY_AGENT_CRITERIA = [
     { 
-        name: "Voice & Style", 
-        icon: Mic,
-        description: "The unique, distinctive way you tell your story. Agents look for authors who have found their authentic voice—one that's memorable and consistent throughout.",
-        lookingFor: ["Distinctive narrative personality", "Consistent tone", "Original turns of phrase", "Authentic author presence"],
-        redFlags: ["Generic or imitative style", "Inconsistent voice", "Overwriting or purple prose"]
-    },
-    { 
-        name: "Opening Hook", 
+        name: "The Hook (First Page & First 5 Pages)", 
         icon: Zap,
-        description: "The ability to grab attention from the first line. Literary agents often decide within the first page whether to keep reading.",
-        lookingFor: ["Immediate intrigue or tension", "Clear story promise", "Character introduction with stakes", "Active, engaging prose"],
-        redFlags: ["Slow, meandering openings", "Info-dumps", "Passive descriptions", "Clichéd beginnings"]
+        description: "Does the opening line pull the reader in immediately? Is there an immediate sense of intrigue, tension, or unique voice? Does it promise a compelling story worth following?",
+        lookingFor: ["Immediate intrigue or tension", "Clear 'why should I keep reading' factor", "Compelling story promise", "Strong opening that hooks hard"],
+        redFlags: ["Weak first 5 pages", "Slow openings", "No immediate hook", "Generic beginnings"]
     },
     { 
-        name: "Character Development", 
+        name: "Voice & Narrative Style", 
+        icon: Mic,
+        description: "Is the voice distinct and engaging? Does it match the tone of the story? Does the prose feel fresh, vivid, and intentional?",
+        lookingFor: ["Distinct, engaging voice", "Tone matches story", "Fresh, vivid, intentional prose", "Balance of poetic intensity and clarity"],
+        redFlags: ["Generic phrasing", "Inconsistent voice", "Unclear or muddled tone"]
+    },
+    { 
+        name: "Characters & Their Introductions", 
         icon: Users,
-        description: "Creating believable, multi-dimensional characters with clear motivations, flaws, and growth arcs that readers will care about.",
-        lookingFor: ["Complex, flawed characters", "Clear motivations", "Authentic reactions", "Growth throughout story"],
-        redFlags: ["Flat or stereotypical characters", "Inconsistent behavior", "Unclear motivations"]
-    },
-    { 
-        name: "Dialogue", 
-        icon: MessageSquare,
-        description: "Natural, character-revealing conversation that advances the plot and reveals personality without exposition dumps.",
-        lookingFor: ["Distinct character voices", "Subtext and tension", "Natural rhythm", "Plot/character advancement"],
-        redFlags: ["On-the-nose dialogue", "All characters sound the same", "Unrealistic speech patterns"]
-    },
-    { 
-        name: "Pacing", 
-        icon: Timer,
-        description: "The rhythm and momentum of your story—knowing when to speed up, slow down, and how to keep readers turning pages.",
-        lookingFor: ["Appropriate scene lengths", "Tension escalation", "Breathing room between intensity", "Page-turner quality"],
-        redFlags: ["Sagging middle", "Rushed climax", "Scenes that drag", "Unearned resolutions"]
-    },
-    { 
-        name: "World Building", 
-        icon: Globe,
-        description: "Creating an immersive, coherent setting that feels lived-in and supports your story without overwhelming it.",
-        lookingFor: ["Sensory immersion", "Internal logic", "Details woven naturally", "Setting as character"],
-        redFlags: ["Info-dumps about setting", "Inconsistent rules", "Under or over-described worlds"]
+        description: "Does the reader get a visceral feel for characters early on? Do actions, dialogue, and thoughts show personalities and motivations? Are relationships charged with subtext?",
+        lookingFor: ["Visceral character feel within 50 pages", "Actions/dialogue showing personality", "Charged relationships with power dynamics", "Real characters, not just plot roles"],
+        redFlags: ["No reader connection early on", "Flat character intros", "Too much exposition vs. showing"]
     },
     { 
         name: "Conflict & Tension", 
         icon: Swords,
-        description: "The engine of your story—compelling stakes, obstacles, and opposition that keep readers invested.",
-        lookingFor: ["Clear stakes", "Escalating obstacles", "Internal and external conflict", "Meaningful opposition"],
-        redFlags: ["Low stakes", "Easily solved problems", "Conflict for conflict's sake"]
+        description: "Is there strong driving tension in every scene? Do conflicts escalate forcing difficult choices? Is pacing balanced with organic tension?",
+        lookingFor: ["Driving tension in every scene", "Escalating conflicts", "Difficult character choices", "Organic tension"],
+        redFlags: ["Tension dips", "Forced conflict", "Sagging pacing", "Easy resolutions"]
     },
     { 
-        name: "Show Don't Tell", 
-        icon: Eye,
-        description: "The craft of revealing character, emotion, and story through action and sensory detail rather than exposition.",
-        lookingFor: ["Action reveals character", "Emotion through physicality", "Sensory engagement", "Trust in the reader"],
-        redFlags: ["Emotional labeling", "Explaining motivations", "Summarizing instead of dramatizing"]
-    },
-    { 
-        name: "Emotional Resonance", 
-        icon: Heart,
-        description: "The ability to make readers feel something—to create genuine emotional connection and response.",
-        lookingFor: ["Earned emotional moments", "Universal themes", "Character vulnerability", "Authentic feeling"],
-        redFlags: ["Melodrama", "Unearned emotions", "Emotional manipulation"]
-    },
-    { 
-        name: "Prose Quality", 
-        icon: Feather,
-        description: "Clean, polished writing at the sentence level—precise word choice, varied structure, and professional craft.",
-        lookingFor: ["Precise vocabulary", "Varied sentence structure", "Clean grammar", "Intentional style choices"],
-        redFlags: ["Grammatical errors", "Repetitive structure", "Weak verbs", "Cluttered prose"]
-    },
-    { 
-        name: "Originality", 
+        name: "Thematic Resonance", 
         icon: Lightbulb,
-        description: "A fresh perspective, unique angle, or new take on familiar elements that sets your work apart.",
-        lookingFor: ["Fresh premise or angle", "Unique voice", "Subverted expectations", "Personal perspective"],
-        redFlags: ["Derivative plots", "Predictable twists", "Following trends too closely"]
+        description: "Does the story explore deep, layered themes without being preachy? Do themes naturally weave into character actions?",
+        lookingFor: ["Deep, layered themes", "Themes woven into actions", "Seamless integration", "Compelling undercurrents"],
+        redFlags: ["Preachy themes", "Heavy-handed messaging", "Themes stated vs. shown"]
     },
     { 
-        name: "Market Readiness", 
+        name: "Pacing & Structural Flow", 
+        icon: Timer,
+        description: "Does every chapter end with momentum? Are scenes tight and purposeful? Is there a good mix of fast high-stakes scenes and slower immersive moments?",
+        lookingFor: ["Chapter endings with momentum", "Tight, purposeful scenes", "Good pace variety", "Page-turning quality"],
+        redFlags: ["Meandering scenes", "Info dumps", "Pacing lags early", "No reason to turn page"]
+    },
+    { 
+        name: "Dialogue & Subtext", 
+        icon: MessageSquare,
+        description: "Does dialogue sound authentic with distinct rhythms per character? Does it reveal more than it states? Are exchanges charged with unspoken meaning?",
+        lookingFor: ["Authentic dialogue", "Distinct character rhythms", "Subtext-heavy exchanges", "Charged with unspoken meaning"],
+        redFlags: ["Flat dialogue", "On-the-nose exposition", "Characters sound alike", "No subtext"]
+    },
+    { 
+        name: "Worldbuilding & Immersion", 
+        icon: Globe,
+        description: "Is the world revealed organically? Do sensory details pull the reader in? Are unique elements established without overwhelming?",
+        lookingFor: ["Organic world reveal", "Sensory immersion (all 5 senses)", "Lived-in atmosphere", "Layered details"],
+        redFlags: ["Info dumps", "Overwhelming detail", "Told vs. shown world", "Set dressing only"]
+    },
+    { 
+        name: "Stakes & Emotional Investment", 
+        icon: Heart,
+        description: "Is it clear what's at stake? Do we feel urgency in choices? Does the reader feel emotionally invested in character fate?",
+        lookingFor: ["Clear stakes", "Urgency in choices", "Emotional investment", "Reader connection to fate"],
+        redFlags: ["Unclear stakes", "No urgency", "No emotional connection", "Low investment"]
+    },
+    { 
+        name: "Line-Level Polish (Micro-Edits)", 
+        icon: Feather,
+        description: "Is the prose tight, evocative, and polished? Is there unnecessary repetition? Does sentence rhythm match scene intensity?",
+        lookingFor: ["Tight, evocative prose", "No redundancy", "Rhythm matches intensity", "Clean grammar and formatting"],
+        redFlags: ["Bloated writing", "Repetition", "Grammar issues", "Messy prose"]
+    },
+    { 
+        name: "Marketability & Genre Fit", 
         icon: TrendingUp,
-        description: "The overall polish and professional quality that indicates a manuscript is ready for submission.",
-        lookingFor: ["Professional formatting", "Genre awareness", "Appropriate length", "Submission-ready polish"],
-        redFlags: ["Obvious first draft issues", "Genre confusion", "Unprofessional presentation"]
+        description: "Does the novel fit its genre while feeling fresh and original? Would an agent see clear comparative titles?",
+        lookingFor: ["Genre fit", "Fresh and original", "Clear comp titles", "Marketable concept"],
+        redFlags: ["Too niche", "Genre confusion", "Unmarketable", "No clear comps"]
+    },
+    { 
+        name: "Overall 'Would an Agent Keep Reading?' Test", 
+        icon: CheckCircle2,
+        description: "At page 50, do we end on high tension or intrigue? Would an agent request more? Is there clear forward momentum?",
+        lookingFor: ["High tension at page 50", "Compelling to request more", "Clear forward momentum", "All elements working together"],
+        redFlags: ["No compulsion to continue", "Elements competing", "Momentum loss", "Not desperate to read more"]
     }
 ];
 

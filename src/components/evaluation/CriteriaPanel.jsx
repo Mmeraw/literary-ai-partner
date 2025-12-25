@@ -8,18 +8,18 @@ import { BookOpen, Waves, CheckCircle2, AlertCircle } from 'lucide-react';
 import { cn } from "@/lib/utils";
 
 const LITERARY_AGENT_CRITERIA = [
-    { name: "Voice & Style", description: "Unique authorial voice and consistent writing style" },
-    { name: "Opening Hook", description: "Compelling first lines that grab attention" },
-    { name: "Character Development", description: "Well-rounded, believable characters with clear motivations" },
-    { name: "Dialogue", description: "Natural, distinct dialogue that reveals character" },
-    { name: "Pacing", description: "Appropriate rhythm and momentum throughout" },
-    { name: "World Building", description: "Immersive, coherent setting details" },
-    { name: "Conflict & Tension", description: "Compelling stakes and narrative tension" },
-    { name: "Show Don't Tell", description: "Active demonstration vs passive explanation" },
-    { name: "Emotional Resonance", description: "Ability to evoke genuine reader emotion" },
-    { name: "Prose Quality", description: "Clean, polished sentence construction" },
-    { name: "Originality", description: "Fresh perspective or unique angle" },
-    { name: "Market Readiness", description: "Polish level suitable for submission" }
+    { name: "The Hook", description: "First page and first 5 pages pull the reader in immediately with intrigue, tension, or unique voice" },
+    { name: "Voice & Narrative Style", description: "Distinct, engaging voice that matches story tone with fresh, vivid, intentional prose" },
+    { name: "Characters & Introductions", description: "Visceral character feel with actions, dialogue, and thoughts showing personality and motivations" },
+    { name: "Conflict & Tension", description: "Strong driving tension in every scene with escalating conflicts and difficult choices" },
+    { name: "Thematic Resonance", description: "Deep, layered themes woven naturally into character actions without being preachy" },
+    { name: "Pacing & Structural Flow", description: "Every chapter ends with momentum, scenes are tight and purposeful with good mix of pace" },
+    { name: "Dialogue & Subtext", description: "Authentic dialogue with distinct rhythms, revealing more than it states with unspoken meaning" },
+    { name: "Worldbuilding & Immersion", description: "World revealed organically with sensory details and lived-in atmosphere" },
+    { name: "Stakes & Emotional Investment", description: "Clear stakes with urgency in choices and reader emotional connection to character fate" },
+    { name: "Line-Level Polish", description: "Tight, evocative prose with proper sentence rhythm matching scene intensity" },
+    { name: "Marketability & Genre Fit", description: "Fresh and original while fitting genre and being marketable with clear comp titles" },
+    { name: "Would Agent Keep Reading", description: "High tension/intrigue at page 50 with clear forward momentum making agent request more" }
 ];
 
 export default function CriteriaPanel({ scores, category = "all" }) {
