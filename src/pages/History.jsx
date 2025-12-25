@@ -92,56 +92,58 @@ export default function History() {
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: idx * 0.05 }}
                                 >
-                                    <Card className="border-0 shadow-sm hover:shadow-md transition-shadow bg-white/90">
-                                        <CardContent className="p-6">
-                                            <div className="flex items-start gap-4">
-                                                <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 shrink-0">
-                                                    <FileText className="w-6 h-6 text-indigo-600" />
-                                                </div>
-                                                
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-start justify-between gap-4">
-                                                        <div>
-                                                            <h3 className="font-semibold text-slate-800 truncate">
-                                                                {submission.title || 'Untitled'}
-                                                            </h3>
-                                                            <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
-                                                                <span className="flex items-center gap-1">
-                                                                    <Calendar className="w-4 h-4" />
-                                                                    {format(new Date(submission.created_date), 'MMM d, yyyy')}
-                                                                </span>
-                                                                <span className="flex items-center gap-1">
-                                                                    <Type className="w-4 h-4" />
-                                                                    {submission.word_count?.toLocaleString() || 0} words
-                                                                </span>
+                                    <Link to={createPageUrl(`ViewReport?id=${submission.id}`)}>
+                                        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow bg-white/90 cursor-pointer">
+                                            <CardContent className="p-6">
+                                                <div className="flex items-start gap-4">
+                                                    <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 shrink-0">
+                                                        <FileText className="w-6 h-6 text-indigo-600" />
+                                                    </div>
+                                                    
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-start justify-between gap-4">
+                                                            <div>
+                                                                <h3 className="font-semibold text-slate-800 truncate">
+                                                                    {submission.title || 'Untitled'}
+                                                                </h3>
+                                                                <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
+                                                                    <span className="flex items-center gap-1">
+                                                                        <Calendar className="w-4 h-4" />
+                                                                        {format(new Date(submission.created_date), 'MMM d, yyyy')}
+                                                                    </span>
+                                                                    <span className="flex items-center gap-1">
+                                                                        <Type className="w-4 h-4" />
+                                                                        {submission.word_count?.toLocaleString() || 0} words
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="flex items-center gap-4">
+                                                                {submission.overall_score && (
+                                                                    <div className="text-right">
+                                                                        <span className="text-xs text-slate-500">Score</span>
+                                                                        <p className={`text-2xl font-bold ${getScoreColor(submission.overall_score)}`}>
+                                                                            {submission.overall_score}
+                                                                        </p>
+                                                                    </div>
+                                                                )}
+                                                                <Badge className={statusConfig.color}>
+                                                                    <StatusIcon className="w-3 h-3 mr-1" />
+                                                                    {statusConfig.label}
+                                                                </Badge>
                                                             </div>
                                                         </div>
-                                                        
-                                                        <div className="flex items-center gap-4">
-                                                            {submission.overall_score && (
-                                                                <div className="text-right">
-                                                                    <span className="text-xs text-slate-500">Score</span>
-                                                                    <p className={`text-2xl font-bold ${getScoreColor(submission.overall_score)}`}>
-                                                                        {submission.overall_score}
-                                                                    </p>
-                                                                </div>
-                                                            )}
-                                                            <Badge className={statusConfig.color}>
-                                                                <StatusIcon className="w-3 h-3 mr-1" />
-                                                                {statusConfig.label}
-                                                            </Badge>
-                                                        </div>
-                                                    </div>
 
-                                                    {submission.original_text && (
-                                                        <p className="mt-3 text-sm text-slate-500 line-clamp-2">
-                                                            {submission.original_text.substring(0, 200)}...
-                                                        </p>
-                                                    )}
+                                                        {submission.original_text && (
+                                                            <p className="mt-3 text-sm text-slate-500 line-clamp-2">
+                                                                {submission.original_text.substring(0, 200)}...
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
+                                            </CardContent>
+                                        </Card>
+                                    </Link>
                                 </motion.div>
                             );
                         })}
