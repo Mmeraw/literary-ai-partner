@@ -48,88 +48,104 @@ export default function Evaluate() {
         setError(null);
 
         try {
-            const result = await base44.integrations.Core.InvokeLLM({
-                prompt: `You are a senior literary agent and developmental editor using the proprietary WAVE Revision System (60+ craft items). Analyze this manuscript excerpt with professional precision.
+            // First AI: Literary Agent Analysis
+            const analysis1 = await base44.integrations.Core.InvokeLLM({
+                prompt: `Analyze this manuscript as a literary agent would. Score each of 12 criteria from 0-10.
 
-MANUSCRIPT TITLE: ${title}
+TITLE: ${title}
 
-TEXT TO EVALUATE:
-"""
+TEXT:
 ${text}
-"""
 
-Evaluate against these 12 LITERARY AGENT CRITERIA:
-1. The Hook - First page and first 5 pages pull reader in immediately with intrigue, tension, or unique voice
-2. Voice & Narrative Style - Distinct, engaging voice that matches story tone with fresh, vivid, intentional prose
-3. Characters & Introductions - Visceral character feel with actions, dialogue, and thoughts showing personality and motivations
-4. Conflict & Tension - Strong driving tension in every scene with escalating conflicts and difficult choices
-5. Thematic Resonance - Deep, layered themes woven naturally into character actions without being preachy
-6. Pacing & Structural Flow - Every chapter ends with momentum, scenes are tight and purposeful with good mix of pace
-7. Dialogue & Subtext - Authentic dialogue with distinct rhythms, revealing more than it states with unspoken meaning
-8. Worldbuilding & Immersion - World revealed organically with sensory details and lived-in atmosphere
-9. Stakes & Emotional Investment - Clear stakes with urgency in choices and reader emotional connection to character fate
-10. Line-Level Polish - Tight, evocative prose with proper sentence rhythm matching scene intensity
-11. Marketability & Genre Fit - Fresh and original while fitting genre and being marketable with clear comp titles
-12. Would Agent Keep Reading - High tension/intrigue at page 50 with clear forward momentum making agent request more
+Rate these 12 criteria:
+1. The Hook
+2. Voice & Narrative Style  
+3. Characters & Introductions
+4. Conflict & Tension
+5. Thematic Resonance
+6. Pacing & Structural Flow
+7. Dialogue & Subtext
+8. Worldbuilding & Immersion
+9. Stakes & Emotional Investment
+10. Line-Level Polish
+11. Marketability & Genre Fit
+12. Would Agent Keep Reading
 
-Also apply the WAVE REVISION SYSTEM covering 60+ items including: sentence variety, word economy, sensory details, active voice, verb strength, adverb reduction, dialogue tags, beat placement, scene structure, transition flow, tension maintenance, emotional beats, character voice consistency, internal monologue clarity, description balance, pacing rhythm, showing vs telling, and more.
-
-Provide detailed, actionable analysis with specific examples and precise scores.`,
+For each: score, why, and specific fixes with examples.`,
                 response_json_schema: {
                     type: "object",
                     properties: {
-                        overall_score: {
-                            type: "number",
-                            description: "Overall score from 0-10"
-                        },
+                        overall_score: { type: "number" },
                         criteria_scores: {
                             type: "array",
                             items: {
                                 type: "object",
                                 properties: {
                                     name: { type: "string" },
-                                    score: { type: "number", description: "Score from 0-10" },
-                                    why: { type: "string", description: "Detailed reasoning for the score" },
-                                    fixes: { type: "string", description: "Specific actionable improvements with examples" }
-                                }
+                                    score: { type: "number" },
+                                    why: { type: "string" },
+                                    fixes: { type: "string" }
+                                },
+                                required: ["name", "score", "why", "fixes"]
                             }
                         },
+                        strengths: { type: "array", items: { type: "string" } },
+                        missing: { type: "array", items: { type: "string" } },
+                        verdict: { type: "string" }
+                    },
+                    required: ["overall_score", "criteria_scores", "verdict"]
+                }
+            });
+
+            // Second AI: Wave Revision Analysis
+            const analysis2 = await base44.integrations.Core.InvokeLLM({
+                prompt: `Apply the Wave Revision System to find 5-10 specific craft issues in this text.
+
+TEXT:
+${text}
+
+Identify issues with: sentence variety, word economy, sensory details, active voice, verb strength, adverb use, dialogue tags, beats, scene structure, transitions, tension, emotional beats, character voice, internal thoughts, description balance, pacing, showing vs telling.
+
+For each issue: cite the exact quote, rate severity (minor/moderate/major), and provide a fix.`,
+                response_json_schema: {
+                    type: "object",
+                    properties: {
                         wave_hits: {
                             type: "array",
                             items: {
                                 type: "object",
                                 properties: {
                                     wave_item: { type: "string" },
-                                    severity: { type: "string", enum: ["minor", "moderate", "major"] },
+                                    severity: { type: "string" },
                                     evidence_quote: { type: "string" },
                                     fix: { type: "string" }
-                                }
+                                },
+                                required: ["wave_item", "severity", "evidence_quote", "fix"]
                             }
-                        },
-                        strengths: {
-                            type: "array",
-                            items: { type: "string" }
-                        },
-                        missing: {
-                            type: "array",
-                            items: { type: "string" }
-                        },
-                        verdict: {
-                            type: "string",
-                            description: "Overall agent verdict in a short paragraph"
                         }
-                    }
+                    },
+                    required: ["wave_hits"]
                 }
             });
 
-            setEvaluationResult(result);
+            // Combine results
+            const combinedResult = {
+                overall_score: analysis1.overall_score || 5,
+                criteria_scores: analysis1.criteria_scores || [],
+                wave_hits: analysis2.wave_hits || [],
+                strengths: analysis1.strengths || [],
+                missing: analysis1.missing || [],
+                verdict: analysis1.verdict || "Analysis complete."
+            };
+
+            setEvaluationResult(combinedResult);
 
             // Save to database
             const newSubmission = await base44.entities.Submission.create({
                 title,
                 text,
-                result_json: result,
-                overall_score: result.overall_score,
+                result_json: combinedResult,
+                overall_score: combinedResult.overall_score,
                 status: 'reviewed'
             });
 
@@ -229,7 +245,7 @@ Provide detailed, actionable analysis with specific examples and precise scores.
                                             Analyzing Your Manuscript...
                                         </h3>
                                         <p className="mt-2 text-slate-500 text-center max-w-md">
-                                            Applying 12 literary agent criteria and 60+ Wave Revision items
+                                            Two AI systems evaluating against 12 literary agent criteria and 60+ Wave Revision items
                                         </p>
                                     </>
                                 ) : error ? (
