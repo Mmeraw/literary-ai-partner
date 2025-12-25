@@ -46,6 +46,13 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
 
     const handleStartRevision = async () => {
         setIsStartingRevision(true);
+        
+        // Show helpful message for longer texts
+        const wordCount = originalText.split(/\s+/).length;
+        if (wordCount > 500) {
+            toast.info('Analyzing larger manuscript... this may take 30-60 seconds');
+        }
+        
         try {
             // Generate initial suggestions
             const { data } = await base44.functions.invoke('generateRevisionSuggestions', {
@@ -69,7 +76,8 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
             // Navigate to revision page
             window.location.href = createPageUrl(`Revise?session=${revisionSession.id}`);
         } catch (error) {
-            toast.error('Failed to start revision');
+            console.error('Revision start error:', error);
+            toast.error(error.message || 'Failed to start revision. Please try again or use shorter text.');
             setIsStartingRevision(false);
         }
     };
