@@ -157,13 +157,10 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 waveGuidance: waveAnalysis.waveGuidance || { priorityWaves: [], nextActions: [] }
             };
 
-            // Set result immediately so UI can render
-            setEvaluationResult(evaluationResult);
-            setCurrentStep(3);
-
-            // Try to save to database (non-blocking for UI)
+            // Save to database first
+            let newSubmission = null;
             try {
-                const newSubmission = await base44.entities.Submission.create({
+                newSubmission = await base44.entities.Submission.create({
                     title,
                     text,
                     result_json: evaluationResult,
@@ -171,18 +168,21 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                     status: 'reviewed'
                 });
                 setSubmission(newSubmission);
-                toast.success('Analysis complete! Review your evaluation below.');
             } catch (saveError) {
                 console.error('Save error (non-critical):', saveError);
-                toast.success('Analysis complete! (Note: Save to history failed)');
             }
+
+            // Set result and advance to step 3
+            setEvaluationResult(evaluationResult);
+            setIsProcessing(false);
+            setCurrentStep(3);
+            toast.success('Analysis complete! Review your evaluation below.');
 
         } catch (error) {
             console.error('Evaluation error:', error);
             setError(error.message || 'Failed to evaluate. Please try again.');
             toast.error('Failed to evaluate. Please try again.');
             setCurrentStep(1);
-        } finally {
             setIsProcessing(false);
         }
     };
