@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
     { name: 'Home', page: 'Home', icon: BookOpen },
-    { name: 'Evaluate', page: 'Evaluate', icon: Sparkles },
+    { name: 'Quick Eval', page: 'Evaluate', icon: Sparkles },
+    { name: 'Full Manuscript', page: 'UploadManuscript', icon: BookOpen },
     { name: 'Criteria', page: 'Criteria', icon: FileText },
     { name: 'History', page: 'History', icon: History },
 ];
