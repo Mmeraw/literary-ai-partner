@@ -1,15 +1,15 @@
-import Home from './pages/Home';
-import Evaluate from './pages/Evaluate';
 import Criteria from './pages/Criteria';
+import Evaluate from './pages/Evaluate';
 import History from './pages/History';
+import Home from './pages/Home';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "Home": Home,
-    "Evaluate": Evaluate,
     "Criteria": Criteria,
+    "Evaluate": Evaluate,
     "History": History,
+    "Home": Home,
 }
 
 export const pagesConfig = {
