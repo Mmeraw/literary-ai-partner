@@ -1,0 +1,132 @@
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import { Button } from "@/components/ui/button";
+import { 
+    BookOpen, Sparkles, History, FileText, 
+    Menu, X, LogOut 
+} from 'lucide-react';
+import { base44 } from '@/api/base44Client';
+import { cn } from "@/lib/utils";
+
+const navItems = [
+    { name: 'Home', page: 'Home', icon: BookOpen },
+    { name: 'Evaluate', page: 'Evaluate', icon: Sparkles },
+    { name: 'Criteria', page: 'Criteria', icon: FileText },
+    { name: 'History', page: 'History', icon: History },
+];
+
+export default function Layout({ children, currentPageName }) {
+    const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+
+    const handleLogout = () => {
+        base44.auth.logout();
+    };
+
+    return (
+        <div className="min-h-screen bg-slate-50">
+            {/* Navigation */}
+            <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6">
+                    <div className="flex items-center justify-between h-16">
+                        {/* Logo */}
+                        <Link to={createPageUrl('Home')} className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600">
+                                <BookOpen className="w-5 h-5 text-white" />
+                            </div>
+                            <span className="font-bold text-xl text-slate-900 hidden sm:block">
+                                Manuscript<span className="text-indigo-600">AI</span>
+                            </span>
+                        </Link>
+
+                        {/* Desktop Navigation */}
+                        <div className="hidden md:flex items-center gap-1">
+                            {navItems.map((item) => (
+                                <Link key={item.page} to={createPageUrl(item.page)}>
+                                    <Button
+                                        variant="ghost"
+                                        className={cn(
+                                            "h-10 px-4",
+                                            currentPageName === item.page 
+                                                ? "bg-indigo-50 text-indigo-700" 
+                                                : "text-slate-600 hover:text-slate-900"
+                                        )}
+                                    >
+                                        <item.icon className="w-4 h-4 mr-2" />
+                                        {item.name}
+                                    </Button>
+                                </Link>
+                            ))}
+                        </div>
+
+                        {/* Right side */}
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={handleLogout}
+                                className="text-slate-500 hover:text-slate-700"
+                            >
+                                <LogOut className="w-5 h-5" />
+                            </Button>
+
+                            {/* Mobile menu button */}
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="md:hidden"
+                                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                            >
+                                {mobileMenuOpen ? (
+                                    <X className="w-5 h-5" />
+                                ) : (
+                                    <Menu className="w-5 h-5" />
+                                )}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Mobile Navigation */}
+                {mobileMenuOpen && (
+                    <div className="md:hidden border-t border-slate-100 bg-white">
+                        <div className="px-4 py-3 space-y-1">
+                            {navItems.map((item) => (
+                                <Link 
+                                    key={item.page} 
+                                    to={createPageUrl(item.page)}
+                                    onClick={() => setMobileMenuOpen(false)}
+                                >
+                                    <Button
+                                        variant="ghost"
+                                        className={cn(
+                                            "w-full justify-start h-12",
+                                            currentPageName === item.page 
+                                                ? "bg-indigo-50 text-indigo-700" 
+                                                : "text-slate-600"
+                                        )}
+                                    >
+                                        <item.icon className="w-5 h-5 mr-3" />
+                                        {item.name}
+                                    </Button>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </nav>
+
+            {/* Main Content */}
+            <main>
+                {children}
+            </main>
+
+            {/* Footer */}
+            <footer className="border-t border-slate-100 bg-white py-8 mt-auto">
+                <div className="max-w-7xl mx-auto px-6 text-center text-sm text-slate-500">
+                    <p>Powered by dual AI analysis • 12 Literary Agent Criteria • 60+ Wave Revision Items</p>
+                </div>
+            </footer>
+        </div>
+    );
+}
