@@ -34,9 +34,14 @@ export default function Layout({ children, currentPageName }) {
                             <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600">
                                 <BookOpen className="w-5 h-5 text-white" />
                             </div>
-                            <span className="font-bold text-xl text-slate-900 hidden sm:block">
-                                Manuscript<span className="text-indigo-600">AI</span>
-                            </span>
+                            <div className="hidden sm:block">
+                                <div className="font-bold text-xl text-slate-900">
+                                    Revision<span className="text-indigo-600">Grade</span>
+                                </div>
+                                <div className="text-xs text-slate-500 -mt-1">
+                                    Literary AI Partner
+                                </div>
+                            </div>
                         </Link>
 
                         {/* Desktop Navigation */}
@@ -124,7 +129,7 @@ export default function Layout({ children, currentPageName }) {
             {/* Footer */}
             <footer className="border-t border-slate-100 bg-white py-8 mt-auto">
                 <div className="max-w-7xl mx-auto px-6 text-center text-sm text-slate-500">
-                    <p>Powered by dual AI analysis • 12 Literary Agent Criteria • 60+ Wave Revision Items</p>
+                    <p>Powered by the WAVE Revision System • 12 Literary Agent Criteria • 60+ Wave Revision Items</p>
                 </div>
             </footer>
         </div>
