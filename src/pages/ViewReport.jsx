@@ -51,10 +51,10 @@ export default function ViewReport() {
     const handleDownload = () => {
         const reportText = `
 MANUSCRIPT EVALUATION REPORT
-${submission.title}
+${submission.title || 'Untitled'}
 Generated: ${new Date(submission.created_date).toLocaleDateString()}
 
-OVERALL SCORE: ${Math.round((evaluationResult.overallScore || submission.overall_score) * 10)}/100
+OVERALL SCORE: ${Math.round((evaluationResult.overallScore || submission.overall_score || 0) * 10)}/100
 VERDICT: ${evaluationResult.agentVerdict || 'No verdict available'}
 
 ======================
@@ -62,7 +62,7 @@ VERDICT: ${evaluationResult.agentVerdict || 'No verdict available'}
 ======================
 
 ${evaluationResult.criteria?.map(c => `
-${c.name.toUpperCase()} - ${c.score}/10
+${(c.name || 'Unknown').toUpperCase()} - ${c.score || 0}/10
 
 Strengths:
 ${c.strengths?.map(s => `• ${s}`).join('\n') || 'None listed'}
@@ -78,16 +78,16 @@ ${c.agentNotes || 'No notes'}
 PRIORITY REVISION REQUESTS
 ======================
 
-${evaluationResult.revisionRequests?.map(r => `[${r.priority}] ${r.instruction}`).join('\n\n') || 'None'}
+${evaluationResult.revisionRequests?.map(r => `[${r.priority || 'N/A'}] ${r.instruction || ''}`).join('\n\n') || 'None'}
 
 ======================
 WAVE REVISION ITEMS
 ======================
 
 ${evaluationResult.waveHits?.map(h => `
-${h.wave_item} [${h.severity}]
-Evidence: "${h.evidence_quote}"
-Fix: ${h.fix}
+${h.wave_item || 'Unknown'} [${h.severity || 'N/A'}]
+Evidence: "${h.evidence_quote || 'N/A'}"
+Fix: ${h.fix || 'N/A'}
 `).join('\n') || 'None'}
 
 ======================
@@ -103,14 +103,14 @@ ${evaluationResult.waveGuidance?.nextActions?.map(a => `• ${a}`).join('\n') ||
 ORIGINAL TEXT
 ======================
 
-${submission.text}
+${submission.text || 'No text available'}
         `.trim();
 
         const blob = new Blob([reportText], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${submission.title.replace(/\s+/g, '_')}_evaluation_report.txt`;
+        a.download = `${(submission.title || 'report').replace(/\s+/g, '_')}_evaluation_report.txt`;
         a.click();
         URL.revokeObjectURL(url);
     };
