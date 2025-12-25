@@ -289,6 +289,20 @@ export default function ManuscriptDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {manuscript.spine_score && (
+          <div className="mt-6 flex justify-center">
+            <Button
+              onClick={handleDownloadSpineReport}
+              variant="outline"
+              size="lg"
+              className="gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Download Spine Report
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
