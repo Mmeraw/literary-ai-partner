@@ -81,11 +81,11 @@ export default function SuggestionCard({
           <div>
             <Button
               variant="ghost"
-              size="sm"
+              size="lg"
               onClick={() => setShowAlternatives(!showAlternatives)}
-              className="mb-2"
+              className="mb-2 text-base"
             >
-              {showAlternatives ? <ChevronUp className="w-4 h-4 mr-2" /> : <ChevronDown className="w-4 h-4 mr-2" />}
+              {showAlternatives ? <ChevronUp className="w-5 h-5 mr-2" /> : <ChevronDown className="w-5 h-5 mr-2" />}
               {suggestion.alternatives.length} Alternative{suggestion.alternatives.length > 1 ? 's' : ''}
             </Button>
             
