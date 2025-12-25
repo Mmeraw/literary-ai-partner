@@ -434,13 +434,15 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                 )}
 
                                 {/* Action Buttons */}
-                                <div className="flex gap-4">
-                                    <Button onClick={handleFinalize} className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600">
-                                        Finalize & Export
-                                    </Button>
-                                    <Button onClick={handleReset} variant="outline">
-                                        New Submission
-                                    </Button>
+                                <div className="space-y-3">
+                                    <FinalOutput
+                                        title={title}
+                                        originalText={text}
+                                        evaluationResult={evaluationResult}
+                                        submission={submission}
+                                        onReset={handleReset}
+                                        compactMode={true}
+                                    />
                                 </div>
                             </motion.div>
                         )}

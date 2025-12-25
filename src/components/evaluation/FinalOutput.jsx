@@ -8,7 +8,7 @@ import { base44 } from '@/api/base44Client';
 import { toast } from "sonner";
 import { createPageUrl } from '@/utils';
 
-export default function FinalOutput({ title, originalText, evaluationResult, submission, onReset }) {
+export default function FinalOutput({ title, originalText, evaluationResult, submission, onReset, compactMode = false }) {
     const [revisedText, setRevisedText] = React.useState(originalText);
     const [isSaving, setIsSaving] = React.useState(false);
     const [isStartingRevision, setIsStartingRevision] = React.useState(false);
@@ -74,6 +74,41 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
         }
     };
 
+    // Compact mode: Just show the revision button
+    if (compactMode) {
+        return (
+            <div className="space-y-3">
+                <Button 
+                    onClick={handleStartRevision}
+                    disabled={isStartingRevision}
+                    size="lg"
+                    className="w-full h-14 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-lg"
+                >
+                    {isStartingRevision ? (
+                        <>
+                            <span className="animate-spin mr-2">⏳</span>
+                            Starting Revision Engine...
+                        </>
+                    ) : (
+                        <>
+                            <Sparkles className="w-5 h-5 mr-2" />
+                            Start Wave-by-Wave Revision Engine
+                        </>
+                    )}
+                </Button>
+                <Button 
+                    onClick={onReset}
+                    variant="outline"
+                    className="w-full"
+                >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Start New Submission
+                </Button>
+            </div>
+        );
+    }
+
+    // Full mode: Show text editor and all options
     return (
         <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-white">
             <CardHeader className="pb-4">
