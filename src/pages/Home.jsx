@@ -32,7 +32,7 @@ export default function Home() {
                         
                         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
                             Transform Your Manuscript
-                            <span className="block mt-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                            <span className="block mt-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent leading-normal pb-2">
                                 to Publishing Quality
                             </span>
                         </h1>
