@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Sparkles, Loader2, FileText, CheckCircle2, Circle } from 'lucide-react';
+import { BookOpen, Sparkles, Loader2, FileText, CheckCircle2, Circle, Download } from 'lucide-react';
 import { toast } from "sonner";
 import { createPageUrl } from '@/utils';
 
@@ -49,6 +49,62 @@ export default function ManuscriptDashboard() {
     }
   };
 
+  const handleDownloadSpineReport = () => {
+    if (!manuscript?.spine_evaluation) return;
+    
+    const evaluation = manuscript.spine_evaluation;
+    let reportText = `${manuscript.title}\nSpine Evaluation Report\n${'='.repeat(50)}\n\n`;
+    
+    reportText += `Overall Spine Score: ${evaluation.overallScore}/10\n`;
+    reportText += `Verdict: ${evaluation.verdict}\n\n`;
+    
+    if (evaluation.majorStrengths?.length > 0) {
+      reportText += `MAJOR STRENGTHS\n${'-'.repeat(50)}\n`;
+      evaluation.majorStrengths.forEach(s => {
+        reportText += `✓ ${s}\n`;
+      });
+      reportText += '\n';
+    }
+    
+    if (evaluation.criticalWeaknesses?.length > 0) {
+      reportText += `CRITICAL WEAKNESSES\n${'-'.repeat(50)}\n`;
+      evaluation.criticalWeaknesses.forEach(w => {
+        reportText += `✗ ${w}\n`;
+      });
+      reportText += '\n';
+    }
+    
+    reportText += `12 SPINE CRITERIA\n${'='.repeat(50)}\n\n`;
+    evaluation.criteria?.forEach(criterion => {
+      reportText += `${criterion.name} - ${criterion.score}/10\n${'-'.repeat(50)}\n`;
+      
+      if (criterion.strengths?.length > 0) {
+        reportText += 'Strengths:\n';
+        criterion.strengths.forEach(s => reportText += `  • ${s}\n`);
+      }
+      
+      if (criterion.weaknesses?.length > 0) {
+        reportText += 'Weaknesses:\n';
+        criterion.weaknesses.forEach(w => reportText += `  • ${w}\n`);
+      }
+      
+      if (criterion.notes) {
+        reportText += `Notes: ${criterion.notes}\n`;
+      }
+      
+      reportText += '\n';
+    });
+    
+    const blob = new Blob([reportText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${manuscript.title.replace(/\s+/g, '_')}_spine_report.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Spine report downloaded');
+  };
+
   if (loadingManuscript || loadingChapters) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -83,7 +139,19 @@ export default function ManuscriptDashboard() {
       <div className="max-w-7xl mx-auto px-6 py-12">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">{manuscript.title}</h1>
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-3xl font-bold text-slate-900">{manuscript.title}</h1>
+            {manuscript.spine_score && (
+              <Button
+                onClick={handleDownloadSpineReport}
+                variant="outline"
+                className="gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Download Spine Report
+              </Button>
+            )}
+          </div>
           <div className="flex items-center gap-4 text-sm text-slate-600">
             <span>{manuscript.word_count.toLocaleString()} words</span>
             <span>•</span>
