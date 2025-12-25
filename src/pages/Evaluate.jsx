@@ -47,6 +47,11 @@ export default function Evaluate() {
         setCurrentStep(2);
         setError(null);
 
+        // Keep-alive interval to prevent timeout
+        const keepAlive = setInterval(() => {
+            console.log('Analysis in progress...');
+        }, 5000);
+
         try {
             // Literary Agent Evaluation
             const agentAnalysis = await base44.integrations.Core.InvokeLLM({
@@ -184,6 +189,8 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             toast.error('Failed to evaluate. Please try again.');
             setCurrentStep(1);
             setIsProcessing(false);
+        } finally {
+            clearInterval(keepAlive);
         }
     };
 

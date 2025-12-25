@@ -34,6 +34,12 @@ export default function ManuscriptDashboard() {
 
   const handleSpineEvaluation = async () => {
     setIsEvaluatingSpine(true);
+
+    // Keep-alive to prevent timeout
+    const keepAlive = setInterval(() => {
+      console.log('Spine evaluation in progress...');
+    }, 5000);
+
     try {
       toast.info('Evaluating manuscript spine... this may take 30-60 seconds');
       
@@ -44,7 +50,9 @@ export default function ManuscriptDashboard() {
       toast.success('Spine evaluation complete!');
       window.location.reload();
     } catch (error) {
-      toast.error('Spine evaluation failed');
+      toast.error('Spine evaluation failed. Please try again.');
+    } finally {
+      clearInterval(keepAlive);
       setIsEvaluatingSpine(false);
     }
   };

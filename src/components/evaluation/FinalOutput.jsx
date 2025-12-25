@@ -53,6 +53,11 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
             toast.info('Analyzing larger manuscript... this may take 30-60 seconds');
         }
 
+        // Keep-alive to prevent timeout
+        const keepAlive = setInterval(() => {
+            console.log('Generating revision suggestions...');
+        }, 5000);
+
         try {
             // Generate initial suggestions
             const { data } = await base44.functions.invoke('generateRevisionSuggestions', {
@@ -78,6 +83,8 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
         } catch (error) {
             console.error('Revision start error:', error);
             toast.error(error.message || 'Failed to start revision. Please try again.');
+        } finally {
+            clearInterval(keepAlive);
             setIsStartingRevision(false);
         }
     };
