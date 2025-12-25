@@ -6,6 +6,7 @@ import { Download, Copy, CheckCircle2, FileText, RotateCcw, Save, Edit, Sparkles
 import { Textarea } from "@/components/ui/textarea";
 import { base44 } from '@/api/base44Client';
 import { toast } from "sonner";
+import { createPageUrl } from '@/utils';
 
 export default function FinalOutput({ title, originalText, evaluationResult, submission, onReset }) {
     const [revisedText, setRevisedText] = React.useState(originalText);
@@ -66,7 +67,7 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
             });
 
             // Navigate to revision page
-            window.location.href = `/revise?session=${revisionSession.id}`;
+            window.location.href = createPageUrl(`Revise?session=${revisionSession.id}`);
         } catch (error) {
             toast.error('Failed to start revision');
             setIsStartingRevision(false);
