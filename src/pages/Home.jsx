@@ -32,12 +32,12 @@ export default function Home() {
                         
                         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
                             Transform Your Manuscript
-                            <span className="block mt-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                            <span className="block mt-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                                 to Publishing Quality
                             </span>
                         </h1>
-                        
-                        <p className="mt-6 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
+
+                        <p className="mt-10 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
                             Get your draft graded against the same 12 criteria literary agents use, plus 60+ checks from the WAVE Revision System. 
                             Two AI engines score your pages, then surface focused changes so you can keep, replace, or delete every line with confidence.
                         </p>
