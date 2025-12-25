@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, Copy, CheckCircle2, FileText, RotateCcw, Save, Edit, Sparkles } from 'lucide-react';
+import { Download, Copy, CheckCircle2, FileText, RotateCcw, Save, Edit, Sparkles, Loader2 } from 'lucide-react';
 import { Textarea } from "@/components/ui/textarea";
 import { base44 } from '@/api/base44Client';
 import { toast } from "sonner";
@@ -46,30 +46,30 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
 
     const handleStartRevision = async () => {
         setIsStartingRevision(true);
-        
+
         // Show helpful message for longer texts
         const wordCount = originalText.split(/\s+/).length;
         if (wordCount > 500) {
             toast.info('Analyzing larger manuscript... this may take 30-60 seconds');
         }
-        
+
         try {
             // Generate initial suggestions
             const { data } = await base44.functions.invoke('generateRevisionSuggestions', {
                 text: originalText,
                 wave_number: 1,
-                submission_id: submission.id
+                submission_id: submission?.id || 'temp'
             });
 
             // Create revision session
             const revisionSession = await base44.entities.RevisionSession.create({
-                submission_id: submission.id,
+                submission_id: submission?.id || 'temp',
                 title,
                 original_text: originalText,
                 current_text: originalText,
                 current_wave: 1,
                 current_position: 0,
-                suggestions: data.suggestions,
+                suggestions: data.suggestions || [],
                 status: 'in_progress'
             });
 
@@ -77,7 +77,7 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
             window.location.href = createPageUrl(`Revise?session=${revisionSession.id}`);
         } catch (error) {
             console.error('Revision start error:', error);
-            toast.error(error.message || 'Failed to start revision. Please try again or use shorter text.');
+            toast.error(error.message || 'Failed to start revision. Please try again.');
             setIsStartingRevision(false);
         }
     };
@@ -90,17 +90,17 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
                     onClick={handleStartRevision}
                     disabled={isStartingRevision}
                     size="lg"
-                    className="w-full h-14 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-lg"
+                    className="w-full h-14 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-lg disabled:opacity-50"
                 >
                     {isStartingRevision ? (
                         <>
-                            <span className="animate-spin mr-2">⏳</span>
-                            Starting Revision Engine...
+                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                            Analyzing text...
                         </>
                     ) : (
                         <>
                             <Sparkles className="w-5 h-5 mr-2" />
-                            Start Wave-by-Wave Revision Engine
+                            Start Wave Revision
                         </>
                     )}
                 </Button>
@@ -108,9 +108,10 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
                     onClick={onReset}
                     variant="outline"
                     className="w-full"
+                    disabled={isStartingRevision}
                 >
                     <RotateCcw className="w-4 h-4 mr-2" />
-                    Start New Submission
+                    New Evaluation
                 </Button>
             </div>
         );
