@@ -27,19 +27,19 @@ export default function Home() {
                     >
                         <Badge className="mb-6 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200 text-sm font-medium">
                             <Sparkles className="w-4 h-4 mr-2" />
-                            AI-Powered Manuscript Analysis
+                            AI-Powered Manuscript Grading
                         </Badge>
                         
                         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
-                            Get Your
+                            Transform Your Manuscript
                             <span className="block mt-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                                Revision Grade
+                                to Publishing Quality
                             </span>
                         </h1>
                         
                         <p className="mt-6 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                            Professional manuscript analysis backed by literary agent standards and 
-                            powered by the WAVE Revision System. Your Literary AI Partner for structured, expert-guided revision.
+                            Get your draft graded against the same 12 criteria literary agents use, plus 60+ checks from the WAVE Revision System. 
+                            Two AI engines score your pages, then surface focused changes so you can keep, replace, or delete every line with confidence.
                         </p>
 
                         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -63,7 +63,7 @@ export default function Home() {
             <div className="max-w-6xl mx-auto px-6 py-20">
                 <div className="text-center mb-16">
                     <h2 className="text-3xl font-bold text-slate-900">How It Works</h2>
-                    <p className="mt-3 text-slate-600">Three simple steps to publication-ready prose</p>
+                    <p className="mt-3 text-slate-600">Grade first, then revise—three simple steps</p>
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-8">
@@ -71,19 +71,19 @@ export default function Home() {
                         {
                             icon: BookOpen,
                             title: "Submit Your Draft",
-                            description: "Paste a paragraph, scene, or entire chapter. Our system handles any length.",
+                            description: "Paste a paragraph, scene, or full chapter. RevisionGrade handles any length.",
                             color: "from-indigo-500 to-blue-600"
                         },
                         {
                             icon: Brain,
-                            title: "Dual AI Analysis",
-                            description: "Two AI systems evaluate against 12 literary agent criteria and 60+ Wave Revision items.",
+                            title: "Grade First, Then Diagnose",
+                            description: "Dual AI systems score your pages against 12 agent-level criteria and 60+ WAVE checks, highlighting exactly where the manuscript falls short.",
                             color: "from-purple-500 to-pink-600"
                         },
                         {
                             icon: CheckCircle2,
                             title: "Review & Decide",
-                            description: "Accept, reject, or request alternatives for each suggestion. You stay in control.",
+                            description: "For each flagged issue, you get keep / replace / delete options. You control every change while systematically elevating the draft toward submission-ready.",
                             color: "from-emerald-500 to-teal-600"
                         }
                     ].map((feature, idx) => (
