@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, Copy, CheckCircle2, FileText, RotateCcw, Save, Edit } from 'lucide-react';
+import { Download, Copy, CheckCircle2, FileText, RotateCcw, Save, Edit, Sparkles } from 'lucide-react';
 import { Textarea } from "@/components/ui/textarea";
 import { base44 } from '@/api/base44Client';
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 export default function FinalOutput({ title, originalText, evaluationResult, submission, onReset }) {
     const [revisedText, setRevisedText] = React.useState(originalText);
     const [isSaving, setIsSaving] = React.useState(false);
+    const [isStartingRevision, setIsStartingRevision] = React.useState(false);
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -40,6 +41,36 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
         a.click();
         URL.revokeObjectURL(url);
         toast.success('Downloaded successfully');
+    };
+
+    const handleStartRevision = async () => {
+        setIsStartingRevision(true);
+        try {
+            // Generate initial suggestions
+            const { data } = await base44.functions.invoke('generateRevisionSuggestions', {
+                text: originalText,
+                wave_number: 1,
+                submission_id: submission.id
+            });
+
+            // Create revision session
+            const revisionSession = await base44.entities.RevisionSession.create({
+                submission_id: submission.id,
+                title,
+                original_text: originalText,
+                current_text: originalText,
+                current_wave: 1,
+                current_position: 0,
+                suggestions: data.suggestions,
+                status: 'in_progress'
+            });
+
+            // Navigate to revision page
+            window.location.href = `/revise?session=${revisionSession.id}`;
+        } catch (error) {
+            toast.error('Failed to start revision');
+            setIsStartingRevision(false);
+        }
     };
 
     return (
@@ -105,14 +136,33 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
                     </Button>
                 </div>
 
-                <Button 
-                    onClick={onReset}
-                    variant="ghost"
-                    className="w-full"
-                >
-                    <RotateCcw className="w-4 h-4 mr-2" />
-                    Start New Submission
-                </Button>
+                <div className="flex flex-col gap-3">
+                    <Button 
+                        onClick={handleStartRevision}
+                        disabled={isStartingRevision}
+                        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                    >
+                        {isStartingRevision ? (
+                            <>
+                                <span className="animate-spin mr-2">⏳</span>
+                                Starting Revision Engine...
+                            </>
+                        ) : (
+                            <>
+                                <Sparkles className="w-4 h-4 mr-2" />
+                                Start Wave-by-Wave Revision
+                            </>
+                        )}
+                    </Button>
+                    <Button 
+                        onClick={onReset}
+                        variant="ghost"
+                        className="w-full"
+                    >
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        Start New Submission
+                    </Button>
+                </div>
             </CardContent>
         </Card>
     );
