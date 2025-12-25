@@ -48,110 +48,134 @@ export default function Evaluate() {
         setError(null);
 
         try {
-            // First AI: Literary Agent Analysis
-            const analysis1 = await base44.integrations.Core.InvokeLLM({
-                prompt: `Analyze this manuscript as a literary agent would. Score each of 12 criteria from 0-10.
+            // Literary Agent Evaluation
+            const agentAnalysis = await base44.integrations.Core.InvokeLLM({
+                prompt: `You are a senior literary agent evaluating a manuscript for representation. Analyze this text against exactly these 12 criteria, rating each 1-10:
+
+1. The Hook - First pages pull reader in with intrigue, tension, unique voice
+2. Voice & Narrative Style - Distinct, engaging voice matching tone with fresh prose  
+3. Characters & Introductions - Visceral character feel showing personality and motivations
+4. Conflict & Tension - Strong driving tension with escalating conflicts
+5. Thematic Resonance - Deep themes woven naturally without being preachy
+6. Pacing & Structural Flow - Momentum in every chapter, tight purposeful scenes
+7. Dialogue & Subtext - Authentic dialogue revealing more than stated
+8. Worldbuilding & Immersion - World revealed organically with sensory details
+9. Stakes & Emotional Investment - Clear stakes with reader emotional connection
+10. Line-Level Polish - Tight evocative prose with proper rhythm
+11. Marketability & Genre Fit - Fresh, original, fits genre, marketable
+12. Would Agent Keep Reading - High tension/intrigue making agent request full manuscript
 
 TITLE: ${title}
 
 TEXT:
 ${text}
 
-Rate these 12 criteria:
-1. The Hook
-2. Voice & Narrative Style  
-3. Characters & Introductions
-4. Conflict & Tension
-5. Thematic Resonance
-6. Pacing & Structural Flow
-7. Dialogue & Subtext
-8. Worldbuilding & Immersion
-9. Stakes & Emotional Investment
-10. Line-Level Polish
-11. Marketability & Genre Fit
-12. Would Agent Keep Reading
-
-For each: score, why, and specific fixes with examples.`,
+For each criterion provide: score (1-10), strengths (array), weaknesses (array), agentNotes (detailed commentary).
+Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revision/needs significant work), and prioritized revision requests.`,
                 response_json_schema: {
                     type: "object",
                     properties: {
-                        overall_score: { type: "number" },
-                        criteria_scores: {
+                        overallScore: { type: "number", description: "1-10" },
+                        agentVerdict: { type: "string" },
+                        criteria: {
                             type: "array",
                             items: {
                                 type: "object",
                                 properties: {
                                     name: { type: "string" },
-                                    score: { type: "number" },
-                                    why: { type: "string" },
-                                    fixes: { type: "string" }
+                                    score: { type: "number", description: "1-10" },
+                                    strengths: { type: "array", items: { type: "string" } },
+                                    weaknesses: { type: "array", items: { type: "string" } },
+                                    agentNotes: { type: "string" }
                                 },
-                                required: ["name", "score", "why", "fixes"]
+                                required: ["name", "score", "strengths", "weaknesses", "agentNotes"]
                             }
                         },
-                        strengths: { type: "array", items: { type: "string" } },
-                        missing: { type: "array", items: { type: "string" } },
-                        verdict: { type: "string" }
+                        revisionRequests: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    priority: { type: "string", enum: ["High", "Medium", "Low"] },
+                                    instruction: { type: "string" }
+                                },
+                                required: ["priority", "instruction"]
+                            }
+                        }
                     },
-                    required: ["overall_score", "criteria_scores", "verdict"]
+                    required: ["overallScore", "agentVerdict", "criteria", "revisionRequests"]
                 }
             });
 
-            // Second AI: Wave Revision Analysis
-            const analysis2 = await base44.integrations.Core.InvokeLLM({
-                prompt: `Apply the Wave Revision System to find 5-10 specific craft issues in this text.
+            // Wave Revision Guidance
+            const waveAnalysis = await base44.integrations.Core.InvokeLLM({
+                prompt: `Apply the Wave Revision System to identify 5-10 specific craft issues.
 
 TEXT:
 ${text}
 
-Identify issues with: sentence variety, word economy, sensory details, active voice, verb strength, adverb use, dialogue tags, beats, scene structure, transitions, tension, emotional beats, character voice, internal thoughts, description balance, pacing, showing vs telling.
+Find issues with: sentence variety, word economy, sensory details, active voice, verb strength, adverbs, dialogue tags, beats, scene structure, transitions, tension, emotional beats, character voice, internal thoughts, description balance, pacing, showing vs telling.
 
-For each issue: cite the exact quote, rate severity (minor/moderate/major), and provide a fix.`,
+For each: wave_item (name), severity (High/Medium/Low), evidence_quote (exact text), fix (specific revision).
+Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 response_json_schema: {
                     type: "object",
                     properties: {
-                        wave_hits: {
+                        waveHits: {
                             type: "array",
                             items: {
                                 type: "object",
                                 properties: {
                                     wave_item: { type: "string" },
-                                    severity: { type: "string" },
+                                    severity: { type: "string", enum: ["High", "Medium", "Low"] },
                                     evidence_quote: { type: "string" },
                                     fix: { type: "string" }
                                 },
                                 required: ["wave_item", "severity", "evidence_quote", "fix"]
                             }
+                        },
+                        waveGuidance: {
+                            type: "object",
+                            properties: {
+                                priorityWaves: { type: "array", items: { type: "number" } },
+                                nextActions: { type: "array", items: { type: "string" } }
+                            },
+                            required: ["priorityWaves", "nextActions"]
                         }
                     },
-                    required: ["wave_hits"]
+                    required: ["waveHits", "waveGuidance"]
                 }
             });
 
             // Combine results
-            const combinedResult = {
-                overall_score: analysis1.overall_score || 5,
-                criteria_scores: analysis1.criteria_scores || [],
-                wave_hits: analysis2.wave_hits || [],
-                strengths: analysis1.strengths || [],
-                missing: analysis1.missing || [],
-                verdict: analysis1.verdict || "Analysis complete."
+            const evaluationResult = {
+                overallScore: agentAnalysis.overallScore || 5,
+                agentVerdict: agentAnalysis.agentVerdict || "Evaluation complete",
+                criteria: agentAnalysis.criteria || [],
+                revisionRequests: agentAnalysis.revisionRequests || [],
+                waveHits: waveAnalysis.waveHits || [],
+                waveGuidance: waveAnalysis.waveGuidance || { priorityWaves: [], nextActions: [] }
             };
 
-            setEvaluationResult(combinedResult);
-
-            // Save to database
-            const newSubmission = await base44.entities.Submission.create({
-                title,
-                text,
-                result_json: combinedResult,
-                overall_score: combinedResult.overall_score,
-                status: 'reviewed'
-            });
-
-            setSubmission(newSubmission);
+            // Set result immediately so UI can render
+            setEvaluationResult(evaluationResult);
             setCurrentStep(3);
-            toast.success('Analysis complete! Review your evaluation below.');
+
+            // Try to save to database (non-blocking for UI)
+            try {
+                const newSubmission = await base44.entities.Submission.create({
+                    title,
+                    text,
+                    result_json: evaluationResult,
+                    overall_score: evaluationResult.overallScore,
+                    status: 'reviewed'
+                });
+                setSubmission(newSubmission);
+                toast.success('Analysis complete! Review your evaluation below.');
+            } catch (saveError) {
+                console.error('Save error (non-critical):', saveError);
+                toast.success('Analysis complete! (Note: Save to history failed)');
+            }
 
         } catch (error) {
             console.error('Evaluation error:', error);
@@ -275,17 +299,30 @@ For each issue: cite the exact quote, rate severity (minor/moderate/major), and 
                                 {/* Overall Score */}
                                 <ScoreCard
                                     title="Overall Agent Score"
-                                    score={evaluationResult.overall_score * 10}
+                                    score={evaluationResult.overallScore * 10}
                                     icon={BookOpen}
-                                    description="Industry submission readiness"
+                                    description={evaluationResult.agentVerdict}
                                     color="indigo"
                                 />
 
-                                {/* Verdict */}
-                                {evaluationResult.verdict && (
+                                {/* Revision Requests */}
+                                {evaluationResult.revisionRequests?.length > 0 && (
                                     <div className="p-6 rounded-xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200">
-                                        <h3 className="text-lg font-semibold text-slate-800 mb-3">Agent Verdict</h3>
-                                        <p className="text-slate-700 leading-relaxed">{evaluationResult.verdict}</p>
+                                        <h3 className="text-lg font-semibold text-slate-800 mb-4">Priority Revision Requests</h3>
+                                        <div className="space-y-3">
+                                            {evaluationResult.revisionRequests.map((req, idx) => (
+                                                <div key={idx} className="flex items-start gap-3">
+                                                    <Badge className={
+                                                        req.priority === 'High' ? 'bg-red-100 text-red-700' :
+                                                        req.priority === 'Medium' ? 'bg-amber-100 text-amber-700' :
+                                                        'bg-blue-100 text-blue-700'
+                                                    }>
+                                                        {req.priority}
+                                                    </Badge>
+                                                    <p className="text-sm text-slate-700 flex-1">{req.instruction}</p>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
 
@@ -293,9 +330,9 @@ For each issue: cite the exact quote, rate severity (minor/moderate/major), and 
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
                                         <h3 className="text-lg font-semibold text-slate-800">12 Literary Agent Criteria</h3>
-                                        <Badge>{evaluationResult.criteria_scores?.length || 0}/12</Badge>
+                                        <Badge>{evaluationResult.criteria?.length || 0}/12</Badge>
                                     </div>
-                                    {evaluationResult.criteria_scores?.map((criterion, idx) => (
+                                    {evaluationResult.criteria?.map((criterion, idx) => (
                                         <div key={idx} className="p-5 rounded-xl bg-white border border-slate-200 hover:border-indigo-200 transition-all">
                                             <div className="flex items-start justify-between mb-3">
                                                 <h4 className="font-semibold text-slate-800">{criterion.name}</h4>
@@ -307,14 +344,30 @@ For each issue: cite the exact quote, rate severity (minor/moderate/major), and 
                                                 </span>
                                             </div>
                                             <div className="space-y-3 text-sm">
-                                                <div>
-                                                    <span className="font-medium text-slate-600">Why:</span>
-                                                    <p className="text-slate-600 mt-1">{criterion.why}</p>
-                                                </div>
-                                                {criterion.fixes && (
+                                                {criterion.strengths?.length > 0 && (
                                                     <div>
-                                                        <span className="font-medium text-indigo-600">Actionable Fixes:</span>
-                                                        <p className="text-slate-700 mt-1">{criterion.fixes}</p>
+                                                        <span className="font-medium text-emerald-600">✓ Strengths:</span>
+                                                        <ul className="mt-1 space-y-1">
+                                                            {criterion.strengths.map((s, i) => (
+                                                                <li key={i} className="text-slate-600">• {s}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                                {criterion.weaknesses?.length > 0 && (
+                                                    <div>
+                                                        <span className="font-medium text-rose-600">✗ Weaknesses:</span>
+                                                        <ul className="mt-1 space-y-1">
+                                                            {criterion.weaknesses.map((w, i) => (
+                                                                <li key={i} className="text-slate-600">• {w}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                                {criterion.agentNotes && (
+                                                    <div>
+                                                        <span className="font-medium text-indigo-600">Agent Notes:</span>
+                                                        <p className="text-slate-700 mt-1">{criterion.agentNotes}</p>
                                                     </div>
                                                 )}
                                             </div>
@@ -323,16 +376,16 @@ For each issue: cite the exact quote, rate severity (minor/moderate/major), and 
                                 </div>
 
                                 {/* Wave Hits */}
-                                {evaluationResult.wave_hits?.length > 0 && (
+                                {evaluationResult.waveHits?.length > 0 && (
                                     <div className="space-y-4">
-                                        <h3 className="text-lg font-semibold text-slate-800">Wave Revision Items ({evaluationResult.wave_hits.length})</h3>
-                                        {evaluationResult.wave_hits.map((hit, idx) => (
+                                        <h3 className="text-lg font-semibold text-slate-800">Wave Revision Items ({evaluationResult.waveHits.length})</h3>
+                                        {evaluationResult.waveHits.map((hit, idx) => (
                                             <div key={idx} className="p-4 rounded-xl bg-amber-50 border border-amber-200">
                                                 <div className="flex items-start justify-between mb-2">
                                                     <span className="font-semibold text-slate-800">{hit.wave_item}</span>
                                                     <Badge className={
-                                                        hit.severity === 'major' ? 'bg-red-100 text-red-700' :
-                                                        hit.severity === 'moderate' ? 'bg-amber-100 text-amber-700' :
+                                                        hit.severity === 'High' ? 'bg-red-100 text-red-700' :
+                                                        hit.severity === 'Medium' ? 'bg-amber-100 text-amber-700' :
                                                         'bg-blue-100 text-blue-700'
                                                     }>
                                                         {hit.severity}
@@ -353,29 +406,32 @@ For each issue: cite the exact quote, rate severity (minor/moderate/major), and 
                                     </div>
                                 )}
 
-                                {/* Strengths & Missing */}
-                                <div className="grid md:grid-cols-2 gap-4">
-                                    {evaluationResult.strengths?.length > 0 && (
-                                        <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-200">
-                                            <h4 className="font-semibold text-emerald-800 mb-3">✅ Strengths</h4>
-                                            <ul className="space-y-2">
-                                                {evaluationResult.strengths.map((s, idx) => (
-                                                    <li key={idx} className="text-sm text-slate-700">• {s}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-                                    {evaluationResult.missing?.length > 0 && (
-                                        <div className="p-5 rounded-xl bg-rose-50 border border-rose-200">
-                                            <h4 className="font-semibold text-rose-800 mb-3">⚠️ Missing</h4>
-                                            <ul className="space-y-2">
-                                                {evaluationResult.missing.map((m, idx) => (
-                                                    <li key={idx} className="text-sm text-slate-700">• {m}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-                                </div>
+                                {/* Wave Guidance */}
+                                {evaluationResult.waveGuidance && (
+                                    <div className="p-5 rounded-xl bg-gradient-to-br from-cyan-50 to-blue-50 border border-cyan-200">
+                                        <h4 className="font-semibold text-cyan-800 mb-3">Wave System Guidance</h4>
+                                        {evaluationResult.waveGuidance.priorityWaves?.length > 0 && (
+                                            <div className="mb-3">
+                                                <span className="text-sm font-medium text-slate-600">Priority Waves:</span>
+                                                <div className="flex gap-2 mt-2">
+                                                    {evaluationResult.waveGuidance.priorityWaves.map((wave, i) => (
+                                                        <Badge key={i} variant="outline">Wave {wave}</Badge>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {evaluationResult.waveGuidance.nextActions?.length > 0 && (
+                                            <div>
+                                                <span className="text-sm font-medium text-slate-600">Next Actions:</span>
+                                                <ul className="mt-2 space-y-1">
+                                                    {evaluationResult.waveGuidance.nextActions.map((action, i) => (
+                                                        <li key={i} className="text-sm text-slate-700">• {action}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Action Buttons */}
                                 <div className="flex gap-4">
