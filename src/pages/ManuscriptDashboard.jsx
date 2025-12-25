@@ -188,8 +188,9 @@ export default function ManuscriptDashboard() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <BookOpen className="w-5 h-5" />
-                Spine Evaluation
+                Whole-Manuscript (Spine) Evaluation
               </CardTitle>
+              <p className="text-xs text-slate-500 mt-1">12 Agent Criteria</p>
             </CardHeader>
             <CardContent>
               {manuscript.spine_score ? (
@@ -229,6 +230,7 @@ export default function ManuscriptDashboard() {
           <Card className="border-0 shadow-lg">
             <CardHeader>
               <CardTitle className="text-lg">Chapter Progress</CardTitle>
+              <p className="text-xs text-slate-500 mt-1">Evaluate chapters to update your Overall RevisionGrade™</p>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-slate-900 mb-2">
@@ -255,6 +257,13 @@ export default function ManuscriptDashboard() {
                   className="flex items-center justify-between p-4 rounded-lg border border-slate-200 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all"
                 >
                   <div className="flex items-center gap-4">
+                    {chapter.status === 'evaluated' && chapter.evaluation_score && (
+                      <div className={`w-3 h-3 rounded-full ${
+                        chapter.evaluation_score >= 8 ? 'bg-green-500' :
+                        chapter.evaluation_score >= 6 ? 'bg-amber-500' :
+                        'bg-red-500'
+                      }`} />
+                    )}
                     <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-sm font-semibold text-slate-700">
                       {chapter.order}
                     </div>
