@@ -37,10 +37,10 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                             <div>
                                 <div className="font-bold text-xl text-slate-900">
-                                    Revision<span className="text-indigo-600">Grade</span>
+                                    Revision<span className="text-indigo-600">Grade</span>™
                                 </div>
                                 <div className="text-xs text-slate-500 -mt-1">
-                                    Literary AI Partner
+                                    Literary AI Partner™
                                 </div>
                             </div>
                         </Link>

@@ -173,7 +173,7 @@ export default function ManuscriptDashboard() {
           {/* Global Score */}
           <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-purple-50">
             <CardHeader>
-              <CardTitle className="text-lg">Overall RevisionGrade</CardTitle>
+              <CardTitle className="text-lg">Overall RevisionGrade™</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-bold text-indigo-600 mb-2">

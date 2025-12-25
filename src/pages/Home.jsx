@@ -72,7 +72,7 @@ export default function Home() {
                         {
                             icon: BookOpen,
                             title: "Submit Your Draft",
-                            description: "Paste a paragraph, scene, or full chapter. RevisionGrade handles any length.",
+                            description: "Paste a paragraph, scene, or full chapter. RevisionGrade™ handles any length.",
                             color: "from-indigo-500 to-blue-600"
                         },
                         {
