@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Download, Save, ArrowLeft, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Save, ArrowLeft, Loader2, MessageSquare } from 'lucide-react';
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import SuggestionCard from '@/components/revision/SuggestionCard';
+import OverallFeedbackModal from '@/components/revision/OverallFeedbackModal';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
@@ -17,6 +18,7 @@ export default function Revise() {
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get('session');
   const queryClient = useQueryClient();
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const { data: session, isLoading } = useQuery({
     queryKey: ['revisionSession', sessionId],
@@ -155,6 +157,28 @@ export default function Revise() {
     toast.success('Downloaded current revision');
   };
 
+  const handleFeedback = async (suggestionId, feedback) => {
+    const updatedSuggestions = session.suggestions.map(s =>
+      s.id === suggestionId ? { ...s, feedback } : s
+    );
+
+    await updateSessionMutation.mutateAsync({
+      sessionId: session.id,
+      data: { suggestions: updatedSuggestions }
+    });
+  };
+
+  const handleOverallFeedback = async (feedback) => {
+    await updateSessionMutation.mutateAsync({
+      sessionId: session.id,
+      data: { overall_feedback: feedback }
+    });
+    toast.success('Thank you for your feedback!');
+  };
+
+  const isSessionComplete = session && 
+    session.suggestions.every(s => s.status !== 'pending');
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -209,6 +233,16 @@ export default function Revise() {
                 <Save className="w-4 h-4 mr-2" />
                 Save & Exit
               </Button>
+              {isSessionComplete && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowFeedbackModal(true)}
+                  className="border-indigo-300 text-indigo-700"
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Give Feedback
+                </Button>
+              )}
             </div>
           </div>
 
@@ -244,6 +278,7 @@ export default function Revise() {
               onReject={handleReject}
               onRequestAlternatives={handleRequestAlternatives}
               onSelectAlternative={handleSelectAlternative}
+              onFeedback={handleFeedback}
               isLoading={updateSessionMutation.isPending}
             />
           </motion.div>
@@ -268,6 +303,13 @@ export default function Revise() {
             <ChevronRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
+
+        {/* Overall Feedback Modal */}
+        <OverallFeedbackModal
+          open={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+          onSubmit={handleOverallFeedback}
+        />
       </div>
     </div>
   );

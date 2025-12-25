@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, X, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
+import FeedbackButtons from './FeedbackButtons';
 
 export default function SuggestionCard({ 
   suggestion, 
@@ -11,6 +12,7 @@ export default function SuggestionCard({
   onReject, 
   onRequestAlternatives,
   onSelectAlternative,
+  onFeedback,
   isLoading 
 }) {
   const [showContext, setShowContext] = useState(false);
@@ -146,6 +148,11 @@ export default function SuggestionCard({
               Alternatives
             </Button>
           </div>
+        )}
+
+        {/* Feedback */}
+        {suggestion.status !== 'pending' && (
+          <FeedbackButtons suggestion={suggestion} onFeedback={onFeedback} />
         )}
       </CardContent>
     </Card>
