@@ -128,14 +128,13 @@ export default function Criteria() {
                 <div className="text-center mb-12">
                     <Badge className="mb-4 px-4 py-2 bg-purple-100 text-purple-700 border-purple-200">
                         <BookOpen className="w-4 h-4 mr-2" />
-                        Evaluation Framework
+                        Powered by the WAVE Revision System
                     </Badge>
                     <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">
-                        Our Evaluation Criteria
+                        Evaluation Criteria
                     </h1>
                     <p className="mt-3 text-slate-600 max-w-2xl mx-auto">
-                        Your manuscript is evaluated against these industry-standard criteria used by literary agents 
-                        and our proprietary Wave Revision Guide
+                        Understanding the standards that guide your Revision Grade
                     </p>
                 </div>
 

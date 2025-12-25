@@ -31,16 +31,15 @@ export default function Home() {
                         </Badge>
                         
                         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
-                            Transform Your Writing
+                            Get Your
                             <span className="block mt-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                                to Publishing Quality
+                                Revision Grade
                             </span>
                         </h1>
                         
                         <p className="mt-6 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                            Get your manuscript evaluated against the same 12 criteria literary agents use, 
-                            plus 60+ items from the Wave Revision Guide. Two AI systems work together 
-                            to give you actionable, keep-replace-delete feedback.
+                            Professional manuscript analysis backed by literary agent standards and 
+                            powered by the WAVE Revision System. Your Literary AI Partner for structured, expert-guided revision.
                         </p>
 
                         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
