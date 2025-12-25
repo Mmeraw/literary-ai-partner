@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Download, Save, ArrowLeft, Loader2, MessageSquare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Save, ArrowLeft, Loader2, MessageSquare, Sparkles } from 'lucide-react';
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import SuggestionCard from '@/components/revision/SuggestionCard';
 import OverallFeedbackModal from '@/components/revision/OverallFeedbackModal';
+import SmartFeaturesBanner from '@/components/revision/SmartFeaturesBanner';
+import RevisionInsights from '@/components/revision/RevisionInsights';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
@@ -222,7 +224,12 @@ export default function Revise() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold text-slate-900">{session.title}</h1>
-              <p className="text-slate-600 mt-1">Wave-by-Wave Revision</p>
+              <p className="text-slate-600 mt-1">
+                <Badge className="bg-indigo-100 text-indigo-700 border-0">
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  {session.suggestions[session.current_position]?.wave_name || 'Wave-by-Wave Revision'}
+                </Badge>
+              </p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleDownload}>
@@ -246,8 +253,11 @@ export default function Revise() {
             </div>
           </div>
 
+          {/* Smart Features Banner */}
+          <SmartFeaturesBanner />
+
           {/* Progress Bar */}
-          <Card className="bg-white/80 backdrop-blur-sm">
+          <Card className="bg-white/80 backdrop-blur-sm mt-4">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-slate-700">
@@ -261,6 +271,11 @@ export default function Revise() {
               <Progress value={progress} className="h-2" />
             </CardContent>
           </Card>
+
+          {/* Revision Insights */}
+          <div className="mt-4">
+            <RevisionInsights session={session} />
+          </div>
         </div>
 
         {/* Current Suggestion */}
