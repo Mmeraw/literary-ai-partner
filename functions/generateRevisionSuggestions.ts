@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
     // Generate suggestions using AI with wave-specific instructions
     const prompt = `You are a professional manuscript editor. Apply ${wave.name} revision (${wave.focus}).
 
-Find 3-5 specific passages that need revision for this wave only.
+Find 8-12 specific passages that need revision for this wave only.
 
 For each:
 - Exact original text (quote precisely)
