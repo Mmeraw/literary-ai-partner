@@ -74,30 +74,35 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Invalid wave number' }, { status: 400 });
     }
 
+    // Limit text length for performance (roughly 2000 words max)
+    const wordCount = text.split(/\s+/).length;
+    const maxWords = 2000;
+    const truncatedText = wordCount > maxWords 
+      ? text.split(/\s+/).slice(0, maxWords).join(' ') + '...'
+      : text;
+
     // Generate suggestions using AI with wave-specific instructions
-    const prompt = `You are a professional manuscript editor applying targeted revision.
+    const prompt = `You are a professional manuscript editor. Apply ${wave.name} revision (${wave.focus}).
 
-Wave Focus: ${wave.name} - ${wave.focus}
+Find 3-5 specific passages that need revision for this wave only.
 
-Analyze this text and identify 5-10 specific passages that need revision for this wave only.
+For each:
+- Exact original text (quote precisely)
+- Suggested revision
+- Why flagged (brief editorial note)
+- Why this works (brief rationale)
 
-For each issue found, provide:
-1. The exact original text (quote it precisely)
-2. A suggested revision
-3. Why it was flagged (editorial explanation, no technical jargon)
-4. Why this fix works (editorial rationale)
+TEXT:
+${truncatedText}
 
-TEXT TO ANALYZE:
-${text}
-
-Return ONLY valid JSON with this structure:
+Return JSON:
 {
   "suggestions": [
     {
-      "original_text": "exact quote from text",
-      "suggested_text": "revised version",
-      "why_flagged": "editorial explanation",
-      "why_this_fix": "editorial rationale"
+      "original_text": "exact quote",
+      "suggested_text": "revision",
+      "why_flagged": "issue",
+      "why_this_fix": "rationale"
     }
   ]
 }`;
