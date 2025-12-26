@@ -13,12 +13,12 @@ const navItems = [
     { name: 'Home', page: 'Home', icon: BookOpen },
     { name: 'Why RevisionGrade', page: 'WhyRevisionGrade', icon: Sparkles },
     { name: 'Dashboard', page: 'Dashboard', icon: Sparkles },
-    { name: 'History', page: 'History', icon: History },
     { name: 'Quick Eval', page: 'Evaluate', icon: Sparkles },
     { name: 'Manuscript', page: 'UploadManuscript', icon: BookOpen },
     { name: 'Screenplay', page: 'ScreenplayFormatter', icon: FileText },
     { name: 'Pricing', page: 'Pricing', icon: Sparkles },
     { name: 'Criteria', page: 'Criteria', icon: FileText },
+    { name: 'History', page: 'History', icon: History },
 ];
 
 export default function Layout({ children, currentPageName }) {
