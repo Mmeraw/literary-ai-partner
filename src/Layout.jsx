@@ -131,35 +131,28 @@ export default function Layout({ children, currentPageName }) {
 
                 {/* Mobile Navigation */}
                 {mobileMenuOpen && (
-                    <div className="md:hidden absolute left-0 right-0 border-t border-slate-100 bg-white shadow-lg" style={{ maxHeight: 'calc(100vh - 4rem)', overflow: 'hidden' }}>
-                        <div className="px-4 py-3 pb-4 space-y-1" style={{ maxHeight: 'calc(100vh - 4rem)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                            {loading ? (
-                                <div className="text-center py-4 text-slate-500">Loading...</div>
-                            ) : (
-                                <>
-                                    {console.log('Mobile menu - user:', user, 'loading:', loading) || null}
-                                    {(user ? authNavItems : publicNavItems).map((item) => (
-                                        <Link 
-                                            key={item.page} 
-                                            to={createPageUrl(item.page)}
-                                            onClick={() => setMobileMenuOpen(false)}
-                                        >
-                                            <Button
-                                                variant="ghost"
-                                                className={cn(
-                                                    "w-full justify-start h-12",
-                                                    currentPageName === item.page 
-                                                        ? "bg-indigo-50 text-indigo-700" 
-                                                        : "text-slate-600"
-                                                )}
-                                            >
-                                                <item.icon className="w-5 h-5 mr-3" />
-                                                {item.name}
-                                            </Button>
-                                        </Link>
-                                    ))}
-                                </>
-                            )}
+                    <div className="md:hidden absolute left-0 right-0 top-16 border-t border-slate-100 bg-white shadow-lg max-h-screen overflow-y-auto">
+                        <div className="px-4 py-3 space-y-1">
+                            {(user ? authNavItems : publicNavItems).map((item) => (
+                                <Link 
+                                    key={item.page} 
+                                    to={createPageUrl(item.page)}
+                                    onClick={() => setMobileMenuOpen(false)}
+                                >
+                                    <Button
+                                        variant="ghost"
+                                        className={cn(
+                                            "w-full justify-start h-12",
+                                            currentPageName === item.page 
+                                                ? "bg-indigo-50 text-indigo-700" 
+                                                : "text-slate-600"
+                                        )}
+                                    >
+                                        <item.icon className="w-5 h-5 mr-3" />
+                                        {item.name}
+                                    </Button>
+                                </Link>
+                            ))}
                             
                             {user && (
                                 <>
