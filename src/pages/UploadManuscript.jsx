@@ -14,8 +14,8 @@ export default function UploadManuscript() {
   const [isUploading, setIsUploading] = useState(false);
 
   const handleUpload = async () => {
-    if (!title.trim() || !text.trim()) {
-      toast.error('Please provide both title and manuscript text');
+    if (!text.trim()) {
+      toast.error('Please provide manuscript text');
       return;
     }
 
@@ -23,10 +23,11 @@ export default function UploadManuscript() {
 
     try {
       const wordCount = text.split(/\s+/).length;
+      const manuscriptTitle = title.trim() || 'Untitled';
 
       // Create manuscript
       const manuscript = await base44.entities.Manuscript.create({
-        title,
+        title: manuscriptTitle,
         full_text: text,
         word_count: wordCount,
         status: 'splitting'
@@ -116,7 +117,7 @@ export default function UploadManuscript() {
 
             <Button
               onClick={handleUpload}
-              disabled={isUploading || !title.trim() || !text.trim()}
+              disabled={isUploading || !text.trim()}
               className="w-full h-12 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
               size="lg"
             >
