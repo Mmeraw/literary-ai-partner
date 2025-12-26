@@ -39,7 +39,7 @@ export default function Home() {
 
                         <p className="mt-5 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
                             Get your draft graded against the same 12 criteria literary agents use, plus 60+ checks from the WAVE Revision System. 
-                            Three AI engines analyze your work—but our Base44 calibrated score tells you the brutal truth.
+                            Three AI perspectives analyze your work—but our Base44 calibrated score tells you the brutal truth.
                         </p>
 
                         <div className="mt-4 space-y-2 flex flex-col items-center">
@@ -48,7 +48,7 @@ export default function Home() {
                                 <span className="text-sm font-medium text-indigo-900">Scoring calibrated against professional editorial assessments from PhD editors</span>
                             </div>
                             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200">
-                                <span className="text-sm font-medium text-slate-700">We'd rather hurt your feelings than waste your submission</span>
+                                <span className="text-sm font-medium text-slate-700">We'd rather hurt your feelings than see you miss your opportunities with literary agents</span>
                             </div>
                         </div>
 
