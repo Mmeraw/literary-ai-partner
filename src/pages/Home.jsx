@@ -38,7 +38,7 @@ export default function Home() {
                         </h1>
 
                         <p className="mt-5 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                            Get your manuscript or screenplay graded against the similar 12 criteria literary agents use, plus 60+ checks from the proprietary WAVE Revision System. 
+                            Get your manuscript or screenplay graded against the same 12 agent-level criteria literary professionals use to decide what to request, plus 60+ checks from the proprietary WAVE Revision System. 
                             Three AI perspectives analyze your work—but our PhD-calibrated score tells you the brutal truth.
                         </p>
 
@@ -84,10 +84,10 @@ export default function Home() {
                     </div>
                     <div className="space-y-4 text-slate-700">
                         <p className="leading-relaxed">
-                            WAVE is a <strong>60+ wave craft framework</strong> built from years of revising and evaluating full-length novels, screenplays, and narrative nonfiction. It defines what gets graded: hook, structure, line-level authority, motif hygiene, pacing, and more.
+                            WAVE is a <strong>60+-wave craft framework</strong> built from years of revising and evaluating full-length novels, screenplays, and narrative nonfiction. It defines what gets graded: hook, structure, line-level authority, motif hygiene, pacing, and more.
                         </p>
                         <p className="leading-relaxed">
-                            The online tool doesn't "discover" these rules; it <strong>executes them</strong>.
+                            The online tool does not "discover" these rules; it <strong>executes them</strong>.
                         </p>
                         <p className="leading-relaxed font-semibold text-indigo-900">
                             The app is AI-powered, but the standards are human-crafted WAVE IP.
@@ -100,7 +100,7 @@ export default function Home() {
             <div className="max-w-6xl mx-auto px-6 py-20">
                 <div className="text-center mb-16">
                     <h2 className="text-3xl font-bold text-slate-900">How It Works</h2>
-                    <p className="mt-3 text-slate-600">Grade first, then revise—three simple steps</p>
+                    <p className="mt-3 text-slate-600">Grade first, then revise</p>
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-8">
@@ -113,13 +113,13 @@ export default function Home() {
                         },
                         {
                             icon: Brain,
-                            title: "Grade First, Then Diagnose",
+                            title: "Grade, Then Diagnose",
                             description: "Three AI systems (ChatGPT, Perplexity, Base44) score your pages against 12 agent-level criteria and 60+ WAVE checks, highlighting exactly where the manuscript falls short.",
                             color: "from-purple-500 to-pink-600"
                         },
                         {
                             icon: CheckCircle2,
-                            title: "Review & Decide",
+                            title: "Review and Decide",
                             description: "For each flagged issue, you get keep / replace / delete options. You control every change while systematically elevating the draft toward submission-ready.",
                             color: "from-emerald-500 to-teal-600"
                         }
