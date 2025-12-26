@@ -9,7 +9,15 @@ import {
 import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
 
-const navItems = [
+const publicNavItems = [
+    { name: 'Home', page: 'Home', icon: BookOpen },
+    { name: 'Quick Eval', page: 'Evaluate', icon: Sparkles },
+    { name: 'Screenplay', page: 'ScreenplayFormatter', icon: FileText },
+    { name: 'Pricing', page: 'Pricing', icon: Sparkles },
+    { name: 'Criteria', page: 'Criteria', icon: FileText },
+];
+
+const authNavItems = [
     { name: 'Home', page: 'Home', icon: BookOpen },
     { name: 'Dashboard', page: 'Dashboard', icon: Sparkles },
     { name: 'Quick Eval', page: 'Evaluate', icon: Sparkles },
@@ -22,6 +30,15 @@ const navItems = [
 
 export default function Layout({ children, currentPageName }) {
     const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+    const [user, setUser] = React.useState(null);
+    const [loading, setLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        base44.auth.me()
+            .then(setUser)
+            .catch(() => setUser(null))
+            .finally(() => setLoading(false));
+    }, []);
 
     const handleLogout = () => {
         base44.auth.logout();
@@ -50,7 +67,7 @@ export default function Layout({ children, currentPageName }) {
 
                         {/* Desktop Navigation */}
                         <div className="hidden md:flex items-center gap-1">
-                            {navItems.map((item) => (
+                            {(user ? authNavItems : publicNavItems).map((item) => (
                                 <Link key={item.page} to={createPageUrl(item.page)}>
                                     <Button
                                         variant="ghost"
@@ -70,14 +87,24 @@ export default function Layout({ children, currentPageName }) {
 
                         {/* Right side */}
                         <div className="flex items-center gap-2">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={handleLogout}
-                                className="text-slate-500 hover:text-slate-700"
-                            >
-                                <LogOut className="w-5 h-5" />
-                            </Button>
+                            {user ? (
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={handleLogout}
+                                    className="text-slate-500 hover:text-slate-700"
+                                >
+                                    <LogOut className="w-5 h-5" />
+                                </Button>
+                            ) : !loading && (
+                                <Button
+                                    onClick={() => base44.auth.redirectToLogin()}
+                                    variant="outline"
+                                    className="text-slate-700"
+                                >
+                                    Sign In
+                                </Button>
+                            )}
 
                             {/* Mobile menu button */}
                             <Button
@@ -100,7 +127,7 @@ export default function Layout({ children, currentPageName }) {
                 {mobileMenuOpen && (
                     <div className="md:hidden border-t border-slate-100 bg-white">
                         <div className="px-4 py-3 space-y-1">
-                            {navItems.map((item) => (
+                            {(user ? authNavItems : publicNavItems).map((item) => (
                                 <Link 
                                     key={item.page} 
                                     to={createPageUrl(item.page)}
