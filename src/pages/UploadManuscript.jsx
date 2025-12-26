@@ -61,9 +61,9 @@ export default function UploadManuscript() {
           <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 mb-2 sm:mb-4">
             <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Upload Full Manuscript</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Upload Your Writing</h1>
           <p className="mt-1 sm:mt-2 text-sm sm:text-base text-slate-600">
-              Get comprehensive spine evaluation + chapter-by-chapter analysis
+              Analyze a page, a chapter, or your entire manuscript
           </p>
           <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-slate-500 max-w-2xl mx-auto">
               Scores reflect how your work aligns with agent-level criteria and WAVE standards. This is revision guidance, not a guarantee of representation or publication.
@@ -80,38 +80,41 @@ export default function UploadManuscript() {
           <CardContent className="space-y-4 sm:space-y-6">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1 sm:mb-2">
-                Title
+                Project Title (optional)
               </label>
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter your manuscript title"
+                placeholder="Helps you organize your submissions"
                 className="text-lg"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1 sm:mb-2">
-                Full Manuscript Text
+                Paste your writing below
               </label>
               <Textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="Paste your complete manuscript here..."
+                placeholder="Paste a paragraph, scene, chapter, or full manuscript here..."
                 className="min-h-[300px] sm:min-h-[400px] font-mono text-sm"
               />
-              <p className="mt-1 sm:mt-2 text-sm text-slate-500">
+              <p className="mt-1 text-xs sm:text-sm text-slate-500">
                 Word count: {wordCount.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                You can submit partial drafts, excerpts, or complete works. Your text is never shared or published.
               </p>
             </div>
 
             <div className="p-3 sm:p-4 rounded-lg bg-indigo-50 border border-indigo-200">
               <h4 className="font-semibold text-indigo-900 mb-1 sm:mb-2 text-sm sm:text-base">What happens next:</h4>
               <ul className="space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-indigo-800">
-                <li>• Manuscript split into chapters automatically</li>
-                <li>• Spine evaluation analyzes plot, arc, and theme</li>
-                <li>• Each chapter can be evaluated with WAVE Revision</li>
-                <li>• Get aggregate RevisionGrade score</li>
+                <li>• Text analyzed for structure, pacing, and craft</li>
+                <li>• Longer works split into chapters automatically</li>
+                <li>• Scored against 12 agent criteria + 60+ WAVE checks</li>
+                <li>• Get your RevisionGrade score and detailed feedback</li>
               </ul>
             </div>
 
@@ -124,12 +127,12 @@ export default function UploadManuscript() {
               {isUploading ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Uploading Manuscript...
+                  Starting Evaluation...
                 </>
               ) : (
                 <>
                   <Upload className="w-5 h-5 mr-2" />
-                  Upload & Analyze Manuscript
+                  Start Your Evaluation
                 </>
               )}
             </Button>
