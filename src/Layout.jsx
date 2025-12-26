@@ -75,13 +75,13 @@ export default function Layout({ children, currentPageName }) {
                         </Link>
 
                         {/* Desktop Navigation */}
-                        <div className="hidden md:flex items-center gap-1">
+                        <div className="hidden md:flex items-center gap-1 overflow-x-auto">
                             {(user ? authNavItems : publicNavItems).map((item) => (
                                 <Link key={item.page} to={createPageUrl(item.page)}>
                                     <Button
                                         variant="ghost"
                                         className={cn(
-                                            "h-10 px-4",
+                                            "h-10 px-3 whitespace-nowrap",
                                             currentPageName === item.page 
                                                 ? "bg-indigo-50 text-indigo-700" 
                                                 : "text-slate-600 hover:text-slate-900"
