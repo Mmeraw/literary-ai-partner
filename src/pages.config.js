@@ -9,6 +9,7 @@ import Revise from './pages/Revise';
 import SpineReport from './pages/SpineReport';
 import UploadManuscript from './pages/UploadManuscript';
 import ViewReport from './pages/ViewReport';
+import Dashboard from './pages/Dashboard';
 import __Layout from './Layout.jsx';
 
 
@@ -24,6 +25,7 @@ export const PAGES = {
     "SpineReport": SpineReport,
     "UploadManuscript": UploadManuscript,
     "ViewReport": ViewReport,
+    "Dashboard": Dashboard,
 }
 
 export const pagesConfig = {
