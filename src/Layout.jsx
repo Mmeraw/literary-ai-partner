@@ -21,7 +21,7 @@ const authNavItems = [
     { name: 'Home', page: 'Home', icon: BookOpen },
     { name: 'Dashboard', page: 'Dashboard', icon: Sparkles },
     { name: 'Quick Eval', page: 'Evaluate', icon: Sparkles },
-    { name: 'Full Manuscript', page: 'UploadManuscript', icon: BookOpen },
+    { name: 'Manuscript', page: 'UploadManuscript', icon: BookOpen },
     { name: 'Screenplay', page: 'ScreenplayFormatter', icon: FileText },
     { name: 'Pricing', page: 'Pricing', icon: Sparkles },
     { name: 'Criteria', page: 'Criteria', icon: FileText },
