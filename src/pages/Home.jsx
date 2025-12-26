@@ -246,7 +246,8 @@ export default function Home() {
                     <h3 className="text-lg font-semibold text-slate-900 mb-3">About RevisionGrade</h3>
                     <p className="text-sm text-slate-700 leading-relaxed">
                         Created by <strong>Michael J. Meraw (Major, Retired), CD, SCPM (Stanford), BComm, AGDM, MBA</strong>. 
-                        RevisionGrade was designed by a former military pilot and corporate aerospace leader who operationalized a 12-criteria literary framework and the proprietary WAVE Revision System into the platform's scoring engine. 
+                        RevisionGrade was designed by a former military pilot and corporate aerospace leader with deep expertise in root‑cause corrective action, value‑stream mapping, and quality operating systems such as United Technologies' ACE (Achieving Competitive Excellence) and Canadian Forces flight‑safety reporting. 
+                        He operationalized a 12‑criteria literary framework and the proprietary WAVE Revision System into the platform's scoring engine. 
                         AI tools generate analysis and revision suggestions under this framework; final decisions always remain with the writer.
                     </p>
                 </div>
