@@ -125,8 +125,8 @@ export default function Layout({ children, currentPageName }) {
 
                 {/* Mobile Navigation */}
                 {mobileMenuOpen && (
-                    <div className="md:hidden border-t border-slate-100 bg-white">
-                        <div className="px-4 py-3 space-y-1">
+                    <div className="md:hidden border-t border-slate-100 bg-white shadow-lg">
+                        <div className="px-4 py-3 pb-4 space-y-1 max-h-[70vh] overflow-y-auto">
                             {(user ? authNavItems : publicNavItems).map((item) => (
                                 <Link 
                                     key={item.page} 
@@ -147,6 +147,23 @@ export default function Layout({ children, currentPageName }) {
                                     </Button>
                                 </Link>
                             ))}
+                            
+                            {user && (
+                                <>
+                                    <div className="border-t border-slate-200 my-2 pt-2" />
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => {
+                                            setMobileMenuOpen(false);
+                                            handleLogout();
+                                        }}
+                                        className="w-full justify-start h-12 text-slate-600"
+                                    >
+                                        <LogOut className="w-5 h-5 mr-3" />
+                                        Sign Out
+                                    </Button>
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
