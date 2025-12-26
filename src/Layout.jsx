@@ -65,7 +65,7 @@ export default function Layout({ children, currentPageName }) {
                         </Link>
 
                         {/* Desktop Navigation */}
-                        <div className="hidden md:flex items-center gap-1 flex-1 overflow-x-auto scrollbar-hide">
+                        <div className="hidden md:flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-hide">
                             {navItems
                                 .filter(item => item.page !== 'History' || user)
                                 .map((item) => (
@@ -73,13 +73,13 @@ export default function Layout({ children, currentPageName }) {
                                         <Button
                                             variant="ghost"
                                             className={cn(
-                                                "h-9 px-3 text-sm whitespace-nowrap flex-shrink-0",
+                                                "h-9 px-2 text-sm whitespace-nowrap flex-shrink-0",
                                                 currentPageName === item.page 
                                                     ? "bg-indigo-50 text-indigo-700" 
                                                     : "text-slate-600 hover:text-slate-900"
                                             )}
                                         >
-                                            <item.icon className="w-4 h-4 mr-1.5" />
+                                            <item.icon className="w-4 h-4 mr-1" />
                                             {item.name}
                                         </Button>
                                     </Link>
