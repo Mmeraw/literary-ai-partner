@@ -38,7 +38,7 @@ export default function Home() {
                         </h1>
 
                         <p className="mt-5 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                            Get your manuscript or screenplay graded against the same 12 criteria literary agents use, plus 60+ checks from the WAVE Revision System. 
+                            Get your manuscript or screenplay graded against the similar 12 criteria literary agents use, plus 60+ checks from the proprietary WAVE Revision System. 
                             Three AI perspectives analyze your work—but our PhD-calibrated score tells you the brutal truth.
                         </p>
 
