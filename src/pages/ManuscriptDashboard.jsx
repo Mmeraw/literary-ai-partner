@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Sparkles, Loader2, FileText, CheckCircle2, Circle, Download } from 'lucide-react';
+import { BookOpen, Sparkles, Loader2, FileText, CheckCircle2, Circle, Download, Waves } from 'lucide-react';
 import { toast } from "sonner";
 import { createPageUrl } from '@/utils';
 
@@ -280,11 +280,31 @@ export default function ManuscriptDashboard() {
                           <CheckCircle2 className="w-3 h-3 mr-1" />
                           {chapter.evaluation_score?.toFixed(1)}/10
                         </Badge>
-                        <Link to={createPageUrl(`ChapterReport?id=${chapter.id}`)}>
-                          <Button variant="outline" size="sm">
-                            View Report
+                        <div className="flex gap-2">
+                          <Link to={createPageUrl(`ChapterReport?id=${chapter.id}`)}>
+                            <Button variant="outline" size="sm">
+                              View Report
+                            </Button>
+                          </Link>
+                          <Button 
+                            size="sm" 
+                            className="bg-purple-600 hover:bg-purple-700"
+                            onClick={async () => {
+                              const session = await base44.entities.RevisionSession.create({
+                                submission_id: chapter.id,
+                                title: chapter.title,
+                                original_text: chapter.text,
+                                current_text: chapter.text,
+                                suggestions: [],
+                                status: 'in_progress'
+                              });
+                              window.location.href = createPageUrl(`Revise?sessionId=${session.id}`);
+                            }}
+                          >
+                            <Waves className="w-4 h-4 mr-2" />
+                            Start Revision
                           </Button>
-                        </Link>
+                        </div>
                       </>
                     ) : (
                       <>
