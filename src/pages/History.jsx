@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
     FileText, Calendar, Type, TrendingUp, 
-    ChevronRight, Clock, CheckCircle2, AlertCircle, Trash2, Archive
+    ChevronRight, Clock, CheckCircle2, AlertCircle, Trash2, Archive, CheckSquare, Square
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function History() {
     const [activeTab, setActiveTab] = React.useState('active');
+    const [selectedIds, setSelectedIds] = React.useState([]);
     const queryClient = useQueryClient();
     
     const { data: allSubmissions, isLoading } = useQuery({
@@ -106,6 +107,33 @@ export default function History() {
         restoreMutation.mutate(id);
     };
 
+    const handleBulkDelete = async () => {
+        if (selectedIds.length === 0) {
+            toast.error('No items selected');
+            return;
+        }
+        if (confirm(`Permanently delete ${selectedIds.length} submission(s)? This cannot be undone.`)) {
+            for (const id of selectedIds) {
+                await base44.entities.Submission.delete(id);
+            }
+            queryClient.invalidateQueries({ queryKey: ['submissions'] });
+            setSelectedIds([]);
+            toast.success('Selected submissions permanently deleted');
+        }
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.length === trashedSubmissions.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(trashedSubmissions.map(s => s.id));
+        }
+    };
+
+    React.useEffect(() => {
+        setSelectedIds([]);
+    }, [activeTab]);
+
     const getStatusConfig = (status) => {
         switch (status) {
             case 'finalized':
@@ -145,6 +173,36 @@ export default function History() {
                         </TabsTrigger>
                     </TabsList>
                 </Tabs>
+
+                {/* Bulk Actions - Trash Tab Only */}
+                {activeTab === 'trash' && trashedSubmissions.length > 0 && (
+                    <div className="mb-4 flex items-center gap-4 p-4 rounded-lg bg-white border border-slate-200">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={toggleSelectAll}
+                            className="flex items-center gap-2"
+                        >
+                            {selectedIds.length === trashedSubmissions.length ? (
+                                <CheckSquare className="w-4 h-4" />
+                            ) : (
+                                <Square className="w-4 h-4" />
+                            )}
+                            Select All ({selectedIds.length}/{trashedSubmissions.length})
+                        </Button>
+                        {selectedIds.length > 0 && (
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={handleBulkDelete}
+                                className="flex items-center gap-2"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                Delete Forever ({selectedIds.length})
+                            </Button>
+                        )}
+                    </div>
+                )}
 
                 {/* Submissions List */}
                 {isLoading ? (
@@ -205,6 +263,26 @@ export default function History() {
                                         <Card className="border-0 shadow-sm hover:shadow-md transition-shadow bg-white/90 cursor-pointer">
                                             <CardContent className="p-6">
                                                 <div className="flex items-start gap-4">
+                                                    {activeTab === 'trash' && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                setSelectedIds(prev => 
+                                                                    prev.includes(submission.id)
+                                                                        ? prev.filter(id => id !== submission.id)
+                                                                        : [...prev, submission.id]
+                                                                );
+                                                            }}
+                                                            className="mt-1"
+                                                        >
+                                                            {selectedIds.includes(submission.id) ? (
+                                                                <CheckSquare className="w-5 h-5 text-indigo-600" />
+                                                            ) : (
+                                                                <Square className="w-5 h-5 text-slate-400" />
+                                                            )}
+                                                        </button>
+                                                    )}
                                                     <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 shrink-0">
                                                         <FileText className="w-6 h-6 text-indigo-600" />
                                                     </div>
