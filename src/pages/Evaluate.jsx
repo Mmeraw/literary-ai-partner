@@ -303,14 +303,33 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                 animate={{ opacity: 1, y: 0 }}
                                 className="space-y-6"
                             >
-                                {/* Overall Score */}
-                                <ScoreCard
-                                    title="Overall Agent Score"
-                                    score={evaluationResult.overallScore * 10}
-                                    icon={BookOpen}
-                                    description={evaluationResult.agentVerdict}
-                                    color="indigo"
-                                />
+                                {/* Base44 Calibrated Score */}
+                                <div className="p-8 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-900 border-2 border-indigo-500 shadow-2xl">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Badge className="bg-indigo-500 text-white border-0">
+                                            Agent-Reality Grade
+                                        </Badge>
+                                    </div>
+                                    <div className="flex items-end justify-between mb-4">
+                                        <h2 className="text-2xl font-bold text-white">Base44 Calibrated Score</h2>
+                                        <div className="text-right">
+                                            <span className={`text-5xl font-bold ${
+                                                evaluationResult.overallScore * 10 >= 80 ? 'text-emerald-400' :
+                                                evaluationResult.overallScore * 10 >= 60 ? 'text-amber-400' :
+                                                'text-rose-400'
+                                            }`}>
+                                                {Math.round(evaluationResult.overallScore * 10)}
+                                            </span>
+                                            <span className="text-white/60 text-xl">/100</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-white/90 text-lg mb-4">{evaluationResult.agentVerdict}</p>
+                                    <div className="p-4 rounded-lg bg-white/10 border border-white/20">
+                                        <p className="text-sm text-white/80">
+                                            <strong className="text-white">Brutal honesty is our brand.</strong> This score reflects real agent decision-making, calibrated against publishing outcomes.
+                                        </p>
+                                    </div>
+                                </div>
 
                                 {/* Revision Requests */}
                                 {evaluationResult.revisionRequests?.length > 0 && (

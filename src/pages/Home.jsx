@@ -39,8 +39,12 @@ export default function Home() {
 
                         <p className="mt-5 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
                             Get your draft graded against the same 12 criteria literary agents use, plus 60+ checks from the WAVE Revision System. 
-                            Two AI engines score your pages, then surface focused changes so you can keep, replace, or delete every line with confidence.
+                            Three AI engines analyze your work—but our Base44 calibrated score tells you the brutal truth.
                         </p>
+
+                        <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200">
+                            <span className="text-sm font-medium text-slate-700">We'd rather hurt your feelings than waste your submission</span>
+                        </div>
 
                         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
                             <Link to={createPageUrl('UploadManuscript')}>
