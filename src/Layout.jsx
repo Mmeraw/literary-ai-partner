@@ -59,7 +59,7 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                             <div className="hidden lg:block">
                                 <div className="font-bold text-lg text-slate-900">
-                                    Revision<span className="text-indigo-600">Grade</span>™
+                                    Literary AI Partner™
                                 </div>
                             </div>
                         </Link>
@@ -197,7 +197,7 @@ export default function Layout({ children, currentPageName }) {
                             </Link>
                         </div>
                         <p className="text-sm text-slate-500">
-                            © {new Date().getFullYear()} RevisionGrade™. All rights reserved.
+                            © {new Date().getFullYear()} Literary AI Partner™. All rights reserved.
                         </p>
                     </div>
                 </div>
