@@ -51,8 +51,8 @@ Deno.serve(async (req) => {
                     quantity: 1,
                 },
             ],
-            success_url: `${req.headers.get('origin')}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${req.headers.get('origin')}/pricing`,
+            success_url: `${req.headers.get('origin')}/PaymentSuccess?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${req.headers.get('origin')}/Pricing`,
             metadata: {
                 user_id: user.id,
                 plan_name: planName
