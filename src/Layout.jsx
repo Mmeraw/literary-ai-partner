@@ -9,15 +9,7 @@ import {
 import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
 
-const publicNavItems = [
-    { name: 'Home', page: 'Home', icon: BookOpen },
-    { name: 'Quick Eval', page: 'Evaluate', icon: Sparkles },
-    { name: 'Screenplay', page: 'ScreenplayFormatter', icon: FileText },
-    { name: 'Pricing', page: 'Pricing', icon: Sparkles },
-    { name: 'Criteria', page: 'Criteria', icon: FileText },
-];
-
-const authNavItems = [
+const navItems = [
     { name: 'Home', page: 'Home', icon: BookOpen },
     { name: 'Dashboard', page: 'Dashboard', icon: Sparkles },
     { name: 'Quick Eval', page: 'Evaluate', icon: Sparkles },
@@ -73,7 +65,7 @@ export default function Layout({ children, currentPageName }) {
 
                         {/* Desktop Navigation */}
                         <div className="hidden md:flex items-center gap-1 flex-1 overflow-x-auto scrollbar-hide">
-                            {(user ? authNavItems : publicNavItems).map((item) => (
+                            {navItems.map((item) => (
                                 <Link key={item.page} to={createPageUrl(item.page)}>
                                     <Button
                                         variant="ghost"
@@ -133,7 +125,7 @@ export default function Layout({ children, currentPageName }) {
                 {mobileMenuOpen && (
                     <div className="md:hidden absolute left-0 right-0 top-16 border-t border-slate-100 bg-white shadow-lg max-h-screen overflow-y-auto">
                         <div className="px-4 py-3 space-y-1">
-                            {(user ? authNavItems : publicNavItems).map((item) => (
+                            {navItems.map((item) => (
                                 <Link 
                                     key={item.page} 
                                     to={createPageUrl(item.page)}
