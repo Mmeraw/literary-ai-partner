@@ -131,8 +131,8 @@ export default function Layout({ children, currentPageName }) {
 
                 {/* Mobile Navigation */}
                 {mobileMenuOpen && (
-                    <div className="md:hidden absolute left-0 right-0 border-t border-slate-100 bg-white shadow-lg">
-                        <div className="px-4 py-3 pb-4 space-y-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 5rem)', WebkitOverflowScrolling: 'touch' }}>
+                    <div className="md:hidden absolute left-0 right-0 border-t border-slate-100 bg-white shadow-lg" style={{ maxHeight: 'calc(100vh - 4rem)', overflow: 'hidden' }}>
+                        <div className="px-4 py-3 pb-4 space-y-1" style={{ maxHeight: 'calc(100vh - 4rem)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
                             {loading ? (
                                 <div className="text-center py-4 text-slate-500">Loading...</div>
                             ) : (
