@@ -1,0 +1,93 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import Stripe from 'npm:stripe@17.5.0';
+
+const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY"));
+
+Deno.serve(async (req) => {
+    try {
+        const signature = req.headers.get('stripe-signature');
+        const body = await req.text();
+
+        // Note: You'll need to set STRIPE_WEBHOOK_SECRET after creating the webhook in Stripe
+        const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+        
+        if (!webhookSecret) {
+            console.error('STRIPE_WEBHOOK_SECRET not set');
+            return Response.json({ error: 'Webhook secret not configured' }, { status: 500 });
+        }
+
+        const event = await stripe.webhooks.constructEventAsync(
+            body,
+            signature,
+            webhookSecret
+        );
+
+        const base44 = createClientFromRequest(req);
+
+        switch (event.type) {
+            case 'checkout.session.completed': {
+                const session = event.data.object;
+                const userId = session.metadata.user_id;
+                const planName = session.metadata.plan_name.toLowerCase();
+
+                // Update user's subscription status
+                await base44.asServiceRole.entities.User.update(userId, {
+                    subscription_plan: planName,
+                    subscription_status: 'active',
+                    stripe_customer_id: session.customer,
+                    subscription_id: session.subscription
+                });
+                break;
+            }
+
+            case 'customer.subscription.updated': {
+                const subscription = event.data.object;
+                const users = await base44.asServiceRole.entities.User.filter({
+                    subscription_id: subscription.id
+                });
+
+                if (users.length > 0) {
+                    await base44.asServiceRole.entities.User.update(users[0].id, {
+                        subscription_status: subscription.status
+                    });
+                }
+                break;
+            }
+
+            case 'customer.subscription.deleted': {
+                const subscription = event.data.object;
+                const users = await base44.asServiceRole.entities.User.filter({
+                    subscription_id: subscription.id
+                });
+
+                if (users.length > 0) {
+                    await base44.asServiceRole.entities.User.update(users[0].id, {
+                        subscription_plan: null,
+                        subscription_status: 'canceled',
+                        subscription_id: null
+                    });
+                }
+                break;
+            }
+
+            case 'invoice.payment_failed': {
+                const invoice = event.data.object;
+                const users = await base44.asServiceRole.entities.User.filter({
+                    stripe_customer_id: invoice.customer
+                });
+
+                if (users.length > 0) {
+                    await base44.asServiceRole.entities.User.update(users[0].id, {
+                        subscription_status: 'past_due'
+                    });
+                }
+                break;
+            }
+        }
+
+        return Response.json({ received: true });
+    } catch (error) {
+        console.error('Webhook error:', error);
+        return Response.json({ error: error.message }, { status: 400 });
+    }
+});

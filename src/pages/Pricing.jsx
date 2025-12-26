@@ -69,12 +69,27 @@ const tiers = [
 
 export default function Pricing() {
     const [loadingPlan, setLoadingPlan] = useState(null);
+    const [stripePrices, setStripePrices] = useState({});
+
+    React.useEffect(() => {
+        // Fetch real Stripe prices
+        base44.functions.invoke('getStripePrices').then(response => {
+            if (response.data.prices) {
+                setStripePrices(response.data.prices);
+            }
+        }).catch(console.error);
+    }, []);
 
     const handleSubscribe = async (tier) => {
         try {
             setLoadingPlan(tier.name);
+            
+            // Get the real price ID from Stripe
+            const planKey = tier.name.toLowerCase();
+            const priceId = stripePrices[planKey]?.price_id || tier.priceId;
+
             const response = await base44.functions.invoke('createCheckoutSession', {
-                priceId: tier.priceId,
+                priceId: priceId,
                 planName: tier.name
             });
 
@@ -86,7 +101,7 @@ export default function Pricing() {
             }
         } catch (error) {
             console.error('Checkout error:', error);
-            toast.error('Failed to start checkout. Please try again.');
+            toast.error(error.response?.data?.error || 'Failed to start checkout. Please try again.');
             setLoadingPlan(null);
         }
     };
