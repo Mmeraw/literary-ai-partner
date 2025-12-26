@@ -27,19 +27,19 @@ export default function Home() {
                     >
                         <Badge className="mb-6 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200 text-sm font-medium">
                             <Sparkles className="w-4 h-4 mr-2" />
-                            Human-AI-Powered Manuscript Grading and Revision
+                            PhD-Calibrated AI Grading and Revision
                         </Badge>
-                        
+
                         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
-                            Transform Your Manuscript
+                            Transform Your Writing
                             <span className="block -mt-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent leading-relaxed overflow-visible py-2">
                                 to Publishing Quality™
                             </span>
                         </h1>
 
                         <p className="mt-5 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                            Get your draft graded against the same 12 criteria literary agents use, plus 60+ checks from the WAVE Revision System. 
-                            Three AI perspectives analyze your work—but our Base44 calibrated score tells you the brutal truth.
+                            Get your manuscript or screenplay graded against the same 12 criteria literary agents use, plus 60+ checks from the WAVE Revision System. 
+                            Three AI perspectives analyze your work—but our PhD-calibrated score tells you the brutal truth.
                         </p>
 
                         <div className="mt-4 space-y-2 flex flex-col items-center">
@@ -56,13 +56,13 @@ export default function Home() {
                             <Link to={createPageUrl('UploadManuscript')}>
                                 <Button size="lg" className="h-14 px-8 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
                                     <BookOpen className="w-5 h-5 mr-2" />
-                                    Upload Full Manuscript
+                                    Upload Full Work
                                 </Button>
                             </Link>
                             <Link to={createPageUrl('Evaluate')}>
                                 <Button size="lg" variant="outline" className="h-14 px-8 text-lg border-slate-300">
                                     <Sparkles className="w-5 h-5 mr-2" />
-                                    Quick Eval (2k words)
+                                    Quick Scene/Chapter Eval
                                 </Button>
                             </Link>
                         </div>
@@ -82,7 +82,7 @@ export default function Home() {
                         {
                             icon: BookOpen,
                             title: "Submit Your Draft",
-                            description: "Paste a paragraph, scene, or full chapter. RevisionGrade™ handles any length.",
+                            description: "Paste a scene, chapter, or full manuscript/screenplay. RevisionGrade™ handles any length.",
                             color: "from-indigo-500 to-blue-600"
                         },
                         {
@@ -130,7 +130,7 @@ export default function Home() {
                         Benchmarked Against Real Professional Editors
                     </h2>
                     <p className="text-slate-600 max-w-2xl mx-auto">
-                        Our scoring algorithm was calibrated using professional editorial assessments from PhD-level editors with expertise in creative writing, English literature, and environmental fiction.
+                        Our scoring algorithm was calibrated using professional editorial assessments from PhD-level editors with expertise in creative writing, screenwriting, English literature, and genre fiction.
                     </p>
                 </div>
 
@@ -138,15 +138,15 @@ export default function Home() {
                     <div className="p-6 rounded-xl bg-white border border-slate-200">
                         <h3 className="font-semibold text-slate-900 mb-2">Editorial Analysis</h3>
                         <p className="text-sm text-slate-600 mb-3">
-                            MFA Creative Writing + PhD English Literature specialists evaluated full manuscripts, identifying structural issues, pacing problems, and thematic clarity—not just grammar fixes.
+                            MFA Creative Writing + PhD English Literature specialists evaluated full manuscripts and screenplays, identifying structural issues, pacing problems, and thematic clarity—not just grammar fixes.
                         </p>
                         <Badge variant="outline" className="text-xs">Structural Critique</Badge>
                     </div>
 
                     <div className="p-6 rounded-xl bg-white border border-slate-200">
-                        <h3 className="font-semibold text-slate-900 mb-2">Genre-Specific Expertise</h3>
+                        <h3 className="font-semibold text-slate-900 mb-2">Cross-Format Expertise</h3>
                         <p className="text-sm text-slate-600 mb-3">
-                            PhD editor specializing in environmental fiction, conservation, climate change, and speculative fiction provided genre-aware feedback on marketability and agent expectations.
+                            PhD editors specializing in fiction, screenwriting, and genre-specific markets provided format-aware feedback on marketability and agent/producer expectations across prose and screenplay formats.
                         </p>
                         <Badge variant="outline" className="text-xs">Agent-Reality Standards</Badge>
                     </div>
@@ -154,8 +154,8 @@ export default function Home() {
 
                 <div className="mt-8 p-6 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200">
                     <p className="text-sm text-amber-900 text-center">
-                        <strong>The result:</strong> Our AI mirrors the brutal honesty of professional editors who charge $2,000-$4,000 per manuscript. 
-                        Their scoring methodology, diagnostic criteria, and agent-rejection reality checks inform every evaluation.
+                        <strong>The result:</strong> Our AI mirrors the brutal honesty of professional editors who charge $2,000-$4,000 per manuscript or screenplay. 
+                        Their scoring methodology, diagnostic criteria, and agent/producer rejection reality checks inform every evaluation.
                     </p>
                 </div>
             </div>
@@ -173,7 +173,7 @@ export default function Home() {
                                 Evaluated Like a Professional
                             </h2>
                             <p className="text-slate-300 leading-relaxed mb-8">
-                                Your manuscript is scored on the exact criteria literary agents use 
+                                Your work is scored on the exact criteria literary agents and producers use 
                                 when reviewing submissions—from voice and pacing to emotional resonance 
                                 and market readiness.
                             </p>
@@ -216,10 +216,10 @@ export default function Home() {
                 <div className="p-10 rounded-3xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100">
                     <Zap className="w-12 h-12 mx-auto mb-6 text-indigo-600" />
                     <h2 className="text-3xl font-bold text-slate-900 mb-4">
-                        Ready to Elevate Your Manuscript?
+                        Ready to Elevate Your Writing?
                     </h2>
                     <p className="text-slate-600 mb-8 max-w-xl mx-auto">
-                        Submit your first draft and see how dual AI analysis can transform your writing.
+                        Submit your manuscript or screenplay and see how PhD-calibrated AI analysis can transform your work.
                     </p>
                     <Link to={createPageUrl('Evaluate')}>
                         <Button size="lg" className="h-14 px-10 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
