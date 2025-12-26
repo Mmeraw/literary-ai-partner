@@ -37,8 +37,10 @@ export default function Layout({ children, currentPageName }) {
         const checkAuth = async () => {
             try {
                 const userData = await base44.auth.me();
+                console.log('Auth user data:', userData);
                 setUser(userData);
             } catch (err) {
+                console.log('Auth error:', err);
                 setUser(null);
             } finally {
                 setLoading(false);
@@ -138,6 +140,7 @@ export default function Layout({ children, currentPageName }) {
                                 <div className="text-center py-4 text-slate-500">Loading...</div>
                             ) : (
                                 <>
+                                    {console.log('Mobile menu - user:', user, 'loading:', loading) || null}
                                     {(user ? authNavItems : publicNavItems).map((item) => (
                                         <Link 
                                             key={item.page} 
