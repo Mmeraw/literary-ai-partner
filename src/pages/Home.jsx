@@ -278,9 +278,17 @@ export default function Home() {
                     <h3 className="text-lg font-semibold text-slate-900 mb-3">About RevisionGrade</h3>
                     <p className="text-sm text-slate-700 leading-relaxed">
                         Created by <strong>Michael J. Meraw (Major, Retired), CD, SCPM (Stanford), BComm, AGDM, MBA</strong>. 
-                        RevisionGrade was designed by a former military pilot and corporate aerospace leader with deep expertise in root‑cause corrective action, value‑stream mapping, and metrics‑driven continuous improvement—drawing on operating‑system principles used at United Technologies (ACE – Achieving Competitive Excellence), Raytheon‑class defense programs, and Six Sigma–style quality disciplines. 
-                        He operationalized a 12‑criteria literary framework and the proprietary WAVE Revision System into the platform's scoring engine. 
-                        AI tools generate analysis and revision suggestions under this framework; final decisions always remain with the writer.
+                        RevisionGrade was designed by a former military pilot and corporate aerospace leader with deep expertise in root-cause corrective action, value-stream mapping, metrics-driven continuous improvement, and enterprise information / master-data governance (including writing governance policy at a global aerospace company). 
+                        Drawing on operating-system principles common to large-scale aerospace and defense programs and quality disciplines, he operationalized RevisionGrade's 12-criteria framework and the proprietary WAVE Revision System into the platform's scoring engine. 
+                        AI tools generate analysis and revision suggestions under this framework; final decisions always remain with the writer.{' '}
+                        <a 
+                            href="https://michaeljmeraw.com" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-indigo-600 hover:text-indigo-700 font-medium underline"
+                        >
+                            Learn more about the creator →
+                        </a>
                     </p>
                 </div>
             </div>
