@@ -84,6 +84,15 @@ export default function FeedbackButtons({ suggestion, onFeedback }) {
               className="text-xs"
               rows={2}
             />
+            <Button
+              onClick={() => {
+                handleDetailedFeedback(feedback.rating || 'not_helpful');
+              }}
+              className="w-full"
+              size="sm"
+            >
+              Send Feedback
+            </Button>
           </motion.div>
         )}
       </AnimatePresence>
