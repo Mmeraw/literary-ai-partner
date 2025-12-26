@@ -45,7 +45,7 @@ export default function Home() {
                         <div className="mt-4 space-y-2 flex flex-col items-center">
                             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-100 border border-indigo-200">
                                 <Shield className="w-4 h-4 text-indigo-600" />
-                                <span className="text-sm font-medium text-indigo-900">Algorithm calibrated with multiple PhDs in English Literature</span>
+                                <span className="text-sm font-medium text-indigo-900">Scoring calibrated against professional editorial assessments from PhD editors</span>
                             </div>
                             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200">
                                 <span className="text-sm font-medium text-slate-700">We'd rather hurt your feelings than waste your submission</span>
@@ -116,6 +116,47 @@ export default function Home() {
                             </div>
                         </motion.div>
                     ))}
+                </div>
+            </div>
+
+            {/* Calibration Trust Section */}
+            <div className="max-w-6xl mx-auto px-6 py-20">
+                <div className="text-center mb-12">
+                    <Badge className="mb-4 bg-indigo-100 text-indigo-700 border-indigo-200">
+                        <Shield className="w-4 h-4 mr-2" />
+                        PhD-Calibrated Scoring
+                    </Badge>
+                    <h2 className="text-3xl font-bold text-slate-900 mb-4">
+                        Benchmarked Against Real Professional Editors
+                    </h2>
+                    <p className="text-slate-600 max-w-2xl mx-auto">
+                        Our scoring algorithm was calibrated using professional editorial assessments from PhD-level editors with expertise in creative writing, English literature, and environmental fiction.
+                    </p>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                    <div className="p-6 rounded-xl bg-white border border-slate-200">
+                        <h3 className="font-semibold text-slate-900 mb-2">Editorial Analysis</h3>
+                        <p className="text-sm text-slate-600 mb-3">
+                            MFA Creative Writing + PhD English Literature specialists evaluated full manuscripts, identifying structural issues, pacing problems, and thematic clarity—not just grammar fixes.
+                        </p>
+                        <Badge variant="outline" className="text-xs">Structural Critique</Badge>
+                    </div>
+
+                    <div className="p-6 rounded-xl bg-white border border-slate-200">
+                        <h3 className="font-semibold text-slate-900 mb-2">Genre-Specific Expertise</h3>
+                        <p className="text-sm text-slate-600 mb-3">
+                            PhD editor specializing in environmental fiction, conservation, climate change, and speculative fiction provided genre-aware feedback on marketability and agent expectations.
+                        </p>
+                        <Badge variant="outline" className="text-xs">Agent-Reality Standards</Badge>
+                    </div>
+                </div>
+
+                <div className="mt-8 p-6 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200">
+                    <p className="text-sm text-amber-900 text-center">
+                        <strong>The result:</strong> Our AI mirrors the brutal honesty of professional editors who charge $2,000-$4,000 per manuscript. 
+                        Their scoring methodology, diagnostic criteria, and agent-rejection reality checks inform every evaluation.
+                    </p>
                 </div>
             </div>
 
