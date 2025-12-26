@@ -7,19 +7,56 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
     FileText, Calendar, Type, TrendingUp, 
-    ChevronRight, Clock, CheckCircle2, AlertCircle
+    ChevronRight, Clock, CheckCircle2, AlertCircle, Trash2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { format } from 'date-fns';
 import { motion } from "framer-motion";
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from "sonner";
 
 export default function History() {
+    const queryClient = useQueryClient();
+    
     const { data: submissions, isLoading } = useQuery({
         queryKey: ['submissions'],
-        queryFn: () => base44.entities.Submission.list('-created_date'),
+        queryFn: async () => {
+            const allSubmissions = await base44.entities.Submission.list('-created_date');
+            // Filter out deleted items older than 30 days
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            
+            return allSubmissions.filter(s => {
+                if (!s.deleted_at) return true;
+                return new Date(s.deleted_at) > thirtyDaysAgo;
+            });
+        },
         initialData: []
     });
+
+    const deleteMutation = useMutation({
+        mutationFn: async (id) => {
+            await base44.entities.Submission.update(id, {
+                deleted_at: new Date().toISOString()
+            });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['submissions'] });
+            toast.success('Submission deleted. Can be recovered within 30 days.');
+        },
+        onError: () => {
+            toast.error('Failed to delete submission');
+        }
+    });
+
+    const handleDelete = async (e, id) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (confirm('Delete this submission? You can recover it within 30 days.')) {
+            deleteMutation.mutate(id);
+        }
+    };
 
     const getStatusConfig = (status) => {
         switch (status) {
@@ -131,6 +168,15 @@ export default function History() {
                                                                     <StatusIcon className="w-3 h-3 mr-1" />
                                                                     {statusConfig.label}
                                                                 </Badge>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={(e) => handleDelete(e, submission.id)}
+                                                                    disabled={deleteMutation.isPending}
+                                                                    className="text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </Button>
                                                             </div>
                                                         </div>
 
