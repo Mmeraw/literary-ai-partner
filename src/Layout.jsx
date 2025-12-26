@@ -132,8 +132,8 @@ export default function Layout({ children, currentPageName }) {
 
                 {/* Mobile Navigation */}
                 {mobileMenuOpen && (
-                    <div className="md:hidden border-t border-slate-100 bg-white shadow-lg">
-                        <div className="px-4 py-3 pb-4 space-y-1 max-h-[70vh] overflow-y-auto">
+                    <div className="md:hidden absolute left-0 right-0 border-t border-slate-100 bg-white shadow-lg">
+                        <div className="px-4 py-3 pb-4 space-y-1 max-h-[calc(100vh-5rem)] overflow-y-auto">
                             {(user ? authNavItems : publicNavItems).map((item) => (
                                 <Link 
                                     key={item.page} 
