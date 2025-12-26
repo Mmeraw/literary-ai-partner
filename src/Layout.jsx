@@ -58,36 +58,33 @@ export default function Layout({ children, currentPageName }) {
             {/* Navigation */}
             <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6">
-                    <div className="flex items-center justify-between h-16">
+                    <div className="flex items-center gap-4 h-16">
                         {/* Logo */}
-                        <Link to={createPageUrl('Home')} className="flex items-center gap-3">
+                        <Link to={createPageUrl('Home')} className="flex items-center gap-2 flex-shrink-0">
                             <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600">
                                 <BookOpen className="w-5 h-5 text-white" />
                             </div>
-                            <div>
-                                <div className="font-bold text-xl text-slate-900">
+                            <div className="hidden lg:block">
+                                <div className="font-bold text-lg text-slate-900">
                                     Revision<span className="text-indigo-600">Grade</span>™
-                                </div>
-                                <div className="text-xs text-slate-500 -mt-1">
-                                    Literary AI Partner™
                                 </div>
                             </div>
                         </Link>
 
                         {/* Desktop Navigation */}
-                        <div className="hidden md:flex items-center gap-1 overflow-x-auto">
+                        <div className="hidden md:flex items-center gap-1 flex-1 overflow-x-auto scrollbar-hide">
                             {(user ? authNavItems : publicNavItems).map((item) => (
                                 <Link key={item.page} to={createPageUrl(item.page)}>
                                     <Button
                                         variant="ghost"
                                         className={cn(
-                                            "h-10 px-3 whitespace-nowrap",
+                                            "h-9 px-3 text-sm whitespace-nowrap flex-shrink-0",
                                             currentPageName === item.page 
                                                 ? "bg-indigo-50 text-indigo-700" 
                                                 : "text-slate-600 hover:text-slate-900"
                                         )}
                                     >
-                                        <item.icon className="w-4 h-4 mr-2" />
+                                        <item.icon className="w-4 h-4 mr-1.5" />
                                         {item.name}
                                     </Button>
                                 </Link>
@@ -95,7 +92,7 @@ export default function Layout({ children, currentPageName }) {
                         </div>
 
                         {/* Right side */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-shrink-0">
                             {user ? (
                                 <Button
                                     variant="ghost"
