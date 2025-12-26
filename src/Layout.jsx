@@ -61,6 +61,9 @@ export default function Layout({ children, currentPageName }) {
                                 <div className="font-bold text-lg text-slate-900">
                                     Literary AI Partner™
                                 </div>
+                                <div className="text-xs text-slate-600">
+                                    Professional Editorial Intelligence
+                                </div>
                             </div>
                         </Link>
 
