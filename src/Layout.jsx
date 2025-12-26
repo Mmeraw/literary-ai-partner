@@ -34,10 +34,17 @@ export default function Layout({ children, currentPageName }) {
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
-        base44.auth.me()
-            .then(setUser)
-            .catch(() => setUser(null))
-            .finally(() => setLoading(false));
+        const checkAuth = async () => {
+            try {
+                const userData = await base44.auth.me();
+                setUser(userData);
+            } catch (err) {
+                setUser(null);
+            } finally {
+                setLoading(false);
+            }
+        };
+        checkAuth();
     }, []);
 
     const handleLogout = () => {
