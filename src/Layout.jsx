@@ -131,9 +131,27 @@ export default function Layout({ children, currentPageName }) {
             </main>
 
             {/* Footer */}
-            <footer className="border-t border-slate-100 bg-white py-8 mt-auto">
-                <div className="max-w-7xl mx-auto px-6 text-center text-sm text-slate-500">
-                    <p>Powered by the WAVE Revision System • 12 Literary Agent Criteria • 60+ Wave Revision Items</p>
+            <footer className="border-t border-slate-100 bg-white py-12 mt-auto">
+                <div className="max-w-7xl mx-auto px-6">
+                    <div className="text-center space-y-4">
+                        <p className="text-sm text-slate-500">
+                            Powered by the WAVE Revision System • 12 Literary Agent Criteria • 60+ Wave Revision Items
+                        </p>
+                        <div className="flex flex-wrap justify-center gap-6 text-sm">
+                            <Link to={createPageUrl('Contact')} className="text-slate-600 hover:text-indigo-600">
+                                Contact
+                            </Link>
+                            <Link to={createPageUrl('Privacy')} className="text-slate-600 hover:text-indigo-600">
+                                Privacy Policy
+                            </Link>
+                            <Link to={createPageUrl('Terms')} className="text-slate-600 hover:text-indigo-600">
+                                Terms of Service
+                            </Link>
+                        </div>
+                        <p className="text-sm text-slate-500">
+                            © {new Date().getFullYear()} RevisionGrade™. All rights reserved.
+                        </p>
+                    </div>
                 </div>
             </footer>
         </div>

@@ -12,6 +12,9 @@ import ScreenplayFormatter from './pages/ScreenplayFormatter';
 import SpineReport from './pages/SpineReport';
 import UploadManuscript from './pages/UploadManuscript';
 import ViewReport from './pages/ViewReport';
+import Contact from './pages/Contact';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 import __Layout from './Layout.jsx';
 
 
@@ -30,6 +33,9 @@ export const PAGES = {
     "SpineReport": SpineReport,
     "UploadManuscript": UploadManuscript,
     "ViewReport": ViewReport,
+    "Contact": Contact,
+    "Privacy": Privacy,
+    "Terms": Terms,
 }
 
 export const pagesConfig = {
