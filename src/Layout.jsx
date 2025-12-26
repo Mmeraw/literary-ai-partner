@@ -32,15 +32,17 @@ export default function Layout({ children, currentPageName }) {
                     <div className="flex items-center justify-between h-16">
                         {/* Logo */}
                         <Link to={createPageUrl('Home')} className="flex items-center gap-3">
-                            <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600">
-                                <BookOpen className="w-5 h-5 text-white" />
-                            </div>
+                            <img 
+                                src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/ac91b03ef_image.png" 
+                                alt="Evo-Myth Universe" 
+                                className="h-12 w-auto"
+                            />
                             <div>
-                                <div className="font-bold text-xl text-slate-900">
-                                    Revision<span className="text-indigo-600">Grade</span>™
+                                <div className="font-bold text-base text-slate-900 italic">
+                                    Where Evolution Meets Soul™
                                 </div>
-                                <div className="text-xs text-slate-500 -mt-1">
-                                    Literary AI Partner™
+                                <div className="text-xs text-indigo-600 -mt-1">
+                                    Revision<span className="font-semibold">Grade</span>™
                                 </div>
                             </div>
                         </Link>
