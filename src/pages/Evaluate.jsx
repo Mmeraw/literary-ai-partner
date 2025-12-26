@@ -224,7 +224,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 <div className="text-center mb-10">
                     <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <Sparkles className="w-4 h-4 mr-2" />
-                        Dual AI Analysis
+                        Three AI Systems Analysis
                     </Badge>
                     <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">
                         Evaluate Your Manuscript
