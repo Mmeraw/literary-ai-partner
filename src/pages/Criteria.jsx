@@ -98,14 +98,35 @@ const LITERARY_AGENT_CRITERIA = [
     }
 ];
 
-const WAVE_REVISION_ITEMS = [
-    { category: "Sentence Craft", items: ["Sentence variety", "Word economy", "Active voice", "Strong verbs", "Adverb reduction", "Precise nouns", "Rhythm and flow", "Opening sentences", "Closing sentences"] },
-    { category: "Sensory & Detail", items: ["Visual details", "Auditory elements", "Tactile sensations", "Smell and taste", "Selective specificity", "Grounding details", "Environmental mood"] },
-    { category: "Dialogue Craft", items: ["Character voice distinction", "Subtext presence", "Beat placement", "Tag variety", "Action integration", "Exposition avoidance", "Tension in conversation"] },
-    { category: "Scene Structure", items: ["Scene goals", "Conflict presence", "Scene turns", "Entry point", "Exit timing", "Sequel balance", "Emotional arc"] },
-    { category: "Character Work", items: ["Internal monologue", "Physical tells", "Consistent voice", "Motivation clarity", "Vulnerability moments", "Growth indicators", "Relationship dynamics"] },
-    { category: "Pacing Elements", items: ["Scene length variety", "Tension escalation", "Breathing room", "Chapter hooks", "Mid-chapter momentum", "Transition smoothness"] },
-    { category: "Technical Polish", items: ["POV consistency", "Tense consistency", "Filtering removal", "Crutch word elimination", "Punctuation precision", "Paragraph structure"] }
+const SIGNAL_FAMILIES = [
+    { 
+        name: "Sentence & Line Craft", 
+        description: "Evaluates clarity, rhythm, and control at the sentence level—how confidently prose moves and how cleanly ideas land on the page."
+    },
+    { 
+        name: "Sensory & Detail Control", 
+        description: "Assesses how effectively concrete detail grounds the reader, supports mood, and enhances comprehension without overwhelming the narrative."
+    },
+    { 
+        name: "Dialogue & Subtext", 
+        description: "Evaluates voice distinction, subtext, and the integration of action so conversations carry narrative weight rather than exposition."
+    },
+    { 
+        name: "Scene & Structural Momentum", 
+        description: "Examines how scenes enter, escalate, and resolve, and whether narrative momentum is sustained across transitions."
+    },
+    { 
+        name: "Character Depth & Consistency", 
+        description: "Assesses motivation, emotional logic, and relationship dynamics to ensure characters feel coherent and alive."
+    },
+    { 
+        name: "Pacing & Engagement", 
+        description: "Measures tension control, rhythm variation, and forward pull to keep readers engaged across chapters."
+    },
+    { 
+        name: "Technical & Mechanical Precision", 
+        description: "Reviews clarity, consistency, and mechanical execution to ensure professional readability."
+    }
 ];
 
 export default function Criteria() {
@@ -116,10 +137,10 @@ export default function Criteria() {
         c.description.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const filteredWave = WAVE_REVISION_ITEMS.map(cat => ({
-        ...cat,
-        items: cat.items.filter(item => item.toLowerCase().includes(searchTerm.toLowerCase()))
-    })).filter(cat => cat.items.length > 0 || cat.category.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredSignals = SIGNAL_FAMILIES.filter(sig => 
+        sig.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        sig.description.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
@@ -156,11 +177,11 @@ export default function Criteria() {
                     <TabsList className="w-full max-w-md mx-auto bg-slate-100 p-1 mb-10">
                         <TabsTrigger value="literary" className="flex-1 data-[state=active]:bg-white">
                             <BookOpen className="w-4 h-4 mr-2" />
-                            Literary Agent (12)
+                            Literary Agent Criteria
                         </TabsTrigger>
                         <TabsTrigger value="wave" className="flex-1 data-[state=active]:bg-white">
                             <Waves className="w-4 h-4 mr-2" />
-                            Wave Revision (60+)
+                            Editorial Signal Families
                         </TabsTrigger>
                     </TabsList>
 
@@ -223,42 +244,59 @@ export default function Criteria() {
                     </TabsContent>
 
                     <TabsContent value="wave">
-                        <div className="space-y-8">
-                            {filteredWave.map((category, idx) => (
+                        <div className="space-y-6">
+                            {filteredSignals.map((signal, idx) => (
                                 <motion.div
-                                    key={category.category}
+                                    key={signal.name}
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: idx * 0.1 }}
+                                    transition={{ delay: idx * 0.05 }}
                                 >
                                     <Card className="border-0 shadow-md bg-white/90">
                                         <CardHeader>
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600">
+                                            <div className="flex items-start gap-3">
+                                                <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 shrink-0">
                                                     <Waves className="w-4 h-4 text-white" />
                                                 </div>
-                                                <CardTitle className="text-lg text-slate-800">{category.category}</CardTitle>
-                                                <Badge variant="outline" className="ml-auto">
-                                                    {category.items.length} items
-                                                </Badge>
+                                                <div>
+                                                    <CardTitle className="text-lg text-slate-800">{signal.name}</CardTitle>
+                                                    <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                                                        {signal.description}
+                                                    </p>
+                                                </div>
                                             </div>
                                         </CardHeader>
-                                        <CardContent>
-                                            <div className="flex flex-wrap gap-2">
-                                                {category.items.map((item, i) => (
-                                                    <Badge 
-                                                        key={i} 
-                                                        className="bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 transition-colors cursor-default"
-                                                    >
-                                                        <CheckCircle2 className="w-3 h-3 mr-1.5 text-purple-500" />
-                                                        {item}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        </CardContent>
                                     </Card>
                                 </motion.div>
                             ))}
+
+                            {/* Under the Hood Section */}
+                            <Card className="border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50">
+                                <CardHeader>
+                                    <div className="flex items-start gap-3">
+                                        <div className="p-2 rounded-lg bg-indigo-600 shrink-0">
+                                            <Eye className="w-5 h-5 text-white" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-lg text-indigo-900">Under the Hood</CardTitle>
+                                            <div className="mt-3 space-y-3 text-sm text-slate-700">
+                                                <p className="leading-relaxed">
+                                                    RevisionGrade uses a <strong className="text-indigo-900">proprietary, multi-layered evaluation framework</strong> informed by professional editorial standards and calibrated against high-performing manuscripts.
+                                                </p>
+                                                <p className="leading-relaxed">
+                                                    The system identifies structural, narrative, and technical risks while guiding revision priorities.
+                                                </p>
+                                                <div className="pt-3 border-t border-indigo-200">
+                                                    <p className="text-xs italic text-indigo-800">
+                                                        Evaluation methods and weighting are intentionally not disclosed.<br />
+                                                        Results are designed to guide revision decisions—not to replicate or replace human editorial judgment.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                            </Card>
                         </div>
                     </TabsContent>
                 </Tabs>
