@@ -56,16 +56,16 @@ export default function UploadManuscript() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 mb-4">
-            <BookOpen className="w-8 h-8 text-white" />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
+        <div className="text-center mb-4 sm:mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 mb-2 sm:mb-4">
+            <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900">Upload Full Manuscript</h1>
-          <p className="mt-2 text-slate-600">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Upload Full Manuscript</h1>
+          <p className="mt-1 sm:mt-2 text-sm sm:text-base text-slate-600">
               Get comprehensive spine evaluation + chapter-by-chapter analysis
           </p>
-          <p className="mt-2 text-sm text-slate-500 max-w-2xl mx-auto">
+          <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-slate-500 max-w-2xl mx-auto">
               Scores reflect how your work aligns with agent-level criteria and WAVE standards. This is revision guidance, not a guarantee of representation or publication.
           </p>
         </div>
@@ -77,9 +77,9 @@ export default function UploadManuscript() {
               Manuscript Details
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4 sm:space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1 sm:mb-2">
                 Title
               </label>
               <Input
@@ -91,23 +91,23 @@ export default function UploadManuscript() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1 sm:mb-2">
                 Full Manuscript Text
               </label>
               <Textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Paste your complete manuscript here..."
-                className="min-h-[400px] font-mono text-sm"
+                className="min-h-[300px] sm:min-h-[400px] font-mono text-sm"
               />
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-1 sm:mt-2 text-sm text-slate-500">
                 Word count: {wordCount.toLocaleString()}
               </p>
             </div>
 
-            <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200">
-              <h4 className="font-semibold text-indigo-900 mb-2">What happens next:</h4>
-              <ul className="space-y-1 text-sm text-indigo-800">
+            <div className="p-3 sm:p-4 rounded-lg bg-indigo-50 border border-indigo-200">
+              <h4 className="font-semibold text-indigo-900 mb-1 sm:mb-2 text-sm sm:text-base">What happens next:</h4>
+              <ul className="space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-indigo-800">
                 <li>• Manuscript split into chapters automatically</li>
                 <li>• Spine evaluation analyzes plot, arc, and theme</li>
                 <li>• Each chapter can be evaluated with WAVE Revision</li>
