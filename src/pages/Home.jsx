@@ -27,7 +27,7 @@ export default function Home() {
                 <div className="absolute top-20 left-10 w-72 h-72 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" />
                 <div className="absolute top-40 right-10 w-72 h-72 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse delay-1000" />
                 
-                <div className="relative max-w-6xl mx-auto px-6 py-24 sm:py-32">
+                <div className="relative max-w-6xl mx-auto px-6 py-12 sm:py-16">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -46,7 +46,7 @@ export default function Home() {
                             </span>
                         </h1>
 
-                        <p className="mt-5 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
+                        <p className="mt-3 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
                             Get your <strong className="text-slate-900">manuscript</strong> or <strong className="text-slate-900">screenplay</strong> graded against the same 12 agent-level criteria literary and film/TV professionals use to decide what to request, plus 60+ checks from the proprietary WAVE Revision System. 
                             Three AI perspectives analyze your work—but our PhD-calibrated score tells you the brutal truth.
                         </p>
@@ -61,7 +61,7 @@ export default function Home() {
                             </div>
                         </div>
 
-                        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+                        <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
                             <Link to={createPageUrl('UploadManuscript')}>
                                 <Button size="lg" className="h-14 px-8 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
                                     <BookOpen className="w-5 h-5 mr-2" />
@@ -80,7 +80,7 @@ export default function Home() {
             </div>
 
             {/* WAVE IP Callout */}
-            <div className="max-w-4xl mx-auto px-6 py-16">
+            <div className="max-w-4xl mx-auto px-6 py-12">
                 <div className="p-8 rounded-2xl bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 border-2 border-indigo-200 shadow-lg">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="p-2 rounded-lg bg-indigo-600">
