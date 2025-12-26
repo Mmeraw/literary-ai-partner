@@ -27,7 +27,7 @@ export default function Home() {
                     >
                         <Badge className="mb-6 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200 text-sm font-medium">
                             <Sparkles className="w-4 h-4 mr-2" />
-                            AI-Powered Manuscript Grading
+                            Human-AI-Powered Manuscript Grading and Revision
                         </Badge>
                         
                         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
