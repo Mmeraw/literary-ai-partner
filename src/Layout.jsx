@@ -58,9 +58,6 @@ export default function Layout({ children, currentPageName }) {
                                 <BookOpen className="w-5 h-5 text-white" />
                             </div>
                             <div className="hidden lg:block">
-                                <div className="font-bold text-lg text-slate-900">
-                                    Literary AI Partner™
-                                </div>
                                 <div className="text-xs text-slate-600">
                                     Professional Editorial Intelligence
                                 </div>
