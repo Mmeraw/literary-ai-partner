@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
     FileText, Calendar, Type, TrendingUp, 
-    ChevronRight, Clock, CheckCircle2, AlertCircle, Trash2
+    ChevronRight, Clock, CheckCircle2, AlertCircle, Trash2, Archive
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -15,25 +15,31 @@ import { format } from 'date-fns';
 import { motion } from "framer-motion";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function History() {
+    const [activeTab, setActiveTab] = React.useState('active');
     const queryClient = useQueryClient();
     
-    const { data: submissions, isLoading } = useQuery({
+    const { data: allSubmissions, isLoading } = useQuery({
         queryKey: ['submissions'],
         queryFn: async () => {
-            const allSubmissions = await base44.entities.Submission.list('-created_date');
-            // Filter out deleted items older than 30 days
+            const submissions = await base44.entities.Submission.list('-created_date');
+            // Filter out permanently deleted items (older than 30 days)
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             
-            return allSubmissions.filter(s => {
+            return submissions.filter(s => {
                 if (!s.deleted_at) return true;
                 return new Date(s.deleted_at) > thirtyDaysAgo;
             });
         },
         initialData: []
     });
+
+    const activeSubmissions = allSubmissions.filter(s => !s.deleted_at);
+    const trashedSubmissions = allSubmissions.filter(s => s.deleted_at);
+    const submissions = activeTab === 'active' ? activeSubmissions : trashedSubmissions;
 
     const deleteMutation = useMutation({
         mutationFn: async (id) => {
@@ -43,19 +49,61 @@ export default function History() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['submissions'] });
-            toast.success('Submission deleted. Can be recovered within 30 days.');
+            toast.success('Moved to trash. Can be recovered within 30 days.');
+        },
+        onError: () => {
+            toast.error('Failed to move to trash');
+        }
+    });
+
+    const permanentDeleteMutation = useMutation({
+        mutationFn: async (id) => {
+            await base44.entities.Submission.delete(id);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['submissions'] });
+            toast.success('Submission permanently deleted');
         },
         onError: () => {
             toast.error('Failed to delete submission');
         }
     });
 
+    const restoreMutation = useMutation({
+        mutationFn: async (id) => {
+            await base44.entities.Submission.update(id, {
+                deleted_at: null
+            });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['submissions'] });
+            toast.success('Submission restored');
+        },
+        onError: () => {
+            toast.error('Failed to restore submission');
+        }
+    });
+
     const handleDelete = async (e, id) => {
         e.preventDefault();
         e.stopPropagation();
-        if (confirm('Delete this submission? You can recover it within 30 days.')) {
+        if (confirm('Move this submission to trash? You can recover it within 30 days.')) {
             deleteMutation.mutate(id);
         }
+    };
+
+    const handlePermanentDelete = async (e, id) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (confirm('Permanently delete this submission? This cannot be undone.')) {
+            permanentDeleteMutation.mutate(id);
+        }
+    };
+
+    const handleRestore = async (e, id) => {
+        e.preventDefault();
+        e.stopPropagation();
+        restoreMutation.mutate(id);
     };
 
     const getStatusConfig = (status) => {
@@ -84,6 +132,20 @@ export default function History() {
                     <p className="mt-2 text-slate-600">View and continue your manuscript evaluations</p>
                 </div>
 
+                {/* Tabs */}
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+                    <TabsList className="grid w-full max-w-md grid-cols-2">
+                        <TabsTrigger value="active" className="flex items-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            Active ({activeSubmissions.length})
+                        </TabsTrigger>
+                        <TabsTrigger value="trash" className="flex items-center gap-2">
+                            <Archive className="w-4 h-4" />
+                            Trash ({trashedSubmissions.length})
+                        </TabsTrigger>
+                    </TabsList>
+                </Tabs>
+
                 {/* Submissions List */}
                 {isLoading ? (
                     <div className="space-y-4">
@@ -105,15 +167,25 @@ export default function History() {
                 ) : submissions.length === 0 ? (
                     <Card className="border-0 shadow-md bg-white/90">
                         <CardContent className="py-16 text-center">
-                            <FileText className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-                            <h3 className="text-xl font-semibold text-slate-800 mb-2">No Submissions Yet</h3>
-                            <p className="text-slate-500 mb-6">Start by evaluating your first manuscript</p>
-                            <Link to={createPageUrl('Evaluate')}>
-                                <Button className="bg-gradient-to-r from-indigo-600 to-purple-600">
-                                    Start Evaluation
-                                    <ChevronRight className="w-4 h-4 ml-2" />
-                                </Button>
-                            </Link>
+                            {activeTab === 'active' ? (
+                                <>
+                                    <FileText className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+                                    <h3 className="text-xl font-semibold text-slate-800 mb-2">No Submissions Yet</h3>
+                                    <p className="text-slate-500 mb-6">Start by evaluating your first manuscript</p>
+                                    <Link to={createPageUrl('Evaluate')}>
+                                        <Button className="bg-gradient-to-r from-indigo-600 to-purple-600">
+                                            Start Evaluation
+                                            <ChevronRight className="w-4 h-4 ml-2" />
+                                        </Button>
+                                    </Link>
+                                </>
+                            ) : (
+                                <>
+                                    <Archive className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+                                    <h3 className="text-xl font-semibold text-slate-800 mb-2">Trash is Empty</h3>
+                                    <p className="text-slate-500">Deleted submissions will appear here for 30 days</p>
+                                </>
+                            )}
                         </CardContent>
                     </Card>
                 ) : (
@@ -168,15 +240,38 @@ export default function History() {
                                                                     <StatusIcon className="w-3 h-3 mr-1" />
                                                                     {statusConfig.label}
                                                                 </Badge>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    onClick={(e) => handleDelete(e, submission.id)}
-                                                                    disabled={deleteMutation.isPending}
-                                                                    className="text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                                                                >
-                                                                    <Trash2 className="w-4 h-4" />
-                                                                </Button>
+                                                                {activeTab === 'active' ? (
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        onClick={(e) => handleDelete(e, submission.id)}
+                                                                        disabled={deleteMutation.isPending}
+                                                                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </Button>
+                                                                ) : (
+                                                                    <div className="flex gap-2">
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            onClick={(e) => handleRestore(e, submission.id)}
+                                                                            disabled={restoreMutation.isPending}
+                                                                            className="text-emerald-600 hover:bg-emerald-50"
+                                                                        >
+                                                                            Restore
+                                                                        </Button>
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            onClick={(e) => handlePermanentDelete(e, submission.id)}
+                                                                            disabled={permanentDeleteMutation.isPending}
+                                                                            className="text-rose-600 hover:bg-rose-50"
+                                                                        >
+                                                                            Delete Forever
+                                                                        </Button>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
 
