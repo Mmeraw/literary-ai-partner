@@ -1,6 +1,6 @@
 import Stripe from 'npm:stripe@17.5.0';
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY"), {
+const stripe = new Stripe(Deno.env.get("Stripe_CREATION_KEY"), {
     apiVersion: '2024-12-18.acacia'
 });
 
