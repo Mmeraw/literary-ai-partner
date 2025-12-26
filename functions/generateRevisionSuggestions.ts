@@ -57,16 +57,30 @@ const WAVES = {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
+
+    const { text, title, wave_number = 1, submission_id, evaluation_result } = await req.json();
+
+    // Support both direct text/title (anonymous) or submission_id (logged in)
+    let workingText = text;
+    let workingTitle = title || 'Untitled';
     
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!workingText && submission_id) {
+      // Fetch from database if submission_id provided
+      const user = await base44.auth.me();
+      if (!user) {
+        return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      
+      const submissions = await base44.entities.Submission.filter({ id: submission_id });
+      if (!submissions || submissions.length === 0) {
+        return Response.json({ error: 'Submission not found' }, { status: 404 });
+      }
+      workingText = submissions[0].text;
+      workingTitle = submissions[0].title;
     }
 
-    const { text, wave_number = 1, submission_id } = await req.json();
-
-    if (!text) {
-      return Response.json({ error: 'Text required' }, { status: 400 });
+    if (!workingText) {
+      return Response.json({ error: 'Text required (either directly or via submission_id)' }, { status: 400 });
     }
 
     const wave = WAVES[wave_number];
@@ -139,11 +153,37 @@ Return JSON:
       alternatives: []
     }));
 
-    return Response.json({ 
-      wave_name: wave.name,
-      suggestions,
-      wave_number 
-    });
+    // Create revision session
+    const sessionData = {
+      submission_id: submission_id || `temp_${Date.now()}`,
+      title: workingTitle,
+      original_text: workingText,
+      current_text: workingText,
+      current_wave: wave_number,
+      current_position: 0,
+      suggestions: suggestions,
+      status: 'in_progress'
+    };
+
+    try {
+      const session = await base44.entities.RevisionSession.create(sessionData);
+      return Response.json({ 
+        session_id: session.id,
+        wave_name: wave.name,
+        suggestions,
+        wave_number 
+      });
+    } catch (dbError) {
+      // If DB fails (e.g., anonymous user), return suggestions without saving
+      console.warn('Could not save session to DB:', dbError);
+      return Response.json({ 
+        session_id: null,
+        wave_name: wave.name,
+        suggestions,
+        wave_number,
+        anonymous: true
+      });
+    }
 
   } catch (error) {
     console.error('Revision generation error:', error);
