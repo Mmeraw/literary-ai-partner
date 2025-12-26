@@ -320,7 +320,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                             Analyzing Your Manuscript...
                                         </h3>
                                         <p className="mt-2 text-slate-500 text-center max-w-md">
-                                            Two AI systems evaluating against 12 literary agent criteria and 60+ Wave Revision items
+                                            Three AI systems evaluating against 12 literary agent criteria and 60+ Wave Revision items
                                         </p>
                                     </>
                                 ) : error ? (
