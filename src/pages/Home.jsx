@@ -178,7 +178,7 @@ export default function Home() {
             </div>
 
             {/* Calibration Trust Section */}
-            <div className="max-w-6xl mx-auto px-6 py-20">
+            <div className="max-w-6xl mx-auto px-6 py-14">
                 <div className="text-center mb-12">
                     <Badge className="mb-4 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <Shield className="w-4 h-4 mr-2" />
