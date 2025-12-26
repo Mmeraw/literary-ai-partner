@@ -31,8 +31,8 @@ export default function WhyRevisionGrade() {
 
                     <p className="text-xl text-slate-300 leading-relaxed max-w-3xl mx-auto">
                         Most tools analyze text. RevisionGrade evaluates readiness. Where others count words, flags, and patterns, 
-                        RevisionGrade applies professional editorial standards—the same ones used by agents and acquisition 
-                        editors—to tell you <strong className="text-white">why a manuscript would be rejected</strong> and what to fix next.
+                        RevisionGrade applies professional editorial standards—the same ones agents and acquisition 
+                        editors use—to show you <strong className="text-white">why a manuscript would be rejected</strong> and what to fix next.
                     </p>
                 </div>
             </div>
@@ -66,9 +66,9 @@ export default function WhyRevisionGrade() {
                                 'Dozens of disconnected "reports"',
                                 'Surface-level metrics (adverbs, sentence length, passive voice)',
                                 'No prioritization—everything looks important',
-                                'Forces writers to guess what actually matters',
+                                'Force writers to guess what actually matters',
                                 'Optimized for volume, not publishing reality',
-                                '50+ separate tools with no unified framework'
+                                'Feature explosion: dozens of tools with no unified framework'
                             ].map((item, idx) => (
                                 <li key={idx} className="flex items-start gap-2 text-slate-600">
                                     <X className="w-5 h-5 text-slate-400 mt-0.5 flex-shrink-0" />
@@ -123,12 +123,12 @@ export default function WhyRevisionGrade() {
                     <div className="space-y-6 text-slate-300 text-lg">
                         <p className="leading-relaxed">
                             <strong className="text-white">Toolbox platforms</strong> bombard you with adverb counts, pronoun openers, 
-                            and sentence-variation reports. You're left drowning in data with no clear path forward.
+                            and sentence-variation reports, leaving you drowning in data with no clear path forward.
                         </p>
                         
                         <p className="leading-relaxed">
                             <strong className="text-white">RevisionGrade</strong> delivers one brutal, honest score plus a step-by-step 
-                            revision path aligned with real agent decision-making. We evaluate hook, structure, pacing, line authority, 
+                            revision path aligned with real agent decision-making. It evaluates hook, structure, pacing, line authority, 
                             and motif hygiene <em className="text-indigo-300">together</em>—so changes actually move the needle on publishability.
                         </p>
 
@@ -157,19 +157,19 @@ export default function WhyRevisionGrade() {
                         {
                             icon: Shield,
                             title: "PhD-Calibrated Standards",
-                            description: "Our scoring engine was trained on detailed editorial evaluations from PhD-level editors and literary professionals. Their criteria, diagnostic patterns, and revision standards are encoded into the system.",
+                            description: "Our scoring engine is trained on detailed editorial evaluations created by PhD-level editors and literary professionals. Their criteria, diagnostic patterns, and revision standards are encoded into the system.",
                             color: "from-indigo-500 to-blue-600"
                         },
                         {
                             icon: Layers,
                             title: "WAVE Revision System",
-                            description: "Our proprietary 60+-wave framework defines what gets graded: hook, structure, line-level authority, motif hygiene, pacing. The AI doesn't discover these rules—it executes them.",
+                            description: "Our proprietary 60+ wave framework defines what gets graded: hook, structure, line-level authority, motif hygiene, pacing, and more. The AI doesn't discover these rules—it executes them.",
                             color: "from-purple-500 to-pink-600"
                         },
                         {
                             icon: Target,
                             title: "Agent-Reality Focus",
-                            description: "We evaluate manuscripts against the 12 criteria agents and acquisition editors actually use when deciding what to request. Not grammar—marketability and craft.",
+                            description: "We evaluate manuscripts against the 12 criteria agents and acquisition editors actually use when deciding what to request—focusing on craft and marketability, not just grammar.",
                             color: "from-emerald-500 to-teal-600"
                         }
                     ].map((pillar, idx) => (
@@ -201,15 +201,21 @@ export default function WhyRevisionGrade() {
                         </h2>
                         <p className="text-xl text-slate-700 leading-relaxed max-w-2xl mx-auto">
                             RevisionGrade is not another bundle of writing gadgets. It's a publishing-reality diagnostic 
-                            that mirrors how professionals read—built to tell you the same hard truths agents use when 
+                            that mirrors how professionals read and tells you the same hard truths agents use when 
                             deciding what to request.
                         </p>
-                        <div className="pt-4">
-                            <Link to={createPageUrl('UploadManuscript')}>
+                        <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+                            <Link to={createPageUrl('Evaluate')}>
                                 <Button size="lg" className="h-14 px-10 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg">
                                     <Sparkles className="w-5 h-5 mr-2" />
-                                    See It In Action
+                                    Run a Quick Evaluation
                                     <ArrowRight className="w-5 h-5 ml-2" />
+                                </Button>
+                            </Link>
+                            <Link to={createPageUrl('UploadManuscript')}>
+                                <Button size="lg" variant="outline" className="h-14 px-10 text-lg border-slate-300">
+                                    <BookOpen className="w-5 h-5 mr-2" />
+                                    Upload Full Manuscript
                                 </Button>
                             </Link>
                         </div>
@@ -227,22 +233,22 @@ export default function WhyRevisionGrade() {
                         <div className="flex items-start gap-3">
                             <div className="w-2 h-2 rounded-full bg-slate-400 mt-2 flex-shrink-0" />
                             <p className="text-lg">
-                                <strong>Other platforms</strong> give you dozens of disconnected reports
+                                <strong>Other platforms</strong> give you dozens of disconnected reports.
                             </p>
                         </div>
                         <div className="flex items-start gap-3">
                             <div className="w-2 h-2 rounded-full bg-indigo-600 mt-2 flex-shrink-0" />
                             <p className="text-lg">
                                 <strong className="text-indigo-900">RevisionGrade</strong> gives you one integrated 
-                                Grade → Diagnose → Revise workflow that mirrors how professionals read
+                                Grade → Diagnose → Revise workflow that mirrors how professionals read.
                             </p>
                         </div>
                     </div>
                     <div className="mt-6 p-4 rounded-lg bg-indigo-50 border border-indigo-200">
                         <p className="text-sm text-indigo-900 italic text-center">
-                            Instead of chasing surface issues like adverb density or sentence length in isolation, 
+                            Instead of chasing surface issues in isolation, 
                             WAVE evaluates hook, structure, pacing, line authority, and motif hygiene together, 
-                            so changes actually move the needle on publishability.
+                            so each revision step actually improves publishability.
                         </p>
                     </div>
                 </div>
