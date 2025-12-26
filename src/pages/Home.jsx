@@ -273,7 +273,7 @@ export default function Home() {
             </div>
 
             {/* Creator Attribution */}
-            <div className="max-w-4xl mx-auto px-6 py-16">
+            <div className="max-w-4xl mx-auto px-6 py-8">
                 <div className="p-6 rounded-xl bg-slate-50 border border-slate-200">
                     <h3 className="text-lg font-semibold text-slate-900 mb-3">About RevisionGrade</h3>
                     <p className="text-sm text-slate-700 leading-relaxed">
@@ -294,7 +294,7 @@ export default function Home() {
             </div>
 
             {/* CTA Section */}
-            <div className="max-w-4xl mx-auto px-6 py-20 text-center">
+            <div className="max-w-4xl mx-auto px-6 py-10 text-center">
                 <div className="p-10 rounded-3xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100">
                     <Zap className="w-12 h-12 mx-auto mb-6 text-indigo-600" />
                     <h2 className="text-3xl font-bold text-slate-900 mb-4">
