@@ -88,23 +88,24 @@ export default function Layout({ children, currentPageName }) {
 
                         {/* Right side */}
                         <div className="flex items-center gap-2 flex-shrink-0">
-                            {user ? (
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={handleLogout}
-                                    className="text-slate-500 hover:text-slate-700"
-                                >
-                                    <LogOut className="w-5 h-5" />
-                                </Button>
-                            ) : !loading && (
-                                <Button
-                                    onClick={() => base44.auth.redirectToLogin()}
-                                    variant="outline"
-                                    className="text-slate-700"
-                                >
-                                    Sign In
-                                </Button>
+                            {!loading && (
+                                user ? (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={handleLogout}
+                                        className="text-slate-500 hover:text-slate-700"
+                                    >
+                                        <LogOut className="w-5 h-5" />
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        onClick={() => base44.auth.redirectToLogin()}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                                    >
+                                        Sign In
+                                    </Button>
+                                )
                             )}
 
                             {/* Mobile menu button */}
