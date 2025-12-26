@@ -47,7 +47,7 @@ export default function Home() {
                         </h1>
 
                         <p className="mt-5 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                            Get your <strong className="text-slate-900">manuscript</strong> or <strong className="text-slate-900">screenplay</strong> graded against the same 12 agent-level criteria literary professionals use to decide what to request, plus 60+ checks from the proprietary WAVE Revision System. 
+                            Get your <strong className="text-slate-900">manuscript</strong> or <strong className="text-slate-900">screenplay</strong> graded against the same 12 agent-level criteria literary and film/TV professionals use to decide what to request, plus 60+ checks from the proprietary WAVE Revision System. 
                             Three AI perspectives analyze your work—but our PhD-calibrated score tells you the brutal truth.
                         </p>
 
