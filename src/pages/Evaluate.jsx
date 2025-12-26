@@ -375,7 +375,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                     <p className="text-white/90 text-lg mb-4">{evaluationResult.agentVerdict}</p>
                                     <div className="p-4 rounded-lg bg-white/10 border border-white/20">
                                         <p className="text-sm text-white/80">
-                                            <strong className="text-white">Brutal honesty is our brand.</strong> This score reflects real agent decision-making, calibrated against publishing outcomes.
+                                            <strong className="text-white">Brutal honesty is our brand.</strong> Literary AI Partner™ scores reflect real agent decision-making, calibrated against publishing outcomes.
                                         </p>
                                     </div>
                                 </div>

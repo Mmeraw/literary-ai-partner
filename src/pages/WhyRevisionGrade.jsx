@@ -19,19 +19,19 @@ export default function WhyRevisionGrade() {
                 <div className="relative max-w-4xl mx-auto px-6 text-center">
                     <Badge className="mb-6 px-4 py-2 bg-white/10 text-white border-white/20 text-sm font-medium">
                         <Shield className="w-4 h-4 mr-2" />
-                        Why RevisionGrade is Different
+                        Why Literary AI Partner™ is Different
                     </Badge>
 
                     <h1 className="text-4xl sm:text-5xl font-bold text-white mb-6 leading-tight">
-                        RevisionGrade Isn't a Writing Tool.
+                        Literary AI Partner™ Isn't a Writing Tool.
                         <span className="block mt-2 text-indigo-300">
                             It's an Editorial Judgment System.
                         </span>
                     </h1>
 
                     <p className="text-xl text-slate-300 leading-relaxed max-w-3xl mx-auto">
-                        Most tools analyze text. RevisionGrade evaluates readiness. Where others count words, flags, and patterns, 
-                        RevisionGrade applies professional editorial standards—the same ones agents and acquisition 
+                        Most tools analyze text. Literary AI Partner™ evaluates readiness. Where others count words, flags, and patterns, 
+                        Literary AI Partner™ applies professional editorial standards—the same ones agents and acquisition 
                         editors use—to show you <strong className="text-white">why a manuscript would be rejected</strong> and what to fix next.
                     </p>
                 </div>
@@ -43,7 +43,7 @@ export default function WhyRevisionGrade() {
                     <h2 className="text-3xl font-bold text-slate-900 mb-4">The Core Difference</h2>
                     <p className="text-xl text-slate-600 max-w-2xl mx-auto">
                         Other tools ask "What's wrong with this sentence?"<br />
-                        RevisionGrade asks "Why would this book be rejected?"
+                        Literary AI Partner™ asks "Why would this book be rejected?"
                     </p>
                 </div>
 
@@ -88,7 +88,7 @@ export default function WhyRevisionGrade() {
                             <div className="p-2 rounded-lg bg-indigo-600">
                                 <CheckCircle2 className="w-6 h-6 text-white" />
                             </div>
-                            <h3 className="text-2xl font-bold text-indigo-900">RevisionGrade</h3>
+                            <h3 className="text-2xl font-bold text-indigo-900">Literary AI Partner™</h3>
                         </div>
                         
                         <ul className="space-y-3">
@@ -127,7 +127,7 @@ export default function WhyRevisionGrade() {
                         </p>
                         
                         <p className="leading-relaxed">
-                            <strong className="text-white">RevisionGrade</strong> delivers one brutal, honest score plus a step-by-step 
+                            <strong className="text-white">Literary AI Partner™</strong> delivers one brutal, honest score plus a step-by-step 
                             revision path aligned with real agent decision-making. It evaluates hook, structure, pacing, line authority, 
                             and motif hygiene <em className="text-indigo-300">together</em>—so changes actually move the needle on publishability.
                         </p>
@@ -145,7 +145,7 @@ export default function WhyRevisionGrade() {
             <div className="max-w-6xl mx-auto px-6 py-16">
                 <div className="text-center mb-12">
                     <h2 className="text-3xl font-bold text-slate-900 mb-4">
-                        Three Pillars of RevisionGrade
+                        Three Pillars of Literary AI Partner™
                     </h2>
                     <p className="text-slate-600 max-w-2xl mx-auto">
                         Built to think like an agent, not a spellchecker
@@ -200,7 +200,7 @@ export default function WhyRevisionGrade() {
                             Where Manuscripts Go to Find Out If They're Actually Ready
                         </h2>
                         <p className="text-xl text-slate-700 leading-relaxed max-w-2xl mx-auto">
-                            RevisionGrade is not another bundle of writing gadgets. It's a publishing-reality diagnostic 
+                            Literary AI Partner™ is not another bundle of writing gadgets. It's a publishing-reality diagnostic 
                             that mirrors how professionals read and tells you the same hard truths agents use when 
                             deciding what to request.
                         </p>
@@ -239,7 +239,7 @@ export default function WhyRevisionGrade() {
                         <div className="flex items-start gap-3">
                             <div className="w-2 h-2 rounded-full bg-indigo-600 mt-2 flex-shrink-0" />
                             <p className="text-lg">
-                                <strong className="text-indigo-900">RevisionGrade</strong> gives you one integrated 
+                                <strong className="text-indigo-900">Literary AI Partner™</strong> gives you one integrated 
                                 Grade → Diagnose → Revise workflow that mirrors how professionals read.
                             </p>
                         </div>
