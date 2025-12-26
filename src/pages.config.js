@@ -15,6 +15,7 @@ import SpineReport from './pages/SpineReport';
 import Terms from './pages/Terms';
 import UploadManuscript from './pages/UploadManuscript';
 import ViewReport from './pages/ViewReport';
+import WhyRevisionGrade from './pages/WhyRevisionGrade';
 import __Layout from './Layout.jsx';
 
 
@@ -36,6 +37,7 @@ export const PAGES = {
     "Terms": Terms,
     "UploadManuscript": UploadManuscript,
     "ViewReport": ViewReport,
+    "WhyRevisionGrade": WhyRevisionGrade,
 }
 
 export const pagesConfig = {
