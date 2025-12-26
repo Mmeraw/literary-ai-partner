@@ -12,11 +12,11 @@ import { motion } from 'framer-motion';
 export default function Home() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-            {/* Grammarly Alternative Banner */}
+            {/* Editorial Judgment Banner */}
             <div className="bg-slate-50 border-b border-slate-200 py-3">
                 <div className="max-w-7xl mx-auto px-6">
                     <p className="text-center text-slate-700 text-sm md:text-[0.95rem] font-medium tracking-wide">
-                        Feels like Grammarly + developmental editor + line editor + revision coach + scoring rubric in one looped pass—powered by a human-in-the-loop decision tree and multi-model consensus
+                        An editorial judgment system that tells you why agents would reject your manuscript—and what to fix first.
                     </p>
                 </div>
             </div>
