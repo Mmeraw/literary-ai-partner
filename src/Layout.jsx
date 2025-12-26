@@ -136,26 +136,30 @@ export default function Layout({ children, currentPageName }) {
                         <div className="px-4 py-3 pb-4 space-y-1 max-h-[calc(100vh-5rem)] overflow-y-auto">
                             {loading ? (
                                 <div className="text-center py-4 text-slate-500">Loading...</div>
-                            ) : (user ? authNavItems : publicNavItems).map((item) => (
-                                <Link 
-                                    key={item.page} 
-                                    to={createPageUrl(item.page)}
-                                    onClick={() => setMobileMenuOpen(false)}
-                                >
-                                    <Button
-                                        variant="ghost"
-                                        className={cn(
-                                            "w-full justify-start h-12",
-                                            currentPageName === item.page 
-                                                ? "bg-indigo-50 text-indigo-700" 
-                                                : "text-slate-600"
-                                        )}
-                                    >
-                                        <item.icon className="w-5 h-5 mr-3" />
-                                        {item.name}
-                                    </Button>
-                                </Link>
-                            ))}
+                            ) : (
+                                <>
+                                    {(user ? authNavItems : publicNavItems).map((item) => (
+                                        <Link 
+                                            key={item.page} 
+                                            to={createPageUrl(item.page)}
+                                            onClick={() => setMobileMenuOpen(false)}
+                                        >
+                                            <Button
+                                                variant="ghost"
+                                                className={cn(
+                                                    "w-full justify-start h-12",
+                                                    currentPageName === item.page 
+                                                        ? "bg-indigo-50 text-indigo-700" 
+                                                        : "text-slate-600"
+                                                )}
+                                            >
+                                                <item.icon className="w-5 h-5 mr-3" />
+                                                {item.name}
+                                            </Button>
+                                        </Link>
+                                    ))}
+                                </>
+                            )}
                             
                             {user && (
                                 <>
