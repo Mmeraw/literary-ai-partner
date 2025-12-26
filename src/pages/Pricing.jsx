@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, Sparkles, Crown, Zap } from 'lucide-react';
+import { CheckCircle2, Sparkles, Crown, Zap, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
 
 const tiers = [
     {
         name: "Basic",
         price: 20,
+        priceId: "price_basic_monthly", // Replace with your actual Stripe Price ID
         icon: Zap,
         color: "from-blue-500 to-cyan-600",
         features: [
@@ -27,6 +30,7 @@ const tiers = [
     {
         name: "Pro",
         price: 50,
+        priceId: "price_pro_monthly", // Replace with your actual Stripe Price ID
         icon: Sparkles,
         color: "from-indigo-500 to-purple-600",
         popular: true,
@@ -45,6 +49,7 @@ const tiers = [
     {
         name: "Enterprise",
         price: 200,
+        priceId: "price_enterprise_monthly", // Replace with your actual Stripe Price ID
         icon: Crown,
         color: "from-purple-500 to-pink-600",
         features: [
@@ -63,6 +68,29 @@ const tiers = [
 ];
 
 export default function Pricing() {
+    const [loadingPlan, setLoadingPlan] = useState(null);
+
+    const handleSubscribe = async (tier) => {
+        try {
+            setLoadingPlan(tier.name);
+            const response = await base44.functions.invoke('createCheckoutSession', {
+                priceId: tier.priceId,
+                planName: tier.name
+            });
+
+            if (response.data.url) {
+                window.location.href = response.data.url;
+            } else {
+                toast.error('Failed to create checkout session');
+                setLoadingPlan(null);
+            }
+        } catch (error) {
+            console.error('Checkout error:', error);
+            toast.error('Failed to start checkout. Please try again.');
+            setLoadingPlan(null);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             {/* Header */}
@@ -144,9 +172,17 @@ export default function Pricing() {
                                                 ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
                                                 : 'bg-slate-900 hover:bg-slate-800'
                                         }`}
-                                        disabled
+                                        onClick={() => handleSubscribe(tier)}
+                                        disabled={loadingPlan !== null}
                                     >
-                                        Coming Soon - Subscribe to {tier.name}
+                                        {loadingPlan === tier.name ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                Processing...
+                                            </>
+                                        ) : (
+                                            `Subscribe to ${tier.name}`
+                                        )}
                                     </Button>
                                 </CardContent>
                             </Card>

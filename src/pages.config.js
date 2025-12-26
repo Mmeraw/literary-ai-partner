@@ -16,6 +16,7 @@ import Terms from './pages/Terms';
 import UploadManuscript from './pages/UploadManuscript';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
+import PaymentSuccess from './pages/PaymentSuccess';
 import __Layout from './Layout.jsx';
 
 
@@ -38,6 +39,7 @@ export const PAGES = {
     "UploadManuscript": UploadManuscript,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
+    "PaymentSuccess": PaymentSuccess,
 }
 
 export const pagesConfig = {
