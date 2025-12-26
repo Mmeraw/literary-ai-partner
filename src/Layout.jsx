@@ -66,22 +66,24 @@ export default function Layout({ children, currentPageName }) {
 
                         {/* Desktop Navigation */}
                         <div className="hidden md:flex items-center gap-1 flex-1 overflow-x-auto scrollbar-hide">
-                            {navItems.map((item) => (
-                                <Link key={item.page} to={createPageUrl(item.page)}>
-                                    <Button
-                                        variant="ghost"
-                                        className={cn(
-                                            "h-9 px-3 text-sm whitespace-nowrap flex-shrink-0",
-                                            currentPageName === item.page 
-                                                ? "bg-indigo-50 text-indigo-700" 
-                                                : "text-slate-600 hover:text-slate-900"
-                                        )}
-                                    >
-                                        <item.icon className="w-4 h-4 mr-1.5" />
-                                        {item.name}
-                                    </Button>
-                                </Link>
-                            ))}
+                            {navItems
+                                .filter(item => item.page !== 'History' || user)
+                                .map((item) => (
+                                    <Link key={item.page} to={createPageUrl(item.page)}>
+                                        <Button
+                                            variant="ghost"
+                                            className={cn(
+                                                "h-9 px-3 text-sm whitespace-nowrap flex-shrink-0",
+                                                currentPageName === item.page 
+                                                    ? "bg-indigo-50 text-indigo-700" 
+                                                    : "text-slate-600 hover:text-slate-900"
+                                            )}
+                                        >
+                                            <item.icon className="w-4 h-4 mr-1.5" />
+                                            {item.name}
+                                        </Button>
+                                    </Link>
+                                ))}
                         </div>
 
                         {/* Right side */}
@@ -126,26 +128,28 @@ export default function Layout({ children, currentPageName }) {
                 {mobileMenuOpen && (
                     <div className="md:hidden absolute left-0 right-0 top-16 border-t border-slate-100 bg-white shadow-lg max-h-screen overflow-y-auto">
                         <div className="px-4 py-3 space-y-1">
-                            {navItems.map((item) => (
-                                <Link 
-                                    key={item.page} 
-                                    to={createPageUrl(item.page)}
-                                    onClick={() => setMobileMenuOpen(false)}
-                                >
-                                    <Button
-                                        variant="ghost"
-                                        className={cn(
-                                            "w-full justify-start h-12",
-                                            currentPageName === item.page 
-                                                ? "bg-indigo-50 text-indigo-700" 
-                                                : "text-slate-600"
-                                        )}
+                            {navItems
+                                .filter(item => item.page !== 'History' || user)
+                                .map((item) => (
+                                    <Link 
+                                        key={item.page} 
+                                        to={createPageUrl(item.page)}
+                                        onClick={() => setMobileMenuOpen(false)}
                                     >
-                                        <item.icon className="w-5 h-5 mr-3" />
-                                        {item.name}
-                                    </Button>
-                                </Link>
-                            ))}
+                                        <Button
+                                            variant="ghost"
+                                            className={cn(
+                                                "w-full justify-start h-12",
+                                                currentPageName === item.page 
+                                                    ? "bg-indigo-50 text-indigo-700" 
+                                                    : "text-slate-600"
+                                            )}
+                                        >
+                                            <item.icon className="w-5 h-5 mr-3" />
+                                            {item.name}
+                                        </Button>
+                                    </Link>
+                                ))}
                             
                             {user && (
                                 <>
