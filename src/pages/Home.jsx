@@ -202,7 +202,7 @@ export default function Home() {
                                 Evaluated Like a Professional
                             </h2>
                             <p className="text-slate-300 leading-relaxed mb-8">
-                                Your work is scored on the exact criteria literary agents and producers use 
+                                Your work is scored on the same criteria literary agents and producers use 
                                 when reviewing submissions—from voice and pacing to emotional resonance 
                                 and market readiness.
                             </p>
