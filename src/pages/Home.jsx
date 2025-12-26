@@ -225,8 +225,8 @@ export default function Home() {
                             </h2>
                             <p className="text-slate-300 leading-relaxed mb-8">
                                 Our proprietary Wave Revision System covers everything from 
-                                sentence-level craft to chapter-wide structure—ensuring no detail 
-                                escapes notice.
+                                sentence-level craft to chapter-wide structure—a sequential process 
+                                ensuring no detail escapes notice.
                             </p>
                             <div className="flex flex-wrap gap-2">
                                 {['Prose Polish', 'Sensory Details', 'Tension Arc', 'Word Economy', 'Scene Beats', 'Transitions'].map((item, idx) => (
