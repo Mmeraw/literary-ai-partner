@@ -27,7 +27,7 @@ export default function Home() {
                     >
                         <Badge className="mb-6 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200 text-sm font-medium">
                             <Sparkles className="w-4 h-4 mr-2" />
-                            PhD-Calibrated AI Grading and Revision
+                            PhD-Calibrated AI Manuscript Evaluation, Powered by the WAVE Revision System
                         </Badge>
 
                         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
@@ -46,6 +46,9 @@ export default function Home() {
                             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-100 border border-indigo-200">
                                 <Shield className="w-4 h-4 text-indigo-600" />
                                 <span className="text-sm font-medium text-indigo-900">Scoring calibrated against professional editorial assessments from PhD editors</span>
+                            </div>
+                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200">
+                                <span className="text-sm font-medium text-slate-700">Feels like Grammarly plus a developmental editor, line editor, and revision coach—with scoring—inside one calibrated workflow</span>
                             </div>
                             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200">
                                 <span className="text-sm font-medium text-slate-700">We'd rather hurt your feelings than see you miss your opportunities with literary agents</span>
@@ -67,6 +70,29 @@ export default function Home() {
                             </Link>
                         </div>
                     </motion.div>
+                </div>
+            </div>
+
+            {/* WAVE IP Callout */}
+            <div className="max-w-4xl mx-auto px-6 py-16">
+                <div className="p-8 rounded-2xl bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 border-2 border-indigo-200 shadow-lg">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 rounded-lg bg-indigo-600">
+                            <Waves className="w-6 h-6 text-white" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-900">The WAVE Revision System (Core IP)</h2>
+                    </div>
+                    <div className="space-y-4 text-slate-700">
+                        <p className="leading-relaxed">
+                            WAVE is a <strong>60+ wave craft framework</strong> built from years of revising and evaluating full-length novels, screenplays, and narrative nonfiction. It defines what gets graded: hook, structure, line-level authority, motif hygiene, pacing, and more.
+                        </p>
+                        <p className="leading-relaxed">
+                            The online tool doesn't "discover" these rules; it <strong>executes them</strong>.
+                        </p>
+                        <p className="leading-relaxed font-semibold text-indigo-900">
+                            The app is AI-powered, but the standards are human-crafted WAVE IP.
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -127,10 +153,10 @@ export default function Home() {
                         PhD-Calibrated Scoring
                     </Badge>
                     <h2 className="text-3xl font-bold text-slate-900 mb-4">
-                        Benchmarked Against Real Professional Editors
+                        PhD-Calibrated Scoring Engine
                     </h2>
                     <p className="text-slate-600 max-w-2xl mx-auto">
-                        Our scoring algorithm was calibrated using professional editorial assessments from PhD-level editors with expertise in creative writing, screenwriting, English literature, and genre fiction.
+                        RevisionGrade's scoring engine was calibrated using detailed editorial evaluations created by PhD-level editors and literary professionals. Their criteria, diagnostic patterns, and revision standards were encoded into the system—together with the proprietary WAVE Revision framework—so the AI can apply the same evaluative logic consistently across manuscripts, at scale.
                     </p>
                 </div>
 
@@ -153,9 +179,12 @@ export default function Home() {
                 </div>
 
                 <div className="mt-8 p-6 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200">
-                    <p className="text-sm text-amber-900 text-center">
+                    <p className="text-sm text-amber-900 text-center mb-3">
                         <strong>The result:</strong> Our AI mirrors the brutal honesty of professional editors who charge $2,000-$4,000 per manuscript or screenplay. 
                         Their scoring methodology, diagnostic criteria, and agent/producer rejection reality checks inform every evaluation.
+                    </p>
+                    <p className="text-xs text-amber-800 text-center italic">
+                        "Calibrated" means the system was trained and tuned using real editorial evaluation frameworks. No human editor reviews individual submissions unless explicitly stated.
                     </p>
                 </div>
             </div>
@@ -208,6 +237,18 @@ export default function Home() {
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* Creator Attribution */}
+            <div className="max-w-4xl mx-auto px-6 py-16">
+                <div className="p-6 rounded-xl bg-slate-50 border border-slate-200">
+                    <h3 className="text-lg font-semibold text-slate-900 mb-3">About RevisionGrade</h3>
+                    <p className="text-sm text-slate-700 leading-relaxed">
+                        Created by <strong>Michael J. Meraw (Major, Retired), CD, SCPM (Stanford), BComm, AGDM, MBA</strong>. 
+                        RevisionGrade was designed by a former military pilot and corporate aerospace leader who operationalized a 12-criteria literary framework and the proprietary WAVE Revision System into the platform's scoring engine. 
+                        AI tools generate analysis and revision suggestions under this framework; final decisions always remain with the writer.
+                    </p>
                 </div>
             </div>
 
