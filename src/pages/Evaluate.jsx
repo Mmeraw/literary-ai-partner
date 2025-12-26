@@ -12,6 +12,7 @@ import ScoreCard from '@/components/evaluation/ScoreCard';
 import SuggestionCard from '@/components/evaluation/SuggestionCard';
 import CriteriaPanel from '@/components/evaluation/CriteriaPanel';
 import FinalOutput from '@/components/evaluation/FinalOutput';
+import StyleModeSelector from '@/components/evaluation/StyleModeSelector';
 
 const LITERARY_CRITERIA = [
     "the_hook", "voice_narrative_style", "characters_introductions", "conflict_tension",
@@ -29,6 +30,7 @@ const WAVE_CRITERIA = [
 export default function Evaluate() {
     const [title, setTitle] = useState('');
     const [text, setText] = useState('');
+    const [styleMode, setStyleMode] = useState('neutral');
     
     // Load screenplay from session storage if available
     React.useEffect(() => {
@@ -63,9 +65,23 @@ export default function Evaluate() {
         }, 5000);
 
         try {
+            // Style mode context
+            const styleModeContext = {
+                neutral: "Use baseline industry expectations for mainstream commercial fiction.",
+                staccato: "Allow fragments, short lines, and abrupt transitions. Prioritize rhythm and pressure. High tolerance for compression.",
+                lyrical: "Allow longer sentences, metaphor-rich prose, rhythm-first writing. Enforce clarity at paragraph/scene level rather than line-by-line.",
+                documentary: "Enforce precision, sequence, causality. Low metaphor tolerance. Strong clarity enforcement.",
+                hybrid: "Balanced approach allowing controlled style variation within structural standards."
+            };
+
             // Literary Agent Evaluation
             const agentAnalysis = await base44.integrations.Core.InvokeLLM({
-                prompt: `You are a senior literary agent evaluating a manuscript for representation. Analyze this text against exactly these 12 criteria, rating each 1-10:
+                prompt: `You are a senior literary agent evaluating a manuscript for representation. 
+
+        STYLE MODE: ${styleMode.toUpperCase()}
+        ${styleModeContext[styleMode]}
+
+        Analyze this text against exactly these 12 criteria, rating each 1-10:
 
 1. The Hook - First pages pull reader in with intrigue, tension, unique voice
 2. Voice & Narrative Style - Distinct, engaging voice matching tone with fresh prose  
@@ -126,6 +142,11 @@ Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revi
             const waveAnalysis = await base44.integrations.Core.InvokeLLM({
                 prompt: `Apply the Wave Revision System to identify 5-10 specific craft issues.
 
+            STYLE MODE: ${styleMode.toUpperCase()}
+            ${styleModeContext[styleMode]}
+
+            Adjust flagging thresholds based on style mode constraints.
+
 TEXT:
 ${text}
 
@@ -169,7 +190,8 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 criteria: agentAnalysis.criteria || [],
                 revisionRequests: agentAnalysis.revisionRequests || [],
                 waveHits: waveAnalysis.waveHits || [],
-                waveGuidance: waveAnalysis.waveGuidance || { priorityWaves: [], nextActions: [] }
+                waveGuidance: waveAnalysis.waveGuidance || { priorityWaves: [], nextActions: [] },
+                styleMode: styleMode
             };
 
             // Save to database first
@@ -250,6 +272,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
+                                className="space-y-6"
                             >
                                 <TextEditor 
                                     title={title}
@@ -257,7 +280,15 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                     text={text}
                                     setText={setText}
                                 />
-                                <div className="mt-6 flex justify-end">
+
+                                <div className="p-6 rounded-xl bg-white border border-slate-200">
+                                    <StyleModeSelector 
+                                        value={styleMode}
+                                        onChange={setStyleMode}
+                                    />
+                                </div>
+
+                                <div className="flex justify-end">
                                     <Button
                                         onClick={evaluateText}
                                         disabled={!title.trim() || !text.trim()}
@@ -322,8 +353,13 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                         <Badge className="bg-indigo-500 text-white border-0">
                                             Agent-Reality Grade
                                         </Badge>
-                                    </div>
-                                    <div className="flex items-end justify-between mb-4">
+                                        {evaluationResult.styleMode && (
+                                            <Badge className="bg-purple-500 text-white border-0">
+                                                Style: {evaluationResult.styleMode}
+                                            </Badge>
+                                        )}
+                                        </div>
+                                        <div className="flex items-end justify-between mb-4">
                                         <h2 className="text-2xl font-bold text-white">Base44 Calibrated Score</h2>
                                         <div className="text-right">
                                             <span className={`text-5xl font-bold ${
