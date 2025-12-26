@@ -29,6 +29,16 @@ const WAVE_CRITERIA = [
 export default function Evaluate() {
     const [title, setTitle] = useState('');
     const [text, setText] = useState('');
+    
+    // Load screenplay from session storage if available
+    React.useEffect(() => {
+        const screenplayText = sessionStorage.getItem('screenplay_text');
+        if (screenplayText) {
+            setText(screenplayText);
+            setTitle('Formatted Screenplay');
+            sessionStorage.removeItem('screenplay_text');
+        }
+    }, []);
     const [currentStep, setCurrentStep] = useState(1);
     const [isProcessing, setIsProcessing] = useState(false);
     const [loadingAlternatives, setLoadingAlternatives] = useState(null);
