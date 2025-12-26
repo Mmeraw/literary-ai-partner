@@ -129,7 +129,7 @@ export default function Home() {
             </div>
 
             {/* Features Section */}
-            <div className="max-w-6xl mx-auto px-6 py-20">
+            <div className="max-w-6xl mx-auto px-6 py-14">
                 <div className="text-center mb-16">
                     <h2 className="text-3xl font-bold text-slate-900">How It Works</h2>
                     <p className="mt-3 text-slate-600">Grade first, then revise</p>
