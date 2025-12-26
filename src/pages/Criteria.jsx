@@ -125,7 +125,7 @@ const SIGNAL_FAMILIES = [
     },
     { 
         name: "Technical & Mechanical Precision", 
-        description: "Reviews clarity, consistency, and mechanical execution to ensure professional readability."
+        description: "Reviews clarity, consistency, and mechanical execution to maintain professional-grade readability."
     }
 ];
 
@@ -281,15 +281,14 @@ export default function Criteria() {
                                             <CardTitle className="text-lg text-indigo-900">Under the Hood</CardTitle>
                                             <div className="mt-3 space-y-3 text-sm text-slate-700">
                                                 <p className="leading-relaxed">
-                                                    RevisionGrade uses a <strong className="text-indigo-900">proprietary, multi-layered evaluation framework</strong> informed by professional editorial standards and calibrated against high-performing manuscripts.
+                                                    RevisionGrade uses a <strong className="text-indigo-900">proprietary, multi-layered evaluation framework</strong> informed by professional editorial standards and calibrated to professional acquisition expectations.
                                                 </p>
                                                 <p className="leading-relaxed">
-                                                    The system identifies structural, narrative, and technical risks while guiding revision priorities.
+                                                    The system surfaces structural, narrative, and technical risks—and guides which revisions to prioritize first.
                                                 </p>
                                                 <div className="pt-3 border-t border-indigo-200">
                                                     <p className="text-xs italic text-indigo-800">
-                                                        Evaluation methods and weighting are intentionally not disclosed.<br />
-                                                        Results are designed to guide revision decisions—not to replicate or replace human editorial judgment.
+                                                        RevisionGrade's evaluation methodology and weighting system are proprietary. Results are designed to guide revision decisions, not to replicate or replace professional editorial judgment.
                                                     </p>
                                                 </div>
                                             </div>
