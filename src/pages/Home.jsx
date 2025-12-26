@@ -114,7 +114,7 @@ export default function Home() {
                         {
                             icon: Brain,
                             title: "Grade First, Then Diagnose",
-                            description: "Dual AI systems score your pages against 12 agent-level criteria and 60+ WAVE checks, highlighting exactly where the manuscript falls short.",
+                            description: "Three AI systems (ChatGPT, Perplexity, Base44) score your pages against 12 agent-level criteria and 60+ WAVE checks, highlighting exactly where the manuscript falls short.",
                             color: "from-purple-500 to-pink-600"
                         },
                         {
