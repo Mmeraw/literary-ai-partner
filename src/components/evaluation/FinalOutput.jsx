@@ -33,7 +33,7 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
         toast.success('Copied to clipboard');
     };
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
         const blob = new Blob([revisedText], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -42,6 +42,19 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
         a.click();
         URL.revokeObjectURL(url);
         toast.success('Downloaded successfully');
+
+        // Send email
+        try {
+            const user = await base44.auth.me();
+            await base44.integrations.Core.SendEmail({
+                to: user.email,
+                subject: `RevisionGrade: Revised Manuscript "${title}"`,
+                body: revisedText
+            });
+            toast.success('Manuscript also sent to your email');
+        } catch (error) {
+            console.error('Email send failed:', error);
+        }
     };
 
     const handleStartRevision = async () => {

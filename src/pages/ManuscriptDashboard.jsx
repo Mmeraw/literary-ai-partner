@@ -57,7 +57,7 @@ export default function ManuscriptDashboard() {
     }
   };
 
-  const handleDownloadSpineReport = () => {
+  const handleDownloadSpineReport = async () => {
     if (!manuscript?.spine_evaluation) return;
     
     const evaluation = manuscript.spine_evaluation;
@@ -111,6 +111,19 @@ export default function ManuscriptDashboard() {
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Spine report downloaded');
+
+    // Send email
+    try {
+      const user = await base44.auth.me();
+      await base44.integrations.Core.SendEmail({
+        to: user.email,
+        subject: `RevisionGrade: Spine Report for "${manuscript.title}"`,
+        body: reportText
+      });
+      toast.success('Report also sent to your email');
+    } catch (error) {
+      console.error('Email send failed:', error);
+    }
   };
 
   if (loadingManuscript || loadingChapters) {

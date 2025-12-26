@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Download, BookOpen } from 'lucide-react';
+import { toast } from "sonner";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { motion } from "framer-motion";
@@ -48,7 +49,7 @@ export default function ViewReport() {
 
     const evaluationResult = submission.result_json || {};
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
         const reportText = `
 MANUSCRIPT EVALUATION REPORT
 ${submission.title || 'Untitled'}
@@ -113,6 +114,19 @@ ${submission.text || 'No text available'}
         a.download = `${(submission.title || 'report').replace(/\s+/g, '_')}_evaluation_report.txt`;
         a.click();
         URL.revokeObjectURL(url);
+
+        // Send email
+        try {
+            const user = await base44.auth.me();
+            await base44.integrations.Core.SendEmail({
+                to: user.email,
+                subject: `RevisionGrade: Evaluation Report for "${submission.title}"`,
+                body: reportText
+            });
+            toast.success('Report also sent to your email');
+        } catch (error) {
+            console.error('Email send failed:', error);
+        }
     };
 
     return (
