@@ -6,12 +6,12 @@ import EvaluateChapter from './pages/EvaluateChapter';
 import History from './pages/History';
 import Home from './pages/Home';
 import ManuscriptDashboard from './pages/ManuscriptDashboard';
+import Pricing from './pages/Pricing';
 import Revise from './pages/Revise';
+import ScreenplayFormatter from './pages/ScreenplayFormatter';
 import SpineReport from './pages/SpineReport';
 import UploadManuscript from './pages/UploadManuscript';
 import ViewReport from './pages/ViewReport';
-import ScreenplayFormatter from './pages/ScreenplayFormatter';
-import Pricing from './pages/Pricing';
 import __Layout from './Layout.jsx';
 
 
@@ -24,12 +24,12 @@ export const PAGES = {
     "History": History,
     "Home": Home,
     "ManuscriptDashboard": ManuscriptDashboard,
+    "Pricing": Pricing,
     "Revise": Revise,
+    "ScreenplayFormatter": ScreenplayFormatter,
     "SpineReport": SpineReport,
     "UploadManuscript": UploadManuscript,
     "ViewReport": ViewReport,
-    "ScreenplayFormatter": ScreenplayFormatter,
-    "Pricing": Pricing,
 }
 
 export const pagesConfig = {
