@@ -137,6 +137,11 @@ export default function Layout({ children, currentPageName }) {
                         <p className="text-sm text-slate-500">
                             Powered by the WAVE Revision System • 12 Literary Agent Criteria • 60+ Wave Revision Items
                         </p>
+                        <div className="px-6 py-4 rounded-lg bg-slate-50 border border-slate-200 max-w-3xl mx-auto mb-4">
+                            <p className="text-sm text-slate-600">
+                                <strong>Disclaimer:</strong> RevisionGrade provides AI-generated analysis calibrated against professional editorial standards. It does not replace human editorial judgment—final decisions remain with the author.
+                            </p>
+                        </div>
                         <div className="flex flex-wrap justify-center gap-6 text-sm">
                             <Link to={createPageUrl('Contact')} className="text-slate-600 hover:text-indigo-600">
                                 Contact

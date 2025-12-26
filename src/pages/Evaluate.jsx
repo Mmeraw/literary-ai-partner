@@ -232,6 +232,9 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                     <p className="mt-3 text-slate-600 max-w-xl mx-auto">
                         Submit your draft for comprehensive evaluation against literary agent standards
                     </p>
+                    <p className="mt-3 text-sm text-slate-500 max-w-2xl mx-auto">
+                        Scores reflect how your work aligns with agent-level criteria and WAVE standards. This is revision guidance, not a guarantee of representation or publication.
+                    </p>
                 </div>
 
                 {/* Progress Tracker */}

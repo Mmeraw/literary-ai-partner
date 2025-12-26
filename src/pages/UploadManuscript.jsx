@@ -62,7 +62,10 @@ export default function UploadManuscript() {
           </div>
           <h1 className="text-3xl font-bold text-slate-900">Upload Full Manuscript</h1>
           <p className="mt-2 text-slate-600">
-            Get comprehensive spine evaluation + chapter-by-chapter analysis
+              Get comprehensive spine evaluation + chapter-by-chapter analysis
+          </p>
+          <p className="mt-2 text-sm text-slate-500 max-w-2xl mx-auto">
+              Scores reflect how your work aligns with agent-level criteria and WAVE standards. This is revision guidance, not a guarantee of representation or publication.
           </p>
         </div>
 
