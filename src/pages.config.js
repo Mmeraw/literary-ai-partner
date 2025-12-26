@@ -11,6 +11,7 @@ import SpineReport from './pages/SpineReport';
 import UploadManuscript from './pages/UploadManuscript';
 import ViewReport from './pages/ViewReport';
 import ScreenplayFormatter from './pages/ScreenplayFormatter';
+import Pricing from './pages/Pricing';
 import __Layout from './Layout.jsx';
 
 
@@ -28,6 +29,7 @@ export const PAGES = {
     "UploadManuscript": UploadManuscript,
     "ViewReport": ViewReport,
     "ScreenplayFormatter": ScreenplayFormatter,
+    "Pricing": Pricing,
 }
 
 export const pagesConfig = {

@@ -1,0 +1,187 @@
+import React from 'react';
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CheckCircle2, Sparkles, Crown, Zap } from 'lucide-react';
+import { motion } from 'framer-motion';
+
+const tiers = [
+    {
+        name: "Basic",
+        price: 20,
+        icon: Zap,
+        color: "from-blue-500 to-cyan-600",
+        features: [
+            "50 evaluations per month",
+            "100,000 word limit per month",
+            "Quick Scene/Chapter Eval",
+            "12 Literary Agent Criteria",
+            "Wave Revision System",
+            "Email support"
+        ],
+        limitations: [
+            "No full manuscript spine evaluation",
+            "Standard processing speed"
+        ]
+    },
+    {
+        name: "Pro",
+        price: 50,
+        icon: Sparkles,
+        color: "from-indigo-500 to-purple-600",
+        popular: true,
+        features: [
+            "Unlimited evaluations",
+            "500,000 word limit per month",
+            "Full Manuscript Spine Evaluation",
+            "Chapter-by-chapter analysis",
+            "Priority processing",
+            "Wave Revision unlimited",
+            "Priority email support",
+            "Export reports (PDF)"
+        ],
+        limitations: []
+    },
+    {
+        name: "Enterprise",
+        price: 200,
+        icon: Crown,
+        color: "from-purple-500 to-pink-600",
+        features: [
+            "Unlimited everything",
+            "White-glove service",
+            "Dedicated account manager",
+            "Custom evaluation criteria",
+            "API access (coming soon)",
+            "Bulk manuscript processing",
+            "24/7 priority support",
+            "Custom integrations",
+            "Team collaboration tools"
+        ],
+        limitations: []
+    }
+];
+
+export default function Pricing() {
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
+            {/* Header */}
+            <div className="relative overflow-hidden py-20">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-100 via-transparent to-transparent opacity-60" />
+                <div className="relative max-w-4xl mx-auto px-6 text-center">
+                    <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Simple, Transparent Pricing
+                    </Badge>
+                    <h1 className="text-4xl sm:text-5xl font-bold text-slate-900 mb-4">
+                        Choose Your Plan
+                    </h1>
+                    <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+                        Start free, upgrade when you're ready. All plans include PhD-calibrated AI analysis and the WAVE Revision System.
+                    </p>
+                </div>
+            </div>
+
+            {/* Pricing Cards */}
+            <div className="max-w-7xl mx-auto px-6 pb-20">
+                <div className="grid md:grid-cols-3 gap-8">
+                    {tiers.map((tier, idx) => (
+                        <motion.div
+                            key={tier.name}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.1 }}
+                        >
+                            <Card className={`relative border-2 ${
+                                tier.popular 
+                                    ? 'border-indigo-500 shadow-2xl shadow-indigo-500/20' 
+                                    : 'border-slate-200'
+                            } hover:shadow-xl transition-all duration-300`}>
+                                {tier.popular && (
+                                    <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                                        <Badge className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-0 px-4 py-1">
+                                            Most Popular
+                                        </Badge>
+                                    </div>
+                                )}
+
+                                <CardHeader className="pb-8">
+                                    <div className={`inline-flex p-3 rounded-xl bg-gradient-to-br ${tier.color} mb-4`}>
+                                        <tier.icon className="w-6 h-6 text-white" />
+                                    </div>
+                                    <CardTitle className="text-2xl">{tier.name}</CardTitle>
+                                    <div className="mt-4">
+                                        <span className="text-4xl font-bold text-slate-900">
+                                            ${tier.price}
+                                        </span>
+                                        <span className="text-slate-600 ml-2">/month</span>
+                                    </div>
+                                </CardHeader>
+
+                                <CardContent className="space-y-6">
+                                    <div className="space-y-3">
+                                        {tier.features.map((feature, i) => (
+                                            <div key={i} className="flex items-start gap-3">
+                                                <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                                                <span className="text-sm text-slate-700">{feature}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {tier.limitations.length > 0 && (
+                                        <div className="pt-4 border-t border-slate-200 space-y-2">
+                                            {tier.limitations.map((limitation, i) => (
+                                                <div key={i} className="flex items-start gap-3">
+                                                    <span className="text-slate-400 text-sm">• {limitation}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <Button
+                                        className={`w-full h-12 ${
+                                            tier.popular
+                                                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
+                                                : 'bg-slate-900 hover:bg-slate-800'
+                                        }`}
+                                        disabled
+                                    >
+                                        Coming Soon - Subscribe to {tier.name}
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    ))}
+                </div>
+
+                {/* FAQ / Notes */}
+                <div className="mt-16 max-w-3xl mx-auto">
+                    <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-50 to-white">
+                        <CardHeader>
+                            <CardTitle>Usage & Billing Notes</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4 text-sm text-slate-600">
+                            <div>
+                                <strong className="text-slate-900">Rate Limiting:</strong> All plans include cooldown periods between evaluations to ensure fair usage and system stability.
+                            </div>
+                            <div>
+                                <strong className="text-slate-900">Monthly Reset:</strong> Evaluation counts and word limits reset on the 1st of each month.
+                            </div>
+                            <div>
+                                <strong className="text-slate-900">Abuse Protection:</strong> Accounts showing suspicious usage patterns (24/7 usage, account sharing, excessive API calls) may be suspended.
+                            </div>
+                            <div>
+                                <strong className="text-slate-900">Cancellation:</strong> Cancel anytime. Access continues until the end of your billing period.
+                            </div>
+                            <div className="pt-4 border-t border-slate-200">
+                                <p className="text-xs text-slate-500 italic">
+                                    Payment processing will be handled securely through Stripe. All subscriptions are subject to our Terms of Service.
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+        </div>
+    );
+}

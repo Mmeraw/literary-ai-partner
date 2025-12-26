@@ -15,6 +15,7 @@ const navItems = [
     { name: 'Quick Eval', page: 'Evaluate', icon: Sparkles },
     { name: 'Full Manuscript', page: 'UploadManuscript', icon: BookOpen },
     { name: 'Screenplay', page: 'ScreenplayFormatter', icon: FileText },
+    { name: 'Pricing', page: 'Pricing', icon: Sparkles },
     { name: 'Criteria', page: 'Criteria', icon: FileText },
     { name: 'History', page: 'History', icon: History },
 ];
