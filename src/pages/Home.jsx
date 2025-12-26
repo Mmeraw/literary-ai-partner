@@ -48,7 +48,7 @@ export default function Home() {
                                 <span className="text-sm font-medium text-indigo-900">Scoring calibrated against professional editorial assessments from PhD editors</span>
                             </div>
                             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200">
-                                <span className="text-sm font-medium text-slate-700">Feels like Grammarly plus a developmental editor, line editor, and revision coach—with scoring—inside one calibrated workflow</span>
+                                <span className="text-sm font-medium text-slate-700">Feels like Grammarly + developmental editor + line editor + revision coach + scoring rubric in one looped pass—powered by a human-in-the-loop decision tree and multi-model consensus</span>
                             </div>
                             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200">
                                 <span className="text-sm font-medium text-slate-700">We'd rather hurt your feelings than see you miss your opportunities with literary agents</span>
@@ -92,6 +92,32 @@ export default function Home() {
                         <p className="leading-relaxed font-semibold text-indigo-900">
                             The app is AI-powered, but the standards are human-crafted WAVE IP.
                         </p>
+                        <p className="text-sm text-slate-600 italic mt-4 pt-4 border-t border-indigo-200">
+                            The full 60+ WAVE checks, thresholds, and scoring logic remain proprietary and are implemented in software; writers see the decisions and explanations, not the underlying code.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Reality Check Section */}
+            <div className="bg-slate-900 py-16">
+                <div className="max-w-4xl mx-auto px-6">
+                    <div className="space-y-6 text-slate-300">
+                        <h2 className="text-2xl font-bold text-white">The Agent Reality Check</h2>
+                        <p className="leading-relaxed">
+                            Despite the myths, commercial literature is highly patterned. Agents are trained to gauge—fast—whether your pages are likely to sell, not to canonize you as an artist. Their job is to find work that enough readers will buy.
+                        </p>
+                        <p className="leading-relaxed">
+                            In practice, trained and untrained eyes give your manuscript seconds at each gate. Does it intrigue, captivate, and hold attention? If not, you don't get a reply—from agents, editors, publishers, producers, or executives. It's a closed loop: work that doesn't hold attention simply falls out of the system.
+                        </p>
+                        <p className="leading-relaxed">
+                            You may have a brilliant story, but if the pages trip over the 12 criteria agents quietly use—and the 60+ structural and line-level checks in the WAVE Guide—it will be rejected long before anyone sees the ending. Agents evaluate in seconds what took you years to build.
+                        </p>
+                        <div className="p-6 rounded-xl bg-indigo-900/50 border border-indigo-700">
+                            <p className="leading-relaxed text-white">
+                                <strong>Elevate Your Game™</strong> by running your work through the RevisionGrade framework: a PhD-calibrated scoring engine built on a proprietary 12-criteria rubric and the 60+-wave WAVE Revision System. There is no other technology that combines those standards into one coherent, repeatable diagnostic pass.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
