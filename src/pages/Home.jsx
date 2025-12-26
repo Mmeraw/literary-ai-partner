@@ -42,8 +42,14 @@ export default function Home() {
                             Three AI engines analyze your work—but our Base44 calibrated score tells you the brutal truth.
                         </p>
 
-                        <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200">
-                            <span className="text-sm font-medium text-slate-700">We'd rather hurt your feelings than waste your submission</span>
+                        <div className="mt-4 space-y-2 flex flex-col items-center">
+                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-100 border border-indigo-200">
+                                <Shield className="w-4 h-4 text-indigo-600" />
+                                <span className="text-sm font-medium text-indigo-900">Algorithm calibrated with multiple PhDs in English Literature</span>
+                            </div>
+                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200">
+                                <span className="text-sm font-medium text-slate-700">We'd rather hurt your feelings than waste your submission</span>
+                            </div>
                         </div>
 
                         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
