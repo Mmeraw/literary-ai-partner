@@ -12,6 +12,15 @@ import { motion } from 'framer-motion';
 export default function Home() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
+            {/* Grammarly Alternative Banner */}
+            <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 py-3">
+                <div className="max-w-7xl mx-auto px-6">
+                    <p className="text-center text-white text-sm md:text-base font-medium">
+                        Feels like Grammarly + developmental editor + line editor + revision coach + scoring rubric in one looped pass—powered by a human-in-the-loop decision tree and multi-model consensus
+                    </p>
+                </div>
+            </div>
+
             {/* Hero Section */}
             <div className="relative overflow-hidden">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-100 via-transparent to-transparent opacity-60" />
@@ -46,9 +55,6 @@ export default function Home() {
                             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-100 border border-indigo-200">
                                 <Shield className="w-4 h-4 text-indigo-600" />
                                 <span className="text-sm font-medium text-indigo-900">Scoring calibrated against professional editorial assessments from PhD editors</span>
-                            </div>
-                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200">
-                                <span className="text-sm font-medium text-slate-700">Feels like Grammarly + developmental editor + line editor + revision coach + scoring rubric in one looped pass—powered by a human-in-the-loop decision tree and multi-model consensus</span>
                             </div>
                             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200">
                                 <span className="text-sm font-medium text-slate-700">We'd rather hurt your feelings than see you miss your opportunities with literary agents</span>
