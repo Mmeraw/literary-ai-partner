@@ -88,8 +88,8 @@ export default function SampleAnalysis() {
                             </div>
                             <div className="text-sm text-slate-700 space-y-3">
                                 <p>
-                                    All of Meraw's fiction unfolds within the interconnected <strong className="text-red-600 font-bold">EvØ-Myth Universe™</strong>. 
-                                    His latest novel, <em className="italic">Cartel Babies</em>, is a 124,000-word, literary–commercial psychological thriller 
+                                    All of Meraw's fiction unfolds within the interconnected <a href="https://michaeljmeraw.com" target="_blank" rel="noopener noreferrer"><strong className="text-red-600 font-bold hover:text-red-700 underline">EvØ-Myth Universe™</strong></a>. 
+                                    His latest novel, <a href="https://michaeljmeraw.com" target="_blank" rel="noopener noreferrer"><em className="italic hover:text-indigo-700 underline">Cartel Babies</em></a>, is a 124,000-word, literary–commercial psychological thriller 
                                     set in present-day Sinaloa, México.
                                 </p>
                                 <p>
