@@ -235,6 +235,25 @@ Provide: waveScore (1-10), criticalIssues (array), strengthAreas (array).`,
 
     } catch (error) {
         console.error('Evaluation error:', error);
+        
+        // Try to update manuscript status to show error
+        try {
+            const { manuscript_id } = await req.json();
+            if (manuscript_id) {
+                const base44 = createClientFromRequest(req);
+                await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                    status: 'uploaded',
+                    evaluation_progress: {
+                        total_chapters: 0,
+                        completed_chapters: 0,
+                        current_step: `Error: ${error.message}`
+                    }
+                });
+            }
+        } catch (updateError) {
+            console.error('Failed to update error status:', updateError);
+        }
+        
         return Response.json({ error: error.message }, { status: 500 });
     }
 });
