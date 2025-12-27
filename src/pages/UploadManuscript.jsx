@@ -47,20 +47,27 @@ export default function UploadManuscript() {
         manuscript_id: manuscript.id
       });
 
+      // Count chapters
+      const chapters = await base44.entities.Chapter.filter({ manuscript_id: manuscript.id });
+
       // Set status to evaluating so progress screen shows
       await base44.entities.Manuscript.update(manuscript.id, {
         status: 'spine_evaluating',
         evaluation_progress: {
-          total_chapters: 0,
+          total_chapters: chapters.length,
           completed_chapters: 0,
-          current_step: 'Starting evaluation...'
+          current_step: 'Starting spine evaluation...'
         }
       });
 
       // Start evaluation in background (don't wait)
       base44.functions.invoke('evaluateFullManuscript', {
         manuscript_id: manuscript.id
-      }).catch(err => console.error('Evaluation error:', err));
+      }).catch(err => {
+        console.error('Evaluation error:', err);
+        // Mark as failed if error
+        base44.entities.Manuscript.update(manuscript.id, { status: 'uploaded' });
+      });
 
       toast.success('Evaluation started! Track progress on the next screen.');
       
