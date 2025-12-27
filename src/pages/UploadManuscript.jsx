@@ -60,19 +60,20 @@ export default function UploadManuscript() {
         }
       });
 
+      // Start evaluation BEFORE navigation (fire and forget)
+      base44.functions.invoke('evaluateFullManuscript', {
+        manuscript_id: manuscript.id
+      }).then(() => {
+        console.log('Evaluation completed successfully');
+      }).catch(err => {
+        console.error('Evaluation error:', err);
+      });
+
       toast.success('Evaluation started! Track progress on the next screen.');
       
-      // Navigate to manuscript dashboard first
+      // Small delay then navigate
+      await new Promise(resolve => setTimeout(resolve, 1000));
       window.location.href = createPageUrl(`ManuscriptDashboard?id=${manuscript.id}`);
-
-      // Start evaluation in background after navigation
-      setTimeout(() => {
-        base44.functions.invoke('evaluateFullManuscript', {
-          manuscript_id: manuscript.id
-        }).catch(err => {
-          console.error('Evaluation error:', err);
-        });
-      }, 500);
 
     } catch (error) {
       console.error('Upload error:', error);
