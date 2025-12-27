@@ -47,6 +47,16 @@ export default function UploadManuscript() {
         manuscript_id: manuscript.id
       });
 
+      // Set status to evaluating so progress screen shows
+      await base44.entities.Manuscript.update(manuscript.id, {
+        status: 'spine_evaluating',
+        evaluation_progress: {
+          total_chapters: 0,
+          completed_chapters: 0,
+          current_step: 'Starting evaluation...'
+        }
+      });
+
       // Start evaluation in background (don't wait)
       base44.functions.invoke('evaluateFullManuscript', {
         manuscript_id: manuscript.id
