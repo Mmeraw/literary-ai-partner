@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { BookOpen, Sparkles, Loader2, FileText, CheckCircle2, Circle, Download, Waves } from 'lucide-react';
 import { toast } from "sonner";
 import { createPageUrl } from '@/utils';
+import BenchmarkComparisonModal from '@/components/BenchmarkComparisonModal';
 
 export default function ManuscriptDashboard() {
   const [searchParams] = useSearchParams();
@@ -162,16 +163,24 @@ export default function ManuscriptDashboard() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-3xl font-bold text-slate-900">{manuscript.title}</h1>
-            {manuscript.spine_score && (
-              <Button
-                onClick={handleDownloadSpineReport}
-                variant="outline"
-                className="gap-2"
-              >
-                <Download className="w-4 h-4" />
-                Download Spine Report
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {manuscript.spine_score && (
+                <>
+                  <BenchmarkComparisonModal 
+                    manuscriptId={manuscriptId}
+                    manuscriptTitle={manuscript.title}
+                  />
+                  <Button
+                    onClick={handleDownloadSpineReport}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download Spine Report
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-4 text-sm text-slate-600">
             <span>{manuscript.word_count.toLocaleString()} words</span>
