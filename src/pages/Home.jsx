@@ -121,7 +121,7 @@ export default function Home() {
                         </p>
                         <div className="p-6 rounded-xl bg-indigo-900/50 border border-indigo-700">
                             <p className="leading-relaxed text-white">
-                                <strong>Elevate Your Game™</strong> by running your work through the RevisionGrade framework: a PhD-calibrated scoring engine built on a proprietary 12-criteria rubric and the 60+-wave WAVE Revision System. There is no other technology that combines those standards into one coherent, repeatable diagnostic pass—so you know exactly where your manuscript stands.
+                                <strong>Elevate Your Game™</strong> by running your work through the RevisionGrade framework: a PhD-calibrated scoring engine built on a proprietary 12-criteria rubric and the 60+ WAVE Revision System. There is no other technology that combines those standards into one coherent, repeatable diagnostic pass—so you know exactly where your manuscript stands.
                             </p>
                         </div>
                     </div>
