@@ -28,36 +28,101 @@ Deno.serve(async (req) => {
             evaluation_progress: {
                 total_chapters: chapters.length,
                 completed_chapters: 0,
-                current_step: 'Starting spine evaluation (this may take 30-60 seconds)...'
+                current_step: 'Starting spine evaluation in batches...'
             }
         });
 
-        // 1. Evaluate Spine (12 agent criteria)
-        const spinePrompt = `You are a senior literary agent evaluating a full manuscript. Analyze the complete work against exactly these 12 criteria, rating each 1-10:
+        // 1. Evaluate Spine in batches (12 agent criteria)
+        const BATCH_SIZE = 8; // Process 8 chapters at a time
+        const batchEvaluations = [];
 
-1. The Hook (Opening Impact)
-2. Voice & Narrative Style
-3. Characters & Development
-4. Conflict & Tension Architecture
-5. Thematic Resonance
-6. Pacing & Structural Flow
-7. Dialogue & Subtext
-8. Worldbuilding & Immersion
-9. Stakes & Emotional Investment
-10. Line-Level Polish
-11. Marketability & Genre Fit
-12. Would Agent Request Full Manuscript
+        for (let i = 0; i < chapters.length; i += BATCH_SIZE) {
+            const batch = chapters.slice(i, i + BATCH_SIZE);
+            const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+            const totalBatches = Math.ceil(chapters.length / BATCH_SIZE);
 
-MANUSCRIPT TITLE: ${manuscript.title}
+            await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                evaluation_progress: {
+                    total_chapters: chapters.length,
+                    completed_chapters: i,
+                    current_step: `Analyzing spine batch ${batchNum}/${totalBatches} (chapters ${i + 1}-${Math.min(i + BATCH_SIZE, chapters.length)})...`
+                }
+            });
 
-FULL TEXT:
-${manuscript.full_text}
+            const batchText = batch.map(ch => `CHAPTER ${ch.order}: ${ch.title}\n${ch.text}`).join('\n\n---\n\n');
 
-For each criterion provide: score (1-10), strengths (array), weaknesses (array), notes (detailed commentary).
-Also provide: overallScore (1-10), verdict (2-3 sentence summary), majorStrengths (top 3-5 bullets), criticalWeaknesses (top 3-5 issues).`;
+            const batchPrompt = `You are a senior literary agent evaluating part of a manuscript. Analyze these chapters against the 12 criteria, rating each 1-10:
+
+        1. The Hook (Opening Impact)
+        2. Voice & Narrative Style
+        3. Characters & Development
+        4. Conflict & Tension Architecture
+        5. Thematic Resonance
+        6. Pacing & Structural Flow
+        7. Dialogue & Subtext
+        8. Worldbuilding & Immersion
+        9. Stakes & Emotional Investment
+        10. Line-Level Polish
+        11. Marketability & Genre Fit
+        12. Would Agent Request Full Manuscript
+
+        MANUSCRIPT: ${manuscript.title}
+        CHAPTERS ${i + 1}-${Math.min(i + BATCH_SIZE, chapters.length)} of ${chapters.length}
+
+        ${batchText}
+
+        For each criterion provide: score (1-10), strengths (array), weaknesses (array), notes.
+        Also provide: overallScore (1-10), verdict, strengths (array), weaknesses (array).`;
+
+            const batchEval = await base44.asServiceRole.integrations.Core.InvokeLLM({
+                prompt: batchPrompt,
+                response_json_schema: {
+                    type: "object",
+                    properties: {
+                        overallScore: { type: "number" },
+                        verdict: { type: "string" },
+                        strengths: { type: "array", items: { type: "string" } },
+                        weaknesses: { type: "array", items: { type: "string" } },
+                        criteria: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    name: { type: "string" },
+                                    score: { type: "number" },
+                                    strengths: { type: "array", items: { type: "string" } },
+                                    weaknesses: { type: "array", items: { type: "string" } },
+                                    notes: { type: "string" }
+                                },
+                                required: ["name", "score", "strengths", "weaknesses", "notes"]
+                            }
+                        }
+                    },
+                    required: ["overallScore", "verdict", "strengths", "weaknesses", "criteria"]
+                }
+            });
+
+            batchEvaluations.push(batchEval);
+        }
+
+        // Synthesize all batch evaluations into final spine score
+        await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+            evaluation_progress: {
+                total_chapters: chapters.length,
+                completed_chapters: chapters.length,
+                current_step: 'Synthesizing spine analysis...'
+            }
+        });
+
+        const synthesisPrompt = `You are a senior literary agent. Multiple evaluations have been done on different sections of the manuscript "${manuscript.title}". Synthesize these into ONE comprehensive spine evaluation with the 12 criteria.
+
+        BATCH EVALUATIONS:
+        ${JSON.stringify(batchEvaluations, null, 2)}
+
+        Create a final unified evaluation. Average scores across batches, combine strengths/weaknesses, and provide an overall verdict for the complete manuscript.`;
 
         const spineEvaluation = await base44.asServiceRole.integrations.Core.InvokeLLM({
-            prompt: spinePrompt,
+            prompt: synthesisPrompt,
             response_json_schema: {
                 type: "object",
                 properties: {
