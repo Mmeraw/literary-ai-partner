@@ -48,6 +48,7 @@ Deno.serve(async (req) => {
 
             // Skip if already summarized
             if (chapter.status === 'summarized' && chapter.summary_json) {
+                chapterSummaries.push(chapter.summary_json);
                 continue;
             }
 
@@ -57,10 +58,10 @@ Deno.serve(async (req) => {
                 await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
                     evaluation_progress: {
                         chapters_total: chapters.length,
-                        chapters_summarized: i,
+                        chapters_summarized: chapterSummaries.length,
                         chapters_wave_done: 0,
                         current_phase: 'summarize',
-                        percent_complete: Math.floor((i / chapters.length) * 25),
+                        percent_complete: Math.floor((chapterSummaries.length / chapters.length) * 25),
                         current_step: `Summarizing Chapter ${i + 1} of ${chapters.length}...`,
                         last_updated: new Date().toISOString()
                     }
@@ -110,15 +111,42 @@ Deno.serve(async (req) => {
 
                 chapterSummaries.push(summary);
 
-            } catch (error) {
+                // Update progress after successful summary
+                await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                    evaluation_progress: {
+                        chapters_total: chapters.length,
+                        chapters_summarized: chapterSummaries.length,
+                        chapters_wave_done: 0,
+                        current_phase: 'summarize',
+                        percent_complete: Math.floor((chapterSummaries.length / chapters.length) * 25),
+                        current_step: `Summarized ${chapterSummaries.length}/${chapters.length} chapters`,
+                        last_updated: new Date().toISOString()
+                    }
+                });
+
+                } catch (error) {
                 console.error(`Chapter ${i + 1} summary failed:`, error);
                 await base44.asServiceRole.entities.Chapter.update(chapter.id, {
                     status: 'failed',
                     error_message: error.message
                 });
+
+                // Update progress to show we moved past this chapter
+                await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                    evaluation_progress: {
+                        chapters_total: chapters.length,
+                        chapters_summarized: chapterSummaries.length,
+                        chapters_wave_done: 0,
+                        current_phase: 'summarize',
+                        percent_complete: Math.floor((chapterSummaries.length / chapters.length) * 25),
+                        current_step: `Chapter ${i + 1} failed, continuing...`,
+                        last_updated: new Date().toISOString(),
+                        error_message: `Chapter ${i + 1} error: ${error.message}`
+                    }
+                });
                 // Continue with remaining chapters
-            }
-        }
+                }
+                }
 
         // PHASE 2: Spine synthesis (all summaries at once)
         // Skip if spine already evaluated
@@ -359,11 +387,40 @@ Provide: waveScore (1-10), criticalIssues (array), strengthAreas (array).`,
                 status: 'evaluated'
             });
 
+            // Update progress after successful evaluation
+            const wavePercent = 40 + Math.floor(((i + 1) / chapters.length) * 50);
+            await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                evaluation_progress: {
+                    chapters_total: chapters.length,
+                    chapters_summarized: chapters.length,
+                    chapters_wave_done: i + 1,
+                    current_phase: 'wave',
+                    percent_complete: wavePercent,
+                    current_step: `Evaluated ${i + 1}/${chapters.length} chapters`,
+                    last_updated: new Date().toISOString()
+                }
+            });
+
             } catch (error) {
             console.error(`Chapter ${i + 1} WAVE evaluation failed:`, error);
             await base44.asServiceRole.entities.Chapter.update(chapter.id, {
                 status: 'failed',
                 error_message: error.message
+            });
+
+            // Update progress to show we moved past this chapter
+            const wavePercent = 40 + Math.floor(((i + 1) / chapters.length) * 50);
+            await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                evaluation_progress: {
+                    chapters_total: chapters.length,
+                    chapters_summarized: chapters.length,
+                    chapters_wave_done: i,
+                    current_phase: 'wave',
+                    percent_complete: wavePercent,
+                    current_step: `Chapter ${i + 1} failed, continuing...`,
+                    last_updated: new Date().toISOString(),
+                    error_message: `Chapter ${i + 1} error: ${error.message}`
+                }
             });
             // Continue with remaining chapters
             }
