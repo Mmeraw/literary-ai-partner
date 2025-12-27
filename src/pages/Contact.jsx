@@ -21,10 +21,10 @@ export default function Contact() {
                         <div className="flex items-center gap-3 p-4 rounded-lg bg-indigo-50 border border-indigo-200">
                             <Mail className="w-5 h-5 text-indigo-600" />
                             <a 
-                                href="mailto:support@literaryaipartner.com"
+                                href="mailto:support@revisiongrade.com"
                                 className="text-lg text-indigo-600 hover:text-indigo-700 font-medium"
                             >
-                                support@literaryaipartner.com
+                                support@revisiongrade.com
                             </a>
                         </div>
                     </CardContent>

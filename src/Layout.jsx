@@ -214,7 +214,7 @@ export default function Layout({ children, currentPageName }) {
                             </Link>
                         </div>
                         <p className="text-sm text-slate-500">
-                            © {new Date().getFullYear()} Literary AI Partner™. All rights reserved.
+                            © {new Date().getFullYear()} RevisionGrade™. All rights reserved.
                         </p>
                     </div>
                 </div>

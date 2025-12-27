@@ -275,12 +275,12 @@ export default function Home() {
             {/* Creator Attribution */}
             <div className="max-w-4xl mx-auto px-6 py-8">
                 <div className="p-6 rounded-xl bg-slate-50 border border-slate-200">
-                    <h3 className="text-lg font-semibold text-slate-900 mb-3">About Literary AI Partner™</h3>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-3">About RevisionGrade™</h3>
                     <p className="text-sm text-slate-700 leading-relaxed">
                         Created by <strong>Michael J. Meraw (Major, Retired), CD, SCPM (Stanford), BComm, AGDM, MBA</strong>. 
-                        Literary AI Partner™ was designed by a former military pilot and corporate aerospace leader with deep expertise in root-cause corrective action, value-stream mapping, metrics-driven continuous improvement, and enterprise information / master-data governance (including writing governance policy at a global aerospace company). 
-                        Drawing on operating-system principles common to large-scale aerospace and defense programs and quality disciplines, he operationalized Literary AI Partner's 12-criteria framework and the proprietary WAVE Revision System into the platform's scoring engine. 
-                        AI tools generate analysis and revision suggestions under this framework; final decisions always remain with the writer.{' '}
+                        RevisionGrade™ was designed by a former military pilot and corporate aerospace leader with deep expertise in root-cause corrective action, value-stream mapping, metrics-driven continuous improvement, and enterprise information / master-data governance (including authorship of governance policy at a global aerospace firm). 
+                        Drawing on systems-based quality disciplines used in large-scale aerospace and defense programs, he operationalized RevisionGrade's 12-criteria framework and the proprietary WAVE Revision System into the platform's evaluation framework. 
+                        AI-assisted tools generate analysis and revision suggestions within this framework; final decisions always remain with the writer.{' '}
                         <a 
                             href="https://michaeljmeraw.com" 
                             target="_blank" 
