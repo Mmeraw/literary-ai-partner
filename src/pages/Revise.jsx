@@ -150,6 +150,18 @@ export default function Revise() {
   };
 
   const handleComplete = async () => {
+    // Save revised text back to the submission
+    if (session.submission_id) {
+      try {
+        await base44.entities.Submission.update(session.submission_id, {
+          revised_text: session.current_text,
+          status: 'finalized'
+        });
+      } catch (error) {
+        console.error('Failed to save revised text to submission:', error);
+      }
+    }
+
     await updateSessionMutation.mutateAsync({
       sessionId: session.id,
       data: { status: 'completed' }

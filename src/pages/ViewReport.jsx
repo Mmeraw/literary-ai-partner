@@ -157,15 +157,28 @@ ${submission.text || 'No text available'}
                     <div className="flex items-start justify-between">
                         <div>
                             <h1 className="text-3xl font-bold text-slate-900 mb-2">{submission.title}</h1>
-                            <p className="text-slate-600">
-                                Evaluated on {new Date(submission.created_date).toLocaleDateString()}
-                            </p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-slate-600">
+                                    Evaluated on {new Date(submission.created_date).toLocaleDateString()}
+                                </p>
+                                {submission.revised_text && (
+                                    <Badge className="bg-emerald-100 text-emerald-700">
+                                        Revised Version Available
+                                    </Badge>
+                                )}
+                            </div>
                         </div>
-                        <div className="flex gap-2">
-                            {(submission.revised_text || submission.text) && (
+                        <div className="flex flex-wrap gap-2">
+                            {submission.revised_text && (
+                                <Button onClick={handleDownloadClean} className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700">
+                                    <FileText className="w-4 h-4 mr-2" />
+                                    Download Clean Revised Text
+                                </Button>
+                            )}
+                            {!submission.revised_text && submission.text && (
                                 <Button onClick={handleDownloadClean} className="bg-indigo-600 hover:bg-indigo-700">
                                     <FileText className="w-4 h-4 mr-2" />
-                                    Download Clean {submission.revised_text ? 'Revised' : ''} Text
+                                    Download Clean Original Text
                                 </Button>
                             )}
                             <Button onClick={handleDownloadReport} variant="outline">
