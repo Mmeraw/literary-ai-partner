@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
     FileText, Calendar, Type, TrendingUp, 
-    ChevronRight, Clock, CheckCircle2, AlertCircle, Trash2, Archive, CheckSquare, Square
+    ChevronRight, Clock, CheckCircle2, AlertCircle, Trash2, Archive, CheckSquare, Square,
+    Download, Sparkles, BarChart3
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -305,19 +306,28 @@ export default function History() {
                                                                 </div>
                                                             </div>
                                                             
-                                                            <div className="flex items-center gap-4">
-                                                                {submission.overall_score && (
-                                                                    <div className="text-right">
-                                                                        <span className="text-xs text-slate-500">Score</span>
-                                                                        <p className={`text-2xl font-bold ${getScoreColor(submission.overall_score)}`}>
-                                                                            {submission.overall_score}
-                                                                        </p>
-                                                                    </div>
-                                                                )}
-                                                                <Badge className={statusConfig.color}>
-                                                                    <StatusIcon className="w-3 h-3 mr-1" />
-                                                                    {statusConfig.label}
-                                                                </Badge>
+                                                            <div className="flex items-center gap-3">
+                                                               {submission.overall_score && (
+                                                                   <div className="text-center px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                                                                       <div className="flex items-center gap-1 text-xs text-slate-500 mb-1">
+                                                                           <BarChart3 className="w-3 h-3" />
+                                                                           Score
+                                                                       </div>
+                                                                       <p className={`text-2xl font-bold ${getScoreColor(submission.overall_score)}`}>
+                                                                           {Math.round(submission.overall_score * 10)}
+                                                                       </p>
+                                                                   </div>
+                                                               )}
+                                                               <Badge className={statusConfig.color}>
+                                                                   <StatusIcon className="w-3 h-3 mr-1" />
+                                                                   {statusConfig.label}
+                                                               </Badge>
+                                                               {submission.revised_text && (
+                                                                   <Badge className="bg-emerald-100 text-emerald-700 border-0">
+                                                                       <Sparkles className="w-3 h-3 mr-1" />
+                                                                       Revised
+                                                                   </Badge>
+                                                               )}
                                                                 {activeTab === 'active' ? (
                                                                     <Button
                                                                         variant="ghost"
@@ -353,10 +363,76 @@ export default function History() {
                                                             </div>
                                                         </div>
 
-                                                        {submission.original_text && (
+                                                        {submission.text && (
                                                             <p className="mt-3 text-sm text-slate-500 line-clamp-2">
-                                                                {submission.original_text.substring(0, 200)}...
+                                                                {submission.text.substring(0, 200)}...
                                                             </p>
+                                                        )}
+
+                                                        {activeTab === 'active' && (
+                                                            <div className="mt-4 flex items-center gap-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        const blob = new Blob([submission.text], { type: 'text/plain' });
+                                                                        const url = URL.createObjectURL(blob);
+                                                                        const a = document.createElement('a');
+                                                                        a.href = url;
+                                                                        a.download = `${submission.title}_original.txt`;
+                                                                        a.click();
+                                                                        URL.revokeObjectURL(url);
+                                                                        toast.success('Original downloaded');
+                                                                    }}
+                                                                >
+                                                                    <Download className="w-3 h-3 mr-1" />
+                                                                    Original
+                                                                </Button>
+                                                                {submission.revised_text ? (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+                                                                            const blob = new Blob([submission.revised_text], { type: 'text/plain' });
+                                                                            const url = URL.createObjectURL(blob);
+                                                                            const a = document.createElement('a');
+                                                                            a.href = url;
+                                                                            a.download = `${submission.title}_revised.txt`;
+                                                                            a.click();
+                                                                            URL.revokeObjectURL(url);
+                                                                            toast.success('Revised text downloaded');
+                                                                        }}
+                                                                    >
+                                                                        <Sparkles className="w-3 h-3 mr-1" />
+                                                                        Revised
+                                                                    </Button>
+                                                                ) : (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        disabled
+                                                                        className="opacity-50"
+                                                                    >
+                                                                        No Revision Yet
+                                                                    </Button>
+                                                                )}
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                    }}
+                                                                    className="ml-auto"
+                                                                >
+                                                                    <FileText className="w-3 h-3 mr-1" />
+                                                                    View Report
+                                                                </Button>
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>
