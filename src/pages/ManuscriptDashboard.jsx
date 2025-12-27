@@ -22,7 +22,11 @@ export default function ManuscriptDashboard() {
       const results = await base44.entities.Manuscript.filter({ id: manuscriptId });
       return results[0];
     },
-    enabled: !!manuscriptId
+    enabled: !!manuscriptId,
+    refetchInterval: (data) => {
+      // Poll every 3 seconds if evaluating
+      return data?.status === 'evaluating_chapters' || data?.status === 'spine_evaluating' ? 3000 : false;
+    }
   });
 
   const { data: chapters = [], isLoading: loadingChapters } = useQuery({
@@ -131,6 +135,62 @@ export default function ManuscriptDashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
+  // Show evaluation progress screen
+  if (manuscript?.status === 'evaluating_chapters' || manuscript?.status === 'spine_evaluating') {
+    const progress = manuscript.evaluation_progress || {};
+    const percentComplete = progress.total_chapters > 0 
+      ? (progress.completed_chapters / progress.total_chapters) * 100 
+      : 0;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 flex items-center justify-center">
+        <Card className="border-0 shadow-2xl max-w-2xl w-full mx-4">
+          <CardContent className="p-8">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 mb-4">
+                <Sparkles className="w-8 h-8 text-white animate-pulse" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Evaluating Your Manuscript</h2>
+              <p className="text-slate-600">
+                Running comprehensive analysis: 12 Agent Criteria + 60+ WAVE Checks
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-slate-700">
+                  {progress.current_step || 'Starting evaluation...'}
+                </span>
+                <span className="text-sm font-semibold text-indigo-600">
+                  {progress.completed_chapters || 0}/{progress.total_chapters || 0} chapters
+                </span>
+              </div>
+              <Progress value={percentComplete} className="h-3" />
+            </div>
+
+            <div className="space-y-2 text-sm text-slate-600">
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${manuscript.spine_score ? 'bg-green-500' : 'bg-indigo-500 animate-pulse'}`} />
+                <span>Spine Evaluation (12 Agent Criteria)</span>
+                {manuscript.spine_score && <CheckCircle2 className="w-4 h-4 text-green-500 ml-auto" />}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${progress.completed_chapters > 0 ? 'bg-indigo-500 animate-pulse' : 'bg-slate-300'}`} />
+                <span>Chapter-by-Chapter Analysis (WAVE System)</span>
+              </div>
+            </div>
+
+            <div className="mt-6 p-4 rounded-lg bg-indigo-50 border border-indigo-200">
+              <p className="text-xs text-indigo-800">
+                <strong>This may take 2-5 minutes.</strong> Your browser can remain open or you can close it—evaluation runs on our servers. Refresh to check progress.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

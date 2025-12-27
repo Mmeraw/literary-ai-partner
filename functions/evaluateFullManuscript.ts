@@ -79,11 +79,26 @@ Also provide: overallScore (1-10), verdict (2-3 sentence summary), majorStrength
         await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
             spine_score: spineEvaluation.overallScore,
             spine_evaluation: spineEvaluation,
-            status: 'spine_evaluating'
+            status: 'evaluating_chapters',
+            evaluation_progress: {
+                total_chapters: chapters.length,
+                completed_chapters: 0,
+                current_step: 'Spine evaluation complete'
+            }
         });
 
         // 2. Evaluate each chapter (12 criteria + WAVE)
-        for (const chapter of chapters) {
+        for (let i = 0; i < chapters.length; i++) {
+            const chapter = chapters[i];
+            
+            // Update progress
+            await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                evaluation_progress: {
+                    total_chapters: chapters.length,
+                    completed_chapters: i,
+                    current_step: `Evaluating Chapter ${i + 1}: ${chapter.title}`
+                }
+            });
             // Agent-level evaluation
             const agentAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are a senior literary agent evaluating a manuscript chapter. Analyze this chapter against exactly these 12 criteria, rating each 1-10:
@@ -196,7 +211,12 @@ Provide: waveScore (1-10), criticalIssues (array), strengthAreas (array).`,
 
         // Mark manuscript as ready
         await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
-            status: 'ready'
+            status: 'ready',
+            evaluation_progress: {
+                total_chapters: chapters.length,
+                completed_chapters: chapters.length,
+                current_step: 'Evaluation complete'
+            }
         });
 
         return Response.json({ 
