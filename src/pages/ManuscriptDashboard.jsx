@@ -25,7 +25,7 @@ export default function ManuscriptDashboard() {
     enabled: !!manuscriptId,
     refetchInterval: (data) => {
       // Poll every 3 seconds if evaluating
-      return data?.status === 'evaluating_chapters' || data?.status === 'spine_evaluating' ? 3000 : false;
+      return ['summarizing', 'spine_evaluating', 'evaluating_chapters'].includes(data?.status) ? 3000 : false;
     }
   });
 
