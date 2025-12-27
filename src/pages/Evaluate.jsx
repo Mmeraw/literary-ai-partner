@@ -261,10 +261,10 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                         Three AI Systems Analysis
                     </Badge>
                     <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">
-                        Evaluate Your Manuscript
+                        Free Evaluation Preview
                     </h1>
                     <p className="mt-3 text-slate-600 max-w-xl mx-auto">
-                        Submit your draft for comprehensive evaluation against literary agent standards
+                        Analyze up to 3,000 words to experience how RevisionGrade evaluates structure, pacing, and craft.
                     </p>
                     <p className="mt-3 text-sm text-slate-500 max-w-2xl mx-auto">
                         Scores reflect how your work aligns with agent-level criteria and WAVE standards. This is revision guidance, not a guarantee of representation or publication.
