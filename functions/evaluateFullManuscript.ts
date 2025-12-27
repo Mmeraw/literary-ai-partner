@@ -23,6 +23,15 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Manuscript or chapters not found' }, { status: 404 });
         }
 
+        // Update status to show we've started
+        await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+            evaluation_progress: {
+                total_chapters: chapters.length,
+                completed_chapters: 0,
+                current_step: 'Starting spine evaluation (this may take 30-60 seconds)...'
+            }
+        });
+
         // 1. Evaluate Spine (12 agent criteria)
         const spinePrompt = `You are a senior literary agent evaluating a full manuscript. Analyze the complete work against exactly these 12 criteria, rating each 1-10:
 
