@@ -212,7 +212,7 @@ export default function WhyRevisionGrade() {
                                     <ArrowRight className="w-5 h-5 ml-2" />
                                 </Button>
                             </Link>
-                            <Link to={createPageUrl('UploadManuscript')}>
+                            <Link to={createPageUrl('SelectFormat')}>
                                 <Button size="lg" variant="outline" className="h-14 px-10 text-lg border-slate-300">
                                     <BookOpen className="w-5 h-5 mr-2" />
                                     Start Full Analysis
