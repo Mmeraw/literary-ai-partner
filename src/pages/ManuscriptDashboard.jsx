@@ -148,13 +148,13 @@ export default function ManuscriptDashboard() {
   }
 
   const evaluatedChapters = chapters.filter(ch => ch.status === 'evaluated').length;
-  const avgChapterScore = chapters.length > 0
-    ? chapters.reduce((sum, ch) => sum + (ch.evaluation_score || 0), 0) / chapters.length
+  const avgChapterScore = evaluatedChapters > 0
+    ? chapters.reduce((sum, ch) => sum + (ch.evaluation_score || 0), 0) / evaluatedChapters
     : 0;
 
-  const globalScore = manuscript.spine_score
+  const globalScore = manuscript.spine_score && evaluatedChapters > 0
     ? (0.5 * manuscript.spine_score + 0.5 * avgChapterScore)
-    : avgChapterScore;
+    : manuscript.spine_score || avgChapterScore;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
@@ -191,101 +191,86 @@ export default function ManuscriptDashboard() {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6 mb-8">
-          {/* Spine Score */}
-          <Card className="border-0 shadow-lg">
+        <div className="grid lg:grid-cols-2 gap-6 mb-8">
+          {/* Overall RevisionGrade™ */}
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-purple-50">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <BookOpen className="w-5 h-5" />
-                Spine Evaluation
-              </CardTitle>
-              <p className="text-xs text-slate-500 mt-1">Story-level: 12 Agent Criteria</p>
+              <CardTitle className="text-2xl">Overall RevisionGrade™</CardTitle>
+              <p className="text-sm text-slate-600 mt-1">Story + Craft: 12 Criteria + 60+ WAVE Checks</p>
             </CardHeader>
             <CardContent>
-              {manuscript.spine_score ? (
-                <>
-                  <div className="text-4xl font-bold text-slate-900 mb-2">
-                    {manuscript.spine_score.toFixed(1)}/10
+              <div className="text-6xl font-bold text-indigo-600 mb-4">
+                {globalScore.toFixed(1)}/10
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                <div>
+                  <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
+                    <BookOpen className="w-4 h-4" />
+                    <span>Story (Spine)</span>
                   </div>
-                  <p className="text-xs text-slate-600 mb-3">
-                    Premise, plot, arcs, theme, pacing, voice, structure, stakes
-                  </p>
-                  <Link to={createPageUrl(`SpineReport?id=${manuscriptId}`)}>
-                    <Button variant="outline" size="sm" className="w-full">
-                      View Full Report
-                    </Button>
-                  </Link>
-                </>
-              ) : (
-                <Button
-                  onClick={handleSpineEvaluation}
-                  disabled={isEvaluatingSpine}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700"
-                >
-                  {isEvaluatingSpine ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Evaluating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Evaluate Spine
-                    </>
-                  )}
-                </Button>
-              )}
+                  <div className="text-3xl font-bold text-slate-800">
+                    {manuscript.spine_score?.toFixed(1) || '—'}/10
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
+                    <Waves className="w-4 h-4" />
+                    <span>Craft (WAVE)</span>
+                  </div>
+                  <div className="text-3xl font-bold text-slate-800">
+                    {evaluatedChapters > 0 ? avgChapterScore.toFixed(1) : '—'}/10
+                  </div>
+                </div>
+              </div>
+              <Progress value={globalScore * 10} className="h-3 mt-4" />
             </CardContent>
           </Card>
 
-          {/* Overall RevisionGrade - Only show when chapters evaluated */}
-          {evaluatedChapters > 0 ? (
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-purple-50">
-              <CardHeader>
-                <CardTitle className="text-lg">Overall RevisionGrade™</CardTitle>
-                <p className="text-xs text-slate-500 mt-1">Story + Craft: 12 Criteria + 60+ WAVE Checks</p>
-              </CardHeader>
-              <CardContent>
-                <div className="text-4xl font-bold text-indigo-600 mb-2">
-                  {globalScore.toFixed(1)}/10
-                </div>
-                <p className="text-xs text-slate-600 mb-2">
-                  Combines spine evaluation with chapter-level craft analysis
-                </p>
-                <Progress value={globalScore * 10} className="h-2" />
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="border-0 shadow-lg bg-slate-50">
-              <CardHeader>
-                <CardTitle className="text-lg">Overall RevisionGrade™</CardTitle>
-                <p className="text-xs text-slate-500 mt-1">Story + Craft: 12 Criteria + 60+ WAVE Checks</p>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-slate-400 mb-2">
-                  —/10
-                </div>
-                <p className="text-sm text-slate-600">
-                  Evaluate chapters to see your full RevisionGrade™ (story engine + line-level craft)
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Chapter Progress */}
+          {/* Quality Improvement Monitor */}
           <Card className="border-0 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-lg">Chapter Progress</CardTitle>
-              <p className="text-xs text-slate-500 mt-1">WAVE Revision System checks applied per chapter</p>
+              <CardTitle className="text-lg">Quality Improvement Progress</CardTitle>
+              <p className="text-xs text-slate-500 mt-1">Tracks revision impact on your score</p>
             </CardHeader>
             <CardContent>
-              <div className="text-4xl font-bold text-slate-900 mb-2">
-                {evaluatedChapters}/{chapters.length}
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-slate-600">Chapters Evaluated</span>
+                    <span className="text-sm font-semibold text-slate-900">
+                      {evaluatedChapters}/{chapters.length}
+                    </span>
+                  </div>
+                  <Progress value={(evaluatedChapters / chapters.length) * 100} className="h-2" />
+                </div>
+                
+                <div className="pt-3 border-t">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-slate-500">Initial Score</span>
+                    <span className="text-sm font-semibold text-slate-700">
+                      {globalScore.toFixed(1)}/10
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-slate-500">Revised Score</span>
+                    <span className="text-sm font-semibold text-slate-400">
+                      —/10
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">Improvement</span>
+                    <span className="text-sm font-semibold text-slate-400">
+                      —
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t">
+                  <p className="text-xs text-slate-500">
+                    Start revising chapters to track your quality improvement
+                  </p>
+                </div>
               </div>
-              <Progress value={(evaluatedChapters / chapters.length) * 100} className="h-2 mb-2" />
-              <p className="text-xs text-slate-600">
-                Chapter evaluations enable the full RevisionGrade™ score
-              </p>
             </CardContent>
           </Card>
         </div>
