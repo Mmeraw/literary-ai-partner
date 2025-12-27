@@ -19,6 +19,7 @@ const navItems = [
     { name: 'Manuscript', page: 'UploadManuscript', icon: BookOpen },
     { name: 'Screenplay', page: 'ScreenplayFormatter', icon: FileText },
     { name: 'Pricing', page: 'Pricing', icon: Sparkles },
+    { name: 'FAQ', page: 'FAQ', icon: FileText },
     { name: 'Criteria', page: 'Criteria', icon: FileText },
     { name: 'History', page: 'History', icon: History },
     { name: 'Analytics', page: 'Analytics', icon: BarChart3, adminOnly: true },

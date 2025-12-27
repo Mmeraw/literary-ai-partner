@@ -21,6 +21,7 @@ import Analytics from './pages/Analytics';
 import SelectFormat from './pages/SelectFormat';
 import UploadWork from './pages/UploadWork';
 import Progress from './pages/Progress';
+import FAQ from './pages/FAQ';
 import __Layout from './Layout.jsx';
 
 
@@ -48,6 +49,7 @@ export const PAGES = {
     "SelectFormat": SelectFormat,
     "UploadWork": UploadWork,
     "Progress": Progress,
+    "FAQ": FAQ,
 }
 
 export const pagesConfig = {
