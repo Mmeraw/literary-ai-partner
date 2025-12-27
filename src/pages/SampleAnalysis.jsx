@@ -169,197 +169,197 @@ export default function SampleAnalysis() {
                                         <th className="border border-indigo-400 p-4 text-left font-semibold text-white">Michael Meraw's <em className="italic">Cartel Babies</em></th>
                                     </tr>
                                 </thead>
-                                <tbody className="text-black">
+                                <tbody>
                                     <tr className="bg-slate-50 hover:bg-slate-100 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">1. Hook (Opening)</td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">1. Hook (Opening)</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Begins with violence, setting, and drug-war stakes (<em className="italic">The Power of the Dog</em> opening). Immediate stakes, professional propulsion, cinematic.</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Opens with psychological immediacy, violence, captivity, trauma, and voice. Agents feel thrown into the story—with an intimacy Winslow does not use.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em> (intimacy)</p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: <em className="italic">Cartel Babies</em> (intimacy)</p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">2. Voice</td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">2. Voice</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Controlled, procedural, masculine, commercial. Not deep interior.</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Lyrical, mythic, violent, intimate, emotional. A signature voice—rare in submissions—combining literary depth with relentless tension.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
-                                        </td>
-                                    </tr>
-                                    <tr className="bg-white">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">3. Character Depth</td>
-                                        <td className="border border-slate-200 p-4">
-                                            <p className="font-semibold mb-2">Score: 9/10</p>
-                                            <p>Large cast, archetypal clarity, well-defined, but sometimes emotionally distant.</p>
-                                        </td>
-                                        <td className="border border-slate-200 p-4">
-                                            <p className="font-semibold mb-2">Score: 10/10</p>
-                                            <p>Fewer characters, but deeper psychological excavation. Benjamin, Mike, Raúl, Oso, the boy—the interiority is more intimate, more human, more devastating.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">4. Conflict & Tension</td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">3. Character Depth</td>
+                                        <td className="border border-slate-200 p-4 text-black">
+                                            <p className="font-semibold mb-2">Score: 9/10</p>
+                                            <p>Large cast, archetypal clarity, well-defined, but sometimes emotionally distant.</p>
+                                        </td>
+                                        <td className="border border-slate-200 p-4 text-black">
+                                            <p className="font-semibold mb-2">Score: 10/10</p>
+                                            <p>Fewer characters, but deeper psychological excavation. Benjamin, Mike, Raúl, Oso, the boy—the interiority is more intimate, more human, more devastating.</p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
+                                        </td>
+                                    </tr>
+                                    <tr className="bg-white hover:bg-slate-50 transition-colors">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">4. Conflict & Tension</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Master at macro-level conflict: governments, cartels, armies, operations.</p>
-                                            <p className="text-slate-600 font-semibold mt-2">Edge: Tie (different strengths: scale vs. intimacy)</p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: Tie (different strengths: scale vs. intimacy)</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Matches that intensity but in a compressed, claustrophobic, personal scale. Every scene is survival. Every choice is identity. The tension never drops—rare for debuts.</p>
                                         </td>
                                     </tr>
-                                    <tr className="bg-white">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">5. Thematic Resonance</td>
-                                        <td className="border border-slate-200 p-4">
+                                    <tr className="bg-white hover:bg-slate-50 transition-colors">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">5. Thematic Resonance</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Corruption, war, power, policy, history. Strong but external.</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Captivity, loyalty, moral corrosion, love under pressure, survival, identity, complicity. Themes strike the reader emotionally, not just intellectually.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">6. Pacing & Structure</td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">6. Pacing & Structure</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Cinematic pacing, occasionally sprawling due to trilogy scale.</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Tight, relentless, clean. The 60+ WAVE Revision craft pass significantly tightened pacing and reduced bloat. Structure is elegant and agent-friendly.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
-                                        </td>
-                                    </tr>
-                                    <tr className="bg-white">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">7. Dialogue & Subtext</td>
-                                        <td className="border border-slate-200 p-4">
-                                            <p className="font-semibold mb-2">Score: 9/10</p>
-                                            <p>Functional, masculine, plot-driven. Subtext sometimes thin.</p>
-                                        </td>
-                                        <td className="border border-slate-200 p-4">
-                                            <p className="font-semibold mb-2">Score: 10/10</p>
-                                            <p>Subtext heavy. Dialogue leans on fear, silence, posture, implication. Tags removed, interiority sharpened, power dynamics layered.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">8. Worldbuilding & Immersion</td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">7. Dialogue & Subtext</td>
+                                        <td className="border border-slate-200 p-4 text-black">
+                                            <p className="font-semibold mb-2">Score: 9/10</p>
+                                            <p>Functional, masculine, plot-driven. Subtext sometimes thin.</p>
+                                        </td>
+                                        <td className="border border-slate-200 p-4 text-black">
+                                            <p className="font-semibold mb-2">Score: 10/10</p>
+                                            <p>Subtext heavy. Dialogue leans on fear, silence, posture, implication. Tags removed, interiority sharpened, power dynamics layered.</p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
+                                        </td>
+                                    </tr>
+                                    <tr className="bg-white hover:bg-slate-50 transition-colors">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">8. Worldbuilding & Immersion</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Large-scale geopolitical worldbuilding—armies, cartels, landscapes. Documentary-grade realism.</p>
-                                            <p className="text-slate-600 font-semibold mt-2">Edge: Tie (Winslow = macro, <em className="italic">Cartel Babies</em> = micro)</p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: Tie (Winslow = macro, <em className="italic">Cartel Babies</em> = micro)</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Micro-worldbuilding with surgical precision—ridge, compound, lab, pit, night lessons. Every sensory detail is immersive and lived.</p>
                                         </td>
                                     </tr>
-                                    <tr className="bg-white">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">9. Emotional Stakes</td>
-                                        <td className="border border-slate-200 p-4">
+                                    <tr className="bg-white hover:bg-slate-50 transition-colors">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">9. Emotional Stakes</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 8/10</p>
                                             <p>Often external: wars, missions, betrayals. Less interior vulnerability.</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Unmatched emotional interiority. Readers feel Benjamin and Mike's humanity breaking—and surviving.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">10. Line-Level Polish</td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">10. Line-Level Polish</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Clean, confident, commercial prose.</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Meticulously polished: cliché elimination, worldbuilding discipline, pattern reduction, dialogue refinement, body-beat control, atmospheric variation, interiority consistency.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
-                                    <tr className="bg-white">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">11. Marketability</td>
-                                        <td className="border border-slate-200 p-4">
+                                    <tr className="bg-white hover:bg-slate-50 transition-colors">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">11. Marketability</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Established commercial author with a large audience. Clear readership lane; strong demand history for macro-cartel epics.</p>
-                                            <p className="text-slate-600 font-semibold mt-2">Edge: <em className="italic">Cartel Trilogy</em> (historical validation); <em className="italic">Cartel Babies</em> has strong upside with differentiated positioning.</p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: <em className="italic">Cartel Trilogy</em> (historical validation); <em className="italic">Cartel Babies</em> has strong upside with differentiated positioning.</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Strong lane: captivity thriller + cartel realism + survival narrative + psychological intimacy.</p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">12. "Would an Agent Keep Reading?"</td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">12. "Would an Agent Keep Reading?"</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Yes, especially for <em className="italic">The Power of the Dog</em> as a debut—but it begins wide and procedural, not intimate.</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>First 50 pages are immersive, terrifying, tender, original, clean, and propulsive. Agents will read past their stop time.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
-                                    <tr className="bg-white">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">13. Cinematic Adaptability</td>
-                                        <td className="border border-slate-200 p-4">
+                                    <tr className="bg-white hover:bg-slate-50 transition-colors">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">13. Cinematic Adaptability</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Trilogy is built for film/TV and already adapted for series.</p>
-                                            <p className="text-slate-600 font-semibold mt-2">Edge: Tie</p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: Tie</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Clean three-act spine, set-piece scenes, tight cast, emotional arcs, and sensory immersion. Screen-adaptable and high-budget potential.</p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">14. Franchise & Brand Expansion</td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">14. Franchise & Brand Expansion</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Demonstrated cross-media reach: major publisher support, international readership, and a television adaptation confirm strong franchise potential in practice.</p>
-                                            <p className="text-slate-600 font-semibold mt-2">Edge: Tie (Winslow represents proven expansion; <em className="italic">Cartel Babies</em> represents designed expansion. They illustrate two different models of building a franchise.)</p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: Tie (Winslow represents proven expansion; <em className="italic">Cartel Babies</em> represents designed expansion. They illustrate two different models of building a franchise.)</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Ecosystem of novel + transmedia + encyclopedia + companion hub + universe + screenplay pipeline positions the IP as franchise-capable, not just a single book. Engineered for expansion: shared universe design, companion ecosystem, and an explicit screenplay pipeline create multiple future story and format paths (conditional on consistent execution).</p>
                                         </td>
                                     </tr>
-                                    <tr className="bg-white">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">15. Authenticity / Realism</td>
-                                        <td className="border border-slate-200 p-4">
+                                    <tr className="bg-white hover:bg-slate-50 transition-colors">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">15. Authenticity / Realism</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Deep research; widely known for accuracy.</p>
-                                            <p className="text-slate-600 font-semibold mt-2">Edge: Tie</p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: Tie</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Field experience plus journalistic detail and lived sensory realism, framed ethically.</p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100">16. Emotional Aftershock</td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">16. Emotional Aftershock</td>
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 8/10</p>
                                             <p>Readers admire the work but may not always ache.</p>
                                         </td>
-                                        <td className="border border-slate-200 p-4">
+                                        <td className="border border-slate-200 p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Book leaves emotional residue; key scenes follow readers for days.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
+                                            <p className="text-purple-600 font-bold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                 </tbody>
