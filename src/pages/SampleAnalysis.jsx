@@ -78,9 +78,9 @@ export default function SampleAnalysis() {
                         <CardContent className="space-y-4">
                             <div className="flex justify-center">
                                 <img 
-                                    src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/cartel-babies-cover-thumb.jpg" 
-                                    alt="Cartel Babies cover reference"
-                                    className="w-40 h-auto rounded-lg shadow-md"
+                                    src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/28634ea99_image.png" 
+                                    alt="Cartel Babies visual"
+                                    className="w-full h-auto rounded-lg shadow-md"
                                     onError={(e) => {
                                         e.target.style.display = 'none';
                                     }}
@@ -112,9 +112,9 @@ export default function SampleAnalysis() {
                         <CardContent className="space-y-4">
                             <div className="flex justify-center">
                                 <img 
-                                    src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/winslow-trilogy-thumb.jpg" 
-                                    alt="Winslow trilogy cover reference"
-                                    className="w-40 h-auto rounded-lg shadow-md"
+                                    src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/15d5866fb_image.png" 
+                                    alt="Winslow trilogy covers"
+                                    className="w-full h-auto rounded-lg shadow-md"
                                     onError={(e) => {
                                         e.target.style.display = 'none';
                                     }}
