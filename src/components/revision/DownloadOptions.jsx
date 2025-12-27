@@ -114,31 +114,35 @@ export default function DownloadOptions({ session }) {
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Download Your Revised Manuscript</DialogTitle>
+                    <DialogTitle>Download Options</DialogTitle>
+                    <p className="text-sm text-slate-600 mt-2">
+                        Clean downloads contain no markup or comments and are submission-ready.
+                    </p>
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">
-                    {/* Clean Version */}
+                    {/* Clean Version - PRIMARY */}
                     <div 
-                        className="p-4 rounded-lg border-2 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all cursor-pointer"
+                        className="p-4 rounded-lg border-2 border-indigo-500 bg-indigo-50/70 hover:border-indigo-600 hover:bg-indigo-50 transition-all cursor-pointer shadow-sm"
                         onClick={generateCleanDownload}
                     >
                         <div className="flex items-start gap-4">
-                            <div className="p-3 rounded-lg bg-indigo-100">
-                                <FileText className="w-6 h-6 text-indigo-600" />
+                            <div className="p-3 rounded-lg bg-indigo-600">
+                                <FileText className="w-6 h-6 text-white" />
                             </div>
                             <div className="flex-1">
-                                <h3 className="font-semibold text-slate-900 mb-1">
-                                    Clean Manuscript
+                                <h3 className="font-semibold text-slate-900 mb-1 flex items-center gap-2">
+                                    Clean Revised Document
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-600 text-white">Recommended</span>
                                 </h3>
                                 <p className="text-sm text-slate-600">
-                                    Final revised text with all accepted changes applied. No markup or comments. Ready to submit.
+                                    Submission-ready text with accepted revisions applied. No markup or comments.
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Track Changes */}
+                    {/* Revision History */}
                     <div 
                         className="p-4 rounded-lg border-2 border-slate-200 hover:border-amber-300 hover:bg-amber-50/50 transition-all cursor-pointer"
                         onClick={generateTrackChangesDownload}
@@ -149,16 +153,16 @@ export default function DownloadOptions({ session }) {
                             </div>
                             <div className="flex-1">
                                 <h3 className="font-semibold text-slate-900 mb-1">
-                                    Track Changes Report
+                                    Revision History Report
                                 </h3>
                                 <p className="text-sm text-slate-600">
-                                    Complete revision history showing original vs. revised text for every change. Like Microsoft Word's "Track Changes" feature.
+                                    Side-by-side comparison showing original and revised text for every change. Designed for review and learning—not for submission.
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* With Commentary */}
+                    {/* Editorial Commentary */}
                     <div 
                         className="p-4 rounded-lg border-2 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all cursor-pointer"
                         onClick={generateCommentaryDownload}
@@ -169,10 +173,10 @@ export default function DownloadOptions({ session }) {
                             </div>
                             <div className="flex-1">
                                 <h3 className="font-semibold text-slate-900 mb-1">
-                                    With Editorial Commentary
+                                    Editorial Commentary
                                 </h3>
                                 <p className="text-sm text-slate-600">
-                                    Final text plus detailed notes explaining each revision decision. Like Word's comment bubbles and editing annotations.
+                                    Final text with detailed notes explaining revision decisions and priorities.
                                 </p>
                             </div>
                         </div>
@@ -180,7 +184,8 @@ export default function DownloadOptions({ session }) {
                 </div>
 
                 <div className="text-xs text-slate-500 p-4 bg-slate-50 rounded-lg">
-                    <strong>Note:</strong> All downloads are in plain text (.txt) format. You can copy/paste into your preferred word processor.
+                    <p className="mb-2"><strong>Note:</strong> All downloads are in plain text (.txt) format. You can copy/paste into your preferred word processor.</p>
+                    <p className="text-slate-400 italic">RevisionGrade evaluates readiness and revision strategy; it does not export Microsoft Word track-changes files.</p>
                 </div>
             </DialogContent>
         </Dialog>
