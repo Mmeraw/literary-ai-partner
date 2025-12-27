@@ -10,8 +10,15 @@ import { createPageUrl } from '@/utils';
 
 export default function UploadManuscript() {
   const [title, setTitle] = useState('');
-  const [text, setText] = useState('');
+  const [text, setText] = useState(sessionStorage.getItem('uploadedText') || '');
   const [isUploading, setIsUploading] = useState(false);
+
+  // Clear sessionStorage after loading
+  React.useEffect(() => {
+    if (sessionStorage.getItem('uploadedText')) {
+      sessionStorage.removeItem('uploadedText');
+    }
+  }, []);
 
   const handleUpload = async () => {
     if (!text.trim()) {

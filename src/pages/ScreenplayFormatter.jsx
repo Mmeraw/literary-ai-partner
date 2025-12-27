@@ -11,10 +11,17 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
 export default function ScreenplayFormatter() {
-    const [inputText, setInputText] = useState('');
+    const [inputText, setInputText] = useState(sessionStorage.getItem('uploadedText') || '');
     const [formattedText, setFormattedText] = useState('');
     const [isFormatting, setIsFormatting] = useState(false);
     const [mode, setMode] = useState('auto');
+
+    // Clear sessionStorage after loading
+    React.useEffect(() => {
+        if (sessionStorage.getItem('uploadedText')) {
+            sessionStorage.removeItem('uploadedText');
+        }
+    }, []);
 
     const handleFormat = async () => {
         if (!inputText.trim()) {
