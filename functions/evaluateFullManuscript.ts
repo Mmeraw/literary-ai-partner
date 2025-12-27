@@ -255,13 +255,30 @@ Deno.serve(async (req) => {
         for (let i = 0; i < chapters.length; i++) {
             const chapter = chapters[i];
 
-            // Skip if already evaluated
-            if (chapter.status === 'evaluated' && chapter.evaluation_score) {
+            // Skip if already evaluated OR failed
+            if ((chapter.status === 'evaluated' && chapter.evaluation_score) || chapter.status === 'failed') {
                 continue;
             }
 
+            // Skip if stuck in 'evaluating' status for >5 minutes (hung chapter)
+            if (chapter.status === 'evaluating' && chapter.updated_date) {
+                const updatedTime = new Date(chapter.updated_date).getTime();
+                const now = Date.now();
+                if (now - updatedTime > 5 * 60 * 1000) {
+                    console.log(`Chapter ${i + 1} stuck in evaluating status, marking as failed and skipping`);
+                    await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                        status: 'failed',
+                        error_message: 'Evaluation timeout - chapter took too long'
+                    });
+                    continue;
+                }
+            }
+
             try {
-                await base44.asServiceRole.entities.Chapter.update(chapter.id, { status: 'evaluating' });
+                await base44.asServiceRole.entities.Chapter.update(chapter.id, { 
+                    status: 'evaluating',
+                    error_message: null
+                });
 
                 // Update progress
                 const wavePercent = 40 + Math.floor((i / chapters.length) * 50);
