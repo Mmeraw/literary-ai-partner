@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, X, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 import FeedbackButtons from './FeedbackButtons';
+import ScreenplayText from '@/components/ScreenplayText';
 
 export default function SuggestionCard({ 
   suggestion, 
@@ -19,6 +20,10 @@ export default function SuggestionCard({
   const [showAlternatives, setShowAlternatives] = useState(false);
 
   if (!suggestion) return null;
+
+  // Detect if this is screenplay content
+  const isScreenplay = /^(INT\.|EXT\.|INT\/EXT\.)/.test(suggestion.original_text?.trim()) || 
+                       /^[A-Z][A-Z\s]+\n/.test(suggestion.original_text?.trim());
 
   return (
     <Card className="border-0 shadow-lg bg-white">
@@ -58,7 +63,11 @@ export default function SuggestionCard({
             </Button>
           </div>
           <div className={`p-4 rounded-lg bg-red-50 border border-red-200 ${showContext ? '' : 'max-h-24 overflow-hidden'}`}>
-            <p className="text-sm text-slate-700 whitespace-pre-wrap">{suggestion.original_text}</p>
+            {isScreenplay ? (
+              <ScreenplayText text={suggestion.original_text} />
+            ) : (
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">{suggestion.original_text}</p>
+            )}
           </div>
         </div>
 
@@ -66,7 +75,11 @@ export default function SuggestionCard({
         <div>
           <h4 className="text-sm font-semibold text-slate-700 mb-2">Suggested Revision</h4>
           <div className="p-4 rounded-lg bg-green-50 border border-green-200">
-            <p className="text-sm text-slate-700 whitespace-pre-wrap">{suggestion.suggested_text}</p>
+            {isScreenplay ? (
+              <ScreenplayText text={suggestion.suggested_text} />
+            ) : (
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">{suggestion.suggested_text}</p>
+            )}
           </div>
         </div>
 
@@ -100,7 +113,13 @@ export default function SuggestionCard({
                   {suggestion.alternatives.map((alt, idx) => (
                     <div key={idx} className="p-3 rounded-lg bg-slate-50 border border-slate-200">
                       <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm text-slate-700 flex-1">{alt}</p>
+                        <div className="flex-1">
+                          {isScreenplay ? (
+                            <ScreenplayText text={alt} />
+                          ) : (
+                            <p className="text-sm text-slate-700">{alt}</p>
+                          )}
+                        </div>
                         <Button
                           size="sm"
                           variant="outline"
