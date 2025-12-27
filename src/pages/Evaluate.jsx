@@ -308,7 +308,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                         className="h-12 px-8 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                                     >
                                         <Sparkles className="w-5 h-5 mr-2" />
-                                        Evaluate with AI
+                                        Evaluate with RevisionGrade
                                         <ArrowRight className="w-5 h-5 ml-2" />
                                     </Button>
                                 </div>
