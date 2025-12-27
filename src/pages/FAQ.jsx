@@ -54,24 +54,34 @@ export default function FAQ() {
                                     <AccordionContent>
                                         <div className="space-y-3 text-slate-700">
                                             <p>
-                                                Professional manuscript evaluations typically cost <strong>$2,000–$14,000</strong> for a single pass. 
-                                                RevisionGrade™ provides unlimited evaluations for <strong>$50/month</strong> (Pro plan).
+                                                Professional editors charge <strong>$0.03–$0.15 per word</strong> for developmental and line editing. 
+                                                For an 80,000-word novel, that's <strong>$2,400–$12,000+ per pass</strong>.
                                             </p>
+                                            <p className="font-semibold text-slate-900">Industry-Standard Editorial Costs:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Editorial assessment: $0.01–$0.03/word → $800–$2,400 (80k words)</li>
+                                                <li>Developmental edit: $0.03–$0.08/word → $2,400–$6,400</li>
+                                                <li>Line edit: $0.04–$0.10/word → $3,200–$8,000</li>
+                                                <li>Premium bundled service: $0.08–$0.15+/word → $6,400–$12,000+</li>
+                                            </ul>
                                             <p>
-                                                A traditional editorial path might include:
+                                                Most serious authors pay for <strong>multiple passes</strong>:
                                             </p>
                                             <ul className="list-disc ml-6 space-y-1">
-                                                <li>Developmental edit: $6,000–$10,000</li>
-                                                <li>Follow-up structural pass: $3,000–$5,000</li>
-                                                <li>Agent-style read: $2,000–$4,000</li>
-                                                <li>Re-evaluation after revisions: $2,000–$3,000</li>
+                                                <li>Editorial assessment: ~$1,500</li>
+                                                <li>Developmental edit: ~$3,500</li>
+                                                <li>Follow-up read: ~$1,500</li>
+                                                <li>Line edit: ~$3,000</li>
                                             </ul>
                                             <p className="font-semibold text-slate-900">
-                                                Total traditional cost: $13,000–$22,000+ over 12–24 months
+                                                Total traditional cost: $9,000–$12,000+ (no iteration, no learning system)
+                                            </p>
+                                            <p className="text-indigo-900 font-semibold mt-4">
+                                                RevisionGrade™ Professional at $99/month for 24 months = <strong>$2,376 total</strong>
                                             </p>
                                             <p>
-                                                RevisionGrade™ at $50/month for 24 months = <strong>$1,200 total</strong>, with unlimited runs, 
-                                                revision tracking, progress analytics, and learning from every evaluation.
+                                                You get: unlimited evaluation runs, revision tracking, progress analytics, pattern detection, 
+                                                and learning from every pass—<strong>at a fraction of one traditional editorial pass</strong>.
                                             </p>
                                         </div>
                                     </AccordionContent>
@@ -79,21 +89,28 @@ export default function FAQ() {
 
                                 <AccordionItem value="what-you-get">
                                     <AccordionTrigger>
-                                        What do I actually get for $50/month?
+                                        What do I actually get for $99/month?
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="space-y-3 text-slate-700">
-                                            <p><strong>Pro Plan includes:</strong></p>
+                                            <p><strong>Professional Plan includes:</strong></p>
                                             <ul className="list-disc ml-6 space-y-2">
-                                                <li><strong>Unlimited evaluation runs</strong> (capped at 500,000 words/month)</li>
+                                                <li><strong>Unlimited evaluation runs</strong> (subject to 500,000 words/month cap)</li>
                                                 <li><strong>Full manuscript & screenplay evaluation</strong> against 12 literary-agent criteria</li>
                                                 <li><strong>60+ WAVE Revision checks</strong> (sentence craft, dialogue, pacing, structure)</li>
                                                 <li><strong>Progress dashboard</strong> tracking improvement over time</li>
                                                 <li><strong>Revision effectiveness analysis</strong> (before/after scoring)</li>
                                                 <li><strong>Recurring pattern detection</strong> (what you keep getting wrong)</li>
-                                                <li><strong>Clean download options</strong> (submission-ready, revision history, editorial commentary)</li>
+                                                <li><strong>Clean download options</strong> (submission-ready revised text, revision history, editorial commentary)</li>
+                                                <li><strong>Editorial reports (PDF)</strong></li>
                                                 <li><strong>Priority processing</strong></li>
+                                                <li><strong>Priority email support</strong></li>
                                             </ul>
+                                            <p className="mt-3 text-sm text-slate-600">
+                                                Compare: At $0.03/word (low-end developmental editing), an 80k-word manuscript costs $2,400 for 
+                                                <strong> one pass</strong>. RevisionGrade gives you <strong>unlimited passes for 24+ months</strong> 
+                                                at the same total cost.
+                                            </p>
                                         </div>
                                     </AccordionContent>
                                 </AccordionItem>
@@ -103,11 +120,17 @@ export default function FAQ() {
                                         Is there a free trial?
                                     </AccordionTrigger>
                                     <AccordionContent>
-                                        <p className="text-slate-700">
-                                            Yes. The <strong>Basic plan ($20/month)</strong> includes up to 50 evaluations per month 
-                                            and 100,000 words/month. You can start with quick scene/chapter evaluations to test the system 
-                                            before committing to full manuscript analysis.
-                                        </p>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                Yes. New users receive a <strong>Free Starter Evaluation</strong> (1–2 evaluations, ~2,000 words total) 
+                                                to experience the system. Account required after first evaluation.
+                                            </p>
+                                            <p>
+                                                If you need more testing, the <strong>Starter plan ($25/month)</strong> includes quick scene/chapter 
+                                                evaluations with 25,000 words/month. You can upgrade to Professional ($99/month) when ready for 
+                                                full manuscript or screenplay analysis.
+                                            </p>
+                                        </div>
                                     </AccordionContent>
                                 </AccordionItem>
                             </Accordion>
