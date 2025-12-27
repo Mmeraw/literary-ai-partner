@@ -40,9 +40,11 @@ const tiers = [
             "500,000 words/month included",
             "Full manuscript & screenplay evaluation",
             "Structure-aware analysis",
+            "Editorial Growth Tracking — persistent skill tracking across submissions",
+            "Revision Effectiveness Analysis — see if your changes actually improved the work",
+            "Recurring pattern detection — identify what you keep getting wrong",
             "Clean revised downloads",
             "Editorial reports (PDF)",
-            "Progress & pattern tracking",
             "Priority processing",
             "Priority email support"
         ],
