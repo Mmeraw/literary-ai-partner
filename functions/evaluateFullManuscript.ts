@@ -357,22 +357,30 @@ Provide overall score (1-10) and verdict.`,
             const waveAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are an elite developmental editor applying the WAVE Revision System. Scan this chapter for line-level craft issues across these categories:
 
-WAVE CHECKS:
-- Sentence Craft: varied length/structure, rhythm, clarity, passive voice, weak verbs
-- Sensory Details: show vs tell, concrete imagery, sensory balance
-- Dialogue: subtext, tags vs beats, realism, character voice distinction
-- Scene Momentum: micro-pacing, tension beats, scene structure
-- Character Interiority: thought patterns, emotional specificity, POV consistency
-- Pacing Flow: paragraph variety, transition smoothness, info dumping
-- Technical Precision: grammar, punctuation, word choice, repetition patterns
+            WAVE CHECKS:
+            - Sentence Craft: varied length/structure, rhythm, clarity, passive voice, weak verbs
+            - Sensory Details: show vs tell, concrete imagery, sensory balance
+            - Dialogue: subtext, tags vs beats, realism, character voice distinction
+            - Scene Momentum: micro-pacing, tension beats, scene structure
+            - Character Interiority: thought patterns, emotional specificity, POV consistency
+            - Pacing Flow: paragraph variety, transition smoothness, info dumping
+            - Technical Precision: grammar, punctuation, word choice, repetition patterns
 
-CHAPTER: ${chapter.title}
+            CRITICAL WAVE 61 RULE - Reflexive Pronouns & Redundancy:
+            - Reflexives (himself/herself/themselves) are NOT automatically bad
+            - Only flag when they add no narrative function AND weaken the sentence
+            - KEEP reflexives that serve: embodiment, intimacy, agency reinforcement, character voice, psychological cohesion
+            - Same rule applies to: "own", "just", "as if", "like" (as filler), redundant "them"
+            - If reflexive/hedge strengthens voice or serves narrative purpose → DO NOT FLAG IT
 
-TEXT:
-${chapter.text}
+            CHAPTER: ${chapter.title}
 
-For each WAVE issue found, provide: category, severity (Low/Medium/High), description, example_quote (actual text), fix_suggestion.
-Provide: waveScore (1-10), criticalIssues (array), strengthAreas (array).`,
+            TEXT:
+            ${chapter.text}
+
+            For each WAVE issue found, provide: category, severity (Low/Medium/High), description, example_quote (actual text), fix_suggestion.
+            IMPORTANT: For reflexives/"as if" constructions, only flag if they are truly redundant and serve NO narrative/voice function.
+            Provide: waveScore (1-10), criticalIssues (array), strengthAreas (array).`,
                 response_json_schema: {
                     type: "object",
                     properties: {
