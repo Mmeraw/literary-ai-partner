@@ -118,9 +118,9 @@ export default function UploadManuscript() {
             <div className="p-3 sm:p-4 rounded-lg bg-indigo-50 border border-indigo-200">
               <h4 className="font-semibold text-indigo-900 mb-1 sm:mb-2 text-sm sm:text-base">What happens next:</h4>
               <ul className="space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-indigo-800">
-                <li>• Text analyzed for structure, pacing, and craft</li>
-                <li>• Longer works split into chapters automatically</li>
-                <li>• Scored against 12 agent criteria + 60+ WAVE checks</li>
+                <li>• Text evaluated for structure, pacing, and craft</li>
+                <li>• Longer works automatically split into chapters</li>
+                <li>• Scored against 12 agent criteria and 60+ WAVE checks</li>
                 <li>• Receive your RevisionGrade™ score and detailed feedback</li>
               </ul>
             </div>
