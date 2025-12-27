@@ -168,6 +168,9 @@ export default function ManuscriptDashboard() {
                 </span>
               </div>
               <Progress value={percentComplete} className="h-3" />
+              <p className="text-xs text-slate-500 mt-2">
+                Analyzing structure, pacing, and narrative cohesion across chapters
+              </p>
             </div>
 
             <div className="space-y-2 text-sm text-slate-600">
