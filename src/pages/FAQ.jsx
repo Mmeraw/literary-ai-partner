@@ -276,6 +276,27 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
+                                <AccordionItem value="few-ai-systems">
+                                    <AccordionTrigger>
+                                        Why does RevisionGrade use only a few AI systems?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                RevisionGrade uses <strong>three specialized AI systems</strong>—each calibrated for a distinct 
+                                                editorial function (structure, craft, pattern recognition). Rather than averaging dozens of models, 
+                                                we focus on alignment and interpretability.
+                                            </p>
+                                            <p>
+                                                More models create noise. Professional editors don't vote—they judge. RevisionGrade replicates that coherence.
+                                            </p>
+                                            <p className="text-indigo-900 font-semibold">
+                                                Better judgment comes from alignment, not volume.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
                                 <AccordionItem value="accuracy">
                                     <AccordionTrigger>
                                         How accurate are the evaluations?
