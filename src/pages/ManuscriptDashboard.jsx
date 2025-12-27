@@ -144,6 +144,19 @@ export default function ManuscriptDashboard() {
     const progress = manuscript.evaluation_progress || {};
     const percentComplete = progress.percent_complete || 0;
 
+    const handleResumeEvaluation = async () => {
+      toast.info('Resuming evaluation...');
+      try {
+        await base44.functions.invoke('evaluateFullManuscript', {
+          manuscript_id: manuscriptId
+        });
+        toast.success('Evaluation resumed');
+        window.location.reload();
+      } catch (error) {
+        toast.error('Failed to resume. Try again.');
+      }
+    };
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 flex items-center justify-center">
         <Card className="border-0 shadow-2xl max-w-2xl w-full mx-4">
@@ -205,15 +218,23 @@ export default function ManuscriptDashboard() {
             </div>
 
             <div className="mt-6 p-4 rounded-lg bg-indigo-50 border border-indigo-200">
-              <p className="text-xs text-indigo-800">
+              <p className="text-xs text-indigo-800 mb-3">
                 You can leave this page open or close it—evaluation runs on our servers. Refresh to check progress.
               </p>
+              <Button
+                onClick={handleResumeEvaluation}
+                variant="outline"
+                size="sm"
+                className="w-full"
+              >
+                Resume/Retry Evaluation
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+            </CardContent>
+            </Card>
+            </div>
+            );
+            }
 
   if (!manuscript) {
     return (
