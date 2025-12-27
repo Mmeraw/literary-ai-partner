@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Download, BookOpen } from 'lucide-react';
+import { ArrowLeft, Download, BookOpen, FileText } from 'lucide-react';
 import { toast } from "sonner";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -49,7 +49,21 @@ export default function ViewReport() {
 
     const evaluationResult = submission.result_json || {};
 
-    const handleDownload = async () => {
+    const handleDownloadClean = () => {
+        // Check if there's a revised_text (from revision session)
+        const textToDownload = submission.revised_text || submission.text;
+        
+        const blob = new Blob([textToDownload], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(submission.title || 'manuscript').replace(/\s+/g, '_')}_clean.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success('Clean manuscript downloaded');
+    };
+
+    const handleDownloadReport = async () => {
         const reportText = `
 MANUSCRIPT EVALUATION REPORT
 ${submission.title || 'Untitled'}
@@ -147,10 +161,18 @@ ${submission.text || 'No text available'}
                                 Evaluated on {new Date(submission.created_date).toLocaleDateString()}
                             </p>
                         </div>
-                        <Button onClick={handleDownload} className="bg-indigo-600 hover:bg-indigo-700">
-                            <Download className="w-4 h-4 mr-2" />
-                            Download Report
-                        </Button>
+                        <div className="flex gap-2">
+                            {(submission.revised_text || submission.text) && (
+                                <Button onClick={handleDownloadClean} className="bg-indigo-600 hover:bg-indigo-700">
+                                    <FileText className="w-4 h-4 mr-2" />
+                                    Download Clean {submission.revised_text ? 'Revised' : ''} Text
+                                </Button>
+                            )}
+                            <Button onClick={handleDownloadReport} variant="outline">
+                                <Download className="w-4 h-4 mr-2" />
+                                Download Evaluation Report
+                            </Button>
+                        </div>
                     </div>
                 </div>
 

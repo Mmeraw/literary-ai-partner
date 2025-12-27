@@ -5,7 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Loader2, FileText } from 'lucide-react';
+import { ArrowLeft, Loader2, FileText, Download } from 'lucide-react';
+import { toast } from "sonner";
 import { createPageUrl } from '@/utils';
 
 export default function ChapterReport() {
@@ -43,6 +44,17 @@ export default function ChapterReport() {
 
   const evaluation = chapter.evaluation_result;
 
+  const handleDownloadClean = () => {
+    const blob = new Blob([chapter.text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(chapter.title || 'chapter').replace(/\s+/g, '_')}_clean.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Chapter downloaded');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
       <div className="max-w-5xl mx-auto px-6 py-12">
@@ -54,14 +66,20 @@ export default function ChapterReport() {
         </Link>
 
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600">
-              <FileText className="w-6 h-6 text-white" />
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600">
+                <FileText className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">{chapter.title}</h1>
+                <p className="text-slate-600">Chapter Evaluation Report</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900">{chapter.title}</h1>
-              <p className="text-slate-600">Chapter Evaluation Report</p>
-            </div>
+            <Button onClick={handleDownloadClean} className="bg-indigo-600 hover:bg-indigo-700">
+              <Download className="w-4 h-4 mr-2" />
+              Download Clean Chapter
+            </Button>
           </div>
         </div>
 
