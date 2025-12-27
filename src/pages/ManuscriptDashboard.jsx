@@ -192,34 +192,24 @@ export default function ManuscriptDashboard() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6 mb-8">
-          {/* Global Score */}
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-purple-50">
-            <CardHeader>
-              <CardTitle className="text-lg">Overall RevisionGrade™</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-bold text-indigo-600 mb-2">
-                {globalScore.toFixed(1)}/10
-              </div>
-              <Progress value={globalScore * 10} className="h-2" />
-            </CardContent>
-          </Card>
-
           {/* Spine Score */}
           <Card className="border-0 shadow-lg">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <BookOpen className="w-5 h-5" />
-                Whole-Manuscript (Spine) Evaluation
+                Spine Evaluation
               </CardTitle>
-              <p className="text-xs text-slate-500 mt-1">12 Agent Criteria</p>
+              <p className="text-xs text-slate-500 mt-1">Story-level: 12 Agent Criteria</p>
             </CardHeader>
             <CardContent>
               {manuscript.spine_score ? (
                 <>
-                  <div className="text-3xl font-bold text-slate-900 mb-2">
+                  <div className="text-4xl font-bold text-slate-900 mb-2">
                     {manuscript.spine_score.toFixed(1)}/10
                   </div>
+                  <p className="text-xs text-slate-600 mb-3">
+                    Premise, plot, arcs, theme, pacing, voice, structure, stakes
+                  </p>
                   <Link to={createPageUrl(`SpineReport?id=${manuscriptId}`)}>
                     <Button variant="outline" size="sm" className="w-full">
                       View Full Report
@@ -248,17 +238,54 @@ export default function ManuscriptDashboard() {
             </CardContent>
           </Card>
 
+          {/* Overall RevisionGrade - Only show when chapters evaluated */}
+          {evaluatedChapters > 0 ? (
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-purple-50">
+              <CardHeader>
+                <CardTitle className="text-lg">Overall RevisionGrade™</CardTitle>
+                <p className="text-xs text-slate-500 mt-1">Story + Craft: 12 Criteria + 60+ WAVE Checks</p>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold text-indigo-600 mb-2">
+                  {globalScore.toFixed(1)}/10
+                </div>
+                <p className="text-xs text-slate-600 mb-2">
+                  Combines spine evaluation with chapter-level craft analysis
+                </p>
+                <Progress value={globalScore * 10} className="h-2" />
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-0 shadow-lg bg-slate-50">
+              <CardHeader>
+                <CardTitle className="text-lg">Overall RevisionGrade™</CardTitle>
+                <p className="text-xs text-slate-500 mt-1">Story + Craft: 12 Criteria + 60+ WAVE Checks</p>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-slate-400 mb-2">
+                  —/10
+                </div>
+                <p className="text-sm text-slate-600">
+                  Evaluate chapters to see your full RevisionGrade™ (story engine + line-level craft)
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Chapter Progress */}
           <Card className="border-0 shadow-lg">
             <CardHeader>
               <CardTitle className="text-lg">Chapter Progress</CardTitle>
-              <p className="text-xs text-slate-500 mt-1">Evaluate chapters to update your Overall RevisionGrade™</p>
+              <p className="text-xs text-slate-500 mt-1">WAVE Revision System checks applied per chapter</p>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-slate-900 mb-2">
+              <div className="text-4xl font-bold text-slate-900 mb-2">
                 {evaluatedChapters}/{chapters.length}
               </div>
-              <Progress value={(evaluatedChapters / chapters.length) * 100} className="h-2" />
+              <Progress value={(evaluatedChapters / chapters.length) * 100} className="h-2 mb-2" />
+              <p className="text-xs text-slate-600">
+                Chapter evaluations enable the full RevisionGrade™ score
+              </p>
             </CardContent>
           </Card>
         </div>
