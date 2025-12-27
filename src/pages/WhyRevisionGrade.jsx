@@ -215,7 +215,7 @@ export default function WhyRevisionGrade() {
                             <Link to={createPageUrl('UploadManuscript')}>
                                 <Button size="lg" variant="outline" className="h-14 px-10 text-lg border-slate-300">
                                     <BookOpen className="w-5 h-5 mr-2" />
-                                    Upload Full Manuscript
+                                    Start Full Analysis
                                 </Button>
                             </Link>
                         </div>
