@@ -58,11 +58,11 @@ export default function SampleAnalysis() {
                     </CardHeader>
                     <CardContent className="text-slate-700 space-y-3">
                         <p>
-                            Don Winslow's <em>Cartel Trilogy</em> is widely considered the gold standard of cartel fiction, blending 
+                            Don Winslow's <em className="italic">Cartel Trilogy</em> is widely considered the gold standard of cartel fiction, blending 
                             geopolitical scope, procedural detail, and decades of research. Agents, editors, and readers often use 
-                            Winslow as the benchmark for evaluating narcoculture thrillers. <em>Cartel Babies</em> enters the same 
+                            Winslow as the benchmark for evaluating narcoculture thrillers. <em className="italic">Cartel Babies</em> enters the same 
                             territory—but from a radically different angle: intimate, psychological, emotionally devastating, and 
-                            driven by lived sensory realism. This report situates <em>Cartel Babies</em> within that landscape and 
+                            driven by lived sensory realism. This report situates <em className="italic">Cartel Babies</em> within that landscape and 
                             demonstrates how it measures against one of the genre's most acclaimed bodies of work.
                         </p>
                     </CardContent>
@@ -306,7 +306,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4 font-semibold bg-slate-100">12. "Would an Agent Keep Reading?"</td>
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
-                                            <p>Yes, especially for <em>The Power of the Dog</em> as a debut—but it begins wide and procedural, not intimate.</p>
+                                            <p>Yes, especially for <em className="italic">The Power of the Dog</em> as a debut—but it begins wide and procedural, not intimate.</p>
                                         </td>
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
