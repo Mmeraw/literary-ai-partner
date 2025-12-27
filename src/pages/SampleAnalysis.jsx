@@ -88,8 +88,8 @@ export default function SampleAnalysis() {
                             </div>
                             <div className="text-sm text-slate-700 space-y-3">
                                 <p>
-                                    All of Meraw's fiction unfolds within the interconnected <strong>EvØ-Myth Universe™</strong>. 
-                                    His latest novel, <em>Cartel Babies</em>, is a 124,000-word, literary–commercial psychological thriller 
+                                    All of Meraw's fiction unfolds within the interconnected <strong className="text-red-600 font-bold">EvØ-Myth Universe™</strong>. 
+                                    His latest novel, <em className="italic">Cartel Babies</em>, is a 124,000-word, literary–commercial psychological thriller 
                                     set in present-day Sinaloa, México.
                                 </p>
                                 <p>
@@ -122,7 +122,7 @@ export default function SampleAnalysis() {
                             </div>
                             <div className="text-sm text-slate-700 space-y-3">
                                 <p>
-                                    Winslow's acclaimed trilogy—<em>The Power of the Dog</em>, <em>The Cartel</em>, and <em>The Border</em>—follows 
+                                    Winslow's acclaimed trilogy—<em className="italic">The Power of the Dog</em>, <em className="italic">The Cartel</em>, and <em className="italic">The Border</em>—follows 
                                     DEA agent Art Keller across decades of conflict with a powerful Sinaloa cartel.
                                 </p>
                                 <p>
@@ -174,7 +174,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4 font-semibold bg-slate-100">1. Hook (Opening)</td>
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
-                                            <p>Begins with violence, setting, and drug-war stakes. Immediate stakes, professional propulsion, cinematic.</p>
+                                            <p>Begins with violence, setting, and drug-war stakes (<em className="italic">The Power of the Dog</em> opening). Immediate stakes, professional propulsion, cinematic.</p>
                                         </td>
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
