@@ -121,7 +121,7 @@ export default function UploadManuscript() {
                 <li>• Text analyzed for structure, pacing, and craft</li>
                 <li>• Longer works split into chapters automatically</li>
                 <li>• Scored against 12 agent criteria + 60+ WAVE checks</li>
-                <li>• Get your Literary AI Partner™ score and detailed feedback</li>
+                <li>• Receive your RevisionGrade™ score and detailed feedback</li>
               </ul>
             </div>
 
