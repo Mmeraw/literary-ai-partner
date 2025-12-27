@@ -95,13 +95,13 @@ export default function FAQ() {
                                         <div className="space-y-3 text-slate-700">
                                             <p><strong>Professional Plan includes:</strong></p>
                                             <ul className="list-disc ml-6 space-y-2">
-                                                <li><strong>Unlimited evaluation runs</strong> (subject to 500,000 words/month cap)</li>
+                                                <li><strong>As many evaluation runs as you need</strong>, within a 500,000-word/month cap</li>
                                                 <li><strong>Full manuscript & screenplay evaluation</strong> against 12 literary-agent criteria</li>
                                                 <li><strong>60+ WAVE Revision checks</strong> (sentence craft, dialogue, pacing, structure)</li>
                                                 <li><strong>Progress dashboard</strong> tracking improvement over time</li>
                                                 <li><strong>Revision effectiveness analysis</strong> (before/after scoring)</li>
                                                 <li><strong>Recurring pattern detection</strong> (what you keep getting wrong)</li>
-                                                <li><strong>Clean download options</strong> (submission-ready revised text, revision history, editorial commentary)</li>
+                                                <li><strong>Clean downloads</strong> (submission-ready revised text with no markup; revision history and editorial commentary provided as separate reports)</li>
                                                 <li><strong>Editorial reports (PDF)</strong></li>
                                                 <li><strong>Priority processing</strong></li>
                                                 <li><strong>Priority email support</strong></li>
@@ -152,21 +152,11 @@ export default function FAQ() {
                                         What does "PhD-calibrated" mean?
                                     </AccordionTrigger>
                                     <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p>
-                                                RevisionGrade's scoring system was calibrated using detailed editorial evaluations created by 
-                                                <strong> PhD-level editors and literary professionals</strong>.
-                                            </p>
-                                            <p>
-                                                Their diagnostic patterns, criteria, and revision standards were encoded into the platform—together 
-                                                with the proprietary WAVE Revision framework—so the AI can apply the same evaluative logic 
-                                                consistently across manuscripts, at scale.
-                                            </p>
-                                            <p className="text-sm italic text-slate-600">
-                                                "Calibrated" means the system was trained using real editorial frameworks. 
-                                                No human editor reviews individual submissions unless explicitly stated.
-                                            </p>
-                                        </div>
+                                        <p className="text-slate-700">
+                                            "PhD-calibrated" means the evaluation framework was tuned against professional editorial assessments 
+                                            and acquisition outcomes, so scores reflect submission-level standards rather than generic writing feedback. 
+                                            No human editor reviews individual submissions unless explicitly stated.
+                                        </p>
                                     </AccordionContent>
                                 </AccordionItem>
 
@@ -192,6 +182,36 @@ export default function FAQ() {
                                             </ul>
                                             <p>
                                                 For final polish, voice refinement, or subjective creative decisions, human editors remain essential.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="what-it-does">
+                                    <AccordionTrigger>
+                                        What RevisionGrade™ does — and does not — do
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                RevisionGrade™ is <strong>not a grammar checker, rewrite engine, or content generator</strong>.
+                                            </p>
+                                            <p className="font-semibold text-slate-900">It does not:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Rewrite your prose for you</li>
+                                                <li>Generate new scenes or dialogue</li>
+                                                <li>Act as a co-writer</li>
+                                                <li>Provide margin notes like a human editor</li>
+                                            </ul>
+                                            <p className="font-semibold text-slate-900 mt-3">It does:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Evaluate your manuscript or screenplay against agent-calibrated criteria</li>
+                                                <li>Diagnose structural and craft risks</li>
+                                                <li>Surface recurring weaknesses</li>
+                                                <li>Measure whether your revisions actually improve the work</li>
+                                            </ul>
+                                            <p className="text-indigo-900 font-semibold mt-3">
+                                                In short: writing tools change sentences; RevisionGrade™ decides whether the manuscript is ready.
                                             </p>
                                         </div>
                                     </AccordionContent>
