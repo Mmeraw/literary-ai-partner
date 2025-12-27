@@ -259,7 +259,7 @@ export default function FAQ() {
                                     <AccordionContent>
                                         <div className="space-y-3 text-slate-700">
                                             <p>
-                                                RevisionGrade™ is not a writing assistant. It's an <strong>editorial evaluation system</strong> 
+                                                RevisionGrade™ is not a writing assistant. It's an <strong>editorial evaluation system</strong>{' '}
                                                 built on:
                                             </p>
                                             <ul className="list-disc ml-6 space-y-2">
