@@ -69,7 +69,11 @@ export default function Layout({ children, currentPageName }) {
                         {/* Desktop Navigation */}
                         <div className="hidden md:flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-hide">
                             {navItems
-                                .filter(item => item.page !== 'History' || user)
+                                .filter(item => {
+                                    if (item.page === 'History' && !user) return false;
+                                    if (item.adminOnly && user?.role !== 'admin') return false;
+                                    return true;
+                                })
                                 .map((item) => (
                                     <Link key={item.page} to={createPageUrl(item.page)}>
                                         <Button
@@ -132,7 +136,11 @@ export default function Layout({ children, currentPageName }) {
                     <div className="md:hidden absolute left-0 right-0 top-16 border-t border-slate-100 bg-white shadow-lg max-h-screen overflow-y-auto">
                         <div className="px-4 py-3 space-y-1">
                             {navItems
-                                .filter(item => item.page !== 'History' || user)
+                                .filter(item => {
+                                    if (item.page === 'History' && !user) return false;
+                                    if (item.adminOnly && user?.role !== 'admin') return false;
+                                    return true;
+                                })
                                 .map((item) => (
                                     <Link 
                                         key={item.page} 
