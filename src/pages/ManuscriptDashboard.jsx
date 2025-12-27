@@ -140,11 +140,9 @@ export default function ManuscriptDashboard() {
   }
 
   // Show evaluation progress screen
-  if (manuscript?.status === 'evaluating_chapters' || manuscript?.status === 'spine_evaluating') {
+  if (['summarizing', 'spine_evaluating', 'evaluating_chapters'].includes(manuscript?.status)) {
     const progress = manuscript.evaluation_progress || {};
-    const percentComplete = progress.total_chapters > 0 
-      ? (progress.completed_chapters / progress.total_chapters) * 100 
-      : 0;
+    const percentComplete = progress.percent_complete || 0;
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 flex items-center justify-center">
@@ -166,7 +164,7 @@ export default function ManuscriptDashboard() {
                   {progress.current_step || 'Starting evaluation...'}
                 </span>
                 <span className="text-sm font-semibold text-indigo-600">
-                  {progress.completed_chapters || 0}/{progress.total_chapters || 0} chapters
+                  {percentComplete}%
                 </span>
               </div>
               <Progress value={percentComplete} className="h-3" />
@@ -174,19 +172,38 @@ export default function ManuscriptDashboard() {
 
             <div className="space-y-2 text-sm text-slate-600">
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${manuscript.spine_score ? 'bg-green-500' : 'bg-indigo-500 animate-pulse'}`} />
+                <div className={`w-2 h-2 rounded-full ${
+                  progress.current_phase === 'summarize' ? 'bg-indigo-500 animate-pulse' :
+                  progress.chapters_summarized === progress.chapters_total ? 'bg-green-500' : 'bg-slate-300'
+                }`} />
+                <span>Chapter Summaries (Structural)</span>
+                {progress.chapters_summarized === progress.chapters_total && <CheckCircle2 className="w-4 h-4 text-green-500 ml-auto" />}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  progress.current_phase === 'spine' ? 'bg-indigo-500 animate-pulse' :
+                  manuscript.spine_score ? 'bg-green-500' : 'bg-slate-300'
+                }`} />
                 <span>Spine Evaluation (12 Agent Criteria)</span>
                 {manuscript.spine_score && <CheckCircle2 className="w-4 h-4 text-green-500 ml-auto" />}
               </div>
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${progress.completed_chapters > 0 ? 'bg-indigo-500 animate-pulse' : 'bg-slate-300'}`} />
+                <div className={`w-2 h-2 rounded-full ${
+                  progress.current_phase === 'wave' ? 'bg-indigo-500 animate-pulse' :
+                  progress.chapters_wave_done > 0 ? 'bg-green-500' : 'bg-slate-300'
+                }`} />
                 <span>Chapter-by-Chapter Analysis (WAVE System)</span>
+                {progress.chapters_wave_done > 0 && (
+                  <span className="text-xs text-slate-500 ml-auto">
+                    {progress.chapters_wave_done}/{progress.chapters_total}
+                  </span>
+                )}
               </div>
             </div>
 
             <div className="mt-6 p-4 rounded-lg bg-indigo-50 border border-indigo-200">
               <p className="text-xs text-indigo-800">
-                <strong>This may take 2-5 minutes.</strong> Your browser can remain open or you can close it—evaluation runs on our servers. Refresh to check progress.
+                You can leave this page open or close it—evaluation runs on our servers. Refresh to check progress.
               </p>
             </div>
           </CardContent>
@@ -208,13 +225,21 @@ export default function ManuscriptDashboard() {
   }
 
   const evaluatedChapters = chapters.filter(ch => ch.status === 'evaluated').length;
+  const evaluatedWords = chapters
+    .filter(ch => ch.status === 'evaluated')
+    .reduce((sum, ch) => sum + (ch.word_count || 0), 0);
+
   const avgChapterScore = evaluatedChapters > 0
     ? chapters.reduce((sum, ch) => sum + (ch.evaluation_score || 0), 0) / evaluatedChapters
     : 0;
 
-  const globalScore = manuscript.spine_score && evaluatedChapters > 0
-    ? (0.5 * manuscript.spine_score + 0.5 * avgChapterScore)
-    : manuscript.spine_score || avgChapterScore;
+  // Score gating: only show overall if ≥30% chapters OR ≥25k words evaluated
+  const scoreThresholdMet = (evaluatedChapters / chapters.length) >= 0.3 || evaluatedWords >= 25000;
+
+  const globalScore = manuscript.revisiongrade_overall || 
+    (manuscript.spine_score && evaluatedChapters > 0
+      ? (0.5 * manuscript.spine_score + 0.5 * avgChapterScore)
+      : manuscript.spine_score || avgChapterScore);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
@@ -259,9 +284,30 @@ export default function ManuscriptDashboard() {
               <p className="text-sm text-slate-600 mt-1">Story + Craft: 12 Criteria + 60+ WAVE Checks</p>
             </CardHeader>
             <CardContent>
-              <div className="text-6xl font-bold text-indigo-600 mb-4">
-                {globalScore.toFixed(1)}/10
-              </div>
+              {scoreThresholdMet ? (
+                <>
+                  <div className="text-6xl font-bold text-indigo-600 mb-4">
+                    {globalScore.toFixed(1)}/10
+                  </div>
+                  <p className="text-sm text-slate-600 mb-4">
+                    Based on spine + chapter-level analysis.
+                    {evaluatedChapters < chapters.length && ' Score stabilizes as more chapters are evaluated.'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="text-5xl font-bold text-slate-400 mb-4">
+                    In Progress
+                  </div>
+                  <p className="text-sm text-slate-700 mb-4">
+                    {manuscript.spine_score ? (
+                      <>Spine evaluation: <span className="font-semibold text-indigo-600">{manuscript.spine_score.toFixed(1)}/10</span>. Run chapter analysis to unlock your full score.</>
+                    ) : (
+                      'Complete evaluation to see your overall score.'
+                    )}
+                  </p>
+                </>
+              )}
               <div className="grid grid-cols-2 gap-4 pt-4 border-t">
                 <div>
                   <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
@@ -282,7 +328,7 @@ export default function ManuscriptDashboard() {
                   </div>
                 </div>
               </div>
-              <Progress value={globalScore * 10} className="h-3 mt-4" />
+              {scoreThresholdMet && <Progress value={globalScore * 10} className="h-3 mt-4" />}
             </CardContent>
           </Card>
 

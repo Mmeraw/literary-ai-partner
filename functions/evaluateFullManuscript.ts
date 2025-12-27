@@ -25,10 +25,15 @@ Deno.serve(async (req) => {
 
         // PHASE 1: Generate chapter summaries (structural abstraction)
         await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+            status: 'summarizing',
             evaluation_progress: {
-                total_chapters: chapters.length,
-                completed_chapters: 0,
-                current_step: 'Preparing chapters...'
+                chapters_total: chapters.length,
+                chapters_summarized: 0,
+                chapters_wave_done: 0,
+                current_phase: 'summarize',
+                percent_complete: 0,
+                current_step: 'Preparing chapters...',
+                last_updated: new Date().toISOString()
             }
         });
 
@@ -37,15 +42,22 @@ Deno.serve(async (req) => {
         for (let i = 0; i < chapters.length; i++) {
             const chapter = chapters[i];
 
-            await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
-                evaluation_progress: {
-                    total_chapters: chapters.length,
-                    completed_chapters: i,
-                    current_step: `Summarizing Chapter ${i + 1} of ${chapters.length}...`
-                }
-            });
+            try {
+                await base44.asServiceRole.entities.Chapter.update(chapter.id, { status: 'summarizing' });
 
-            const summaryPrompt = `You are a professional developmental editor. Produce accurate structural summaries. Do not invent events. Do not rewrite prose. Output must be valid JSON matching the schema. Keep language neutral and specific.
+                await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                    evaluation_progress: {
+                        chapters_total: chapters.length,
+                        chapters_summarized: i,
+                        chapters_wave_done: 0,
+                        current_phase: 'summarize',
+                        percent_complete: Math.floor((i / chapters.length) * 25),
+                        current_step: `Summarizing Chapter ${i + 1} of ${chapters.length}...`,
+                        last_updated: new Date().toISOString()
+                    }
+                });
+
+                const summaryPrompt = `You are a professional developmental editor. Produce accurate structural summaries. Do not invent events. Do not rewrite prose. Output must be valid JSON matching the schema. Keep language neutral and specific.
 
         TASK: Create a structural chapter summary for later whole-book 'spine' evaluation.
 
@@ -58,39 +70,58 @@ Deno.serve(async (req) => {
         CHAPTER TEXT:
         ${chapter.text}`;
 
-            const summary = await base44.asServiceRole.integrations.Core.InvokeLLM({
-                prompt: summaryPrompt,
-                response_json_schema: {
-                    type: "object",
-                    properties: {
-                        chapter_index: { type: "number" },
-                        chapter_title: { type: "string" },
-                        summary_200_300_words: { type: "string" },
-                        key_beats: { type: "array", items: { type: "string" } },
-                        characters_present: { type: "array", items: { type: "string" } },
-                        primary_pov: { type: "string" },
-                        settings: { type: "array", items: { type: "string" } },
-                        stakes_shift: { type: "string" },
-                        conflict_type: { type: "string" },
-                        turning_point: { type: "string" },
-                        unresolved_hooks: { type: "array", items: { type: "string" } },
-                        tension_level_1_5: { type: "number" },
-                        arc_movement_notes: { type: "string" },
-                        notes: { type: "string" }
-                    },
-                    required: ["chapter_index", "chapter_title", "summary_200_300_words", "key_beats"]
-                }
-            });
+                const summary = await base44.asServiceRole.integrations.Core.InvokeLLM({
+                    prompt: summaryPrompt,
+                    response_json_schema: {
+                        type: "object",
+                        properties: {
+                            chapter_index: { type: "number" },
+                            chapter_title: { type: "string" },
+                            summary_200_300_words: { type: "string" },
+                            key_beats: { type: "array", items: { type: "string" } },
+                            characters_present: { type: "array", items: { type: "string" } },
+                            primary_pov: { type: "string" },
+                            settings: { type: "array", items: { type: "string" } },
+                            stakes_shift: { type: "string" },
+                            conflict_type: { type: "string" },
+                            turning_point: { type: "string" },
+                            unresolved_hooks: { type: "array", items: { type: "string" } },
+                            tension_level_1_5: { type: "number" },
+                            arc_movement_notes: { type: "string" },
+                            notes: { type: "string" }
+                        },
+                        required: ["chapter_index", "chapter_title", "summary_200_300_words", "key_beats"]
+                    }
+                });
 
-            chapterSummaries.push(summary);
+                await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                    summary_json: summary,
+                    status: 'summarized'
+                });
+
+                chapterSummaries.push(summary);
+
+            } catch (error) {
+                console.error(`Chapter ${i + 1} summary failed:`, error);
+                await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                    status: 'failed',
+                    error_message: error.message
+                });
+                // Continue with remaining chapters
+            }
         }
 
         // PHASE 2: Spine synthesis (all summaries at once)
         await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+            status: 'spine_evaluating',
             evaluation_progress: {
-                total_chapters: chapters.length,
-                completed_chapters: chapters.length,
-                current_step: 'Building Spine Evaluation...'
+                chapters_total: chapters.length,
+                chapters_summarized: chapters.length,
+                chapters_wave_done: 0,
+                current_phase: 'spine',
+                percent_complete: 25,
+                current_step: 'Building Spine Evaluation...',
+                last_updated: new Date().toISOString()
             }
         });
 
@@ -156,24 +187,36 @@ Deno.serve(async (req) => {
             spine_evaluation: spineEvaluation,
             status: 'evaluating_chapters',
             evaluation_progress: {
-                total_chapters: chapters.length,
-                completed_chapters: 0,
-                current_step: 'Running chapter-by-chapter craft checks...'
+                chapters_total: chapters.length,
+                chapters_summarized: chapters.length,
+                chapters_wave_done: 0,
+                current_phase: 'wave',
+                percent_complete: 40,
+                current_step: 'Running chapter-by-chapter craft checks...',
+                last_updated: new Date().toISOString()
             }
         });
 
-        // 2. Evaluate each chapter (12 criteria + WAVE)
+        // PHASE 3: WAVE chapter craft evaluation
         for (let i = 0; i < chapters.length; i++) {
             const chapter = chapters[i];
-            
-            // Update progress
-            await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
-                evaluation_progress: {
-                    total_chapters: chapters.length,
-                    completed_chapters: i,
-                    current_step: `Evaluating Chapter ${i + 1}: ${chapter.title}`
-                }
-            });
+
+            try {
+                await base44.asServiceRole.entities.Chapter.update(chapter.id, { status: 'evaluating' });
+
+                // Update progress
+                const wavePercent = 40 + Math.floor((i / chapters.length) * 50);
+                await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                    evaluation_progress: {
+                        chapters_total: chapters.length,
+                        chapters_summarized: chapters.length,
+                        chapters_wave_done: i,
+                        current_phase: 'wave',
+                        percent_complete: wavePercent,
+                        current_step: `Evaluating Chapter ${i + 1}: ${chapter.title}`,
+                        last_updated: new Date().toISOString()
+                    }
+                });
             // Agent-level evaluation
             const agentAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are a senior literary agent evaluating a manuscript chapter. Analyze this chapter against exactly these 12 criteria, rating each 1-10:
@@ -273,6 +316,7 @@ Provide: waveScore (1-10), criticalIssues (array), strengthAreas (array).`,
             // Update chapter
             await base44.asServiceRole.entities.Chapter.update(chapter.id, {
                 evaluation_score: combinedScore,
+                chapter_craft_score: waveAnalysis.waveScore,
                 evaluation_result: {
                     ...agentAnalysis,
                     waveAnalysis: waveAnalysis,
@@ -280,17 +324,52 @@ Provide: waveScore (1-10), criticalIssues (array), strengthAreas (array).`,
                     agentScore: agentAnalysis.overallScore,
                     waveScore: waveAnalysis.waveScore
                 },
+                wave_results_json: waveAnalysis,
                 status: 'evaluated'
             });
-        }
+
+            } catch (error) {
+            console.error(`Chapter ${i + 1} WAVE evaluation failed:`, error);
+            await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                status: 'failed',
+                error_message: error.message
+            });
+            // Continue with remaining chapters
+            }
+            }
+
+        // PHASE 4: Final composite scoring
+        const evaluatedChapters = await base44.asServiceRole.entities.Chapter.filter({ 
+            manuscript_id, 
+            status: 'evaluated' 
+        });
+
+        const avgChapterScore = evaluatedChapters.length > 0
+            ? evaluatedChapters.reduce((sum, ch) => sum + (ch.evaluation_score || 0), 0) / evaluatedChapters.length
+            : 0;
+
+        const revisiongradeOverall = spineEvaluation.overallScore && avgChapterScore
+            ? (0.5 * spineEvaluation.overallScore + 0.5 * avgChapterScore)
+            : spineEvaluation.overallScore || avgChapterScore;
 
         // Mark manuscript as ready
         await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
             status: 'ready',
+            revisiongrade_overall: revisiongradeOverall,
+            revisiongrade_breakdown: {
+                spine_score: spineEvaluation.overallScore,
+                average_chapter_score: avgChapterScore,
+                chapters_evaluated: evaluatedChapters.length,
+                chapters_total: chapters.length
+            },
             evaluation_progress: {
-                total_chapters: chapters.length,
-                completed_chapters: chapters.length,
-                current_step: 'Evaluation complete'
+                chapters_total: chapters.length,
+                chapters_summarized: chapters.length,
+                chapters_wave_done: evaluatedChapters.length,
+                current_phase: 'finalize',
+                percent_complete: 100,
+                current_step: 'Evaluation complete',
+                last_updated: new Date().toISOString()
             }
         });
 
