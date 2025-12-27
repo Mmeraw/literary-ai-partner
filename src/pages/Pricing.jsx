@@ -9,40 +9,42 @@ import { toast } from 'sonner';
 
 const tiers = [
     {
-        name: "Basic",
-        price: 20,
-        priceId: "price_basic_monthly",
+        name: "Starter",
+        price: 25,
+        priceId: "price_starter_monthly",
         icon: Zap,
         color: "from-blue-500 to-cyan-600",
         features: [
-            "Up to 50 evaluation runs/month",
-            "100,000 words/month included",
-            "Quick scene/chapter evaluation",
+            "Quick scene/chapter evaluation only",
+            "25,000 words/month included",
             "12 Literary Agent Criteria",
             "Wave Revision System",
             "Email support"
         ],
         limitations: [
-            "No full manuscript spine evaluation",
+            "No full manuscript analysis",
+            "No screenplay evaluation",
+            "No progress dashboard",
             "Standard processing speed"
         ]
     },
     {
-        name: "Pro",
-        price: 50,
-        priceId: "price_pro_monthly",
+        name: "Professional",
+        price: 99,
+        priceId: "price_professional_monthly",
         icon: Sparkles,
         color: "from-indigo-500 to-purple-600",
         popular: true,
         features: [
-            "Unlimited evaluation runs",
+            "Unlimited evaluation runs¹",
             "500,000 words/month included",
             "Full manuscript & screenplay evaluation",
             "Structure-aware analysis",
+            "Clean revised downloads",
+            "Editorial reports (PDF)",
+            "Progress & pattern tracking",
             "Priority processing",
-            "Wave Revision unlimited",
-            "Priority email support",
-            "Export reports (PDF)"
+            "Priority email support"
         ],
         limitations: []
     }
@@ -121,7 +123,7 @@ export default function Pricing() {
                         Choose Your Plan
                     </h1>
                     <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-                        Start free, upgrade when you're ready. All plans include PhD-calibrated AI analysis and the WAVE Revision System.
+                        Professional editorial judgment, repeatable over time. All plans include PhD-calibrated analysis and the proprietary WAVE Revision System.
                     </p>
                 </div>
             </div>
@@ -214,20 +216,26 @@ export default function Pricing() {
                         </CardHeader>
                         <CardContent className="space-y-4 text-sm text-slate-600">
                             <div>
-                                <strong className="text-slate-900">Rate Limiting:</strong> All plans include cooldown periods between evaluations to ensure fair usage and system stability.
+                                <strong className="text-slate-900">¹ Unlimited Evaluation Runs:</strong> Refers to the number of analysis runs. Monthly usage is subject to the included word allowance, whichever comes first.
+                            </div>
+                            <div>
+                                <strong className="text-slate-900">Free Starter Evaluation:</strong> New users receive 1-2 free evaluations (~2,000 words total) to experience the system. Account required after first evaluation.
                             </div>
                             <div>
                                 <strong className="text-slate-900">Monthly Reset:</strong> Evaluation counts and word limits reset on the 1st of each month.
                             </div>
                             <div>
-                                <strong className="text-slate-900">Abuse Protection:</strong> Accounts showing suspicious usage patterns (24/7 usage, account sharing, excessive API calls) may be suspended.
-                            </div>
-                            <div>
                                 <strong className="text-slate-900">Cancellation:</strong> Cancel anytime. Access continues until the end of your billing period.
                             </div>
                             <div className="pt-4 border-t border-slate-200">
+                                <p className="text-xs text-slate-500">
+                                    Compare: Professional developmental edits typically cost $2,000–$14,000 for a single pass. 
+                                    RevisionGrade™ provides unlimited evaluations, revision tracking, and progress intelligence for less than the cost of one human editorial pass.
+                                </p>
+                            </div>
+                            <div className="pt-2 border-t border-slate-200">
                                 <p className="text-xs text-slate-500 italic">
-                                    Payment processing will be handled securely through Stripe. All subscriptions are subject to our Terms of Service.
+                                    Payment processing handled securely through Stripe. All subscriptions subject to Terms of Service.
                                 </p>
                             </div>
                         </CardContent>
