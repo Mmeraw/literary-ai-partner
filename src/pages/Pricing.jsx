@@ -11,12 +11,12 @@ const tiers = [
     {
         name: "Basic",
         price: 20,
-        priceId: "price_basic_monthly", // Replace with your actual Stripe Price ID
+        priceId: "price_basic_monthly",
         icon: Zap,
         color: "from-blue-500 to-cyan-600",
         features: [
-            "50 evaluations per month",
-            "100,000 word limit per month",
+            "Up to 50 evaluation runs/month",
+            "100,000 words/month included",
             "Quick Scene/Chapter Eval",
             "12 Literary Agent Criteria",
             "Wave Revision System",
@@ -30,13 +30,13 @@ const tiers = [
     {
         name: "Pro",
         price: 50,
-        priceId: "price_pro_monthly", // Replace with your actual Stripe Price ID
+        priceId: "price_pro_monthly",
         icon: Sparkles,
         color: "from-indigo-500 to-purple-600",
         popular: true,
         features: [
-            "Unlimited evaluations",
-            "500,000 word limit per month",
+            "Unlimited evaluation runs",
+            "500,000 words/month included",
             "Full Manuscript Spine Evaluation",
             "Chapter-by-chapter analysis",
             "Priority processing",
@@ -45,26 +45,27 @@ const tiers = [
             "Export reports (PDF)"
         ],
         limitations: []
-    },
-    {
-        name: "Enterprise",
-        price: 200,
-        priceId: "price_enterprise_monthly", // Replace with your actual Stripe Price ID
-        icon: Crown,
-        color: "from-purple-500 to-pink-600",
-        features: [
-            "Unlimited everything",
-            "White-glove service",
-            "Dedicated account manager",
-            "Custom evaluation criteria",
-            "API access (coming soon)",
-            "Bulk manuscript processing",
-            "24/7 priority support",
-            "Custom integrations",
-            "Team collaboration tools"
-        ],
-        limitations: []
     }
+    // Enterprise plan hidden for now
+    // {
+    //     name: "Enterprise",
+    //     price: 200,
+    //     priceId: "price_enterprise_monthly",
+    //     icon: Crown,
+    //     color: "from-purple-500 to-pink-600",
+    //     features: [
+    //         "Unlimited everything",
+    //         "White-glove service",
+    //         "Dedicated account manager",
+    //         "Custom evaluation criteria",
+    //         "Bulk manuscript processing",
+    //         "24/7 priority support",
+    //         "Custom integrations",
+    //         "Team collaboration tools"
+    //     ],
+    //     roadmap: "Early access to new features: API access & integrations available to Enterprise first",
+    //     limitations: []
+    // }
 ];
 
 export default function Pricing() {
@@ -127,7 +128,7 @@ export default function Pricing() {
 
             {/* Pricing Cards */}
             <div className="max-w-7xl mx-auto px-6 pb-20">
-                <div className="grid md:grid-cols-3 gap-8">
+                <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                     {tiers.map((tier, idx) => (
                         <motion.div
                             key={tier.name}
