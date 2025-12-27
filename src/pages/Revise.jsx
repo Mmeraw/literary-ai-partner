@@ -200,6 +200,35 @@ export default function Revise() {
     toast.success('Thank you for your feedback!');
   };
 
+  const handleApplyBestRevisions = async () => {
+    if (!session) return;
+
+    let updatedText = session.current_text;
+    const updatedSuggestions = session.suggestions.map(suggestion => {
+      // Auto-accept pending suggestions (skip already accepted/rejected)
+      if (suggestion.status === 'pending') {
+        // Apply the change to text
+        updatedText = updatedText.replace(
+          suggestion.original_text,
+          suggestion.suggested_text
+        );
+        return { ...suggestion, status: 'accepted' };
+      }
+      return suggestion;
+    });
+
+    await updateSessionMutation.mutateAsync({
+      sessionId: session.id,
+      data: {
+        current_text: updatedText,
+        suggestions: updatedSuggestions,
+        current_position: session.suggestions.length - 1
+      }
+    });
+
+    toast.success('Best revisions applied! Review complete.');
+  };
+
   const isSessionComplete = session && 
     session.suggestions.every(s => s.status !== 'pending');
 
@@ -274,6 +303,33 @@ export default function Revise() {
 
           {/* Smart Features Banner */}
           <SmartFeaturesBanner />
+
+          {/* Apply Best Revisions - Fast Path */}
+          {!isSessionComplete && session.suggestions.some(s => s.status === 'pending') && (
+            <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 mt-4">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles className="w-5 h-5 text-indigo-600" />
+                      <h3 className="font-semibold text-slate-900">Trusted Fast Path</h3>
+                    </div>
+                    <p className="text-sm text-slate-700 mb-3">
+                      Apply RevisionGrade's recommended changes based on editorial priority. You can review afterward.
+                    </p>
+                    <Button
+                      onClick={handleApplyBestRevisions}
+                      disabled={updateSessionMutation.isPending}
+                      className="bg-indigo-600 hover:bg-indigo-700"
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Apply Best Revisions
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Progress Bar */}
           <Card className="bg-white/80 backdrop-blur-sm mt-4">
