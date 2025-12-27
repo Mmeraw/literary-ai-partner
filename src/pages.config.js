@@ -20,6 +20,7 @@ import PaymentSuccess from './pages/PaymentSuccess';
 import Analytics from './pages/Analytics';
 import SelectFormat from './pages/SelectFormat';
 import UploadWork from './pages/UploadWork';
+import Progress from './pages/Progress';
 import __Layout from './Layout.jsx';
 
 
@@ -46,6 +47,7 @@ export const PAGES = {
     "Analytics": Analytics,
     "SelectFormat": SelectFormat,
     "UploadWork": UploadWork,
+    "Progress": Progress,
 }
 
 export const pagesConfig = {

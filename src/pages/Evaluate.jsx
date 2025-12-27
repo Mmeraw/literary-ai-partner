@@ -209,6 +209,18 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 console.error('Save error (non-critical):', saveError);
             }
 
+            // Store evaluation signals for progress tracking
+            try {
+                await base44.functions.invoke('storeEvaluationSignals', {
+                    submissionId: newSubmission?.id,
+                    evaluationResult,
+                    contentType: 'scene',
+                    isRevision: false
+                });
+            } catch (signalError) {
+                console.error('Failed to store evaluation signals (non-critical):', signalError);
+            }
+
             // Set result and advance to step 3
             setEvaluationResult(evaluationResult);
             setIsProcessing(false);
