@@ -95,57 +95,118 @@ Deno.serve(async (req) => {
       ? workingText.split(/\s+/).slice(0, maxWords).join(' ') + '...'
       : workingText;
 
-    // Generate suggestions using AI with wave-specific instructions
-    const prompt = `You are a professional manuscript editor. Apply ${wave.name} revision (${wave.focus}).
+    // TWO-STAGE PIPELINE: Pattern detection → WAVE contextual validation
+    
+    // STAGE 1: Detect risk patterns (candidates only, not final decisions)
+    const detectionPrompt = `You are a professional manuscript editor scanning for revision candidates. Apply ${wave.name} (${wave.focus}).
 
-Find 8-12 specific passages that need revision for this wave only.
+Find 12-15 passages that match common risk patterns:
+- Reflexives (himself, herself, themselves) that may dilute agency
+- "As if" / "like" constructions that may weaken directness
+- Hedge phrases (seemed to, appeared to, felt like)
+- Filter verbs (saw, heard, felt) that distance reader
+- Passive constructions that obscure actors
+- Generic nouns that could be more specific
 
-For each:
-- Exact original text (quote precisely)
-- Suggested revision
-- Why flagged (brief editorial note)
-- Why this works (brief rationale)
+For each CANDIDATE (these are not final suggestions yet):
+- Exact original text
+- Potential revised version
+- What pattern was detected
+- Initial reasoning
 
 TEXT:
 ${truncatedText}
 
-Return JSON:
-{
-  "suggestions": [
-    {
-      "original_text": "exact quote",
-      "suggested_text": "revision",
-      "why_flagged": "issue",
-      "why_this_fix": "rationale"
-    }
-  ]
-}`;
+Return JSON with candidates array.`;
 
-    const result = await base44.integrations.Core.InvokeLLM({
-      prompt,
+    const candidates = await base44.integrations.Core.InvokeLLM({
+      prompt: detectionPrompt,
       response_json_schema: {
         type: "object",
         properties: {
-          suggestions: {
+          candidates: {
             type: "array",
             items: {
               type: "object",
               properties: {
                 original_text: { type: "string" },
                 suggested_text: { type: "string" },
-                why_flagged: { type: "string" },
-                why_this_fix: { type: "string" }
+                pattern_detected: { type: "string" },
+                initial_reasoning: { type: "string" }
               },
-              required: ["original_text", "suggested_text", "why_flagged", "why_this_fix"]
+              required: ["original_text", "suggested_text", "pattern_detected", "initial_reasoning"]
             }
           }
         },
-        required: ["suggestions"]
+        required: ["candidates"]
       }
     });
 
-    // Add wave name and IDs to suggestions
-    const suggestions = result.suggestions.map((s, idx) => ({
+    // STAGE 2: WAVE contextual validation (gating logic)
+    const validationPrompt = `You are a literary editor applying the WAVE Revision System + 12 Literary Agent Criteria.
+
+Your job: validate whether detected patterns should become revision suggestions.
+
+GATING RULE:
+- If a flagged phrase serves embodiment, intimacy, agency reinforcement, character voice, or psychological cohesion → KEEP IT (mark as justified)
+- If it's redundant, weakens clarity, or adds no narrative function → FLAG IT (approved for revision)
+
+For each candidate, determine:
+1. Does this construction serve voice/embodiment/agency? (yes/no)
+2. Does it strengthen psychological cohesion or intimacy? (yes/no)
+3. Is it justified by narrative context? (yes/no)
+4. Final verdict: "keep" or "revise"
+
+If "keep": provide brief note on what it accomplishes
+If "revise": provide editorial rationale for the suggested change
+
+CANDIDATES TO EVALUATE:
+${JSON.stringify(candidates.candidates, null, 2)}
+
+FULL TEXT CONTEXT:
+${truncatedText}
+
+Return JSON with validated results.`;
+
+    const validation = await base44.integrations.Core.InvokeLLM({
+      prompt: validationPrompt,
+      response_json_schema: {
+        type: "object",
+        properties: {
+          validated: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                original_text: { type: "string" },
+                suggested_text: { type: "string" },
+                verdict: { type: "string", enum: ["keep", "revise"] },
+                serves_voice: { type: "boolean" },
+                serves_embodiment: { type: "boolean" },
+                narrative_justification: { type: "string" },
+                why_flagged: { type: "string" },
+                why_this_fix: { type: "string" }
+              },
+              required: ["original_text", "verdict", "narrative_justification"]
+            }
+          }
+        },
+        required: ["validated"]
+      }
+    });
+
+    // FINAL: Only return suggestions where verdict = "revise"
+    const approvedSuggestions = validation.validated
+      .filter(item => item.verdict === "revise")
+      .map(item => ({
+        original_text: item.original_text,
+        suggested_text: item.suggested_text || item.original_text,
+        why_flagged: item.why_flagged || item.narrative_justification,
+        why_this_fix: item.why_this_fix || "Strengthens clarity and narrative directness"
+      }));
+
+    // Add wave name and IDs to approved suggestions only
+    const suggestions = approvedSuggestions.map((s, idx) => ({
       id: `w${wave_number}_${idx}`,
       wave_name: wave.name,
       ...s,
