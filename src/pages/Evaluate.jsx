@@ -554,21 +554,24 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                 <ul className="space-y-3 text-sm text-slate-600">
                                     <li className="flex items-start gap-2">
                                         <span className="text-indigo-600">•</span>
-                                        Submit polished drafts for more nuanced feedback
+                                        Evaluate larger sections when possible. The more text RevisionGrade can see, the more accurately it can assess structure, pacing, and character development across the 12 literary-agent criteria.
                                     </li>
                                     <li className="flex items-start gap-2">
                                         <span className="text-indigo-600">•</span>
-                                        Include complete scenes for better pacing analysis
+                                        Complete scenes or chapters produce more reliable insights than isolated paragraphs.
                                     </li>
                                     <li className="flex items-start gap-2">
                                         <span className="text-indigo-600">•</span>
-                                        Opening chapters get special attention on hooks
+                                        Opening chapters receive focused attention on hooks, voice, and setup.
                                     </li>
                                     <li className="flex items-start gap-2">
                                         <span className="text-indigo-600">•</span>
-                                        Dialogue-heavy sections reveal character voice
+                                        Dialogue-heavy sections are especially useful for evaluating character voice and interaction.
                                     </li>
                                 </ul>
+                                <p className="text-xs text-slate-500 mt-4 italic">
+                                    Short excerpts are useful for quick feedback, but full scenes or chapters produce the most accurate evaluations.
+                                </p>
                             </div>
                         )}
                     </div>
