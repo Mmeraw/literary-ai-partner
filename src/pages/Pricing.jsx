@@ -219,6 +219,11 @@ export default function Pricing() {
                                 <strong className="text-slate-900">¹ Unlimited Evaluation Runs:</strong> Refers to the number of analysis runs. Monthly usage is subject to the included word allowance, whichever comes first.
                             </div>
                             <div>
+                                <strong className="text-slate-900">Editorial Growth Tracking (Professional only):</strong> RevisionGrade remembers you. 
+                                Track your development as a writer over time with persistent skill tracking, trend-based scoring, and revision effectiveness analysis. 
+                                Competitors reset to zero on every document—RevisionGrade builds a longitudinal record of your craft evolution.
+                            </div>
+                            <div>
                                 <strong className="text-slate-900">Free Starter Evaluation:</strong> New users receive 1-2 free evaluations (~2,000 words total) to experience the system. Account required after first evaluation.
                             </div>
                             <div>

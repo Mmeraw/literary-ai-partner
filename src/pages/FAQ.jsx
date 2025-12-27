@@ -217,6 +217,41 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
+                                <AccordionItem value="editorial-memory">
+                                    <AccordionTrigger>
+                                        What is Editorial Growth Tracking? (Why this is a game-changer)
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p className="font-semibold text-slate-900">
+                                                Most writing tools ask: "Is this sentence okay?"
+                                            </p>
+                                            <p className="font-semibold text-indigo-900">
+                                                RevisionGrade™ asks: "Are you becoming a better writer?"
+                                            </p>
+                                            <p className="mt-3">
+                                                RevisionGrade doesn't just evaluate individual drafts—it <strong>tracks your development 
+                                                as a writer over time</strong>. Each submission contributes to a growing profile of strengths, 
+                                                weaknesses, and recurring patterns.
+                                            </p>
+                                            <p className="font-semibold text-slate-900 mt-3">What you get:</p>
+                                            <ul className="list-disc ml-6 space-y-2">
+                                                <li><strong>Persistent Skill Tracking</strong> — See which craft issues recur across drafts and which are improving</li>
+                                                <li><strong>Trend-Based Scoring</strong> — Monitor progress across multiple submissions, not just one file</li>
+                                                <li><strong>Growth Signals</strong> — Identify patterns in sentence craft, structure, pacing, and dialogue</li>
+                                                <li><strong>Revision Effectiveness</strong> — See whether your changes actually strengthened the work</li>
+                                            </ul>
+                                            <p className="mt-3 text-indigo-900 font-semibold">
+                                                RevisionGrade remembers you. Competitors reset to zero on every document.
+                                            </p>
+                                            <p className="text-sm text-slate-600 mt-2">
+                                                This is <strong>editorial memory</strong>, not analytics—the difference between "here's what's wrong 
+                                                with this page" and "here's how your writing is evolving."
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
                                 <AccordionItem value="vs-other-ai">
                                     <AccordionTrigger>
                                         How is this different from ChatGPT or other AI writing tools?
