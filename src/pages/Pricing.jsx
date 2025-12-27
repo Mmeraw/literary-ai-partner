@@ -17,7 +17,7 @@ const tiers = [
         features: [
             "Up to 50 evaluation runs/month",
             "100,000 words/month included",
-            "Quick Scene/Chapter Eval",
+            "Quick scene/chapter evaluation",
             "12 Literary Agent Criteria",
             "Wave Revision System",
             "Email support"
@@ -37,8 +37,8 @@ const tiers = [
         features: [
             "Unlimited evaluation runs",
             "500,000 words/month included",
-            "Full Manuscript Spine Evaluation",
-            "Chapter-by-chapter analysis",
+            "Full manuscript & screenplay evaluation",
+            "Structure-aware analysis",
             "Priority processing",
             "Wave Revision unlimited",
             "Priority email support",
