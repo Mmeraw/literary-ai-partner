@@ -13,6 +13,7 @@ import SuggestionCard from '@/components/revision/SuggestionCard';
 import OverallFeedbackModal from '@/components/revision/OverallFeedbackModal';
 import SmartFeaturesBanner from '@/components/revision/SmartFeaturesBanner';
 import RevisionInsights from '@/components/revision/RevisionInsights';
+import DownloadOptions from '@/components/revision/DownloadOptions';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
@@ -241,10 +242,7 @@ export default function Revise() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleDownload}>
-                <Download className="w-4 h-4 mr-2" />
-                Download
-              </Button>
+              <DownloadOptions session={session} />
               <Button variant="outline" onClick={handleSaveAndExit}>
                 <Save className="w-4 h-4 mr-2" />
                 Save & Exit
