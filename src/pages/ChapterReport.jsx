@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Loader2, FileText, Download } from 'lucide-react';
+import { ArrowLeft, Loader2, FileText, Download, BookOpen, Waves } from 'lucide-react';
 import { toast } from "sonner";
 import { createPageUrl } from '@/utils';
 
@@ -86,15 +86,34 @@ export default function ChapterReport() {
         {/* Overall Score */}
         <Card className="border-0 shadow-lg mb-6 bg-gradient-to-br from-indigo-50 to-purple-50">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-slate-800 mb-1">Chapter Score</h3>
-                <p className="text-sm text-slate-600">{evaluation.verdict}</p>
+                <h3 className="text-lg font-semibold text-slate-800 mb-1">Overall Quality Score</h3>
+                <p className="text-sm text-slate-600">Story + Craft Combined</p>
               </div>
               <div className="text-5xl font-bold text-indigo-600">
-                {evaluation.overallScore}/10
+                {evaluation.combinedScore?.toFixed(1) || evaluation.overallScore}/10
               </div>
             </div>
+            <p className="text-slate-700 mb-4">{evaluation.verdict}</p>
+            {evaluation.agentScore && evaluation.waveScore && (
+              <div className="grid grid-cols-2 gap-3 pt-3 border-t">
+                <div>
+                  <div className="flex items-center gap-1 text-xs text-slate-600 mb-1">
+                    <BookOpen className="w-3 h-3" />
+                    <span>Story (12 Criteria)</span>
+                  </div>
+                  <div className="text-2xl font-bold text-slate-800">{evaluation.agentScore.toFixed(1)}/10</div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-1 text-xs text-slate-600 mb-1">
+                    <Waves className="w-3 h-3" />
+                    <span>Craft (WAVE)</span>
+                  </div>
+                  <div className="text-2xl font-bold text-slate-800">{evaluation.waveScore.toFixed(1)}/10</div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
