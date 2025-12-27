@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Download, Save, ArrowLeft, Loader2, MessageSquare, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Save, ArrowLeft, Loader2, MessageSquare, Sparkles, Check } from 'lucide-react';
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import SuggestionCard from '@/components/revision/SuggestionCard';
@@ -145,6 +145,15 @@ export default function Revise() {
       data: { status: 'paused' }
     });
     toast.success('Progress saved');
+    window.location.href = createPageUrl('History');
+  };
+
+  const handleComplete = async () => {
+    await updateSessionMutation.mutateAsync({
+      sessionId: session.id,
+      data: { status: 'completed' }
+    });
+    toast.success('Revision complete! Download your revised manuscript.');
     window.location.href = createPageUrl('History');
   };
 
@@ -311,7 +320,7 @@ export default function Revise() {
           </Button>
           {session.current_position >= session.suggestions.length - 1 ? (
             <Button
-              onClick={handleSaveAndExit}
+              onClick={handleComplete}
               disabled={updateSessionMutation.isPending}
               className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
             >
