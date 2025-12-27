@@ -50,24 +50,33 @@ export default function UploadManuscript() {
       // Count chapters
       const chapters = await base44.entities.Chapter.filter({ manuscript_id: manuscript.id });
 
-      // Set status to evaluating so progress screen shows
+      // Set status to summarizing (start of pipeline)
       await base44.entities.Manuscript.update(manuscript.id, {
-        status: 'spine_evaluating',
+        status: 'summarizing',
         evaluation_progress: {
-          total_chapters: chapters.length,
-          completed_chapters: 0,
-          current_step: 'Starting spine evaluation...'
+          chapters_total: chapters.length,
+          chapters_summarized: 0,
+          chapters_wave_done: 0,
+          current_phase: 'summarize',
+          percent_complete: 0,
+          current_step: 'Starting evaluation...',
+          last_updated: new Date().toISOString()
         }
       });
 
-      // Start evaluation BEFORE navigation (fire and forget)
-      base44.functions.invoke('evaluateFullManuscript', {
-        manuscript_id: manuscript.id
-      }).then(() => {
-        console.log('Evaluation completed successfully');
-      }).catch(err => {
-        console.error('Evaluation error:', err);
-      });
+      // Start evaluation (fire and forget, with auto-retry on timeout)
+      const startEvaluation = async () => {
+        try {
+          await base44.functions.invoke('evaluateFullManuscript', {
+            manuscript_id: manuscript.id
+          });
+        } catch (err) {
+          console.error('Evaluation error (will auto-retry):', err);
+          // Auto-retry after 2 seconds if it fails (handles timeouts gracefully)
+          setTimeout(() => startEvaluation(), 2000);
+        }
+      };
+      startEvaluation();
 
       toast.success('Evaluation started! Track progress on the next screen.');
       

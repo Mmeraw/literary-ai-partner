@@ -24,23 +24,32 @@ Deno.serve(async (req) => {
         }
 
         // PHASE 1: Generate chapter summaries (structural abstraction)
-        await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
-            status: 'summarizing',
-            evaluation_progress: {
-                chapters_total: chapters.length,
-                chapters_summarized: 0,
-                chapters_wave_done: 0,
-                current_phase: 'summarize',
-                percent_complete: 0,
-                current_step: 'Preparing chapters...',
-                last_updated: new Date().toISOString()
-            }
-        });
+        // Check which chapters already have summaries (for resume capability)
+        const summarizedChapters = chapters.filter(ch => ch.status === 'summarized' && ch.summary_json);
+        const chapterSummaries = summarizedChapters.map(ch => ch.summary_json);
 
-        const chapterSummaries = [];
+        if (summarizedChapters.length < chapters.length) {
+            await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                status: 'summarizing',
+                evaluation_progress: {
+                    chapters_total: chapters.length,
+                    chapters_summarized: summarizedChapters.length,
+                    chapters_wave_done: 0,
+                    current_phase: 'summarize',
+                    percent_complete: Math.floor((summarizedChapters.length / chapters.length) * 25),
+                    current_step: `Resuming summaries... (${summarizedChapters.length}/${chapters.length} done)`,
+                    last_updated: new Date().toISOString()
+                }
+            });
+        }
 
         for (let i = 0; i < chapters.length; i++) {
             const chapter = chapters[i];
+
+            // Skip if already summarized
+            if (chapter.status === 'summarized' && chapter.summary_json) {
+                continue;
+            }
 
             try {
                 await base44.asServiceRole.entities.Chapter.update(chapter.id, { status: 'summarizing' });
@@ -112,18 +121,20 @@ Deno.serve(async (req) => {
         }
 
         // PHASE 2: Spine synthesis (all summaries at once)
-        await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
-            status: 'spine_evaluating',
-            evaluation_progress: {
-                chapters_total: chapters.length,
-                chapters_summarized: chapters.length,
-                chapters_wave_done: 0,
-                current_phase: 'spine',
-                percent_complete: 25,
-                current_step: 'Building Spine Evaluation...',
-                last_updated: new Date().toISOString()
-            }
-        });
+        // Skip if spine already evaluated
+        if (!manuscript.spine_score || !manuscript.spine_evaluation) {
+            await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                status: 'spine_evaluating',
+                evaluation_progress: {
+                    chapters_total: chapters.length,
+                    chapters_summarized: chapters.length,
+                    chapters_wave_done: 0,
+                    current_phase: 'spine',
+                    percent_complete: 25,
+                    current_step: 'Building Spine Evaluation...',
+                    last_updated: new Date().toISOString()
+                }
+            });
 
         const spinePrompt = `You are a literary agent–style evaluator and developmental editor. Evaluate the manuscript's narrative architecture using chapter summaries. Do not invent missing scenes. Your job is to judge structural execution and story engine quality.
 
@@ -196,10 +207,30 @@ Deno.serve(async (req) => {
                 last_updated: new Date().toISOString()
             }
         });
+        } else {
+        // Spine already done, update status for WAVE phase
+        await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+            status: 'evaluating_chapters',
+            evaluation_progress: {
+                chapters_total: chapters.length,
+                chapters_summarized: chapters.length,
+                chapters_wave_done: 0,
+                current_phase: 'wave',
+                percent_complete: 40,
+                current_step: 'Resuming chapter craft checks...',
+                last_updated: new Date().toISOString()
+            }
+        });
+        }
 
         // PHASE 3: WAVE chapter craft evaluation
         for (let i = 0; i < chapters.length; i++) {
             const chapter = chapters[i];
+
+            // Skip if already evaluated
+            if (chapter.status === 'evaluated' && chapter.evaluation_score) {
+                continue;
+            }
 
             try {
                 await base44.asServiceRole.entities.Chapter.update(chapter.id, { status: 'evaluating' });
