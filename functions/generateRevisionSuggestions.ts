@@ -89,11 +89,11 @@ Deno.serve(async (req) => {
     }
 
     // Limit text length for performance (roughly 2000 words max)
-    const wordCount = text.split(/\s+/).length;
+    const wordCount = workingText.split(/\s+/).length;
     const maxWords = 2000;
     const truncatedText = wordCount > maxWords 
-      ? text.split(/\s+/).slice(0, maxWords).join(' ') + '...'
-      : text;
+      ? workingText.split(/\s+/).slice(0, maxWords).join(' ') + '...'
+      : workingText;
 
     // Generate suggestions using AI with wave-specific instructions
     const prompt = `You are a professional manuscript editor. Apply ${wave.name} revision (${wave.focus}).

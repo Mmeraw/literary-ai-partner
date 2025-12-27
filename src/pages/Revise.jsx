@@ -203,15 +203,24 @@ export default function Revise() {
   const handleApplyBestRevisions = async () => {
     if (!session) return;
 
-    let updatedText = session.current_text;
+    // Start with original text to avoid compounding errors
+    let updatedText = session.original_text;
+    
+    // Sort suggestions by position (if original_text is unique) and apply sequentially
+    const pendingSuggestions = session.suggestions.filter(s => s.status === 'pending');
+    
+    for (const suggestion of pendingSuggestions) {
+      // Only replace first occurrence to avoid duplicates
+      const index = updatedText.indexOf(suggestion.original_text);
+      if (index !== -1) {
+        updatedText = updatedText.substring(0, index) + 
+                      suggestion.suggested_text + 
+                      updatedText.substring(index + suggestion.original_text.length);
+      }
+    }
+
     const updatedSuggestions = session.suggestions.map(suggestion => {
-      // Auto-accept pending suggestions (skip already accepted/rejected)
       if (suggestion.status === 'pending') {
-        // Apply the change to text
-        updatedText = updatedText.replace(
-          suggestion.original_text,
-          suggestion.suggested_text
-        );
         return { ...suggestion, status: 'accepted' };
       }
       return suggestion;
