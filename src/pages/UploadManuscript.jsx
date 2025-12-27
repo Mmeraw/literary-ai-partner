@@ -26,6 +26,24 @@ export default function UploadManuscript() {
       return;
     }
 
+    const wordCount = text.split(/\s+/).filter(w => w).length;
+    
+    if (wordCount > 250000) {
+      toast.error(
+        <div>
+          <div className="font-semibold mb-1">You've reached the preview limit.</div>
+          <div className="text-sm">To evaluate additional chapters or generate a full manuscript score, unlock full analysis.</div>
+        </div>,
+        { duration: 6000 }
+      );
+      
+      setTimeout(() => {
+        window.location.href = createPageUrl('Pricing');
+      }, 2000);
+      
+      return;
+    }
+
     setIsUploading(true);
 
     try {
@@ -139,9 +157,16 @@ export default function UploadManuscript() {
                 placeholder="Paste a paragraph, scene, chapter, or full manuscript here..."
                 className="min-h-[300px] sm:min-h-[400px] font-mono text-sm"
               />
-              <p className="mt-1 text-xs sm:text-sm text-slate-500">
-                Word count: {wordCount.toLocaleString()}
-              </p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs sm:text-sm text-slate-500">
+                  Word count: {wordCount.toLocaleString()}
+                </p>
+                {wordCount > 250000 && (
+                  <p className="text-xs text-red-600 font-medium">
+                    Exceeds 250,000 word limit
+                  </p>
+                )}
+              </div>
               <p className="mt-1 text-xs text-slate-500">
                 You can submit partial drafts, excerpts, or complete works. Your text is never shared or published.
               </p>
@@ -159,7 +184,7 @@ export default function UploadManuscript() {
 
             <Button
               onClick={handleUpload}
-              disabled={isUploading || !text.trim()}
+              disabled={isUploading || !text.trim() || wordCount > 250000}
               className="w-full h-12 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
               size="lg"
             >
