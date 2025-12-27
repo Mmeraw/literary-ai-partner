@@ -4,10 +4,11 @@ import { createPageUrl } from '@/utils';
 import { Button } from "@/components/ui/button";
 import { 
     BookOpen, Sparkles, History, FileText, Film,
-    Menu, X, LogOut 
+    Menu, X, LogOut, BarChart3
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
+import AnalyticsTracker from '@/components/AnalyticsTracker';
 
 const navItems = [
     { name: 'Home', page: 'Home', icon: BookOpen },
@@ -19,6 +20,7 @@ const navItems = [
     { name: 'Pricing', page: 'Pricing', icon: Sparkles },
     { name: 'Criteria', page: 'Criteria', icon: FileText },
     { name: 'History', page: 'History', icon: History },
+    { name: 'Analytics', page: 'Analytics', icon: BarChart3, adminOnly: true },
 ];
 
 export default function Layout({ children, currentPageName }) {
@@ -175,6 +177,7 @@ export default function Layout({ children, currentPageName }) {
 
             {/* Main Content */}
             <main>
+                <AnalyticsTracker currentPageName={currentPageName} />
                 {children}
             </main>
 

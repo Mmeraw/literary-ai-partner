@@ -17,6 +17,7 @@ import UploadManuscript from './pages/UploadManuscript';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
 import PaymentSuccess from './pages/PaymentSuccess';
+import Analytics from './pages/Analytics';
 import __Layout from './Layout.jsx';
 
 
@@ -40,6 +41,7 @@ export const PAGES = {
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
     "PaymentSuccess": PaymentSuccess,
+    "Analytics": Analytics,
 }
 
 export const pagesConfig = {
