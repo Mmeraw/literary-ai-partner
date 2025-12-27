@@ -47,8 +47,7 @@ export default function Home() {
                         </h1>
 
                         <p className="mt-3 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                            Get your <strong className="text-slate-900">manuscript</strong> or <strong className="text-slate-900">screenplay</strong> graded against the same 12 agent-level criteria literary and film/TV professionals use to decide what to request, plus 60+ checks from the proprietary WAVE Revision System. 
-                            Three AI perspectives analyze your work—but our PhD-calibrated score tells you the brutal truth.
+                            Get your <strong className="text-slate-900">manuscript</strong> or <strong className="text-slate-900">screenplay</strong> evaluated against 12 agent-level criteria and 60+ diagnostic checks from the proprietary WAVE Revision System. Three AI perspectives use this framework to analyze your work, suggest revisions, and generate a PhD-calibrated score for a clear, professional-grade assessment.
                         </p>
 
                         <div className="mt-4 space-y-2 flex flex-col items-center">
