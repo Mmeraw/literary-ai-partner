@@ -47,16 +47,14 @@ export default function UploadManuscript() {
         manuscript_id: manuscript.id
       });
 
-      toast.info('Running full evaluation (12 criteria + WAVE checks)... this may take 2-5 minutes');
-
-      // Run full evaluation (spine + all chapters)
-      await base44.functions.invoke('evaluateFullManuscript', {
+      // Start evaluation in background (don't wait)
+      base44.functions.invoke('evaluateFullManuscript', {
         manuscript_id: manuscript.id
-      });
+      }).catch(err => console.error('Evaluation error:', err));
 
-      toast.success('Evaluation complete!');
+      toast.success('Evaluation started! Track progress on the next screen.');
       
-      // Navigate to manuscript dashboard
+      // Navigate to manuscript dashboard immediately
       window.location.href = createPageUrl(`ManuscriptDashboard?id=${manuscript.id}`);
 
     } catch (error) {
