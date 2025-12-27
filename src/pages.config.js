@@ -19,6 +19,7 @@ import WhyRevisionGrade from './pages/WhyRevisionGrade';
 import PaymentSuccess from './pages/PaymentSuccess';
 import Analytics from './pages/Analytics';
 import SelectFormat from './pages/SelectFormat';
+import UploadWork from './pages/UploadWork';
 import __Layout from './Layout.jsx';
 
 
@@ -44,6 +45,7 @@ export const PAGES = {
     "PaymentSuccess": PaymentSuccess,
     "Analytics": Analytics,
     "SelectFormat": SelectFormat,
+    "UploadWork": UploadWork,
 }
 
 export const pagesConfig = {
