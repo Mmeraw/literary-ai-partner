@@ -368,23 +368,43 @@ export default function FAQ() {
                                                 Upload a scene, chapter, or full manuscript. RevisionGrade™ automatically detects format 
                                                 (manuscript or screenplay).
                                             </p>
-                                            
+
                                             <p><strong>2. Analysis</strong></p>
                                             <p className="ml-4">
                                                 Three AI systems evaluate your work against 12 literary-agent criteria and 60+ WAVE checks, 
                                                 identifying structural issues, pacing problems, and craft weaknesses.
                                             </p>
-                                            
+
                                             <p><strong>3. Results</strong></p>
                                             <p className="ml-4">
                                                 Receive a calibrated score (0–100), detailed breakdown per criterion, priority revision requests, 
                                                 and specific WAVE guidance.
                                             </p>
-                                            
+
                                             <p><strong>4. Revision & Progress</strong></p>
                                             <p className="ml-4">
                                                 Apply changes, re-evaluate, and track improvement over time. The Progress Dashboard shows 
                                                 recurring patterns and revision effectiveness.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="workflow-speed">
+                                    <AccordionTrigger>
+                                        Can I speed up the revision process without losing control?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                Yes. RevisionGrade™ supports <strong>intentional editorial acceleration</strong> without sacrificing control.
+                                            </p>
+                                            <p>
+                                                You can review each revision in detail—or, when appropriate, apply curated recommendations in bulk. 
+                                                High-confidence revisions can be applied at once, always reviewable and reversible.
+                                            </p>
+                                            <p className="text-indigo-900 font-semibold">
+                                                This is workflow control, not autopilot—you maintain full creative authority while accelerating the revision process.
                                             </p>
                                         </div>
                                     </AccordionContent>

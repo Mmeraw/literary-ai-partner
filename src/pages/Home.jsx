@@ -152,7 +152,7 @@ export default function Home() {
                         {
                             icon: CheckCircle2,
                             title: "Review and Decide",
-                            description: "For each flagged issue, you can keep the original, apply a revision, or choose from multiple writing styles—including 'none fit' with fresh alternatives. You stay in control of every change while RevisionGrade systematically elevates the draft toward submission-ready.",
+                            description: "For each flagged issue, you can keep the original, apply a revision, or choose from multiple writing styles—including 'none fit' with fresh alternatives. Review changes in detail or, when appropriate, apply curated recommendations in bulk—maintaining full creative control while accelerating the revision process.",
                             color: "from-emerald-500 to-teal-600"
                         }
                     ].map((feature, idx) => (
