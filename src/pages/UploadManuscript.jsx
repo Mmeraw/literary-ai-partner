@@ -60,19 +60,19 @@ export default function UploadManuscript() {
         }
       });
 
-      // Start evaluation in background (don't wait)
-      base44.functions.invoke('evaluateFullManuscript', {
-        manuscript_id: manuscript.id
-      }).catch(err => {
-        console.error('Evaluation error:', err);
-        // Mark as failed if error
-        base44.entities.Manuscript.update(manuscript.id, { status: 'uploaded' });
-      });
-
       toast.success('Evaluation started! Track progress on the next screen.');
       
-      // Navigate to manuscript dashboard immediately
+      // Navigate to manuscript dashboard first
       window.location.href = createPageUrl(`ManuscriptDashboard?id=${manuscript.id}`);
+
+      // Start evaluation in background after navigation
+      setTimeout(() => {
+        base44.functions.invoke('evaluateFullManuscript', {
+          manuscript_id: manuscript.id
+        }).catch(err => {
+          console.error('Evaluation error:', err);
+        });
+      }, 500);
 
     } catch (error) {
       console.error('Upload error:', error);
