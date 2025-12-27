@@ -321,7 +321,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                 <div className="flex justify-end">
                                     <Button
                                         onClick={evaluateText}
-                                        disabled={!title.trim() || !text.trim()}
+                                        disabled={!title.trim() || !text.trim() || text.split(/\s+/).filter(w => w).length > 3000}
                                         size="lg"
                                         className="h-12 px-8 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                                     >

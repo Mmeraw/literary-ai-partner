@@ -47,13 +47,20 @@ export default function TextEditor({ title, setTitle, text, setText }) {
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                    <div className="flex items-center gap-6 text-sm text-slate-500">
+                    <div className="flex items-center gap-6 text-sm">
                         <div className="flex items-center gap-2">
                             <Type className="w-4 h-4" />
-                            <span>{wordCount.toLocaleString()} words</span>
+                            <span className={wordCount > 3000 ? 'text-red-600 font-medium' : 'text-slate-500'}>
+                                {wordCount.toLocaleString()} / 3,000 words
+                            </span>
                         </div>
-                        <span>{charCount.toLocaleString()} characters</span>
+                        <span className="text-slate-500">{charCount.toLocaleString()} characters</span>
                     </div>
+                    {wordCount > 3000 && (
+                        <span className="text-xs text-red-600 font-medium">
+                            Exceeds preview limit
+                        </span>
+                    )}
                 </div>
             </CardContent>
         </Card>
