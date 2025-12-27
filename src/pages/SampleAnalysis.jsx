@@ -165,11 +165,11 @@ export default function SampleAnalysis() {
                                 <thead className="sticky top-0 z-10">
                                     <tr className="bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg">
                                         <th className="border border-indigo-400 p-4 text-left font-semibold text-white">Criteria</th>
-                                        <th className="border border-indigo-400 p-4 text-left font-semibold text-white">Don Winslow's Cartel Trilogy</th>
-                                        <th className="border border-indigo-400 p-4 text-left font-semibold text-white">Michael Meraw's Cartel Babies</th>
+                                        <th className="border border-indigo-400 p-4 text-left font-semibold text-white">Don Winslow's <em className="italic">Cartel Trilogy</em></th>
+                                        <th className="border border-indigo-400 p-4 text-left font-semibold text-white">Michael Meraw's <em className="italic">Cartel Babies</em></th>
                                     </tr>
                                 </thead>
-                                <tbody className="text-slate-700">
+                                <tbody className="text-black">
                                     <tr className="bg-slate-50 hover:bg-slate-100 transition-colors">
                                         <td className="border border-slate-200 p-4 font-semibold bg-slate-100">1. Hook (Opening)</td>
                                         <td className="border border-slate-200 p-4">
@@ -179,7 +179,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Opens with psychological immediacy, violence, captivity, trauma, and voice. Agents feel thrown into the story—with an intimacy Winslow does not use.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: Cartel Babies (intimacy)</p>
+                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em> (intimacy)</p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
@@ -191,7 +191,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Lyrical, mythic, violent, intimate, emotional. A signature voice—rare in submissions—combining literary depth with relentless tension.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: Cartel Babies</p>
+                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white">
@@ -203,7 +203,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Fewer characters, but deeper psychological excavation. Benjamin, Mike, Raúl, Oso, the boy—the interiority is more intimate, more human, more devastating.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: Cartel Babies</p>
+                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
@@ -227,7 +227,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Captivity, loyalty, moral corrosion, love under pressure, survival, identity, complicity. Themes strike the reader emotionally, not just intellectually.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: Cartel Babies</p>
+                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
@@ -239,7 +239,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Tight, relentless, clean. The 60+ WAVE Revision craft pass significantly tightened pacing and reduced bloat. Structure is elegant and agent-friendly.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: Cartel Babies</p>
+                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white">
@@ -251,7 +251,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Subtext heavy. Dialogue leans on fear, silence, posture, implication. Tags removed, interiority sharpened, power dynamics layered.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: Cartel Babies</p>
+                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
@@ -259,7 +259,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Large-scale geopolitical worldbuilding—armies, cartels, landscapes. Documentary-grade realism.</p>
-                                            <p className="text-slate-600 font-semibold mt-2">Edge: Tie (Winslow = macro, Cartel Babies = micro)</p>
+                                            <p className="text-slate-600 font-semibold mt-2">Edge: Tie (Winslow = macro, <em className="italic">Cartel Babies</em> = micro)</p>
                                         </td>
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
@@ -275,7 +275,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Unmatched emotional interiority. Readers feel Benjamin and Mike's humanity breaking—and surviving.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: Cartel Babies</p>
+                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
@@ -287,7 +287,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Meticulously polished: cliché elimination, worldbuilding discipline, pattern reduction, dialogue refinement, body-beat control, atmospheric variation, interiority consistency.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: Cartel Babies</p>
+                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white">
@@ -295,7 +295,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Established commercial author with a large audience. Clear readership lane; strong demand history for macro-cartel epics.</p>
-                                            <p className="text-slate-600 font-semibold mt-2">Edge: Cartel Trilogy (historical validation); Cartel Babies has strong upside with differentiated positioning.</p>
+                                            <p className="text-slate-600 font-semibold mt-2">Edge: <em className="italic">Cartel Trilogy</em> (historical validation); <em className="italic">Cartel Babies</em> has strong upside with differentiated positioning.</p>
                                         </td>
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
@@ -311,7 +311,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>First 50 pages are immersive, terrifying, tender, original, clean, and propulsive. Agents will read past their stop time.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: Cartel Babies</p>
+                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                     <tr className="bg-white">
@@ -331,7 +331,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Demonstrated cross-media reach: major publisher support, international readership, and a television adaptation confirm strong franchise potential in practice.</p>
-                                            <p className="text-slate-600 font-semibold mt-2">Edge: Tie (Winslow represents proven expansion; Cartel Babies represents designed expansion. They illustrate two different models of building a franchise.)</p>
+                                            <p className="text-slate-600 font-semibold mt-2">Edge: Tie (Winslow represents proven expansion; <em className="italic">Cartel Babies</em> represents designed expansion. They illustrate two different models of building a franchise.)</p>
                                         </td>
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
@@ -359,7 +359,7 @@ export default function SampleAnalysis() {
                                         <td className="border border-slate-200 p-4">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Book leaves emotional residue; key scenes follow readers for days.</p>
-                                            <p className="text-indigo-700 font-semibold mt-2">Edge: Cartel Babies</p>
+                                            <p className="text-indigo-700 font-semibold mt-2">Edge: <em className="italic">Cartel Babies</em></p>
                                         </td>
                                     </tr>
                                 </tbody>
