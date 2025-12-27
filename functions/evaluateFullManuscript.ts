@@ -260,18 +260,30 @@ Deno.serve(async (req) => {
                 continue;
             }
 
-            // Skip if stuck in 'evaluating' status for >5 minutes (hung chapter)
-            if (chapter.status === 'evaluating' && chapter.updated_date) {
-                const updatedTime = new Date(chapter.updated_date).getTime();
-                const now = Date.now();
-                if (now - updatedTime > 5 * 60 * 1000) {
-                    console.log(`Chapter ${i + 1} stuck in evaluating status, marking as failed and skipping`);
-                    await base44.asServiceRole.entities.Chapter.update(chapter.id, {
-                        status: 'failed',
-                        error_message: 'Evaluation timeout - chapter took too long'
-                    });
-                    continue;
-                }
+            // If chapter stuck in 'evaluating' status, mark as failed and skip
+            // (Aggressive recovery: any chapter in evaluating state when we start a new run is considered hung)
+            if (chapter.status === 'evaluating') {
+                console.log(`Chapter ${i + 1} was stuck in evaluating status, marking as failed and skipping`);
+                await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                    status: 'failed',
+                    error_message: 'Previous evaluation attempt did not complete'
+                });
+
+                // Update progress to show we skipped this chapter
+                const evaluatedSoFar = chapters.filter(ch => ch.status === 'evaluated').length;
+                const wavePercent = 40 + Math.floor(((i + 1) / chapters.length) * 50);
+                await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                    evaluation_progress: {
+                        chapters_total: chapters.length,
+                        chapters_summarized: chapters.length,
+                        chapters_wave_done: evaluatedSoFar,
+                        current_phase: 'wave',
+                        percent_complete: wavePercent,
+                        current_step: `Skipped stuck chapter ${i + 1}, continuing...`,
+                        last_updated: new Date().toISOString()
+                    }
+                });
+                continue;
             }
 
             try {
