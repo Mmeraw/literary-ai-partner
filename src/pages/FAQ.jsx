@@ -95,20 +95,21 @@ export default function FAQ() {
                                         <div className="space-y-3 text-slate-700">
                                             <p><strong>Professional Plan includes:</strong></p>
                                             <ul className="list-disc ml-6 space-y-2">
-                                                <li><strong>As many evaluation runs as you need</strong>, within a 500,000-word/month cap</li>
+                                                <li><strong>Complete Agent-Ready Pipeline:</strong> Grade → Pitch → Synopsis → Bio → Comps → Agents → Query</li>
+                                                <li><strong>Unlimited evaluation runs</strong>, within a 500,000-word/month cap</li>
                                                 <li><strong>Full manuscript & screenplay evaluation</strong> against 12 literary-agent criteria</li>
                                                 <li><strong>60+ WAVE Revision checks</strong> (sentence craft, dialogue, pacing, structure)</li>
+                                                <li><strong>AI-generated submission assets:</strong> pitches, synopses, author bio, comparables</li>
+                                                <li><strong>Agent discovery & query letter builder</strong> with auto-embedded pitch/synopsis/bio</li>
                                                 <li><strong>Progress dashboard</strong> tracking improvement over time</li>
                                                 <li><strong>Revision effectiveness analysis</strong> (before/after scoring)</li>
                                                 <li><strong>Recurring pattern detection</strong> (what you keep getting wrong)</li>
-                                                <li><strong>Clean downloads</strong> (submission-ready revised text with no markup; revision history and editorial commentary provided as separate reports)</li>
-                                                <li><strong>Editorial reports (PDF)</strong></li>
-                                                <li><strong>Priority processing</strong></li>
-                                                <li><strong>Priority email support</strong></li>
+                                                <li><strong>Clean downloads</strong> (submission-ready text + editorial reports)</li>
+                                                <li><strong>Priority processing & support</strong></li>
                                             </ul>
                                             <p className="mt-3 text-sm text-slate-600">
                                                 Compare: At $0.03/word (low-end developmental editing), an 80k-word manuscript costs $2,400 for 
-                                                <strong> one pass</strong>. RevisionGrade gives you <strong>unlimited passes for 24+ months</strong> 
+                                                <strong> one pass</strong>. RevisionGrade gives you <strong>unlimited evaluation + complete agent submission pipeline</strong> 
                                                 at the same total cost.
                                             </p>
                                         </div>
@@ -209,9 +210,11 @@ export default function FAQ() {
                                                 <li>Diagnose structural and craft risks</li>
                                                 <li>Surface recurring weaknesses</li>
                                                 <li>Measure whether your revisions actually improve the work</li>
+                                                <li><strong>Generate complete submission package:</strong> pitches, synopses, bio, comparables, query letters</li>
+                                                <li><strong>Connect you to agents</strong> with targeted search and submission tracking</li>
                                             </ul>
                                             <p className="text-indigo-900 font-semibold mt-3">
-                                                In short: writing tools change sentences; RevisionGrade™ decides whether the manuscript is ready.
+                                                In short: RevisionGrade™ takes you from manuscript to agent inbox—complete publishing pipeline in one platform.
                                             </p>
                                         </div>
                                     </AccordionContent>

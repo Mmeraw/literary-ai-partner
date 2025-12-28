@@ -23,16 +23,16 @@ export default function WhyRevisionGrade() {
                     </Badge>
 
                     <h1 className="text-4xl sm:text-5xl font-bold text-white mb-6 leading-tight">
-                        Literary AI Partner™ Isn't a Writing Tool.
+                        RevisionGrade™ Isn't a Writing Tool.
                         <span className="block mt-2 text-indigo-300">
-                            It's an Editorial Judgment System.
+                            It's a Complete Agent-Ready Pipeline.
                         </span>
                     </h1>
 
                     <p className="text-xl text-slate-300 leading-relaxed max-w-3xl mx-auto">
-                        Most tools analyze text. Literary AI Partner™ evaluates readiness. Where others count words, flags, and patterns, 
-                        Literary AI Partner™ applies professional editorial standards—the same ones agents and acquisition 
-                        editors use—to show you <strong className="text-white">why a manuscript would be rejected</strong> and what to fix next.
+                        Most tools analyze text. RevisionGrade™ gets you agent-ready. Where others stop at evaluation, 
+                        RevisionGrade™ delivers the complete workflow: <strong className="text-white">Grade → Pitch → Synopsis → Bio → Comps → Agents → Query</strong>. 
+                        From manuscript to agent inbox—everything you need in one platform.
                     </p>
                 </div>
             </div>
@@ -43,7 +43,7 @@ export default function WhyRevisionGrade() {
                     <h2 className="text-3xl font-bold text-slate-900 mb-4">The Core Difference</h2>
                     <p className="text-xl text-slate-600 max-w-2xl mx-auto">
                         Other tools ask "What's wrong with this sentence?"<br />
-                        Literary AI Partner™ asks "Why would this book be rejected?"
+                        RevisionGrade™ asks "Is this ready for agents?" and then gets you there.
                     </p>
                 </div>
 
@@ -93,10 +93,10 @@ export default function WhyRevisionGrade() {
                         
                         <ul className="space-y-3">
                             {[
-                                'One unified evaluation system',
+                                'Complete agent-ready pipeline: Grade → Pitch → Synopsis → Bio → Comps → Agents → Query',
                                 '12 Story Evaluation Criteria + 60 WAVE diagnostics',
-                                'Designed to mirror how professionals assess manuscripts',
-                                'Identifies what will stop your manuscript from advancing',
+                                'AI-generated submission assets (pitches, synopses, bio, comparables)',
+                                'Agent discovery & query letter builder',
                                 'Tells you what to fix first, why it matters, and what to ignore',
                                 'PhD-calibrated scoring against publishing standards'
                             ].map((item, idx) => (
@@ -116,20 +116,20 @@ export default function WhyRevisionGrade() {
                     <div className="text-center mb-12">
                         <Target className="w-12 h-12 text-indigo-400 mx-auto mb-4" />
                         <h2 className="text-3xl font-bold text-white mb-4">
-                            We Don't Count Words. We Assess Readiness.
+                            We Don't Stop at Evaluation. We Get You Agent-Ready.
                         </h2>
                     </div>
 
                     <div className="space-y-6 text-slate-300 text-lg">
                         <p className="leading-relaxed">
                             <strong className="text-white">Toolbox platforms</strong> bombard you with adverb counts, pronoun openers, 
-                            and sentence-variation reports, leaving you drowning in data with no clear path forward.
+                            and sentence-variation reports—then leave you to figure out what comes next.
                         </p>
                         
                         <p className="leading-relaxed">
-                            <strong className="text-white">Literary AI Partner™</strong> delivers one brutal, honest score plus a step-by-step 
-                            revision path aligned with real agent decision-making. It evaluates hook, structure, pacing, line authority, 
-                            and motif hygiene <em className="text-indigo-300">together</em>—so changes actually move the needle on publishability.
+                            <strong className="text-white">RevisionGrade™</strong> delivers the complete pipeline: evaluation → revision → 
+                            pitches → synopses → bio → comparables → agent targeting → query letters. Everything you need from manuscript 
+                            to agent inbox, <em className="text-indigo-300">in one integrated platform</em>.
                         </p>
 
                         <div className="p-6 rounded-xl bg-indigo-900/50 border border-indigo-700 mt-8">
@@ -145,10 +145,10 @@ export default function WhyRevisionGrade() {
             <div className="max-w-6xl mx-auto px-6 py-16">
                 <div className="text-center mb-12">
                     <h2 className="text-3xl font-bold text-slate-900 mb-4">
-                        Three Pillars of Literary AI Partner™
+                        Three Pillars of RevisionGrade™
                     </h2>
                     <p className="text-slate-600 max-w-2xl mx-auto">
-                        Built to think like an agent, not a spellchecker
+                        From evaluation to agent inbox—complete publishing pipeline
                     </p>
                 </div>
 
@@ -239,8 +239,8 @@ export default function WhyRevisionGrade() {
                         <div className="flex items-start gap-3">
                             <div className="w-2 h-2 rounded-full bg-indigo-600 mt-2 flex-shrink-0" />
                             <p className="text-lg">
-                                <strong className="text-indigo-900">Literary AI Partner™</strong> gives you one integrated 
-                                Grade → Diagnose → Revise workflow that mirrors how professionals read.
+                                <strong className="text-indigo-900">RevisionGrade™</strong> gives you the complete agent-ready pipeline: 
+                                Grade → Pitch → Synopsis → Bio → Comps → Agents → Query—everything in one platform.
                             </p>
                         </div>
                     </div>

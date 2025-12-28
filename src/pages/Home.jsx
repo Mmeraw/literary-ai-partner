@@ -47,7 +47,8 @@ export default function Home() {
                         </h1>
 
                         <p className="mt-3 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                            Get your <strong className="text-slate-900">manuscript</strong> or <strong className="text-slate-900">screenplay</strong> evaluated using a dual-layer, AI-assisted analysis framework. Layer 1 evaluates story structure across 12 professional criteria. Layer 2 examines line-level craft through 60+ WAVE diagnostic checks. Together, they generate a PhD-calibrated score for a clear, professional-grade assessment.
+                            The complete agent-ready pipeline: <strong className="text-slate-900">Grade → Pitch → Synopsis → Bio → Comps → Agents → Query</strong>. 
+                            Dual-layer evaluation (12 story criteria + 60+ WAVE checks) plus complete submission package generation—everything you need from manuscript to agent inbox.
                         </p>
 
                         <div className="mt-4 space-y-2 flex flex-col items-center">
@@ -130,28 +131,28 @@ export default function Home() {
             {/* Features Section */}
             <div className="max-w-6xl mx-auto px-6 py-14">
                 <div className="text-center mb-16">
-                    <h2 className="text-3xl font-bold text-slate-900">How It Works</h2>
-                    <p className="mt-3 text-slate-600">Grade first, then revise</p>
+                    <h2 className="text-3xl font-bold text-slate-900">Complete Agent-Ready Pipeline</h2>
+                    <p className="mt-3 text-slate-600">From first draft to query letter—everything in one platform</p>
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-8">
                     {[
                         {
                             icon: BookOpen,
-                            title: "Submit Your Draft",
-                            description: "Paste a scene, chapter, or full manuscript/screenplay. RevisionGrade™ handles any length.",
+                            title: "1. Grade Your Manuscript",
+                            description: "Dual-layer evaluation: 12 story criteria + 60+ WAVE checks produce a PhD-calibrated score (0-100) showing agent-readiness.",
                             color: "from-indigo-500 to-blue-600"
                         },
                         {
                             icon: Brain,
-                            title: "Grade, Then Diagnose",
-                            description: "Three AI systems (ChatGPT, Perplexity, Base44) score your pages against 12 Story Evaluation Criteria and 60+ WAVE checks, highlighting exactly where the manuscript falls short.",
+                            title: "2. Build Submission Assets",
+                            description: "Generate pitches (one-sentence, elevator), synopses (short/long), author bio, and genre comparables—all optimized for agent submissions.",
                             color: "from-purple-500 to-pink-600"
                         },
                         {
                             icon: CheckCircle2,
-                            title: "Review and Decide",
-                            description: "For each flagged issue, you can keep the original, apply a revision, or choose from multiple writing styles—including 'none fit' with fresh alternatives. Review changes in detail or, when appropriate, apply curated recommendations in bulk—maintaining full creative control while accelerating the revision process.",
+                            title: "3. Query with Confidence",
+                            description: "Find agents, generate query letters with embedded pitch/synopsis/bio/comps, and submit knowing your work meets professional standards.",
                             color: "from-emerald-500 to-teal-600"
                         }
                     ].map((feature, idx) => (
@@ -297,10 +298,11 @@ export default function Home() {
                 <div className="p-10 rounded-3xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100">
                     <Zap className="w-12 h-12 mx-auto mb-6 text-indigo-600" />
                     <h2 className="text-3xl font-bold text-slate-900 mb-4">
-                        Ready to Elevate Your Writing?
+                        From Manuscript to Agent-Ready
                     </h2>
                     <p className="text-slate-600 mb-8 max-w-xl mx-auto">
-                        Submit your manuscript or screenplay and see how PhD-calibrated AI analysis can transform your work.
+                        The complete pipeline: Grade → Pitch → Synopsis → Bio → Comps → Agents → Query. 
+                        No competitor offers this integrated workflow.
                     </p>
                     <Link to={createPageUrl('Evaluate')}>
                         <Button size="lg" className="h-14 px-10 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
