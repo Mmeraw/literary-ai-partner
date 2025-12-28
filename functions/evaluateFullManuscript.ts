@@ -371,6 +371,14 @@ async function runEvaluation(manuscriptId, base44) {
             **MID WAVES (Momentum & Meaning):** Specificity, scene mechanics, dialogue purpose, choreography compression, emotional escalation
             **LATE WAVES (Authority & Polish):** Body-part clichés, filter verbs, motif discipline, reflexive redundancy, submission readiness
 
+            **SMILE LEXICON REFERENCE (Optional Polish for 8-10 Tier Only)**:
+            - Track "smile" usage density (flag if 3+ per 1k words)
+            - FOR PROFESSIONAL TIER (scores 8-10): Offer as OPTIONAL alternatives with context-appropriate suggestions from smile lexicon (beam/grin/simper/sneer/fleer/leer/rictus)
+            - FOR DEVELOPMENTAL TIER (<6): Suggest alternatives for repetitive usage only
+            - CRITICAL: Frame as "Optional polish" NOT required corrections
+            - Match to genre/tone: horror→rictus/sinister, literary→wry/enigmatic, romance→warm/tender
+            - Never replace if author's restraint is intentional
+
             CRITICAL VALIDATION RULES - Use ONLY these exact category names and match issues correctly:
             - "Body-Part Clichés (Wave 1)" = jaw/chest/eyes/breath/heart that don't advance action (MUST contain actual body part)
             - "Filter Verbs (Wave 4)" = saw/felt/heard/noticed/realized creating distance (MUST contain perception verb)
@@ -429,6 +437,12 @@ async function runEvaluation(manuscriptId, base44) {
             - KEEP reflexives that serve: embodiment, intimacy, agency reinforcement, character voice, psychological cohesion
             - Same rule for: "own", "just", "as if", "like" (as filler), redundant "them"
             - If construction strengthens voice or serves narrative purpose → DO NOT FLAG IT
+
+            **GOLDEN RULE FOR ALL SUGGESTIONS:**
+            "Suggest, don't prescribe. Preserve voice before optimizing prose."
+            - Lexicons (smile alternatives, etc.) are REFERENCE TOOLS, not correction mandates
+            - For 8-10 tier: treat all line-level items as optional polish opportunities
+            - Never auto-apply or force substitutions—these are inspiration, not rules
 
             CHAPTER: ${chapter.title}
 
