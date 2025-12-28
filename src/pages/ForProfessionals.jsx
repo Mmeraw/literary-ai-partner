@@ -10,8 +10,8 @@ export default function ForProfessionals() {
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
       <div className="border-b border-slate-200">
-        <div className="max-w-4xl mx-auto px-6 py-16 sm:py-24">
-          <div className="text-center mb-12">
+        <div className="max-w-4xl mx-auto px-6 py-8 sm:py-12">
+          <div className="text-center mb-6">
             <h1 className="text-4xl sm:text-5xl font-bold text-slate-900 mb-4">
               For Agents, Editors, and Development Teams
             </h1>
@@ -35,7 +35,7 @@ export default function ForProfessionals() {
       </div>
 
       {/* What This Is */}
-      <div className="max-w-4xl mx-auto px-6 py-16">
+      <div className="max-w-4xl mx-auto px-6 py-8">
         <h2 className="text-3xl font-bold text-slate-900 mb-6">What This Is</h2>
         <p className="text-lg text-slate-700 mb-6">
           A professional evaluation framework built around how agents, editors, and development teams 
@@ -73,7 +73,7 @@ export default function ForProfessionals() {
 
       {/* What This Is Not */}
       <div className="bg-slate-50 border-y border-slate-200">
-        <div className="max-w-4xl mx-auto px-6 py-16">
+        <div className="max-w-4xl mx-auto px-6 py-8">
           <h2 className="text-3xl font-bold text-slate-900 mb-6">What This Is Not</h2>
           <p className="text-lg text-slate-700 mb-6">This system is not:</p>
           
@@ -103,7 +103,7 @@ export default function ForProfessionals() {
       </div>
 
       {/* Why This Exists */}
-      <div className="max-w-4xl mx-auto px-6 py-16">
+      <div className="max-w-4xl mx-auto px-6 py-8">
         <h2 className="text-3xl font-bold text-slate-900 mb-6">Why This Exists</h2>
         <p className="text-lg text-slate-700 mb-6">
           Publishing professionals face the same constraints across agencies and imprints:
@@ -147,7 +147,7 @@ export default function ForProfessionals() {
 
       {/* How Professionals Use It */}
       <div className="bg-slate-50 border-y border-slate-200">
-        <div className="max-w-4xl mx-auto px-6 py-16">
+        <div className="max-w-4xl mx-auto px-6 py-8">
           <h2 className="text-3xl font-bold text-slate-900 mb-6">How Professionals Use It</h2>
           <p className="text-lg text-slate-700 mb-6">In practice, the system supports:</p>
           
@@ -177,7 +177,7 @@ export default function ForProfessionals() {
       </div>
 
       {/* What Makes It Different */}
-      <div className="max-w-4xl mx-auto px-6 py-16">
+      <div className="max-w-4xl mx-auto px-6 py-8">
         <h2 className="text-3xl font-bold text-slate-900 mb-6">What Makes It Different</h2>
         <p className="text-lg text-slate-700 mb-6">
           Unlike generic scoring tools, this framework reflects how publishing professionals actually think:
@@ -213,7 +213,7 @@ export default function ForProfessionals() {
 
       {/* Designed for Real Editorial Workflows */}
       <div className="bg-slate-50 border-y border-slate-200">
-        <div className="max-w-4xl mx-auto px-6 py-16">
+        <div className="max-w-4xl mx-auto px-6 py-8">
           <h2 className="text-3xl font-bold text-slate-900 mb-6">Designed for Real Editorial Workflows</h2>
           <p className="text-lg text-slate-700 mb-6">
             This system is intentionally discreet and adaptable.
@@ -234,7 +234,7 @@ export default function ForProfessionals() {
       </div>
 
       {/* Why It Exists - Closing */}
-      <div className="max-w-4xl mx-auto px-6 py-16">
+      <div className="max-w-4xl mx-auto px-6 py-8">
         <h2 className="text-3xl font-bold text-slate-900 mb-6">Why It Exists</h2>
         <p className="text-lg text-slate-700 mb-6">
           Because most manuscripts do not fail for lack of imagination.
