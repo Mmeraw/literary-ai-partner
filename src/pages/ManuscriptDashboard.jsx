@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Sparkles, Loader2, FileText, CheckCircle2, Circle, Download, Waves } from 'lucide-react';
+import { BookOpen, Sparkles, Loader2, FileText, CheckCircle2, Circle, Download, Waves, TrendingUp } from 'lucide-react';
 import { toast } from "sonner";
 import { createPageUrl } from '@/utils';
 import BenchmarkComparisonModal from '@/components/BenchmarkComparisonModal';
@@ -278,6 +278,15 @@ export default function ManuscriptDashboard() {
             <div className="flex gap-2">
               {manuscript.spine_score && (
                 <>
+                  <Link to={createPageUrl('ComparativeReport?manuscriptId=' + manuscriptId)}>
+                    <Button
+                      variant="outline"
+                      className="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                    >
+                      <TrendingUp className="w-4 h-4" />
+                      Compare to Published Works
+                    </Button>
+                  </Link>
                   <BenchmarkComparisonModal 
                     manuscriptId={manuscriptId}
                     manuscriptTitle={manuscript.title}
