@@ -40,6 +40,8 @@ Create these pitch variations:
 4. Structured Elevator (60 sec)
 5. Hollywood Logline
 
+IMPORTANT: Use italics for the manuscript title throughout (e.g., *${manuscriptInfo.title}*), not quotes.
+
 Return JSON with keys: oneSentenceSpecific, oneSentenceGeneral, conversational, elevator, hollywood`,
                 response_json_schema: {
                     type: "object",
@@ -67,6 +69,8 @@ Create:
 2. Standard Synopsis (500-750 words) - full arc, key beats
 3. Extended Synopsis (1000-1500 words) - comprehensive, character depth
 
+IMPORTANT: Use italics for the manuscript title (e.g., *${manuscriptInfo.title}*), not quotes.
+
 Return JSON with keys: query, standard, extended`,
                 response_json_schema: {
                     type: "object",
@@ -90,6 +94,8 @@ Current Work: ${manuscriptInfo.title} (${manuscriptInfo.genre || 'fiction'})
 Create a 75-100 word professional bio for literary agent submissions.
 Focus on: credentials, relevant experience, why qualified to write this story.
 
+IMPORTANT: Use italics for the manuscript title (e.g., *${manuscriptInfo.title}*), not quotes.
+
 Return plain text, no JSON.`,
                 response_json_schema: null
             }),
@@ -109,6 +115,8 @@ Structure:
 2. Story pitch (1 paragraph using the logline)
 3. Author credentials (brief)
 4. Closing
+
+IMPORTANT: Use italics for the manuscript title (e.g., *${manuscriptInfo.title}*), not quotes.
 
 Make it professional, concise, agent-ready. Return plain text.`,
                 response_json_schema: null
