@@ -36,19 +36,23 @@ export default function Home() {
                     >
                         <Badge className="mb-6 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200 text-sm font-medium">
                             <Sparkles className="w-4 h-4 mr-2" />
-                            PhD-Calibrated AI Manuscript Evaluation, Powered by the WAVE Revision System
+                            Why RevisionGrade™
                         </Badge>
 
                         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
-                            Transform Your Writing
+                            Manuscript Evaluation
                             <span className="block -mt-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent leading-relaxed overflow-visible py-2">
-                                to Publishing Quality™
+                                → Agent Ready™
                             </span>
                         </h1>
 
                         <p className="mt-3 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                            The complete agent-ready pipeline: <strong className="text-slate-900">Grade → Pitch → Synopsis → Bio → Comps → Agents → Query</strong>. 
-                            Dual-layer evaluation (12 story criteria + 60+ WAVE checks) plus complete submission package generation—everything you need from manuscript to agent inbox.
+                            <strong className="text-slate-900">Grade → Revise → Polish → Compare → Pitch → Query</strong>
+                        </p>
+
+                        <p className="mt-4 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
+                            Dual-layer evaluation (12 agent-level criteria + 60+ WAVE checks). 
+                            Generate your complete submission package: pitches, synopses, bio, comps, agent list, and draft query letter.
                         </p>
 
                         <div className="mt-4 space-y-2 flex flex-col items-center">
