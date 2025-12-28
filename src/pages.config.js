@@ -25,6 +25,11 @@ import UploadManuscript from './pages/UploadManuscript';
 import UploadWork from './pages/UploadWork';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
+import Comparables from './pages/Comparables';
+import PitchBuilder from './pages/PitchBuilder';
+import FindAgents from './pages/FindAgents';
+import QueryLetter from './pages/QueryLetter';
+import Methodology from './pages/Methodology';
 import __Layout from './Layout.jsx';
 
 
@@ -56,6 +61,11 @@ export const PAGES = {
     "UploadWork": UploadWork,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
+    "Comparables": Comparables,
+    "PitchBuilder": PitchBuilder,
+    "FindAgents": FindAgents,
+    "QueryLetter": QueryLetter,
+    "Methodology": Methodology,
 }
 
 export const pagesConfig = {
