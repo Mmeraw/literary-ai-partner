@@ -216,7 +216,16 @@ Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revi
             - Frame all issues as "refinement opportunities" not "craft failures"
             - Use language like "sharpen," "tighten," "polish" NOT "fix," "correct," "address weakness"
             - Acknowledge when choices are INTENTIONAL even if you suggest alternatives
-            - Example: "The body-part reference 'palms trembled, fingers curling' is functional but could be sharper with more situational specificity. Consider: 'A fine shake ran through my hands on the wheel, keeping the same uneven rhythm as the rain.'" [Severity: Low]
+            - Mark suggestions as "Optional polish" not "Required fix"
+
+            CRITICAL RULES FOR 8-10 TIER:
+            1. NO STACKING: If you suggest replacing an entire sentence/phrase, do NOT also flag micro-issues within that same text
+            2. PRESERVE RESTRAINT: Don't "fix" lines that are deliberately understated or ambiguous (e.g., "I could no longer tell which was true")
+            3. ALLOW PURPOSEFUL VAGUENESS: Generic nouns like "something," "stuff," "things" may be intentional ambiguity serving moral distance/mystery
+            4. AVOID ABSTRACTION SWAPS: Don't replace concrete imagery with abstract phrasing (e.g., "eyes shining" → "gaze holding")
+            5. TRUST WITHHOLDING: Power often comes from what's NOT explained—don't push toward clarity that flattens resonance
+
+            Example: "The body-part reference 'palms trembled, fingers curling' is functional but could be sharper with more situational specificity. Consider: 'A fine shake ran through my hands on the wheel, keeping the same uneven rhythm as the rain.'" [Severity: Low, Optional polish]
 
 CRITICAL: Use ONLY these exact WAVE category names (match the issue to the correct category):
 - "Body-Part Clichés" (jaw/chest/eyes/breath that don't advance action)
