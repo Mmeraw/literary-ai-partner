@@ -96,10 +96,20 @@ export default function Evaluate() {
             const agentAnalysis = await base44.integrations.Core.InvokeLLM({
                 prompt: `You are a professional evaluator (agent, editor, or script reader) assessing a manuscript. 
 
-        STYLE MODE: ${styleMode.toUpperCase()}
-        ${styleModeContext[styleMode]}
+            STYLE MODE: ${styleMode.toUpperCase()}
+            ${styleModeContext[styleMode]}
 
-        Analyze this text against exactly these 12 criteria, rating each 1-10:
+            CRITICAL FRAMING RULE:
+            Distinguish between three manuscript tiers when scoring and commenting:
+            - DEVELOPMENTAL (scores 1-5): Structural issues, unclear voice, weak craft fundamentals
+            - REFINEMENT (scores 6-7): Solid foundation, identifiable style, needs targeted polish
+            - PROFESSIONAL (scores 8-10): Strong voice, confident execution, minor edge-sharpening only
+
+            When scoring 8-10, your commentary MUST acknowledge this is professional-level work.
+            Weaknesses at this tier = "opportunities to sharpen" NOT "failures to fix."
+            Example: "Voice is distinctive and confident (9/10). The restraint here is intentional—consider whether opening paragraph needs one additional destabilizing beat to immediately signal stakes."
+
+            Analyze this text against exactly these 12 criteria, rating each 1-10:
 
 1. The Hook - First pages pull reader in with intrigue, tension, unique voice
 2. Voice & Narrative Style - Distinct, engaging voice matching tone with fresh prose  
@@ -160,10 +170,25 @@ Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revi
             const waveAnalysis = await base44.integrations.Core.InvokeLLM({
                 prompt: `Apply the Wave Revision System to identify 5-10 specific craft issues.
 
-STYLE MODE: ${styleMode.toUpperCase()}
-${styleModeContext[styleMode]}
+            STYLE MODE: ${styleMode.toUpperCase()}
+            ${styleModeContext[styleMode]}
 
-Adjust flagging thresholds based on style mode constraints.
+            Adjust flagging thresholds based on style mode constraints.
+
+            CRITICAL TIERING RULE:
+            Assess manuscript quality tier FIRST, then adjust commentary:
+
+            PROFESSIONAL-TIER INDICATORS (8-10 range):
+            - Distinctive, confident voice throughout
+            - Intentional pacing choices (restraint vs. spectacle)
+            - Sensory authority (inhabits world rather than describes it)
+            - Thematic coherence and emotional gravity
+
+            If manuscript shows 3+ professional indicators:
+            - Frame issues as "refinement opportunities" not "craft failures"
+            - Use language like "sharpen," "tighten," "polish" NOT "fix," "correct," "address weakness"
+            - Acknowledge when choices are INTENTIONAL even if you suggest alternatives
+            - Example: "The body-part reference 'palms trembled, fingers curling' is functional but could be sharper with more situational specificity. Consider: 'A fine shake ran through my hands on the wheel, keeping the same uneven rhythm as the rain.'"
 
 CRITICAL: Use ONLY these exact WAVE category names (match the issue to the correct category):
 - "Body-Part Clichés" (jaw/chest/eyes/breath that don't advance action)
@@ -221,9 +246,17 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             });
 
             // Combine results
+            // Classify manuscript tier
+            const avgScore = agentAnalysis.criteria?.length > 0
+                ? agentAnalysis.criteria.reduce((sum, c) => sum + c.score, 0) / agentAnalysis.criteria.length
+                : agentAnalysis.overallScore;
+
+            const manuscriptTier = avgScore >= 8 ? 'professional' : avgScore >= 6 ? 'refinement' : 'developmental';
+
             const evaluationResult = {
                 overallScore: agentAnalysis.overallScore || 5,
                 agentVerdict: agentAnalysis.agentVerdict || "Evaluation complete",
+                manuscriptTier: manuscriptTier,
                 criteria: agentAnalysis.criteria || [],
                 revisionRequests: agentAnalysis.revisionRequests || [],
                 waveHits: waveAnalysis.waveHits || [],
@@ -405,6 +438,17 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                         {evaluationResult.styleMode && (
                                             <Badge className="bg-purple-500 text-white border-0">
                                                 Style: {evaluationResult.styleMode}
+                                            </Badge>
+                                        )}
+                                        {evaluationResult.manuscriptTier && (
+                                            <Badge className={
+                                                evaluationResult.manuscriptTier === 'professional' ? 'bg-emerald-500 text-white border-0' :
+                                                evaluationResult.manuscriptTier === 'refinement' ? 'bg-amber-500 text-white border-0' :
+                                                'bg-slate-500 text-white border-0'
+                                            }>
+                                                {evaluationResult.manuscriptTier === 'professional' ? '⭐ Professional Tier' :
+                                                 evaluationResult.manuscriptTier === 'refinement' ? '🔧 Refinement Tier' :
+                                                 '📝 Developmental Tier'}
                                             </Badge>
                                         )}
                                         </div>
