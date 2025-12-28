@@ -12,7 +12,7 @@ import {
 import { 
     BookOpen, Sparkles, Menu, X, LogOut, BarChart3,
     ChevronDown, FileText, Film, Target, TrendingUp,
-    Users, Mail, HelpCircle, FileCheck, User, Crown
+    Users, Mail, HelpCircle, FileCheck, User, Crown, Package
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
@@ -25,7 +25,8 @@ const worksPages = [
 ];
 
 const evaluatePages = [
-    { name: 'New Evaluation', page: 'Evaluate', icon: Sparkles, highlight: true },
+    { name: 'Complete Submission Package', page: 'CompletePackage', icon: Package, highlight: true },
+    { name: 'New Evaluation', page: 'Evaluate', icon: Sparkles },
     { name: 'Sample Analysis', page: 'SampleAnalysis', icon: FileCheck },
     { name: 'Criteria', page: 'Criteria', icon: FileText },
     { name: 'Film Adaptation Package', page: 'FilmAdaptation', icon: Film },
