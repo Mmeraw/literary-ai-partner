@@ -43,7 +43,7 @@ async function runEvaluation(manuscriptId, base44) {
             try {
                 await base44.asServiceRole.entities.Chapter.update(chapter.id, { status: 'summarizing' });
 
-                await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
                         chapters_total: chapters.length,
                         chapters_summarized: chapterSummaries.length,
@@ -100,7 +100,7 @@ async function runEvaluation(manuscriptId, base44) {
                 chapterSummaries.push(summary);
 
                 // Update progress after successful summary
-                await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
                         chapters_total: chapters.length,
                         chapters_summarized: chapterSummaries.length,
@@ -120,7 +120,7 @@ async function runEvaluation(manuscriptId, base44) {
                 });
 
                 // Update progress to show we moved past this chapter
-                await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
                         chapters_total: chapters.length,
                         chapters_summarized: chapterSummaries.length,
