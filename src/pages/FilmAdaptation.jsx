@@ -636,9 +636,7 @@ export default function FilmAdaptation() {
                         </Button>
                     </Link>
                 </div>
-                </div>
-                </div>
-                )}
-                </div>
-                );
-                }
+            </div>
+        </div>
+    );
+}
