@@ -102,23 +102,32 @@ Return plain text, no JSON.`,
 
             // Query Letter
             base44.integrations.Core.InvokeLLM({
-                prompt: `Generate a professional query letter for this manuscript:
+                prompt: `Generate a professional query letter in EMAIL FORMAT (no postal addresses) for this manuscript:
 
 Title: ${manuscriptInfo.title}
 Genre: ${manuscriptInfo.genre || 'Fiction'}
-Word Count: ${manuscriptInfo.wordCount || 'Complete'}
+Word Count: ${manuscriptInfo.wordCount || '[Word Count]'}
 Logline: ${manuscriptInfo.logline}
-Author: ${manuscriptInfo.authorName || user.full_name}
+Author Name (USE EXACTLY): ${manuscriptInfo.authorName || user.full_name || '[Author Name]'}
+Author Bio: ${manuscriptInfo.authorBio || 'No bio provided'}
 
-Structure:
-1. Opening hook (1-2 sentences)
-2. Story pitch (1 paragraph using the logline)
-3. Author credentials (brief)
-4. Closing - MUST include: "Full manuscript available. [word count]. Comp titles: [comparable book] meets [comparable book]."
+CRITICAL FORMAT REQUIREMENTS:
+1. EMAIL/QueryManager format ONLY - NO postal address blocks
+2. Start with: "Dear [Agent Name]," (personalization placeholder)
+3. Opening hook (1-2 sentences about the book)
+4. Story pitch (1 compact paragraph)
+5. Author credentials (1-2 sentences, ONLY if bio provided, else omit)
+6. REQUIRED CLOSING: "Full manuscript available. ${manuscriptInfo.wordCount || '[Word Count]'} words. Comp titles: [comparable title] meets [comparable title]. May I send you the full manuscript?"
+7. Sign with EXACT author name: ${manuscriptInfo.authorName || user.full_name || '[Author Name]'}
 
-IMPORTANT: Use italics for the manuscript title (e.g., *${manuscriptInfo.title}*), not quotes.
+STYLE RULES:
+- Use italics for title: *${manuscriptInfo.title}*
+- NO rhetorical questions
+- NO "blurb-speak" adjectives (gripping, haunting, compelling)
+- Concrete plot details, not abstract phrases
+- Present tense for story pitch
 
-Make it professional, concise, agent-ready. Return plain text.`,
+Return only the query letter text.`,
                 response_json_schema: null
             })
         ]);

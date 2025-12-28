@@ -135,8 +135,21 @@ export default function CompletePackage() {
     };
 
     const generateCompletePackage = async () => {
-        if (!manuscriptInfo.title || !manuscriptInfo.logline) {
-            toast.error('Please provide at least a title and logline');
+        // Validation
+        const missingFields = [];
+        if (!manuscriptInfo.title) missingFields.push('Title');
+        if (!manuscriptInfo.logline) missingFields.push('Logline');
+        if (!manuscriptInfo.authorName) missingFields.push('Author Name');
+        if (!manuscriptInfo.wordCount) missingFields.push('Word Count');
+
+        if (missingFields.length > 0) {
+            toast.error(
+                <div>
+                    <div className="font-semibold">Required fields missing:</div>
+                    <div className="text-sm mt-1">{missingFields.join(', ')}</div>
+                </div>,
+                { duration: 4000 }
+            );
             return;
         }
 
@@ -147,8 +160,27 @@ export default function CompletePackage() {
             });
 
             if (response.data.success) {
+                const pkg = response.data.package;
+
+                // Check for placeholders
+                const hasPlaceholders = 
+                    JSON.stringify(pkg).includes('[Author Name]') ||
+                    JSON.stringify(pkg).includes('[Word Count]') ||
+                    JSON.stringify(pkg).includes('[comparable');
+
                 setPackageData(response.data.package);
-                toast.success('Complete submission package generated!');
+
+                if (hasPlaceholders) {
+                    toast.warning(
+                        <div>
+                            <div className="font-semibold">Package generated with placeholders</div>
+                            <div className="text-sm mt-1">Review and fill in missing details before submission</div>
+                        </div>,
+                        { duration: 5000 }
+                    );
+                } else {
+                    toast.success('Complete submission package generated!');
+                }
             } else {
                 toast.error(response.data.error || 'Failed to generate package');
             }
@@ -321,13 +353,16 @@ ${packageData.queryLetter}
 
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                                        Word Count
+                                        Word Count *
                                     </label>
                                     <Input
                                         value={manuscriptInfo.wordCount}
                                         onChange={(e) => setManuscriptInfo({...manuscriptInfo, wordCount: e.target.value})}
                                         placeholder="122,000"
                                     />
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Required for query letter closing
+                                    </p>
                                 </div>
 
                                 <div>
@@ -401,13 +436,16 @@ ${packageData.queryLetter}
 
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                                        Author Name
+                                        Author Name *
                                     </label>
                                     <Input
                                         value={manuscriptInfo.authorName}
                                         onChange={(e) => setManuscriptInfo({...manuscriptInfo, authorName: e.target.value})}
                                         placeholder="Michael J. Meraw"
                                     />
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Used for bio and query signature - never fabricated
+                                    </p>
                                 </div>
 
                                 <div>
@@ -470,7 +508,7 @@ ${packageData.queryLetter}
 
                                 <Button
                                     onClick={generateCompletePackage}
-                                    disabled={generating || loadingManuscript || !manuscriptInfo.title || !manuscriptInfo.logline}
+                                    disabled={generating || loadingManuscript}
                                     className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                                     size="lg"
                                 >
@@ -535,10 +573,19 @@ ${packageData.queryLetter}
                                 <CardHeader>
                                     <div className="flex items-center justify-between">
                                         <CardTitle>Complete Submission Package</CardTitle>
-                                        <Badge className="bg-emerald-100 text-emerald-700">
-                                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                                            Generated
-                                        </Badge>
+                                        <div className="flex gap-2">
+                                            {(JSON.stringify(packageData).includes('[Author Name]') || 
+                                              JSON.stringify(packageData).includes('[Word Count]') ||
+                                              JSON.stringify(packageData).includes('[comparable')) && (
+                                                <Badge className="bg-amber-100 text-amber-700">
+                                                    ⚠️ Needs Review
+                                                </Badge>
+                                            )}
+                                            <Badge className="bg-emerald-100 text-emerald-700">
+                                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                                Generated
+                                            </Badge>
+                                        </div>
                                     </div>
                                 </CardHeader>
                                 <CardContent>
