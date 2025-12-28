@@ -166,6 +166,30 @@ Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revi
                 }
             });
 
+            // Agent Decision Snapshot
+            const agentSnapshot = await base44.integrations.Core.InvokeLLM({
+                prompt: `You are a literary agent making a keep-reading decision. Analyze this manuscript excerpt and provide a decisive snapshot.
+
+            TEXT:
+            ${text}
+
+            Provide:
+            1. Keep-reading likelihood (High/Medium/Low)
+            2. Biggest risk (one sentence - what would make you reject this)
+            3. Biggest strength (one sentence - what makes you keep reading)
+            4. Most leverage fix (one sentence - single change with highest impact)`,
+                response_json_schema: {
+                    type: "object",
+                    properties: {
+                        keep_reading: { type: "string", enum: ["High", "Medium", "Low"] },
+                        biggest_risk: { type: "string" },
+                        biggest_strength: { type: "string" },
+                        most_leverage_fix: { type: "string" }
+                    },
+                    required: ["keep_reading", "biggest_risk", "biggest_strength", "most_leverage_fix"]
+                }
+            });
+
             // Wave Revision Guidance
             const waveAnalysis = await base44.integrations.Core.InvokeLLM({
                 prompt: `Apply the Wave Revision System to identify 5-10 specific craft issues.
@@ -176,7 +200,7 @@ Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revi
             Adjust flagging thresholds based on style mode constraints.
 
             CRITICAL TIERING RULE:
-            Assess manuscript quality tier FIRST, then adjust commentary:
+            Assess manuscript quality tier FIRST, then adjust commentary and severity:
 
             PROFESSIONAL-TIER INDICATORS (8-10 range):
             - Distinctive, confident voice throughout
@@ -184,11 +208,15 @@ Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revi
             - Sensory authority (inhabits world rather than describes it)
             - Thematic coherence and emotional gravity
 
-            If manuscript shows 3+ professional indicators:
-            - Frame issues as "refinement opportunities" not "craft failures"
+            SEVERITY GATE:
+            If manuscript shows 3+ professional indicators (will score 8-10):
+            - MOST waves must be labeled "Low" or "Medium" severity
+            - Only reserve "High" for submission-blocking issues: POV breaks, logic errors, confusion, incoherence
+            - Language/line-level polish (body-parts, filters, adverbs) = "Low" severity in professional tier
+            - Frame all issues as "refinement opportunities" not "craft failures"
             - Use language like "sharpen," "tighten," "polish" NOT "fix," "correct," "address weakness"
             - Acknowledge when choices are INTENTIONAL even if you suggest alternatives
-            - Example: "The body-part reference 'palms trembled, fingers curling' is functional but could be sharper with more situational specificity. Consider: 'A fine shake ran through my hands on the wheel, keeping the same uneven rhythm as the rain.'"
+            - Example: "The body-part reference 'palms trembled, fingers curling' is functional but could be sharper with more situational specificity. Consider: 'A fine shake ran through my hands on the wheel, keeping the same uneven rhythm as the rain.'" [Severity: Low]
 
 CRITICAL: Use ONLY these exact WAVE category names (match the issue to the correct category):
 - "Body-Part Clichés" (jaw/chest/eyes/breath that don't advance action)
@@ -257,6 +285,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 overallScore: agentAnalysis.overallScore || 5,
                 agentVerdict: agentAnalysis.agentVerdict || "Evaluation complete",
                 manuscriptTier: manuscriptTier,
+                agentSnapshot: agentSnapshot,
                 criteria: agentAnalysis.criteria || [],
                 revisionRequests: agentAnalysis.revisionRequests || [],
                 waveHits: waveAnalysis.waveHits || [],
@@ -468,10 +497,45 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                     <p className="text-white/90 text-lg mb-4">{evaluationResult.agentVerdict}</p>
                                     <div className="p-4 rounded-lg bg-white/10 border border-white/20">
                                         <p className="text-sm text-white/80">
-                                            <strong className="text-white">Brutal honesty is our brand.</strong> Literary AI Partner™ scores reflect real agent decision-making, calibrated against publishing outcomes.
+                                            <strong className="text-white">What this score means:</strong>{' '}
+                                            {evaluationResult.manuscriptTier === 'professional' 
+                                                ? 'Agent-viable craft; feedback focuses on sharpening impact and submission readiness.'
+                                                : evaluationResult.manuscriptTier === 'refinement'
+                                                ? 'Solid foundations; revision focuses on clarity, pacing, and consistency.'
+                                                : 'Developmental draft; revision focuses on structure, stakes, and narrative coherence.'}
                                         </p>
                                     </div>
-                                </div>
+                                    </div>
+
+                                    {/* Agent Decision Snapshot */}
+                                    {evaluationResult.agentSnapshot && (
+                                    <div className="p-6 rounded-xl bg-white border border-slate-200">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <Badge className="bg-slate-800 text-white">Agent Decision Snapshot</Badge>
+                                            <Badge className={
+                                                evaluationResult.agentSnapshot.keep_reading === 'High' ? 'bg-emerald-500 text-white' :
+                                                evaluationResult.agentSnapshot.keep_reading === 'Medium' ? 'bg-amber-500 text-white' :
+                                                'bg-slate-500 text-white'
+                                            }>
+                                                Keep Reading: {evaluationResult.agentSnapshot.keep_reading}
+                                            </Badge>
+                                        </div>
+                                        <div className="space-y-3 text-sm">
+                                            <div>
+                                                <span className="font-semibold text-emerald-600">✓ Biggest Strength:</span>
+                                                <p className="text-slate-700 mt-1">{evaluationResult.agentSnapshot.biggest_strength}</p>
+                                            </div>
+                                            <div>
+                                                <span className="font-semibold text-rose-600">⚠ Biggest Risk:</span>
+                                                <p className="text-slate-700 mt-1">{evaluationResult.agentSnapshot.biggest_risk}</p>
+                                            </div>
+                                            <div>
+                                                <span className="font-semibold text-indigo-600">→ Most Leverage Fix:</span>
+                                                <p className="text-slate-700 mt-1">{evaluationResult.agentSnapshot.most_leverage_fix}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    )}
 
                                 {/* Revision Requests */}
                                 {evaluationResult.revisionRequests?.length > 0 && (
