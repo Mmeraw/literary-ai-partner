@@ -28,6 +28,7 @@ const evaluatePages = [
     { name: 'New Evaluation', page: 'Evaluate', icon: Sparkles, highlight: true },
     { name: 'Sample Analysis', page: 'SampleAnalysis', icon: FileCheck },
     { name: 'Criteria', page: 'Criteria', icon: FileText },
+    { name: 'Film Adaptation Package', page: 'FilmAdaptation', icon: Film },
     { name: 'Pitch Generator', page: 'PitchGenerator', icon: Target },
     { name: 'Pitch Builder', page: 'PitchBuilder', icon: Target },
     { name: 'Synopsis', page: 'Synopsis', icon: FileText },

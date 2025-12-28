@@ -34,6 +34,7 @@ import UploadWork from './pages/UploadWork';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
 import PitchGenerator from './pages/PitchGenerator';
+import FilmAdaptation from './pages/FilmAdaptation';
 import __Layout from './Layout.jsx';
 
 
@@ -74,6 +75,7 @@ export const PAGES = {
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
     "PitchGenerator": PitchGenerator,
+    "FilmAdaptation": FilmAdaptation,
 }
 
 export const pagesConfig = {
