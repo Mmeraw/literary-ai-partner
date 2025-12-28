@@ -160,17 +160,36 @@ Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revi
             const waveAnalysis = await base44.integrations.Core.InvokeLLM({
                 prompt: `Apply the Wave Revision System to identify 5-10 specific craft issues.
 
-            STYLE MODE: ${styleMode.toUpperCase()}
-            ${styleModeContext[styleMode]}
+STYLE MODE: ${styleMode.toUpperCase()}
+${styleModeContext[styleMode]}
 
-            Adjust flagging thresholds based on style mode constraints.
+Adjust flagging thresholds based on style mode constraints.
+
+CRITICAL: Use ONLY these exact WAVE category names (match the issue to the correct category):
+- "Body-Part Clichés" (jaw/chest/eyes/breath that don't advance action)
+- "Filter Verbs" (saw/felt/heard/noticed/realized creating distance)
+- "Generic Nouns" (thing/stuff/place/room lacking specificity)
+- "Adverbs & Intensifiers" (very/really/suddenly propping up weak verbs)
+- "Passive Voice" (was/were + verb, hiding actors)
+- "Negation Overuse" (didn't/not/never instead of showing action)
+- "Telling vs Showing" (felt peaceful, seemed angry instead of evidence)
+- "On-the-Nose Explanations" (because/which meant/in order to)
+- "Dialogue Tags" (over-attribution, explaining dialogue)
+- "Abstract Triples" (three abstract ideas instead of concrete doubles)
+- "Motif Overuse" (repeated imagery without escalation)
+- "Sentence Variety" (rhythm and structure issues)
+- "Specificity" (vague sensory details, generic descriptions)
+
+VALIDATION RULES:
+- "Body-Part Clichés" requires actual body parts (jaw, chest, eyes, heart, breath, hands, etc.)
+- "Filter Verbs" requires perception verbs (saw, felt, heard, noticed, realized, knew, thought)
+- If text uses "felt" + emotion = "Telling vs Showing" NOT body-part
+- If text uses "noticed" = "Filter Verbs" NOT body-part
 
 TEXT:
 ${text}
 
-Find issues with: sentence variety, word economy, sensory details, active voice, verb strength, adverbs, dialogue tags, beats, scene structure, transitions, tension, emotional beats, character voice, internal thoughts, description balance, pacing, showing vs telling.
-
-For each: wave_item (name), severity (High/Medium/Low), evidence_quote (exact text), fix (specific revision).
+For each issue: wave_item (exact category name from list above), severity (High/Medium/Low), evidence_quote (exact text), fix (specific revision that addresses the actual issue).
 Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 response_json_schema: {
                     type: "object",
