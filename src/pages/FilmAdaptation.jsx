@@ -421,6 +421,7 @@ export default function FilmAdaptation() {
                         </div>
                     </div>
                 </div>
+
             {/* Features Section */}
             <div className="bg-white py-16">
                 <div className="max-w-6xl mx-auto px-6">
