@@ -48,7 +48,7 @@ export default function SampleAnalysis() {
                     <CardHeader>
                         <CardTitle className="text-xl">Important Note (Scope + Intent)</CardTitle>
                     </CardHeader>
-                    <CardContent className="text-slate-700 space-y-3">
+                    <CardContent className="text-slate-700 space-y-3 content-text">
                         <p>
                             This document is a subjective, craft-based benchmarking study intended for educational and 
                             positioning purposes. It uses a consistent internal rubric to show how a manuscript can be 
@@ -63,7 +63,7 @@ export default function SampleAnalysis() {
                     <CardHeader>
                         <CardTitle className="text-xl">Why This Comparison Matters</CardTitle>
                     </CardHeader>
-                    <CardContent className="text-slate-700 space-y-3">
+                    <CardContent className="text-slate-700 space-y-3 content-text">
                         <p>
                             Don Winslow's <em className="italic">Cartel Trilogy</em> is widely considered the gold standard of cartel fiction, blending 
                             geopolitical scope, procedural detail, and decades of research. Agents, editors, and readers often use 
@@ -93,7 +93,7 @@ export default function SampleAnalysis() {
                                     }}
                                 />
                             </div>
-                            <div className="text-sm text-slate-700 space-y-3">
+                            <div className="text-sm text-slate-700 space-y-3 content-text">
                                 <p>
                                     All of Meraw's fiction unfolds within the interconnected <a href="https://michaeljmeraw.com" target="_blank" rel="noopener noreferrer"><strong className="text-red-600 font-bold hover:text-red-700 underline">EvØ-Myth Universe™</strong></a>. 
                                     His latest novel, <a href="https://michaeljmeraw.com/cartel-babies-2026/" target="_blank" rel="noopener noreferrer"><em className="italic hover:text-indigo-700 underline">Cartel Babies</em></a>, is a 124,000-word, literary–commercial psychological thriller 
@@ -127,7 +127,7 @@ export default function SampleAnalysis() {
                                     }}
                                 />
                             </div>
-                            <div className="text-sm text-slate-700 space-y-3">
+                            <div className="text-sm text-slate-700 space-y-3 content-text">
                                 <p>
                                     Winslow's acclaimed trilogy—<em className="italic">The Power of the Dog</em>, <em className="italic">The Cartel</em>, and <em className="italic">The Border</em>—follows 
                                     DEA agent Art Keller across decades of conflict with a powerful Sinaloa cartel.
