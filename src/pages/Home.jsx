@@ -40,17 +40,27 @@ export default function Home() {
                         </Badge>
 
                         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
-                            From Manuscript to
-                            <span className="block -mt-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent leading-relaxed overflow-visible py-2">
-                                Hollywood Pitch Deck
+                            <span className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                                TRANSMEDIA PIPELINE:
+                            </span>
+                            <span className="block -mt-2">
+                                Manuscript → Hollywood
                             </span>
                         </h1>
 
-                        <p className="mt-3 text-lg sm:text-xl text-slate-900 font-semibold max-w-2xl mx-auto leading-relaxed">
+                        <p className="mt-4 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">
+                            Manuscript Evaluation → Agent Ready™ → Revise → Polish → Compare → Pitch → Query
+                        </p>
+
+                        <p className="mt-2 text-sm text-indigo-600 font-semibold max-w-2xl mx-auto">
+                            Dual-Layer (12 Agent Criteria + 60+ WAVE Checks)
+                        </p>
+
+                        <p className="mt-4 text-lg sm:text-xl text-slate-900 font-semibold max-w-2xl mx-auto leading-relaxed">
                             One Tool. One Subscription.
                         </p>
 
-                        <p className="mt-4 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">
+                        <p className="mt-2 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">
                             <strong className="text-slate-900">Upload Your Complete Work → Download Agent + Producer Decks</strong>
                         </p>
 
@@ -72,7 +82,7 @@ export default function Home() {
                             <Link to={createPageUrl('UploadManuscript')}>
                                 <Button size="lg" className="h-14 px-8 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
                                     <BookOpen className="w-5 h-5 mr-2" />
-                                    Start Free Trial → $99/mo
+                                    Start Free Trial → $99/mo MOST POPULAR
                                 </Button>
                             </Link>
                             <Link to={createPageUrl('Evaluate')}>
@@ -337,7 +347,7 @@ export default function Home() {
                 <div className="p-10 rounded-3xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100">
                     <Zap className="w-12 h-12 mx-auto mb-6 text-indigo-600" />
                     <h2 className="text-3xl font-bold text-slate-900 mb-4">
-                        Upload Manuscript → Get Hollywood-Ready Deck Today
+                        Upload Manuscript → Get Agent Ready™ + Film Deck
                     </h2>
                     <p className="text-slate-600 mb-2 max-w-xl mx-auto font-semibold">
                         Complete Submission in 6 Hours, Not 6 Months
