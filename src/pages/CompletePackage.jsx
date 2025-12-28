@@ -39,15 +39,7 @@ export default function CompletePackage() {
         initialData: []
     });
 
-    // Redirect to upload page if no manuscripts
-    useEffect(() => {
-        if (!manuscriptsLoading && manuscripts.length === 0) {
-            toast.error('No manuscripts found. Please upload a manuscript first.');
-            setTimeout(() => {
-                window.location.href = createPageUrl('UploadManuscript');
-            }, 1500);
-        }
-    }, [manuscripts, manuscriptsLoading]);
+
 
     const loadManuscript = (manuscriptId) => {
         const manuscript = manuscripts.find(m => m.id === manuscriptId);
