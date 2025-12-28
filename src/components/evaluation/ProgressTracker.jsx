@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 
 const steps = [
     { id: 1, label: "Submit Draft", description: "Paste your manuscript" },
-    { id: 2, label: "AI Analysis", description: "Dual AI evaluation" },
+    { id: 2, label: "Evaluation", description: "Dual-layer analysis: story structure + line-level craft" },
     { id: 3, label: "Review Suggestions", description: "Accept, reject, or request alternatives" },
     { id: 4, label: "Finalize", description: "Export polished version" }
 ];
