@@ -38,29 +38,63 @@ export default function Criteria() {
                     <CardContent className="p-8">
                         <h2 className="text-2xl font-bold text-slate-900 mb-6">What We Evaluate</h2>
                         <p className="text-slate-700 mb-6 leading-relaxed">
-                            Each manuscript is reviewed across 12 core criteria used in professional editorial assessment, including:
+                            RevisionGrade uses a two-layer evaluation framework powered by the WAVE Revision System (61+ waves) designed to mirror professional editorial assessment. Each manuscript is reviewed across:
                         </p>
-                        <div className="grid md:grid-cols-2 gap-3 mb-6">
-                            {[
-                                'Opening effectiveness',
-                                'Narrative voice and clarity',
-                                'Character development',
-                                'Conflict and escalation',
-                                'Structure and pacing',
-                                'Dialogue and subtext',
-                                'Worldbuilding and immersion',
-                                'Emotional engagement',
-                                'Line-level craft',
-                                'Market positioning'
-                            ].map((item, idx) => (
-                                <div key={idx} className="flex items-center gap-2 text-slate-700">
-                                    <CheckCircle2 className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                                    <span>{item}</span>
+                        <div className="space-y-6 mb-6">
+                            <div>
+                                <h3 className="text-lg font-semibold text-slate-900 mb-3">12 Story Evaluation Criteria</h3>
+                                <div className="grid md:grid-cols-2 gap-3">
+                                    {[
+                                        'Opening Hook',
+                                        'Narrative Voice & Style',
+                                        'Character Depth & Introduction',
+                                        'Conflict & Tension Escalation',
+                                        'Thematic Resonance',
+                                        'Structure, Pacing & Flow',
+                                        'Dialogue & Subtext',
+                                        'Worldbuilding & Immersion',
+                                        'Stakes & Emotional Investment',
+                                        'Line-Level Craft & Polish',
+                                        'Marketability & Genre Position',
+                                        'Would They Keep Reading?'
+                                    ].map((item, idx) => (
+                                        <div key={idx} className="flex items-center gap-2 text-slate-700">
+                                            <CheckCircle2 className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                                            <span>{item}</span>
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
+                                <p className="text-sm text-slate-600 italic mt-4">
+                                    The structural and thematic foundation that agents and editors use to assess manuscript readiness.
+                                </p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-semibold text-slate-900 mb-3">61+ WAVE Revision System</h3>
+                                <p className="text-slate-700 mb-3">
+                                    A professional, multi-pass revision framework organized in three tiers:
+                                </p>
+                                <div className="space-y-2 mb-3">
+                                    <div className="flex items-start gap-2">
+                                        <Badge className="bg-blue-100 text-blue-700 flex-shrink-0">Early</Badge>
+                                        <span className="text-sm text-slate-700">Structural truth, POV integrity, stakes clarity</span>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                        <Badge className="bg-amber-100 text-amber-700 flex-shrink-0">Mid</Badge>
+                                        <span className="text-sm text-slate-700">Momentum, specificity, scene mechanics, dialogue purpose</span>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                        <Badge className="bg-purple-100 text-purple-700 flex-shrink-0">Late</Badge>
+                                        <span className="text-sm text-slate-700">Authority, polish, submission readiness</span>
+                                    </div>
+                                </div>
+                                <p className="text-sm text-slate-600 italic">
+                                    Identifies 61+ craft-level failure modes including body-part clichés, filter verbs, mind-reading, generic nouns, negation stacks, motif overuse, reflexive redundancy, and more.
+                                </p>
+                            </div>
                         </div>
                         <p className="text-slate-600 italic">
-                            These criteria focus on how a story functions on the page—not on genre trends, personal taste, or formulaic rules.
+                            These criteria and waves focus on how a story functions on the page—not on genre trends, personal taste, or formulaic rules.
                         </p>
                     </CardContent>
                 </Card>
