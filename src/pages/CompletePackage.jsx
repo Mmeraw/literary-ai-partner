@@ -186,6 +186,31 @@ ${packageData.queryLetter}
                                 <CardTitle>Manuscript Information</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
+                                {/* Load from Manuscript */}
+                                {!manuscriptsLoading && manuscripts.length > 0 && (
+                                    <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <BookOpen className="w-4 h-4 text-indigo-600" />
+                                            <span className="text-sm font-semibold text-slate-800">Load from Manuscript</span>
+                                        </div>
+                                        <Select value={selectedManuscriptId} onValueChange={(value) => {
+                                            setSelectedManuscriptId(value);
+                                            loadManuscript(value);
+                                        }}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a manuscript to auto-fill details" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {manuscripts.map((manuscript) => (
+                                                    <SelectItem key={manuscript.id} value={manuscript.id}>
+                                                        {manuscript.title} ({manuscript.word_count?.toLocaleString()} words)
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
+
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">
                                         Title *
