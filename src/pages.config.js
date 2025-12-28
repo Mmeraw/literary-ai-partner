@@ -24,6 +24,7 @@ import Progress from './pages/Progress';
 import FAQ from './pages/FAQ';
 import SampleAnalysis from './pages/SampleAnalysis';
 import ComparativeReport from './pages/ComparativeReport';
+import ForProfessionals from './pages/ForProfessionals';
 import __Layout from './Layout.jsx';
 
 
@@ -54,6 +55,7 @@ export const PAGES = {
     "FAQ": FAQ,
     "SampleAnalysis": SampleAnalysis,
     "ComparativeReport": ComparativeReport,
+    "ForProfessionals": ForProfessionals,
 }
 
 export const pagesConfig = {
