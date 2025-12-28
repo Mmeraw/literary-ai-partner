@@ -305,8 +305,20 @@ Deno.serve(async (req) => {
                         last_updated: new Date().toISOString()
                     }
                 });
+
+            // Timeout wrapper for LLM calls (2 minutes max per chapter)
+            const withTimeout = (promise, timeoutMs = 120000) => {
+                return Promise.race([
+                    promise,
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Chapter evaluation timeout - continuing with next chapter')), timeoutMs)
+                    )
+                ]);
+            };
+
             // Story Evaluation (Agents, Editors, Script Readers)
-                const agentAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
+                const agentAnalysis = await withTimeout(
+                    base44.asServiceRole.integrations.Core.InvokeLLM({
                     prompt: `You are a professional evaluator (agent/editor/script reader). Analyze this chapter against the 12 Story Evaluation Criteria, rating each 1-10:
 
             1. Opening Hook (opening_hook)
@@ -358,10 +370,12 @@ Deno.serve(async (req) => {
                     },
                     required: ["overallScore", "verdict", "criteria"]
                 }
-            });
+                })
+                );
 
-            // WAVE Revision System evaluation (61+ waves, three-tier framework)
-            const waveAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
+                // WAVE Revision System evaluation (61+ waves, three-tier framework)
+                const waveAnalysis = await withTimeout(
+                base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are an elite developmental editor applying the complete WAVE Revision System (61+ waves organized in three tiers).
 
             WAVE SYSTEM FRAMEWORK:
@@ -458,10 +472,11 @@ Deno.serve(async (req) => {
                         }
                     },
                     required: ["waveScore", "criticalIssues", "strengthAreas", "waveHits"]
-                }
-            });
+                    }
+                    })
+                    );
 
-            // Combined score: 50% agent + 50% WAVE
+                    // Combined score: 50% agent + 50% WAVE
             const combinedScore = (agentAnalysis.overallScore * 0.5) + (waveAnalysis.waveScore * 0.5);
 
             // Update chapter
