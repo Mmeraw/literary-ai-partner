@@ -83,9 +83,10 @@ export default function Home() {
 
                         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
                             <Link to={createPageUrl('UploadManuscript')}>
-                                <Button size="lg" className="h-14 px-8 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
-                                    <BookOpen className="w-5 h-5 mr-2" />
-                                    Start Free Trial → $99/mo MOST POPULAR
+                                <Button size="lg" className="h-14 px-6 sm:px-8 text-base sm:text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
+                                    <BookOpen className="w-5 h-5 mr-2 flex-shrink-0" />
+                                    <span className="hidden sm:inline">Start Free Trial → $99/mo MOST POPULAR</span>
+                                    <span className="sm:hidden">Start Free → $99/mo</span>
                                 </Button>
                             </Link>
                             <Link to={createPageUrl('Evaluate')}>
