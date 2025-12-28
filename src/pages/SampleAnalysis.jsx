@@ -151,7 +151,7 @@ export default function SampleAnalysis() {
                 </Card>
 
                 {/* Comparative Analysis Table */}
-                <Card className="mb-8 border-0 shadow-md">
+                <Card className="mb-8 border-0 shadow-md overflow-hidden">
                     <CardHeader>
                         <CardTitle className="text-xl">Comparative Craft Analysis</CardTitle>
                         <p className="text-sm text-slate-600 mt-2">
@@ -159,20 +159,20 @@ export default function SampleAnalysis() {
                             high-stakes thrillers.
                         </p>
                     </CardHeader>
-                    <CardContent>
-                        <div className="overflow-x-auto">
-                            <table className="w-full border-collapse text-sm">
+                    <CardContent className="p-0 sm:p-6">
+                        <div className="overflow-x-auto -mx-6 sm:mx-0">
+                            <table className="w-full border-collapse text-xs sm:text-sm min-w-full">
                                 <thead className="sticky top-0 z-10">
                                     <tr className="bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg">
-                                        <th className="border border-indigo-400 p-4 text-left font-semibold text-white">Criteria</th>
-                                        <th className="border border-indigo-400 p-4 text-left font-semibold text-white">Don Winslow's <em className="italic">Cartel Trilogy</em></th>
-                                        <th className="border border-indigo-400 p-4 text-left font-semibold text-white">Michael Meraw's <em className="italic">Cartel Babies</em></th>
+                                        <th className="border border-indigo-400 p-2 sm:p-4 text-left font-semibold text-white w-20 sm:w-auto">Criteria</th>
+                                        <th className="border border-indigo-400 p-2 sm:p-4 text-left font-semibold text-white">Don Winslow's <em className="italic">Cartel Trilogy</em></th>
+                                        <th className="border border-indigo-400 p-2 sm:p-4 text-left font-semibold text-white">Michael Meraw's <em className="italic">Cartel Babies</em></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr className="bg-slate-50 hover:bg-slate-100 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">1. Hook (Opening)</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">1. Hook</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Begins with violence, setting, and drug-war stakes (<em className="italic">The Power of the Dog</em> opening). Immediate stakes, professional propulsion, cinematic.</p>
                                         </td>
@@ -183,8 +183,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">2. Voice</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">2. Voice</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Controlled, procedural, masculine, commercial. Not deep interior.</p>
                                         </td>
@@ -195,8 +195,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">3. Character Depth</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">3. Character</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Large cast, archetypal clarity, well-defined, but sometimes emotionally distant.</p>
                                         </td>
@@ -207,8 +207,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">4. Conflict & Tension</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">4. Conflict</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Master at macro-level conflict: governments, cartels, armies, operations.</p>
                                             <p className="text-purple-600 font-bold mt-2">Edge: Tie (different strengths: scale vs. intimacy)</p>
@@ -219,8 +219,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">5. Thematic Resonance</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">5. Theme</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Corruption, war, power, policy, history. Strong but external.</p>
                                         </td>
@@ -231,8 +231,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">6. Pacing & Structure</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">6. Pacing</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Cinematic pacing, occasionally sprawling due to trilogy scale.</p>
                                         </td>
@@ -243,8 +243,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">7. Dialogue & Subtext</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">7. Dialogue</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Functional, masculine, plot-driven. Subtext sometimes thin.</p>
                                         </td>
@@ -255,8 +255,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">8. Worldbuilding & Immersion</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">8. World</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Large-scale geopolitical worldbuilding—armies, cartels, landscapes. Documentary-grade realism.</p>
                                             <p className="text-purple-600 font-bold mt-2">Edge: Tie (Winslow = macro, <em className="italic">Cartel Babies</em> = micro)</p>
@@ -267,8 +267,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">9. Emotional Stakes</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">9. Stakes</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 8/10</p>
                                             <p>Often external: wars, missions, betrayals. Less interior vulnerability.</p>
                                         </td>
@@ -279,8 +279,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">10. Line-Level Polish</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">10. Polish</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Clean, confident, commercial prose.</p>
                                         </td>
@@ -291,8 +291,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">11. Marketability</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">11. Market</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Established commercial author with a large audience. Clear readership lane; strong demand history for macro-cartel epics.</p>
                                             <p className="text-purple-600 font-bold mt-2">Edge: <em className="italic">Cartel Trilogy</em> (historical validation); <em className="italic">Cartel Babies</em> has strong upside with differentiated positioning.</p>
@@ -303,8 +303,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">12. "Would an Agent Keep Reading?"</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">12. Agent Read?</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 9/10</p>
                                             <p>Yes, especially for <em className="italic">The Power of the Dog</em> as a debut—but it begins wide and procedural, not intimate.</p>
                                         </td>
@@ -315,8 +315,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">13. Cinematic Adaptability</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">13. Cinematic</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Trilogy is built for film/TV and already adapted for series.</p>
                                             <p className="text-purple-600 font-bold mt-2">Edge: Tie</p>
@@ -327,8 +327,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">14. Franchise & Brand Expansion</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">14. Franchise</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Demonstrated cross-media reach: major publisher support, international readership, and a television adaptation confirm strong franchise potential in practice.</p>
                                             <p className="text-purple-600 font-bold mt-2">Edge: Tie (Winslow represents proven expansion; <em className="italic">Cartel Babies</em> represents designed expansion. They illustrate two different models of building a franchise.)</p>
@@ -339,8 +339,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">15. Authenticity / Realism</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">15. Authenticity</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 10/10</p>
                                             <p>Deep research; widely known for accuracy.</p>
                                             <p className="text-purple-600 font-bold mt-2">Edge: Tie</p>
@@ -351,8 +351,8 @@ export default function SampleAnalysis() {
                                         </td>
                                     </tr>
                                     <tr className="bg-white hover:bg-slate-50 transition-colors">
-                                        <td className="border border-slate-200 p-4 font-semibold bg-slate-100 text-black">16. Emotional Aftershock</td>
-                                        <td className="border border-slate-200 p-4 text-black">
+                                        <td className="border border-slate-200 p-2 sm:p-4 font-semibold bg-slate-100 text-black text-xs sm:text-sm">16. Aftershock</td>
+                                        <td className="border border-slate-200 p-2 sm:p-4 text-black">
                                             <p className="font-semibold mb-2">Score: 8/10</p>
                                             <p>Readers admire the work but may not always ache.</p>
                                         </td>
