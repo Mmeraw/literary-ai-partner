@@ -27,6 +27,26 @@ const WAVE_CRITERIA = [
     "character_voice", "internal_monologue", "description_balance", "pacing_rhythm"
 ];
 
+// Helper to sort WAVE hits by tier and wave number
+const sortWaveHits = (hits) => {
+    return hits.map(hit => {
+        // Extract wave number from category (e.g., "Body-Part Clichés (Wave 1)" -> 1)
+        const match = hit.category.match(/Wave (\d+)/i);
+        const waveNum = match ? parseInt(match[1]) : 999;
+        
+        // Assign tier based on wave number
+        let tier = 3; // Late by default
+        if (waveNum <= 17) tier = 1; // Early
+        else if (waveNum <= 49) tier = 2; // Mid
+        
+        return { ...hit, waveNum, tier };
+    }).sort((a, b) => {
+        // Sort by tier first, then wave number
+        if (a.tier !== b.tier) return a.tier - b.tier;
+        return a.waveNum - b.waveNum;
+    });
+};
+
 export default function Evaluate() {
     const [title, setTitle] = useState('');
     const [text, setText] = useState('');
@@ -297,7 +317,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 agentSnapshot: agentSnapshot,
                 criteria: agentAnalysis.criteria || [],
                 revisionRequests: agentAnalysis.revisionRequests || [],
-                waveHits: waveAnalysis.waveHits || [],
+                waveHits: sortWaveHits(waveAnalysis.waveHits || []),
                 waveGuidance: waveAnalysis.waveGuidance || { priorityWaves: [], nextActions: [] },
                 styleMode: styleMode
             };
