@@ -179,7 +179,12 @@ ${packageData.queryLetter}
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {/* Load from Manuscript */}
-                                {!manuscriptsLoading && manuscripts.length > 0 && (
+                                {manuscriptsLoading ? (
+                                    <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-center">
+                                        <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-slate-400" />
+                                        <p className="text-sm text-slate-600">Loading your manuscripts...</p>
+                                    </div>
+                                ) : manuscripts.length > 0 ? (
                                     <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200">
                                         <div className="flex items-center gap-2 mb-3">
                                             <BookOpen className="w-4 h-4 text-indigo-600" />
@@ -200,6 +205,12 @@ ${packageData.queryLetter}
                                                 ))}
                                             </SelectContent>
                                         </Select>
+                                    </div>
+                                ) : (
+                                    <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+                                        <p className="text-sm text-slate-700 mb-2">
+                                            No manuscripts found. <Link to={createPageUrl('UploadManuscript')} className="text-indigo-600 hover:underline font-medium">Upload a manuscript</Link> to auto-fill these fields.
+                                        </p>
                                     </div>
                                 )}
 
