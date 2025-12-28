@@ -349,83 +349,78 @@ export default function FilmAdaptation() {
                 </div>
             )}
 
-            {/* Sample Pitch Decks */}
+            {/* Sample Pitch Decks + All Marketing Content */}
             {!pitchDeck && (
+            <>
                 <div className="max-w-6xl mx-auto px-6 py-16">
-                <div className="text-center mb-12">
-                    <h2 className="text-3xl font-bold text-slate-900 mb-4">
-                        See What's Possible
-                    </h2>
-                    <p className="text-lg text-slate-600">
-                        Review actual pitch decks generated for The Lost World of Mythoamphibia
-                    </p>
-                </div>
+                    <div className="text-center mb-12">
+                        <h2 className="text-3xl font-bold text-slate-900 mb-4">
+                            See What's Possible
+                        </h2>
+                        <p className="text-lg text-slate-600">
+                            Review actual pitch decks generated for The Lost World of Mythoamphibia
+                        </p>
+                    </div>
 
-                <div className="grid md:grid-cols-2 gap-8 mb-8">
-                    {pdfExamples.map((pdf, idx) => (
-                        <Card key={idx} className="border-0 shadow-lg hover:shadow-xl transition-all">
-                            <CardHeader>
-                                <div className="flex items-start justify-between mb-2">
-                                    <div className="flex-1">
-                                        <CardTitle className="text-xl mb-2">{pdf.title}</CardTitle>
-                                        <p className="text-sm text-indigo-600 font-medium">{pdf.subtitle}</p>
+                    <div className="grid md:grid-cols-2 gap-8 mb-8">
+                        {pdfExamples.map((pdf, idx) => (
+                            <Card key={idx} className="border-0 shadow-lg hover:shadow-xl transition-all">
+                                <CardHeader>
+                                    <div className="flex items-start justify-between mb-2">
+                                        <div className="flex-1">
+                                            <CardTitle className="text-xl mb-2">{pdf.title}</CardTitle>
+                                            <p className="text-sm text-indigo-600 font-medium">{pdf.subtitle}</p>
+                                        </div>
+                                        <Badge variant="outline">{pdf.pages} pages</Badge>
                                     </div>
-                                    <Badge variant="outline">{pdf.pages} pages</Badge>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <p className="text-slate-600">{pdf.description}</p>
-                                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
-                                    <p className="text-xs text-slate-600">
-                                        <span className="font-semibold">Best for:</span> {pdf.useCase}
-                                    </p>
-                                </div>
-                                <Button 
-                                    className="w-full" 
-                                    variant="outline"
-                                    onClick={() => window.open(pdf.url, '_blank')}
-                                >
-                                    <Download className="w-4 h-4 mr-2" />
-                                    View Sample Deck
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    ))}
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <p className="text-slate-600">{pdf.description}</p>
+                                    <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                                        <p className="text-xs text-slate-600">
+                                            <span className="font-semibold">Best for:</span> {pdf.useCase}
+                                        </p>
+                                    </div>
+                                    <Button 
+                                        className="w-full" 
+                                        variant="outline"
+                                        onClick={() => window.open(pdf.url, '_blank')}
+                                    >
+                                        <Download className="w-4 h-4 mr-2" />
+                                        View Sample Deck
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
                 </div>
-            </div>
-            )}
 
-            {/* Pipeline Visual */}
-            {!pitchDeck && (
-            <div className="bg-white py-12 border-b border-slate-200">
-                <div className="max-w-5xl mx-auto px-6">
-                    <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6">
-                        <div className="text-center px-6 py-4 rounded-xl bg-indigo-50 border border-indigo-200">
-                            <BookOpen className="w-8 h-8 text-indigo-600 mx-auto mb-2" />
-                            <div className="font-bold text-slate-900">Manuscript</div>
-                        </div>
-                        <ArrowRight className="w-6 h-6 text-slate-400 rotate-90 md:rotate-0" />
-                        <div className="text-center px-6 py-4 rounded-xl bg-purple-50 border border-purple-200">
-                            <FileText className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-                            <div className="font-bold text-slate-900">Agent Package</div>
-                        </div>
-                        <ArrowRight className="w-6 h-6 text-slate-400 rotate-90 md:rotate-0" />
-                        <div className="text-center px-6 py-4 rounded-xl bg-pink-50 border border-pink-200">
-                            <Film className="w-8 h-8 text-pink-600 mx-auto mb-2" />
-                            <div className="font-bold text-slate-900">Film Deck</div>
-                        </div>
-                        <ArrowRight className="w-6 h-6 text-slate-400 rotate-90 md:rotate-0" />
-                        <div className="text-center px-6 py-4 rounded-xl bg-emerald-50 border border-emerald-200">
-                            <Sparkles className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
-                            <div className="font-bold text-slate-900">Hollywood</div>
+                {/* Pipeline Visual */}
+                <div className="bg-white py-12 border-b border-slate-200">
+                    <div className="max-w-5xl mx-auto px-6">
+                        <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6">
+                            <div className="text-center px-6 py-4 rounded-xl bg-indigo-50 border border-indigo-200">
+                                <BookOpen className="w-8 h-8 text-indigo-600 mx-auto mb-2" />
+                                <div className="font-bold text-slate-900">Manuscript</div>
+                            </div>
+                            <ArrowRight className="w-6 h-6 text-slate-400 rotate-90 md:rotate-0" />
+                            <div className="text-center px-6 py-4 rounded-xl bg-purple-50 border border-purple-200">
+                                <FileText className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+                                <div className="font-bold text-slate-900">Agent Package</div>
+                            </div>
+                            <ArrowRight className="w-6 h-6 text-slate-400 rotate-90 md:rotate-0" />
+                            <div className="text-center px-6 py-4 rounded-xl bg-pink-50 border border-pink-200">
+                                <Film className="w-8 h-8 text-pink-600 mx-auto mb-2" />
+                                <div className="font-bold text-slate-900">Film Deck</div>
+                            </div>
+                            <ArrowRight className="w-6 h-6 text-slate-400 rotate-90 md:rotate-0" />
+                            <div className="text-center px-6 py-4 rounded-xl bg-emerald-50 border border-emerald-200">
+                                <Sparkles className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+                                <div className="font-bold text-slate-900">Hollywood</div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            )}
-
-            {!pitchDeck && (
-            <>
             {/* Features Section */}
             <div className="bg-white py-16">
                 <div className="max-w-6xl mx-auto px-6">
