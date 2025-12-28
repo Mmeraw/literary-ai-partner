@@ -1,26 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-Deno.serve(async (req) => {
+// Background evaluation runner
+async function runEvaluation(manuscriptId, base44) {
     try {
-        const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-        
-        if (!user) {
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { manuscript_id } = await req.json();
-
-        if (!manuscript_id) {
-            return Response.json({ error: 'Manuscript ID required' }, { status: 400 });
-        }
-
         // Get manuscript and chapters
-        const [manuscript] = await base44.asServiceRole.entities.Manuscript.filter({ id: manuscript_id });
-        const chapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id }, 'order');
+        const [manuscript] = await base44.asServiceRole.entities.Manuscript.filter({ id: manuscriptId });
+        const chapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
 
         if (!manuscript || chapters.length === 0) {
-            return Response.json({ error: 'Manuscript or chapters not found' }, { status: 404 });
+            throw new Error('Manuscript or chapters not found');
         }
 
         // PHASE 1: Generate chapter summaries (structural abstraction)
@@ -29,7 +17,7 @@ Deno.serve(async (req) => {
         const chapterSummaries = summarizedChapters.map(ch => ch.summary_json);
 
         if (summarizedChapters.length < chapters.length) {
-            await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+            await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                 status: 'summarizing',
                 evaluation_progress: {
                     chapters_total: chapters.length,
@@ -151,7 +139,7 @@ Deno.serve(async (req) => {
         // PHASE 2: Spine synthesis (all summaries at once)
         // Skip if spine already evaluated
         if (!manuscript.spine_score || !manuscript.spine_evaluation) {
-            await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+            await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                 status: 'spine_evaluating',
                 evaluation_progress: {
                     chapters_total: chapters.length,
@@ -221,7 +209,7 @@ Deno.serve(async (req) => {
         });
 
         // Update manuscript with spine evaluation
-        await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
             spine_score: spineEvaluation.overallScore,
             spine_evaluation: spineEvaluation,
             status: 'evaluating_chapters',
@@ -237,7 +225,7 @@ Deno.serve(async (req) => {
         });
         } else {
         // Spine already done, update status for WAVE phase
-        await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
             status: 'evaluating_chapters',
             evaluation_progress: {
                 chapters_total: chapters.length,
@@ -272,7 +260,7 @@ Deno.serve(async (req) => {
                 // Update progress to show we skipped this chapter
                 const evaluatedSoFar = chapters.filter(ch => ch.status === 'evaluated').length;
                 const wavePercent = 40 + Math.floor(((i + 1) / chapters.length) * 50);
-                await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
                         chapters_total: chapters.length,
                         chapters_summarized: chapters.length,
@@ -294,7 +282,7 @@ Deno.serve(async (req) => {
 
                 // Update progress
                 const wavePercent = 40 + Math.floor((i / chapters.length) * 50);
-                await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
                         chapters_total: chapters.length,
                         chapters_summarized: chapters.length,
@@ -496,7 +484,7 @@ Deno.serve(async (req) => {
 
             // Update progress after successful evaluation
             const wavePercent = 40 + Math.floor(((i + 1) / chapters.length) * 50);
-            await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+            await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                 evaluation_progress: {
                     chapters_total: chapters.length,
                     chapters_summarized: chapters.length,
@@ -517,7 +505,7 @@ Deno.serve(async (req) => {
 
             // Update progress to show we moved past this chapter
             const wavePercent = 40 + Math.floor(((i + 1) / chapters.length) * 50);
-            await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+            await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                 evaluation_progress: {
                     chapters_total: chapters.length,
                     chapters_summarized: chapters.length,
@@ -535,7 +523,7 @@ Deno.serve(async (req) => {
 
         // PHASE 4: Final composite scoring
         const evaluatedChapters = await base44.asServiceRole.entities.Chapter.filter({ 
-            manuscript_id, 
+            manuscript_id: manuscriptId, 
             status: 'evaluated' 
         });
 
@@ -548,7 +536,7 @@ Deno.serve(async (req) => {
             : spineEvaluation.overallScore || avgChapterScore;
 
         // Mark manuscript as ready
-        await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
+        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
             status: 'ready',
             revisiongrade_overall: revisiongradeOverall,
             revisiongrade_breakdown: {
@@ -568,32 +556,65 @@ Deno.serve(async (req) => {
             }
         });
 
-        return Response.json({ 
-            success: true,
-            spine_score: spineEvaluation.overallScore
-        });
+        console.log(`✅ Evaluation complete for manuscript ${manuscriptId}`);
 
     } catch (error) {
-        console.error('Evaluation error:', error);
+        console.error('❌ Evaluation error for manuscript', manuscriptId, ':', error);
         
-        // Try to update manuscript status to show error
+        // Update manuscript status to show error
         try {
-            const { manuscript_id } = await req.json();
-            if (manuscript_id) {
-                const base44 = createClientFromRequest(req);
-                await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
-                    status: 'uploaded',
-                    evaluation_progress: {
-                        total_chapters: 0,
-                        completed_chapters: 0,
-                        current_step: `Error: ${error.message}`
-                    }
-                });
-            }
+            await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                status: 'failed',
+                evaluation_progress: {
+                    current_step: `Error: ${error.message}`,
+                    error_message: error.message,
+                    last_updated: new Date().toISOString()
+                }
+            });
         } catch (updateError) {
             console.error('Failed to update error status:', updateError);
         }
+    }
+}
+
+// HTTP Handler - Returns immediately, runs evaluation in background
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
         
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { manuscript_id } = await req.json();
+
+        if (!manuscript_id) {
+            return Response.json({ error: 'Manuscript ID required' }, { status: 400 });
+        }
+
+        // Verify manuscript exists
+        const [manuscript] = await base44.asServiceRole.entities.Manuscript.filter({ id: manuscript_id });
+        
+        if (!manuscript) {
+            return Response.json({ error: 'Manuscript not found' }, { status: 404 });
+        }
+
+        // Start evaluation in background (don't await)
+        runEvaluation(manuscript_id, base44).catch(err => {
+            console.error('Background evaluation failed:', err);
+        });
+
+        // Return immediately with job started status
+        return Response.json({ 
+            success: true,
+            message: 'Evaluation started',
+            manuscript_id: manuscript_id,
+            note: 'Evaluation is running in the background. Refresh the page to check progress.'
+        });
+
+    } catch (error) {
+        console.error('API error:', error);
         return Response.json({ error: error.message }, { status: 500 });
     }
 });
