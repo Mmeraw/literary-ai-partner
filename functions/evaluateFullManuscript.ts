@@ -305,30 +305,37 @@ Deno.serve(async (req) => {
                         last_updated: new Date().toISOString()
                     }
                 });
-            // Agent-level evaluation
-            const agentAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
-                prompt: `You are a senior literary agent evaluating a manuscript chapter. Analyze this chapter against exactly these 12 criteria, rating each 1-10:
+            // Story Evaluation (Agents, Editors, Script Readers)
+                const agentAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
+                    prompt: `You are a professional evaluator (agent/editor/script reader). Analyze this chapter against the 12 Story Evaluation Criteria, rating each 1-10:
 
-1. The Hook
-2. Voice & Narrative Style
-3. Characters & Introductions
-4. Conflict & Tension
-5. Thematic Resonance
-6. Pacing & Structural Flow
-7. Dialogue & Subtext
-8. Worldbuilding & Immersion
-9. Stakes & Emotional Investment
-10. Line-Level Polish
-11. Marketability & Genre Fit
-12. Would Agent Keep Reading
+            1. Opening Hook (opening_hook)
+            2. Narrative Voice & Style (narrative_voice_style)
+            3. Character Depth & Introduction (character_depth_introduction)
+            4. Conflict, Tension & Escalation (conflict_tension_escalation)
+            5. Thematic Resonance (thematic_resonance)
+            6. Structure, Pacing & Flow (structure_pacing_flow)
+            7. Dialogue & Subtext (dialogue_subtext)
+            8. Worldbuilding & Immersion (worldbuilding_immersion)
+            9. Stakes & Emotional Investment (stakes_emotional_investment)
+            10. Line-Level Craft & Polish (line_level_craft_polish)
+            11. Marketability & Genre Position (marketability_genre_position)
+            12. 'Would They Keep Reading?' Gate (would_keep_reading_gate)
 
-CHAPTER: ${chapter.title}
+            RED-FLAG CHECKS (embedded in criteria):
+            - POV discipline, no head-hopping
+            - Protagonist clear and active early
+            - No backstory dumps without scene pressure
+            - Scene anchoring (who, where, what's happening)
+            - Story logic coherent, no contradictions
 
-TEXT:
-${chapter.text}
+            CHAPTER: ${chapter.title}
 
-For each criterion provide: score (1-10), strengths (array), weaknesses (array), notes (detailed commentary).
-Provide overall score (1-10) and verdict.`,
+            TEXT:
+            ${chapter.text}
+
+            For each criterion provide: score (1-10), strengths (array), weaknesses (array), notes (detailed commentary).
+            Provide overall score (1-10) and verdict.`,
                 response_json_schema: {
                     type: "object",
                     properties: {
