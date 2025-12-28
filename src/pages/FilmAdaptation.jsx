@@ -1,13 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { 
     Film, Sparkles, Check, Download, ArrowRight, 
-    FileText, Target, TrendingUp, Zap, BookOpen
+    FileText, Target, TrendingUp, Zap, BookOpen, Loader2, Upload
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
 
 const pdfExamples = [
     {
@@ -43,6 +47,93 @@ const comparison = [
 ];
 
 export default function FilmAdaptation() {
+    const [manuscriptData, setManuscriptData] = useState({
+        title: '',
+        genre: '',
+        logline: '',
+        manuscriptText: ''
+    });
+    const [generating, setGenerating] = useState(false);
+    const [pitchDeck, setPitchDeck] = useState(null);
+    const [showUploadForm, setShowUploadForm] = useState(false);
+
+    const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const text = event.target.result;
+            const wordCount = text.split(/\s+/).length;
+            
+            if (wordCount > 250000) {
+                toast.error(`Manuscript too long: ${wordCount.toLocaleString()} words. Maximum is 250,000 words.`);
+                return;
+            }
+            
+            setManuscriptData(prev => ({ ...prev, manuscriptText: text }));
+            toast.success(`Loaded ${wordCount.toLocaleString()} words`);
+        };
+        reader.readAsText(file);
+    };
+
+    const generatePitchDeck = async () => {
+        if (!manuscriptData.title || !manuscriptData.manuscriptText) {
+            toast.error('Please provide title and manuscript text');
+            return;
+        }
+
+        const wordCount = manuscriptData.manuscriptText.split(/\s+/).length;
+        if (wordCount < 1000) {
+            toast.error('Manuscript too short. Please provide at least 1,000 words.');
+            return;
+        }
+
+        setGenerating(true);
+        try {
+            const response = await base44.functions.invoke('generateFilmPitchDeck', {
+                ...manuscriptData
+            });
+
+            if (response.data.success) {
+                setPitchDeck(response.data.pitchDeck);
+                toast.success('Film pitch deck generated!');
+                setShowUploadForm(false);
+            } else {
+                toast.error(response.data.error || 'Failed to generate pitch deck');
+            }
+        } catch (error) {
+            console.error('Generation error:', error);
+            toast.error('Failed to generate pitch deck');
+        } finally {
+            setGenerating(false);
+        }
+    };
+
+    const downloadPitchDeck = () => {
+        if (!pitchDeck) return;
+
+        let content = `FILM ADAPTATION PITCH DECK\n${manuscriptData.title}\n\n`;
+        content += `SCREEN VIABILITY SCORE: ${pitchDeck.screenViabilityScore}/100\n\n`;
+        content += `${pitchDeck.viabilityNotes}\n\n`;
+        content += '='.repeat(60) + '\n\n';
+
+        pitchDeck.slides.forEach(slide => {
+            content += `SLIDE ${slide.slideNumber}: ${slide.title}\n`;
+            content += '-'.repeat(60) + '\n';
+            content += `${slide.content}\n\n`;
+        });
+
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${manuscriptData.title.replace(/\s/g, '_')}_Film_Pitch_Deck.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success('Pitch deck downloaded!');
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             {/* Hero Section */}
@@ -78,20 +169,186 @@ export default function FilmAdaptation() {
                         All text, structure, and slide content—ready for your designer or template
                     </p>
 
-                    <Link to={createPageUrl('Pricing')}>
+                    <div className="flex flex-col sm:flex-row gap-4">
                         <Button 
                             size="lg" 
                             className="h-14 px-8 bg-white text-slate-900 hover:bg-slate-100"
+                            onClick={() => setShowUploadForm(true)}
                         >
-                            <Sparkles className="w-5 h-5 mr-2" />
-                            Start Free Trial → $99/mo
+                            <Upload className="w-5 h-5 mr-2" />
+                            Generate Your Film Pitch Deck
                         </Button>
-                    </Link>
+                        <Link to={createPageUrl('Pricing')}>
+                            <Button 
+                                size="lg" 
+                                variant="outline"
+                                className="h-14 px-8 border-white text-white hover:bg-white/10"
+                            >
+                                <Sparkles className="w-5 h-5 mr-2" />
+                                Pricing
+                            </Button>
+                        </Link>
+                    </div>
                 </div>
             </div>
 
+            {/* Upload Form Modal */}
+            {showUploadForm && !pitchDeck && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+                    <Card className="max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <CardTitle>Generate Film Pitch Deck</CardTitle>
+                                <Button variant="ghost" size="sm" onClick={() => setShowUploadForm(false)}>
+                                    ✕
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    Manuscript Title *
+                                </label>
+                                <Input
+                                    value={manuscriptData.title}
+                                    onChange={(e) => setManuscriptData(prev => ({ ...prev, title: e.target.value }))}
+                                    placeholder="The Lost World of Mythoamphibia"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    Genre
+                                </label>
+                                <Input
+                                    value={manuscriptData.genre}
+                                    onChange={(e) => setManuscriptData(prev => ({ ...prev, genre: e.target.value }))}
+                                    placeholder="Eco-horror, Dark Fantasy"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    Logline (Optional)
+                                </label>
+                                <Textarea
+                                    value={manuscriptData.logline}
+                                    onChange={(e) => setManuscriptData(prev => ({ ...prev, logline: e.target.value }))}
+                                    placeholder="When an amphibian empire faces extinction..."
+                                    className="h-20"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    Upload Manuscript (up to 250,000 words) *
+                                </label>
+                                <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-indigo-400 transition-colors">
+                                    <input
+                                        type="file"
+                                        accept=".txt,.doc,.docx"
+                                        onChange={handleFileUpload}
+                                        className="hidden"
+                                        id="file-upload"
+                                    />
+                                    <label htmlFor="file-upload" className="cursor-pointer">
+                                        <Upload className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                                        <p className="text-sm text-slate-600 mb-1">
+                                            Click to upload or drag and drop
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                            TXT, DOC, DOCX (max 250,000 words)
+                                        </p>
+                                    </label>
+                                </div>
+                                {manuscriptData.manuscriptText && (
+                                    <p className="text-sm text-emerald-600 mt-2">
+                                        ✓ Loaded {manuscriptData.manuscriptText.split(/\s+/).length.toLocaleString()} words
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200">
+                                <p className="text-sm text-slate-700">
+                                    <strong>Processing time:</strong> Large manuscripts may take 2-3 minutes to analyze. 
+                                    The AI will generate a comprehensive 12-slide pitch deck with screen viability analysis.
+                                </p>
+                            </div>
+
+                            <Button
+                                onClick={generatePitchDeck}
+                                disabled={generating || !manuscriptData.title || !manuscriptData.manuscriptText}
+                                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                                size="lg"
+                            >
+                                {generating ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                        Generating Film Pitch Deck...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Film className="w-5 h-5 mr-2" />
+                                        Generate Film Pitch Deck
+                                    </>
+                                )}
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
+            {/* Results Display */}
+            {pitchDeck && (
+                <div className="max-w-6xl mx-auto px-6 py-16">
+                    <Card className="mb-8">
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle>Film Pitch Deck Generated</CardTitle>
+                                    <p className="text-sm text-slate-600 mt-1">
+                                        Screen Viability Score: {pitchDeck.screenViabilityScore}/100
+                                    </p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button onClick={downloadPitchDeck} variant="outline">
+                                        <Download className="w-4 h-4 mr-2" />
+                                        Download
+                                    </Button>
+                                    <Button onClick={() => { setPitchDeck(null); setShowUploadForm(true); }}>
+                                        Generate Another
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 mb-6">
+                                <p className="text-sm text-slate-700">{pitchDeck.viabilityNotes}</p>
+                            </div>
+
+                            <div className="space-y-6">
+                                {pitchDeck.slides.map((slide, idx) => (
+                                    <div key={idx} className="p-6 rounded-lg bg-white border border-slate-200">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-sm">
+                                                {slide.slideNumber}
+                                            </div>
+                                            <h3 className="text-lg font-bold text-slate-900">{slide.title}</h3>
+                                        </div>
+                                        <div className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+                                            {slide.content}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
             {/* Sample Pitch Decks */}
-            <div className="max-w-6xl mx-auto px-6 py-16">
+            {!pitchDeck && (
+                <div className="max-w-6xl mx-auto px-6 py-16">
                 <div className="text-center mb-12">
                     <h2 className="text-3xl font-bold text-slate-900 mb-4">
                         See What's Possible
@@ -379,7 +636,9 @@ export default function FilmAdaptation() {
                         </Button>
                     </Link>
                 </div>
-            </div>
-        </div>
-    );
-}
+                </div>
+                </div>
+                )}
+                </div>
+                );
+                }
