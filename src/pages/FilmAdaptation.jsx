@@ -60,7 +60,10 @@ export default function FilmAdaptation() {
                     </h1>
                     
                     <p className="text-lg text-indigo-200 max-w-3xl mx-auto mb-6 font-medium tracking-wide">
-                        Manuscript Evaluation → Agent Ready™ → Revise → Pitch → Query
+                        Manuscript Evaluation → Agent Ready™ → Pitch → Query
+                    </p>
+                    <p className="text-sm text-indigo-300 max-w-2xl mx-auto mb-6">
+                        Dual-Layer (12 Agent + 60+ WAVE Checks)
                     </p>
                     
                     <p className="text-xl text-slate-300 max-w-3xl mx-auto mb-4">
@@ -357,8 +360,11 @@ export default function FilmAdaptation() {
                     <h2 className="text-3xl font-bold text-white mb-6">
                         Upload Manuscript → Get Dual Packages
                     </h2>
-                    <p className="text-lg text-indigo-100 mb-8">
+                    <p className="text-lg text-indigo-100 mb-4">
                         Agent-Ready Materials + Hollywood Pitch Deck in One Workflow
+                    </p>
+                    <p className="text-sm text-indigo-200 mb-8">
+                        Powered by FILM_PITCH_MASTER_v2.0 • Canon Validated Outputs
                     </p>
                     <Link to={createPageUrl('Pricing')}>
                         <Button 
