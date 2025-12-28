@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Sparkles, ArrowRight, BookOpen, Award } from 'lucide-react';
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { createPageUrl } from '@/utils';
 
 import TextEditor from '@/components/submission/TextEditor';
 import ProgressTracker from '@/components/evaluation/ProgressTracker';
