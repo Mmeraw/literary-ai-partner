@@ -98,6 +98,74 @@ export default function Evaluate() {
         setCurrentStep(2);
         setError(null);
 
+        try {
+            // Call backend function for evaluation
+            const response = await base44.functions.invoke('evaluateQuickSubmission', {
+                title,
+                text,
+                styleMode
+            });
+
+            if (!response.data.success) {
+                throw new Error(response.data.error || 'Evaluation failed');
+            }
+
+            const evaluationResult = response.data.evaluation;
+            const submissionId = response.data.submissionId;
+
+            // Set result and advance to step 3
+            setEvaluationResult(evaluationResult);
+            setSubmission(submissionId ? { id: submissionId } : null);
+            setIsProcessing(false);
+            setCurrentStep(3);
+            toast.success('Analysis complete! Review your evaluation below.');
+
+        } catch (error) {
+            console.error('Evaluation error:', error);
+            
+            // Check if it's a timeout error
+            if (error.response?.status === 408 || error.message?.includes('timeout')) {
+                setError('Evaluation timed out. Please try with a shorter excerpt.');
+                toast.error('Evaluation timed out. Please try with a shorter excerpt.', { duration: 6000 });
+            } else {
+                setError(error.response?.data?.error || error.message || 'Failed to evaluate. Please try again.');
+                toast.error('Failed to evaluate. Please try again.');
+            }
+            
+            setCurrentStep(1);
+            setIsProcessing(false);
+        }
+    };
+
+    // Old implementation kept below for reference - DELETE THIS AFTER TESTING
+    const evaluateText_OLD = async () => {
+        if (!title.trim() || !text.trim()) {
+            toast.error('Please provide both a title and text to evaluate');
+            return;
+        }
+
+        const wordCount = text.split(/\s+/).filter(w => w).length;
+        
+        if (wordCount > 3000) {
+            toast.error(
+                <div>
+                    <div className="font-semibold mb-1">You've reached the preview limit.</div>
+                    <div className="text-sm">To evaluate additional chapters or generate a full manuscript score, unlock full analysis.</div>
+                </div>,
+                { duration: 6000 }
+            );
+            
+            setTimeout(() => {
+                window.location.href = createPageUrl('Pricing');
+            }, 2000);
+            
+            return;
+        }
+
+        setIsProcessing(true);
+        setCurrentStep(2);
+        setError(null);
+
         // Keep-alive interval to prevent timeout
         const keepAlive = setInterval(() => {
             console.log('Analysis in progress...');
@@ -350,19 +418,6 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 console.error('Failed to store evaluation signals (non-critical):', signalError);
             }
 
-            // Set result and advance to step 3
-            setEvaluationResult(evaluationResult);
-            setIsProcessing(false);
-            setCurrentStep(3);
-            toast.success('Analysis complete! Review your evaluation below.');
-
-        } catch (error) {
-            console.error('Evaluation error:', error);
-            setError(error.message || 'Failed to evaluate. Please try again.');
-            toast.error('Failed to evaluate. Please try again.');
-            setCurrentStep(1);
-            setIsProcessing(false);
-        } finally {
             clearInterval(keepAlive);
         }
     };
