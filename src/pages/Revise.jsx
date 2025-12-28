@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Download, Save, ArrowLeft, Loader2, MessageSquare, Sparkles, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Save, ArrowLeft, Loader2, MessageSquare, Sparkles, Check, Info } from 'lucide-react';
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import SuggestionCard from '@/components/revision/SuggestionCard';
@@ -22,6 +22,8 @@ export default function Revise() {
   const sessionId = searchParams.get('session');
   const queryClient = useQueryClient();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [trustedPathEnabled, setTrustedPathEnabled] = useState(false);
+  const [showBeforeAfter, setShowBeforeAfter] = useState(false);
 
   const { data: session, isLoading } = useQuery({
     queryKey: ['revisionSession', sessionId],
@@ -206,14 +208,23 @@ export default function Revise() {
   const handleApplyBestRevisions = async () => {
     if (!session) return;
 
+    toast.loading('Applying Trusted Path revisions...', { id: 'trusted-path' });
+
     // Start with original text to avoid compounding errors
     let updatedText = session.original_text;
     
-    // Sort suggestions by position (if original_text is unique) and apply sequentially
-    const pendingSuggestions = session.suggestions.filter(s => s.status === 'pending');
+    // Filter: Only apply HIGH and MEDIUM priority suggestions
+    const pendingSuggestions = session.suggestions.filter(s => 
+      s.status === 'pending' && 
+      (s.priority === 'High' || s.priority === 'Medium')
+    );
     
+    if (pendingSuggestions.length === 0) {
+      toast.error('No High/Medium priority suggestions to apply', { id: 'trusted-path' });
+      return;
+    }
+
     for (const suggestion of pendingSuggestions) {
-      // Only replace first occurrence to avoid duplicates
       const index = updatedText.indexOf(suggestion.original_text);
       if (index !== -1) {
         updatedText = updatedText.substring(0, index) + 
@@ -223,7 +234,7 @@ export default function Revise() {
     }
 
     const updatedSuggestions = session.suggestions.map(suggestion => {
-      if (suggestion.status === 'pending') {
+      if (suggestion.status === 'pending' && (suggestion.priority === 'High' || suggestion.priority === 'Medium')) {
         return { ...suggestion, status: 'accepted' };
       }
       return suggestion;
@@ -234,11 +245,58 @@ export default function Revise() {
       data: {
         current_text: updatedText,
         suggestions: updatedSuggestions,
-        current_position: session.suggestions.length - 1
+        current_position: Math.min(session.current_position + 1, session.suggestions.length - 1)
       }
     });
 
-    toast.success('Best revisions applied! Review complete.');
+    setShowBeforeAfter(true);
+    toast.success(`Applied ${pendingSuggestions.length} High/Medium priority changes`, { id: 'trusted-path' });
+  };
+
+  const handleRestoreOriginal = async () => {
+    if (!session) return;
+
+    const confirmed = window.confirm('Restore original text? This will undo all changes.');
+    if (!confirmed) return;
+
+    const resetSuggestions = session.suggestions.map(s => ({ ...s, status: 'pending' }));
+
+    await updateSessionMutation.mutateAsync({
+      sessionId: session.id,
+      data: {
+        current_text: session.original_text,
+        suggestions: resetSuggestions,
+        current_position: 0
+      }
+    });
+
+    setShowBeforeAfter(false);
+    toast.success('Original text restored');
+  };
+
+  const handleUndoChange = async (suggestionId) => {
+    const suggestion = session.suggestions.find(s => s.id === suggestionId);
+    if (!suggestion || suggestion.status !== 'accepted') return;
+
+    // Revert this specific change
+    const updatedText = session.current_text.replace(
+      suggestion.suggested_text,
+      suggestion.original_text
+    );
+
+    const updatedSuggestions = session.suggestions.map(s =>
+      s.id === suggestionId ? { ...s, status: 'pending' } : s
+    );
+
+    await updateSessionMutation.mutateAsync({
+      sessionId: session.id,
+      data: {
+        current_text: updatedText,
+        suggestions: updatedSuggestions
+      }
+    });
+
+    toast.success('Change undone');
   };
 
   const isSessionComplete = session && 
@@ -316,28 +374,85 @@ export default function Revise() {
           {/* Smart Features Banner */}
           <SmartFeaturesBanner />
 
-          {/* Apply Best Revisions - Fast Path */}
+          {/* Trusted Path - Phase 1 */}
           {!isSessionComplete && session.suggestions.some(s => s.status === 'pending') && (
             <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 mt-4">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-3 mb-2">
                       <Sparkles className="w-5 h-5 text-indigo-600" />
-                      <h3 className="font-semibold text-slate-900">Trusted Fast Path</h3>
+                      <h3 className="font-semibold text-slate-900">Trusted Path</h3>
+                      <Badge variant="outline" className="text-xs">Optional</Badge>
                     </div>
                     <p className="text-sm text-slate-700 mb-3">
-                      Apply RevisionGrade's recommended changes based on editorial priority. You can review afterward.
+                      Auto-apply High and Medium priority recommendations. Review, undo, or edit any change. Original always preserved.
                     </p>
-                    <Button
-                      onClick={handleApplyBestRevisions}
-                      disabled={updateSessionMutation.isPending}
-                      className="bg-indigo-600 hover:bg-indigo-700"
-                    >
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Apply Best Revisions
-                    </Button>
+                    <div className="flex items-center gap-3">
+                      <Button
+                        onClick={handleApplyBestRevisions}
+                        disabled={updateSessionMutation.isPending}
+                        className="bg-indigo-600 hover:bg-indigo-700"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Apply Trusted Path ({session.suggestions.filter(s => s.status === 'pending' && (s.priority === 'High' || s.priority === 'Medium')).length} changes)
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={handleRestoreOriginal}
+                        disabled={session.current_text === session.original_text}
+                        className="border-slate-300"
+                      >
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Restore Original
+                      </Button>
+                    </div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Before/After Diff View */}
+          {showBeforeAfter && session.current_text !== session.original_text && (
+            <Card className="bg-white border-emerald-200 border-2 mt-4">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Check className="w-5 h-5 text-emerald-600" />
+                  Changes Applied - Review Below
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {session.suggestions
+                    .filter(s => s.status === 'accepted')
+                    .map((suggestion, idx) => (
+                      <div key={idx} className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                        <div className="flex items-start justify-between mb-2">
+                          <Badge className="bg-emerald-100 text-emerald-800 text-xs">
+                            {suggestion.wave_name}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleUndoChange(suggestion.id)}
+                            className="h-7 text-xs"
+                          >
+                            Undo
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="text-xs text-slate-500 font-medium">Before:</span>
+                            <p className="text-red-700 line-through mt-1">{suggestion.original_text}</p>
+                          </div>
+                          <div>
+                            <span className="text-xs text-slate-500 font-medium">After:</span>
+                            <p className="text-emerald-700 font-medium mt-1">{suggestion.suggested_text}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                 </div>
               </CardContent>
             </Card>
