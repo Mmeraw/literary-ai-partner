@@ -32,6 +32,7 @@ import QueryLetter from './pages/QueryLetter';
 import Methodology from './pages/Methodology';
 import Biography from './pages/Biography';
 import Synopsis from './pages/Synopsis';
+import Enterprise from './pages/Enterprise';
 import __Layout from './Layout.jsx';
 
 
@@ -70,6 +71,7 @@ export const PAGES = {
     "Methodology": Methodology,
     "Biography": Biography,
     "Synopsis": Synopsis,
+    "Enterprise": Enterprise,
 }
 
 export const pagesConfig = {

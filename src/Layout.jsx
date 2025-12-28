@@ -12,7 +12,7 @@ import {
 import { 
     BookOpen, Sparkles, Menu, X, LogOut, BarChart3,
     ChevronDown, FileText, Film, Target, TrendingUp,
-    Users, Mail, HelpCircle, FileCheck, User
+    Users, Mail, HelpCircle, FileCheck, User, Crown
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
@@ -147,15 +147,29 @@ export default function Layout({ children, currentPageName }) {
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            {/* Pricing Button */}
+                            {/* Pricing & Enterprise */}
                             <Link to={createPageUrl('Pricing')}>
                                 <Button
+                                    variant="ghost"
                                     className={cn(
-                                        "h-9 px-3 text-sm bg-indigo-600 hover:bg-indigo-700 text-white",
-                                        currentPageName === 'Pricing' && "bg-indigo-700"
+                                        "h-9 px-3 text-sm",
+                                        currentPageName === 'Pricing' 
+                                            ? "bg-indigo-50 text-indigo-700" 
+                                            : "text-slate-600 hover:text-slate-900"
                                     )}
                                 >
                                     Pricing
+                                </Button>
+                            </Link>
+
+                            <Link to={createPageUrl('Enterprise')}>
+                                <Button
+                                    className={cn(
+                                        "h-9 px-3 text-sm bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white",
+                                        currentPageName === 'Enterprise' && "from-indigo-700 to-purple-700"
+                                    )}
+                                >
+                                    Enterprise
                                 </Button>
                             </Link>
 
@@ -313,11 +327,24 @@ export default function Layout({ children, currentPageName }) {
                                 )}
                             </div>
 
-                            {/* Pricing Button */}
+                            {/* Pricing & Enterprise */}
                             <Link to={createPageUrl('Pricing')} onClick={() => setMobileMenuOpen(false)}>
-                                <Button className="w-full justify-start h-12 bg-indigo-600 hover:bg-indigo-700 text-white">
+                                <Button 
+                                    variant="ghost"
+                                    className={cn(
+                                        "w-full justify-start h-12",
+                                        currentPageName === 'Pricing' ? "bg-indigo-50 text-indigo-700" : "text-slate-600"
+                                    )}
+                                >
                                     <Sparkles className="w-5 h-5 mr-3" />
                                     Pricing
+                                </Button>
+                            </Link>
+
+                            <Link to={createPageUrl('Enterprise')} onClick={() => setMobileMenuOpen(false)}>
+                                <Button className="w-full justify-start h-12 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white">
+                                    <Crown className="w-5 h-5 mr-3" />
+                                    Enterprise
                                 </Button>
                             </Link>
 
