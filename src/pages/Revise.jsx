@@ -82,8 +82,10 @@ export default function Revise() {
     const suggestion = session.suggestions.find(s => s.id === suggestionId);
     if (!suggestion) return;
 
+    toast.loading('Generating alternatives...', { id: 'alternatives' });
+
     try {
-      const { data } = await base44.functions.invoke('generateAlternatives', {
+      const response = await base44.functions.invoke('generateAlternatives', {
         original_text: suggestion.original_text,
         current_suggestion: suggestion.suggested_text,
         why_flagged: suggestion.why_flagged,
@@ -91,7 +93,7 @@ export default function Revise() {
       });
 
       const updatedSuggestions = session.suggestions.map(s =>
-        s.id === suggestionId ? { ...s, alternatives: data.alternatives } : s
+        s.id === suggestionId ? { ...s, alternatives: response.data.alternatives } : s
       );
 
       await updateSessionMutation.mutateAsync({
@@ -99,9 +101,10 @@ export default function Revise() {
         data: { suggestions: updatedSuggestions }
       });
 
-      toast.success('Alternatives generated');
+      toast.success('Alternatives generated', { id: 'alternatives' });
     } catch (error) {
-      toast.error('Failed to generate alternatives');
+      console.error('Alternatives error:', error);
+      toast.error('Failed to generate alternatives', { id: 'alternatives' });
     }
   };
 
