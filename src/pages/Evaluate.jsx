@@ -99,17 +99,11 @@ export default function Evaluate() {
         setError(null);
 
         try {
-            // Call backend function for evaluation (with extended timeout)
-            const response = await Promise.race([
-                base44.functions.invoke('evaluateQuickSubmission', {
-                    title,
-                    text,
-                    styleMode
-                }),
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Evaluation timeout - please try with a shorter excerpt')), 300000) // 5 min timeout
-                )
-            ]);
+            const response = await base44.functions.invoke('evaluateQuickSubmission', {
+                title,
+                text,
+                styleMode
+            });
 
             if (!response.data.success) {
                 throw new Error(response.data.error || 'Evaluation failed');

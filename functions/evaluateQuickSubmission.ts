@@ -33,19 +33,8 @@ Deno.serve(async (req) => {
             hybrid: "Balanced approach allowing controlled style variation within structural standards."
         };
 
-        // Timeout wrapper (90 seconds max per call to stay under function timeout)
-        const withTimeout = (promise, timeoutMs = 90000, label = 'Operation') => {
-            return Promise.race([
-                promise,
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error(`${label} timeout after ${timeoutMs/1000}s`)), timeoutMs)
-                )
-            ]);
-        };
-
         // Story Evaluation (Agents, Editors, Script Readers)
-        const agentAnalysis = await withTimeout(
-            base44.asServiceRole.integrations.Core.InvokeLLM({
+        const agentAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are a professional evaluator (agent, editor, or script reader) assessing a manuscript. 
 
 STYLE MODE: ${styleMode.toUpperCase()}
@@ -116,14 +105,10 @@ Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revi
                     },
                     required: ["overallScore", "agentVerdict", "criteria", "revisionRequests"]
                 }
-            }),
-            90000,
-            'Agent Analysis'
-        );
+            });
 
         // Agent Decision Snapshot
-        const agentSnapshot = await withTimeout(
-            base44.asServiceRole.integrations.Core.InvokeLLM({
+        const agentSnapshot = await base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are a literary agent making a keep-reading decision. Analyze this manuscript excerpt and provide a decisive snapshot.
 
 TEXT:
@@ -144,14 +129,10 @@ Provide:
                     },
                     required: ["keep_reading", "biggest_risk", "biggest_strength", "most_leverage_fix"]
                 }
-            }),
-            90000,
-            'Agent Snapshot'
-        );
+            });
 
         // Wave Revision Guidance
-        const waveAnalysis = await withTimeout(
-            base44.asServiceRole.integrations.Core.InvokeLLM({
+        const waveAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `Apply the Wave Revision System to identify 5-10 specific craft issues.
 
 STYLE MODE: ${styleMode.toUpperCase()}
@@ -222,10 +203,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                     },
                     required: ["waveHits", "waveGuidance"]
                 }
-            }),
-            90000,
-            'Wave Analysis'
-        );
+            });
 
         // Classify manuscript tier
         const avgScore = agentAnalysis.criteria?.length > 0
