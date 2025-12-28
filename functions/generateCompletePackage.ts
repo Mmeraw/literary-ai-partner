@@ -57,19 +57,26 @@ Return JSON with keys: oneSentenceSpecific, oneSentenceGeneral, conversational, 
 
             // Synopses
             base44.integrations.Core.InvokeLLM({
-                prompt: `Generate three synopsis lengths for this manuscript:
+                prompt: `Generate three PROFESSIONAL SYNOPSIS formats for agent submission:
 
 Title: ${manuscriptInfo.title}
 Genre: ${manuscriptInfo.genre || 'Not specified'}
 Logline: ${manuscriptInfo.logline}
 Key Details: ${manuscriptInfo.keyThemes || ''} ${manuscriptInfo.protagonist || ''} ${manuscriptInfo.stakes || ''}
 
-Create:
-1. Query Synopsis (250-300 words) - hook-focused, marketable
-2. Standard Synopsis (500-750 words) - full arc, key beats
-3. Extended Synopsis (1000-1500 words) - comprehensive, character depth
+CRITICAL SYNOPSIS RULES (ALL LENGTHS):
+- Present tense, third person
+- TRUE SYNOPSIS format - NOT promotional blurb
+- Include concrete plot turns and escalation
+- NO rhetorical questions (BANNED)
+- NO "blurb-speak" adjectives
+- Focus on WHAT HAPPENS, not emotional atmosphere
+- Use italics for title: *${manuscriptInfo.title}*
 
-IMPORTANT: Use italics for the manuscript title (e.g., *${manuscriptInfo.title}*), not quotes.
+Create:
+1. Query Synopsis (250-300 words) - 3-5 key plot turns, reveals major beats
+2. Standard Synopsis (500-750 words) - 5-8 plot turns, REVEALS ENDING
+3. Extended Synopsis (1000-1500 words) - comprehensive plot, all major beats, FULL ENDING
 
 Return JSON with keys: query, standard, extended`,
                 response_json_schema: {
@@ -84,19 +91,23 @@ Return JSON with keys: query, standard, extended`,
 
             // Author Bio
             base44.integrations.Core.InvokeLLM({
-                prompt: `Generate a professional author bio for query letters:
+                prompt: `Generate a professional author bio (100-150 words) for literary agent submissions:
 
-Author: ${manuscriptInfo.authorName || user.full_name}
-Background: ${manuscriptInfo.authorBio || 'Not specified'}
-Credits: ${manuscriptInfo.publishingCredits || 'Debut author'}
-Current Work: ${manuscriptInfo.title} (${manuscriptInfo.genre || 'fiction'})
+Author Name (USE EXACTLY): ${manuscriptInfo.authorName || user.full_name || '[Author Name]'}
+Background: ${manuscriptInfo.authorBio || 'No background provided'}
+Publishing Credits: ${manuscriptInfo.publishingCredits || 'None listed'}
 
-Create a 75-100 word professional bio for literary agent submissions.
-Focus on: credentials, relevant experience, why qualified to write this story.
+CRITICAL BIO RULES - "NO-INVENTION POLICY":
+1. Use ONLY the exact author name provided above - NEVER invent pen names
+2. If no background provided, keep bio short and neutral (2-3 sentences max)
+3. ONLY include verifiable facts from the background field
+4. NEVER add generic filler like "passionate about writing," "diverse influences," "fresh voice"
+5. Third person only
+6. If insufficient data, output: "[Author Name] is a writer. Full manuscript available."
 
-IMPORTANT: Use italics for the manuscript title (e.g., *${manuscriptInfo.title}*), not quotes.
+Focus on: location (if provided), professional background (if provided), writing credentials (if provided), relevant lived experience (if provided).
 
-Return plain text, no JSON.`,
+Return only the bio text, plain text format.`,
                 response_json_schema: null
             }),
 
