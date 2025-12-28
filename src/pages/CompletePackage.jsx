@@ -37,13 +37,34 @@ export default function CompletePackage() {
     // Fetch user's manuscripts
     const { data: manuscripts = [], isLoading: manuscriptsLoading } = useQuery({
         queryKey: ['manuscripts'],
-        queryFn: () => base44.entities.Manuscript.list('-created_date'),
+        queryFn: async () => {
+            const data = await base44.entities.Manuscript.list('-created_date');
+            return data.sort((a, b) => a.title.localeCompare(b.title));
+        },
         initialData: []
     });
 
 
 
     const loadManuscript = async (manuscriptId) => {
+        if (manuscriptId === 'new') {
+            setManuscriptInfo({
+                title: '',
+                genre: '',
+                wordCount: '',
+                logline: '',
+                keyThemes: '',
+                protagonist: '',
+                stakes: '',
+                setting: '',
+                uniqueHook: '',
+                authorName: '',
+                authorBio: '',
+                publishingCredits: ''
+            });
+            return;
+        }
+
         const manuscript = manuscripts.find(m => m.id === manuscriptId);
         if (!manuscript) return;
 
@@ -215,7 +236,7 @@ ${packageData.queryLetter}
                                     <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200">
                                         <div className="flex items-center gap-2 mb-3">
                                             <BookOpen className="w-4 h-4 text-indigo-600" />
-                                            <span className="text-sm font-semibold text-slate-800">Load from Existing Project</span>
+                                            <span className="text-sm font-semibold text-slate-800">Load New or Existing Project</span>
                                         </div>
                                         <Select 
                                             value={selectedManuscriptId} 
@@ -229,6 +250,7 @@ ${packageData.queryLetter}
                                                 <SelectValue placeholder="Select a project to auto-populate all fields" />
                                             </SelectTrigger>
                                             <SelectContent>
+                                                <SelectItem value="new">New Project</SelectItem>
                                                 {manuscripts.map((manuscript) => (
                                                     <SelectItem key={manuscript.id} value={manuscript.id}>
                                                         {manuscript.title} ({manuscript.word_count?.toLocaleString()} words)
