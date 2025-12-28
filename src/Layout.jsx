@@ -13,6 +13,7 @@ import AnalyticsTracker from '@/components/AnalyticsTracker';
 const navItems = [
     { name: 'Home', page: 'Home', icon: BookOpen },
     { name: 'Why RevisionGrade', page: 'WhyRevisionGrade', icon: Sparkles },
+    { name: 'For Professionals', page: 'ForProfessionals', icon: Sparkles },
     { name: 'Dashboard', page: 'Dashboard', icon: Sparkles },
     { name: 'Progress', page: 'Progress', icon: BarChart3 },
     { name: 'Quick Eval', page: 'Evaluate', icon: Sparkles },
