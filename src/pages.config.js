@@ -30,6 +30,8 @@ import PitchBuilder from './pages/PitchBuilder';
 import FindAgents from './pages/FindAgents';
 import QueryLetter from './pages/QueryLetter';
 import Methodology from './pages/Methodology';
+import Biography from './pages/Biography';
+import Synopsis from './pages/Synopsis';
 import __Layout from './Layout.jsx';
 
 
@@ -66,6 +68,8 @@ export const PAGES = {
     "FindAgents": FindAgents,
     "QueryLetter": QueryLetter,
     "Methodology": Methodology,
+    "Biography": Biography,
+    "Synopsis": Synopsis,
 }
 
 export const pagesConfig = {
