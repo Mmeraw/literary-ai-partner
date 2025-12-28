@@ -12,9 +12,11 @@ export default function Synopsis() {
     const [manuscriptInfo, setManuscriptInfo] = useState('');
     const [generating, setGenerating] = useState(false);
     const [synopses, setSynopses] = useState({
-        short: '',
-        long: ''
+        query: '',
+        standard: '',
+        extended: ''
     });
+    const [validation, setValidation] = useState({});
 
     const generateSynopsis = async (type) => {
         if (!manuscriptInfo.trim()) {
@@ -24,41 +26,26 @@ export default function Synopsis() {
 
         setGenerating(true);
         try {
-            const wordTarget = type === 'short' ? '250-500' : '500-750';
-            const pageTarget = type === 'short' ? '1 page' : '1-2 pages';
-
-            const response = await base44.integrations.Core.InvokeLLM({
-                prompt: `You are a professional synopsis writer for literary agents.
-
-Generate a ${type.toUpperCase()} SYNOPSIS (${wordTarget} words, ${pageTarget} single-spaced).
-
-MANUSCRIPT INFORMATION:
-${manuscriptInfo}
-
-RULES FOR ${type.toUpperCase()} SYNOPSIS:
-- Third person, present tense
-- Reveal the ending (agents need to know)
-- Focus on main plot and protagonist's arc
-${type === 'short' ? '- One page max, ~250-500 words\n- Cover main turning points only' : '- 1-2 pages, ~500-750 words\n- Include major plot points and key subplots'}
-- Clear cause-and-effect progression
-- Emotional stakes and character motivation
-- Professional, neutral tone (no marketing language)
-
-Generate the ${type} synopsis now.`,
-                response_json_schema: {
-                    type: "object",
-                    properties: {
-                        synopsis: { type: "string" }
-                    },
-                    required: ["synopsis"]
-                }
+            const response = await base44.functions.invoke('generateSynopsis', {
+                manuscriptInfo,
+                synopsisType: type
             });
 
-            setSynopses(prev => ({
-                ...prev,
-                [type]: response.synopsis
-            }));
-            toast.success(`${type === 'short' ? 'Short' : 'Long'} synopsis generated!`);
+            if (response.data.success) {
+                setSynopses(prev => ({
+                    ...prev,
+                    [type]: response.data.synopsis
+                }));
+                setValidation(prev => ({
+                    ...prev,
+                    [type]: response.data.validation
+                }));
+                
+                const versionName = type === 'query' ? 'Query' : type === 'standard' ? 'Standard' : 'Extended';
+                toast.success(`${versionName} synopsis generated! (${response.data.word_count} words)`);
+            } else {
+                toast.error(response.data.error || 'Failed to generate synopsis');
+            }
         } catch (error) {
             console.error('Synopsis generation error:', error);
             toast.error('Failed to generate synopsis');
@@ -117,23 +104,25 @@ Generate the ${type} synopsis now.`,
                 </Card>
 
                 {/* Synopsis Types */}
-                <Tabs defaultValue="short" className="space-y-6">
-                    <TabsList className="grid grid-cols-2 w-full">
-                        <TabsTrigger value="short">Short Synopsis (1 page)</TabsTrigger>
-                        <TabsTrigger value="long">Long Synopsis (1-2 pages)</TabsTrigger>
+                <Tabs defaultValue="standard" className="space-y-6">
+                    <TabsList className="grid grid-cols-3 w-full">
+                        <TabsTrigger value="query">Query (100-150)</TabsTrigger>
+                        <TabsTrigger value="standard">Standard (250-500)</TabsTrigger>
+                        <TabsTrigger value="extended">Extended (700-1000)</TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="short" className="space-y-4">
+                    {/* Query Synopsis */}
+                    <TabsContent value="query" className="space-y-4">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Short Synopsis</CardTitle>
+                                <CardTitle>Query Synopsis</CardTitle>
                                 <p className="text-sm text-slate-600">
-                                    250-500 words | Single page | Main plot points only
+                                    100-150 words | Query letters, online forms | Core hook only
                                 </p>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <Button 
-                                    onClick={() => generateSynopsis('short')}
+                                    onClick={() => generateSynopsis('query')}
                                     disabled={generating || !manuscriptInfo.trim()}
                                     className="w-full"
                                 >
@@ -145,25 +134,30 @@ Generate the ${type} synopsis now.`,
                                     ) : (
                                         <>
                                             <Sparkles className="w-4 h-4 mr-2" />
-                                            Generate Short Synopsis
+                                            Generate Query Synopsis
                                         </>
                                     )}
                                 </Button>
 
-                                {synopses.short && (
+                                {synopses.query && (
                                     <div className="space-y-4">
                                         <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                                            <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{synopses.short}</p>
-                                            <div className="mt-3 text-xs text-slate-500">
-                                                {synopses.short.split(' ').length} words
+                                            <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{synopses.query}</p>
+                                            <div className="mt-3 flex items-center justify-between text-xs">
+                                                <span className="text-slate-500">{synopses.query.split(' ').length} words</span>
+                                                {validation.query && validation.query.pitfalls_detected?.length > 0 && (
+                                                    <Badge variant="outline" className="text-amber-600">
+                                                        {validation.query.pitfalls_detected.length} issues detected
+                                                    </Badge>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
-                                            <Button variant="outline" onClick={() => copyToClipboard(synopses.short)}>
+                                            <Button variant="outline" onClick={() => copyToClipboard(synopses.query)}>
                                                 <Copy className="w-4 h-4 mr-2" />
                                                 Copy
                                             </Button>
-                                            <Button variant="outline" onClick={() => downloadSynopsis(synopses.short, 'short-synopsis.txt')}>
+                                            <Button variant="outline" onClick={() => downloadSynopsis(synopses.query, 'query-synopsis.txt')}>
                                                 <Download className="w-4 h-4 mr-2" />
                                                 Download
                                             </Button>
@@ -174,17 +168,18 @@ Generate the ${type} synopsis now.`,
                         </Card>
                     </TabsContent>
 
-                    <TabsContent value="long" className="space-y-4">
+                    {/* Standard Synopsis */}
+                    <TabsContent value="standard" className="space-y-4">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Long Synopsis</CardTitle>
+                                <CardTitle>Standard Synopsis</CardTitle>
                                 <p className="text-sm text-slate-600">
-                                    500-750 words | 1-2 pages | Detailed plot with subplots
+                                    250-500 words | Agency submissions | Full 9-header structure
                                 </p>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <Button 
-                                    onClick={() => generateSynopsis('long')}
+                                    onClick={() => generateSynopsis('standard')}
                                     disabled={generating || !manuscriptInfo.trim()}
                                     className="w-full"
                                 >
@@ -196,25 +191,87 @@ Generate the ${type} synopsis now.`,
                                     ) : (
                                         <>
                                             <Sparkles className="w-4 h-4 mr-2" />
-                                            Generate Long Synopsis
+                                            Generate Standard Synopsis
                                         </>
                                     )}
                                 </Button>
 
-                                {synopses.long && (
+                                {synopses.standard && (
                                     <div className="space-y-4">
                                         <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                                            <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{synopses.long}</p>
-                                            <div className="mt-3 text-xs text-slate-500">
-                                                {synopses.long.split(' ').length} words
+                                            <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{synopses.standard}</p>
+                                            <div className="mt-3 flex items-center justify-between text-xs">
+                                                <span className="text-slate-500">{synopses.standard.split(' ').length} words</span>
+                                                {validation.standard && validation.standard.pitfalls_detected?.length > 0 && (
+                                                    <Badge variant="outline" className="text-amber-600">
+                                                        {validation.standard.pitfalls_detected.length} issues detected
+                                                    </Badge>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
-                                            <Button variant="outline" onClick={() => copyToClipboard(synopses.long)}>
+                                            <Button variant="outline" onClick={() => copyToClipboard(synopses.standard)}>
                                                 <Copy className="w-4 h-4 mr-2" />
                                                 Copy
                                             </Button>
-                                            <Button variant="outline" onClick={() => downloadSynopsis(synopses.long, 'long-synopsis.txt')}>
+                                            <Button variant="outline" onClick={() => downloadSynopsis(synopses.standard, 'standard-synopsis.txt')}>
+                                                <Download className="w-4 h-4 mr-2" />
+                                                Download
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* Extended Synopsis */}
+                    <TabsContent value="extended" className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Extended Synopsis</CardTitle>
+                                <p className="text-sm text-slate-600">
+                                    700-1000 words | Grants, press kits | Detailed with subplots
+                                </p>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <Button 
+                                    onClick={() => generateSynopsis('extended')}
+                                    disabled={generating || !manuscriptInfo.trim()}
+                                    className="w-full"
+                                >
+                                    {generating ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Generating...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="w-4 h-4 mr-2" />
+                                            Generate Extended Synopsis
+                                        </>
+                                    )}
+                                </Button>
+
+                                {synopses.extended && (
+                                    <div className="space-y-4">
+                                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                                            <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{synopses.extended}</p>
+                                            <div className="mt-3 flex items-center justify-between text-xs">
+                                                <span className="text-slate-500">{synopses.extended.split(' ').length} words</span>
+                                                {validation.extended && validation.extended.pitfalls_detected?.length > 0 && (
+                                                    <Badge variant="outline" className="text-amber-600">
+                                                        {validation.extended.pitfalls_detected.length} issues detected
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button variant="outline" onClick={() => copyToClipboard(synopses.extended)}>
+                                                <Copy className="w-4 h-4 mr-2" />
+                                                Copy
+                                            </Button>
+                                            <Button variant="outline" onClick={() => downloadSynopsis(synopses.extended, 'extended-synopsis.txt')}>
                                                 <Download className="w-4 h-4 mr-2" />
                                                 Download
                                             </Button>
@@ -235,29 +292,34 @@ Generate the ${type} synopsis now.`,
                         <ul className="space-y-2 text-sm text-slate-700">
                             <li className="flex items-start gap-2">
                                 <span className="text-indigo-600">•</span>
-                                <span>Always reveal the ending—agents need to know your complete story</span>
+                                <span><strong>9-Header Structure:</strong> Professional synopses use metadata, premise, plot points, climax, resolution, themes, style, market positioning, and closing note</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <span className="text-indigo-600">•</span>
-                                <span>Use third person, present tense ("Sarah discovers..." not "Sarah discovered...")</span>
+                                <span><strong>Reveal Ending:</strong> Agents need to know your complete story—no teasers or cliffhangers</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <span className="text-indigo-600">•</span>
-                                <span>Focus on causality—show how events connect and build</span>
+                                <span><strong>Present Tense, Third Person:</strong> "Sarah discovers..." not "Sarah discovered..."</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <span className="text-indigo-600">•</span>
-                                <span>Include character motivation and emotional stakes</span>
+                                <span><strong>Max 5-7 Named Characters:</strong> Use roles for secondary cast</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <span className="text-indigo-600">•</span>
-                                <span>Avoid marketing language—be professional and factual</span>
+                                <span><strong>Strong Verbs, Precise Nouns:</strong> Avoid blurb-speak and adjective padding</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <span className="text-indigo-600">•</span>
-                                <span>Single-space your synopsis when submitting to agents</span>
+                                <span><strong>Story Before Theme:</strong> Lead with plot; themes come at the end</span>
                             </li>
                         </ul>
+                        <div className="mt-4 p-3 rounded-lg bg-indigo-50 border border-indigo-200">
+                            <p className="text-xs text-indigo-800">
+                                <strong>Dr. Patricia Anderson Standards:</strong> Our synopsis engine is calibrated against PhD-level editorial frameworks used by professional literary consultants.
+                            </p>
+                        </div>
                     </CardContent>
                 </Card>
 
