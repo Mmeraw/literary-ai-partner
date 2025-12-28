@@ -12,11 +12,11 @@ import { motion } from 'framer-motion';
 export default function Home() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-            {/* Editorial Judgment Banner */}
-            <div className="bg-slate-50 border-b border-slate-200 py-3">
+            {/* Pipeline Banner */}
+            <div className="bg-slate-900 border-b border-slate-700 py-3">
                 <div className="max-w-7xl mx-auto px-6">
-                    <p className="text-center text-slate-700 text-sm md:text-[0.95rem] font-medium tracking-wide">
-                        An editorial judgment system that tells you why agents would reject your manuscript—and what to fix first.
+                    <p className="text-center text-slate-200 text-sm md:text-[0.95rem] font-medium tracking-wide">
+                        Manuscript Evaluation → Agent Ready™ → Revise → Polish → Compare → Pitch → Query
                     </p>
                 </div>
             </div>
@@ -36,49 +36,56 @@ export default function Home() {
                     >
                         <Badge className="mb-6 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200 text-sm font-medium">
                             <Sparkles className="w-4 h-4 mr-2" />
-                            Why RevisionGrade™
+                            Transmedia Intelligence for Serious Storytellers
                         </Badge>
 
                         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
-                            Manuscript Evaluation
+                            From Manuscript to
                             <span className="block -mt-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent leading-relaxed overflow-visible py-2">
-                                → Agent Ready™
+                                Hollywood Pitch Deck
                             </span>
                         </h1>
 
-                        <p className="mt-3 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                            <strong className="text-slate-900">Grade → Revise → Polish → Compare → Pitch → Query</strong>
+                        <p className="mt-3 text-lg sm:text-xl text-slate-900 font-semibold max-w-2xl mx-auto leading-relaxed">
+                            One Tool. One Subscription.
                         </p>
 
-                        <p className="mt-4 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                            Dual-layer evaluation (12 agent-level criteria + 60+ WAVE checks). 
-                            Generate your complete submission package: pitches, synopses, bio, comps, agent list, and draft query letter.
+                        <p className="mt-4 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">
+                            <strong className="text-slate-900">Upload Your Complete Work → Download Agent + Producer Decks</strong>
                         </p>
 
-                        <div className="mt-4 space-y-2 flex flex-col items-center">
+                        <p className="mt-2 text-base text-slate-600 max-w-2xl mx-auto">
+                            Canon Validated. Production-Ready. No App-Switching.
+                        </p>
+
+                        <div className="mt-6 space-y-2 flex flex-col items-center">
                             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-100 border border-indigo-200">
                                 <Shield className="w-4 h-4 text-indigo-600" />
-                                <span className="text-sm font-medium text-indigo-900">Scoring calibrated against professional editorial assessments from PhD editors</span>
+                                <span className="text-sm font-medium text-indigo-900">Governed by Production Canon v2.0</span>
                             </div>
-                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200">
-                                <span className="text-sm font-medium text-slate-700">We'd rather hurt your feelings than see you miss your opportunities with literary agents</span>
-                            </div>
+                            <p className="text-sm text-slate-600 max-w-lg">
+                                72 Criteria. Zero Guesswork. Hollywood-Ready.
+                            </p>
                         </div>
 
-                        <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+                        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
                             <Link to={createPageUrl('UploadManuscript')}>
                                 <Button size="lg" className="h-14 px-8 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
                                     <BookOpen className="w-5 h-5 mr-2" />
-                                    Upload Your Writing
+                                    Start Free Trial → $99/mo
                                 </Button>
                             </Link>
                             <Link to={createPageUrl('Evaluate')}>
                                 <Button size="lg" variant="outline" className="h-14 px-8 text-lg border-slate-300">
                                     <Sparkles className="w-5 h-5 mr-2" />
-                                    Quick Scene/Chapter Eval
+                                    Quick Evaluation
                                 </Button>
                             </Link>
                         </div>
+                        
+                        <p className="mt-4 text-sm text-slate-500">
+                            30-Day Money Back Guarantee
+                        </p>
                     </motion.div>
                 </div>
             </div>
@@ -135,28 +142,28 @@ export default function Home() {
             {/* Features Section */}
             <div className="max-w-6xl mx-auto px-6 py-14">
                 <div className="text-center mb-16">
-                    <h2 className="text-3xl font-bold text-slate-900">Complete Agent-Ready Pipeline</h2>
-                    <p className="mt-3 text-slate-600">From first draft to query letter—everything in one platform</p>
+                    <h2 className="text-3xl font-bold text-slate-900">End-to-End IP Translation Engine</h2>
+                    <p className="mt-3 text-slate-600">Traditional: 6 months. 5 apps. $500+ → Base44: 6 hours. 1 tool. $99</p>
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-8">
                     {[
                         {
                             icon: BookOpen,
-                            title: "1. Grade Your Manuscript",
-                            description: "Dual-layer evaluation: 12 story criteria + 60+ WAVE checks produce a PhD-calibrated score (0-100) showing agent-readiness.",
+                            title: "Literary Agent Package",
+                            description: "Queries + Synopses auto-generated. One-sentence pitch, elevator pitch, and short/medium/long synopses calibrated against professional standards.",
                             color: "from-indigo-500 to-blue-600"
                         },
                         {
                             icon: Brain,
-                            title: "2. Build Submission Assets",
-                            description: "Generate pitches (one-sentence, elevator), synopses (short/long), author bio, and genre comparables—all optimized for agent submissions.",
+                            title: "12-Slide Producer Pitch Deck",
+                            description: "PPTX export, production-ready. Screen viability score (0-100). 5-Part mythic structure validation. Del Toro-level tone enforcement.",
                             color: "from-purple-500 to-pink-600"
                         },
                         {
                             icon: CheckCircle2,
-                            title: "3. Query with Confidence",
-                            description: "Find agents, generate query letters with embedded pitch/synopsis/bio/comps, and submit knowing your work meets professional standards.",
+                            title: "Complete Submission Package",
+                            description: "Author bio, 5-10 market comps, targeted agent list, draft query letter. Everything agents expect to see in your submission.",
                             color: "from-emerald-500 to-teal-600"
                         }
                     ].map((feature, idx) => (
@@ -181,47 +188,75 @@ export default function Home() {
                 </div>
             </div>
 
-            {/* Calibration Trust Section */}
+            {/* Dual-Layer Evaluation Engine */}
             <div className="max-w-6xl mx-auto px-6 py-14">
                 <div className="text-center mb-12">
                     <Badge className="mb-4 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <Shield className="w-4 h-4 mr-2" />
-                        PhD-Calibrated Scoring
+                        Dual-Layer Evaluation Engine
                     </Badge>
                     <h2 className="text-3xl font-bold text-slate-900 mb-4">
-                        PhD-Calibrated Scoring Engine
+                        Agent Ready™ + WAVE Canon
                     </h2>
                     <p className="text-slate-600 max-w-2xl mx-auto">
-                        RevisionGrade's scoring engine was calibrated using detailed editorial evaluations created by PhD-level editors and literary professionals. Their criteria, diagnostic patterns, and revision standards were encoded into the system—together with the proprietary WAVE Revision framework—so the AI can apply the same evaluative logic consistently across manuscripts, at scale.
+                        Base44 doesn't write stories. It translates them to market reality.
                     </p>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6">
-                    <div className="p-6 rounded-xl bg-white border border-slate-200">
-                        <h3 className="font-semibold text-slate-900 mb-2">Editorial Analysis</h3>
-                        <p className="text-sm text-slate-600 mb-3">
-                            MFA Creative Writing + PhD English Literature specialists evaluated full manuscripts and screenplays, identifying structural issues, pacing problems, and thematic clarity—not just grammar fixes.
-                        </p>
-                        <Badge variant="outline" className="text-xs">Structural Critique</Badge>
+                <div className="grid md:grid-cols-2 gap-8">
+                    <div className="p-8 rounded-xl bg-white border-2 border-indigo-200">
+                        <h3 className="text-xl font-bold text-slate-900 mb-4">Agent Ready™ (12 Criteria)</h3>
+                        <div className="space-y-2">
+                            {[
+                                'Logline strength',
+                                'Character arcs',
+                                'Market positioning',
+                                'Comp alignment',
+                                'Voice authority',
+                                'Thematic coherence',
+                                '+ 6 more...'
+                            ].map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                                    <span className="text-sm text-slate-700">{item}</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
-                    <div className="p-6 rounded-xl bg-white border border-slate-200">
-                        <h3 className="font-semibold text-slate-900 mb-2">Cross-Format Expertise</h3>
-                        <p className="text-sm text-slate-600 mb-3">
-                            PhD editors specializing in fiction, screenwriting, and genre-specific markets provided format-aware feedback on marketability and agent/producer expectations across prose and screenplay formats.
-                        </p>
-                        <Badge variant="outline" className="text-xs">Agent-Reality Standards</Badge>
+                    <div className="p-8 rounded-xl bg-white border-2 border-purple-200">
+                        <h3 className="text-xl font-bold text-slate-900 mb-4">WAVE (60+ Checks)</h3>
+                        <div className="space-y-2">
+                            {[
+                                '5-Part Mythic Arc',
+                                'Visual translation',
+                                'Tone enforcement',
+                                'Structural risks',
+                                'Producer viability',
+                                'Canon compliance',
+                                '+ 54 more...'
+                            ].map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-purple-600" />
+                                    <span className="text-sm text-slate-700">{item}</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
-                <div className="mt-8 p-6 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200">
-                    <p className="text-sm text-amber-900 text-center mb-3">
-                        <strong>The result:</strong> Our AI mirrors the brutal honesty of professional editors who charge $2,000-$4,000 per manuscript or screenplay. 
-                        Their scoring methodology, diagnostic criteria, and agent/producer rejection reality checks inform every evaluation.
-                    </p>
-                    <p className="text-xs text-amber-800 text-center italic">
-                        "Calibrated" means the system was trained and tuned using real editorial evaluation frameworks. No human editor reviews individual submissions unless explicitly stated.
-                    </p>
+                <div className="mt-8 grid md:grid-cols-4 gap-4">
+                    {[
+                        'No Hallucinations',
+                        'Locked Specifications',
+                        'Dual Pipeline Authority',
+                        'Studio-Grade Outputs'
+                    ].map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-slate-50 border border-slate-200">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span className="text-sm font-medium text-slate-700">{item}</span>
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -302,16 +337,19 @@ export default function Home() {
                 <div className="p-10 rounded-3xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100">
                     <Zap className="w-12 h-12 mx-auto mb-6 text-indigo-600" />
                     <h2 className="text-3xl font-bold text-slate-900 mb-4">
-                        From Manuscript to Agent-Ready
+                        Upload Manuscript → Get Hollywood-Ready Deck Today
                     </h2>
-                    <p className="text-slate-600 mb-8 max-w-xl mx-auto">
-                        The complete pipeline: Grade → Pitch → Synopsis → Bio → Comps → Agents → Query. 
-                        No competitor offers this integrated workflow.
+                    <p className="text-slate-600 mb-2 max-w-xl mx-auto font-semibold">
+                        Complete Submission in 6 Hours, Not 6 Months
                     </p>
-                    <Link to={createPageUrl('Evaluate')}>
+                    <p className="text-sm text-slate-500 mb-8">
+                        Powered by SYNOPSIS_MASTER_v1.0 + FILM_PITCH_MASTER_v2.0
+                    </p>
+                    <Link to={createPageUrl('UploadManuscript')}>
                         <Button size="lg" className="h-14 px-10 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
                             <Sparkles className="w-5 h-5 mr-2" />
-                            Start Free Evaluation
+                            Get Started Now
+                            <ArrowRight className="w-5 h-5 ml-2" />
                         </Button>
                     </Link>
                 </div>
