@@ -137,6 +137,19 @@ export default function Evaluate() {
         }
     };
 
+    const handleFinalize = () => {
+        setCurrentStep(4);
+    };
+
+    const handleReset = () => {
+        setTitle('');
+        setText('');
+        setCurrentStep(1);
+        setEvaluationResult(null);
+        setSubmission(null);
+        setError(null);
+    };
+
     // Old implementation kept below for reference - DELETE THIS AFTER TESTING
     const evaluateText_OLD = async () => {
         if (!title.trim() || !text.trim()) {
@@ -418,21 +431,21 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 console.error('Failed to store evaluation signals (non-critical):', signalError);
             }
 
+            // Set result and advance to step 3
+            setEvaluationResult(evaluationResult);
+            setIsProcessing(false);
+            setCurrentStep(3);
+            toast.success('Analysis complete! Review your evaluation below.');
+
+        } catch (error) {
+            console.error('Evaluation error:', error);
+            setError(error.message || 'Failed to evaluate. Please try again.');
+            toast.error('Failed to evaluate. Please try again.');
+            setCurrentStep(1);
+            setIsProcessing(false);
+        } finally {
             clearInterval(keepAlive);
         }
-    };
-
-    const handleFinalize = () => {
-        setCurrentStep(4);
-    };
-
-    const handleReset = () => {
-        setTitle('');
-        setText('');
-        setCurrentStep(1);
-        setEvaluationResult(null);
-        setSubmission(null);
-        setError(null);
     };
 
     return (
