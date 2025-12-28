@@ -276,7 +276,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 <div className="text-center mb-10">
                     <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <Sparkles className="w-4 h-4 mr-2" />
-                        Three AI Systems Analysis
+                        Dual-Layer Professional Evaluation
                     </Badge>
                     <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">
                         Free Evaluation Preview
@@ -350,7 +350,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                             Analyzing Your Manuscript...
                                         </h3>
                                         <p className="mt-2 text-slate-500 text-center max-w-md">
-                                           Three AI systems evaluating against 12 Story Evaluation Criteria and 60+ Wave Revision items
+                                           Dual-layer evaluation: story structure + line-level craft against professional editorial standards
                                         </p>
                                     </>
                                 ) : error ? (

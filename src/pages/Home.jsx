@@ -47,7 +47,7 @@ export default function Home() {
                         </h1>
 
                         <p className="mt-3 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                            Get your <strong className="text-slate-900">manuscript</strong> or <strong className="text-slate-900">screenplay</strong> evaluated against 12 Story Evaluation Criteria and 60+ diagnostic checks from the proprietary WAVE Revision System. Three AI perspectives use this framework to analyze your work, suggest revisions, and generate a PhD-calibrated score for a clear, professional-grade assessment.
+                            Get your <strong className="text-slate-900">manuscript</strong> or <strong className="text-slate-900">screenplay</strong> evaluated using a dual-layer, AI-assisted analysis framework. Layer 1 evaluates story structure across 12 professional criteria. Layer 2 examines line-level craft through 60+ WAVE diagnostic checks. Together, they generate a PhD-calibrated score for a clear, professional-grade assessment.
                         </p>
 
                         <div className="mt-4 space-y-2 flex flex-col items-center">
