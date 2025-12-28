@@ -6,6 +6,7 @@ import { CheckCircle2, Sparkles, Crown, Zap, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import { createPageUrl } from '@/utils';
 
 const tiers = [
     {
@@ -36,40 +37,45 @@ const tiers = [
         color: "from-indigo-500 to-purple-600",
         popular: true,
         features: [
+            "Complete agent-ready pipeline: Grade → Pitch → Synopsis → Bio → Comps → Agents → Query",
             "Unlimited evaluation runs¹",
             "500,000 words/month included",
             "Full manuscript & screenplay evaluation",
-            "Structure-aware analysis",
             "Editorial Growth Tracking — persistent skill tracking across submissions",
             "Revision Effectiveness Analysis — see if your changes actually improved the work",
             "Recurring pattern detection — identify what you keep getting wrong",
+            "AI-generated submission assets (pitches, synopses, bio, comparables)",
+            "Agent discovery & query letter builder",
             "Clean revised downloads",
             "Editorial reports (PDF)",
             "Priority processing",
             "Priority email support"
         ],
         limitations: []
+    },
+    {
+        name: "Enterprise",
+        price: "Custom",
+        priceId: "price_enterprise_monthly",
+        icon: Crown,
+        color: "from-purple-500 to-pink-600",
+        enterprise: true,
+        features: [
+            "Everything in Professional, plus:",
+            "Team dashboard — view all evaluations across organization",
+            "10-50 user seats included",
+            "Custom criteria weighting per organization",
+            "Bulk manuscript processing & API access",
+            "White-label options for agencies",
+            "User permission levels (admin, evaluator, viewer)",
+            "Dedicated account manager",
+            "Custom integrations & workflow automation",
+            "24/7 priority support",
+            "Onboarding & training for teams"
+        ],
+        description: "For literary agencies, editing teams, publishing houses, MFA programs, and content studios",
+        limitations: []
     }
-    // Enterprise plan hidden for now
-    // {
-    //     name: "Enterprise",
-    //     price: 200,
-    //     priceId: "price_enterprise_monthly",
-    //     icon: Crown,
-    //     color: "from-purple-500 to-pink-600",
-    //     features: [
-    //         "Unlimited everything",
-    //         "White-glove service",
-    //         "Dedicated account manager",
-    //         "Custom evaluation criteria",
-    //         "Bulk manuscript processing",
-    //         "24/7 priority support",
-    //         "Custom integrations",
-    //         "Team collaboration tools"
-    //     ],
-    //     roadmap: "Early access to new features: API access & integrations available to Enterprise first",
-    //     limitations: []
-    // }
 ];
 
 export default function Pricing() {
@@ -88,6 +94,12 @@ export default function Pricing() {
     const handleSubscribe = async (tier) => {
         try {
             setLoadingPlan(tier.name);
+            
+            // Enterprise requires contact
+            if (tier.enterprise) {
+                window.location.href = createPageUrl('Contact') + '?plan=enterprise';
+                return;
+            }
             
             // Get the real price ID from Stripe
             const planKey = tier.name.toLowerCase();
@@ -132,7 +144,7 @@ export default function Pricing() {
 
             {/* Pricing Cards */}
             <div className="max-w-7xl mx-auto px-6 pb-20">
-                <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <div className="grid md:grid-cols-3 gap-8">
                     {tiers.map((tier, idx) => (
                         <motion.div
                             key={tier.name}
@@ -159,11 +171,25 @@ export default function Pricing() {
                                     </div>
                                     <CardTitle className="text-2xl">{tier.name}</CardTitle>
                                     <div className="mt-4">
-                                        <span className="text-4xl font-bold text-slate-900">
-                                            ${tier.price}
-                                        </span>
-                                        <span className="text-slate-600 ml-2">/month</span>
+                                        {tier.enterprise ? (
+                                            <div>
+                                                <span className="text-4xl font-bold text-slate-900">
+                                                    Custom
+                                                </span>
+                                                <span className="text-slate-600 ml-2 block text-sm mt-1">Contact for pricing</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <span className="text-4xl font-bold text-slate-900">
+                                                    ${tier.price}
+                                                </span>
+                                                <span className="text-slate-600 ml-2">/month</span>
+                                            </>
+                                        )}
                                     </div>
+                                    {tier.description && (
+                                        <p className="text-sm text-slate-600 mt-2">{tier.description}</p>
+                                    )}
                                 </CardHeader>
 
                                 <CardContent className="space-y-6">
@@ -190,6 +216,8 @@ export default function Pricing() {
                                         className={`w-full h-12 ${
                                             tier.popular
                                                 ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
+                                                : tier.enterprise
+                                                ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
                                                 : 'bg-slate-900 hover:bg-slate-800'
                                         }`}
                                         onClick={() => handleSubscribe(tier)}
@@ -200,6 +228,8 @@ export default function Pricing() {
                                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                                 Processing...
                                             </>
+                                        ) : tier.enterprise ? (
+                                            'Contact Sales'
                                         ) : (
                                             `Subscribe to ${tier.name}`
                                         )}
