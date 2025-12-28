@@ -248,16 +248,20 @@ export default function ForProfessionals() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
-          <Link to={createPageUrl('Contact')}>
+          <a href="mailto:sales@revisiongrade.com">
             <Button size="lg" className="bg-slate-900 hover:bg-slate-800">
               Request Information
             </Button>
-          </Link>
-          <Link to={createPageUrl('Pricing')}>
-            <Button size="lg" variant="outline">
+          </a>
+          <a href={createPageUrl('Pricing')}>
+            <Button size="lg" variant="outline" onClick={(e) => {
+              e.preventDefault();
+              window.location.href = createPageUrl('Pricing');
+              setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
+            }}>
               View Pricing
             </Button>
-          </Link>
+          </a>
         </div>
       </div>
     </div>
