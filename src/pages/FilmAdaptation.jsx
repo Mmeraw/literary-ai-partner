@@ -67,7 +67,7 @@ export default function FilmAdaptation() {
             const wordCount = text.split(/\s+/).length;
             
             if (wordCount > 250000) {
-                toast.error(`Manuscript too long: ${wordCount.toLocaleString()} words. Maximum is 250,000 words.`);
+                toast.error(`Text too long: ${wordCount.toLocaleString()} words. Maximum is 250,000 words.`);
                 return;
             }
             
@@ -79,13 +79,13 @@ export default function FilmAdaptation() {
 
     const generatePitchDeck = async () => {
         if (!manuscriptData.title || !manuscriptData.manuscriptText) {
-            toast.error('Please provide title and manuscript text');
+            toast.error('Please provide title and text');
             return;
         }
 
         const wordCount = manuscriptData.manuscriptText.split(/\s+/).length;
         if (wordCount < 1000) {
-            toast.error('Manuscript too short. Please provide at least 1,000 words.');
+            toast.error('Text too short. Please provide at least 1,000 words.');
             return;
         }
 
@@ -210,7 +210,7 @@ export default function FilmAdaptation() {
                         <CardContent className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Manuscript Title *
+                                    Title *
                                 </label>
                                 <Input
                                     value={manuscriptData.title}
@@ -244,7 +244,7 @@ export default function FilmAdaptation() {
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    Upload Manuscript (up to 250,000 words) *
+                                    Upload Manuscript or Screenplay (up to 250,000 words) *
                                 </label>
                                 <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-indigo-400 transition-colors">
                                     <input
@@ -260,7 +260,7 @@ export default function FilmAdaptation() {
                                             Click to upload or drag and drop
                                         </p>
                                         <p className="text-xs text-slate-500">
-                                            TXT, DOC, DOCX (max 250,000 words)
+                                            TXT, DOC, DOCX or Screenplay (max 250,000 words)
                                         </p>
                                     </label>
                                 </div>
