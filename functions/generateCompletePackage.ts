@@ -33,6 +33,13 @@ Stakes: ${manuscriptInfo.stakes || 'Not specified'}
 Setting: ${manuscriptInfo.setting || 'Not specified'}
 Unique Hook: ${manuscriptInfo.uniqueHook || 'Not specified'}
 
+CRITICAL ACCURACY RULES:
+1. Use ONLY the information provided above - do NOT invent plot details
+2. If logline/protagonist info indicates specific POV or narrative structure, preserve it exactly
+3. Do NOT reverse protagonist/antagonist relationships
+4. Do NOT substitute generic stakes (e.g., "human trafficking") for specific manuscript details
+5. Honor the manuscript's actual setting and conflict (e.g., "meth camp" not "trafficking ring")
+
 Create these pitch variations:
 1. One-Sentence Specific (agent submissions)
 2. One-Sentence General (networking)
@@ -63,6 +70,13 @@ Title: ${manuscriptInfo.title}
 Genre: ${manuscriptInfo.genre || 'Not specified'}
 Logline: ${manuscriptInfo.logline}
 Key Details: ${manuscriptInfo.keyThemes || ''} ${manuscriptInfo.protagonist || ''} ${manuscriptInfo.stakes || ''}
+
+CRITICAL ACCURACY RULES:
+1. Use ONLY the provided information - do NOT invent plot structure
+2. If logline indicates specific POV (e.g., "Canadian abducted"), preserve that POV - do NOT flip to another character
+3. Do NOT reverse protagonist/supporting character roles
+4. Honor manuscript's actual setting/conflict (e.g., specific location, specific threat type)
+5. If multiple characters, identify the NARRATOR/PRIMARY POV from the logline
 
 CRITICAL SYNOPSIS RULES (ALL LENGTHS):
 - Present tense, third person
@@ -122,11 +136,17 @@ Logline: ${manuscriptInfo.logline}
 Author Name (USE EXACTLY): ${manuscriptInfo.authorName || user.full_name || '[Author Name]'}
 Author Bio: ${manuscriptInfo.authorBio || 'No bio provided'}
 
+CRITICAL ACCURACY RULES:
+1. Use ONLY the logline provided - do NOT invent alternative plot structure
+2. If logline indicates specific POV, preserve it - do NOT switch to another character's perspective
+3. Honor manuscript's actual setting/stakes from the logline
+4. Do NOT genericize specific details (e.g., keep "meth camp" not "trafficking ring")
+
 CRITICAL FORMAT REQUIREMENTS:
 1. EMAIL/QueryManager format ONLY - NO postal address blocks
 2. Start with: "Dear [Agent Name]," (personalization placeholder)
 3. Opening hook (1-2 sentences about the book)
-4. Story pitch (1 compact paragraph)
+4. Story pitch (1 compact paragraph) - MUST match logline's POV and plot structure
 5. Author credentials (1-2 sentences, ONLY if bio provided, else omit)
 6. REQUIRED CLOSING: "Full manuscript available. ${manuscriptInfo.wordCount || '[Word Count]'} words. Comp titles: [comparable title] meets [comparable title]. May I send you the full manuscript?"
 7. Sign with EXACT author name: ${manuscriptInfo.authorName || user.full_name || '[Author Name]'}
