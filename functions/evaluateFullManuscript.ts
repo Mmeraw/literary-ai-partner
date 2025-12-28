@@ -360,33 +360,62 @@ Deno.serve(async (req) => {
                 }
             });
 
-            // WAVE Revision System evaluation
+            // WAVE Revision System evaluation (61+ waves, three-tier framework)
             const waveAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
-                prompt: `You are an elite developmental editor applying the WAVE Revision System. Scan this chapter for line-level craft issues across these categories:
+                prompt: `You are an elite developmental editor applying the complete WAVE Revision System (61+ waves organized in three tiers).
 
-            WAVE CHECKS:
-            - Sentence Craft: varied length/structure, rhythm, clarity, passive voice, weak verbs
-            - Sensory Details: show vs tell, concrete imagery, sensory balance
-            - Dialogue: subtext, tags vs beats, realism, character voice distinction
-            - Scene Momentum: micro-pacing, tension beats, scene structure
-            - Character Interiority: thought patterns, emotional specificity, POV consistency
-            - Pacing Flow: paragraph variety, transition smoothness, info dumping
-            - Technical Precision: grammar, punctuation, word choice, repetition patterns
+            WAVE SYSTEM FRAMEWORK:
+            **EARLY WAVES (Structural Truth):** POV integrity, stakes clarity, character consistency, cause-effect logic
+            **MID WAVES (Momentum & Meaning):** Specificity, scene mechanics, dialogue purpose, choreography compression, emotional escalation
+            **LATE WAVES (Authority & Polish):** Body-part clichés, filter verbs, motif discipline, reflexive redundancy, submission readiness
 
-            CRITICAL WAVE 61 RULE - Reflexive Pronouns & Redundancy:
+            SCAN THIS CHAPTER across all three tiers:
+
+            EARLY TIER CHECKS:
+            - POV Honesty (Wave 2): No mind-reading, observable proof only
+            - Concrete Stakes (Wave 17): What's at risk if this fails?
+            - Character Consistency (Wave 36): Voice logic maintained?
+
+            MID TIER CHECKS:
+            - Generic Nouns (Wave 3): Replace "room," "thing," "place" with lived specificity
+            - Filter Verbs (Wave 4): Remove "I saw/felt/heard" distance
+            - Adverb Diet (Wave 5): Weak verbs propped up by adverbs?
+            - Active Voice (Wave 6): Restore agency, name actors
+            - Negation Discipline (Wave 7): Say what happened, not what didn't
+            - Micro-Location Economy (Wave 12): 1 body + 1 system, then exit
+            - Dialogue Tags (Wave 13): Over-attribution bloat?
+            - Dialogue Under Pressure (Wave 14): Speech roughens under stress
+            - Choreography Compression (Wave 21): Show only steps where failure is possible
+            - Sentence Start Variety (Wave 23): Fix pronoun stacking
+
+            LATE TIER CHECKS:
+            - Body-Part Clichés (Wave 1): Jaw/chest/eyes that don't change action
+            - Abstract Triples (Wave 8): Two beats sharpen, three soften
+            - Motif Hygiene (Wave 9): Spotlight once per section
+            - Duplicate Brilliance (Wave 10): Echoed insights
+            - Theme After Shown (Wave 11): Trust subtext, don't declare
+            - On-the-Nose Explanations (Wave 15): Cut "because," "which meant"
+            - Metaphor Freshness (Wave 25): Dead phrases signal autopilot
+            - Cliché Alarm (Wave 26): AI-adjacent tells
+            - Rhythm Balance (Wave 27): Vary sentence length intentionally
+            - Paragraph Endings (Wave 28): End on proof or cut
+            - Ending Trust (Wave 54): No explaining the last beat
+            - Reader Trust (Wave 55): Remove hand-holding
+
+            **WAVE 61 GATING RULE (CRITICAL):**
             - Reflexives (himself/herself/themselves) are NOT automatically bad
-            - Only flag when they add no narrative function AND weaken the sentence
+            - Only flag when they add NO narrative function AND weaken the sentence
             - KEEP reflexives that serve: embodiment, intimacy, agency reinforcement, character voice, psychological cohesion
-            - Same rule applies to: "own", "just", "as if", "like" (as filler), redundant "them"
-            - If reflexive/hedge strengthens voice or serves narrative purpose → DO NOT FLAG IT
+            - Same rule for: "own", "just", "as if", "like" (as filler), redundant "them"
+            - If construction strengthens voice or serves narrative purpose → DO NOT FLAG IT
 
             CHAPTER: ${chapter.title}
 
             TEXT:
             ${chapter.text}
 
-            For each WAVE issue found, provide: category, severity (Low/Medium/High), description, example_quote (actual text), fix_suggestion.
-            IMPORTANT: For reflexives/"as if" constructions, only flag if they are truly redundant and serve NO narrative/voice function.
+            For each WAVE issue found, provide: category (cite wave number), severity (Low/Medium/High), description, example_quote (actual text), fix_suggestion.
+            IMPORTANT: Apply the two-stage pipeline: detect patterns, then validate through WAVE context. Only flag issues that genuinely weaken the manuscript.
             Provide: waveScore (1-10), criticalIssues (array), strengthAreas (array).`,
                 response_json_schema: {
                     type: "object",

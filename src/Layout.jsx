@@ -197,7 +197,7 @@ export default function Layout({ children, currentPageName }) {
                 <div className="max-w-7xl mx-auto px-6">
                     <div className="text-center space-y-4">
                         <p className="text-sm text-slate-500">
-                            Powered by the WAVE Revision System • 12 Story Evaluation Criteria • 60+ Wave Revision Items
+                            Powered by the WAVE Revision System (61+ Waves) • 12 Story Evaluation Criteria • Professional Editorial Standards
                         </p>
                         <div className="px-6 py-4 rounded-lg bg-slate-50 border border-slate-200 max-w-3xl mx-auto mb-4">
                             <p className="text-sm text-slate-600">
