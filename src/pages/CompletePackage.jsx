@@ -199,7 +199,8 @@ ${packageData.queryLetter}
                     <div className="lg:col-span-2 space-y-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Manuscript Information</CardTitle>
+                                <CardTitle>Project Information</CardTitle>
+                                <p className="text-sm text-slate-600 mt-1">For manuscripts, screenplays, or any complete work</p>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {/* Load from Manuscript */}
@@ -214,7 +215,7 @@ ${packageData.queryLetter}
                                     <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200">
                                         <div className="flex items-center gap-2 mb-3">
                                             <BookOpen className="w-4 h-4 text-indigo-600" />
-                                            <span className="text-sm font-semibold text-slate-800">Load from Manuscript</span>
+                                            <span className="text-sm font-semibold text-slate-800">Load from Existing Project</span>
                                         </div>
                                         <Select 
                                             value={selectedManuscriptId} 
@@ -225,7 +226,7 @@ ${packageData.queryLetter}
                                             disabled={loadingManuscript}
                                         >
                                             <SelectTrigger>
-                                                <SelectValue placeholder="Select a manuscript to auto-populate all fields" />
+                                                <SelectValue placeholder="Select a project to auto-populate all fields" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {manuscripts.map((manuscript) => (
@@ -239,7 +240,7 @@ ${packageData.queryLetter}
                                 ) : (
                                     <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
                                         <p className="text-sm text-slate-700 mb-2">
-                                            No manuscripts found. <Link to={createPageUrl('UploadManuscript')} className="text-indigo-600 hover:underline font-medium">Upload a manuscript</Link> to auto-fill these fields.
+                                            No projects found. <Link to={createPageUrl('UploadManuscript')} className="text-indigo-600 hover:underline font-medium">Upload your work</Link> to auto-fill these fields.
                                         </p>
                                     </div>
                                 )}
@@ -279,7 +280,7 @@ ${packageData.queryLetter}
 
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                                        Current Logline/Pitch *
+                                        Logline/Pitch *
                                     </label>
                                     <Textarea
                                         value={manuscriptInfo.logline}
