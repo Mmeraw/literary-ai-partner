@@ -12,6 +12,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
 import { Link } from 'react-router-dom';
+import { StarRating, CanonAccuracyCheck } from '@/components/FeedbackWidget';
 
 export default function CompletePackage() {
     const [manuscriptInfo, setManuscriptInfo] = useState({
@@ -170,6 +171,18 @@ export default function CompletePackage() {
 
                 setPackageData(response.data.package);
 
+                // Track behavioral signal - successful generation
+                try {
+                    await base44.entities.Analytics.create({
+                        page: 'CompletePackage',
+                        path: '/complete-package/generated',
+                        event_type: 'package_generated',
+                        metadata: { has_placeholders: hasPlaceholders }
+                    });
+                } catch (e) {
+                    console.error('Analytics error:', e);
+                }
+
                 if (hasPlaceholders) {
                     toast.warning(
                         <div>
@@ -192,13 +205,36 @@ export default function CompletePackage() {
         }
     };
 
-    const copyToClipboard = (text, label) => {
+    const copyToClipboard = async (text, label) => {
         navigator.clipboard.writeText(text);
         toast.success(`${label} copied to clipboard!`);
+        
+        // Track behavioral signal - user accepted output
+        try {
+            await base44.entities.Analytics.create({
+                page: 'CompletePackage',
+                path: '/complete-package/copy',
+                event_type: 'content_copied',
+                metadata: { content_type: label }
+            });
+        } catch (e) {
+            console.error('Analytics error:', e);
+        }
     };
 
-    const downloadAll = () => {
+    const downloadAll = async () => {
         if (!packageData) return;
+        
+        // Track behavioral signal - user downloaded package
+        try {
+            await base44.entities.Analytics.create({
+                page: 'CompletePackage',
+                path: '/complete-package/download',
+                event_type: 'package_downloaded'
+            });
+        } catch (e) {
+            console.error('Analytics error:', e);
+        }
         
         const content = `
 COMPLETE SUBMISSION PACKAGE

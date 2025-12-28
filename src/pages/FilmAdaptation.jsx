@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import { StarRating, ThumbsFeedback, CanonAccuracyCheck } from '@/components/FeedbackWidget';
 
 const pdfExamples = [
     {
@@ -99,6 +100,18 @@ export default function FilmAdaptation() {
                 setPitchDeck(response.data.pitchDeck);
                 toast.success('Film pitch deck generated!');
                 setShowUploadForm(false);
+
+                // Track behavioral signal
+                try {
+                    await base44.entities.Analytics.create({
+                        page: 'FilmAdaptation',
+                        path: '/film-adaptation/generated',
+                        event_type: 'pitch_deck_generated',
+                        metadata: { viability_score: response.data.pitchDeck.screenViabilityScore }
+                    });
+                } catch (e) {
+                    console.error('Analytics error:', e);
+                }
             } else {
                 toast.error(response.data.error || 'Failed to generate pitch deck');
             }
@@ -110,8 +123,19 @@ export default function FilmAdaptation() {
         }
     };
 
-    const downloadPitchDeck = () => {
+    const downloadPitchDeck = async () => {
         if (!pitchDeck) return;
+
+        // Track behavioral signal
+        try {
+            await base44.entities.Analytics.create({
+                page: 'FilmAdaptation',
+                path: '/film-adaptation/download',
+                event_type: 'pitch_deck_downloaded'
+            });
+        } catch (e) {
+            console.error('Analytics error:', e);
+        }
 
         let content = `FILM ADAPTATION PITCH DECK\n${manuscriptData.title}\n\n`;
         content += `SCREEN VIABILITY SCORE: ${pitchDeck.screenViabilityScore}/100\n\n`;
@@ -332,17 +356,67 @@ export default function FilmAdaptation() {
                             <div className="space-y-6">
                                 {pitchDeck.slides.map((slide, idx) => (
                                     <div key={idx} className="p-6 rounded-lg bg-white border border-slate-200">
-                                        <div className="flex items-center gap-3 mb-3">
-                                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-sm">
-                                                {slide.slideNumber}
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-sm">
+                                                    {slide.slideNumber}
+                                                </div>
+                                                <h3 className="text-lg font-bold text-slate-900">{slide.title}</h3>
                                             </div>
-                                            <h3 className="text-lg font-bold text-slate-900">{slide.title}</h3>
+                                            <ThumbsFeedback
+                                                label=""
+                                                onFeedback={async (feedback) => {
+                                                    try {
+                                                        await base44.entities.Analytics.create({
+                                                            page: 'FilmAdaptation',
+                                                            path: '/film-adaptation/slide-feedback',
+                                                            event_type: 'slide_feedback',
+                                                            metadata: { slide_number: slide.slideNumber, feedback }
+                                                        });
+                                                    } catch (e) {
+                                                        console.error('Analytics error:', e);
+                                                    }
+                                                }}
+                                            />
                                         </div>
                                         <div className="text-slate-700 leading-relaxed whitespace-pre-wrap">
                                             {slide.content}
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+
+                            {/* Overall Feedback */}
+                            <div className="mt-8 pt-6 border-t border-slate-200 space-y-4">
+                                <StarRating
+                                    label="Rate this pitch deck"
+                                    onRate={async (rating) => {
+                                        try {
+                                            await base44.entities.Analytics.create({
+                                                page: 'FilmAdaptation',
+                                                path: '/film-adaptation/rating',
+                                                event_type: 'deck_rating',
+                                                metadata: { rating, viability_score: pitchDeck.screenViabilityScore }
+                                            });
+                                        } catch (e) {
+                                            console.error('Analytics error:', e);
+                                        }
+                                    }}
+                                />
+                                <CanonAccuracyCheck
+                                    onReport={async () => {
+                                        try {
+                                            await base44.entities.Analytics.create({
+                                                page: 'FilmAdaptation',
+                                                path: '/film-adaptation/report',
+                                                event_type: 'canon_violation_reported',
+                                                metadata: { viability_score: pitchDeck.screenViabilityScore }
+                                            });
+                                        } catch (e) {
+                                            console.error('Analytics error:', e);
+                                        }
+                                    }}
+                                />
                             </div>
                         </CardContent>
                     </Card>
