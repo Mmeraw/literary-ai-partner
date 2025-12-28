@@ -33,8 +33,8 @@ Deno.serve(async (req) => {
             hybrid: "Balanced approach allowing controlled style variation within structural standards."
         };
 
-        // Timeout wrapper (2 minutes max)
-        const withTimeout = (promise, timeoutMs = 120000, label = 'Operation') => {
+        // Timeout wrapper (90 seconds max per call to stay under function timeout)
+        const withTimeout = (promise, timeoutMs = 90000, label = 'Operation') => {
             return Promise.race([
                 promise,
                 new Promise((_, reject) => 
@@ -117,7 +117,7 @@ Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revi
                     required: ["overallScore", "agentVerdict", "criteria", "revisionRequests"]
                 }
             }),
-            120000,
+            90000,
             'Agent Analysis'
         );
 
@@ -145,7 +145,7 @@ Provide:
                     required: ["keep_reading", "biggest_risk", "biggest_strength", "most_leverage_fix"]
                 }
             }),
-            120000,
+            90000,
             'Agent Snapshot'
         );
 
@@ -223,7 +223,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                     required: ["waveHits", "waveGuidance"]
                 }
             }),
-            120000,
+            90000,
             'Wave Analysis'
         );
 

@@ -99,12 +99,17 @@ export default function Evaluate() {
         setError(null);
 
         try {
-            // Call backend function for evaluation
-            const response = await base44.functions.invoke('evaluateQuickSubmission', {
-                title,
-                text,
-                styleMode
-            });
+            // Call backend function for evaluation (with extended timeout)
+            const response = await Promise.race([
+                base44.functions.invoke('evaluateQuickSubmission', {
+                    title,
+                    text,
+                    styleMode
+                }),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Evaluation timeout - please try with a shorter excerpt')), 300000) // 5 min timeout
+                )
+            ]);
 
             if (!response.data.success) {
                 throw new Error(response.data.error || 'Evaluation failed');
@@ -122,8 +127,6 @@ export default function Evaluate() {
 
         } catch (error) {
             console.error('Evaluation error:', error);
-            console.error('Full error object:', JSON.stringify(error, null, 2));
-            console.error('Response data:', error.response?.data);
             
             // Check if it's a timeout error
             if (error.response?.status === 408 || error.message?.includes('timeout')) {
@@ -136,7 +139,7 @@ export default function Evaluate() {
             }
             
             setIsProcessing(false);
-            // Don't reset to step 1 - stay on step 2 showing error
+            // Stay on step 2 to show error, not reset to step 1
         }
     };
 
