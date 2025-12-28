@@ -121,13 +121,13 @@ export default function Layout({ children, currentPageName }) {
                             {/* Mobile menu button */}
                             <Button
                                 variant="ghost"
-                                className="md:hidden h-12 w-12"
+                                className="md:hidden h-16 w-16 p-4"
                                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                             >
                                 {mobileMenuOpen ? (
-                                    <X className="w-7 h-7" />
+                                    <X className="w-10 h-10" />
                                 ) : (
-                                    <Menu className="w-7 h-7" />
+                                    <Menu className="w-10 h-10" />
                                 )}
                             </Button>
                         </div>
