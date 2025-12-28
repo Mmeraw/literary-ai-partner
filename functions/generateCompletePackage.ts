@@ -40,14 +40,14 @@ CRITICAL ACCURACY RULES:
 4. Do NOT substitute generic stakes (e.g., "human trafficking") for specific manuscript details
 5. Honor the manuscript's actual setting and conflict (e.g., "meth camp" not "trafficking ring")
 
-THRILLER INTIMACY GUARDRAIL - Relationship Classification:
-- If genre is thriller/suspense AND manuscript includes committed relationships:
-  * Treat as EMOTIONAL ANCHOR, not romantic subplot
-  * Use "partners (X years)" or "bond tested under fire" - NOT "lover/love interest"
-  * If NO explicit sexual/romantic scenes mentioned: frame as "intimacy without spectacle" or "loyalty under duress"
-  * Focus on SURVIVAL STAKES + relationship resilience, not romance plot
-- Romance genre framing ONLY if manuscript explicitly centers romantic relationship development
-- Presence of emotional intimacy ≠ romance classification
+CANON LOCK - Relationship Extraction (HARD RULE):
+- Extract relationship type ONLY from manuscript facts - NEVER infer romantic framing
+- BANNED TERMS unless manuscript explicitly depicts romance: "lover", "love of his life", "romantic relationship", "love story"
+- REQUIRED TERMS for non-romantic bonds: "partner", "bond tested", "loyalty", "brotherhood", "family by choice"
+- If manuscript shows: Grindr meet → mentorship → survival bond = "partnership forged under duress" NOT romance
+- Genre classification: Meth camp survival = "psychological survival thriller" NOT "LGBTQ romance"
+- VALIDATION CHECK: If output contains "lover/romantic" → REJECT unless manuscript shows explicit romantic development
+- Emotional intimacy + shared trauma = LOYALTY/BROTHERHOOD, not romance (default assumption)
 
 Create these pitch variations:
 1. One-Sentence Specific (agent submissions)
@@ -87,14 +87,14 @@ CRITICAL ACCURACY RULES:
 4. Honor manuscript's actual setting/conflict (e.g., specific location, specific threat type)
 5. If multiple characters, identify the NARRATOR/PRIMARY POV from the logline
 
-THRILLER INTIMACY GUARDRAIL - Relationship Handling:
-- For thriller/suspense manuscripts with committed relationships:
-  * Frame as EMOTIONAL ANCHOR under pressure, not romantic subplot
-  * Use "partners" or "bond forged under duress" - avoid "romantic relationship" framing
-  * If no explicit sexual/romantic content: treat as "restrained intimacy" or "loyalty tested"
-  * Prioritize: (1) Survival stakes, (2) Relationship as resilience factor, (3) NO romance-genre tropes
-- Do NOT infer romance genre from emotional intensity alone
-- Devotion + shared trauma ≠ romance classification unless manuscript explicitly depicts romantic/sexual relationship development
+CANON LOCK - Relationship Framing (HARD RULE):
+- Extract relationship description ONLY from source text - NO romantic inference
+- BANNED: "lover", "love interest", "romantic subplot", "save the love of his life"
+- REQUIRED: "partner", "bond", "loyalty tested", "brotherhood", "family forged through survival"
+- DEFAULT ASSUMPTION for thrillers: Deep bonds = LOYALTY/BROTHERHOOD unless manuscript explicitly depicts romantic/sexual relationship arc
+- Survival context (e.g., meth camp, cartel captivity) = frame as "partners tested under fire" NOT romance
+- VALIDATION: Flag any "romance" language → verify manuscript evidence → if absent, use "loyalty/brotherhood" framing
+- Genre priority: (1) Survival/thriller stakes, (2) Bond as emotional anchor, (3) NO romance tropes
 
 CRITICAL SYNOPSIS RULES (ALL LENGTHS):
 - Present tense, third person
@@ -160,13 +160,14 @@ CRITICAL ACCURACY RULES:
 3. Honor manuscript's actual setting/stakes from the logline
 4. Do NOT genericize specific details (e.g., keep "meth camp" not "trafficking ring")
 
-THRILLER INTIMACY GUARDRAIL - Query Letter Framing:
-- For thriller manuscripts with intimate relationships:
-  * Pitch as thriller with "emotional stakes" or "bond tested" - NOT "love story" or "romantic thriller"
-  * Use "partner" or "committed relationship" - avoid "lover/love interest" unless manuscript is explicitly romantic
-  * If no sexual/romantic scenes described: frame as "loyalty" or "intimacy under fire"
-  * Query comp strategy: thriller comps + "emotional depth," NOT romance crossover
-- Emotional closeness does NOT equal romance genre unless manuscript centers romantic relationship arc
+CANON LOCK - Query Letter (HARD RULE):
+- BANNED TERMS: "lover", "love of his life", "romantic thriller", "love story"
+- REQUIRED TERMS: "partner", "bond tested", "loyalty under fire", "brotherhood forged"
+- Genre positioning: "Psychological survival thriller" (meth camp/cartel setting) NOT "LGBTQ romance"
+- Comp strategy: THE CARTEL + SICARIO (thriller comps) NOT romance crossover
+- Relationship framing: "partnership tested by survival" or "family by choice under duress"
+- DEFAULT: If no explicit romance in manuscript → frame as thriller with emotional stakes, NEVER as romance
+- VALIDATION: Any "romance" framing must be justified by manuscript showing romantic/sexual relationship development
 
 CRITICAL FORMAT REQUIREMENTS:
 1. EMAIL/QueryManager format ONLY - NO postal address blocks
