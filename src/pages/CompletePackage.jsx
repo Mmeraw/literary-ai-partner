@@ -33,6 +33,7 @@ export default function CompletePackage() {
     const [packageData, setPackageData] = useState(null);
     const [selectedManuscriptId, setSelectedManuscriptId] = useState('');
     const [loadingManuscript, setLoadingManuscript] = useState(false);
+    const [loadingBio, setLoadingBio] = useState(false);
 
     // Fetch user's manuscripts
     const { data: manuscripts = [], isLoading: manuscriptsLoading } = useQuery({
@@ -101,6 +102,35 @@ export default function CompletePackage() {
             toast.error('Failed to analyze manuscript. Please fill fields manually.');
         } finally {
             setLoadingManuscript(false);
+        }
+    };
+
+    const handleCVUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setLoadingBio(true);
+        try {
+            const { data: uploadResult } = await base44.functions.invoke('uploadAndGenerateBio', {
+                file
+            });
+
+            if (uploadResult.success) {
+                setManuscriptInfo(prev => ({ 
+                    ...prev, 
+                    authorBio: uploadResult.bio,
+                    authorName: uploadResult.authorName || prev.authorName
+                }));
+                toast.success('Bio generated from CV!');
+            } else {
+                toast.error('Failed to generate bio from CV');
+            }
+        } catch (error) {
+            console.error('CV upload error:', error);
+            toast.error('Failed to process CV');
+        } finally {
+            setLoadingBio(false);
+            e.target.value = '';
         }
     };
 
@@ -381,9 +411,44 @@ ${packageData.queryLetter}
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                                        Author Background
-                                    </label>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="block text-sm font-medium text-slate-700">
+                                            Author Background
+                                        </label>
+                                        <div>
+                                            <input
+                                                type="file"
+                                                accept=".pdf,.doc,.docx,.txt"
+                                                onChange={handleCVUpload}
+                                                className="hidden"
+                                                id="cv-upload"
+                                                disabled={loadingBio}
+                                            />
+                                            <label htmlFor="cv-upload">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={loadingBio}
+                                                    asChild
+                                                >
+                                                    <span className="cursor-pointer">
+                                                        {loadingBio ? (
+                                                            <>
+                                                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                                                Generating...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Upload className="w-3 h-3 mr-1" />
+                                                                Load CV or Resume
+                                                            </>
+                                                        )}
+                                                    </span>
+                                                </Button>
+                                            </label>
+                                        </div>
+                                    </div>
                                     <Textarea
                                         value={manuscriptInfo.authorBio}
                                         onChange={(e) => setManuscriptInfo({...manuscriptInfo, authorBio: e.target.value})}
