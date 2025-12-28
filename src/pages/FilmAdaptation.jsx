@@ -30,7 +30,7 @@ const pdfExamples = [
 
 const features = [
     { icon: FileText, title: 'Literary Agent Package', desc: 'Queries + Synopses auto-generated' },
-    { icon: Film, title: '12-Slide Producer Pitch Deck', desc: 'PPTX export, production-ready' },
+    { icon: Film, title: '12-Slide Pitch Content', desc: 'Structured text ready for your template' },
     { icon: TrendingUp, title: 'Screen Viability Score', desc: '0-100 calibrated rating' },
     { icon: Target, title: '5-Part Mythic Structure', desc: 'Validated against canon' },
     { icon: Sparkles, title: 'Del Toro-Level Tone', desc: 'Enforced across all outputs' }
@@ -251,7 +251,7 @@ export default function FilmAdaptation() {
                             </div>
                             <div className="flex items-start gap-2">
                                 <Check className="w-5 h-5 text-emerald-600 mt-0.5" />
-                                <span className="text-sm text-slate-700 font-semibold">Film Pitch Deck (PPTX)</span>
+                                <span className="text-sm text-slate-700 font-semibold">Film Pitch Content (text)</span>
                             </div>
                             <div className="flex items-start gap-2">
                                 <Check className="w-5 h-5 text-emerald-600 mt-0.5" />
@@ -341,7 +341,7 @@ export default function FilmAdaptation() {
                     {[
                         { step: '1', title: 'Upload', desc: 'Submit your completed screenplay or manuscript' },
                         { step: '2', title: 'Generate', desc: 'AI translates to agent queries + producer pitch deck' },
-                        { step: '3', title: 'Export', desc: 'Download production-ready PPTX + query materials' }
+                        { step: '3', title: 'Export', desc: 'Download structured content + query materials for your template' }
                     ].map((item, idx) => (
                         <div key={idx} className="text-center">
                             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-600 text-white font-bold text-lg mb-4">
