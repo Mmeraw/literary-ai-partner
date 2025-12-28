@@ -496,8 +496,8 @@ ${packageData.queryLetter}
                                 <div className="flex items-start gap-2">
                                     <Film className="w-4 h-4 text-purple-600 mt-0.5" />
                                     <div>
-                                        <span className="font-semibold text-slate-800">Film Pitch Deck (Pro):</span>
-                                        <p className="text-slate-600">12-slide PPTX, producer-ready</p>
+                                        <span className="font-semibold text-slate-800">Film Pitch Content (Pro):</span>
+                                        <p className="text-slate-600">12-slide structured text—ready for your design template</p>
                                     </div>
                                 </div>
                             </CardContent>

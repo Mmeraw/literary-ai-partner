@@ -3,6 +3,7 @@ import Biography from './pages/Biography';
 import ChapterReport from './pages/ChapterReport';
 import Comparables from './pages/Comparables';
 import ComparativeReport from './pages/ComparativeReport';
+import CompletePackage from './pages/CompletePackage';
 import Contact from './pages/Contact';
 import Criteria from './pages/Criteria';
 import Dashboard from './pages/Dashboard';
@@ -10,6 +11,7 @@ import Enterprise from './pages/Enterprise';
 import Evaluate from './pages/Evaluate';
 import EvaluateChapter from './pages/EvaluateChapter';
 import FAQ from './pages/FAQ';
+import FilmAdaptation from './pages/FilmAdaptation';
 import FindAgents from './pages/FindAgents';
 import ForProfessionals from './pages/ForProfessionals';
 import History from './pages/History';
@@ -18,6 +20,7 @@ import ManuscriptDashboard from './pages/ManuscriptDashboard';
 import Methodology from './pages/Methodology';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PitchBuilder from './pages/PitchBuilder';
+import PitchGenerator from './pages/PitchGenerator';
 import Pricing from './pages/Pricing';
 import Privacy from './pages/Privacy';
 import Progress from './pages/Progress';
@@ -33,9 +36,6 @@ import UploadManuscript from './pages/UploadManuscript';
 import UploadWork from './pages/UploadWork';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
-import PitchGenerator from './pages/PitchGenerator';
-import FilmAdaptation from './pages/FilmAdaptation';
-import CompletePackage from './pages/CompletePackage';
 import __Layout from './Layout.jsx';
 
 
@@ -45,6 +45,7 @@ export const PAGES = {
     "ChapterReport": ChapterReport,
     "Comparables": Comparables,
     "ComparativeReport": ComparativeReport,
+    "CompletePackage": CompletePackage,
     "Contact": Contact,
     "Criteria": Criteria,
     "Dashboard": Dashboard,
@@ -52,6 +53,7 @@ export const PAGES = {
     "Evaluate": Evaluate,
     "EvaluateChapter": EvaluateChapter,
     "FAQ": FAQ,
+    "FilmAdaptation": FilmAdaptation,
     "FindAgents": FindAgents,
     "ForProfessionals": ForProfessionals,
     "History": History,
@@ -60,6 +62,7 @@ export const PAGES = {
     "Methodology": Methodology,
     "PaymentSuccess": PaymentSuccess,
     "PitchBuilder": PitchBuilder,
+    "PitchGenerator": PitchGenerator,
     "Pricing": Pricing,
     "Privacy": Privacy,
     "Progress": Progress,
@@ -75,9 +78,6 @@ export const PAGES = {
     "UploadWork": UploadWork,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
-    "PitchGenerator": PitchGenerator,
-    "FilmAdaptation": FilmAdaptation,
-    "CompletePackage": CompletePackage,
 }
 
 export const pagesConfig = {

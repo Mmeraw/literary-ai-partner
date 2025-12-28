@@ -71,11 +71,11 @@ export default function FilmAdaptation() {
                     </p>
                     
                     <p className="text-2xl text-white font-semibold max-w-3xl mx-auto mb-3">
-                        Upload Your Complete Work → Download Agent + Producer Decks
+                        Upload Your Complete Work → Get Complete Pitch Content
                     </p>
                     
                     <p className="text-base text-slate-300 max-w-2xl mx-auto mb-10">
-                        Canon Validated. Production-Ready.
+                        All text, structure, and slide content—ready for your designer or template
                     </p>
 
                     <Link to={createPageUrl('Pricing')}>
@@ -358,13 +358,16 @@ export default function FilmAdaptation() {
             <div className="bg-gradient-to-r from-indigo-600 to-purple-600 py-12">
                 <div className="max-w-4xl mx-auto px-6 text-center">
                     <h2 className="text-3xl font-bold text-white mb-6">
-                        Upload Manuscript → Get Dual Packages
+                        Upload Manuscript → Get Complete Pitch Content
                     </h2>
                     <p className="text-lg text-indigo-100 mb-4">
-                        Agent-Ready Materials + Hollywood Pitch Deck in One Workflow
+                        Agent-Ready Materials + Structured Film Pitch Content
                     </p>
-                    <p className="text-sm text-indigo-200 mb-8">
-                        Powered by FILM_PITCH_MASTER_v2.0 • Canon Validated Outputs
+                    <p className="text-sm text-indigo-200 mb-4">
+                        Powered by FILM_PITCH_MASTER_v2.0 • Canon Validated Text
+                    </p>
+                    <p className="text-xs text-indigo-300 mb-8">
+                        Note: Generates structured content—add custom illustrations using your designer or template
                     </p>
                     <Link to={createPageUrl('Pricing')}>
                         <Button 
