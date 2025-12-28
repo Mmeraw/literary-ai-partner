@@ -59,16 +59,20 @@ export default function FilmAdaptation() {
                         From Manuscript to Hollywood Pitch Deck
                     </h1>
                     
+                    <p className="text-lg text-indigo-200 max-w-3xl mx-auto mb-6 font-medium tracking-wide">
+                        Manuscript Evaluation → Agent Ready™ → Revise → Pitch → Query
+                    </p>
+                    
                     <p className="text-xl text-slate-300 max-w-3xl mx-auto mb-4">
                         One Tool. One Subscription.
                     </p>
                     
-                    <p className="text-2xl text-white font-semibold max-w-3xl mx-auto mb-8">
+                    <p className="text-2xl text-white font-semibold max-w-3xl mx-auto mb-3">
                         Upload Your Complete Work → Download Agent + Producer Decks
                     </p>
                     
-                    <p className="text-lg text-slate-300 max-w-2xl mx-auto mb-10">
-                        Canon Validated. Production-Ready. No App-Switching.
+                    <p className="text-base text-slate-300 max-w-2xl mx-auto mb-10">
+                        Canon Validated. Production-Ready.
                     </p>
 
                     <Link to={createPageUrl('Pricing')}>
@@ -124,6 +128,33 @@ export default function FilmAdaptation() {
                             </CardContent>
                         </Card>
                     ))}
+                </div>
+            </div>
+
+            {/* Pipeline Visual */}
+            <div className="bg-white py-12 border-b border-slate-200">
+                <div className="max-w-5xl mx-auto px-6">
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6">
+                        <div className="text-center px-6 py-4 rounded-xl bg-indigo-50 border border-indigo-200">
+                            <BookOpen className="w-8 h-8 text-indigo-600 mx-auto mb-2" />
+                            <div className="font-bold text-slate-900">Manuscript</div>
+                        </div>
+                        <ArrowRight className="w-6 h-6 text-slate-400 rotate-90 md:rotate-0" />
+                        <div className="text-center px-6 py-4 rounded-xl bg-purple-50 border border-purple-200">
+                            <FileText className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+                            <div className="font-bold text-slate-900">Agent Package</div>
+                        </div>
+                        <ArrowRight className="w-6 h-6 text-slate-400 rotate-90 md:rotate-0" />
+                        <div className="text-center px-6 py-4 rounded-xl bg-pink-50 border border-pink-200">
+                            <Film className="w-8 h-8 text-pink-600 mx-auto mb-2" />
+                            <div className="font-bold text-slate-900">Film Deck</div>
+                        </div>
+                        <ArrowRight className="w-6 h-6 text-slate-400 rotate-90 md:rotate-0" />
+                        <div className="text-center px-6 py-4 rounded-xl bg-emerald-50 border border-emerald-200">
+                            <Sparkles className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+                            <div className="font-bold text-slate-900">Hollywood</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -324,8 +355,11 @@ export default function FilmAdaptation() {
             <div className="bg-gradient-to-r from-indigo-600 to-purple-600 py-12">
                 <div className="max-w-4xl mx-auto px-6 text-center">
                     <h2 className="text-3xl font-bold text-white mb-6">
-                        Ready to Translate Your Manuscript?
+                        Upload Manuscript → Get Dual Packages
                     </h2>
+                    <p className="text-lg text-indigo-100 mb-8">
+                        Agent-Ready Materials + Hollywood Pitch Deck in One Workflow
+                    </p>
                     <Link to={createPageUrl('Pricing')}>
                         <Button 
                             size="lg" 
