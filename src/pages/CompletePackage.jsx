@@ -32,6 +32,7 @@ export default function CompletePackage() {
     const [generating, setGenerating] = useState(false);
     const [packageData, setPackageData] = useState(null);
     const [selectedManuscriptId, setSelectedManuscriptId] = useState('');
+    const [loadingManuscript, setLoadingManuscript] = useState(false);
 
     // Fetch user's manuscripts
     const { data: manuscripts = [], isLoading: manuscriptsLoading } = useQuery({
@@ -42,22 +43,44 @@ export default function CompletePackage() {
 
 
 
-    const loadManuscript = (manuscriptId) => {
+    const loadManuscript = async (manuscriptId) => {
         const manuscript = manuscripts.find(m => m.id === manuscriptId);
         if (!manuscript) return;
 
-        setManuscriptInfo({
-            ...manuscriptInfo,
-            title: manuscript.title || '',
-            wordCount: manuscript.word_count?.toString() || '',
-            logline: manuscript.spine_evaluation?.logline || '',
-            keyThemes: manuscript.spine_evaluation?.themes?.join(', ') || '',
-            protagonist: manuscript.spine_evaluation?.protagonist || '',
-            stakes: manuscript.spine_evaluation?.stakes || '',
-            setting: manuscript.spine_evaluation?.setting || ''
-        });
-        
-        toast.success('Manuscript loaded!');
+        setLoadingManuscript(true);
+        toast.info('Analyzing manuscript and pre-filling fields...');
+
+        try {
+            const response = await base44.functions.invoke('prefillPackageFields', {
+                manuscript_id: manuscriptId
+            });
+
+            if (response.data.success) {
+                setManuscriptInfo({
+                    ...manuscriptInfo,
+                    ...response.data.fields
+                });
+                toast.success('All fields populated! Review and edit as needed.');
+            } else {
+                // Fallback to basic loading
+                setManuscriptInfo({
+                    ...manuscriptInfo,
+                    title: manuscript.title || '',
+                    wordCount: manuscript.word_count?.toString() || '',
+                    logline: manuscript.spine_evaluation?.logline || '',
+                    keyThemes: manuscript.spine_evaluation?.themes?.join(', ') || '',
+                    protagonist: manuscript.spine_evaluation?.protagonist || '',
+                    stakes: manuscript.spine_evaluation?.stakes || '',
+                    setting: manuscript.spine_evaluation?.setting || ''
+                });
+                toast.warning('Basic info loaded. Please fill in remaining fields.');
+            }
+        } catch (error) {
+            console.error('Load manuscript error:', error);
+            toast.error('Failed to analyze manuscript. Please fill fields manually.');
+        } finally {
+            setLoadingManuscript(false);
+        }
     };
 
     const generateCompletePackage = async () => {
@@ -180,10 +203,12 @@ ${packageData.queryLetter}
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {/* Load from Manuscript */}
-                                {manuscriptsLoading ? (
+                                {manuscriptsLoading || loadingManuscript ? (
                                     <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-center">
                                         <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-slate-400" />
-                                        <p className="text-sm text-slate-600">Loading your manuscripts...</p>
+                                        <p className="text-sm text-slate-600">
+                                            {loadingManuscript ? 'Analyzing manuscript and pre-filling fields...' : 'Loading your manuscripts...'}
+                                        </p>
                                     </div>
                                 ) : manuscripts.length > 0 ? (
                                     <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200">
@@ -191,12 +216,16 @@ ${packageData.queryLetter}
                                             <BookOpen className="w-4 h-4 text-indigo-600" />
                                             <span className="text-sm font-semibold text-slate-800">Load from Manuscript</span>
                                         </div>
-                                        <Select value={selectedManuscriptId} onValueChange={(value) => {
-                                            setSelectedManuscriptId(value);
-                                            loadManuscript(value);
-                                        }}>
+                                        <Select 
+                                            value={selectedManuscriptId} 
+                                            onValueChange={(value) => {
+                                                setSelectedManuscriptId(value);
+                                                loadManuscript(value);
+                                            }}
+                                            disabled={loadingManuscript}
+                                        >
                                             <SelectTrigger>
-                                                <SelectValue placeholder="Select a manuscript to auto-fill details" />
+                                                <SelectValue placeholder="Select a manuscript to auto-populate all fields" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {manuscripts.map((manuscript) => (
@@ -353,7 +382,7 @@ ${packageData.queryLetter}
 
                                 <Button
                                     onClick={generateCompletePackage}
-                                    disabled={generating || !manuscriptInfo.title || !manuscriptInfo.logline}
+                                    disabled={generating || loadingManuscript || !manuscriptInfo.title || !manuscriptInfo.logline}
                                     className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                                     size="lg"
                                 >
