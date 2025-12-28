@@ -41,34 +41,28 @@ export default function Home() {
 
                         <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
                             <span className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                                TRANSMEDIA PIPELINE:
-                            </span>
-                            <span className="block mt-2">
-                                Manuscript/Screenplay →
-                            </span>
-                            <span className="block">
-                                Published & Hollywood
+                                From Manuscript to Market-Ready IP
                             </span>
                         </h1>
 
-                        <p className="mt-4 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">
-                            Manuscript Evaluation → Agent Ready™ → Revise → Polish → Compare → Pitch → Query
+                        <p className="mt-6 text-lg sm:text-xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
+                            A complete, end-to-end system for transforming manuscripts into agent-, producer-, and studio-ready assets.
                         </p>
 
-                        <p className="mt-2 text-sm text-indigo-600 font-semibold max-w-2xl mx-auto">
-                            Dual-Layer (12 Agent Criteria + 60+ WAVE Checks)
+                        <p className="mt-4 text-base sm:text-lg text-indigo-600 font-semibold max-w-2xl mx-auto">
+                            Evaluate → Structure → Package → Pitch
                         </p>
 
-                        <p className="mt-4 text-lg sm:text-xl text-slate-900 font-semibold max-w-2xl mx-auto leading-relaxed">
-                            One System. One Workflow.
+                        <p className="mt-2 text-sm text-slate-600 max-w-2xl mx-auto">
+                            Dual-Layer Validation: 12 Agent Criteria + 60+ WAVE Checks
                         </p>
 
-                        <p className="mt-2 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">
+                        <p className="mt-6 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">
                             <strong className="text-slate-900">Upload Your Complete Work → Download Publishing + Producer Packages</strong>
                         </p>
 
-                        <p className="mt-2 text-base text-slate-600 max-w-2xl mx-auto">
-                            Canon Validated. Production-Ready. No App-Switching.
+                        <p className="mt-2 text-sm text-slate-500 max-w-2xl mx-auto">
+                            Canon Validated. Production-Ready. Transmedia-Grade Pipeline.
                         </p>
 
                         <div className="mt-6 space-y-2 flex flex-col items-center">

@@ -38,7 +38,7 @@ Create these pitch variations:
 2. One-Sentence General (networking)
 3. Conversational (2-3 sentences, <45 sec)
 4. Structured Elevator (60 sec)
-5. Hollywood Logline
+5. Hollywood Logline - MUST include time urgency/threat element (e.g., "before [threat] destroys...")
 
 IMPORTANT: Use italics for the manuscript title throughout (e.g., *${manuscriptInfo.title}*), not quotes.
 
@@ -114,7 +114,7 @@ Structure:
 1. Opening hook (1-2 sentences)
 2. Story pitch (1 paragraph using the logline)
 3. Author credentials (brief)
-4. Closing
+4. Closing - MUST include: "Full manuscript available. [word count]. Comp titles: [comparable book] meets [comparable book]."
 
 IMPORTANT: Use italics for the manuscript title (e.g., *${manuscriptInfo.title}*), not quotes.
 
