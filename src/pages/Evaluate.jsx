@@ -122,18 +122,21 @@ export default function Evaluate() {
 
         } catch (error) {
             console.error('Evaluation error:', error);
+            console.error('Full error object:', JSON.stringify(error, null, 2));
+            console.error('Response data:', error.response?.data);
             
             // Check if it's a timeout error
             if (error.response?.status === 408 || error.message?.includes('timeout')) {
                 setError('Evaluation timed out. Please try with a shorter excerpt.');
                 toast.error('Evaluation timed out. Please try with a shorter excerpt.', { duration: 6000 });
             } else {
-                setError(error.response?.data?.error || error.message || 'Failed to evaluate. Please try again.');
-                toast.error('Failed to evaluate. Please try again.');
+                const errorMsg = error.response?.data?.error || error.message || 'Failed to evaluate. Please try again.';
+                setError(errorMsg);
+                toast.error(errorMsg, { duration: 6000 });
             }
             
-            setCurrentStep(1);
             setIsProcessing(false);
+            // Don't reset to step 1 - stay on step 2 showing error
         }
     };
 
