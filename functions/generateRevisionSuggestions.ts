@@ -1,57 +1,69 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 // Wave definitions (server-side only, never exposed to client)
+// Complete 61+ WAVE System definitions
 const WAVES = {
-  1: {
-    name: "Structural Refinement",
-    focus: "POV integrity, causality, scene purpose",
-    tier: "early"
-  },
-  2: {
-    name: "Character Clarity",
-    focus: "Observable behavior over mind-reading",
-    tier: "early"
-  },
-  3: {
-    name: "Concrete Specificity",
-    focus: "Replace generic nouns with lived details",
-    tier: "mid"
-  },
-  4: {
-    name: "Perception Economy",
-    focus: "Remove filter verbs (I saw, I felt, I heard)",
-    tier: "mid"
-  },
-  5: {
-    name: "Verb Strength",
-    focus: "Reduce adverbs, strengthen verbs",
-    tier: "mid"
-  },
-  6: {
-    name: "Active Voice",
-    focus: "Restore agency, clarify actors",
-    tier: "mid"
-  },
-  7: {
-    name: "Positive Construction",
-    focus: "Say what happened, not what didn't",
-    tier: "mid"
-  },
-  8: {
-    name: "Rhythmic Control",
-    focus: "Balance sentence variety and pacing",
-    tier: "late"
-  },
-  9: {
-    name: "Motif Discipline",
-    focus: "One strong instance per section",
-    tier: "late"
-  },
-  10: {
-    name: "Echo Elimination",
-    focus: "Remove duplicate insights",
-    tier: "late"
-  }
+  1: { name: "Body-Part Clichés", focus: "Physical tells that advance story, not summarize emotion", tier: "mid" },
+  2: { name: "POV Honesty", focus: "Observable proof over mind-reading", tier: "early" },
+  3: { name: "Concrete Specificity", focus: "Replace generic nouns with lived details", tier: "mid" },
+  4: { name: "Filter Verbs", focus: "Remove I saw/felt/heard distance", tier: "mid" },
+  5: { name: "Adverb Diet", focus: "Strengthen verbs, cut intensifiers", tier: "mid" },
+  6: { name: "Active Voice", focus: "Restore agency, clarify actors", tier: "mid" },
+  7: { name: "Negation Discipline", focus: "Say what happened, not what didn't", tier: "mid" },
+  8: { name: "Abstract Triples", focus: "Two beats sharpen, three soften", tier: "mid" },
+  9: { name: "Motif Hygiene", focus: "Spotlight once per section, not wallpaper", tier: "late" },
+  10: { name: "Duplicate Brilliance", focus: "Remove echoed insights", tier: "late" },
+  11: { name: "Theme After Shown", focus: "Trust subtext, stop declaring", tier: "late" },
+  12: { name: "Micro-Location Economy", focus: "1 body + 1 system, then exit", tier: "mid" },
+  13: { name: "Dialogue Tags", focus: "Minimal attribution, trust the exchange", tier: "mid" },
+  14: { name: "Dialogue Under Pressure", focus: "Stress roughens speech, meaning over polish", tier: "mid" },
+  15: { name: "On-the-Nose Explanations", focus: "Trust subtext, cut because/which meant", tier: "late" },
+  16: { name: "Orientation Paragraphs", focus: "Orient once, enforce afterward", tier: "mid" },
+  17: { name: "Concrete Stakes", focus: "Name the loss or scene floats", tier: "early" },
+  18: { name: "Seed the Timer", focus: "External clock tightens momentum", tier: "mid" },
+  19: { name: "Consequence Marker", focus: "Every choice leaves a mark", tier: "mid" },
+  20: { name: "Decision Line", focus: "Every scene needs a turn", tier: "mid" },
+  21: { name: "Choreography Compression", focus: "Show only the step where failure is possible", tier: "mid" },
+  22: { name: "Continuity & Naming", focus: "Confusion is never clever unless intentional", tier: "mid" },
+  23: { name: "Sentence Start Variety", focus: "Vary entry point, not just verbs", tier: "late" },
+  24: { name: "Overused Sensory Words", focus: "Show interaction, not sensation", tier: "mid" },
+  25: { name: "Metaphor Freshness", focus: "If metaphor isn't doing work, it's dead weight", tier: "late" },
+  26: { name: "Cliché Alarm", focus: "Remove AI-adjacent tells", tier: "late" },
+  27: { name: "Rhythm Balance", focus: "Rhythm should track pressure", tier: "late" },
+  28: { name: "Paragraph Endings", focus: "End on proof or cut", tier: "late" },
+  29: { name: "Scene Entry", focus: "Arrive late, trust the reader", tier: "mid" },
+  30: { name: "Scene Exit", focus: "Exit on impact", tier: "mid" },
+  31: { name: "Information Density", focus: "Select, don't stack", tier: "mid" },
+  32: { name: "Spatial Clarity", focus: "Place bodies before you move them", tier: "mid" },
+  33: { name: "Pronoun Clarity", focus: "Never make the reader guess who acts", tier: "mid" },
+  34: { name: "Time Clarity", focus: "Time should never be implied when it can be anchored", tier: "mid" },
+  35: { name: "Emotional Escalation", focus: "Same emotion, higher cost—or change it", tier: "mid" },
+  36: { name: "Character Consistency", focus: "Change needs pressure or price", tier: "early" },
+  37: { name: "Dialogue Purpose", focus: "Dialogue must move something", tier: "mid" },
+  38: { name: "Exposition Camouflage", focus: "Information rides action", tier: "mid" },
+  39: { name: "Tension Without Saying Tension", focus: "Prove tension; never name it", tier: "late" },
+  40: { name: "Avoiding Summary Voice", focus: "Stay inside the moment", tier: "late" },
+  41: { name: "Concrete Proof Lines", focus: "If change is real, it leaves evidence", tier: "late" },
+  42: { name: "Symbol & Motif Placement", focus: "Symbols gain power through restraint", tier: "late" },
+  43: { name: "System Detail Accuracy", focus: "Bureaucracy must feel real", tier: "mid" },
+  44: { name: "Institutional Stakes", focus: "Clarify what they can/can't do", tier: "mid" },
+  45: { name: "Transaction Metaphor Discipline", focus: "One clean metaphor beats repeated cleverness", tier: "late" },
+  46: { name: "Over-Detail in Repeated Beats", focus: "Render it once, make it count", tier: "late" },
+  47: { name: "Compression of Similar Scenes", focus: "If it doesn't advance, it repeats", tier: "mid" },
+  48: { name: "Cutting Redundant Instructions", focus: "Show competence through behavior", tier: "late" },
+  49: { name: "Avoid Repeating Same Insight", focus: "One insight per chapter", tier: "late" },
+  50: { name: "Replace Explained Beats", focus: "Let readers watch, don't explain", tier: "late" },
+  51: { name: "Late-Stage Sentence Vanity", focus: "If line serves you more than story, cut it", tier: "late" },
+  52: { name: "Emotional Honesty Audit", focus: "Honest emotion shows in behavior, not volume", tier: "late" },
+  53: { name: "Narrative Distance Control", focus: "Choose your distance, don't drift", tier: "late" },
+  54: { name: "Ending Trust", focus: "End on proof, not commentary", tier: "late" },
+  55: { name: "Reader Trust Test", focus: "Readers remember more than you think", tier: "late" },
+  56: { name: "Earned Aphorisms Only", focus: "Wisdom must be paid for in story", tier: "late" },
+  57: { name: "Silence as Action", focus: "Silence must act", tier: "late" },
+  58: { name: "Negative Space", focus: "Implied meaning lingers longer", tier: "late" },
+  59: { name: "Final Consistency Pass", focus: "The world must obey itself", tier: "late" },
+  60: { name: "Submission Read Pass", focus: "Pages must earn their turn", tier: "late" },
+  61: { name: "Reflexive Pronouns & Redundancy", focus: "If removing the word strengthens, cut it", tier: "late" }
 };
 
 Deno.serve(async (req) => {
@@ -96,19 +108,33 @@ Deno.serve(async (req) => {
       : workingText;
 
     // TWO-STAGE PIPELINE: Pattern detection → WAVE contextual validation
+    // Reference: Complete WAVE system in functions/WAVE_GUIDE (61+ waves)
     
     // STAGE 1: Detect risk patterns (candidates only, not final decisions)
-    const detectionPrompt = `You are a professional manuscript editor scanning for revision candidates. Apply ${wave.name} (${wave.focus}).
+    const detectionPrompt = `You are a professional manuscript editor applying the WAVE Revision System. Focus on ${wave.name} (${wave.focus}).
 
-Find 12-15 passages that match common risk patterns:
-- Reflexives (himself, herself, themselves) that may dilute agency
-- "As if" / "like" constructions that may weaken directness
-- Hedge phrases (seemed to, appeared to, felt like)
-- Filter verbs (saw, heard, felt) that distance reader
-- Passive constructions that obscure actors
-- Generic nouns that could be more specific
+WAVE CONTEXT:
+- Tier: ${wave.tier}
+- This is wave ${wave_number} of 61+ in the professional revision system
+- Reference the complete WAVE Guide for full context on all 61 waves
 
-For each CANDIDATE (these are not final suggestions yet):
+SCAN FOR REVISION CANDIDATES matching these patterns:
+- Body-part clichés (jaw, chest, eyes) that summarize instead of advance
+- POV breaches (mind-reading, unobservable claims)
+- Generic nouns (thing, stuff, place, dark SUV) needing specificity
+- Filter verbs (saw, heard, felt) creating distance
+- Reflexive pronouns (himself, herself) with no narrative function
+- "As if" / "like" constructions weakening directness
+- Hedge phrases diluting authority
+- Passive constructions obscuring actors
+- Negation stacks (didn't, not, never)
+- Abstract triples (fear, doubt, uncertainty)
+- Motif repetition without escalation
+- Duplicate insights or echoed brilliance
+- On-the-nose explanations (because, which meant)
+- Summary voice instead of in-scene experience
+
+For each CANDIDATE (not final suggestions yet):
 - Exact original text
 - Potential revised version
 - What pattern was detected
@@ -143,22 +169,43 @@ Return JSON with candidates array.`;
     });
 
     // STAGE 2: WAVE contextual validation (gating logic)
-    const validationPrompt = `You are a literary editor applying the WAVE Revision System + 12 Literary Agent Criteria.
+    const validationPrompt = `You are a literary editor applying the complete WAVE Revision System (61+ waves) + 12 Story Evaluation Criteria.
 
-Your job: validate whether detected patterns should become revision suggestions.
+WAVE SYSTEM PHILOSOPHY:
+The WAVE system is designed to systematically remove weakness while preserving voice. It operates in stages:
+- EARLY waves (1-16): Structural truth, POV integrity, stakes clarity
+- MID waves (17-40): Momentum, specificity, scene mechanics
+- LATE waves (41-61): Authority, polish, submission readiness
 
-GATING RULE:
-- If a flagged phrase serves embodiment, intimacy, agency reinforcement, character voice, or psychological cohesion → KEEP IT (mark as justified)
-- If it's redundant, weakens clarity, or adds no narrative function → FLAG IT (approved for revision)
+CRITICAL GATING RULE (from WAVE 61):
+**Reflexive ≠ automatically bad**
+
+If a flagged phrase serves:
+- Embodiment (physical/psychological grounding)
+- Intimacy (character-to-self connection)
+- Agency reinforcement (deliberate self-action)
+- Character voice (authentic speech patterns)
+- Psychological cohesion (mental state tracking)
+
+→ KEEP IT (mark as "justified")
+
+If it's:
+- Redundant (meaning already clear)
+- Weakens clarity or authority
+- Adds no narrative function
+- Generic/autopilot writing
+
+→ FLAG IT (mark as "revise")
 
 For each candidate, determine:
 1. Does this construction serve voice/embodiment/agency? (yes/no)
 2. Does it strengthen psychological cohesion or intimacy? (yes/no)
 3. Is it justified by narrative context? (yes/no)
-4. Final verdict: "keep" or "revise"
+4. Which WAVE principle applies? (cite wave number if known)
+5. Final verdict: "keep" or "revise"
 
-If "keep": provide brief note on what it accomplishes
-If "revise": provide editorial rationale for the suggested change
+If "keep": explain what narrative function it serves
+If "revise": provide editorial rationale aligned with WAVE principles
 
 CANDIDATES TO EVALUATE:
 ${JSON.stringify(candidates.candidates, null, 2)}
