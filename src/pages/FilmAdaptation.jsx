@@ -641,7 +641,7 @@ export default function FilmAdaptation() {
                     </Link>
                 </div>
             </div>
-            </>
+                </>
             )}
         </div>
     );
