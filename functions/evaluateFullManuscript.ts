@@ -369,6 +369,25 @@ Deno.serve(async (req) => {
             **MID WAVES (Momentum & Meaning):** Specificity, scene mechanics, dialogue purpose, choreography compression, emotional escalation
             **LATE WAVES (Authority & Polish):** Body-part clichés, filter verbs, motif discipline, reflexive redundancy, submission readiness
 
+            CRITICAL VALIDATION RULES - Use ONLY these exact category names and match issues correctly:
+            - "Body-Part Clichés (Wave 1)" = jaw/chest/eyes/breath/heart that don't advance action (MUST contain actual body part)
+            - "Filter Verbs (Wave 4)" = saw/felt/heard/noticed/realized creating distance (MUST contain perception verb)
+            - "Generic Nouns (Wave 3)" = thing/stuff/place/room/situation lacking specificity
+            - "Telling vs Showing" = "felt [emotion]", "seemed [state]" instead of evidence
+            - "Adverbs (Wave 5)" = very/really/suddenly/quickly propping up weak verbs
+            - "Passive Voice (Wave 6)" = was/were + verb, hiding actors
+            - "Negation (Wave 7)" = didn't/not/never overuse
+            - "On-the-Nose (Wave 15)" = because/which meant/in order to
+            - "Dialogue Tags (Wave 13)" = over-attribution
+            - "Reflexive Redundancy (Wave 61)" = himself/herself/own/just without narrative function
+
+            HARD GATES (must validate before labeling):
+            - "Body-Part Clichés" requires lexical match: jaw, chest, eyes, breath, heart, hands, stomach, throat, etc.
+            - "Filter Verbs" requires perception verb: saw, felt, heard, noticed, realized, knew, thought, etc.
+            - If text has "felt peaceful" = "Telling vs Showing" NOT body-part
+            - If text has "noticed a shadow" = "Filter Verbs" NOT body-part
+            - Multiple issues = list all relevant waves (primary + secondary)
+
             SCAN THIS CHAPTER across all three tiers:
 
             EARLY TIER CHECKS:
