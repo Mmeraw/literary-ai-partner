@@ -43,7 +43,7 @@ export default function Home() {
                             <span className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                                 TRANSMEDIA PIPELINE:
                             </span>
-                            <span className="block -mt-2">
+                            <span className="block mt-2">
                                 Manuscript/Screenplay → Published & Hollywood
                             </span>
                         </h1>
