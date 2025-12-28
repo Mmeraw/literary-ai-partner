@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sparkles, Copy, Download, Loader2, Package, CheckCircle2, FileText, Film } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sparkles, Copy, Download, Loader2, Package, CheckCircle2, FileText, Film, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
+import { useQuery } from '@tanstack/react-query';
+import { createPageUrl } from '@/utils';
 
 export default function CompletePackage() {
     const [manuscriptInfo, setManuscriptInfo] = useState({
@@ -27,6 +30,42 @@ export default function CompletePackage() {
 
     const [generating, setGenerating] = useState(false);
     const [packageData, setPackageData] = useState(null);
+    const [selectedManuscriptId, setSelectedManuscriptId] = useState('');
+
+    // Fetch user's manuscripts
+    const { data: manuscripts = [], isLoading: manuscriptsLoading } = useQuery({
+        queryKey: ['manuscripts'],
+        queryFn: () => base44.entities.Manuscript.list('-created_date'),
+        initialData: []
+    });
+
+    // Redirect to upload page if no manuscripts
+    useEffect(() => {
+        if (!manuscriptsLoading && manuscripts.length === 0) {
+            toast.error('No manuscripts found. Please upload a manuscript first.');
+            setTimeout(() => {
+                window.location.href = createPageUrl('UploadManuscript');
+            }, 1500);
+        }
+    }, [manuscripts, manuscriptsLoading]);
+
+    const loadManuscript = (manuscriptId) => {
+        const manuscript = manuscripts.find(m => m.id === manuscriptId);
+        if (!manuscript) return;
+
+        setManuscriptInfo({
+            ...manuscriptInfo,
+            title: manuscript.title || '',
+            wordCount: manuscript.word_count?.toString() || '',
+            logline: manuscript.spine_evaluation?.logline || '',
+            keyThemes: manuscript.spine_evaluation?.themes?.join(', ') || '',
+            protagonist: manuscript.spine_evaluation?.protagonist || '',
+            stakes: manuscript.spine_evaluation?.stakes || '',
+            setting: manuscript.spine_evaluation?.setting || ''
+        });
+        
+        toast.success('Manuscript loaded!');
+    };
 
     const generateCompletePackage = async () => {
         if (!manuscriptInfo.title || !manuscriptInfo.logline) {
