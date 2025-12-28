@@ -36,6 +36,7 @@ import UploadManuscript from './pages/UploadManuscript';
 import UploadWork from './pages/UploadWork';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
+import InviteUser from './pages/InviteUser';
 import __Layout from './Layout.jsx';
 
 
@@ -78,6 +79,7 @@ export const PAGES = {
     "UploadWork": UploadWork,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
+    "InviteUser": InviteUser,
 }
 
 export const pagesConfig = {
