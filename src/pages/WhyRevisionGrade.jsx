@@ -94,8 +94,8 @@ export default function WhyRevisionGrade() {
                         <ul className="space-y-3">
                             {[
                                 'One unified evaluation system',
-                                '12 agent-level criteria + 60 WAVE diagnostics',
-                                'Designed to mirror how real editors assess manuscripts',
+                                '12 Story Evaluation Criteria + 60 WAVE diagnostics',
+                                'Designed to mirror how professionals assess manuscripts',
                                 'Identifies what will stop your manuscript from advancing',
                                 'Tells you what to fix first, why it matters, and what to ignore',
                                 'PhD-calibrated scoring against publishing standards'
@@ -168,8 +168,8 @@ export default function WhyRevisionGrade() {
                         },
                         {
                             icon: Target,
-                            title: "Agent-Reality Focus",
-                            description: "We evaluate manuscripts against the 12 criteria agents and acquisition editors actually use when deciding what to request—focusing on craft and marketability, not just grammar.",
+                            title: "Professional Standards",
+                            description: "We evaluate manuscripts against the 12 Story Evaluation Criteria that agents, editors, and script readers actually use when deciding what to request—focusing on craft and marketability, not just grammar.",
                             color: "from-emerald-500 to-teal-600"
                         }
                     ].map((pillar, idx) => (

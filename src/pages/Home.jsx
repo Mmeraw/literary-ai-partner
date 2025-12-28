@@ -47,7 +47,7 @@ export default function Home() {
                         </h1>
 
                         <p className="mt-3 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                            Get your <strong className="text-slate-900">manuscript</strong> or <strong className="text-slate-900">screenplay</strong> evaluated against 12 agent-level criteria and 60+ diagnostic checks from the proprietary WAVE Revision System. Three AI perspectives use this framework to analyze your work, suggest revisions, and generate a PhD-calibrated score for a clear, professional-grade assessment.
+                            Get your <strong className="text-slate-900">manuscript</strong> or <strong className="text-slate-900">screenplay</strong> evaluated against 12 Story Evaluation Criteria and 60+ diagnostic checks from the proprietary WAVE Revision System. Three AI perspectives use this framework to analyze your work, suggest revisions, and generate a PhD-calibrated score for a clear, professional-grade assessment.
                         </p>
 
                         <div className="mt-4 space-y-2 flex flex-col items-center">
@@ -116,11 +116,11 @@ export default function Home() {
                             In practice, trained and untrained eyes give your manuscript seconds at each gate. Does it intrigue, captivate, and hold attention? If not, you don't get a reply—from agents, editors, publishers, producers, or executives. It's a closed loop: work that doesn't hold attention simply falls out of the system.
                         </p>
                         <p className="leading-relaxed">
-                            You may have a brilliant story, but if the pages trip over the 12 criteria agents quietly use—and the 60+ structural and line-level checks in the WAVE Guide—it will be rejected long before anyone sees the ending. Agents evaluate in seconds what took you years to build.
+                            You may have a brilliant story, but if the pages trip over the 12 Story Evaluation Criteria that professionals use—and the 60+ structural and line-level checks in the WAVE Guide—it will be rejected long before anyone sees the ending. Agents and readers evaluate in seconds what took you years to build.
                         </p>
                         <div className="p-6 rounded-xl bg-indigo-900/50 border border-indigo-700">
                             <p className="leading-relaxed text-white">
-                                <strong>Elevate Your Game™</strong> by running your work through the RevisionGrade framework: a PhD-calibrated scoring engine built on a proprietary 12-criteria rubric and the 60+ WAVE Revision System. There is no other technology that combines those standards into one coherent, repeatable diagnostic pass—so you know exactly where your manuscript stands.
+                                <strong>Elevate Your Game™</strong> by running your work through the RevisionGrade framework: a PhD-calibrated scoring engine built on the 12 Story Evaluation Criteria and the 60+ WAVE Revision System. There is no other technology that combines those standards into one coherent, repeatable diagnostic pass—so you know exactly where your manuscript stands.
                             </p>
                         </div>
                     </div>
@@ -145,7 +145,7 @@ export default function Home() {
                         {
                             icon: Brain,
                             title: "Grade, Then Diagnose",
-                            description: "Three AI systems (ChatGPT, Perplexity, Base44) score your pages against 12 agent-level criteria and 60+ WAVE checks, highlighting exactly where the manuscript falls short.",
+                            description: "Three AI systems (ChatGPT, Perplexity, Base44) score your pages against 12 Story Evaluation Criteria and 60+ WAVE checks, highlighting exactly where the manuscript falls short.",
                             color: "from-purple-500 to-pink-600"
                         },
                         {
@@ -227,13 +227,13 @@ export default function Home() {
                         <div>
                             <Badge className="mb-4 bg-white/10 text-white border-white/20">
                                 <BookOpen className="w-4 h-4 mr-2" />
-                                12 Literary Agent Criteria
+                                12 Story Evaluation Criteria
                             </Badge>
                             <h2 className="text-3xl font-bold text-white mb-6">
                                 Evaluated Like a Professional
                             </h2>
                             <p className="text-slate-300 leading-relaxed mb-8">
-                                Your work is scored on the same criteria literary agents and producers use 
+                                Your work is scored on the same criteria agents, editors, and script readers use 
                                 when reviewing submissions—from voice and pacing to emotional resonance 
                                 and market readiness.
                             </p>

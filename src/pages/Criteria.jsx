@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { motion } from "framer-motion";
 
-const LITERARY_AGENT_CRITERIA = [
+const STORY_EVALUATION_CRITERIA = [
     { 
         name: "The Hook (First Page & First 5 Pages)", 
         icon: Zap,
@@ -132,7 +132,7 @@ const SIGNAL_FAMILIES = [
 export default function Criteria() {
     const [searchTerm, setSearchTerm] = useState('');
 
-    const filteredLiterary = LITERARY_AGENT_CRITERIA.filter(c => 
+    const filteredLiterary = STORY_EVALUATION_CRITERIA.filter(c => 
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.description.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -177,7 +177,7 @@ export default function Criteria() {
                     <TabsList className="w-full max-w-md mx-auto bg-slate-100 p-1 mb-10">
                         <TabsTrigger value="literary" className="flex-1 data-[state=active]:bg-white">
                             <BookOpen className="w-4 h-4 mr-2" />
-                            Literary Agent Criteria
+                            Story Evaluation Criteria
                         </TabsTrigger>
                         <TabsTrigger value="wave" className="flex-1 data-[state=active]:bg-white">
                             <Waves className="w-4 h-4 mr-2" />
@@ -212,7 +212,7 @@ export default function Criteria() {
                                             <div className="space-y-4">
                                                 <div>
                                                     <span className="text-xs font-medium text-emerald-600 uppercase tracking-wide">
-                                                        What Agents Look For
+                                                        What Professionals Look For
                                                     </span>
                                                     <ul className="mt-2 space-y-1">
                                                         {criterion.lookingFor.map((item, i) => (

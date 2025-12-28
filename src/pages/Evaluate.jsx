@@ -92,9 +92,9 @@ export default function Evaluate() {
                 hybrid: "Balanced approach allowing controlled style variation within structural standards."
             };
 
-            // Literary Agent Evaluation
+            // Story Evaluation (Agents, Editors, Script Readers)
             const agentAnalysis = await base44.integrations.Core.InvokeLLM({
-                prompt: `You are a senior literary agent evaluating a manuscript for representation. 
+                prompt: `You are a professional evaluator (agent, editor, or script reader) assessing a manuscript. 
 
         STYLE MODE: ${styleMode.toUpperCase()}
         ${styleModeContext[styleMode]}
@@ -350,7 +350,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                             Analyzing Your Manuscript...
                                         </h3>
                                         <p className="mt-2 text-slate-500 text-center max-w-md">
-                                            Three AI systems evaluating against 12 literary agent criteria and 60+ Wave Revision items
+                                           Three AI systems evaluating against 12 Story Evaluation Criteria and 60+ Wave Revision items
                                         </p>
                                     </>
                                 ) : error ? (
@@ -434,7 +434,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                                 {/* Criteria Scores */}
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-lg font-semibold text-slate-800">12 Literary Agent Criteria</h3>
+                                        <h3 className="text-lg font-semibold text-slate-800">12 Story Evaluation Criteria</h3>
                                         <Badge>{evaluationResult.criteria?.length || 0}/12</Badge>
                                     </div>
                                     {evaluationResult.criteria?.map((criterion, idx) => (
