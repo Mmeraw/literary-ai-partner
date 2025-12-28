@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
+import { Link } from 'react-router-dom';
 
 export default function CompletePackage() {
     const [manuscriptInfo, setManuscriptInfo] = useState({
