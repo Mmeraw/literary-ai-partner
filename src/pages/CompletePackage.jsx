@@ -722,10 +722,43 @@ ${packageData.queryLetter}
                                                 </div>
                                             </div>
                                         </TabsContent>
-                                    </Tabs>
-                                </CardContent>
-                            </Card>
-                        )}
+                                        </Tabs>
+
+                                        {/* Feedback Section */}
+                                        <div className="mt-8 pt-6 border-t border-slate-200 space-y-4">
+                                        <StarRating
+                                           label="Rate this submission package"
+                                           onRate={async (rating) => {
+                                               try {
+                                                   await base44.entities.Analytics.create({
+                                                       page: 'CompletePackage',
+                                                       path: '/complete-package/rating',
+                                                       event_type: 'user_rating',
+                                                       metadata: { rating }
+                                                   });
+                                               } catch (e) {
+                                                   console.error('Analytics error:', e);
+                                               }
+                                           }}
+                                        />
+                                        <CanonAccuracyCheck
+                                           onReport={async () => {
+                                               try {
+                                                   await base44.entities.Analytics.create({
+                                                       page: 'CompletePackage',
+                                                       path: '/complete-package/report',
+                                                       event_type: 'canon_violation_reported',
+                                                       metadata: { package_content: JSON.stringify(packageData).substring(0, 500) }
+                                                   });
+                                               } catch (e) {
+                                                   console.error('Analytics error:', e);
+                                               }
+                                           }}
+                                        />
+                                        </div>
+                                        </CardContent>
+                                        </Card>
+                                        )}
 
                         {/* What's Included */}
                         <Card className="border-indigo-100">
