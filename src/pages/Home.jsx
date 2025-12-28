@@ -39,12 +39,15 @@ export default function Home() {
                             Transmedia Intelligence for Serious Storytellers
                         </Badge>
 
-                        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
                             <span className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                                 TRANSMEDIA PIPELINE:
                             </span>
                             <span className="block mt-2">
-                                Manuscript/Screenplay → Published & Hollywood
+                                Manuscript/Screenplay →
+                            </span>
+                            <span className="block">
+                                Published & Hollywood
                             </span>
                         </h1>
 
