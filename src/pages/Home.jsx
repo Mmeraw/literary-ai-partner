@@ -60,7 +60,7 @@ export default function Home() {
                         </p>
 
                         <p className="mt-4 text-lg sm:text-xl text-slate-900 font-semibold max-w-2xl mx-auto leading-relaxed">
-                            One Tool. One Subscription.
+                            One System. One Workflow.
                         </p>
 
                         <p className="mt-2 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">

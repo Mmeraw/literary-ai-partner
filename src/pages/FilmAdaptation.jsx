@@ -147,8 +147,11 @@ export default function FilmAdaptation() {
                     </Badge>
                     
                     <h1 className="text-4xl sm:text-5xl font-bold text-white mb-6 leading-tight">
-                        Manuscript/Screenplay → Published & Hollywood
+                        From Manuscript to Market-Ready IP
                     </h1>
+                    <p className="text-lg text-slate-300 mb-4">
+                        Manuscript/Screenplay → Published & Hollywood
+                    </p>
                     
                     <p className="text-lg text-indigo-200 max-w-3xl mx-auto mb-6 font-medium tracking-wide">
                         Manuscript Evaluation → Agent Ready™ → Pitch → Query
@@ -158,7 +161,7 @@ export default function FilmAdaptation() {
                     </p>
                     
                     <p className="text-xl text-slate-300 max-w-3xl mx-auto mb-4">
-                        One Tool. One Subscription.
+                        One System. One Workflow.
                     </p>
                     
                     <p className="text-2xl text-white font-semibold max-w-3xl mx-auto mb-3">
