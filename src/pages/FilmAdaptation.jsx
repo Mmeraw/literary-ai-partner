@@ -56,7 +56,7 @@ export default function FilmAdaptation() {
                     </Badge>
                     
                     <h1 className="text-4xl sm:text-5xl font-bold text-white mb-6 leading-tight">
-                        From Manuscript to Hollywood Pitch Deck
+                        Manuscript/Screenplay → Published & Hollywood
                     </h1>
                     
                     <p className="text-lg text-indigo-200 max-w-3xl mx-auto mb-6 font-medium tracking-wide">

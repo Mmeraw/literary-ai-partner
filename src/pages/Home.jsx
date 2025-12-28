@@ -41,10 +41,10 @@ export default function Home() {
 
                         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight">
                             <span className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                                Manuscript/Screenplay →
+                                TRANSMEDIA PIPELINE:
                             </span>
                             <span className="block -mt-2">
-                                Published & Hollywood
+                                Manuscript/Screenplay → Published & Hollywood
                             </span>
                         </h1>
 
@@ -61,7 +61,7 @@ export default function Home() {
                         </p>
 
                         <p className="mt-2 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">
-                            <strong className="text-slate-900">Upload Your Complete Work → Download Agent + Producer Decks</strong>
+                            <strong className="text-slate-900">Upload Your Complete Work → Download Publishing + Producer Packages</strong>
                         </p>
 
                         <p className="mt-2 text-base text-slate-600 max-w-2xl mx-auto">
