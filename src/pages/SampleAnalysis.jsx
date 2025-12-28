@@ -6,12 +6,19 @@ import { BookOpen, AlertCircle } from 'lucide-react';
 export default function SampleAnalysis() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-            <div className="max-w-6xl mx-auto px-6 py-12">
+            <style>{`
+                .content-text p, .content-text li {
+                    overflow-wrap: anywhere;
+                    word-break: break-word;
+                    hyphens: auto;
+                }
+            `}</style>
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
                 {/* Disclaimer Banner */}
                 <div className="mb-8 p-4 rounded-lg bg-amber-50 border-2 border-amber-200">
                     <div className="flex items-start gap-3">
                         <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                        <p className="text-sm text-amber-900">
+                        <p className="text-sm text-amber-900 content-text">
                             <strong>Educational Purpose:</strong> This analysis is provided for educational and illustrative purposes only. 
                             Cover images and referenced works are used for comparative commentary under fair use. 
                             No affiliation or endorsement is implied.
@@ -28,10 +35,10 @@ export default function SampleAnalysis() {
                     <h1 className="text-4xl font-bold text-slate-900 mb-4">
                         Illustrative Comparative Craft Analysis
                     </h1>
-                    <p className="text-lg text-slate-600 max-w-3xl mx-auto">
+                    <p className="text-lg text-slate-600 max-w-3xl mx-auto content-text">
                         Demonstrating how RevisionGrade™ evaluates manuscripts against established genre benchmarks
                     </p>
-                    <p className="text-sm text-indigo-700 font-medium mt-3 max-w-3xl mx-auto">
+                    <p className="text-sm text-indigo-700 font-medium mt-3 max-w-3xl mx-auto content-text">
                         This sample demonstrates the structure and depth of analysis available through RevisionGrade's comparative framework.
                     </p>
                 </div>
@@ -141,7 +148,7 @@ export default function SampleAnalysis() {
                     <CardHeader>
                         <CardTitle className="text-xl">Methodology</CardTitle>
                     </CardHeader>
-                    <CardContent className="text-slate-700">
+                    <CardContent className="text-slate-700 content-text">
                         <p>
                             Scores (1–10) reflect a personal craft rubric used for internal benchmarking. They are not judgments 
                             of literary merit but tools for comparing narrative strategies, emotional effect, and structural execution 
@@ -152,15 +159,15 @@ export default function SampleAnalysis() {
 
                 {/* Comparative Analysis Table */}
                 <Card className="mb-8 border-0 shadow-md overflow-hidden">
-                    <CardHeader>
+                    <CardHeader className="px-2 sm:px-6">
                         <CardTitle className="text-xl">Comparative Craft Analysis</CardTitle>
-                        <p className="text-sm text-slate-600 mt-2">
+                        <p className="text-sm text-slate-600 mt-2 content-text">
                             Below is a craft-based comparison across sixteen criteria commonly used by agents when evaluating 
                             high-stakes thrillers.
                         </p>
                     </CardHeader>
                     <CardContent className="p-0 sm:p-6">
-                        <div className="overflow-x-auto -mx-6 sm:mx-0">
+                        <div className="overflow-x-auto">
                             <table className="w-full border-collapse text-[10px] sm:text-sm">
                                 <thead className="sticky top-0 z-10">
                                     <tr className="bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg">
@@ -370,7 +377,7 @@ export default function SampleAnalysis() {
 
                 {/* Call to Action */}
                 <Card className="mb-8 border-0 shadow-lg bg-gradient-to-br from-purple-600 to-indigo-600">
-                    <CardContent className="p-6 text-center text-white">
+                    <CardContent className="p-6 text-center text-white content-text">
                         <p className="text-lg font-semibold mb-2">
                             Want to see how your manuscript compares?
                         </p>
@@ -382,7 +389,7 @@ export default function SampleAnalysis() {
 
                 {/* Framing Statement */}
                 <Card className="mb-8 border-0 shadow-md bg-gradient-to-br from-indigo-50 to-purple-50">
-                    <CardContent className="p-6 text-slate-700">
+                    <CardContent className="p-6 text-slate-700 content-text">
                         <p className="text-center italic">
                             This comparison demonstrates how a contemporary manuscript can be evaluated against established 
                             genre benchmarks using a consistent craft framework. Scores reflect narrative structure, stylistic 
@@ -393,7 +400,7 @@ export default function SampleAnalysis() {
 
                 {/* Bottom Fair Use Disclaimer */}
                 <div className="mt-12 pt-8 border-t border-slate-200">
-                    <p className="text-xs text-slate-500 text-center">
+                    <p className="text-xs text-slate-500 text-center content-text">
                         <strong>Fair Use Notice:</strong> This analysis is provided for educational and illustrative purposes only. 
                         Cover images and referenced works are used for comparative commentary under fair use principles (17 U.S.C. § 107). 
                         No affiliation, endorsement, or collaboration with Don Winslow or his publishers is claimed or implied. 
