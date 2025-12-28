@@ -390,8 +390,10 @@ export default function FilmAdaptation() {
                     ))}
                 </div>
             </div>
+            )}
 
             {/* Pipeline Visual */}
+            {!pitchDeck && (
             <div className="bg-white py-12 border-b border-slate-200">
                 <div className="max-w-5xl mx-auto px-6">
                     <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6">
