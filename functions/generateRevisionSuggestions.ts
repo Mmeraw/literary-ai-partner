@@ -196,35 +196,75 @@ Return JSON with candidates array.`;
     - Lyrical/literary modes may preserve more poetic constructions
     - Commercial mode prioritizes clarity and pace over stylistic flourishes
 
-CRITICAL GATING RULE (from WAVE 61):
-**Reflexive ≠ automatically bad**
+    MANDATORY QUALITY GATES (REJECT if any violated):
 
-If a flagged phrase serves:
-- Embodiment (physical/psychological grounding)
-- Intimacy (character-to-self connection)
-- Agency reinforcement (deliberate self-action)
-- Character voice (authentic speech patterns)
-- Psychological cohesion (mental state tracking)
+    1. IDIOMATIC ENGLISH ONLY
+    - NO translation artifacts ("Chief passed strike", "Strike passed")
+    - NO ungrammatical compression ("cinched deliberate" → must be "cinched deliberately")
+    - Must sound like natural, professional English prose
 
-→ KEEP IT (mark as "justified")
+    2. NO INVENTED CHOREOGRAPHY
+    - Don't add staging/actions not in original ("Shelter swallowed him" when no shelter entry exists)
+    - Don't introduce setting elements not present ("Shelter closed" implies door/action)
+    - Preserve original scene boundaries exactly
 
-If it's:
-- Redundant (meaning already clear)
-- Weakens clarity or authority
-- Adds no narrative function
-- Generic/autopilot writing
+    3. NO COINED JARGON
+    - Avoid invented compounds unless source uses them ("rope-hiss", "cat-lined", "mouth-marked")
+    - Keep language clean and accessible, not pseudo-poetic
 
-→ FLAG IT (mark as "revise")
+    4. MEANING FIDELITY ABSOLUTE
+    - "eyes met his" ≠ "kept eyes from the face" (opposite meanings!)
+    - Preserve original intent precisely; never drift to convenience
+    - If original shows avoidance, keep avoidance; don't invent connection
 
-For each candidate, determine:
-1. Does this construction serve voice/embodiment/agency? (yes/no)
-2. Does it strengthen psychological cohesion or intimacy? (yes/no)
-3. Is it justified by narrative context? (yes/no)
-4. Which WAVE principle applies? (cite wave number if known)
-5. Final verdict: "keep" or "revise"
+    5. CORRECT WAVE CATEGORIZATION
+    - W2 (POV) = unverifiable internal motive/knowledge ONLY
+    - "where a mouth had closed" is physical inference, NOT mind-reading
+    - Don't mislabel observable evidence as POV breach
+
+    6. GRAMMATICAL CORRECTNESS
+    - All suggestions must be grammatically complete
+    - No broken constructions ("Back turned final" is not English)
+    - Adverbs need -ly unless legitimately stylistic
+
+    CRITICAL GATING RULE (from WAVE 61):
+    **Reflexive ≠ automatically bad**
+
+    If a flagged phrase serves:
+    - Embodiment (physical/psychological grounding)
+    - Intimacy (character-to-self connection)
+    - Agency reinforcement (deliberate self-action)
+    - Character voice (authentic speech patterns)
+    - Psychological cohesion (mental state tracking)
+
+    → KEEP IT (mark as "justified")
+
+    If it's:
+    - Redundant (meaning already clear)
+    - Weakens clarity or authority
+    - Adds no narrative function
+    - Generic/autopilot writing
+
+    → FLAG IT (mark as "revise")
+
+For each candidate, validate MANDATORY QUALITY GATES:
+1. Is the suggested fix idiomatic English? (no translation artifacts, no broken grammar)
+2. Does it preserve original meaning exactly? (no drift, no invention of opposite intent)
+3. Does it avoid invented choreography/staging? (only what source text contains)
+4. Is it free of coined jargon? (unless source uses it)
+5. Is the WAVE category correct? (W2 = true mind-reading only, not physical inference)
+6. Is it grammatically complete? (all adverbs properly formed, sentences complete)
+
+Then determine:
+7. Does this construction serve voice/embodiment/agency? (yes/no)
+8. Does it strengthen psychological cohesion or intimacy? (yes/no)
+9. Is it justified by narrative context? (yes/no)
+10. Which WAVE principle applies? (cite wave number if known)
+11. Final verdict: "keep" or "revise"
 
 If "keep": explain what narrative function it serves
 If "revise": provide editorial rationale aligned with WAVE principles
+If any quality gate FAILS: verdict MUST be "keep" (don't suggest broken fixes)
 
 CANDIDATES TO EVALUATE:
 ${JSON.stringify(candidates.candidates, null, 2)}
