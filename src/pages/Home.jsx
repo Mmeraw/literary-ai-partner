@@ -41,7 +41,7 @@ export default function Home() {
 
                         <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight pb-4">
                             <span className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent pb-2">
-                                Your Writing → Published & Hollywood
+                                Manuscript/Screenplay → Publishing-Ready & Hollywood-Ready
                             </span>
                         </h1>
 
