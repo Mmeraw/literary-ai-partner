@@ -1,0 +1,160 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { text, manuscript_id } = await req.json();
+
+        // Integrity checks
+        const issues = [];
+        let cleanScore = 100;
+
+        // 1. Detect placeholders
+        const placeholderPatterns = [
+            /\[TODO\]/gi,
+            /\[TK\]/gi,
+            /\[INSERT.*?\]/gi,
+            /\[PLACEHOLDER\]/gi,
+            /\[FILL IN\]/gi,
+            /\[NEEDS WORK\]/gi,
+            /VERSION \d+/gi,
+            /DRAFT \d+/gi
+        ];
+
+        for (const pattern of placeholderPatterns) {
+            const matches = text.match(pattern);
+            if (matches) {
+                issues.push({
+                    type: 'placeholder',
+                    severity: 'high',
+                    count: matches.length,
+                    message: `${matches.length} placeholder(s) detected: ${pattern.source}`
+                });
+                cleanScore -= 15;
+            }
+        }
+
+        // 2. Detect meta-notes
+        const metaNotePatterns = [
+            /REVISION NOTE/gi,
+            /EDITOR NOTE/gi,
+            /TO DO:/gi,
+            /NOTE TO SELF/gi,
+            /NEEDS REVISION/gi,
+            /FIX THIS/gi,
+            /REWRITE THIS/gi,
+            /\*\*\*.*?COMMENT.*?\*\*\*/gi
+        ];
+
+        for (const pattern of metaNotePatterns) {
+            const matches = text.match(pattern);
+            if (matches) {
+                issues.push({
+                    type: 'meta_contamination',
+                    severity: 'medium',
+                    count: matches.length,
+                    message: `${matches.length} meta-note(s) found`
+                });
+                cleanScore -= 10;
+            }
+        }
+
+        // 3. Detect duplicate sections (crude check - repeated 100+ word blocks)
+        const sentences = text.split(/[.!?]\s+/);
+        const duplicates = new Set();
+        for (let i = 0; i < sentences.length - 5; i++) {
+            const block = sentences.slice(i, i + 5).join(' ');
+            if (block.length > 100) {
+                for (let j = i + 10; j < sentences.length - 5; j++) {
+                    const compareBlock = sentences.slice(j, j + 5).join(' ');
+                    if (block === compareBlock) {
+                        duplicates.add(block.substring(0, 50));
+                    }
+                }
+            }
+        }
+
+        if (duplicates.size > 0) {
+            issues.push({
+                type: 'duplicates',
+                severity: 'medium',
+                count: duplicates.size,
+                message: `${duplicates.size} duplicate section(s) detected`
+            });
+            cleanScore -= 10;
+        }
+
+        // 4. Prose vs outline ratio
+        const lines = text.split('\n');
+        let outlineCount = 0;
+        for (const line of lines) {
+            if (line.trim().match(/^[-•*]\s+/) || line.trim().match(/^\d+\.\s+/)) {
+                outlineCount++;
+            }
+        }
+        const outlineRatio = outlineCount / lines.length;
+
+        if (outlineRatio > 0.3) {
+            issues.push({
+                type: 'outline_heavy',
+                severity: 'high',
+                message: `${(outlineRatio * 100).toFixed(1)}% outline format detected`
+            });
+            cleanScore -= 20;
+        }
+
+        // 5. Archive/version markers
+        const archivePatterns = [
+            /ARCHIVED/gi,
+            /OLD VERSION/gi,
+            /PREVIOUS DRAFT/gi,
+            /\(deleted\)/gi
+        ];
+
+        for (const pattern of archivePatterns) {
+            if (pattern.test(text)) {
+                issues.push({
+                    type: 'archive_material',
+                    severity: 'high',
+                    message: 'Archive/version markers found'
+                });
+                cleanScore -= 15;
+                break;
+            }
+        }
+
+        // Calculate final integrity score
+        cleanScore = Math.max(0, Math.min(100, cleanScore));
+
+        const integrityReport = {
+            clean_score: cleanScore,
+            is_clean: cleanScore >= 80,
+            mode: cleanScore >= 80 ? 'standard_scoring' : 'development_mode',
+            issues: issues,
+            recommendations: cleanScore < 80 ? [
+                'Remove placeholder markers before final evaluation',
+                'Delete revision notes and meta-commentary',
+                'Ensure single clean version without duplicates'
+            ] : [],
+            prose_ratio: 1 - outlineRatio
+        };
+
+        return Response.json({
+            success: true,
+            integrity: integrityReport
+        });
+
+    } catch (error) {
+        console.error('Integrity check error:', error);
+        return Response.json({ 
+            success: false,
+            error: error.message 
+        }, { status: 500 });
+    }
+});
