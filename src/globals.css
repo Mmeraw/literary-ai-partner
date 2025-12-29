@@ -1,0 +1,11 @@
+/* Site-wide straight Y/y enforcement for institutional authority */
+* {
+  font-variant-ligatures: none !important;
+  font-feature-settings: "ss01" 0, "ss02" 0, "cv01" 0, "liga" 0, "calt" 0 !important;
+  font-variant-numeric: normal !important;
+}
+
+/* Ensure no stylistic alternates across all elements */
+body, html {
+  font-feature-settings: "ss01" 0, "ss02" 0 !important;
+}
