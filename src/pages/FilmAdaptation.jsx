@@ -95,7 +95,9 @@ export default function FilmAdaptation() {
 
             const response = await base44.functions.invoke('convertDocxToText', formData);
 
-            if (response.data.success) {
+            console.log('DOCX conversion response:', response.data);
+
+            if (response.data?.success) {
                 setDocxPreview({
                     text: response.data.text,
                     wordCount: response.data.wordCount,
@@ -112,24 +114,24 @@ export default function FilmAdaptation() {
                 }
             } else {
                 // Premium error handling with fallback suggestion
-                const errorData = response.data;
+                const errorData = response.data || {};
+                const errorMessage = errorData.error || 'Conversion failed';
                 toast.error(
                     <div>
-                        <div className="font-semibold mb-1">{errorData.error}</div>
-                        {errorData.fallback === 'paste' && (
-                            <div className="text-xs mt-1 opacity-90">
-                                💡 Quick fix: Copy all text from Word and paste directly above
-                            </div>
-                        )}
+                        <div className="font-semibold mb-1">{errorMessage}</div>
+                        <div className="text-xs mt-1 opacity-90">
+                            💡 Quick fix: Copy all text from Word and paste directly above
+                        </div>
                     </div>,
                     { duration: 6000 }
                 );
             }
         } catch (error) {
             console.error('DOCX conversion error:', error);
+            const errorMessage = error?.response?.data?.error || error?.message || 'Conversion interrupted';
             toast.error(
                 <div>
-                    <div className="font-semibold mb-1">🔄 Conversion interrupted</div>
+                    <div className="font-semibold mb-1">🔄 {errorMessage}</div>
                     <div className="text-xs mt-1 opacity-90">
                         💡 Paste text directly for instant results
                     </div>
