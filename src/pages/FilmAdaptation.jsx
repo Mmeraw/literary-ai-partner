@@ -60,6 +60,7 @@ export default function FilmAdaptation() {
     const [showUploadForm, setShowUploadForm] = useState(false);
     const [convertingDocx, setConvertingDocx] = useState(false);
     const [docxPreview, setDocxPreview] = useState(null);
+    const [includeCreatorMark, setIncludeCreatorMark] = useState(true);
 
     const handleTxtUpload = (e) => {
         const file = e.target.files[0];
@@ -203,7 +204,8 @@ export default function FilmAdaptation() {
             await base44.entities.Analytics.create({
                 page: 'FilmAdaptation',
                 path: '/film-adaptation/download',
-                event_type: 'pitch_deck_downloaded'
+                event_type: 'pitch_deck_downloaded',
+                metadata: { creator_mark_included: includeCreatorMark }
             });
         } catch (e) {
             console.error('Analytics error:', e);
@@ -219,6 +221,11 @@ export default function FilmAdaptation() {
             content += '-'.repeat(60) + '\n';
             content += `${slide.content}\n\n`;
         });
+
+        // Append creator mark if enabled
+        if (includeCreatorMark) {
+            content += `\n${'='.repeat(60)}\n\nCrafted with RevisionGrade™\nWhere Evolution Meets Soul™`;
+        }
 
         const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -573,18 +580,19 @@ export default function FilmAdaptation() {
                 <div className="max-w-6xl mx-auto px-6 py-16">
                     <Card className="mb-8">
                         <CardHeader>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <CardTitle>Film Pitch Deck Generated</CardTitle>
-                                    <p className="text-sm text-slate-600 mt-1">
-                                        Screen Viability Score: {pitchDeck.screenViabilityScore}/100
-                                    </p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button onClick={downloadPitchDeck} variant="outline">
-                                        <Download className="w-4 h-4 mr-2" />
-                                        Download
-                                    </Button>
+                            <div className="flex flex-col gap-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <CardTitle>Film Pitch Deck Generated</CardTitle>
+                                        <p className="text-sm text-slate-600 mt-1">
+                                            Screen Viability Score: {pitchDeck.screenViabilityScore}/100
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button onClick={downloadPitchDeck} variant="outline">
+                                            <Download className="w-4 h-4 mr-2" />
+                                            Download
+                                        </Button>
                                     <Button onClick={() => { setPitchDeck(null); setShowUploadForm(true); }}>
                                         Generate Another
                                     </Button>
@@ -594,10 +602,23 @@ export default function FilmAdaptation() {
                                     >
                                         <Sparkles className="w-4 h-4 mr-2" />
                                         Brand Your IP → Create Logo
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardHeader>
+                                        </Button>
+                                        </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                                        <input
+                                            type="checkbox"
+                                            id="creator-mark-film"
+                                            checked={includeCreatorMark}
+                                            onChange={(e) => setIncludeCreatorMark(e.target.checked)}
+                                            className="w-4 h-4 text-indigo-600"
+                                        />
+                                        <label htmlFor="creator-mark-film" className="text-sm text-slate-700 cursor-pointer">
+                                            Include Creator Mark (Where Evolution Meets Soul™)
+                                        </label>
+                                        </div>
+                                        </div>
+                                        </CardHeader>
                         <CardContent>
                             <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 mb-6">
                                 <p className="text-sm text-slate-700">{pitchDeck.viabilityNotes}</p>

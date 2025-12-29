@@ -35,6 +35,7 @@ export default function CompletePackage() {
     const [selectedManuscriptId, setSelectedManuscriptId] = useState('');
     const [loadingManuscript, setLoadingManuscript] = useState(false);
     const [loadingBio, setLoadingBio] = useState(false);
+    const [includeCreatorMark, setIncludeCreatorMark] = useState(true);
 
     // Fetch user's manuscripts
     const { data: manuscripts = [], isLoading: manuscriptsLoading } = useQuery({
@@ -230,13 +231,14 @@ export default function CompletePackage() {
             await base44.entities.Analytics.create({
                 page: 'CompletePackage',
                 path: '/complete-package/download',
-                event_type: 'package_downloaded'
+                event_type: 'package_downloaded',
+                metadata: { creator_mark_included: includeCreatorMark }
             });
         } catch (e) {
             console.error('Analytics error:', e);
         }
         
-        const content = `
+        let content = `
 COMPLETE SUBMISSION PACKAGE
 ${manuscriptInfo.title}
 
@@ -285,6 +287,11 @@ QUERY LETTER
 ================
 ${packageData.queryLetter}
         `.trim();
+
+        // Append creator mark if enabled
+        if (includeCreatorMark) {
+            content += `\n\n${'='.repeat(60)}\n\nCrafted with RevisionGrade™\nWhere Evolution Meets Soul™`;
+        }
 
         const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -562,7 +569,19 @@ ${packageData.queryLetter}
                                 </Button>
 
                                 {packageData && (
-                                    <div className="space-y-2">
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                                            <input
+                                                type="checkbox"
+                                                id="creator-mark"
+                                                checked={includeCreatorMark}
+                                                onChange={(e) => setIncludeCreatorMark(e.target.checked)}
+                                                className="w-4 h-4 text-indigo-600"
+                                            />
+                                            <label htmlFor="creator-mark" className="text-sm text-slate-700 cursor-pointer">
+                                                Include Creator Mark (Where Evolution Meets Soul™)
+                                            </label>
+                                        </div>
                                         <Button
                                             onClick={downloadAll}
                                             variant="outline"
