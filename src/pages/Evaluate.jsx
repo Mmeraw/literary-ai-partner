@@ -17,9 +17,10 @@ import StyleModeSelector from '@/components/evaluation/StyleModeSelector';
 import ThoughtTagCard from '@/components/evaluation/ThoughtTagCard';
 
 const LITERARY_CRITERIA = [
-    "the_hook", "voice_narrative_style", "characters_introductions", "conflict_tension",
-    "thematic_resonance", "pacing_structural_flow", "dialogue_subtext", "worldbuilding_immersion",
-    "stakes_emotional_investment", "line_level_polish", "marketability_genre_fit", "agent_keep_reading"
+    "opening_hook", "narrative_voice_style", "character_depth_introduction", "conflict_tension_escalation",
+    "thematic_resonance", "structure_pacing_flow", "dialogue_subtext", "worldbuilding_immersion",
+    "stakes_emotional_investment", "line_level_craft_polish", "marketability_genre_position",
+    "narrative_closure_promises_kept", "would_keep_reading_gate"
 ];
 
 const WAVE_CRITERIA = [
@@ -362,8 +363,8 @@ export default function Evaluate() {
                                 {/* Criteria Scores */}
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-lg font-semibold text-slate-800">12 Story Evaluation Criteria</h3>
-                                        <Badge>{evaluationResult.criteria?.length || 0}/12</Badge>
+                                        <h3 className="text-lg font-semibold text-slate-800">13 Story Evaluation Criteria</h3>
+                                        <Badge>{evaluationResult.criteria?.length || 0}/13</Badge>
                                     </div>
                                     {evaluationResult.criteria?.map((criterion, idx) => (
                                         <div key={idx} className="p-5 rounded-xl bg-white border border-slate-200 hover:border-indigo-200 transition-all">
@@ -563,7 +564,7 @@ export default function Evaluate() {
                                 <ul className="space-y-3 text-sm text-slate-600">
                                     <li className="flex items-start gap-2">
                                         <span className="text-indigo-600">•</span>
-                                        Evaluate larger sections when possible. The more text RevisionGrade can see, the more accurately it can assess structure, pacing, and character development across the 12 literary-agent criteria.
+                                        Evaluate larger sections when possible. The more text RevisionGrade can see, the more accurately it can assess structure, pacing, and character development across the 13 literary-agent criteria.
                                     </li>
                                     <li className="flex items-start gap-2">
                                         <span className="text-indigo-600">•</span>
