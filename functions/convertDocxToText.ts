@@ -113,36 +113,27 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
 
-        // Analyze extraction quality
+        // Build quality metrics (simplified - no HTML)
         const warnings = messages.filter(m => m.type === 'warning');
-        const italicsCount = (html.match(/<em>/g) || []).length;
-        const boldCount = (html.match(/<strong>/g) || []).length;
-        const footnoteCount = (html.match(/<sup>/g) || []).length;
-
-        // Build quality metrics
         const extractionQuality = {
             wordCount,
-            italicsPreserved: italicsCount,
-            boldPreserved: boldCount,
-            footnotesDetected: footnoteCount,
             warnings: warnings.length,
-            hasComplexFormatting: warnings.length > 5
+            hasComplexFormatting: warnings.length > 3
         };
 
-        // Generate preview with formatting indicators
-        const htmlPreview = html.substring(0, 3000) + (html.length > 3000 ? '...' : '');
+        // Generate preview
         const textPreview = text.substring(0, 2000) + (text.length > 2000 ? '...' : '');
 
         return Response.json({
             success: true,
             text: text,
-            html: htmlPreview,
+            html: `<p>${textPreview.replace(/\n/g, '</p><p>')}</p>`, // Simple HTML for preview
             wordCount: wordCount,
             preview: textPreview,
             quality: extractionQuality,
-            message: warnings.length > 5 
-                ? `⚠️ Complex formatting detected (${warnings.length} style warnings). Text extracted successfully—minor formatting may differ.`
-                : `✓ Document converted cleanly. ${italicsCount + boldCount + footnoteCount > 0 ? `Preserved: ${italicsCount} italics, ${boldCount} bold, ${footnoteCount} footnotes.` : ''}`
+            message: warnings.length > 3 
+                ? `✓ Text extracted (${warnings.length} style notes). Formatting simplified.`
+                : `✓ Document converted cleanly.`
         });
 
     } catch (error) {
