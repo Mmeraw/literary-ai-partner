@@ -154,7 +154,30 @@ Provide:
         const density = thoughtTags.length / (wordCount / 300);
         const shouldFlag = density >= 2 || thoughtTags.length >= 3;
 
-        // Generate thought-tag suggestions if flagged
+        // WAVE 62: Overused word detection (global frequency analysis)
+        const overusedWords = ['thought', 'felt', 'wondered', 'realized', 'knew', 'noticed', 'very', 'really', 'suddenly', 'quickly', 'extremely', 'just', 'actually', 'basically', 'literally', 'thing', 'stuff', 'situation', 'area', 'place'];
+        const wordFrequency = {};
+        const words = text.toLowerCase().split(/\b/);
+        
+        words.forEach(word => {
+            const cleanWord = word.trim();
+            if (overusedWords.includes(cleanWord)) {
+                wordFrequency[cleanWord] = (wordFrequency[cleanWord] || 0) + 1;
+            }
+        });
+        
+        // Calculate density per 1000 words
+        const densityThreshold = 3; // 3+ per 1000 words = flag
+        const overusedWordHits = Object.entries(wordFrequency)
+            .filter(([word, count]) => (count / wordCount) * 1000 >= densityThreshold)
+            .map(([word, count]) => ({
+                word,
+                count,
+                density: ((count / wordCount) * 1000).toFixed(1)
+            }))
+            .sort((a, b) => b.count - a.count);
+
+        // Generate thought-tag suggestions if flagged (WAVE 1)
         let thoughtTagSuggestions = [];
         if (shouldFlag && thoughtTags.length > 0) {
             try {
@@ -307,7 +330,8 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             waveHits: sortedWaveHits,
             waveGuidance: waveAnalysis.waveGuidance || { priorityWaves: [], nextActions: [] },
             styleMode: styleMode,
-            thoughtTagSuggestions: thoughtTagSuggestions
+            thoughtTagSuggestions: thoughtTagSuggestions,
+            overusedWordHits: overusedWordHits
         };
 
         // Save to database

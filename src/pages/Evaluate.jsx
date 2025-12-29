@@ -439,6 +439,45 @@ export default function Evaluate() {
                                     </div>
                                 )}
 
+                                {/* Overused Word Analysis (WAVE 62) */}
+                                {evaluationResult.overusedWordHits?.length > 0 && (
+                                    <div className="p-6 rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <Badge className="bg-purple-600 text-white">WAVE 62: Overused Word Detection</Badge>
+                                            <Badge className="bg-amber-500 text-white">Density Analysis</Badge>
+                                        </div>
+                                        <p className="text-sm text-slate-700 mb-4">
+                                            High-frequency weak words detected. These crutch terms dilute prose authority.
+                                        </p>
+                                        <div className="space-y-2">
+                                            {evaluationResult.overusedWordHits.map((hit, idx) => (
+                                                <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-white border border-purple-200">
+                                                    <div className="flex items-center gap-3">
+                                                        <code className="px-2 py-1 rounded bg-purple-100 text-purple-800 font-mono text-sm">
+                                                            {hit.word}
+                                                        </code>
+                                                        <span className="text-sm text-slate-600">
+                                                            {hit.count} occurrences
+                                                        </span>
+                                                    </div>
+                                                    <Badge className={
+                                                        parseFloat(hit.density) > 10 ? 'bg-red-100 text-red-700' :
+                                                        parseFloat(hit.density) > 6 ? 'bg-amber-100 text-amber-700' :
+                                                        'bg-blue-100 text-blue-700'
+                                                    }>
+                                                        {hit.density}/1000 words
+                                                    </Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="mt-4 p-3 rounded-lg bg-purple-100 border border-purple-300">
+                                            <p className="text-xs text-purple-900">
+                                                <strong>Pro Tip:</strong> For full chapter heatmaps and targeted rewrite suggestions, upgrade to Professional plan.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Thought Tag Suggestions (WAVE 1) */}
                                 {evaluationResult.thoughtTagSuggestions?.length > 0 && (
                                     <div className="space-y-4">
