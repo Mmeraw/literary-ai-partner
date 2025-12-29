@@ -1,27 +1,31 @@
 css
-/* NUCLEAR OPTION: Kill all stylistic alternates + force system fonts with guaranteed straight-y */
-@layer base {
-  *, *::before, *::after, html, body, #root, [class*="text-"], [class*="font-"] {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
-    font-feature-settings: "calt" 0, "liga" 0, "dlig" 0, "hlig" 0, "clig" 0, "rlig" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0, "ss11" 0, "ss12" 0, "ss13" 0, "ss14" 0, "ss15" 0, "ss16" 0, "ss17" 0, "ss18" 0, "ss19" 0, "ss20" 0, "cv01" 0, "cv02" 0, "cv03" 0, "cv04" 0, "cv05" 0, "cv06" 0, "cv07" 0, "cv08" 0, "cv09" 0, "cv10" 0, "cv11" 0, "cv12" 0, "cv13" 0, "cv14" 0, "cv15" 0, "salt" 0, "swsh" 0, "cswh" 0, "ornm" 0, "nalt" 0, "hist" 0 !important;
-    font-variant-ligatures: none !important;
-    font-variant-alternates: normal !important;
-    font-variant: normal !important;
-    font-synthesis: none !important;
-    text-rendering: optimizeLegibility !important;
-    -webkit-font-smoothing: antialiased !important;
-    -moz-osx-font-smoothing: grayscale !important;
-    -webkit-font-feature-settings: "calt" 0, "liga" 0, "dlig" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0, "cv01" 0, "cv02" 0, "cv03" 0, "cv04" 0, "cv05" 0 !important;
-    -moz-font-feature-settings: "calt" 0, "liga" 0, "dlig" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0, "cv01" 0, "cv02" 0, "cv03" 0, "cv04" 0, "cv05" 0 !important;
-  }
+/* ABSOLUTE NUCLEAR: Arial-only, zero alternates, maximum specificity */
+* {
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-feature-settings: normal !important;
+  font-variant: normal !important;
+  font-variant-ligatures: none !important;
+  font-variant-alternates: normal !important;
+  font-variant-caps: normal !important;
+  font-variant-numeric: normal !important;
+  font-variant-east-asian: normal !important;
+  font-synthesis: none !important;
+  -webkit-font-feature-settings: normal !important;
+  -moz-font-feature-settings: normal !important;
+  text-rendering: geometricPrecision !important;
 }
 
-/* Force system fonts on all text elements */
-h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label, li, td, th {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+html, body, #root, main, div, span, p, h1, h2, h3, h4, h5, h6, a, button, input, textarea, select, label, li, td, th, nav, header, footer, section, article, aside {
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-feature-settings: normal !important;
+  font-variant: normal !important;
 }
 
-/* Override Tailwind font classes */
-.font-sans, .font-serif, .font-mono {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+/* Kill all Tailwind font classes */
+[class*="font-"], [class*="text-"] {
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+
+.font-sans, .font-serif, .font-mono, .font-bold, .font-semibold, .font-medium {
+  font-family: Arial, Helvetica, sans-serif !important;
 }
