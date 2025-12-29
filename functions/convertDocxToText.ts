@@ -50,16 +50,37 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
 
+        // Check file size before processing
+        const fileSize = file.size;
+        console.log('File size:', fileSize, 'bytes');
+        
+        if (fileSize > 10_000_000) { // 10MB limit
+            return Response.json({ 
+                success: false,
+                error: '📊 File too large (>10MB). For large manuscripts, paste text directly or split into chapters.',
+                errorType: 'size'
+            }, { status: 400 });
+        }
+
         // Convert to ArrayBuffer for mammoth
         console.log('Converting to ArrayBuffer...');
         const arrayBuffer = await file.arrayBuffer();
         console.log('ArrayBuffer size:', arrayBuffer.byteLength);
 
-        // Extract raw text AND HTML for preview
-        console.log('Starting mammoth extraction...');
-        const [textResult, htmlResult] = await Promise.all([
+        // Add timeout protection for mammoth conversion
+        console.log('Starting mammoth extraction with timeout...');
+        const conversionPromise = Promise.all([
             mammoth.extractRawText({ arrayBuffer }),
             mammoth.convertToHtml({ arrayBuffer })
+        ]);
+
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('TIMEOUT')), 15000); // 15 second timeout
+        });
+
+        const [textResult, htmlResult] = await Promise.race([
+            conversionPromise,
+            timeoutPromise
         ]);
         console.log('Mammoth extraction complete');
 
