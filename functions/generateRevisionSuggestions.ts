@@ -341,25 +341,57 @@ Return JSON with validated results.`;
     // SINGLE PRIMARY FIX PROTOCOL: Validate if alternatives are viable
     const validateAlternatives = (suggestion, waveNum) => {
       // Conditions where only ONE correct fix exists (no semantic alternatives allowed):
-      // 1. W13 (Dialogue Tags) - Ritual/teaching cadence requiring specific attribution
-      // 2. Fidelity-locked fixes where any deviation introduces drift
-      // 3. Agency-critical fixes where verb must stay with original actor
+      // 1. W4 (Filter Verbs) - Remove distance, preserve exact action ("watched X" → "X happened")
+      // 2. W2 (POV) - Remove interior motive/explanation, keep behavior only
+      // 3. W13 (Dialogue Tags) - Ritual/teaching cadence requiring specific attribution
+      // 4. Agency-critical fixes where verb must stay with original actor
+      // 5. Interpretive clause removal - Only one way to delete commentary
+      
+      const isFilterVerbRemoval = waveNum === 4 && 
+        (suggestion.why_flagged?.includes('filter') || 
+         suggestion.why_flagged?.includes('watched') ||
+         suggestion.why_flagged?.includes('saw') ||
+         suggestion.why_flagged?.includes('heard'));
+      
+      const isPOVInferenceRemoval = waveNum === 2 && 
+        (suggestion.why_flagged?.includes('interior') || 
+         suggestion.why_flagged?.includes('motive') ||
+         suggestion.why_flagged?.includes('inference'));
+      
+      const isInterpretiveClauseRemoval = 
+        suggestion.why_flagged?.includes('interpretive') ||
+        suggestion.why_flagged?.includes('explanation') ||
+        suggestion.original_text?.includes('as if') ||
+        suggestion.original_text?.includes('because');
       
       const isRitualDialogue = waveNum === 13 && 
         /^["'].*["']\s*["'].*["']\s*["']/.test(suggestion.original_text) &&
         (suggestion.why_flagged?.includes('ritual') || suggestion.why_flagged?.includes('teaching'));
       
-      const isFidelityLocked = suggestion.why_this_fix?.includes('fidelity') || 
+      const isAgencyPreservation = 
         suggestion.why_this_fix?.includes('agency') ||
-        suggestion.why_this_fix?.includes('cadence');
+        suggestion.why_this_fix?.includes('character choice');
       
-      if (isRitualDialogue || isFidelityLocked) {
-        console.log(`[WAVE ${waveNum}] Single Primary Fix locked - ${isRitualDialogue ? 'ritual dialogue' : 'fidelity constraint'}`);
+      const isFidelityLocked = 
+        suggestion.why_this_fix?.includes('fidelity') ||
+        suggestion.why_this_fix?.includes('cadence') ||
+        suggestion.why_this_fix?.includes('meaning drift');
+      
+      if (isFilterVerbRemoval || isPOVInferenceRemoval || isInterpretiveClauseRemoval || 
+          isRitualDialogue || isAgencyPreservation || isFidelityLocked) {
+        const lockType = isFilterVerbRemoval ? 'filter_verb_removal' :
+                        isPOVInferenceRemoval ? 'pov_inference_removal' :
+                        isInterpretiveClauseRemoval ? 'interpretive_clause_removal' :
+                        isRitualDialogue ? 'ritual_cadence' :
+                        isAgencyPreservation ? 'agency_preservation' :
+                        'fidelity_constraint';
+        
+        console.log(`[WAVE ${waveNum}] Single Primary Fix locked - ${lockType}`);
         return {
           allows_alternatives: false,
-          alternatives_reason: "Any alternate would introduce semantic drift or break ritual cadence",
+          alternatives_reason: "Any alternate would introduce semantic drift, agency loss, or invented action",
           lock_scope: "row",
-          lock_type: isRitualDialogue ? "ritual_cadence" : "fidelity_constraint"
+          lock_type: lockType
         };
       }
       
