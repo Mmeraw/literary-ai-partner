@@ -75,7 +75,7 @@ export default function Layout({ children, currentPageName }) {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50">
+        <div className="min-h-screen bg-slate-50" style={{ fontFeatureSettings: '"ss01" 0, "ss02" 0, "cv01" 0, "calt" 0' }}>
             {/* Navigation */}
             <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6">
