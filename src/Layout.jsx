@@ -18,25 +18,58 @@ import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
 import AnalyticsTracker from '@/components/AnalyticsTracker';
 
-// Kill Unicode y imposters on page load
+// Kill Unicode y imposters with MutationObserver (survives React re-renders)
 React.useEffect(() => {
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    const nodes = [];
-    while (walker.nextNode()) nodes.push(walker.currentNode);
+    const charMap = new Map([
+        ["\u03A5", "Y"], ["\u03C5", "y"], // Greek upsilon
+        ["\u0423", "Y"], ["\u0443", "y"], // Cyrillic U
+        ["\u042B", "Y"], ["\u044B", "y"], // Cyrillic Yeru
+        ["\u00FD", "y"], ["\u00FF", "y"], // ý, ÿ
+        ["\u0176", "Y"], ["\u0177", "y"], // Ŷ, ŷ
+        ["\u1EF2", "Y"], ["\u1EF3", "y"]  // Ỳ, ỳ
+    ]);
 
-    for (const n of nodes) {
-        const t = n.nodeValue;
-        if (!t) continue;
-        const fixed = t
-            .replace(/\u03A5/g, "Y") // Greek capital upsilon Υ
-            .replace(/\u03C5/g, "y") // Greek small upsilon υ
-            .replace(/\u0443/g, "y") // Cyrillic small u у
-            .replace(/\u00FD/g, "y") // ý
-            .replace(/\u00FF/g, "y") // ÿ
-            .replace(/\u0177/g, "y") // ŷ
-            .replace(/\u1EF3/g, "y"); // ỳ
-        if (fixed !== t) n.nodeValue = fixed;
+    function sanitizeText(root) {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        let node;
+        while ((node = walker.nextNode())) {
+            const t = node.nodeValue;
+            if (!t) continue;
+            let out = "";
+            let changed = false;
+            for (const ch of t) {
+                const rep = charMap.get(ch);
+                if (rep) { out += rep; changed = true; }
+                else out += ch;
+            }
+            if (changed) node.nodeValue = out;
+        }
     }
+
+    // Initial sanitization
+    if (document.body) sanitizeText(document.body);
+
+    // Watch for React re-renders and new content
+    const observer = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+            if (m.type === "characterData" && m.target?.nodeValue) {
+                sanitizeText(m.target.parentNode || document.body);
+            } else if (m.addedNodes?.length) {
+                m.addedNodes.forEach(node => {
+                    if (node.nodeType === 3) sanitizeText(node.parentNode || document.body);
+                    else if (node.nodeType === 1) sanitizeText(node);
+                });
+            }
+        }
+    });
+
+    observer.observe(document.documentElement, {
+        subtree: true,
+        childList: true,
+        characterData: true
+    });
+
+    return () => observer.disconnect();
 }, []);
 
 const worksPages = [
