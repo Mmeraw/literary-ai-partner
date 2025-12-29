@@ -39,8 +39,8 @@ export default function Home() {
                             Transmedia Intelligence for Serious Storytellers
                         </Badge>
 
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight pb-2">
-                            <span className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight pb-4">
+                            <span className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent pb-2">
                                 Manuscript/Screenplay Evaluation → Publishing & Hollywood
                             </span>
                         </h1>
