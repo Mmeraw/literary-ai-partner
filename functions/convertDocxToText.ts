@@ -67,22 +67,28 @@ Deno.serve(async (req) => {
         const arrayBuffer = await file.arrayBuffer();
         console.log('ArrayBuffer size:', arrayBuffer.byteLength);
 
-        // Add timeout protection for mammoth conversion
-        console.log('Starting mammoth extraction with timeout...');
+        // Add timeout protection for mammoth conversion (8s max)
+        console.log('Starting mammoth extraction with 8s timeout...');
+        
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => {
+                console.error('TIMEOUT: Mammoth took >8 seconds');
+                reject(new Error('TIMEOUT'));
+            }, 8000);
+        });
+
         const conversionPromise = Promise.all([
             mammoth.extractRawText({ arrayBuffer }),
             mammoth.convertToHtml({ arrayBuffer })
-        ]);
-
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('TIMEOUT')), 15000); // 15 second timeout
+        ]).then(results => {
+            console.log('Mammoth extraction completed successfully');
+            return results;
         });
 
         const [textResult, htmlResult] = await Promise.race([
             conversionPromise,
             timeoutPromise
         ]);
-        console.log('Mammoth extraction complete');
 
         const text = textResult.value;
         const html = htmlResult.value;
