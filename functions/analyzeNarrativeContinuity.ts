@@ -85,6 +85,12 @@ DETECTION RULES:
    - Romantic, familial, mentor relationships introduced
    - Flag if: relationship starts BUT no arc/resolution
 
+6. PHYSICAL STATE CONTINUITY (PSC)
+   - Objects/environments described in mutually exclusive states without transition
+   - Mutually exclusive pairs: wet ↔ dry, fresh ↔ aged, clean ↔ grimy, intact ↔ broken, warm ↔ cold, recently altered ↔ long-abandoned
+   - Flag if: same object described in contradictory physical states (e.g., "dust-covered and curling" + "ink still wet") without causal explanation
+   - OK if: transition language present ("after the rain...", "where someone recently touched it...")
+
 RESOLUTION STATES:
 - "resolved": Thread has clear closure/payoff
 - "intentionally_open": Ambiguity is thematically earned (e.g., haunting absence)
@@ -117,7 +123,7 @@ Return JSON with threads array.`;
                 label: { type: "string" },
                 thread_type: { 
                   type: "string",
-                  enum: ["character", "conflict", "object_symbol", "question_promise", "relationship", "motif"]
+                  enum: ["character", "conflict", "object_symbol", "question_promise", "relationship", "motif", "physical_continuity"]
                 },
                 introduced_chapter: { type: "number" },
                 introduced_scene: { type: "string" },
