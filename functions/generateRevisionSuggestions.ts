@@ -268,13 +268,16 @@ Return JSON with validated results.`;
         suggestion.why_this_fix?.includes('cadence');
       
       if (isRitualDialogue || isFidelityLocked) {
+        console.log(`[WAVE ${waveNum}] Single Primary Fix locked - ${isRitualDialogue ? 'ritual dialogue' : 'fidelity constraint'}`);
         return {
           allows_alternatives: false,
-          alternatives_reason: "No viable alternatives without semantic/cadence drift"
+          alternatives_reason: "Any alternate would introduce semantic drift or break ritual cadence",
+          lock_scope: "row",
+          lock_type: isRitualDialogue ? "ritual_cadence" : "fidelity_constraint"
         };
       }
       
-      return { allows_alternatives: true, alternatives_reason: null };
+      return { allows_alternatives: true, alternatives_reason: null, lock_scope: null, lock_type: null };
     };
 
     // Add wave name and IDs to approved suggestions only
@@ -287,7 +290,9 @@ Return JSON with validated results.`;
         status: "pending",
         alternatives: altValidation.allows_alternatives ? [] : null,
         alternatives_status: altValidation.allows_alternatives ? null : "fidelity_locked",
-        alternatives_reason: altValidation.alternatives_reason
+        alternatives_reason: altValidation.alternatives_reason,
+        lock_scope: altValidation.lock_scope,
+        lock_type: altValidation.lock_type
       };
     });
 

@@ -91,13 +91,17 @@ export default function SuggestionCard({
 
         {/* Alternatives or Fidelity Lock Notice */}
         {suggestion.alternatives === null ? (
-          <div className="p-4 rounded-lg bg-slate-50 border border-slate-300">
+          <div 
+            className="p-4 rounded-lg bg-slate-50 border border-slate-300"
+            role="status"
+            aria-label="No alternatives available - fidelity locked"
+          >
             <div className="flex items-start gap-3">
-              <Info className="w-5 h-5 text-slate-600 flex-shrink-0 mt-0.5" />
+              <Info className="w-5 h-5 text-slate-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
               <div>
-                <h4 className="text-sm font-semibold text-slate-900 mb-1">Single Primary Fix (Fidelity-Locked)</h4>
+                <h4 className="text-sm font-semibold text-slate-900 mb-1">No suitable alternatives available (fidelity-locked)</h4>
                 <p className="text-sm text-slate-600">
-                  {suggestion.alternatives_reason || "No viable alternatives without semantic drift or breaking ritual cadence."}
+                  {suggestion.alternatives_reason || "Any alternate would introduce semantic drift or break ritual cadence."}
                 </p>
               </div>
             </div>
