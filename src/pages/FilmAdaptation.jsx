@@ -250,28 +250,14 @@ export default function FilmAdaptation() {
                     </Badge>
                     
                     <h1 className="text-4xl sm:text-5xl font-bold text-white mb-6 leading-tight">
-                        From Manuscript to Market-Ready IP
+                        Manuscript/Screenplay → Publishing-Ready & Hollywood-Ready
                     </h1>
-                    <p className="text-lg text-indigo-200 max-w-3xl mx-auto mb-6 font-medium">
-                        Evaluate your manuscript → Refine it → Generate a professional pitch
-                    </p>
-                    <p className="text-base text-slate-300 mb-4">
-                        Manuscript/Screenplay → Published & Hollywood
-                    </p>
-                    <p className="text-sm text-indigo-300 max-w-2xl mx-auto mb-6">
-                        Dual-Layer (12 Agent + 60+ WAVE Checks)
-                    </p>
                     
-                    <p className="text-xl text-slate-300 max-w-3xl mx-auto mb-4">
-                        One System. One Workflow.
+                    <p className="text-lg text-indigo-200 max-w-4xl mx-auto mb-2 font-medium tracking-wide">
+                        Manuscript / Screenplay → Evaluate → Revise → Polish → Package → Pitch / Query
                     </p>
-                    
-                    <p className="text-2xl text-white font-semibold max-w-3xl mx-auto mb-3">
-                        Upload Your Complete Work → Get Complete Pitch Content
-                    </p>
-                    
-                    <p className="text-base text-slate-300 max-w-2xl mx-auto mb-10">
-                        All text, structure, and slide content—ready for your designer or template
+                    <p className="text-sm text-indigo-300 max-w-3xl mx-auto mb-10">
+                        Adaptation included: Manuscript → Screenplay or Screenplay → Pitch Deck
                     </p>
 
                     <div className="flex flex-col items-center gap-3">
