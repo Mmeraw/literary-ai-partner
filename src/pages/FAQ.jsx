@@ -503,6 +503,164 @@ export default function FAQ() {
                         </CardContent>
                     </Card>
 
+                    {/* Authorship & Ethics */}
+                    <Card className="border-0 shadow-md">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <Award className="w-5 h-5 text-indigo-600" />
+                                Authorship & Ethics
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Accordion type="single" collapsible className="w-full">
+                                <AccordionItem value="authorship">
+                                    <AccordionTrigger>
+                                        Who owns the work created using this platform?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                <strong>The author retains full ownership of all submitted and generated material.</strong> RevisionGrade™ 
+                                                does not claim authorship, co-authorship, or creative rights over user content.
+                                            </p>
+                                            <p>
+                                                You own your work. Period.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="still-mine">
+                                    <AccordionTrigger>
+                                        If the system revises or improves my work, is it still mine?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                <strong>Yes.</strong> Just as with a human editor, ghostwriter, or script consultant, 
+                                                the author remains the creator.
+                                            </p>
+                                            <p>
+                                                Our system provides <strong>analytical feedback, structural revision, and stylistic refinement</strong> 
+                                                based on the author's original material and direction. It operates as an editorial and analytical assistant—not 
+                                                a creative originator.
+                                            </p>
+                                            <p className="text-indigo-900 font-semibold">
+                                                Editorial transformation ≠ Creative origination.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="ai-writing">
+                                    <AccordionTrigger>
+                                        How is this different from "AI writing my book"?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                <strong>Our platform does not generate independent stories or substitute authorial intent.</strong>
+                                            </p>
+                                            <p>
+                                                It operates as an <strong>editorial and analytical assistant</strong>—evaluating, revising, and refining 
+                                                material that <strong>the author has already created</strong>.
+                                            </p>
+                                            <p>
+                                                Think of it this way:
+                                            </p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>You write the story, characters, and scenes</li>
+                                                <li>RevisionGrade™ evaluates against professional standards</li>
+                                                <li>You decide which suggestions to accept or reject</li>
+                                                <li>The final work reflects <strong>your creative choices</strong></li>
+                                            </ul>
+                                            <p className="text-indigo-900 font-semibold mt-3">
+                                                RevisionGrade™ doesn't create—it refines what you've already built.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="vs-human-editor">
+                                    <AccordionTrigger>
+                                        Is this different from hiring a professional editor or script doctor?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                <strong>Functionally, no.</strong> The difference is scale and speed.
+                                            </p>
+                                            <p>
+                                                Professional editors routinely:
+                                            </p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Restructure chapters and scenes</li>
+                                                <li>Rewrite dialogue and descriptions</li>
+                                                <li>Cut, move, and reframe entire sections</li>
+                                                <li>Polish sentence-level craft</li>
+                                            </ul>
+                                            <p className="mt-3">
+                                                Yet the author's name goes on the cover—because <strong>editors provide transformation, not origination</strong>.
+                                            </p>
+                                            <p className="text-indigo-900 font-semibold">
+                                                The same ethical standard applies here: the work remains the author's intellectual property.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="claims-ownership">
+                                    <AccordionTrigger>
+                                        Does the platform claim ownership of my text or ideas?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                <strong>No.</strong> All submitted content remains the exclusive property of the author.
+                                            </p>
+                                            <p>
+                                                RevisionGrade™ operates under the same principle as professional editorial services: 
+                                                we provide analysis and refinement—<strong>you retain all rights</strong>.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="editorial-precedent">
+                                    <AccordionTrigger>
+                                        Is there precedent for this in publishing?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                <strong>Yes—it's standard practice.</strong>
+                                            </p>
+                                            <p>
+                                                In publishing law and practice:
+                                            </p>
+                                            <ul className="list-disc ml-6 space-y-2">
+                                                <li><strong>Editors do not become co-authors</strong> unless they contribute original creative content</li>
+                                                <li><strong>Structural edits, rewrites, line edits, and suggestions do not transfer authorship</strong></li>
+                                                <li><strong>Ghostwriters</strong> are often contractually invisible—and our system does less than that</li>
+                                            </ul>
+                                            <p className="mt-3">
+                                                RevisionGrade™ is closer to:
+                                            </p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Grammarly (but deeper)</li>
+                                                <li>A developmental editor</li>
+                                                <li>A screenplay consultant</li>
+                                            </ul>
+                                            <p className="mt-3 text-indigo-900 font-semibold">
+                                                All of which are universally accepted in professional publishing.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </CardContent>
+                    </Card>
+
                     {/* Privacy & Security */}
                     <Card className="border-0 shadow-md">
                         <CardHeader>
