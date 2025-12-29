@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, X, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Check, X, RefreshCw, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 import FeedbackButtons from './FeedbackButtons';
 import ScreenplayText from '@/components/ScreenplayText';
@@ -89,8 +89,20 @@ export default function SuggestionCard({
           <p className="text-sm text-blue-800">{suggestion.why_this_fix}</p>
         </div>
 
-        {/* Alternatives */}
-        {suggestion.alternatives && suggestion.alternatives.length > 0 && (
+        {/* Alternatives or Fidelity Lock Notice */}
+        {suggestion.alternatives === null ? (
+          <div className="p-4 rounded-lg bg-slate-50 border border-slate-300">
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 text-slate-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900 mb-1">Single Primary Fix (Fidelity-Locked)</h4>
+                <p className="text-sm text-slate-600">
+                  {suggestion.alternatives_reason || "No viable alternatives without semantic drift or breaking ritual cadence."}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : suggestion.alternatives && suggestion.alternatives.length > 0 && (
           <div>
             <Button
               variant="ghost"
@@ -157,15 +169,17 @@ export default function SuggestionCard({
               <X className="w-4 h-4 mr-2" />
               Reject
             </Button>
-            <Button
-              onClick={() => onRequestAlternatives(suggestion.id)}
-              disabled={isLoading || (suggestion.alternatives && suggestion.alternatives.length > 0)}
-              variant="outline"
-              className="flex-1"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Alternatives
-            </Button>
+            {suggestion.alternatives !== null && (
+              <Button
+                onClick={() => onRequestAlternatives(suggestion.id)}
+                disabled={isLoading || (suggestion.alternatives && suggestion.alternatives.length > 0)}
+                variant="outline"
+                className="flex-1"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Alternatives
+              </Button>
+            )}
           </div>
         )}
 

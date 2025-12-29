@@ -84,6 +84,12 @@ export default function Revise() {
     const suggestion = session.suggestions.find(s => s.id === suggestionId);
     if (!suggestion) return;
 
+    // Block if fidelity-locked (alternatives = null)
+    if (suggestion.alternatives === null) {
+      toast.error('This fix is fidelity-locked - no viable alternatives exist', { id: 'alternatives' });
+      return;
+    }
+
     toast.loading('Generating alternatives...', { id: 'alternatives' });
 
     try {

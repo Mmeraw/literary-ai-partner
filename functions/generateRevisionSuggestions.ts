@@ -252,14 +252,44 @@ Return JSON with validated results.`;
         why_this_fix: item.why_this_fix || "Strengthens clarity and narrative directness"
       }));
 
+    // SINGLE PRIMARY FIX PROTOCOL: Validate if alternatives are viable
+    const validateAlternatives = (suggestion, waveNum) => {
+      // Conditions where only ONE correct fix exists (no semantic alternatives allowed):
+      // 1. W13 (Dialogue Tags) - Ritual/teaching cadence requiring specific attribution
+      // 2. Fidelity-locked fixes where any deviation introduces drift
+      // 3. Agency-critical fixes where verb must stay with original actor
+      
+      const isRitualDialogue = waveNum === 13 && 
+        /^["'].*["']\s*["'].*["']\s*["']/.test(suggestion.original_text) &&
+        (suggestion.why_flagged?.includes('ritual') || suggestion.why_flagged?.includes('teaching'));
+      
+      const isFidelityLocked = suggestion.why_this_fix?.includes('fidelity') || 
+        suggestion.why_this_fix?.includes('agency') ||
+        suggestion.why_this_fix?.includes('cadence');
+      
+      if (isRitualDialogue || isFidelityLocked) {
+        return {
+          allows_alternatives: false,
+          alternatives_reason: "No viable alternatives without semantic/cadence drift"
+        };
+      }
+      
+      return { allows_alternatives: true, alternatives_reason: null };
+    };
+
     // Add wave name and IDs to approved suggestions only
-    const suggestions = approvedSuggestions.map((s, idx) => ({
-      id: `w${wave_number}_${idx}`,
-      wave_name: wave.name,
-      ...s,
-      status: "pending",
-      alternatives: []
-    }));
+    const suggestions = approvedSuggestions.map((s, idx) => {
+      const altValidation = validateAlternatives(s, wave_number);
+      return {
+        id: `w${wave_number}_${idx}`,
+        wave_name: wave.name,
+        ...s,
+        status: "pending",
+        alternatives: altValidation.allows_alternatives ? [] : null,
+        alternatives_status: altValidation.allows_alternatives ? null : "fidelity_locked",
+        alternatives_reason: altValidation.alternatives_reason
+      };
+    });
 
     // Create revision session
     const sessionData = {
