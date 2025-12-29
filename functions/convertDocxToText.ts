@@ -3,6 +3,18 @@ import mammoth from 'npm:mammoth@1.8.0';
 
 Deno.serve(async (req) => {
     try {
+        // Handle OPTIONS for CORS
+        if (req.method === 'OPTIONS') {
+            return new Response(null, {
+                status: 200,
+                headers: {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                }
+            });
+        }
+
         const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
 
@@ -14,8 +26,11 @@ Deno.serve(async (req) => {
             }, { status: 401 });
         }
 
+        console.log('Processing file upload...');
         const formData = await req.formData();
+        console.log('FormData received');
         const file = formData.get('file');
+        console.log('File extracted:', file ? file.name : 'NO FILE');
 
         if (!file) {
             return Response.json({ 
