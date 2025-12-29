@@ -51,17 +51,22 @@ Deno.serve(async (req) => {
         }
 
         // Convert to ArrayBuffer for mammoth
+        console.log('Converting to ArrayBuffer...');
         const arrayBuffer = await file.arrayBuffer();
+        console.log('ArrayBuffer size:', arrayBuffer.byteLength);
 
         // Extract raw text AND HTML for preview
+        console.log('Starting mammoth extraction...');
         const [textResult, htmlResult] = await Promise.all([
             mammoth.extractRawText({ arrayBuffer }),
             mammoth.convertToHtml({ arrayBuffer })
         ]);
+        console.log('Mammoth extraction complete');
 
         const text = textResult.value;
         const html = htmlResult.value;
         const messages = htmlResult.messages || [];
+        console.log('Extracted word count:', text.split(/\s+/).filter(w => w).length);
 
         // Count words
         const wordCount = text.split(/\s+/).filter(w => w).length;
