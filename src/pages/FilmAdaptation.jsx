@@ -57,6 +57,7 @@ export default function FilmAdaptation() {
     const [generating, setGenerating] = useState(false);
     const [pitchDeck, setPitchDeck] = useState(null);
     const [showUploadForm, setShowUploadForm] = useState(false);
+    const [inputMethod, setInputMethod] = useState('paste'); // 'paste' or 'upload'
 
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
@@ -268,29 +269,73 @@ export default function FilmAdaptation() {
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    Upload Manuscript or Screenplay (up to 250,000 words) *
+                                    Manuscript or Screenplay Text (up to 250,000 words) *
                                 </label>
-                                <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-indigo-400 transition-colors">
-                                    <input
-                                        type="file"
-                                        accept=".txt,.doc,.docx"
-                                        onChange={handleFileUpload}
-                                        className="hidden"
-                                        id="file-upload"
-                                    />
-                                    <label htmlFor="file-upload" className="cursor-pointer">
-                                        <Upload className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-                                        <p className="text-sm text-slate-600 mb-1">
-                                            Click to upload or drag and drop
-                                        </p>
-                                        <p className="text-xs text-slate-500">
-                                            TXT, DOC, DOCX or Screenplay (max 250,000 words)
-                                        </p>
-                                    </label>
+                                
+                                {/* Toggle between paste and upload */}
+                                <div className="flex gap-2 mb-3">
+                                    <Button
+                                        type="button"
+                                        variant={inputMethod === 'paste' ? 'default' : 'outline'}
+                                        size="sm"
+                                        onClick={() => setInputMethod('paste')}
+                                    >
+                                        Paste Text
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={inputMethod === 'upload' ? 'default' : 'outline'}
+                                        size="sm"
+                                        onClick={() => setInputMethod('upload')}
+                                    >
+                                        Upload .TXT File
+                                    </Button>
                                 </div>
+
+                                {inputMethod === 'paste' ? (
+                                    <div>
+                                        <Textarea
+                                            value={manuscriptData.manuscriptText}
+                                            onChange={(e) => {
+                                                const text = e.target.value;
+                                                const wordCount = text.split(/\s+/).filter(w => w).length;
+                                                if (wordCount > 250000) {
+                                                    toast.error('Text exceeds 250,000 word limit');
+                                                    return;
+                                                }
+                                                setManuscriptData(prev => ({ ...prev, manuscriptText: text }));
+                                            }}
+                                            placeholder="Paste your manuscript or screenplay text here..."
+                                            className="min-h-[300px] font-mono text-sm"
+                                        />
+                                        <p className="text-xs text-slate-500 mt-2">
+                                            💡 For Word documents: Open your .doc/.docx file, Select All (Ctrl+A / Cmd+A), Copy (Ctrl+C / Cmd+C), and paste here
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-indigo-400 transition-colors">
+                                        <input
+                                            type="file"
+                                            accept=".txt"
+                                            onChange={handleFileUpload}
+                                            className="hidden"
+                                            id="file-upload"
+                                        />
+                                        <label htmlFor="file-upload" className="cursor-pointer">
+                                            <Upload className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                                            <p className="text-sm text-slate-600 mb-1">
+                                                Click to upload a plain text file
+                                            </p>
+                                            <p className="text-xs text-slate-500">
+                                                .TXT files only (max 250,000 words)
+                                            </p>
+                                        </label>
+                                    </div>
+                                )}
+                                
                                 {manuscriptData.manuscriptText && (
                                     <p className="text-sm text-emerald-600 mt-2">
-                                        ✓ Loaded {manuscriptData.manuscriptText.split(/\s+/).length.toLocaleString()} words
+                                        ✓ Loaded {manuscriptData.manuscriptText.split(/\s+/).filter(w => w).length.toLocaleString()} words
                                     </p>
                                 )}
                             </div>
