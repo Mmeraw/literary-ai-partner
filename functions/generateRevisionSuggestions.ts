@@ -199,33 +199,51 @@ Return JSON with candidates array.`;
     MANDATORY QUALITY GATES (REJECT if any violated):
 
     1. IDIOMATIC ENGLISH ONLY
-    - NO translation artifacts ("Chief passed strike", "Strike passed")
-    - NO ungrammatical compression ("cinched deliberate" → must be "cinched deliberately")
-    - Must sound like natural, professional English prose
+       - NO translation artifacts ("Chief passed strike", "Strike passed")
+       - NO ungrammatical compression ("cinched deliberate" → must be "cinched deliberately")
+       - Must sound like natural, professional English prose
 
     2. NO INVENTED CHOREOGRAPHY
-    - Don't add staging/actions not in original ("Shelter swallowed him" when no shelter entry exists)
-    - Don't introduce setting elements not present ("Shelter closed" implies door/action)
-    - Preserve original scene boundaries exactly
+       - Don't add staging/actions not in original ("Shelter swallowed him" when no shelter entry exists)
+       - Don't introduce setting elements not present ("Shelter closed" implies door/action)
+       - Preserve original scene boundaries exactly
 
     3. NO COINED JARGON
-    - Avoid invented compounds unless source uses them ("rope-hiss", "cat-lined", "mouth-marked")
-    - Keep language clean and accessible, not pseudo-poetic
+       - Avoid invented compounds unless source uses them ("rope-hiss", "cat-lined", "mouth-marked")
+       - Keep language clean and accessible, not pseudo-poetic
 
     4. MEANING FIDELITY ABSOLUTE
-    - "eyes met his" ≠ "kept eyes from the face" (opposite meanings!)
-    - Preserve original intent precisely; never drift to convenience
-    - If original shows avoidance, keep avoidance; don't invent connection
+       - "eyes met his" ≠ "kept eyes from the face" (opposite meanings!)
+       - Preserve original intent precisely; never drift to convenience
+       - If original shows avoidance, keep avoidance; don't invent connection
 
     5. CORRECT WAVE CATEGORIZATION
-    - W2 (POV) = unverifiable internal motive/knowledge ONLY
-    - "where a mouth had closed" is physical inference, NOT mind-reading
-    - Don't mislabel observable evidence as POV breach
+       - W2 (POV) = unverifiable internal motive/knowledge ONLY
+       - "where a mouth had closed" is physical inference, NOT mind-reading
+       - Don't mislabel observable evidence as POV breach
+       - W4 (Filter Verbs): Remove "watched/saw/heard/felt" distance, but preserve exact action
+       - Observable behavior (jaw tightens, eyes track) ≠ mind-reading
 
     6. GRAMMATICAL CORRECTNESS
-    - All suggestions must be grammatically complete
-    - No broken constructions ("Back turned final" is not English)
-    - Adverbs need -ly unless legitimately stylistic
+       - All suggestions must be grammatically complete
+       - No broken constructions ("Back turned final" is not English)
+       - Adverbs need -ly unless legitimately stylistic
+
+    7. AGENCY PRESERVATION (Hard Constraint)
+       - Never transfer agency from character → environment
+       - "She left it open" ≠ "The curtain stayed open" (agency loss)
+       - Character choice must remain with character
+
+    8. NO INTERPRETIVE CLAUSES
+       - Remove explanations of motive: "as if by slowness he could make the act different" → delete
+       - Remove universalizing commentary: "because nodding is what a man does..." → delete
+       - Remove attribution of interior state: "a tiny prayer or a curse" → delete
+       - Keep observable behavior only
+
+    9. SINGLE CORRECT FIX PROTOCOL
+       - If only ONE fix preserves meaning + agency + rhythm: mark alternatives = null
+       - Filter verb removal: "She watched smoke curl" → "Smoke curled" (no alternates needed)
+       - Do not invent new verbs/metaphors just to offer choice
 
     CRITICAL GATING RULE (from WAVE 61):
     **Reflexive ≠ automatically bad**
@@ -252,19 +270,28 @@ For each candidate, validate MANDATORY QUALITY GATES:
 2. Does it preserve original meaning exactly? (no drift, no invention of opposite intent)
 3. Does it avoid invented choreography/staging? (only what source text contains)
 4. Is it free of coined jargon? (unless source uses it)
-5. Is the WAVE category correct? (W2 = true mind-reading only, not physical inference)
+5. Is the WAVE category correct? (W2 = true mind-reading only, not physical inference; W4 = filter verbs)
 6. Is it grammatically complete? (all adverbs properly formed, sentences complete)
+7. Does it preserve character agency? (no transfer to environment/objects)
+8. Does it avoid interpretive clauses? (no "as if...", "because...", "what a man does...")
+9. Does it avoid assigning interior motive to observable behavior?
 
 Then determine:
-7. Does this construction serve voice/embodiment/agency? (yes/no)
-8. Does it strengthen psychological cohesion or intimacy? (yes/no)
-9. Is it justified by narrative context? (yes/no)
-10. Which WAVE principle applies? (cite wave number if known)
-11. Final verdict: "keep" or "revise"
+10. Constraint Fidelity Score (0-125):
+    - 100-125: Zero semantic drift, zero agency loss, zero invention (PERFECT)
+    - 90-99: Excellent, minor acceptable risk
+    - 80-89: Acceptable but slightly interpretive
+    - <80: Violates fidelity or introduces narrative change (REJECT)
+11. Is there only ONE valid fix? (yes/no)
+    - If yes: mark alternatives = null, set alternatives_reason
+12. Does this construction serve voice/embodiment/agency? (yes/no)
+13. Which WAVE principle applies? (cite wave number)
+14. Final verdict: "keep" or "revise"
 
 If "keep": explain what narrative function it serves
-If "revise": provide editorial rationale aligned with WAVE principles
+If "revise": provide editorial rationale + constraint fidelity score
 If any quality gate FAILS: verdict MUST be "keep" (don't suggest broken fixes)
+If only ONE fix preserves meaning/agency: alternatives = null
 
 CANDIDATES TO EVALUATE:
 ${JSON.stringify(candidates.candidates, null, 2)}
