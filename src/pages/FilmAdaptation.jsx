@@ -275,24 +275,17 @@ export default function FilmAdaptation() {
                         All text, structure, and slide content—ready for your designer or template
                     </p>
 
-                    <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex flex-col items-center gap-3">
                         <Button 
                             size="lg" 
-                            className="h-14 px-8 bg-white text-slate-900 hover:bg-slate-100"
+                            className="h-16 px-10 bg-white text-slate-900 hover:bg-slate-100 text-lg font-semibold w-full sm:w-auto"
                             onClick={() => setShowUploadForm(true)}
                         >
                             <Upload className="w-5 h-5 mr-2" />
                             Generate Your Film Pitch Deck
                         </Button>
-                        <Link to={createPageUrl('Pricing')}>
-                            <Button 
-                                size="lg" 
-                                variant="outline"
-                                className="h-14 px-8 border-white text-white hover:bg-white/10"
-                            >
-                                <Sparkles className="w-5 h-5 mr-2" />
-                                Pricing
-                            </Button>
+                        <Link to={createPageUrl('Pricing')} className="text-sm text-indigo-200 hover:text-white underline">
+                            View pricing
                         </Link>
                     </div>
                 </div>
