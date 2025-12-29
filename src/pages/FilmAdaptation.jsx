@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
     Film, Sparkles, Check, Download, ArrowRight, 
     FileText, Target, TrendingUp, Zap, BookOpen, Loader2, Upload, CheckCircle2
