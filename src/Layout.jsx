@@ -184,8 +184,12 @@ export default function Layout({ children, currentPageName }) {
                             {/* Evaluate Dropdown */}
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                        Evaluate <ChevronDown className="ml-1 h-4 w-4" />
+                                    <Button 
+                                        variant="ghost" 
+                                        className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900"
+                                        aria-label="Evaluate manuscript and create revision suggestions"
+                                    >
+                                        Evaluate & Create <ChevronDown className="ml-1 h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-56 max-h-[320px] overflow-y-auto">
@@ -357,10 +361,11 @@ export default function Layout({ children, currentPageName }) {
                                     variant="ghost"
                                     onClick={() => toggleMobileSection('evaluate')}
                                     className="w-full justify-between h-12 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                                    aria-label="Evaluate manuscript and create revision suggestions"
                                 >
                                     <span className="flex items-center font-medium">
                                         <Sparkles className="w-5 h-5 mr-3" />
-                                        Evaluate
+                                        Evaluate & Create
                                     </span>
                                     <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.evaluate && "rotate-180")} />
                                 </Button>
