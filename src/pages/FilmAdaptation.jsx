@@ -275,6 +275,11 @@ export default function FilmAdaptation() {
                     </p>
 
                     <div className="flex flex-col items-center gap-3">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Badge className="bg-emerald-500/20 text-emerald-200 border-emerald-400/30 px-3 py-1">
+                                Agent Ready™ Packages
+                            </Badge>
+                        </div>
                         <Button 
                             size="lg" 
                             className="h-16 px-10 bg-white text-slate-900 hover:bg-slate-100 text-lg font-semibold w-full sm:w-auto"
