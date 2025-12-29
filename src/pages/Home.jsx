@@ -15,7 +15,7 @@ export default function Home() {
             {/* Pipeline Banner */}
             <div className="bg-slate-900 border-b border-slate-700 py-3">
                 <div className="max-w-7xl mx-auto px-6">
-                    <p className="text-center text-slate-200 text-sm md:text-[0.95rem] font-medium tracking-wide">
+                    <p className="text-center text-slate-200 text-sm md:text-[0.95rem] font-medium tracking-wide" style={{ fontVariantLigatures: 'none', fontFeatureSettings: '"ss01" 0, "ss02" 0, "liga" 0' }}>
                         Manuscript Evaluation → Agent Ready™ → Revise → Polish → Compare → Pitch → Query
                     </p>
                 </div>
