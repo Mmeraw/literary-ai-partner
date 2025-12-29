@@ -562,14 +562,23 @@ ${packageData.queryLetter}
                                 </Button>
 
                                 {packageData && (
-                                    <Button
-                                        onClick={downloadAll}
-                                        variant="outline"
-                                        className="w-full"
-                                    >
-                                        <Download className="w-4 h-4 mr-2" />
-                                        Download Complete Package
-                                    </Button>
+                                    <div className="space-y-2">
+                                        <Button
+                                            onClick={downloadAll}
+                                            variant="outline"
+                                            className="w-full"
+                                        >
+                                            <Download className="w-4 h-4 mr-2" />
+                                            Download Complete Package
+                                        </Button>
+                                        <Button
+                                            onClick={() => window.location.href = createPageUrl(`LogoGenerator?title=${encodeURIComponent(manuscriptInfo.title)}&synopsis=${encodeURIComponent(packageData?.synopses?.query || '')}&genre=${encodeURIComponent(manuscriptInfo.genre)}`)}
+                                            className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
+                                        >
+                                            <Sparkles className="w-4 h-4 mr-2" />
+                                            Brand Your IP → Create Logo
+                                        </Button>
+                                    </div>
                                 )}
                             </CardContent>
                         </Card>
