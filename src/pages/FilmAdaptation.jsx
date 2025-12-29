@@ -252,12 +252,11 @@ export default function FilmAdaptation() {
                     <h1 className="text-4xl sm:text-5xl font-bold text-white mb-6 leading-tight">
                         From Manuscript to Market-Ready IP
                     </h1>
-                    <p className="text-lg text-slate-300 mb-4">
-                        Manuscript/Screenplay → Published & Hollywood
+                    <p className="text-lg text-indigo-200 max-w-3xl mx-auto mb-6 font-medium">
+                        Evaluate your manuscript → Refine it → Generate a professional pitch
                     </p>
-                    
-                    <p className="text-lg text-indigo-200 max-w-3xl mx-auto mb-6 font-medium tracking-wide">
-                        Manuscript Evaluation → Agent Ready™ → Pitch → Query
+                    <p className="text-base text-slate-300 mb-4">
+                        Manuscript/Screenplay → Published & Hollywood
                     </p>
                     <p className="text-sm text-indigo-300 max-w-2xl mx-auto mb-6">
                         Dual-Layer (12 Agent + 60+ WAVE Checks)
@@ -284,9 +283,18 @@ export default function FilmAdaptation() {
                             <Upload className="w-5 h-5 mr-2" />
                             Generate Your Film Pitch Deck
                         </Button>
-                        <Link to={createPageUrl('Pricing')} className="text-sm text-indigo-200 hover:text-white underline">
-                            View pricing
-                        </Link>
+                        <div className="flex items-center gap-4 text-sm">
+                            <button 
+                                onClick={() => document.getElementById('sample-decks')?.scrollIntoView({ behavior: 'smooth' })}
+                                className="text-indigo-200 hover:text-white underline"
+                            >
+                                View Sample Decks
+                            </button>
+                            <span className="text-slate-400">•</span>
+                            <Link to={createPageUrl('Pricing')} className="text-indigo-200 hover:text-white underline">
+                                View pricing
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -690,11 +698,11 @@ export default function FilmAdaptation() {
             {/* Sample Pitch Decks + All Marketing Content */}
             {!pitchDeck && (
                 <>
-                <div className="max-w-6xl mx-auto px-6 py-16">
-                    <div className="text-center mb-12">
-                        <h2 className="text-3xl font-bold text-slate-900 mb-4">
-                            See What's Possible
-                        </h2>
+                <div id="sample-decks" className="max-w-6xl mx-auto px-6 py-16">
+                   <div className="text-center mb-12">
+                       <h2 className="text-3xl font-bold text-slate-900 mb-4">
+                           See What's Possible
+                       </h2>
                         <p className="text-lg text-slate-600">
                             Review actual pitch decks generated for The Lost World of Mythoamphibia
                         </p>
