@@ -18,6 +18,27 @@ import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
 import AnalyticsTracker from '@/components/AnalyticsTracker';
 
+// Kill Unicode y imposters on page load
+React.useEffect(() => {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+
+    for (const n of nodes) {
+        const t = n.nodeValue;
+        if (!t) continue;
+        const fixed = t
+            .replace(/\u03A5/g, "Y") // Greek capital upsilon Υ
+            .replace(/\u03C5/g, "y") // Greek small upsilon υ
+            .replace(/\u0443/g, "y") // Cyrillic small u у
+            .replace(/\u00FD/g, "y") // ý
+            .replace(/\u00FF/g, "y") // ÿ
+            .replace(/\u0177/g, "y") // ŷ
+            .replace(/\u1EF3/g, "y"); // ỳ
+        if (fixed !== t) n.nodeValue = fixed;
+    }
+}, []);
+
 const worksPages = [
     { name: 'Manuscripts', page: 'UploadManuscript', icon: BookOpen },
     { name: 'Screenplays', page: 'ScreenplayFormatter', icon: Film },
