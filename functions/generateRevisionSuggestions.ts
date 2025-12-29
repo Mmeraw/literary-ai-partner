@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    const { text, title, wave_number = 1, submission_id, evaluation_result } = await req.json();
+    const { text, title, wave_number = 1, submission_id, evaluation_result, style_mode = 'neutral' } = await req.json();
 
     // Support both direct text/title (anonymous) or submission_id (logged in)
     let workingText = text;
@@ -109,14 +109,27 @@ Deno.serve(async (req) => {
 
     // TWO-STAGE PIPELINE: Pattern detection → WAVE contextual validation
     // Reference: Complete WAVE system in functions/WAVE_GUIDE (61+ waves)
-    
+
+    // Style guidance based on user selection
+    const styleGuidance = {
+      neutral: "Standard industry conventions. Clear, professional prose.",
+      lyrical: "Poetic rhythm, sensory immersion, elevated language. Prioritize beauty and resonance.",
+      rhythmical: "Cadence-driven, repetition for effect, oral-tradition pulse. Music in the prose.",
+      literary: "Dense imagery, subtext layering, mythic elevation. Sophisticated, literary fiction standards.",
+      commercial: "Tight pacing, accessible language, hooky dialogue. Reader engagement and momentum."
+    }[style_mode] || "Standard industry conventions.";
+
     // STAGE 1: Detect risk patterns (candidates only, not final decisions)
     const detectionPrompt = `You are a professional manuscript editor applying the WAVE Revision System. Focus on ${wave.name} (${wave.focus}).
 
-WAVE CONTEXT:
-- Tier: ${wave.tier}
-- This is wave ${wave_number} of 61+ in the professional revision system
-- Reference the complete WAVE Guide for full context on all 61 waves
+    WAVE CONTEXT:
+    - Tier: ${wave.tier}
+    - This is wave ${wave_number} of 61+ in the professional revision system
+    - Reference the complete WAVE Guide for full context on all 61 waves
+
+    STYLE MODE: ${style_mode}
+    - ${styleGuidance}
+    - Suggestions should align with this style while still addressing WAVE concerns
 
 SCAN FOR REVISION CANDIDATES matching these patterns:
 - Body-part clichés (jaw, chest, eyes) that summarize instead of advance
@@ -171,11 +184,17 @@ Return JSON with candidates array.`;
     // STAGE 2: WAVE contextual validation (gating logic)
     const validationPrompt = `You are a literary editor applying the complete WAVE Revision System (61+ waves) + 12 Story Evaluation Criteria.
 
-WAVE SYSTEM PHILOSOPHY:
-The WAVE system is designed to systematically remove weakness while preserving voice. It operates in stages:
-- EARLY waves (1-16): Structural truth, POV integrity, stakes clarity
-- MID waves (17-40): Momentum, specificity, scene mechanics
-- LATE waves (41-61): Authority, polish, submission readiness
+    WAVE SYSTEM PHILOSOPHY:
+    The WAVE system is designed to systematically remove weakness while preserving voice. It operates in stages:
+    - EARLY waves (1-16): Structural truth, POV integrity, stakes clarity
+    - MID waves (17-40): Momentum, specificity, scene mechanics
+    - LATE waves (41-61): Authority, polish, submission readiness
+
+    STYLE MODE: ${style_mode}
+    - ${styleGuidance}
+    - All suggestions must respect this style preference while maintaining WAVE standards
+    - Lyrical/literary modes may preserve more poetic constructions
+    - Commercial mode prioritizes clarity and pace over stylistic flourishes
 
 CRITICAL GATING RULE (from WAVE 61):
 **Reflexive ≠ automatically bad**

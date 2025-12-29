@@ -7,11 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { base44 } from '@/api/base44Client';
 import { toast } from "sonner";
 import { createPageUrl } from '@/utils';
+import StyleModeSelector from './StyleModeSelector';
 
 export default function FinalOutput({ title, originalText, evaluationResult, submission, onReset, compactMode = false }) {
     const [revisedText, setRevisedText] = React.useState(originalText);
     const [isSaving, setIsSaving] = React.useState(false);
     const [isStartingRevision, setIsStartingRevision] = React.useState(false);
+    const [revisionStyleMode, setRevisionStyleMode] = React.useState(evaluationResult?.styleMode || 'neutral');
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -76,7 +78,8 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
             const { data } = await base44.functions.invoke('generateRevisionSuggestions', {
                 text: originalText,
                 wave_number: 1,
-                submission_id: submission?.id || 'temp'
+                submission_id: submission?.id || 'temp',
+                style_mode: revisionStyleMode
             });
 
             // Create revision session
@@ -88,7 +91,8 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
                 current_wave: 1,
                 current_position: 0,
                 suggestions: data.suggestions || [],
-                status: 'in_progress'
+                status: 'in_progress',
+                style_mode: revisionStyleMode
             });
 
             // Navigate to revision page
@@ -102,10 +106,21 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
         }
     };
 
-    // Compact mode: Just show the revision button
+    // Compact mode: Just show the revision button with style selector
     if (compactMode) {
         return (
-            <div className="space-y-3">
+            <div className="space-y-4">
+                <div className="p-6 rounded-xl bg-white border border-slate-200">
+                    <h4 className="font-semibold text-slate-800 mb-3">Choose Your Revision Style</h4>
+                    <StyleModeSelector 
+                        value={revisionStyleMode}
+                        onChange={setRevisionStyleMode}
+                    />
+                    <p className="text-xs text-slate-500 mt-3">
+                        Your evaluation used <strong>{evaluationResult?.styleMode || 'neutral'}</strong> style. 
+                        You can keep it or choose a different approach for revision.
+                    </p>
+                </div>
                 <Button 
                     onClick={handleStartRevision}
                     disabled={isStartingRevision}
@@ -120,7 +135,7 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
                     ) : (
                         <>
                             <Sparkles className="w-5 h-5 mr-2" />
-                            Start Wave Revision
+                            Start Wave Revision ({revisionStyleMode})
                         </>
                     )}
                 </Button>
@@ -201,6 +216,18 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
                     </Button>
                 </div>
 
+                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                    <h4 className="font-semibold text-slate-800 mb-3">Choose Your Revision Style</h4>
+                    <StyleModeSelector 
+                        value={revisionStyleMode}
+                        onChange={setRevisionStyleMode}
+                    />
+                    <p className="text-xs text-slate-500 mt-2">
+                        Your evaluation used <strong>{evaluationResult?.styleMode || 'neutral'}</strong> style. 
+                        You can keep it or choose a different approach for revision.
+                    </p>
+                </div>
+
                 <div className="flex flex-col gap-3">
                     <Button 
                         onClick={handleStartRevision}
@@ -215,7 +242,7 @@ export default function FinalOutput({ title, originalText, evaluationResult, sub
                         ) : (
                             <>
                                 <Sparkles className="w-4 h-4 mr-2" />
-                                Start Wave-by-Wave Revision
+                                Start Wave-by-Wave Revision ({revisionStyleMode})
                             </>
                         )}
                     </Button>
