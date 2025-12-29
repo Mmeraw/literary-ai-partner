@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Download, Loader2, Image as ImageIcon, ArrowLeft } from 'lucide-react';
+import { Sparkles, Download, Loader2, Image as ImageIcon, ArrowLeft, Copy } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
@@ -20,6 +20,7 @@ export default function LogoGenerator() {
     const [generating, setGenerating] = useState(false);
     const [logos, setLogos] = useState(null);
     const [themeAnalysis, setThemeAnalysis] = useState(null);
+    const [taglines, setTaglines] = useState(null);
 
     // Pre-fill from URL params
     useEffect(() => {
@@ -51,7 +52,8 @@ export default function LogoGenerator() {
             if (response.data.success) {
                 setLogos(response.data.logos);
                 setThemeAnalysis(response.data.themeAnalysis);
-                toast.success('4 logo variations generated!');
+                setTaglines(response.data.taglines);
+                toast.success('Logos and taglines generated!');
             } else {
                 toast.error(response.data.error || 'Failed to generate logos');
             }
@@ -162,8 +164,8 @@ export default function LogoGenerator() {
                             <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200">
                                 <p className="text-sm text-slate-700">
                                     <strong>How it works:</strong> AI analyzes your story to extract visual themes, 
-                                    symbols, and mood, then generates 4 professional logo variations optimized for 
-                                    covers, pitch decks, and promotional materials.
+                                    symbols, and mood, then generates 4 professional logo variations and 5 tagline options 
+                                    (inspired by "Where Evolution Meets Soul™") optimized for covers, pitch decks, and promotional materials.
                                 </p>
                             </div>
 
@@ -181,7 +183,7 @@ export default function LogoGenerator() {
                                 ) : (
                                     <>
                                         <Sparkles className="w-5 h-5 mr-2" />
-                                        Generate 4 Logo Variations
+                                        Generate Logos + Taglines
                                     </>
                                 )}
                             </Button>
@@ -189,6 +191,35 @@ export default function LogoGenerator() {
                     </Card>
                 ) : (
                     <div className="space-y-8">
+                        {/* Taglines */}
+                        {taglines && taglines.length > 0 && (
+                            <Card className="border-0 shadow-lg">
+                                <CardHeader>
+                                    <CardTitle>Story Taglines & Mantras</CardTitle>
+                                    <p className="text-sm text-slate-600">Inspired by "Where Evolution Meets Soul™"</p>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-3">
+                                        {taglines.map((tagline, idx) => (
+                                            <div key={idx} className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200">
+                                                <span className="font-semibold text-slate-900">{tagline}</span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(tagline);
+                                                        toast.success('Tagline copied!');
+                                                    }}
+                                                >
+                                                    <Copy className="w-4 h-4" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
                         {/* Theme Analysis */}
                         {themeAnalysis && (
                             <Card className="border-0 shadow-lg">
@@ -267,6 +298,7 @@ export default function LogoGenerator() {
                                 onClick={() => {
                                     setLogos(null);
                                     setThemeAnalysis(null);
+                                    setTaglines(null);
                                 }}
                             >
                                 Generate New Logos

@@ -95,11 +95,40 @@ Return a JSON object with:
             console.error('Analytics error:', e);
         }
 
+        // Generate tagline/mantra variations
+        console.log('Generating tagline variations...');
+        const taglineResponse = await base44.integrations.Core.InvokeLLM({
+            prompt: `Based on this story analysis, generate 5 memorable tagline/mantra variations inspired by professional standards like "Where Evolution Meets Soul™" - concise, evocative, and brand-worthy.
+
+Title: ${title}
+Genre: ${genre || 'Not specified'}
+Theme Analysis: ${JSON.stringify(themeAnalysis)}
+
+Generate 5 taglines that:
+- Are 3-6 words each
+- Capture the story's core tension or theme
+- Sound professional and memorable
+- Could work on covers, merchandise, and marketing
+
+Return as JSON array of strings.`,
+            response_json_schema: {
+                type: "object",
+                properties: {
+                    taglines: {
+                        type: "array",
+                        items: { type: "string" }
+                    }
+                },
+                required: ["taglines"]
+            }
+        });
+
         return Response.json({
             success: true,
             logos,
             themeAnalysis,
-            message: '4 logo variations generated successfully'
+            taglines: taglineResponse.taglines || [],
+            message: '4 logo variations and 5 taglines generated successfully'
         });
 
     } catch (error) {
