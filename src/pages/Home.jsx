@@ -46,7 +46,7 @@ export default function Home() {
                         </h1>
 
                         <p className="mt-6 text-lg sm:text-xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
-                            A complete, end-to-end system for transforming manuscripts into agent-, producer-, and studio-ready assets.
+                            A complete, end-to-end system transforming manuscripts and screenplays into agent-ready query packages, producer pitches, and studio-ready pitch decks.
                         </p>
 
                         <p className="mt-4 text-base sm:text-lg text-indigo-600 font-semibold max-w-2xl mx-auto">
