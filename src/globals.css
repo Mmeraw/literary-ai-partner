@@ -1,17 +1,7 @@
-/* Global: force neutral glyphs (kills curly 'y' alternates) */
-html, body {
-  font-feature-settings: "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0 !important;
-  font-variant-ligatures: none !important;
-}
-
-/* Apply to all headings and common elements */
-h1, h2, h3, h4, h5, h6, button, a, p, span, div {
-  font-feature-settings: "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0 !important;
-  font-variant-ligatures: none !important;
-}
-
-/* Ensure all text elements use straight 'y' */
+css
+/* Global: force neutral glyphs - eliminate ALL stylistic alternates */
 * {
-  font-feature-settings: "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0 !important;
+  font-feature-settings: "calt" 0, "liga" 0, "dlig" 0, "hlig" 0, "clig" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0, "ss11" 0, "ss12" 0, "ss13" 0, "ss14" 0, "ss15" 0, "ss16" 0, "ss17" 0, "ss18" 0, "ss19" 0, "ss20" 0, "cv01" 0, "cv02" 0, "cv03" 0, "cv04" 0, "cv05" 0 !important;
   font-variant-ligatures: none !important;
+  font-variant-alternates: normal !important;
 }

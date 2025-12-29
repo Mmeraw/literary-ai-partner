@@ -11,11 +11,11 @@ import { motion } from 'framer-motion';
 
 export default function Home() {
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50" style={{ fontFeatureSettings: '"ss01" 0, "ss02" 0, "cv01" 0, "calt" 0' }}>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             {/* Pipeline Banner */}
             <div className="bg-slate-900 border-b border-slate-700 py-3">
                 <div className="max-w-7xl mx-auto px-6">
-                    <p className="text-center text-slate-200 text-sm md:text-[0.95rem] font-medium tracking-wide" style={{ fontVariantLigatures: 'none', fontFeatureSettings: '"ss01" 0, "ss02" 0, "liga" 0' }}>
+                    <p className="text-center text-slate-200 text-sm md:text-[0.95rem] font-medium tracking-wide">
                         Manuscript Evaluation → Agent Ready™ → Revise → Polish → Compare → Pitch → Query
                     </p>
                 </div>
@@ -39,7 +39,7 @@ export default function Home() {
                             Transmedia Intelligence for Serious Storytellers
                         </Badge>
 
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight pb-4" style={{ fontVariantLigatures: 'none', fontFeatureSettings: '"ss01" 0, "ss02" 0, "liga" 0' }}>
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight pb-4">
                             <span className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent pb-2">
                                 Manuscript/Screenplay Evaluation → Publishing & Hollywood
                             </span>
