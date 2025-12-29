@@ -1,11 +1,17 @@
-/* Site-wide straight Y/y enforcement for institutional authority */
-* {
+/* Global: force neutral glyphs (kills curly 'y' alternates) */
+html, body {
+  font-feature-settings: "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0 !important;
   font-variant-ligatures: none !important;
-  font-feature-settings: "ss01" 0, "ss02" 0, "cv01" 0, "liga" 0, "calt" 0 !important;
-  font-variant-numeric: normal !important;
 }
 
-/* Ensure no stylistic alternates across all elements */
-body, html {
-  font-feature-settings: "ss01" 0, "ss02" 0 !important;
+/* Apply to all headings and common elements */
+h1, h2, h3, h4, h5, h6, button, a, p, span, div {
+  font-feature-settings: "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0 !important;
+  font-variant-ligatures: none !important;
+}
+
+/* Ensure all text elements use straight 'y' */
+* {
+  font-feature-settings: "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0 !important;
+  font-variant-ligatures: none !important;
 }
