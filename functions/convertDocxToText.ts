@@ -50,15 +50,16 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
 
-        // Check file size before processing
+        // Check file size before processing - aggressive limit
         const fileSize = file.size;
         console.log('File size:', fileSize, 'bytes');
         
-        if (fileSize > 10_000_000) { // 10MB limit
+        if (fileSize > 5_000_000) { // 5MB limit (aggressive)
             return Response.json({ 
                 success: false,
-                error: '📊 File too large (>10MB). For large manuscripts, paste text directly or split into chapters.',
-                errorType: 'size'
+                error: '📊 Large file detected (>5MB). Paste text directly above for instant processing—no wait, no conversion.',
+                errorType: 'size',
+                suggestion: 'Copy text from Word → Paste above'
             }, { status: 400 });
         }
 
@@ -67,32 +68,30 @@ Deno.serve(async (req) => {
         const arrayBuffer = await file.arrayBuffer();
         console.log('ArrayBuffer size:', arrayBuffer.byteLength);
 
-        // Add timeout protection for mammoth conversion (8s max)
-        console.log('Starting mammoth extraction with 8s timeout...');
+        // AGGRESSIVE: 5 second timeout, text-only extraction first
+        console.log('Starting fast text-only extraction with 5s timeout...');
         
         const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => {
-                console.error('TIMEOUT: Mammoth took >8 seconds');
+                console.error('TIMEOUT: Conversion exceeded 5 seconds');
                 reject(new Error('TIMEOUT'));
-            }, 8000);
+            }, 5000);
         });
 
-        const conversionPromise = Promise.all([
-            mammoth.extractRawText({ arrayBuffer }),
-            mammoth.convertToHtml({ arrayBuffer })
-        ]).then(results => {
-            console.log('Mammoth extraction completed successfully');
-            return results;
-        });
+        // Extract text only for speed (skip HTML initially)
+        const conversionPromise = mammoth.extractRawText({ arrayBuffer })
+            .then(result => {
+                console.log('Text extraction completed');
+                return result;
+            });
 
-        const [textResult, htmlResult] = await Promise.race([
+        const textResult = await Promise.race([
             conversionPromise,
             timeoutPromise
         ]);
 
         const text = textResult.value;
-        const html = htmlResult.value;
-        const messages = htmlResult.messages || [];
+        const messages = textResult.messages || [];
         console.log('Extracted word count:', text.split(/\s+/).filter(w => w).length);
 
         // Count words
