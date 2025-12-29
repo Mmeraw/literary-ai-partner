@@ -17,6 +17,7 @@ import ForProfessionals from './pages/ForProfessionals';
 import History from './pages/History';
 import Home from './pages/Home';
 import InviteUser from './pages/InviteUser';
+import LogoGenerator from './pages/LogoGenerator';
 import ManuscriptDashboard from './pages/ManuscriptDashboard';
 import Methodology from './pages/Methodology';
 import PaymentSuccess from './pages/PaymentSuccess';
@@ -37,7 +38,6 @@ import UploadManuscript from './pages/UploadManuscript';
 import UploadWork from './pages/UploadWork';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
-import LogoGenerator from './pages/LogoGenerator';
 import __Layout from './Layout.jsx';
 
 
@@ -61,6 +61,7 @@ export const PAGES = {
     "History": History,
     "Home": Home,
     "InviteUser": InviteUser,
+    "LogoGenerator": LogoGenerator,
     "ManuscriptDashboard": ManuscriptDashboard,
     "Methodology": Methodology,
     "PaymentSuccess": PaymentSuccess,
@@ -81,7 +82,6 @@ export const PAGES = {
     "UploadWork": UploadWork,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
-    "LogoGenerator": LogoGenerator,
 }
 
 export const pagesConfig = {

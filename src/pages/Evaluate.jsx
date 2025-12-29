@@ -14,6 +14,7 @@ import SuggestionCard from '@/components/evaluation/SuggestionCard';
 import CriteriaPanel from '@/components/evaluation/CriteriaPanel';
 import FinalOutput from '@/components/evaluation/FinalOutput';
 import StyleModeSelector from '@/components/evaluation/StyleModeSelector';
+import ThoughtTagCard from '@/components/evaluation/ThoughtTagCard';
 
 const LITERARY_CRITERIA = [
     "the_hook", "voice_narrative_style", "characters_introductions", "conflict_tension",
@@ -434,6 +435,30 @@ export default function Evaluate() {
                                                     </div>
                                                 </div>
                                             </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Thought Tag Suggestions (WAVE 1) */}
+                                {evaluationResult.thoughtTagSuggestions?.length > 0 && (
+                                    <div className="space-y-4">
+                                        <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                                            <Badge className="bg-amber-500 text-white">NEW</Badge>
+                                            WAVE 1: Interior Attribution Issues ({evaluationResult.thoughtTagSuggestions.length})
+                                        </h3>
+                                        <p className="text-sm text-slate-600">
+                                            Redundant thought-tags weaken your prose. Choose how to revise each one.
+                                        </p>
+                                        {evaluationResult.thoughtTagSuggestions.map((suggestion, idx) => (
+                                            <ThoughtTagCard
+                                                key={idx}
+                                                suggestion={suggestion}
+                                                onApply={(change) => {
+                                                    // Update text with the change
+                                                    setText(text.replace(change.original, change.replacement));
+                                                    toast.success('Change applied! Re-evaluate to see the impact.');
+                                                }}
+                                            />
                                         ))}
                                     </div>
                                 )}
