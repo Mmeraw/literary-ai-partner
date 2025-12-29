@@ -142,23 +142,32 @@ Deno.serve(async (req) => {
 
     } catch (error) {
         console.error('DOCX conversion error:', error);
+        console.error('Error type:', error.message);
         
         // Premium error message based on error type
         let errorMessage = '🔄 Conversion issue detected. ';
+        let errorType = 'conversion';
         
-        if (error.message?.includes('zip') || error.message?.includes('corrupt')) {
+        if (error.message === 'TIMEOUT') {
+            errorMessage = '⏱️ Large or complex document detected. For best results: (1) Paste text directly above, or (2) Export as plain text (.TXT) from Word → "Save As" → Plain Text (UTF-8).';
+            errorType = 'timeout';
+        } else if (error.message?.includes('zip') || error.message?.includes('corrupt')) {
             errorMessage += 'File may be corrupted. Try re-saving as .DOCX or paste text directly.';
         } else if (error.message?.includes('password') || error.message?.includes('encrypt')) {
             errorMessage += 'Document appears password-protected. Remove protection and try again.';
+        } else if (error.message?.includes('image') || error.message?.includes('embed')) {
+            errorMessage = '📷 Document contains images or embedded objects. For fastest processing, paste text directly or remove images/comments.';
+            errorType = 'complex';
         } else {
-            errorMessage += 'Complex document structure. Paste text for fastest results.';
+            errorMessage += 'Complex document structure (tracked changes, comments, or formatting). Paste text for instant results.';
         }
 
         return Response.json({ 
             success: false,
             error: errorMessage,
-            errorType: 'conversion',
-            fallback: 'paste'
+            errorType: errorType,
+            fallback: 'paste',
+            suggestion: 'Paste text directly above for instant processing'
         }, { status: 500 });
     }
 });
