@@ -2,17 +2,16 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import mammoth from 'npm:mammoth@1.8.0';
 
 Deno.serve(async (req) => {
+    const corsHeaders = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+
     try {
         // Handle OPTIONS for CORS
         if (req.method === 'OPTIONS') {
-            return new Response(null, {
-                status: 200,
-                headers: {
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-                }
-            });
+            return new Response(null, { status: 200, headers: corsHeaders });
         }
 
         const base44 = createClientFromRequest(req);
@@ -23,7 +22,7 @@ Deno.serve(async (req) => {
                 success: false,
                 error: '🔒 Please sign in to upload documents',
                 errorType: 'auth'
-            }, { status: 401 });
+            }, { status: 401, headers: corsHeaders });
         }
 
         console.log('Processing file upload...');
@@ -37,7 +36,7 @@ Deno.serve(async (req) => {
                 success: false,
                 error: '📄 No document selected. Please choose a .DOCX file.',
                 errorType: 'validation'
-            }, { status: 400 });
+            }, { status: 400, headers: corsHeaders });
         }
 
         // Validate file type
@@ -47,7 +46,7 @@ Deno.serve(async (req) => {
                 success: false,
                 error: '⚠️ Only .DOCX files supported. For older .DOC files, save as .DOCX first or paste text directly.',
                 errorType: 'format'
-            }, { status: 400 });
+            }, { status: 400, headers: corsHeaders });
         }
 
         // Check file size before processing - aggressive limit
@@ -60,7 +59,7 @@ Deno.serve(async (req) => {
                 error: '📊 Large file detected (>5MB). Paste text directly above for instant processing—no wait, no conversion.',
                 errorType: 'size',
                 suggestion: 'Copy text from Word → Paste above'
-            }, { status: 400 });
+            }, { status: 400, headers: corsHeaders });
         }
 
         // Convert to ArrayBuffer for mammoth
@@ -102,7 +101,7 @@ Deno.serve(async (req) => {
                 success: false,
                 error: '📭 Document appears empty. Please check the file or try pasting text directly.',
                 errorType: 'empty'
-            }, { status: 400 });
+            }, { status: 400, headers: corsHeaders });
         }
 
         if (wordCount > 250000) {
@@ -110,7 +109,7 @@ Deno.serve(async (req) => {
                 success: false,
                 error: `📊 Document too large: ${wordCount.toLocaleString()} words (max 250,000). Consider submitting chapters separately.`,
                 errorType: 'size'
-            }, { status: 400 });
+            }, { status: 400, headers: corsHeaders });
         }
 
         // Build quality metrics (simplified - no HTML)
@@ -134,7 +133,7 @@ Deno.serve(async (req) => {
             message: warnings.length > 3 
                 ? `✓ Text extracted (${warnings.length} style notes). Formatting simplified.`
                 : `✓ Document converted cleanly.`
-        });
+        }, { headers: corsHeaders });
 
     } catch (error) {
         console.error('DOCX conversion error:', error);
@@ -164,6 +163,6 @@ Deno.serve(async (req) => {
             errorType: errorType,
             fallback: 'paste',
             suggestion: 'Paste text directly above for instant processing'
-        }, { status: 500 });
+        }, { status: 500, headers: corsHeaders });
     }
 });
