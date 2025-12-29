@@ -588,6 +588,13 @@ export default function FilmAdaptation() {
                                     <Button onClick={() => { setPitchDeck(null); setShowUploadForm(true); }}>
                                         Generate Another
                                     </Button>
+                                    <Button
+                                        onClick={() => window.location.href = createPageUrl(`LogoGenerator?title=${encodeURIComponent(manuscriptData.title)}&synopsis=${encodeURIComponent(pitchDeck.slides[1]?.content || '')}&genre=${encodeURIComponent(manuscriptData.genre)}`)}
+                                        className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
+                                    >
+                                        <Sparkles className="w-4 h-4 mr-2" />
+                                        Brand Your IP → Create Logo
+                                    </Button>
                                 </div>
                             </div>
                         </CardHeader>
