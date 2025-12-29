@@ -41,12 +41,16 @@ export default function Home() {
 
                         <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight pb-4">
                             <span className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent pb-2">
-                                Manuscript/Screenplay Evaluation → Publishing & Hollywood
+                                Your Writing → Published & Hollywood
                             </span>
                         </h1>
 
+                        <p className="mt-4 text-base sm:text-lg text-slate-600 italic max-w-3xl mx-auto">
+                            Rough drafts, single chapters/scenes, full manuscripts/screenplays—all elevate via WAVE.
+                        </p>
+
                         <p className="mt-6 text-lg sm:text-xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
-                            A complete, end-to-end system transforming manuscripts and screenplays into agent-ready query packages, producer pitches, and studio-ready pitch decks.
+                            A complete system transforming manuscripts into agent-ready query packages, producer pitches, and studio-ready pitch decks.
                         </p>
 
                         <p className="mt-4 text-base sm:text-lg text-indigo-600 font-semibold max-w-2xl mx-auto">
@@ -79,8 +83,7 @@ export default function Home() {
                             <Link to={createPageUrl('UploadManuscript')}>
                                 <Button size="lg" className="h-14 px-6 sm:px-8 text-base sm:text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
                                     <BookOpen className="w-5 h-5 mr-2 flex-shrink-0" />
-                                    <span className="hidden sm:inline">Start Free Trial → $99/mo MOST POPULAR</span>
-                                    <span className="sm:hidden">Start Free → $99/mo</span>
+                                    Upload Any Stage → Free Evaluation
                                 </Button>
                             </Link>
                             <Link to={createPageUrl('Evaluate')}>
