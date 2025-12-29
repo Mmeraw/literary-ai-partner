@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { 
     Film, Sparkles, Check, Download, ArrowRight, 
-    FileText, Target, TrendingUp, Zap, BookOpen, Loader2, Upload
+    FileText, Target, TrendingUp, Zap, BookOpen, Loader2, Upload, CheckCircle2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -57,16 +57,17 @@ export default function FilmAdaptation() {
     const [generating, setGenerating] = useState(false);
     const [pitchDeck, setPitchDeck] = useState(null);
     const [showUploadForm, setShowUploadForm] = useState(false);
-    const [inputMethod, setInputMethod] = useState('paste'); // 'paste' or 'upload'
+    const [convertingDocx, setConvertingDocx] = useState(false);
+    const [docxPreview, setDocxPreview] = useState(null);
 
-    const handleFileUpload = (e) => {
+    const handleTxtUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = (event) => {
             const text = event.target.result;
-            const wordCount = text.split(/\s+/).length;
+            const wordCount = text.split(/\s+/).filter(w => w).length;
             
             if (wordCount > 250000) {
                 toast.error(`Text too long: ${wordCount.toLocaleString()} words. Maximum is 250,000 words.`);
@@ -77,6 +78,45 @@ export default function FilmAdaptation() {
             toast.success(`Loaded ${wordCount.toLocaleString()} words`);
         };
         reader.readAsText(file);
+        e.target.value = '';
+    };
+
+    const handleDocxUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setConvertingDocx(true);
+        toast.info('Converting Word document...');
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await base44.functions.invoke('convertDocxToText', formData);
+
+            if (response.data.success) {
+                setDocxPreview({
+                    text: response.data.text,
+                    wordCount: response.data.wordCount,
+                    preview: response.data.preview
+                });
+                toast.success('Document converted! Review and confirm.');
+            } else {
+                toast.error(response.data.error || 'Failed to convert document');
+            }
+        } catch (error) {
+            console.error('DOCX conversion error:', error);
+            toast.error('Failed to convert document. Try pasting text or using .TXT file.');
+        } finally {
+            setConvertingDocx(false);
+            e.target.value = '';
+        }
+    };
+
+    const confirmDocxPreview = () => {
+        setManuscriptData(prev => ({ ...prev, manuscriptText: docxPreview.text }));
+        setDocxPreview(null);
+        toast.success(`Loaded ${docxPreview.wordCount.toLocaleString()} words`);
     };
 
     const generatePitchDeck = async () => {
@@ -220,6 +260,50 @@ export default function FilmAdaptation() {
                 </div>
             </div>
 
+            {/* DOCX Preview Modal */}
+            {docxPreview && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+                    <Card className="max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle>Review Extracted Text</CardTitle>
+                                    <p className="text-sm text-slate-600 mt-1">
+                                        {docxPreview.wordCount.toLocaleString()} words extracted from Word document
+                                    </p>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={() => setDocxPreview(null)}>
+                                    ✕
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 max-h-[400px] overflow-y-auto">
+                                <p className="text-sm text-slate-700 whitespace-pre-wrap font-mono">
+                                    {docxPreview.preview}
+                                </p>
+                            </div>
+                            <div className="flex gap-3">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setDocxPreview(null)}
+                                    className="flex-1"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={confirmDocxPreview}
+                                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                                >
+                                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                                    Looks Good - Use This Text
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
             {/* Upload Form Modal */}
             {showUploadForm && !pitchDeck && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
@@ -268,76 +352,102 @@ export default function FilmAdaptation() {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    Manuscript or Screenplay Text (up to 250,000 words) *
+                                <label className="block text-sm font-medium text-slate-700 mb-3">
+                                    Manuscript or Screenplay (up to 250,000 words) *
                                 </label>
                                 
-                                {/* Toggle between paste and upload */}
-                                <div className="flex gap-2 mb-3">
-                                    <Button
-                                        type="button"
-                                        variant={inputMethod === 'paste' ? 'default' : 'outline'}
-                                        size="sm"
-                                        onClick={() => setInputMethod('paste')}
-                                    >
-                                        Paste Text
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant={inputMethod === 'upload' ? 'default' : 'outline'}
-                                        size="sm"
-                                        onClick={() => setInputMethod('upload')}
-                                    >
-                                        Upload .TXT File
-                                    </Button>
+                                {/* Primary: Paste */}
+                                <div className="mb-4">
+                                    <Textarea
+                                        value={manuscriptData.manuscriptText}
+                                        onChange={(e) => {
+                                            const text = e.target.value;
+                                            const wordCount = text.split(/\s+/).filter(w => w).length;
+                                            if (wordCount > 250000) {
+                                                toast.error('Text exceeds 250,000 word limit');
+                                                return;
+                                            }
+                                            setManuscriptData(prev => ({ ...prev, manuscriptText: text }));
+                                        }}
+                                        placeholder="✏️ Paste your manuscript or screenplay text here (fastest)"
+                                        className="min-h-[280px] font-mono text-sm"
+                                    />
+                                    {manuscriptData.manuscriptText && (
+                                        <p className="text-sm text-emerald-600 mt-2">
+                                            ✓ Loaded {manuscriptData.manuscriptText.split(/\s+/).filter(w => w).length.toLocaleString()} words
+                                        </p>
+                                    )}
                                 </div>
 
-                                {inputMethod === 'paste' ? (
-                                    <div>
-                                        <Textarea
-                                            value={manuscriptData.manuscriptText}
-                                            onChange={(e) => {
-                                                const text = e.target.value;
-                                                const wordCount = text.split(/\s+/).filter(w => w).length;
-                                                if (wordCount > 250000) {
-                                                    toast.error('Text exceeds 250,000 word limit');
-                                                    return;
-                                                }
-                                                setManuscriptData(prev => ({ ...prev, manuscriptText: text }));
-                                            }}
-                                            placeholder="Paste your manuscript or screenplay text here..."
-                                            className="min-h-[300px] font-mono text-sm"
+                                {/* Secondary: Upload DOCX */}
+                                <div className="flex items-center gap-4 mb-2">
+                                    <div className="flex-1 border-t border-slate-300"></div>
+                                    <span className="text-xs text-slate-500">OR</span>
+                                    <div className="flex-1 border-t border-slate-300"></div>
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <div className="flex-1">
+                                        <input
+                                            type="file"
+                                            accept=".docx"
+                                            onChange={handleDocxUpload}
+                                            className="hidden"
+                                            id="docx-upload"
+                                            disabled={convertingDocx}
                                         />
-                                        <p className="text-xs text-slate-500 mt-2">
-                                            💡 For Word documents: Open your .doc/.docx file, Select All (Ctrl+A / Cmd+A), Copy (Ctrl+C / Cmd+C), and paste here
-                                        </p>
+                                        <label htmlFor="docx-upload">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="w-full"
+                                                disabled={convertingDocx}
+                                                asChild
+                                            >
+                                                <span className="cursor-pointer">
+                                                    {convertingDocx ? (
+                                                        <>
+                                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                            Converting...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <FileText className="w-4 h-4 mr-2" />
+                                                            Upload .DOCX
+                                                        </>
+                                                    )}
+                                                </span>
+                                            </Button>
+                                        </label>
                                     </div>
-                                ) : (
-                                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-indigo-400 transition-colors">
+
+                                    <div className="flex-1">
                                         <input
                                             type="file"
                                             accept=".txt"
-                                            onChange={handleFileUpload}
+                                            onChange={handleTxtUpload}
                                             className="hidden"
-                                            id="file-upload"
+                                            id="txt-upload"
                                         />
-                                        <label htmlFor="file-upload" className="cursor-pointer">
-                                            <Upload className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-                                            <p className="text-sm text-slate-600 mb-1">
-                                                Click to upload a plain text file
-                                            </p>
-                                            <p className="text-xs text-slate-500">
-                                                .TXT files only (max 250,000 words)
-                                            </p>
+                                        <label htmlFor="txt-upload">
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                className="w-full text-slate-600"
+                                                asChild
+                                            >
+                                                <span className="cursor-pointer">
+                                                    <Upload className="w-4 h-4 mr-2" />
+                                                    TXT (advanced)
+                                                </span>
+                                            </Button>
                                         </label>
                                     </div>
-                                )}
-                                
-                                {manuscriptData.manuscriptText && (
-                                    <p className="text-sm text-emerald-600 mt-2">
-                                        ✓ Loaded {manuscriptData.manuscriptText.split(/\s+/).filter(w => w).length.toLocaleString()} words
-                                    </p>
-                                )}
+                                </div>
+
+                                <p className="text-xs text-slate-500 mt-3 text-center">
+                                    Word files auto-extracted + previewed for accuracy
+                                </p>
                             </div>
 
                             <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200">
