@@ -11,6 +11,27 @@ async function runEvaluation(manuscriptId, base44) {
             throw new Error('Manuscript or chapters not found');
         }
 
+        // PHASE 0: INTEGRITY CHECK (NEW - prevents V3 contamination)
+        const integrityCheck = await base44.asServiceRole.functions.invoke('checkManuscriptIntegrity', {
+            text: manuscript.full_text,
+            manuscript_id: manuscriptId
+        });
+
+        const integrity = integrityCheck.data.integrity;
+        
+        // Store integrity report
+        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+            evaluation_progress: {
+                current_step: `Integrity Check: ${integrity.clean_score}% clean (${integrity.mode})`,
+                integrity_report: integrity,
+                last_updated: new Date().toISOString()
+            }
+        });
+
+        // Apply development mode penalty if contaminated
+        const integrityPenalty = integrity.is_clean ? 0 : 0.5;
+        const evaluationMode = integrity.mode;
+
         // PHASE 1: Generate chapter summaries (structural abstraction)
         // Check which chapters already have summaries (for resume capability)
         const summarizedChapters = chapters.filter(ch => ch.status === 'summarized' && ch.summary_json);
@@ -208,10 +229,18 @@ async function runEvaluation(manuscriptId, base44) {
             }
         });
 
-        // Update manuscript with spine evaluation
+        // Update manuscript with spine evaluation (apply integrity penalty)
+        const adjustedSpineScore = Math.max(0, spineEvaluation.overallScore - integrityPenalty);
+        
         await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-            spine_score: spineEvaluation.overallScore,
-            spine_evaluation: spineEvaluation,
+            spine_score: adjustedSpineScore,
+            spine_evaluation: {
+                ...spineEvaluation,
+                integrity_adjusted: !integrity.is_clean,
+                integrity_penalty: integrityPenalty,
+                raw_score: spineEvaluation.overallScore,
+                evaluation_mode: evaluationMode
+            },
             status: 'evaluating_chapters',
             evaluation_progress: {
                 chapters_total: chapters.length,
@@ -334,7 +363,7 @@ async function runEvaluation(manuscriptId, base44) {
             TEXT:
             ${chapter.text}
 
-            For each criterion provide: score (1-10), strengths (array), weaknesses (array), notes (detailed commentary).
+            For each criterion provide: score (1-10), strengths (array), weaknesses (array), notes (detailed commentary), evidence_excerpts (2-4 short text excerpts showing why this score was given).
             Provide overall score (1-10) and verdict.`,
                 response_json_schema: {
                     type: "object",
@@ -350,7 +379,8 @@ async function runEvaluation(manuscriptId, base44) {
                                     score: { type: "number" },
                                     strengths: { type: "array", items: { type: "string" } },
                                     weaknesses: { type: "array", items: { type: "string" } },
-                                    notes: { type: "string" }
+                                    notes: { type: "string" },
+                                    evidence_excerpts: { type: "array", items: { type: "string" } }
                                 },
                                 required: ["name", "score", "strengths", "weaknesses", "notes"]
                             }
@@ -478,8 +508,9 @@ async function runEvaluation(manuscriptId, base44) {
                     })
                     );
 
-                    // Combined score: 50% agent + 50% WAVE
-            const combinedScore = (agentAnalysis.overallScore * 0.5) + (waveAnalysis.waveScore * 0.5);
+                    // Combined score: 50% agent + 50% WAVE (apply integrity penalty)
+            const rawCombinedScore = (agentAnalysis.overallScore * 0.5) + (waveAnalysis.waveScore * 0.5);
+            const combinedScore = Math.max(0, rawCombinedScore - integrityPenalty);
 
             // Update chapter
             await base44.asServiceRole.entities.Chapter.update(chapter.id, {
@@ -489,8 +520,12 @@ async function runEvaluation(manuscriptId, base44) {
                     ...agentAnalysis,
                     waveAnalysis: waveAnalysis,
                     combinedScore: combinedScore,
+                    rawCombinedScore: rawCombinedScore,
                     agentScore: agentAnalysis.overallScore,
-                    waveScore: waveAnalysis.waveScore
+                    waveScore: waveAnalysis.waveScore,
+                    integrity_adjusted: !integrity.is_clean,
+                    integrity_penalty: integrityPenalty,
+                    evaluation_mode: evaluationMode
                 },
                 wave_results_json: waveAnalysis,
                 status: 'evaluated'
@@ -554,10 +589,14 @@ async function runEvaluation(manuscriptId, base44) {
             status: 'ready',
             revisiongrade_overall: revisiongradeOverall,
             revisiongrade_breakdown: {
-                spine_score: spineEvaluation.overallScore,
+                spine_score: adjustedSpineScore,
                 average_chapter_score: avgChapterScore,
                 chapters_evaluated: evaluatedChapters.length,
-                chapters_total: chapters.length
+                chapters_total: chapters.length,
+                integrity_report: integrity,
+                integrity_clean: integrity.is_clean,
+                evaluation_mode: evaluationMode,
+                integrity_penalty_applied: integrityPenalty
             },
             evaluation_progress: {
                 chapters_total: chapters.length,
