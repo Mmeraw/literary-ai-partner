@@ -1,7 +1,17 @@
 css
-/* Global: force neutral glyphs - eliminate ALL stylistic alternates */
-* {
-  font-feature-settings: "calt" 0, "liga" 0, "dlig" 0, "hlig" 0, "clig" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0, "ss11" 0, "ss12" 0, "ss13" 0, "ss14" 0, "ss15" 0, "ss16" 0, "ss17" 0, "ss18" 0, "ss19" 0, "ss20" 0, "cv01" 0, "cv02" 0, "cv03" 0, "cv04" 0, "cv05" 0 !important;
+/* MAXIMUM AGGRESSION: Force straight-y glyphs everywhere */
+*, *::before, *::after {
+  font-feature-settings: "calt" 0, "liga" 0, "dlig" 0, "hlig" 0, "clig" 0, "rlig" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0, "ss11" 0, "ss12" 0, "ss13" 0, "ss14" 0, "ss15" 0, "ss16" 0, "ss17" 0, "ss18" 0, "ss19" 0, "ss20" 0, "cv01" 0, "cv02" 0, "cv03" 0, "cv04" 0, "cv05" 0, "cv06" 0, "cv07" 0, "cv08" 0, "cv09" 0, "cv10" 0, "salt" 0, "swsh" 0, "cswh" 0, "ornm" 0, "nalt" 0 !important;
   font-variant-ligatures: none !important;
   font-variant-alternates: normal !important;
+  font-variant: normal !important;
+  font-synthesis: none !important;
+  -webkit-font-feature-settings: "calt" 0, "liga" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0 !important;
+  -moz-font-feature-settings: "calt" 0, "liga" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0 !important;
+}
+
+html, body, input, textarea, button, select {
+  font-feature-settings: "calt" 0, "liga" 0, "dlig" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0 !important;
+  font-variant-ligatures: none !important;
+  font-variant: normal !important;
 }
