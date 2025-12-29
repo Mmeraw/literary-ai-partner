@@ -1,8 +1,14 @@
 css
-/* ABSOLUTE NUCLEAR: Arial-only, zero alternates, maximum specificity */
+/* TOTAL ANNIHILATION MODE: Arial-only everywhere, all features OFF */
+@import url('data:text/css;charset=utf-8,');
+
+html {
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+
 * {
   font-family: Arial, Helvetica, sans-serif !important;
-  font-feature-settings: normal !important;
+  font-feature-settings: "kern" 0, "liga" 0, "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "cv01" 0, "cv02" 0, "cv03" 0 !important;
   font-variant: normal !important;
   font-variant-ligatures: none !important;
   font-variant-alternates: normal !important;
@@ -10,22 +16,40 @@ css
   font-variant-numeric: normal !important;
   font-variant-east-asian: normal !important;
   font-synthesis: none !important;
-  -webkit-font-feature-settings: normal !important;
-  -moz-font-feature-settings: normal !important;
+  -webkit-font-feature-settings: "kern" 0, "liga" 0, "calt" 0 !important;
+  -moz-font-feature-settings: "kern" 0, "liga" 0, "calt" 0 !important;
   text-rendering: geometricPrecision !important;
 }
 
-html, body, #root, main, div, span, p, h1, h2, h3, h4, h5, h6, a, button, input, textarea, select, label, li, td, th, nav, header, footer, section, article, aside {
+*::before, *::after {
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-feature-settings: "kern" 0, "liga" 0, "calt" 0 !important;
+  font-variant: normal !important;
+}
+
+html, body, #root, [id], [class] {
   font-family: Arial, Helvetica, sans-serif !important;
   font-feature-settings: normal !important;
   font-variant: normal !important;
 }
 
-/* Kill all Tailwind font classes */
-[class*="font-"], [class*="text-"] {
+body * {
   font-family: Arial, Helvetica, sans-serif !important;
 }
 
-.font-sans, .font-serif, .font-mono, .font-bold, .font-semibold, .font-medium {
+/* Nuclear override every text element */
+div, span, p, h1, h2, h3, h4, h5, h6, a, button, input, textarea, select, label, li, td, th, nav, header, footer, section, article, aside, main, figure, figcaption, time, mark, strong, em, b, i, u, small, abbr, cite, code, pre, kbd, samp, var, sub, sup {
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-feature-settings: normal !important;
+  font-variant: normal !important;
+}
+
+/* Destroy all font classes */
+[class*="font"], [class*="text"], [class*="heading"], [class*="body"] {
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+
+/* Tailwind overrides */
+.font-sans, .font-serif, .font-mono {
   font-family: Arial, Helvetica, sans-serif !important;
 }
