@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -86,7 +85,7 @@ export default function FilmAdaptation() {
         if (!file) return;
 
         setConvertingDocx(true);
-        toast.info('Converting Word document...');
+        toast.info('🔄 Converting Word document...');
 
         try {
             const formData = new FormData();
@@ -98,15 +97,43 @@ export default function FilmAdaptation() {
                 setDocxPreview({
                     text: response.data.text,
                     wordCount: response.data.wordCount,
-                    preview: response.data.preview
+                    preview: response.data.preview,
+                    html: response.data.html,
+                    quality: response.data.quality
                 });
-                toast.success('Document converted! Review and confirm.');
+                
+                // Premium success message
+                if (response.data.quality?.hasComplexFormatting) {
+                    toast.success('✓ Converted with style notes. Review preview.', { duration: 4000 });
+                } else {
+                    toast.success('✓ Document converted cleanly!');
+                }
             } else {
-                toast.error(response.data.error || 'Failed to convert document');
+                // Premium error handling with fallback suggestion
+                const errorData = response.data;
+                toast.error(
+                    <div>
+                        <div className="font-semibold mb-1">{errorData.error}</div>
+                        {errorData.fallback === 'paste' && (
+                            <div className="text-xs mt-1 opacity-90">
+                                💡 Quick fix: Copy all text from Word and paste directly above
+                            </div>
+                        )}
+                    </div>,
+                    { duration: 6000 }
+                );
             }
         } catch (error) {
             console.error('DOCX conversion error:', error);
-            toast.error('Failed to convert document. Try pasting text or using .TXT file.');
+            toast.error(
+                <div>
+                    <div className="font-semibold mb-1">🔄 Conversion interrupted</div>
+                    <div className="text-xs mt-1 opacity-90">
+                        💡 Paste text directly for instant results
+                    </div>
+                </div>,
+                { duration: 5000 }
+            );
         } finally {
             setConvertingDocx(false);
             e.target.value = '';
@@ -263,13 +290,13 @@ export default function FilmAdaptation() {
             {/* DOCX Preview Modal */}
             {docxPreview && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-                    <Card className="max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                    <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <CardTitle>Review Extracted Text</CardTitle>
+                                    <CardTitle>Review Extracted Content</CardTitle>
                                     <p className="text-sm text-slate-600 mt-1">
-                                        {docxPreview.wordCount.toLocaleString()} words extracted from Word document
+                                        {docxPreview.wordCount.toLocaleString()} words • {docxPreview.quality?.message || 'Conversion complete'}
                                     </p>
                                 </div>
                                 <Button variant="ghost" size="sm" onClick={() => setDocxPreview(null)}>
@@ -278,11 +305,68 @@ export default function FilmAdaptation() {
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 max-h-[400px] overflow-y-auto">
-                                <p className="text-sm text-slate-700 whitespace-pre-wrap font-mono">
-                                    {docxPreview.preview}
-                                </p>
-                            </div>
+                            {/* Quality Indicators */}
+                            {docxPreview.quality && (docxPreview.quality.italicsPreserved > 0 || docxPreview.quality.boldPreserved > 0 || docxPreview.quality.footnotesDetected > 0) && (
+                                <div className="flex flex-wrap gap-2">
+                                    {docxPreview.quality.italicsPreserved > 0 && (
+                                        <Badge variant="outline" className="text-xs">
+                                            <em className="not-italic">✓</em> {docxPreview.quality.italicsPreserved} italics
+                                        </Badge>
+                                    )}
+                                    {docxPreview.quality.boldPreserved > 0 && (
+                                        <Badge variant="outline" className="text-xs">
+                                            <strong className="font-normal">✓</strong> {docxPreview.quality.boldPreserved} bold
+                                        </Badge>
+                                    )}
+                                    {docxPreview.quality.footnotesDetected > 0 && (
+                                        <Badge variant="outline" className="text-xs">
+                                            ✓ {docxPreview.quality.footnotesDetected} footnotes
+                                        </Badge>
+                                    )}
+                                    {docxPreview.quality.warnings > 5 && (
+                                        <Badge className="bg-amber-100 text-amber-700 text-xs">
+                                            ⚠️ Complex formatting ({docxPreview.quality.warnings} style notices)
+                                        </Badge>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Preview Tabs */}
+                            <Tabs defaultValue="formatted" className="w-full">
+                                <TabsList className="grid w-full grid-cols-2">
+                                    <TabsTrigger value="formatted">Formatted Preview</TabsTrigger>
+                                    <TabsTrigger value="plain">Plain Text</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="formatted" className="mt-4">
+                                    <div 
+                                        className="p-4 rounded-lg bg-white border border-slate-200 max-h-[400px] overflow-y-auto prose prose-sm max-w-none"
+                                        dangerouslySetInnerHTML={{ __html: docxPreview.html }}
+                                    />
+                                    <p className="text-xs text-slate-500 mt-2">
+                                        Showing HTML preview with preserved formatting
+                                    </p>
+                                </TabsContent>
+                                <TabsContent value="plain" className="mt-4">
+                                    <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 max-h-[400px] overflow-y-auto">
+                                        <p className="text-sm text-slate-700 whitespace-pre-wrap font-mono">
+                                            {docxPreview.preview}
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-2">
+                                        Plain text extraction (all formatting removed)
+                                    </p>
+                                </TabsContent>
+                            </Tabs>
+
+                            {/* Warning message if complex */}
+                            {docxPreview.quality?.hasComplexFormatting && (
+                                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                                    <p className="text-sm text-amber-800">
+                                        <strong>📋 Note:</strong> Complex document styles detected. Text extraction is accurate, but some visual formatting may simplify during analysis. This won't affect content quality.
+                                    </p>
+                                </div>
+                            )}
+
                             <div className="flex gap-3">
                                 <Button
                                     variant="outline"
