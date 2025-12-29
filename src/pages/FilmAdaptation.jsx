@@ -250,7 +250,7 @@ export default function FilmAdaptation() {
                     </Badge>
                     
                     <h1 className="text-4xl sm:text-5xl font-bold text-white mb-6 leading-tight">
-                        Manuscript/Screenplay → Publishing-Ready & Hollywood-Ready
+                        Your Writing → Published & Hollywood
                     </h1>
                     
                     <p className="text-lg text-indigo-200 max-w-4xl mx-auto mb-2 font-medium tracking-wide">
