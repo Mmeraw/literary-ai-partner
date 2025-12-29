@@ -131,6 +131,85 @@ Provide:
                 }
             });
 
+        // Thought-tag detection (WAVE 1)
+        const thoughtTagPattern = /,\s*(he|she|i)\s+(thought|wondered|realized|knew|noticed|felt)\b|\b(he|she|i)\s+(thought|wondered|realized|knew|noticed|felt)\s*(?:to\s+(?:himself|herself|myself))?\b/gi;
+        const thoughtTags = [];
+        let match;
+        let matchCount = 0;
+        
+        while ((match = thoughtTagPattern.exec(text)) !== null && matchCount < 10) {
+            const start = Math.max(0, match.index - 50);
+            const end = Math.min(text.length, match.index + match[0].length + 100);
+            const context = text.slice(start, end).trim();
+            
+            thoughtTags.push({
+                original: match[0],
+                context: context,
+                index: match.index
+            });
+            matchCount++;
+        }
+        
+        // Density check: if 2+ thought tags per ~300 words, flag them
+        const density = thoughtTags.length / (wordCount / 300);
+        const shouldFlag = density >= 2 || thoughtTags.length >= 3;
+
+        // Generate thought-tag suggestions if flagged
+        let thoughtTagSuggestions = [];
+        if (shouldFlag && thoughtTags.length > 0) {
+            try {
+                thoughtTagSuggestions = await Promise.all(
+                    thoughtTags.slice(0, 5).map(async tag => {
+                        const suggestionResponse = await base44.asServiceRole.integrations.Core.InvokeLLM({
+                            prompt: `You are a professional manuscript editor. A redundant thought-tag was detected.
+
+Context:
+"""
+${tag.context}
+"""
+
+Detected tag: "${tag.original}"
+
+Provide 3 revision options:
+1. DELETE: Remove the tag entirely (if POV is clear)
+2. FREE_INDIRECT: Rewrite using free indirect discourse
+3. EXTERNALIZE: Show through dialogue, action, or sensory detail (only if plausible)
+
+Return JSON with:
+- canDelete: boolean (is POV clear without the tag?)
+- freeIndirect: string (free indirect version)
+- externalize: { type: "dialogue" | "action" | "sensory", text: string }
+- rationale: string (why this is redundant/weak - 1 sentence)`,
+                            response_json_schema: {
+                                type: "object",
+                                properties: {
+                                    canDelete: { type: "boolean" },
+                                    freeIndirect: { type: "string" },
+                                    externalize: {
+                                        type: "object",
+                                        properties: {
+                                            type: { type: "string" },
+                                            text: { type: "string" }
+                                        }
+                                    },
+                                    rationale: { type: "string" }
+                                }
+                            }
+                        });
+                        
+                        return {
+                            original: tag.context,
+                            detected: tag.original,
+                            ...suggestionResponse
+                        };
+                    })
+                );
+            } catch (err) {
+                console.error('Thought-tag generation error:', err);
+                // Non-critical, continue without thought-tag suggestions
+            }
+        }
+
         // Wave Revision Guidance
         const waveAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `Apply the Wave Revision System to identify 5-10 specific craft issues.
@@ -227,7 +306,8 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             revisionRequests: agentAnalysis.revisionRequests || [],
             waveHits: sortedWaveHits,
             waveGuidance: waveAnalysis.waveGuidance || { priorityWaves: [], nextActions: [] },
-            styleMode: styleMode
+            styleMode: styleMode,
+            thoughtTagSuggestions: thoughtTagSuggestions
         };
 
         // Save to database
