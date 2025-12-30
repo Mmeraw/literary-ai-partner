@@ -742,6 +742,221 @@ export default function FAQ() {
                         </CardContent>
                     </Card>
 
+                    {/* Trusted Path */}
+                    <Card className="border-0 shadow-md">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <Shield className="w-5 h-5 text-purple-600" />
+                                Trusted Path™
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Accordion type="single" collapsible className="w-full">
+                                <AccordionItem value="what-is-trusted-path">
+                                    <AccordionTrigger>
+                                        What is Trusted Path™?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                Trusted Path™ is a guided automation option inside RevisionGrade™ for authors who do not want to review each flagged item one-by-one.
+                                            </p>
+                                            <p>
+                                                It uses your manuscript's CHX13 + Spine signals and WAVE findings to decide what kind of work is appropriate next:
+                                            </p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>If the manuscript is structurally ready, Trusted Path can apply high-fidelity local revisions at scale.</li>
+                                                <li>If the manuscript is structurally weak or missing key story architecture, Trusted Path gates or deprioritizes cosmetic polishing and routes the author into structural repair first.</li>
+                                            </ul>
+                                            <p className="text-indigo-900 font-semibold mt-3">
+                                                Trusted Path™ is not a promise that a weak or incomplete book can be transformed into an industry-standard manuscript automatically.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="what-happens-click">
+                                    <AccordionTrigger>
+                                        What happens when I click Trusted Path?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>Trusted Path runs a readiness check and then follows the appropriate path:</p>
+                                            
+                                            <div className="mt-3">
+                                                <p className="font-semibold text-slate-900">If structure is ready (above threshold):</p>
+                                                <ul className="list-disc ml-6 space-y-1 mt-2">
+                                                    <li>Applies the primary recommended revision for each eligible flagged issue (sentence/paragraph level) where structure supports a safe edit.</li>
+                                                    <li>Produces a revised manuscript output plus a summary of what was changed and why (at a high level).</li>
+                                                </ul>
+                                            </div>
+
+                                            <div className="mt-3">
+                                                <p className="font-semibold text-slate-900">If structure is not ready (below threshold):</p>
+                                                <ul className="list-disc ml-6 space-y-1 mt-2">
+                                                    <li>Displays a structural gating message (Spine/CHX13 readiness is too low for line-level polish).</li>
+                                                    <li>Prioritizes a repair sequence: missing beats, causality, stakes escalation, character motive clarity, scene purpose, and bridge logic.</li>
+                                                    <li>May propose structural scaffolds (e.g., missing scenes, transitions, reversals) as options—not replacements for authorial design.</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="does-rewrite">
+                                    <AccordionTrigger>
+                                        Does Trusted Path "rewrite my whole book"?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                Trusted Path can apply a large number of local revisions quickly when the structure is stable enough to support those edits.
+                                            </p>
+                                            <p className="font-semibold text-slate-900">But Trusted Path does not:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Invent plot you did not write,</li>
+                                                <li>Create a new story architecture out of thin air,</li>
+                                                <li>Replace your authorial design,</li>
+                                                <li>Guarantee publication or professional readiness.</li>
+                                            </ul>
+                                            <p className="text-indigo-900 font-semibold mt-3">
+                                                If a manuscript is underwritten or structurally unsound, Trusted Path must gate polish rather than "mask" the problem with clean prose.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="why-block-polish">
+                                    <AccordionTrigger>
+                                        Why does Trusted Path sometimes block or deprioritize polishing?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>Because polishing a structurally unstable manuscript is a known trap:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>It wastes time and compute,</li>
+                                                <li>It creates false confidence,</li>
+                                                <li>It can hide missing beats and broken causality beneath smoother sentences.</li>
+                                            </ul>
+                                            <p className="text-indigo-900 font-semibold mt-3">
+                                                Trusted Path is designed to prevent "false polish." Structural integrity must come first.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="structure-ready">
+                                    <AccordionTrigger>
+                                        What does "structure-ready" mean in Trusted Path?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                "Structure-ready" means the manuscript has sufficient core architecture that line-level edits will improve clarity and force without disguising missing story.
+                                            </p>
+                                            <p className="font-semibold text-slate-900">In practical terms, Trusted Path looks for:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>A coherent spine (what the story is, why now, what changes)</li>
+                                                <li>Clear causality (events trigger events)</li>
+                                                <li>Stakes that escalate and matter</li>
+                                                <li>Character motive that explains choices</li>
+                                                <li>Scenes that have a job and advance the story</li>
+                                            </ul>
+                                            <p className="mt-3">
+                                                If those are missing or unstable, Trusted Path routes you to structural repair.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="types-of-edits">
+                                    <AccordionTrigger>
+                                        What types of edits will Trusted Path apply when structure is ready?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>Trusted Path applies high-fidelity local revisions such as:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Removing redundancy and tightening phrasing</li>
+                                                <li>Repairing clarity and logic at sentence/paragraph level</li>
+                                                <li>Fixing inconsistent tone or point-of-view slippage (when detectable)</li>
+                                                <li>Strengthening cause/effect language and scene intent (when already present)</li>
+                                                <li>Improving pacing within scenes that are structurally sound</li>
+                                            </ul>
+                                            <p className="text-indigo-900 font-semibold mt-3">
+                                                Trusted Path does not "change what your story is." It improves how clearly and effectively it is expressed.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="change-voice">
+                                    <AccordionTrigger>
+                                        Will Trusted Path change my voice?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                Trusted Path is designed to preserve voice while improving execution, but any automated revision can introduce "distance" from an author's original rhythm if the author relies exclusively on automation.
+                                            </p>
+                                            <p className="font-semibold text-slate-900">Best practice:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Use Trusted Path to create a cleaner baseline draft.</li>
+                                                <li>Then do an author pass to restore micro-rhythm, emphasis, idiosyncrasy, and stylistic fingerprints.</li>
+                                            </ul>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="can-undo">
+                                    <AccordionTrigger>
+                                        Can I undo Trusted Path?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                Trusted Path should never permanently overwrite the original submission. The product keeps:
+                                            </p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>The original manuscript,</li>
+                                                <li>The revised manuscript output,</li>
+                                                <li>A change summary (and, where possible, per-item traceability).</li>
+                                            </ul>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="guarantee-success">
+                                    <AccordionTrigger>
+                                        Does Trusted Path guarantee agent interest, publication, or sales?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p><strong>No.</strong> Trusted Path does not guarantee publishability, representation, or market success.</p>
+                                            <p className="font-semibold text-slate-900">It guarantees a more efficient and properly sequenced workflow:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Structure first when necessary,</li>
+                                                <li>High-fidelity local revision when appropriate,</li>
+                                                <li>Clear next steps either way.</li>
+                                            </ul>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="one-sentence">
+                                    <AccordionTrigger>
+                                        In one sentence, what is Trusted Path?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700 font-semibold">
+                                            Trusted Path applies scalable revisions where structure supports them and gates polish where structure is weak—so you don't mistake smoother sentences for a stronger story.
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </CardContent>
+                    </Card>
+
                     {/* Revision Mode */}
                     <Card className="border-0 shadow-md">
                         <CardHeader>

@@ -96,104 +96,202 @@ export default function HelpCenter() {
                     </Card>
                 </div>
 
-                {/* Trusted Path */}
+                {/* Trusted Path - Step by Step Guide */}
                 <div className="mb-12">
                     <div className="flex items-center gap-2 mb-6">
                         <Shield className="w-6 h-6 text-purple-600" />
-                        <h2 className="text-2xl font-bold text-slate-900">Trusted Path™</h2>
+                        <h2 className="text-2xl font-bold text-slate-900">How to Use Trusted Path™</h2>
                     </div>
 
-                    <Card className="mb-6 border-2 border-purple-200">
-                        <CardHeader>
-                            <CardTitle>What Is Trusted Path?</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3 text-slate-700">
-                            <p>
-                                Trusted Path is an optional mode that applies recommended revisions automatically when your manuscript is structurally ready.
-                            </p>
-                            <p>
-                                It is designed for writers who want forward momentum without manually approving every micro-edit.
-                            </p>
-                        </CardContent>
-                    </Card>
-
-                    <div className="grid md:grid-cols-2 gap-6 mb-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                                    What Trusted Path Does
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ul className="space-y-2 text-sm text-slate-700">
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-emerald-600">•</span>
-                                        <span>Applies high-confidence revisions where structure supports them</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-emerald-600">•</span>
-                                        <span>Prioritizes clarity, cohesion, and readability</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-emerald-600">•</span>
-                                        <span>Avoids surface polish when deeper issues are present</span>
-                                    </li>
-                                </ul>
-                            </CardContent>
-                        </Card>
-
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <AlertCircle className="w-5 h-5 text-red-600" />
-                                    What Trusted Path Does Not Do
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ul className="space-y-2 text-sm text-slate-700">
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-red-600">•</span>
-                                        <span>It does not rewrite your book</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-red-600">•</span>
-                                        <span>It does not invent plot or character</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-red-600">•</span>
-                                        <span>It does not guarantee publication</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-red-600">•</span>
-                                        <span>It does not replace your creative judgment</span>
-                                    </li>
-                                </ul>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    <Card className="bg-purple-50 border-purple-200">
+                    <Card className="mb-6 border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-white">
                         <CardContent className="p-6">
-                            <p className="text-slate-700 font-semibold">
-                                Trusted Path works with your intent—not instead of it.
+                            <h3 className="text-lg font-semibold text-slate-900 mb-3">Overview</h3>
+                            <p className="text-slate-700 leading-relaxed mb-4">
+                                Trusted Path™ is for authors who want speed and forward momentum. It is most effective when used in the correct sequence:
                             </p>
+                            <ol className="space-y-1 text-slate-700 ml-6">
+                                <li>1. Structural readiness check</li>
+                                <li>2. Structural repair if needed</li>
+                                <li>3. Then high-fidelity local revision at scale</li>
+                            </ol>
                         </CardContent>
                     </Card>
 
-                    <Card className="mt-6">
-                        <CardHeader>
-                            <CardTitle>When Trusted Path Is Limited</CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-slate-700">
-                            <p>
-                                If your manuscript has major structural issues (missing beats, unclear stakes, broken causality), Trusted Path will pause line-level editing and guide you toward structural repair instead.
-                            </p>
-                            <p className="mt-3 font-semibold text-indigo-900">
-                                This prevents wasted effort and protects the integrity of your work.
-                            </p>
-                        </CardContent>
-                    </Card>
+                    {/* Steps */}
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Step 1 — Upload your manuscript</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3 text-slate-700">
+                                <p>
+                                    Upload your draft to RevisionGrade™. After upload, the system runs CHX13 + Spine + WAVE detection.
+                                </p>
+                                <p>You'll see an evaluation summary that includes (at minimum):</p>
+                                <ul className="list-disc ml-6 space-y-1">
+                                    <li>Structural readiness indicators (Spine / CHX13 bands)</li>
+                                    <li>Major risk flags (missing beats, causality breaks, unclear stakes)</li>
+                                    <li>Density of flagged opportunities (e.g., "1,200 flagged items")</li>
+                                </ul>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Step 2 — Decide between Manual Review vs Trusted Path</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3 text-slate-700">
+                                <p>You have two main ways to proceed:</p>
+                                
+                                <div className="mt-3">
+                                    <p className="font-semibold text-slate-900">Manual Review (control-first):</p>
+                                    <ul className="list-disc ml-6 space-y-1 mt-1">
+                                        <li>You review flagged items and choose actions like Keep / Replace / Alternatives.</li>
+                                        <li>Best for authors who want maximum intentionality.</li>
+                                    </ul>
+                                </div>
+
+                                <div className="mt-3">
+                                    <p className="font-semibold text-slate-900">Trusted Path (momentum-first):</p>
+                                    <ul className="list-disc ml-6 space-y-1 mt-1">
+                                        <li>You let the system apply primary best-fit revisions automatically where allowed.</li>
+                                        <li>Best for authors who don't want to process hundreds of micro-decisions.</li>
+                                    </ul>
+                                </div>
+
+                                <p className="text-indigo-900 font-semibold mt-3">
+                                    Trusted Path is not "the lazy button." It is the "efficient workflow" button—when structure supports it.
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Step 3 — Trusted Path runs the structural readiness gate</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3 text-slate-700">
+                                <p>
+                                    When you activate Trusted Path, the system checks whether polishing would be honest and useful.
+                                </p>
+
+                                <div className="mt-4 p-4 rounded-lg bg-red-50 border border-red-200">
+                                    <p className="font-semibold text-red-900 mb-2">If structure is below threshold</p>
+                                    <p className="text-sm mb-2">You will see a gating message similar to:</p>
+                                    <ul className="list-disc ml-6 space-y-1 text-sm">
+                                        <li>"Your story is not structurally ready for line-level refinement."</li>
+                                        <li>"Begin with these spine-level rewrites / missing beats."</li>
+                                    </ul>
+                                    <p className="font-semibold text-slate-900 mt-3 text-sm">What you should do next:</p>
+                                    <ol className="ml-6 space-y-1 text-sm">
+                                        <li>1. Open the structural diagnosis summary.</li>
+                                        <li>2. Start the "Structural Repair Path."</li>
+                                        <li>3. Address missing beats, stakes, causality, and scene purpose first.</li>
+                                    </ol>
+                                    <p className="text-sm mt-3 italic">
+                                        <strong>Why this matters:</strong> If the story spine is broken, perfect sentences can still produce an unreadable book. Structural repair changes outcomes; polish cannot.
+                                    </p>
+                                </div>
+
+                                <div className="mt-4 p-4 rounded-lg bg-emerald-50 border border-emerald-200">
+                                    <p className="font-semibold text-emerald-900">If structure is above threshold</p>
+                                    <p className="text-sm">Trusted Path proceeds with high-fidelity local revisions at scale.</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Step 4 — Review the Trusted Path outputs</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3 text-slate-700">
+                                <p>After Trusted Path runs (structure-ready path), you should receive:</p>
+                                
+                                <div className="space-y-3 mt-3">
+                                    <div>
+                                        <p className="font-semibold text-slate-900">1. Revised Manuscript Output</p>
+                                        <p className="text-sm">A revised draft where eligible items have been improved.</p>
+                                    </div>
+                                    
+                                    <div>
+                                        <p className="font-semibold text-slate-900">2. Revision Summary</p>
+                                        <p className="text-sm">A readable explanation of what types of issues were addressed:</p>
+                                        <ul className="list-disc ml-6 space-y-1 text-sm">
+                                            <li>clarity improvements</li>
+                                            <li>redundancy reduction</li>
+                                            <li>pacing tighten-ups</li>
+                                            <li>consistency fixes</li>
+                                            <li>local logic reinforcement</li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <div>
+                                        <p className="font-semibold text-slate-900">3. Remaining Risk Map (if any)</p>
+                                        <p className="text-sm">Some issues should remain flagged if they are not safe to auto-apply or require author choice (e.g., major voice decisions, ambiguous intent).</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Step 5 — Do the "Author Pass" (recommended)</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3 text-slate-700">
+                                <p>
+                                    Even with excellent automation, a human pass is where a manuscript becomes personal and intentional again.
+                                </p>
+                                <p className="font-semibold text-slate-900">Recommended author pass checklist:</p>
+                                <ul className="list-disc ml-6 space-y-1">
+                                    <li>Restore signature rhythm where you want it</li>
+                                    <li>Confirm voice remains consistent across POV shifts</li>
+                                    <li>Verify character choices still feel true</li>
+                                    <li>Ensure stakes read the way you intended</li>
+                                    <li>Confirm any "tightening" didn't remove necessary breath or emphasis</li>
+                                </ul>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Step 6 — Re-run Trusted Path selectively (optional)</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3 text-slate-700">
+                                <p>After you complete structural repairs or an author pass, you can re-run Trusted Path to:</p>
+                                <ul className="list-disc ml-6 space-y-1">
+                                    <li>Clean up newly rewritten scenes</li>
+                                    <li>Apply consistent tightening across revised sections</li>
+                                    <li>Reduce repetitive patterns after major rebuilds</li>
+                                </ul>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Common Questions */}
+                    <div className="mt-8">
+                        <h3 className="text-xl font-bold text-slate-900 mb-4">Common Questions</h3>
+                        <div className="space-y-4">
+                            <Card>
+                                <CardContent className="p-4">
+                                    <p className="font-semibold text-slate-900 mb-2">"Why did Trusted Path refuse to run polish?"</p>
+                                    <p className="text-sm text-slate-700">Because the system detected that structural deficits would make polish misleading.</p>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardContent className="p-4">
+                                    <p className="font-semibold text-slate-900 mb-2">"Can Trusted Path add missing scenes?"</p>
+                                    <p className="text-sm text-slate-700">Trusted Path may propose missing scenes or beats as optional scaffolds, but it will not silently "write a new book" and call it yours.</p>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardContent className="p-4">
+                                    <p className="font-semibold text-slate-900 mb-2">"Is Trusted Path safe for early drafts?"</p>
+                                    <p className="text-sm text-slate-700">Yes, but expect more gating. Early drafts often need structure before polish.</p>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Using RevisionGrade Effectively */}
