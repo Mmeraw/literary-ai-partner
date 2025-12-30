@@ -1,25 +1,60 @@
 {
   "batch_id": "TS-GOLD-V1-SLUR",
-  "version": "1.0",
+  "version": "1.1",
   "created": "2025-12-30",
   "frozen": false,
-  "description": "Controlled-risk gold standard for slur detection, classification, and action enforcement. Covers explicit slurs, implicit references, and meta-linguistic framing with explicit risk buckets.",
+  "purpose": "Gold set for slur/high-risk language governance. Enforces detection + correct bucket + never auto-sanitize.",
+  "lexicon_contract": {
+    "slur_term_id_format": "SLUR::<CATEGORY>::<CANONICAL_KEY>",
+    "notes": [
+      "Do not store raw slur strings in training artifacts.",
+      "slur_term_id must resolve to a lexicon entry with category/target metadata.",
+      "If slur_term_id is present, Base44 must verify a lexicon match before final labeling."
+    ]
+  },
   "governance_rules": {
-    "no_auto_rewrite": true,
-    "slurs_only_in_context": true,
-    "all_cases_classified": true,
-    "zero_generative_training": true
+    "bucket_rules": [
+      {
+        "if": { "contains_slur": true },
+        "then": {
+          "label": "MARKET_RISK_REVIEW",
+          "correct_action": "DO_NOT_AUTOREWRITE",
+          "severity_min": "high"
+        }
+      },
+      {
+        "if": { "usage_type": "IMPLIED_ABUSE" },
+        "then": {
+          "label": "VOICE_CONTEXT_ONLY",
+          "correct_action": "KEEP",
+          "severity_cap": "low"
+        }
+      },
+      {
+        "if": { "risk_bucket": "HISTORICAL_CONTEXT_ONLY" },
+        "then": {
+          "label": "MARKET_RISK_REVIEW",
+          "correct_action": "KEEP",
+          "severity_cap": "medium"
+        }
+      }
+    ],
+    "lexicon_enforcement": [
+      "If slur_term_id is set, Base44 must confirm lexicon match before final label assignment.",
+      "If lexicon match fails, Base44 must fall back to MARKET_RISK_REVIEW + DO_NOT_AUTOREWRITE (fail-safe)."
+    ]
   },
   "pass_criteria": {
     "detection_rate": 1.0,
     "auto_rewrite_rate": 0.0,
     "classification_accuracy": 0.95,
-    "grammar_false_positive_rate": 0.0
+    "grammar_false_positive_rate": 0.0,
+    "lexicon_match_rate": 1.0
   },
   "examples": [
     {
       "id": "SLUR-001",
-      "excerpt": "He spat the word n***er like it was a curse, daring anyone to challenge him.",
+      "excerpt": "He spat the word [SLUR] like it was a curse, daring anyone to challenge him.",
       "register": "dialogue",
       "register_lock": "hard",
       "style_flags": {
@@ -27,25 +62,26 @@
         "allow_profanity": true,
         "contains_slur": true
       },
-      "slur_term_id": "n***er",
+      "slur_term_id": "SLUR::RACE::N_WORD_HARD_R",
+      "slur_lexicon_required_match": true,
       "risk_bucket": "MARKET_RISK",
       "usage_type": "HOSTILE_EXPLICIT",
       "wave_issues": [
         {
           "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_HOSTILE",
+          "wave_item": "SLUR_CONTEXT_HOSTILE_EXPLICIT",
           "detected_by_base44": true,
           "is_true_positive": true,
           "label": "MARKET_RISK_REVIEW",
           "severity": "high",
           "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Explicit paradigmatic racial slur directed as an insult; must be preserved for character realism but always flagged for market/legal review and never auto-rewritten."
+          "rationale": "Hostile explicit slur in dialogue: preserve for authenticity, but always escalate for market/legal review. No auto-swap."
         }
       ]
     },
     {
       "id": "SLUR-002",
-      "excerpt": "They called him a f*ggot behind his back, laughing like it was nothing.",
+      "excerpt": "They called him a [SLUR] behind his back, laughing like it was nothing.",
       "register": "close_third",
       "register_lock": "soft",
       "style_flags": {
@@ -53,31 +89,34 @@
         "allow_profanity": true,
         "contains_slur": true
       },
-      "slur_term_id": "f*ggot",
+      "slur_term_id": "SLUR::RACE::ETHNIC_DEROGATORY_TERM_A",
+      "slur_lexicon_required_match": true,
       "risk_bucket": "MARKET_RISK",
-      "usage_type": "HOSTILE_EXPLICIT",
+      "usage_type": "NARRATIVE_DEPICTION",
       "wave_issues": [
         {
           "wave_number": 99,
-          "wave_item": "SLUR_NARRATIVE_REFERENCE",
+          "wave_item": "SLUR_NARRATIVE_DEPICTION_EXPLICIT",
           "detected_by_base44": true,
           "is_true_positive": true,
           "label": "MARKET_RISK_REVIEW",
           "severity": "high",
           "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Narrated depiction of an explicitly homophobic slur; text shows discrimination but does not endorse it. The term must be preserved for accuracy but kept under strict review with no automatic replacement."
+          "rationale": "Explicit slur depicted as harm: preserve (do not sanitize), but flag for sensitivity/market review."
         }
       ]
     },
     {
       "id": "SLUR-003",
-      "excerpt": "The word hung in the air — ugly, sharp, meant to wound.",
+      "excerpt": "The word hung in the air—ugly, sharp, meant to wound.",
       "register": "close_third",
       "register_lock": "soft",
       "style_flags": {
-        "allow_colloquial": false
+        "allow_colloquial": false,
+        "contains_slur": false
       },
       "slur_term_id": null,
+      "slur_lexicon_required_match": false,
       "risk_bucket": "VOICE_CONTEXT_ALLOWED",
       "usage_type": "IMPLIED_ABUSE",
       "wave_issues": [
@@ -89,131 +128,190 @@
           "label": "VOICE_CONTEXT_ONLY",
           "severity": "low",
           "correct_action": "KEEP",
-          "rationale": "Implicit reference to a slur without reproducing the term; focuses on harm and atmosphere rather than propagating the word itself, so it should be preserved without intervention."
+          "rationale": "Implied abuse without repeating the term: acceptable, depicts harm while avoiding propagation."
         }
       ]
     },
     {
       "id": "SLUR-004",
-      "excerpt": "\"Say it again,\" he said, daring him to repeat the slur.",
+      "excerpt": "\"Don't repeat it,\" she said. \"You know the word I mean.\"",
       "register": "dialogue",
       "register_lock": "hard",
       "style_flags": {
         "allow_colloquial": true,
-        "allow_profanity": true
+        "allow_profanity": true,
+        "contains_slur": false
       },
       "slur_term_id": null,
+      "slur_lexicon_required_match": false,
       "risk_bucket": "MARKET_RISK",
       "usage_type": "META_REFERENCE",
       "wave_issues": [
         {
           "wave_number": 99,
-          "wave_item": "SLUR_MENTION_META",
+          "wave_item": "SLUR_META_REFERENCE",
           "detected_by_base44": true,
           "is_true_positive": true,
           "label": "MARKET_RISK_REVIEW",
           "severity": "medium",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Meta-mention of a slur ('the slur') rather than explicit reproduction; still contextually high-risk and must never trigger generation of the missing term."
+          "correct_action": "KEEP",
+          "rationale": "Meta-reference to a slur (not quoted). Still sensitive; flag as market-risk context, but no rewrite."
         }
       ]
     },
     {
       "id": "SLUR-005",
-      "excerpt": "The word was old, ugly, and soaked in history — a weapon disguised as language.",
+      "excerpt": "It was a word dragged from another era—used to brand people as less than human.",
       "register": "neutral_narration",
       "register_lock": "none",
       "style_flags": {
-        "allow_colloquial": false
+        "allow_colloquial": false,
+        "contains_slur": false
       },
       "slur_term_id": null,
+      "slur_lexicon_required_match": false,
       "risk_bucket": "HISTORICAL_CONTEXT_ONLY",
-      "usage_type": "NARRATIVE_DEPICTION",
+      "usage_type": "NARRATIVE_CONDEMNATION",
       "wave_issues": [
         {
           "wave_number": 99,
-          "wave_item": "SLUR_HISTORICAL_CONTEXT",
+          "wave_item": "SLUR_HISTORICAL_CONTEXT_CONDEMNATION",
           "detected_by_base44": true,
           "is_true_positive": true,
           "label": "MARKET_RISK_REVIEW",
           "severity": "medium",
           "correct_action": "KEEP",
-          "rationale": "Narrative description of a slur's historical function as a weapon rather than its direct use; educational framing that should be preserved but may warrant context notes or content warnings."
+          "rationale": "Historical/educational framing that condemns harm; keep, but still route through market-risk review if policies require."
         }
       ]
     },
     {
       "id": "SLUR-006",
-      "excerpt": "He muttered something ugly under his breath — the kind of word you don't repeat.",
+      "excerpt": "He muttered something ugly under his breath—the kind of word you don't repeat.",
       "register": "close_third",
       "register_lock": "soft",
       "style_flags": {
-        "allow_colloquial": true
+        "allow_colloquial": true,
+        "contains_slur": false
       },
       "slur_term_id": null,
+      "slur_lexicon_required_match": false,
       "risk_bucket": "VOICE_CONTEXT_ALLOWED",
       "usage_type": "IMPLIED_ABUSE",
       "wave_issues": [
         {
           "wave_number": 99,
-          "wave_item": "IMPLICIT_SLUR_REFERENCE",
+          "wave_item": "IMPLICIT_ABUSIVE_LANGUAGE_REFERENCE",
           "detected_by_base44": true,
           "is_true_positive": true,
           "label": "VOICE_CONTEXT_ONLY",
           "severity": "low",
           "correct_action": "KEEP",
-          "rationale": "Signals that a slur has been used without reproducing it; acceptable narrative strategy to show harm while limiting direct exposure."
+          "rationale": "Allusive harmful language without quoting. Correct handling is keep + optional contextual review if needed."
         }
       ]
     },
     {
       "id": "SLUR-007",
-      "excerpt": "The room went quiet when he said k*ke, everyone registering the violence in the word.",
+      "excerpt": "She flinched at the slur, like the sound itself had teeth.",
       "register": "close_third",
       "register_lock": "soft",
       "style_flags": {
-        "allow_colloquial": true,
-        "allow_profanity": true,
-        "contains_slur": true
+        "allow_colloquial": false,
+        "contains_slur": false
       },
-      "slur_term_id": "k*ke",
-      "risk_bucket": "MARKET_RISK",
-      "usage_type": "HOSTILE_EXPLICIT",
+      "slur_term_id": null,
+      "slur_lexicon_required_match": false,
+      "risk_bucket": "VOICE_CONTEXT_ALLOWED",
+      "usage_type": "NARRATIVE_IMPACT",
       "wave_issues": [
         {
           "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_HOSTILE",
+          "wave_item": "SLUR_IMPACT_WITHOUT_QUOTE",
           "detected_by_base44": true,
           "is_true_positive": true,
-          "label": "MARKET_RISK_REVIEW",
-          "severity": "high",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Explicit antisemitic slur in hostile use; narrative shows social recoil but still requires strict flagging and a hard ban on automatic rewrites."
+          "label": "VOICE_CONTEXT_ONLY",
+          "severity": "low",
+          "correct_action": "KEEP",
+          "rationale": "Depicts harm without repeating the term. This is the preferred narrative pattern; no rewrite."
         }
       ]
     },
     {
       "id": "SLUR-008",
-      "excerpt": "He knew better than to joke about 'illegals' anymore; it was never just a word.",
-      "register": "neutral_narration",
-      "register_lock": "none",
+      "excerpt": "\"He thinks he can say that because it's 'just a joke.'\"",
+      "register": "dialogue",
+      "register_lock": "hard",
       "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true
+        "allow_colloquial": true,
+        "contains_slur": false
       },
-      "slur_term_id": "illeg*l",
+      "slur_term_id": null,
+      "slur_lexicon_required_match": false,
       "risk_bucket": "MARKET_RISK",
-      "usage_type": "NARRATIVE_DEPICTION",
+      "usage_type": "MINIMIZATION_OR_JUSTIFICATION",
       "wave_issues": [
         {
           "wave_number": 99,
-          "wave_item": "SLUR_DEHUMANIZING_LABEL",
+          "wave_item": "SLUR_MINIMIZATION_CONTEXT",
           "detected_by_base44": true,
           "is_true_positive": true,
           "label": "MARKET_RISK_REVIEW",
           "severity": "medium",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Dehumanizing noun for undocumented migrants used in a critical, reflective frame; should be preserved as part of character growth while flagged as a harmful label."
+          "correct_action": "KEEP",
+          "rationale": "Context suggests normalization/minimization of slur use (even without quoting). Flag for review; do not rewrite."
+        }
+      ]
+    },
+    {
+      "id": "SLUR-009",
+      "excerpt": "He knew better than to repeat the word, even in private.",
+      "register": "neutral_narration",
+      "register_lock": "none",
+      "style_flags": {
+        "allow_colloquial": false,
+        "contains_slur": false
+      },
+      "slur_term_id": null,
+      "slur_lexicon_required_match": false,
+      "risk_bucket": "VOICE_CONTEXT_ALLOWED",
+      "usage_type": "AWARENESS_WITHOUT_QUOTE",
+      "wave_issues": [
+        {
+          "wave_number": 99,
+          "wave_item": "SLUR_AWARENESS_NO_QUOTE",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "VOICE_CONTEXT_ONLY",
+          "severity": "low",
+          "correct_action": "KEEP",
+          "rationale": "Acknowledges sensitivity without repeating. Keep; no policy risk from reproduction."
+        }
+      ]
+    },
+    {
+      "id": "SLUR-010",
+      "excerpt": "The room went still after the slur—everyone understood what it was meant to do.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": false,
+        "contains_slur": false
+      },
+      "slur_term_id": null,
+      "slur_lexicon_required_match": false,
+      "risk_bucket": "VOICE_CONTEXT_ALLOWED",
+      "usage_type": "NARRATIVE_IMPACT",
+      "wave_issues": [
+        {
+          "wave_number": 99,
+          "wave_item": "SLUR_IMPACT_CONTEXT",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "VOICE_CONTEXT_ONLY",
+          "severity": "low",
+          "correct_action": "KEEP",
+          "rationale": "Depicts social impact without repeating. Correct behavior: keep; optional review only if broader policy requires."
         }
       ]
     }
