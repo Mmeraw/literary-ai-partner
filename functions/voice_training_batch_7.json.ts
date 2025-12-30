@@ -1,0 +1,229 @@
+{
+  "batch_id": "TS-B7",
+  "source": "TOADSTONE – POWER OF BELIEF (ORIGINAL RELEASE)",
+  "examples": [
+    {
+      "id": "TS-B7-001",
+      "chapter": 2,
+      "excerpt": "\"Ain't nobody tellin' me what's poison and what ain't.\"",
+      "register": "dialogue",
+      "register_lock": "hard",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_dialect_spellings": true,
+        "allow_profanity": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 2,
+          "wave_item": "W2.REGISTER.NONSTANDARD_GRAMMAR",
+          "detected_by_base44": true,
+          "is_true_positive": false,
+          "label": "NO_ACTION",
+          "severity": "low",
+          "correct_action": "keep",
+          "rationale": "Double-negative and vernacular grammar are intentional markers of character voice. Correction would erase sociolect."
+        }
+      ]
+    },
+    {
+      "id": "TS-B7-002",
+      "chapter": 2,
+      "excerpt": "The swamp stank of rot, heat, and old promises that never planned to be kept.",
+      "register": "neutral_narration",
+      "register_lock": "none",
+      "style_flags": {
+        "allow_colloquial": false
+      },
+      "wave_issues": [
+        {
+          "wave_number": 4,
+          "wave_item": "W4.METAPHOR.DENSITY",
+          "detected_by_base44": false,
+          "is_true_positive": true,
+          "label": "OPTIONAL_CRAFT_POLISH",
+          "severity": "medium",
+          "correct_action": "revise_optional",
+          "rationale": "Metaphor density is high but coherent; acceptable unless pacing demands tightening."
+        }
+      ]
+    },
+    {
+      "id": "TS-B7-003",
+      "chapter": 2,
+      "excerpt": "He felt the swamp watching him.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": false
+      },
+      "wave_issues": [
+        {
+          "wave_number": 9,
+          "wave_item": "W9.ANTHROPOMORPHIC_ATTRIBUTION",
+          "detected_by_base44": true,
+          "is_true_positive": false,
+          "label": "VOICE_REGISTER_REVIEW",
+          "severity": "low",
+          "correct_action": "keep",
+          "rationale": "Anthropomorphic perception is a core atmospheric device; not a literal logic error."
+        }
+      ]
+    },
+    {
+      "id": "TS-B7-004",
+      "chapter": 2,
+      "excerpt": "He could almost taste the rot in the air, thick as syrup.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": false
+      },
+      "wave_issues": [
+        {
+          "wave_number": 3,
+          "wave_item": "W3.SENSORY_OVERLAP",
+          "detected_by_base44": true,
+          "is_true_positive": false,
+          "label": "OPTIONAL_CRAFT_POLISH",
+          "severity": "low",
+          "correct_action": "keep",
+          "rationale": "Cross-sensory metaphor is intentional and effective; not an error."
+        }
+      ]
+    },
+    {
+      "id": "TS-B7-005",
+      "chapter": 2,
+      "excerpt": "They was already halfway gone by the time he turned.",
+      "register": "dialogue",
+      "register_lock": "hard",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_dialect_spellings": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 2,
+          "wave_item": "W2.GRAMMAR.SUBJECT_VERB_AGREEMENT",
+          "detected_by_base44": true,
+          "is_true_positive": false,
+          "label": "NO_ACTION",
+          "severity": "low",
+          "correct_action": "keep",
+          "rationale": "Nonstandard grammar is intentional and signals class/voice; do not normalize."
+        }
+      ]
+    },
+    {
+      "id": "TS-B7-006",
+      "chapter": 2,
+      "excerpt": "He thought about the thing too long, long enough for fear to start chewing.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": false
+      },
+      "wave_issues": [
+        {
+          "wave_number": 3,
+          "wave_item": "W3.METAPHOR.COHERENCE",
+          "detected_by_base44": false,
+          "is_true_positive": true,
+          "label": "OPTIONAL_CRAFT_POLISH",
+          "severity": "medium",
+          "correct_action": "revise_recommended",
+          "rationale": "Metaphor is evocative but abstract; minor sharpening could increase immediacy."
+        }
+      ]
+    },
+    {
+      "id": "TS-B7-007",
+      "chapter": 2,
+      "excerpt": "They say you don't come back the same. Hell, some don't come back at all.",
+      "register": "dialogue",
+      "register_lock": "hard",
+      "style_flags": {
+        "allow_colloquial": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 1,
+          "wave_item": "W1.CLICHE.RISK",
+          "detected_by_base44": false,
+          "is_true_positive": true,
+          "label": "OPTIONAL_CRAFT_POLISH",
+          "severity": "medium",
+          "correct_action": "revise_optional",
+          "rationale": "Phrase borders on familiar idiom; acceptable in voice but may feel generic depending on frequency."
+        }
+      ]
+    },
+    {
+      "id": "TS-B7-008",
+      "chapter": 2,
+      "excerpt": "The night leaned in, listening.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": false
+      },
+      "wave_issues": [
+        {
+          "wave_number": 9,
+          "wave_item": "W9.PERSONIFICATION",
+          "detected_by_base44": false,
+          "is_true_positive": false,
+          "label": "NO_ACTION",
+          "severity": "low",
+          "correct_action": "keep",
+          "rationale": "Personification is stylistically consistent with the work's tone; not an error."
+        }
+      ]
+    },
+    {
+      "id": "TS-B7-009",
+      "chapter": 2,
+      "excerpt": "He swore under his breath, quiet enough not to wake the woods.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 2,
+          "wave_item": "W2.METAPHOR.LITERALISM",
+          "detected_by_base44": false,
+          "is_true_positive": false,
+          "label": "NO_ACTION",
+          "severity": "low",
+          "correct_action": "keep",
+          "rationale": "Figurative phrasing ('wake the woods') is deliberate tone-setting, not an error."
+        }
+      ]
+    },
+    {
+      "id": "TS-B7-010",
+      "chapter": 2,
+      "excerpt": "The thing in the trees watched, waiting for the right moment.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": false
+      },
+      "wave_issues": [
+        {
+          "wave_number": 9,
+          "wave_item": "W9.AMBIGUOUS_AGENT",
+          "detected_by_base44": false,
+          "is_true_positive": true,
+          "label": "OPTIONAL_CRAFT_POLISH",
+          "severity": "medium",
+          "correct_action": "revise_optional",
+          "rationale": "Ambiguity appears intentional; flag only to confirm narrative intent, not as an error."
+        }
+      ]
+    }
+  ]
+}
