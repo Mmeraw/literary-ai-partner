@@ -11,6 +11,20 @@ async function runEvaluation(manuscriptId, base44) {
             throw new Error('Manuscript or chapters not found');
         }
 
+        // IMMEDIATE PROGRESS KICK - Show 1% so bar moves instantly
+        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+            status: 'summarizing',
+            evaluation_progress: {
+                chapters_total: chapters.length,
+                chapters_summarized: 0,
+                chapters_wave_done: 0,
+                current_phase: 'summarize',
+                percent_complete: 1,
+                current_step: 'Starting evaluation...',
+                last_updated: new Date().toISOString()
+            }
+        });
+
         // PHASE 0: INTEGRITY CHECK (NEW - prevents V3 contamination)
         const integrityCheck = await base44.asServiceRole.functions.invoke('checkManuscriptIntegrity', {
             text: manuscript.full_text,
@@ -22,6 +36,11 @@ async function runEvaluation(manuscriptId, base44) {
         // Store integrity report
         await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
             evaluation_progress: {
+                chapters_total: chapters.length,
+                chapters_summarized: 0,
+                chapters_wave_done: 0,
+                current_phase: 'summarize',
+                percent_complete: 3,
                 current_step: `Integrity Check: ${integrity.clean_score}% clean (${integrity.mode})`,
                 integrity_report: integrity,
                 last_updated: new Date().toISOString()
@@ -64,13 +83,15 @@ async function runEvaluation(manuscriptId, base44) {
             try {
                 await base44.asServiceRole.entities.Chapter.update(chapter.id, { status: 'summarizing' });
 
+                // Show "starting chapter X" progress
+                const startPercent = Math.floor((chapterSummaries.length / chapters.length) * 25) + 1;
                 await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
                         chapters_total: chapters.length,
                         chapters_summarized: chapterSummaries.length,
                         chapters_wave_done: 0,
                         current_phase: 'summarize',
-                        percent_complete: Math.floor((chapterSummaries.length / chapters.length) * 25),
+                        percent_complete: startPercent,
                         current_step: `Summarizing Chapter ${i + 1} of ${chapters.length}...`,
                         last_updated: new Date().toISOString()
                     }
@@ -93,6 +114,20 @@ SUMMARY REQUIREMENTS:
 
 CHAPTER TEXT:
 ${chapter.text}`;
+
+                // Show "processing chapter X" progress during LLM call
+                const processingPercent = Math.floor((chapterSummaries.length / chapters.length) * 25) + 2;
+                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                    evaluation_progress: {
+                        chapters_total: chapters.length,
+                        chapters_summarized: chapterSummaries.length,
+                        chapters_wave_done: 0,
+                        current_phase: 'summarize',
+                        percent_complete: processingPercent,
+                        current_step: `Processing Chapter ${i + 1} summary (analyzing structure, beats, stakes)...`,
+                        last_updated: new Date().toISOString()
+                    }
+                });
 
                 const summary = await base44.asServiceRole.integrations.Core.InvokeLLM({
                     prompt: summaryPrompt,
@@ -331,7 +366,7 @@ SCORING GUIDELINES:
                     error_message: null
                 });
 
-                // Update progress
+                // Update progress - starting chapter evaluation
                 const wavePercent = 40 + Math.floor((i / chapters.length) * 50);
                 await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
@@ -341,6 +376,19 @@ SCORING GUIDELINES:
                         current_phase: 'wave',
                         percent_complete: wavePercent,
                         current_step: `Evaluating Chapter ${i + 1}: ${chapter.title}`,
+                        last_updated: new Date().toISOString()
+                    }
+                });
+
+                // Show "Running agent analysis" progress
+                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                    evaluation_progress: {
+                        chapters_total: chapters.length,
+                        chapters_summarized: chapters.length,
+                        chapters_wave_done: i,
+                        current_phase: 'wave',
+                        percent_complete: wavePercent + 1,
+                        current_step: `Chapter ${i + 1}: Running 12 Agent Criteria checks...`,
                         last_updated: new Date().toISOString()
                     }
                 });
@@ -423,6 +471,19 @@ Provide overall score (1-10) and verdict.`,
                 }
                 })
                 );
+
+                // Show "Running WAVE analysis" progress
+                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                    evaluation_progress: {
+                        chapters_total: chapters.length,
+                        chapters_summarized: chapters.length,
+                        chapters_wave_done: i,
+                        current_phase: 'wave',
+                        percent_complete: wavePercent + 2,
+                        current_step: `Chapter ${i + 1}: Running 63 WAVE craft checks...`,
+                        last_updated: new Date().toISOString()
+                    }
+                });
 
                 // WAVE Revision System evaluation (61+ waves, three-tier framework)
                 const waveAnalysis = await withTimeout(
