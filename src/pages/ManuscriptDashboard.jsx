@@ -150,7 +150,7 @@ export default function ManuscriptDashboard() {
   }
 
   // Show evaluation progress screen (exclude ready_with_errors - that shows results)
-  if (['summarizing', 'spine_evaluating', 'evaluating_chapters'].includes(manuscript?.status)) {
+  if (['summarizing', 'spine_evaluating', 'spine_complete', 'evaluating_chapters'].includes(manuscript?.status)) {
     const progress = manuscript.evaluation_progress || {};
     const percentComplete = progress.percent_complete || 0;
 

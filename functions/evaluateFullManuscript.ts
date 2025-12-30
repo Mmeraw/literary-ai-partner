@@ -647,6 +647,7 @@ SCORING GUIDELINES:
         // Update manuscript with spine evaluation (apply integrity penalty)
         const adjustedSpineScore = Math.max(0, spineEvaluation.overallScore - integrityPenalty);
 
+        // HARD HANDOFF STEP 1: Write spine terminal state FIRST
         await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
             spine_score: adjustedSpineScore,
             spine_evaluation: {
@@ -656,39 +657,52 @@ SCORING GUIDELINES:
                 raw_score: spineEvaluation.overallScore,
                 evaluation_mode: evaluationMode
             },
-            status: 'evaluating_chapters',
-            evaluation_progress: {
-                chapters_total: chapters.length,
-                chapters_summarized: chapters.length,
-                chapters_wave_done: 0,
-                current_phase: 'wave',
-                percent_complete: 40,
-                current_step: 'Running chapter-by-chapter craft checks...',
-                last_updated: new Date().toISOString()
-            }
+            spine_completed_at: new Date().toISOString(),
+            status: 'spine_complete'
         });
 
         console.log(`🚪 PHASE_2_SPINE_EXIT`, { runId, manuscriptId, spineScore: adjustedSpineScore, timestamp: new Date().toISOString() });
         } else {
-        // Spine already done, update status for WAVE phase
-        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-            status: 'evaluating_chapters',
-            evaluation_progress: {
-                chapters_total: chapters.length,
-                chapters_summarized: chapters.length,
-                chapters_wave_done: 0,
-                current_phase: 'wave',
-                percent_complete: 40,
-                current_step: 'Resuming chapter craft checks...',
-                last_updated: new Date().toISOString()
-            }
-        });
-
+        // Spine already done, mark as complete if not already
+        if (!manuscript.spine_completed_at) {
+            await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                spine_completed_at: new Date().toISOString(),
+                status: 'spine_complete'
+            });
+        }
         console.log(`🚪 PHASE_2_SPINE_SKIPPED`, { runId, manuscriptId, reason: 'already_complete', timestamp: new Date().toISOString() });
         }
 
         // PHASE 3: WAVE chapter craft evaluation - PARALLEL EXECUTION
         console.log(`🚪 PHASE_3_WAVE_ENTRY`, { runId, manuscriptId, chaptersCount: chapters.length, timestamp: new Date().toISOString() });
+
+        // HARD HANDOFF STEP 2: Write Phase 3 "started" marker IMMEDIATELY
+        try {
+            await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                status: 'evaluating_chapters',
+                phase_3_started_at: new Date().toISOString(),
+                phase_3_run_id: runId,
+                evaluation_progress: {
+                    chapters_total: chapters.length,
+                    chapters_summarized: chapters.length,
+                    chapters_wave_done: 0,
+                    current_phase: 'wave',
+                    percent_complete: 40,
+                    current_step: 'Starting WAVE chapter analysis...',
+                    last_updated: new Date().toISOString()
+                }
+            });
+            console.log(`✅ PHASE_3_TRIGGER_PERSISTED`, { runId, manuscriptId, timestamp: new Date().toISOString() });
+        } catch (triggerError) {
+            // HARD HANDOFF STEP 3: Never allow silent exits
+            console.error(`❌ PHASE_3_TRIGGER_FAILED`, { runId, manuscriptId, error: triggerError.message });
+            await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                status: 'wave_trigger_failed',
+                wave_trigger_error: triggerError.message,
+                wave_trigger_failed_at: new Date().toISOString()
+            });
+            throw triggerError;
+        }
 
         // Reload chapters to get fresh status after summaries/spine
         const freshChapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
