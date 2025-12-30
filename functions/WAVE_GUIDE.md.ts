@@ -80,20 +80,7 @@ Rules may be broken—but only once the writer understands:
 
 ---
 
-## PART III — THE ORIGIN OF THE SYSTEM
-
-The WAVE Guide was built through months of sustained revision work.
-
-Mike Meraw developed the system by identifying the exact errors that weakened his own pages, collecting those errors across drafts, and translating them into a repeatable "how-to-fix" framework.
-
-Rather than relying on intuition or taste, the system formalizes recurring structural, momentum, and line-level failures observed during professional-grade revision and organizes them into staged, testable craft passes.
-
-WAVE is not theoretical.
-It is empirical.
-
----
-
-## PART IV — THE WAVE STACK (REVISION IN THE CORRECT ORDER)
+## PART III — THE WAVE STACK (REVISION IN THE CORRECT ORDER)
 
 Revision must occur in sequence. Polish applied out of order is wasted effort.
 
@@ -138,54 +125,6 @@ These waves target:
 - Hand-holding
 
 These passes answer one question: **Does this read like work that understands restraint?**
-
----
-
-## TWO-LAYER IMPLEMENTATION MODEL
-
-### WAVE 1 — Interior Attribution Optimization (MICRO)
-**Purpose:** Eliminate redundant thought-tags that weaken prose authority.
-
-**Trigger Conditions:**
-- Redundancy: Removing the tag does not change meaning or clarity
-- Density: 2+ tags per ~300 words
-- Repetition: Same structure repeats within paragraph/scene
-
-**Detected Forms:**
-- `, he/she/I thought/wondered/realized/knew/noticed/felt`
-- `he/she/I thought to himself/herself/myself`
-- `thought that/about` constructions
-
-**Action Options:**
-1.  **Delete** — Remove tag if POV is clear
-2.  **Free Indirect** — Rewrite using free indirect discourse
-3.  **Externalize** — Show through dialogue, action, or sensory detail (only if plausible)
-
-**Critical Rule:** NEVER auto-rewrite. Suggestions only.
-
-**Default Behavior:** Enabled in all tiers (free, standard, pro).
-
----
-
-### WAVE 62 — Overused Word Detection (MACRO)
-**Purpose:** Surface density patterns of weak/overused words at manuscript scale.
-
-**Scope:** Global frequency analysis across chapters.
-
-**Outputs:**
-- Chapter heatmaps showing density clusters
-- Hotspot identification (3+ occurrences per page)
-- 3 recast options per hotspot (suggestion-only)
-
-**Monitored Words:**
-- thought, felt, wondered, realized, knew, noticed
-- very, really, suddenly, quickly, extremely
-- just, actually, basically, literally
-- thing, stuff, situation, area, place
-
-**Policy:** Insight only. No auto-rewrite. No forced edits.
-
-**Default Behavior:** Pro-tier only ($19/mo unlock).
 
 ---
 
@@ -366,6 +305,67 @@ These passes answer one question: **Does this read like work that understands re
 
 ---
 
+### WAVE 62 — Physical State Continuity (PSC)
+**Draft Stage:** Story Architecture / Late
+**Layer:** Narrative Continuity (feeds Criterion 12)
+
+#### Core Principle
+Objects, environments, and physical conditions cannot exist in mutually exclusive states simultaneously unless the text provides transition language or causal explanation.
+
+#### Why It Fails
+Physical contradictions break reader trust at a subconscious level. Even if readers can't articulate the problem, they feel something "off" about the world's coherence. This is distinct from stylistic preference—it's a physics-of-the-world violation.
+
+#### Mutually Exclusive State Pairs
+- **wet ↔ dry**
+- **fresh ↔ long-aged**
+- **clean ↔ grimy/dirty**
+- **intact ↔ broken/damaged**
+- **warm ↔ cold**
+- **recently disturbed ↔ long-abandoned**
+- **bright/vivid ↔ sun-bleached/faded**
+- **sharp/crisp ↔ blurred/smudged** (unless actively transitioning)
+
+#### Detection Pattern
+Flag when:
+1. Same object receives contradictory physical descriptors within close proximity (same paragraph or adjacent paragraphs)
+2. No transition language exists ("after the rain," "someone had recently...")
+3. The contradiction is not clearly intentional (surrealism, magic, etc.)
+
+#### Canonical Example (from PV 115, Chapter 1)
+❌ **Error:**
+> "The notice curled at the corners, a film of dust over the paper. Blue Sharpie smeared like it was still wet where someone had dragged their thumb across it."
+
+**Why it fails:** Curling + dust = age/neglect. Wet smear = fresh disturbance. These cannot coexist without explanation.
+
+✅ **Fix Options:**
+1. Keep aged state: "The notice curled at the corners, a film of dust over the paper, the blue Sharpie long since blurred by rain and fingers."
+2. Keep fresh state: "The notice's corner had just begun to curl, dust not yet settled, blue Sharpie still wet where someone had dragged a thumb through it."
+3. Explain contradiction: "The notice curled at the corners, dust caught along the edge, but a fresh streak of blue showed where someone had recently tried to rub the name away."
+
+#### What This Rule Does NOT Do
+- Does not block intentional surrealism or magical realism
+- Does not enforce realism over symbolism
+- Does not flag metaphor or deliberate juxtaposition
+- Does not rewrite voice
+
+#### Output Format
+When detected, flag as:
+```
+Flag Type: Physical State Continuity Violation
+Location: [Chapter X, paragraph Y]
+Object: [description]
+Conflict: [aged/weathered state] + [fresh/wet state] without transition
+Impact: Reader trust + immersion
+Suggested Action: Choose one state or add causal explanation
+```
+
+#### Integration Points
+- **Story Architecture Layer:** Primary detection
+- **Criterion 12 (Narrative Closure & Promises Kept):** Scoring impact
+- **WAVE Guide:** Cross-reference only (flags surface here but detection happens in Story Architecture)
+
+---
+
 ### WAVE 61 — Reflexive Pronouns & Redundancy Rule
 **Draft Stage:** Late
 
@@ -383,14 +383,121 @@ Certain English words become redundant when meaning is already clear from contex
 - Reflexive + **no narrative function** → flag + suggest revision
 - Reflexive + **embodiment/voice function** → keep line; no suggestion (or low-priority note only)
 
+#### How the Rule Functions
+
+**1. Reflexive Pronouns (himself, herself, themselves, ourselves)**
+
+Keep when:
+- Action is truly reflexive: "He cut himself."
+- Adding deliberate emphasis: "He did it himself, after all that."
+
+Remove when:
+- Verb already signals who receives action
+- ❌ "He nodded to himself." → ✔ "He nodded."
+- Exception: if implying introspection, self-reassurance, or private ritual
+
+**2. "Own" (her own hands, his own room)**
+
+Keep when:
+- Signaling contrast or autonomy: "He finally walked into a room of his own."
+
+Remove when:
+- No contrast exists: ❌ "He walked into his own room." → ✔ "He walked into his room."
+
+**3. "Just" (universal clutter word)**
+
+Keep when:
+- Signaling immediacy: "He just arrived."
+- Part of voice/internal thought: "I just needed one clean breath."
+
+Remove when:
+- Used as filler: ❌ "He just stood there." → ✔ "He stood there."
+
+**4. "As if" / "Like" (comparative hedging)**
+
+Keep when:
+- Comparison illuminates: "The night pressed in like a held breath."
+
+Remove when:
+- Comparison stalls: ❌ "The night was as if it were closing in." → ✔ "The night closed in."
+
+**Rule:** Comparisons should illuminate, not stall.
+
+**5. "Them" when redundant**
+
+Keep when:
+- Specificity needed for clarity
+
+Remove when:
+- Object is implied: ❌ "The wind pushed them forward." → ✔ "The wind pushed forward."
+- Creates ambiguity about who is being acted upon
+
+#### Professional Guiding Principle
+**If removing the word strengthens the sentence without altering meaning or intent, cut it.**
+
+Writers use these words unconsciously as:
+- Hesitation markers
+- Emphasis crutches
+- Rhythm padding
+- Internal thought placeholders
+
+Agents and editors spot them immediately.
+
 ---
 
-## DESIGN PRINCIPLES
+## IMPLEMENTATION GATE (ENGINEERING)
 
-1.  **Author Agency:** Suggestions, never corrections
-2.  **Precision:** Target specific failure modes, not generic "improvement"
-3.  **No Homogenization:** Preserve voice, risk, and stylistic intent
-4.  **Suggestion Over Correction:** Show the issue, offer alternatives, author decides
+### Two-Stage Pipeline Required
+
+**Stage 1: Detect risk patterns** (candidates only)
+- Reflexives, "as if," softeners, fillers
+
+**Stage 2: WAVE contextual validation** (authorization)
+- Interpret through embodiment, intimacy, psychological cohesion, POV voice, agency
+
+### Gating Rule (CRITICAL)
+If WAVE classifies a flagged phrase as serving **embodiment / intimacy / agency reinforcement / character voice**, then:
+- Suppress or downgrade the warning
+- Do NOT auto-generate a "fix"
+
+### Generate Revision Only When BOTH:
+1. Pattern matched by risk scanner, AND
+2. WAVE context says "not justified" (no narrative function / clarity gain)
+
+### Acceptance Criteria
+✅ Reflexives/"as if" that reinforce embodiment/voice → NO auto-rewrite
+✅ Generic "remove reflexive" suggestions → ONLY when WAVE classifies as redundant/weakening
+
+**Treat scanner output as candidates, not decisions. WAVE must authorize all rewrites.**
+
+---
+
+## APPENDICES
+
+### Appendix A: Vehicle & Territory Specificity
+Use with Wave 3 (Generic Nouns → Specific Reality).
+
+Replace generic terms like "dark SUV" or "the vehicle" with specific models when power/status matters:
+- **Work vehicles:** Nissan Frontier, beat-up Silverado
+- **Mid-tier cartel:** Chevrolet Tahoe, older Suburban
+- **Leadership/status:** Mercedes G-Class (G-Wagon), armored Suburban LTZ, Land Cruiser VX-R
+
+**Armored vehicle tells:**
+- Heavy "THUNK" door close (vault-like)
+- Door weight requires full arm strength
+- Windows roll down only 1-2 inches
+- Muffled cabin (road noise nearly gone)
+- Vehicle sits lower on suspension
+
+### Appendix B: Spanish Clarity Rule
+All non-obvious Spanish phrases must have English translation in the same paragraph. No separate lines, no italics (unless internal thought), no parentheses.
+
+### Appendix C: Sensory Authenticity
+STOP using default smells/tastes related to metal, copper, iron UNLESS the person is actually handling it, smelling it, or tasting it.
+
+### Appendix D: Additional Micro-Waves
+- **Clothing/footwear authenticity:** Ensure details reflect the world built
+- **Minor character human moments:** One or two "mercy beats" (dental floss, antifungal cream, cook sneaking food) - but limit to one per major section, no moral framing
 
 ---
 
