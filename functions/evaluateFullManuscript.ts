@@ -76,18 +76,23 @@ async function runEvaluation(manuscriptId, base44) {
                     }
                 });
 
-                const summaryPrompt = `You are a professional developmental editor. Produce accurate structural summaries. Do not invent events. Do not rewrite prose. Output must be valid JSON matching the schema. Keep language neutral and specific.
+                const summaryPrompt = `You are a professional developmental editor. Produce accurate structural summaries.
 
-        TASK: Create a structural chapter summary for later whole-book 'spine' evaluation.
+CRITICAL RULES (NON-NEGOTIABLE):
+1. NO INVENTION. Use only information present in the text.
+2. NO REWRITING. Summarize, do not revise prose.
+3. PRESERVE AUTHENTICITY. Keep technical terminology, proper nouns, ranks as-is.
+4. NO HALLUCINATION. Do not claim events/details that aren't in the text.
 
-        RULES:
-        - Use only information in the chapter text. Do not invent.
-        - Summary must be 200–300 words, focused on plot movement, character change, stakes, and unresolved hooks.
-        - Then fill the structured fields.
-        - If chapter boundaries or names are unclear, make the best inference and mark uncertainty in 'notes'.
+TASK: Create a structural chapter summary for later whole-book 'spine' evaluation.
 
-        CHAPTER TEXT:
-        ${chapter.text}`;
+SUMMARY REQUIREMENTS:
+- 200–300 words, focused on plot movement, character change, stakes, unresolved hooks
+- Use neutral, specific language
+- If chapter boundaries/names unclear, mark uncertainty in 'notes'
+
+CHAPTER TEXT:
+${chapter.text}`;
 
                 const summary = await base44.asServiceRole.integrations.Core.InvokeLLM({
                     prompt: summaryPrompt,
@@ -173,18 +178,26 @@ async function runEvaluation(manuscriptId, base44) {
                 }
             });
 
-        const spinePrompt = `You are a literary agent–style evaluator and developmental editor. Evaluate the manuscript's narrative architecture using chapter summaries. Do not invent missing scenes. Your job is to judge structural execution and story engine quality.
+        const spinePrompt = `You are a literary agent–style evaluator and developmental editor. Evaluate the manuscript's narrative architecture using chapter summaries.
 
-        TASK: Using the provided chapter summary objects (not raw prose), produce a whole-manuscript 'Spine Evaluation' and score the manuscript on 12 agent criteria (1–10).
+CRITICAL RULES (NON-NEGOTIABLE):
+1. NO INVENTION. Judge only what's in the summaries.
+2. NO HALLUCINATION. Do not reference scenes/events not present.
+3. DOCUMENT IDENTITY: Extract 3 anchors (names, locations, events) and verify consistency.
+4. CITE SOURCES. Reference specific chapter indices (e.g., 'Ch. 7–9').
+5. PRESERVE VOICE. Respect author's authority, genre conventions, technical authenticity.
 
-        RULES:
-        - Base your evaluation ONLY on the summaries provided.
-        - Do not mention token limits or the fact that this is summarized.
-        - Be specific: cite chapter indices when referencing problems or strengths (e.g., 'Ch. 7–9').
-        - Scores must be integers 1–10.
-        - Provide concise, actionable rationale per criterion (3–6 sentences each).
+EVALUATION MODE: This is diagnostic assessment, not rewriting guidance.
 
-        12 AGENT CRITERIA:
+TASK: Using the provided chapter summary objects (not raw prose), produce a whole-manuscript 'Spine Evaluation' and score the manuscript on 12 agent criteria (1–10).
+
+SCORING GUIDELINES:
+- Scores must be integers 1–10
+- Provide concise, actionable rationale per criterion (3–6 sentences)
+- Do not mention token limits or summarization
+- Flag what weakens submission readiness, honor what strengthens authority
+
+12 AGENT CRITERIA:
         1. The Hook (Opening Impact)
         2. Voice & Narrative Style
         3. Characters & Development
@@ -336,35 +349,46 @@ async function runEvaluation(manuscriptId, base44) {
             // Story Evaluation (Agents, Editors, Script Readers)
                 const agentAnalysis = await withTimeout(
                     base44.asServiceRole.integrations.Core.InvokeLLM({
-                    prompt: `You are a professional evaluator (agent/editor/script reader). Analyze this chapter against the 12 Story Evaluation Criteria, rating each 1-10:
+                    prompt: `You are a professional evaluator (agent/editor/script reader). Analyze this chapter against the 12 Story Evaluation Criteria.
 
-            1. Opening Hook (opening_hook)
-            2. Narrative Voice & Style (narrative_voice_style)
-            3. Character Depth & Introduction (character_depth_introduction)
-            4. Conflict, Tension & Escalation (conflict_tension_escalation)
-            5. Thematic Resonance (thematic_resonance)
-            6. Structure, Pacing & Flow (structure_pacing_flow)
-            7. Dialogue & Subtext (dialogue_subtext)
-            8. Worldbuilding & Immersion (worldbuilding_immersion)
-            9. Stakes & Emotional Investment (stakes_emotional_investment)
-            10. Line-Level Craft & Polish (line_level_craft_polish)
-            11. Marketability & Genre Position (marketability_genre_position)
-            12. 'Would They Keep Reading?' Gate (would_keep_reading_gate)
+CRITICAL EVALUATION RULES (NON-NEGOTIABLE):
+1. NO HALLUCINATION. Quote only text that exists. Do not invent examples.
+2. DOCUMENT IDENTITY. Extract 3 anchors (character names, key events, setting details) to verify you're evaluating the correct text.
+3. RESPECT PROTECTED ZONES:
+   - Do not penalize operational authenticity (orders, briefings, technical procedures)
+   - Do not penalize genre-appropriate jargon or specialized terminology
+   - Do not flag proper nouns, ranks, units as "unclear" without cause
+4. PRESERVE VOICE. Honor author's authority, lived experience, and narrative choices.
+5. EVIDENCE-BASED. Every weakness must cite specific text; every strength must show proof.
 
-            RED-FLAG CHECKS (embedded in criteria):
-            - POV discipline, no head-hopping
-            - Protagonist clear and active early
-            - No backstory dumps without scene pressure
-            - Scene anchoring (who, where, what's happening)
-            - Story logic coherent, no contradictions
+12 STORY EVALUATION CRITERIA (rate each 1-10):
+1. Opening Hook (opening_hook)
+2. Narrative Voice & Style (narrative_voice_style)
+3. Character Depth & Introduction (character_depth_introduction)
+4. Conflict, Tension & Escalation (conflict_tension_escalation)
+5. Thematic Resonance (thematic_resonance)
+6. Structure, Pacing & Flow (structure_pacing_flow)
+7. Dialogue & Subtext (dialogue_subtext)
+8. Worldbuilding & Immersion (worldbuilding_immersion)
+9. Stakes & Emotional Investment (stakes_emotional_investment)
+10. Line-Level Craft & Polish (line_level_craft_polish)
+11. Marketability & Genre Position (marketability_genre_position)
+12. 'Would They Keep Reading?' Gate (would_keep_reading_gate)
 
-            CHAPTER: ${chapter.title}
+RED-FLAG CHECKS (embedded in criteria):
+- POV discipline, no head-hopping
+- Protagonist clear and active early
+- No backstory dumps without scene pressure
+- Scene anchoring (who, where, what's happening)
+- Story logic coherent, no contradictions
 
-            TEXT:
-            ${chapter.text}
+CHAPTER: ${chapter.title}
 
-            For each criterion provide: score (1-10), strengths (array), weaknesses (array), notes (detailed commentary), evidence_excerpts (2-4 short text excerpts showing why this score was given).
-            Provide overall score (1-10) and verdict.`,
+TEXT:
+${chapter.text}
+
+For each criterion provide: score (1-10), strengths (array), weaknesses (array), notes (detailed commentary), evidence_excerpts (2-4 short text excerpts showing why this score was given).
+Provide overall score (1-10) and verdict.`,
                 response_json_schema: {
                     type: "object",
                     properties: {
@@ -396,10 +420,21 @@ async function runEvaluation(manuscriptId, base44) {
                 base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are an elite developmental editor applying the complete WAVE Revision System (61+ waves organized in three tiers).
 
-            WAVE SYSTEM FRAMEWORK:
-            **EARLY WAVES (Structural Truth):** POV integrity, stakes clarity, character consistency, cause-effect logic
-            **MID WAVES (Momentum & Meaning):** Specificity, scene mechanics, dialogue purpose, choreography compression, emotional escalation
-            **LATE WAVES (Authority & Polish):** Body-part clichés, filter verbs, motif discipline, reflexive redundancy, submission readiness
+CRITICAL WAVE RULES (NON-NEGOTIABLE):
+1. PATCH-BASED OUTPUT. Flag issues as surgical patches, not rewrites.
+2. NO HALLUCINATION. Only flag patterns that actually exist in the text.
+3. PROTECTED ZONES - Never flag as issues:
+   - Operational authenticity (orders, checklists, briefings, radio phrasing)
+   - Proper nouns, ranks, units, dates, call signs, technical specs
+   - Genre-appropriate jargon and specialized terminology
+   - Intentional stylistic choices (poem structure, memoir voice, etc.)
+4. VOICE PRESERVATION. Honor author's authority, lived experience, authenticity.
+5. RISK ASSESSMENT. For every flagged issue, note what could be lost if changed.
+
+WAVE SYSTEM FRAMEWORK:
+**EARLY WAVES (Structural Truth):** POV integrity, stakes clarity, character consistency, cause-effect logic
+**MID WAVES (Momentum & Meaning):** Specificity, scene mechanics, dialogue purpose, choreography compression, emotional escalation
+**LATE WAVES (Authority & Polish):** Body-part clichés, filter verbs, motif discipline, reflexive redundancy, submission readiness
 
             **SMILE LEXICON REFERENCE (Optional Polish for 8-10 Tier Only)**:
             - Track "smile" usage density (flag if 3+ per 1k words)
