@@ -742,6 +742,263 @@ export default function FAQ() {
                         </CardContent>
                     </Card>
 
+                    {/* Revision Mode */}
+                    <Card className="border-0 shadow-md">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <Sparkles className="w-5 h-5 text-indigo-600" />
+                                Revision Mode
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Accordion type="single" collapsible className="w-full">
+                                <AccordionItem value="what-is-revision-mode">
+                                    <AccordionTrigger>
+                                        What is Revision Mode?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                Revision Mode is a diagnostic and guidance system designed to evaluate a manuscript's structure, clarity, and narrative function. 
+                                                It identifies where a manuscript succeeds, where it fails, and what kind of revision is required to move it closer to professional standards.
+                                            </p>
+                                            <p className="font-semibold text-indigo-900">
+                                                It does not rewrite your book for you. It shows you what must change and why.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="automatic-fix">
+                                    <AccordionTrigger>
+                                        Does Revision Mode "fix" my manuscript automatically?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p><strong>No.</strong></p>
+                                            <p>
+                                                Revision Mode does not generate a finished, publishable manuscript from weak or incomplete material. 
+                                                It does not replace the author's creative labor, judgment, or voice.
+                                            </p>
+                                            <p className="font-semibold text-slate-900">Instead, it provides:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Structural diagnosis</li>
+                                                <li>Clear identification of narrative weaknesses</li>
+                                                <li>Specific guidance on what type of revision is needed</li>
+                                            </ul>
+                                            <p className="text-indigo-900 font-semibold">
+                                                Think of it as a developmental editor, not a ghostwriter.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="major-problems">
+                                    <AccordionTrigger>
+                                        What if my manuscript has major problems?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p><strong>Revision Mode will tell you—clearly and honestly.</strong></p>
+                                            <p>If your manuscript suffers from:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Weak or missing plot structure</li>
+                                                <li>Underdeveloped characters</li>
+                                                <li>Incoherent stakes or causality</li>
+                                                <li>Conceptual or tonal mismatch</li>
+                                            </ul>
+                                            <p className="mt-3">…it will not attempt to "polish over" those issues.</p>
+                                            <p className="font-semibold text-slate-900">Instead, it will explain:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Why the material fails</li>
+                                                <li>Where the failure occurs</li>
+                                                <li>What kind of work would be required to fix it</li>
+                                            </ul>
+                                            <p className="text-indigo-900 font-semibold">
+                                                This transparency is intentional and essential.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="guarantee-publishable">
+                                    <AccordionTrigger>
+                                        Does Revision Mode guarantee a publishable result?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p><strong>No.</strong></p>
+                                            <p>
+                                                Revision Mode does not guarantee publication, agent interest, or commercial success.
+                                            </p>
+                                            <p className="font-semibold text-slate-900">What it guarantees is:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Honest diagnostic feedback</li>
+                                                <li>Alignment with professional evaluation standards</li>
+                                                <li>A clear understanding of whether a manuscript is structurally viable</li>
+                                            </ul>
+                                            <p className="mt-3">
+                                                Publication still depends on the author's execution, revision choices, and creative judgment.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="why-no-rewrite">
+                                    <AccordionTrigger>
+                                        Why doesn't Revision Mode just "rewrite it better"?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p><strong>Because rewriting without understanding is deception.</strong></p>
+                                            <p>Automatically rewriting weak material can:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Mask foundational flaws</li>
+                                                <li>Produce generic or hollow prose</li>
+                                                <li>Give false confidence</li>
+                                            </ul>
+                                            <p className="text-indigo-900 font-semibold mt-3">
+                                                RevisionGrade is designed to build stronger writers, not mask problems with artificial polish.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="who-for">
+                                    <AccordionTrigger>
+                                        Who is Revision Mode for?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p><strong>Revision Mode is ideal for:</strong></p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Writers who want professional-level feedback</li>
+                                                <li>Authors preparing for agents or publishers</li>
+                                                <li>Creators who want to understand why something isn't working</li>
+                                                <li>Writers serious about craft improvement</li>
+                                            </ul>
+                                            <p className="mt-3">
+                                                It is not intended for users seeking instant, fully rewritten manuscripts.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="what-to-expect">
+                                    <AccordionTrigger>
+                                        What should I expect after running Revision Mode?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p className="font-semibold text-slate-900">You should expect:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>A clear diagnostic of your manuscript's strengths and failures</li>
+                                                <li>Explicit identification of structural and narrative issues</li>
+                                                <li>Actionable guidance on what to revise and why</li>
+                                                <li>A realistic sense of where your work stands in the professional landscape</li>
+                                            </ul>
+                                            <p className="font-semibold text-slate-900 mt-3">You should not expect:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>A finished book</li>
+                                                <li>Automated "fixes" that bypass craft</li>
+                                                <li>Guaranteed market success</li>
+                                            </ul>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="why-better">
+                                    <AccordionTrigger>
+                                        Why is this approach better?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            <strong>Because honesty scales. Illusions do not.</strong>
+                                        </p>
+                                        <p className="text-slate-700 mt-3">
+                                            RevisionGrade treats writing as a craft—not a button to press—and respects both the reader and the author 
+                                            by refusing to fake improvement.
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="core-philosophy">
+                                    <AccordionTrigger>
+                                        What is the core philosophy behind Revision Mode?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p className="font-semibold text-indigo-900">
+                                                Revision Mode does not create talent.
+                                            </p>
+                                            <p>
+                                                It reveals it, challenges it, and helps it grow.
+                                            </p>
+                                            <p className="font-semibold text-slate-900">
+                                                That is the contract.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </CardContent>
+                    </Card>
+
+                    {/* Disclaimers */}
+                    <Card className="border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-white shadow-lg">
+                        <CardHeader>
+                            <CardTitle className="text-2xl text-amber-900">Important Disclaimers</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <h3 className="font-semibold text-slate-900 mb-2">Public-Facing Disclaimer</h3>
+                                <p className="text-slate-700">
+                                    <strong>RevisionGrade does not write or rewrite your manuscript.</strong>
+                                </p>
+                                <p className="text-slate-700 mt-2">
+                                    It evaluates structure, clarity, and narrative effectiveness using professional editorial criteria. 
+                                    Revision Mode identifies where a manuscript succeeds, where it fails, and what kind of revision is required. 
+                                    It does not guarantee publication, representation, or commercial success.
+                                </p>
+                                <p className="text-slate-700 mt-2">
+                                    The quality of the final work remains dependent on the author's decisions, effort, and creative execution.
+                                </p>
+                            </div>
+
+                            <div className="border-t border-amber-200 pt-4">
+                                <h3 className="font-semibold text-slate-900 mb-2">What Revision Mode Is Not</h3>
+                                <p className="text-slate-700 mb-2">Revision Mode is not:</p>
+                                <ul className="list-disc ml-6 space-y-1 text-slate-700">
+                                    <li>A ghostwriter</li>
+                                    <li>A shortcut to publication</li>
+                                    <li>A guarantee of success</li>
+                                    <li>A replacement for authorial craft</li>
+                                    <li>A tool that "fixes" weak ideas automatically</li>
+                                </ul>
+                                <p className="text-indigo-900 font-semibold mt-2">
+                                    It is a diagnostic and guidance system—not a creative substitute.
+                                </p>
+                            </div>
+
+                            <div className="border-t border-amber-200 pt-4">
+                                <h3 className="font-semibold text-slate-900 mb-2">Legal Statement</h3>
+                                <p className="text-slate-700 text-sm">
+                                    RevisionGrade provides analytical feedback based on narrative structure, industry standards, and comparative 
+                                    storytelling models. All feedback is advisory in nature. Use of Revision Mode does not guarantee publishability, 
+                                    market success, or representation. The user retains full responsibility for creative decisions, revisions, and 
+                                    final outcomes. RevisionGrade does not claim authorship, ownership, or creative contribution to submitted works. 
+                                    All intellectual property remains solely with the user.
+                                </p>
+                            </div>
+
+                            <div className="border-t border-amber-200 pt-4">
+                                <p className="text-lg text-center text-indigo-900 font-semibold italic">
+                                    "We don't write your book. We help you understand it—so you can write it better."
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     {/* Privacy & Security */}
                     <Card className="border-0 shadow-md">
                         <CardHeader>
