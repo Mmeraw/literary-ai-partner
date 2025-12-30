@@ -281,29 +281,28 @@ export default function ManuscriptDashboard() {
   const hasEvaluationWarnings = manuscript.status === 'ready_with_errors';
   const failedChapters = manuscript.evaluation_progress?.failed_chapters || [];
 
-  const evaluatedChapters = chapters.filter(ch => 
-    ch.wave_status === 'evaluated' || ch.wave_status === 'partial' || 
-    ch.status === 'evaluated' || ch.status === 'partial'
-  ).length;
-  const evaluatedWords = chapters
-    .filter(ch => 
-      ch.wave_status === 'evaluated' || ch.wave_status === 'partial' || 
-      ch.status === 'evaluated' || ch.status === 'partial'
-    )
-    .reduce((sum, ch) => sum + (ch.word_count || 0), 0);
+  // Terminal states: chapter reached completion (evaluated, partial, or failed)
+  const TERMINAL = new Set(['evaluated', 'partial', 'failed']);
+  const SCORED = new Set(['evaluated', 'partial']); // Only these have usable craft scores
+  
+  const processedChapters = chapters.filter(ch => 
+    TERMINAL.has(ch.wave_status) || TERMINAL.has(ch.status)
+  );
+  
+  const scoredChapters = chapters.filter(ch => 
+    (SCORED.has(ch.wave_status) || SCORED.has(ch.status)) && ch.evaluation_score
+  );
 
-  const avgChapterScore = evaluatedChapters > 0
-    ? chapters.filter(ch => 
-        ch.wave_status === 'evaluated' || ch.wave_status === 'partial' || 
-        ch.status === 'evaluated' || ch.status === 'partial'
-      ).reduce((sum, ch) => sum + (ch.evaluation_score || 0), 0) / evaluatedChapters
+  const evaluatedChapters = processedChapters.length;
+  const evaluatedWords = processedChapters.reduce((sum, ch) => sum + (ch.word_count || 0), 0);
+
+  const avgChapterScore = scoredChapters.length > 0
+    ? scoredChapters.reduce((sum, ch) => sum + (ch.evaluation_score || 0), 0) / scoredChapters.length
     : 0;
 
   // Check if any chapters have partial WAVE results (spine done, WAVE incomplete)
   const chaptersWithPartialWave = chapters.filter(ch => 
-    (ch.wave_status === 'evaluated' || ch.wave_status === 'partial' || 
-     ch.status === 'evaluated' || ch.status === 'partial') && 
-    ch.evaluation_result?.partial_wave === true
+    TERMINAL.has(ch.wave_status) && ch.evaluation_result?.partial_wave === true
   ).length;
 
   // Score gating: only show overall if ≥30% chapters OR ≥25k words evaluated
@@ -537,11 +536,15 @@ export default function ManuscriptDashboard() {
                   </div>
 
                   <div className="flex items-center gap-4">
-                      {(chapter.wave_status === 'evaluated' || chapter.wave_status === 'partial') ? (
+                      {TERMINAL.has(chapter.wave_status) || chapter.status === 'evaluated' ? (
                         <>
-                          <Badge className={chapter.wave_status === 'partial' ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}>
+                          <Badge className={
+                            chapter.wave_status === 'failed' ? "bg-red-100 text-red-700" :
+                            chapter.wave_status === 'partial' ? "bg-amber-100 text-amber-700" : 
+                            "bg-green-100 text-green-700"
+                          }>
                             <CheckCircle2 className="w-3 h-3 mr-1" />
-                            {chapter.evaluation_score?.toFixed(1)}/10
+                            {chapter.evaluation_score ? `${chapter.evaluation_score.toFixed(1)}/10` : 'Failed'}
                             {chapter.wave_status === 'partial' && ' (Partial)'}
                           </Badge>
                         <div className="flex gap-2">
