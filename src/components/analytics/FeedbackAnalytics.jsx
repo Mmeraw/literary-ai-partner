@@ -5,8 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Loader2, AlertTriangle, TrendingDown, Filter } from 'lucide-react';
+import { Download, Loader2, AlertTriangle, TrendingDown, Filter, BarChart3 } from 'lucide-react';
 import { toast } from "sonner";
+import {
+    BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, 
+    Tooltip, Legend, ResponsiveContainer, Cell
+} from 'recharts';
 
 export default function FeedbackAnalytics() {
     const [loading, setLoading] = useState(false);
@@ -158,81 +162,127 @@ export default function FeedbackAnalytics() {
                         </Card>
                     </div>
 
-                    {/* By Wave Item */}
+                    {/* Wave Item Charts */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Rejection Rate by Wave Item</CardTitle>
+                            <CardTitle className="flex items-center gap-2">
+                                <BarChart3 className="w-5 h-5" />
+                                Top Rejected Wave Items
+                            </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="space-y-2">
-                                {analytics.by_wave_item.slice(0, 15).map((item, idx) => (
-                                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
-                                        <div className="flex items-center gap-3 flex-1">
-                                            <Badge variant="outline" className="text-xs">W{item.wave_number}</Badge>
-                                            <span className="text-sm font-medium text-slate-900">{item.wave_item}</span>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-xs text-slate-600">{item.rejected_count}/{item.total_suggestions}</span>
-                                            <Badge className={
-                                                parseFloat(item.rejection_rate) > 50 ? 'bg-red-100 text-red-700' :
-                                                parseFloat(item.rejection_rate) > 30 ? 'bg-amber-100 text-amber-700' :
-                                                'bg-blue-100 text-blue-700'
-                                            }>
-                                                {item.rejection_rate}%
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            <ResponsiveContainer width="100%" height={400}>
+                                <BarChart 
+                                    data={analytics.by_wave_item.slice(0, 10)}
+                                    layout="vertical"
+                                    margin={{ left: 150, right: 20, top: 5, bottom: 5 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis type="number" />
+                                    <YAxis 
+                                        type="category" 
+                                        dataKey="wave_item" 
+                                        width={140}
+                                        tick={{ fontSize: 11 }}
+                                    />
+                                    <Tooltip 
+                                        content={({ active, payload }) => {
+                                            if (active && payload && payload.length) {
+                                                const data = payload[0].payload;
+                                                return (
+                                                    <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-lg">
+                                                        <div className="font-semibold text-sm mb-1">{data.wave_item}</div>
+                                                        <div className="text-xs text-slate-600">Wave {data.wave_number}</div>
+                                                        <div className="text-xs text-rose-600 font-medium mt-1">
+                                                            {data.rejected_count} rejected / {data.total_suggestions} total
+                                                        </div>
+                                                        <div className="text-xs text-rose-700 font-bold mt-1">
+                                                            {data.rejection_rate}% rejection rate
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }}
+                                    />
+                                    <Bar dataKey="rejected_count" radius={[0, 4, 4, 0]}>
+                                        {analytics.by_wave_item.slice(0, 10).map((entry, index) => (
+                                            <Cell 
+                                                key={`cell-${index}`} 
+                                                fill={
+                                                    parseFloat(entry.rejection_rate) > 50 ? '#dc2626' :
+                                                    parseFloat(entry.rejection_rate) > 30 ? '#f59e0b' :
+                                                    '#6366f1'
+                                                }
+                                            />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
                         </CardContent>
                     </Card>
 
-                    {/* By Severity */}
+                    {/* Severity x Register Grid */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Rejection Rate by Severity</CardTitle>
+                            <CardTitle className="flex items-center gap-2">
+                                <BarChart3 className="w-5 h-5" />
+                                Rejection Rate by Severity & Register
+                            </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="space-y-2">
-                                {analytics.by_severity.map((item, idx) => (
-                                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
-                                        <span className="text-sm font-medium text-slate-900 capitalize">{item.severity}</span>
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-xs text-slate-600">{item.rejected_count}/{item.total_suggestions}</span>
-                                            <Badge className="bg-amber-100 text-amber-700">
-                                                {item.rejection_rate}%
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <BarChart 
+                                    data={analytics.by_register}
+                                    margin={{ left: 20, right: 20, top: 5, bottom: 5 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="register" tick={{ fontSize: 11 }} />
+                                    <YAxis label={{ value: 'Rejected Count', angle: -90, position: 'insideLeft' }} />
+                                    <Tooltip />
+                                    <Legend />
+                                    <Bar dataKey="rejected_count" fill="#dc2626" name="Rejected" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="total_suggestions" fill="#6366f1" name="Total" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
                         </CardContent>
                     </Card>
 
-                    {/* By Register */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Rejection Rate by Register</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-2">
-                                {analytics.by_register.map((item, idx) => (
-                                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
-                                        <span className="text-sm font-medium text-slate-900 capitalize">{item.register}</span>
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-xs text-slate-600">{item.rejected_count}/{item.total_suggestions}</span>
-                                            <Badge className={
-                                                parseFloat(item.rejection_rate) > 40 ? 'bg-red-100 text-red-700' :
-                                                'bg-blue-100 text-blue-700'
-                                            }>
-                                                {item.rejection_rate}%
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
+                    {/* Time Series */}
+                    {analytics.daily_trend?.length > 0 && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <BarChart3 className="w-5 h-5" />
+                                    Rejection Trend Over Time
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <ResponsiveContainer width="100%" height={250}>
+                                    <LineChart data={analytics.daily_trend}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis 
+                                            dataKey="date" 
+                                            tick={{ fontSize: 11 }}
+                                            tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        />
+                                        <YAxis label={{ value: 'Rejections', angle: -90, position: 'insideLeft' }} />
+                                        <Tooltip 
+                                            labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                                            formatter={(value) => [value, 'Rejections']}
+                                        />
+                                        <Line 
+                                            type="monotone" 
+                                            dataKey="rejections" 
+                                            stroke="#dc2626" 
+                                            strokeWidth={2}
+                                            dot={{ fill: '#dc2626' }}
+                                        />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+                    )}
 
                     {/* Most Rejected Suggestions */}
                     <Card>

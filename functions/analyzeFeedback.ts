@@ -19,6 +19,7 @@ Deno.serve(async (req) => {
         const severityStats = new Map();
         const registerStats = new Map();
         const rejectedSuggestions = [];
+        const dailyRejections = new Map();
 
         for (const session of sessions) {
             if (!session.suggestions) continue;
@@ -89,6 +90,10 @@ Deno.serve(async (req) => {
                         manuscript_title: session.title,
                         created_date: session.created_date
                     });
+
+                    // Track daily rejections
+                    const date = new Date(session.created_date).toISOString().split('T')[0];
+                    dailyRejections.set(date, (dailyRejections.get(date) || 0) + 1);
                 }
             }
         }
@@ -122,6 +127,10 @@ Deno.serve(async (req) => {
             }))
             .sort((a, b) => b.rejection_rate - a.rejection_rate);
 
+        const dailyRejectionTrend = Array.from(dailyRejections.entries())
+            .map(([date, count]) => ({ date, rejections: count }))
+            .sort((a, b) => a.date.localeCompare(b.date));
+
         const result = {
             summary: {
                 total_feedback_items: sessions.reduce((sum, s) => 
@@ -135,6 +144,7 @@ Deno.serve(async (req) => {
             by_wave_item: waveItemAnalytics,
             by_severity: severityAnalytics,
             by_register: registerAnalytics,
+            daily_trend: dailyRejectionTrend,
             rejected_suggestions: rejectedSuggestions.sort((a, b) => 
                 new Date(b.created_date) - new Date(a.created_date))
         };
