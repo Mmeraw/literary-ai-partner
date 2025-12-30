@@ -14,7 +14,7 @@ export default function Home() {
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             {/* Hero Section - Clean & Focused */}
             <div className="bg-white">
-                <div className="max-w-5xl mx-auto px-6 pt-16 pb-24 sm:pt-20 sm:pb-32">
+                <div className="max-w-5xl mx-auto px-6 pt-16 pb-12 sm:pt-20 sm:pb-16">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -46,7 +46,7 @@ export default function Home() {
             </div>
 
             {/* WAVE IP Callout */}
-            <div className="max-w-4xl mx-auto px-6 py-12">
+            <div className="max-w-4xl mx-auto px-6 py-6">
                 <div className="p-8 rounded-2xl bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 border-2 border-indigo-200 shadow-lg">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="p-2 rounded-lg bg-indigo-600">
