@@ -496,7 +496,7 @@ Provide overall score (1-10) and verdict.`,
                     });
 
                     // WAVE Revision System evaluation (61+ waves, three-tier framework)
-                    // Use shorter timeout (90s) to fail fast on problematic waves
+                    // Use 150s timeout to allow complex craft analysis to complete
                     waveErrors = [];
 
                     try {
