@@ -1,837 +1,289 @@
 {
   "batch_id": "TS-GOLD-V1-SLUR",
-  "description": "Controlled-risk gold set for slur and high-risk language handling. NO AUTO-REWRITE ALLOWED.",
+  "version": "1.0",
+  "created": "2025-12-30",
+  "frozen": false,
+  "description": "Controlled-risk gold standard for slur detection, classification, and action enforcement. Policy-critical: every entry sets precedent.",
   "governance_rules": {
-    "no_generative_training": true,
-    "slurs_in_context_only": true,
-    "auto_rewrite_prohibited": true,
-    "classification_required": [
-      "VOICE_AUTHENTIC",
-      "NARRATIVE_CONDEMNATION",
-      "MARKET_RISK",
-      "PROHIBITED_USE"
-    ]
+    "no_auto_rewrite": true,
+    "slurs_only_in_context": true,
+    "all_cases_classified": true,
+    "zero_generative_training": true
+  },
+  "pass_criteria": {
+    "detection_rate": 1.0,
+    "auto_rewrite_rate": 0.0,
+    "classification_accuracy": 0.95,
+    "grammar_false_positive_rate": 0.0
   },
   "examples": [
     {
-      "id": "TS-SLUR-001",
-      "chapter": 4,
-      "excerpt": "\"You [RACIAL_SLUR],\" he spat, his face twisted with hate.",
+      "id": "slur_001_racial_dialogue_hate",
+      "excerpt": "Marcus spat at the ground. \"Get out of here, you stupid n****r. This ain't your neighborhood.\"",
       "register": "dialogue",
       "register_lock": "hard",
-      "style_flags": {
-        "allow_colloquial": true,
-        "allow_profanity": true,
-        "contains_slur": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "Character antagonist using slur to depict racism; condemns character, not endorses viewpoint",
+      "slur_detected": "n****r",
+      "category": "race_ethnicity",
+      "target_group": "Black people",
+      "narrative_stance": "speaker_endorses",
+      "risk_bucket": "VOICE_AUTHENTIC",
+      "allowed_action": "PRESERVE_WITH_FLAG",
+      "rationale": "Hard-locked dialogue depicting racist character. Voice-essential. Never auto-rewrite.",
       "wave_issues": [
         {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "MARKET_RISK_REVIEW",
-          "severity": "high",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Slur in hard-locked dialogue depicts character hostility; preserve for narrative integrity but flag for editorial awareness.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-002",
-      "chapter": 2,
-      "excerpt": "The word '[RACIAL_SLUR]' hung in the air like poison. She felt her stomach turn.",
-      "register": "close_third",
-      "register_lock": "soft",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true
-      },
-      "slur_classification": "NARRATIVE_CONDEMNATION",
-      "narrative_context": "Narrator explicitly condemns slur usage through metaphor ('poison') and character reaction",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "medium",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Slur explicitly condemned by narrative voice; critical for thematic impact. No sanitization.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-003",
-      "chapter": 1,
-      "excerpt": "\"Don't call me that [GENDER_SLUR]. I'm reclaiming it.\"",
-      "register": "dialogue",
-      "register_lock": "hard",
-      "style_flags": {
-        "allow_colloquial": true,
-        "contains_slur": true,
-        "reclaimed_language": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "Character explicitly reclaiming slur in dialogue; self-identification, not external attack",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "low",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Reclaimed language in-group usage; voice-essential, not offensive in context.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-004",
-      "chapter": 5,
-      "excerpt": "The [ETHNIC_SLUR]s were taking over the neighborhood, he thought bitterly.",
-      "register": "close_third",
-      "register_lock": "soft",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "Character interiority reflecting racist POV; not narrator endorsement",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "MARKET_RISK_REVIEW",
-          "severity": "high",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Slur in character interiority; reveals bigotry without endorsement. Flag for editorial review; do not sanitize.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-005",
-      "chapter": 3,
-      "excerpt": "Historical note: The term '[HISTORICAL_SLUR]' was commonly used in 1940s medical texts.",
-      "register": "neutral_narration",
-      "register_lock": "none",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true,
-        "historical_context": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "Historical documentation; academic citation, not endorsement",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "HISTORICAL_CONTEXT_ONLY",
-          "severity": "medium",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Historical terminology in academic context; preserve for accuracy but flag for sensitivity review.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-006",
-      "chapter": 2,
-      "excerpt": "He was just another lazy [ETHNIC_SLUR], the narrator observed with disdain.",
-      "register": "neutral_narration",
-      "register_lock": "none",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true
-      },
-      "slur_classification": "PROHIBITED_USE",
-      "narrative_context": "Authorial voice endorsing slur; not character POV or historical context",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "PROHIBITED_USE_DETECTED",
+          "wave_item": "SLUR_DETECTED_RACIAL",
+          "label": "High-Risk Language: Racial Slur",
           "severity": "critical",
-          "correct_action": "BLOCK_PUBLICATION",
-          "rationale": "Narrator voice endorsing slur without condemnation or character filter; violates ethical standards. Block auto-publish; require manual editorial intervention.",
+          "true_positive": true,
+          "correct_label": true,
+          "correct_severity": true,
+          "correct_action": true,
           "proposed_revision": null,
-          "alternatives": null
+          "why_flagged": "Paradigmatic anti-Black racial slur in hostile dialogue context.",
+          "action_taken": "FLAG_FOR_MARKET_RISK"
         }
       ]
     },
     {
-      "id": "TS-SLUR-007",
-      "chapter": 6,
-      "excerpt": "\"Call me [RECLAIMED_SLUR]. That's what we call ourselves now.\"",
-      "register": "dialogue",
-      "register_lock": "hard",
-      "style_flags": {
-        "allow_colloquial": true,
-        "contains_slur": true,
-        "reclaimed_language": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "In-group reclamation; speaker identifies with term",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "low",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Reclaimed slur in in-group dialogue; voice-essential. No action.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-008",
-      "chapter": 1,
-      "excerpt": "She flinched at the word '[DISABILITY_SLUR].' It had been used against her since childhood.",
-      "register": "close_third",
-      "register_lock": "soft",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true
-      },
-      "slur_classification": "NARRATIVE_CONDEMNATION",
-      "narrative_context": "Slur mentioned to depict trauma; explicitly condemned through character reaction",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "medium",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Slur depicted as source of trauma; narrative condemns usage. Preserve for emotional impact.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-009",
-      "chapter": 4,
-      "excerpt": "The old man used every [RACIAL_SLUR] he knew, one after another.",
-      "register": "neutral_narration",
+      "id": "slur_002_homophobic_narration_condemn",
+      "excerpt": "The graffiti read 'f****ts die here'—a stark reminder of the violence this community still faced daily.",
+      "register": "narration",
       "register_lock": "none",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true
-      },
-      "slur_classification": "NARRATIVE_CONDEMNATION",
-      "narrative_context": "Narrator reporting behavior without quoting slurs; implicit condemnation",
+      "slur_detected": "f****ts",
+      "category": "sexuality_gender",
+      "target_group": "Gay men / Queer men",
+      "narrative_stance": "narrator_condemns",
+      "risk_bucket": "NARRATIVE_CONDEMNATION",
+      "allowed_action": "PRESERVE_WITH_FLAG",
+      "rationale": "Narrator reporting hate speech in critical context. Condemning stance clear. Preserve for thematic integrity.",
       "wave_issues": [
         {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": false,
-          "is_true_positive": false,
-          "label": "NO_ACTION",
-          "severity": "low",
-          "correct_action": "keep",
-          "rationale": "No explicit slur; narrator summarizing behavior. No flag needed unless pattern density becomes gratuitous.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-010",
-      "chapter": 2,
-      "excerpt": "\"You people are all the same,\" he said, his voice dripping with contempt.",
-      "register": "dialogue",
-      "register_lock": "hard",
-      "style_flags": {
-        "allow_colloquial": true,
-        "contains_slur": false
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "Coded bigotry without explicit slur; 'you people' as proxy",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "CODED_LANGUAGE_DETECTION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "low",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Coded bigotry in character voice; no explicit slur. Preserve for characterization.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-011",
-      "chapter": 3,
-      "excerpt": "\"[GENDER_SLUR],\" she whispered to herself, testing the word in her mouth.",
-      "register": "dialogue",
-      "register_lock": "hard",
-      "style_flags": {
-        "allow_colloquial": true,
-        "contains_slur": true,
-        "reclaimed_language": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "Character exploring self-identification; reclamation process",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "low",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Self-directed exploration of identity language; voice-essential.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-012",
-      "chapter": 5,
-      "excerpt": "In 1952, the term '[OUTDATED_MEDICAL_TERM]' appeared in every psychology textbook.",
-      "register": "neutral_narration",
-      "register_lock": "none",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true,
-        "historical_context": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "Historical documentation of medical terminology; academic citation",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "HISTORICAL_CONTEXT_ONLY",
-          "severity": "medium",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Historical medical term in academic context; preserve for accuracy with sensitivity note.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-013",
-      "chapter": 1,
-      "excerpt": "The playground bullies called him '[DISABILITY_SLUR]' every single day.",
-      "register": "neutral_narration",
-      "register_lock": "none",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true
-      },
-      "slur_classification": "NARRATIVE_CONDEMNATION",
-      "narrative_context": "Narrator reporting bullying behavior; implicit condemnation through 'bullies' label",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "medium",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Slur quoted in context of bullying; narrator condemns. Preserve for emotional impact.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-014",
-      "chapter": 4,
-      "excerpt": "\"Don't use that word,\" she said sharply. \"It's not the 1950s anymore.\"",
-      "register": "dialogue",
-      "register_lock": "hard",
-      "style_flags": {
-        "allow_colloquial": true,
-        "contains_slur": false
-      },
-      "slur_classification": "NARRATIVE_CONDEMNATION",
-      "narrative_context": "Character explicitly condemning slur usage (referenced but not quoted)",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": false,
-          "is_true_positive": false,
-          "label": "NO_ACTION",
-          "severity": "low",
-          "correct_action": "keep",
-          "rationale": "No explicit slur; character condemning usage. No flag needed.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-015",
-      "chapter": 2,
-      "excerpt": "\"We used to call ourselves [RECLAIMED_SLUR]s,\" the elder explained to the young ones.",
-      "register": "dialogue",
-      "register_lock": "hard",
-      "style_flags": {
-        "allow_colloquial": true,
-        "contains_slur": true,
-        "reclaimed_language": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "In-group elder explaining historical usage of reclaimed term",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "low",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Reclaimed language in historical in-group context; educational. No action.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-016",
-      "chapter": 6,
-      "excerpt": "The [ETHNIC_SLUR]s weren't welcome here, and everyone knew it.",
-      "register": "neutral_narration",
-      "register_lock": "none",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true
-      },
-      "slur_classification": "PROHIBITED_USE",
-      "narrative_context": "Authorial voice using slur to describe group; not character POV or historical setting",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "PROHIBITED_USE_DETECTED",
-          "severity": "critical",
-          "correct_action": "BLOCK_PUBLICATION",
-          "rationale": "Narrator endorsing slur without character filter; violates ethical standards. Block auto-publish.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-017",
-      "chapter": 3,
-      "excerpt": "His grandfather had fought for the right not to be called '[ETHNIC_SLUR]' anymore.",
-      "register": "close_third",
-      "register_lock": "soft",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true
-      },
-      "slur_classification": "NARRATIVE_CONDEMNATION",
-      "narrative_context": "Slur referenced in context of civil rights struggle; explicitly condemned",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "medium",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Slur in historical justice context; narrative condemns. Preserve for thematic impact.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-018",
-      "chapter": 5,
-      "excerpt": "\"You're one of the good ones,\" he said, as if it were a compliment.",
-      "register": "dialogue",
-      "register_lock": "hard",
-      "style_flags": {
-        "allow_colloquial": true,
-        "contains_slur": false
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "Coded racism ('good ones') with narrator signaling disapproval ('as if')",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "CODED_LANGUAGE_DETECTION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "low",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Coded bigotry with narrative condemnation; preserve for characterization.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-019",
-      "chapter": 1,
-      "excerpt": "\"[GENDER_SLUR],\" he spat. \"That's all you'll ever be.\"",
-      "register": "dialogue",
-      "register_lock": "hard",
-      "style_flags": {
-        "allow_colloquial": true,
-        "contains_slur": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "Antagonist using slur as weapon; depicts character bigotry",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "MARKET_RISK_REVIEW",
+          "wave_item": "SLUR_DETECTED_HOMOPHOBIC",
+          "label": "High-Risk Language: Homophobic Slur",
           "severity": "high",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Slur in antagonist dialogue; depicts hostility without endorsement. Flag for editorial review.",
+          "true_positive": true,
+          "correct_label": true,
+          "correct_severity": true,
+          "correct_action": true,
           "proposed_revision": null,
-          "alternatives": null
+          "why_flagged": "Homophobic slur in quoted hate speech context. Narrator condemns, but retailer/platform may flag.",
+          "action_taken": "FLAG_FOR_EDITORIAL_REVIEW"
         }
       ]
     },
     {
-      "id": "TS-SLUR-020",
-      "chapter": 4,
-      "excerpt": "The sign read: 'No [ETHNIC_SLUR]s Allowed.' It was 1963.",
-      "register": "neutral_narration",
-      "register_lock": "none",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true,
-        "historical_context": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "Historical documentation of segregation; date anchors context",
+      "id": "slur_003_ableist_dialogue_casual",
+      "excerpt": "\"Don't be such a r****d,\" Jake laughed, tossing the controller aside.",
+      "register": "dialogue",
+      "register_lock": "hard",
+      "slur_detected": "r****d",
+      "category": "disability",
+      "target_group": "People with intellectual disabilities",
+      "narrative_stance": "speaker_endorses",
+      "risk_bucket": "MARKET_RISK",
+      "allowed_action": "FLAG_ONLY",
+      "rationale": "Ableist slur in casual dialogue. Character voice, but high market risk (many platforms classify as hate content).",
       "wave_issues": [
         {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "HISTORICAL_CONTEXT_ONLY",
+          "wave_item": "SLUR_DETECTED_ABLEIST",
+          "label": "High-Risk Language: Ableist Slur",
+          "severity": "high",
+          "true_positive": true,
+          "correct_label": true,
+          "correct_severity": true,
+          "correct_action": true,
+          "proposed_revision": null,
+          "why_flagged": "Disability-targeted slur used as casual insult. High platform content policy risk.",
+          "action_taken": "FLAG_FOR_MARKET_RISK"
+        }
+      ]
+    },
+    {
+      "id": "slur_004_reclaimed_ingroup_lgbtq",
+      "excerpt": "\"We're here, we're queer, and we're not going anywhere,\" Maya shouted, fist raised. The crowd of queer activists roared approval.",
+      "register": "narration",
+      "register_lock": "none",
+      "slur_detected": "queer",
+      "category": "sexuality_gender",
+      "target_group": "LGBTQ+ people",
+      "narrative_stance": "neutral_report",
+      "risk_bucket": "VOICE_AUTHENTIC",
+      "allowed_action": "PRESERVE_WITH_FLAG",
+      "rationale": "Reclaimed term in in-group activist context. Widely accepted in contemporary LGBTQ+ usage. Low risk, but flag for awareness.",
+      "wave_issues": [
+        {
+          "wave_item": "RECLAIMED_LANGUAGE_DETECTED",
+          "label": "Reclaimed Language: Context Review",
+          "severity": "low",
+          "true_positive": true,
+          "correct_label": true,
+          "correct_severity": true,
+          "correct_action": true,
+          "proposed_revision": null,
+          "why_flagged": "Historically marginalized term now reclaimed by target community. In-group usage detected. Preserve.",
+          "action_taken": "FLAG_FOR_AWARENESS"
+        }
+      ]
+    },
+    {
+      "id": "slur_005_misogynistic_dialogue_hostile",
+      "excerpt": "\"Shut up, you stupid b***h,\" he snarled, his hand tightening around her wrist.",
+      "register": "dialogue",
+      "register_lock": "hard",
+      "slur_detected": "b***h",
+      "category": "sexuality_gender",
+      "target_group": "Women",
+      "narrative_stance": "speaker_endorses",
+      "risk_bucket": "MARKET_RISK",
+      "allowed_action": "PRESERVE_WITH_FLAG",
+      "rationale": "Gendered insult in hostile, violent context. Character voice depicting abuse. Preserve but flag for retailer sensitivity.",
+      "wave_issues": [
+        {
+          "wave_item": "SLUR_DETECTED_GENDERED",
+          "label": "High-Risk Language: Gendered Slur",
           "severity": "medium",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Historical signage in 1963 civil rights context; preserve for accuracy with sensitivity note.",
+          "true_positive": true,
+          "correct_label": true,
+          "correct_severity": true,
+          "correct_action": true,
           "proposed_revision": null,
-          "alternatives": null
+          "why_flagged": "Misogynistic slur in violence/abuse context. Voice-authentic but market-sensitive.",
+          "action_taken": "FLAG_FOR_MARKET_RISK"
         }
       ]
     },
     {
-      "id": "TS-SLUR-021",
-      "chapter": 2,
-      "excerpt": "\"I know what they call us,\" she said quietly. \"But I won't let it define me.\"",
-      "register": "dialogue",
-      "register_lock": "hard",
-      "style_flags": {
-        "allow_colloquial": true,
-        "contains_slur": false
-      },
-      "slur_classification": "NARRATIVE_CONDEMNATION",
-      "narrative_context": "Character referencing slur without repeating; demonstrates resilience",
+      "id": "slur_006_TEMPLATE_racial",
+      "excerpt": "[INSERT EXCERPT WITH RACIAL SLUR]",
+      "register": "[dialogue|narration|social_media|quoted_material]",
+      "register_lock": "[hard|soft|none]",
+      "slur_detected": "[TERM]",
+      "category": "race_ethnicity",
+      "target_group": "[SPECIFIC GROUP]",
+      "narrative_stance": "[speaker_endorses|narrator_condemns|neutral_report]",
+      "risk_bucket": "[VOICE_AUTHENTIC|NARRATIVE_CONDEMNATION|MARKET_RISK|PROHIBITED_USE]",
+      "allowed_action": "[PRESERVE_WITH_FLAG|FLAG_ONLY|BLOCK_AUTOREWRITE]",
+      "rationale": "[WHY THIS CLASSIFICATION?]",
       "wave_issues": [
         {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": false,
-          "is_true_positive": false,
-          "label": "NO_ACTION",
-          "severity": "low",
-          "correct_action": "keep",
-          "rationale": "No explicit slur; character resisting label. No flag needed.",
+          "wave_item": "SLUR_DETECTED_[CATEGORY]",
+          "label": "[LABEL TEXT]",
+          "severity": "[low|medium|high|critical]",
+          "true_positive": true,
+          "correct_label": true,
+          "correct_severity": true,
+          "correct_action": true,
           "proposed_revision": null,
-          "alternatives": null
+          "why_flagged": "[EXPLANATION]",
+          "action_taken": "[ACTION]"
         }
       ]
     },
     {
-      "id": "TS-SLUR-022",
-      "chapter": 6,
-      "excerpt": "He hurled every [ETHNIC_SLUR] and [GENDER_SLUR] he could think of.",
-      "register": "neutral_narration",
-      "register_lock": "none",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": false
-      },
-      "slur_classification": "NARRATIVE_CONDEMNATION",
-      "narrative_context": "Narrator reporting verbal abuse without quoting; 'hurled' signals condemnation",
+      "id": "slur_007_TEMPLATE_antisemitic",
+      "excerpt": "[INSERT EXCERPT WITH ANTISEMITIC SLUR]",
+      "register": "[dialogue|narration|social_media|quoted_material]",
+      "register_lock": "[hard|soft|none]",
+      "slur_detected": "[TERM]",
+      "category": "religion",
+      "target_group": "Jewish people",
+      "narrative_stance": "[speaker_endorses|narrator_condemns|neutral_report]",
+      "risk_bucket": "[VOICE_AUTHENTIC|NARRATIVE_CONDEMNATION|MARKET_RISK|PROHIBITED_USE]",
+      "allowed_action": "[PRESERVE_WITH_FLAG|FLAG_ONLY|BLOCK_AUTOREWRITE]",
+      "rationale": "[WHY THIS CLASSIFICATION?]",
       "wave_issues": [
         {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": false,
-          "is_true_positive": false,
-          "label": "NO_ACTION",
-          "severity": "low",
-          "correct_action": "keep",
-          "rationale": "No explicit slurs; narrator summarizing abusive behavior. No flag unless gratuitous.",
+          "wave_item": "SLUR_DETECTED_ANTISEMITIC",
+          "label": "[LABEL TEXT]",
+          "severity": "[low|medium|high|critical]",
+          "true_positive": true,
+          "correct_label": true,
+          "correct_severity": true,
+          "correct_action": true,
           "proposed_revision": null,
-          "alternatives": null
+          "why_flagged": "[EXPLANATION]",
+          "action_taken": "[ACTION]"
         }
       ]
     },
     {
-      "id": "TS-SLUR-023",
-      "chapter": 3,
-      "excerpt": "\"We're [RECLAIMED_SLUR]s and we're proud,\" the banner read.",
-      "register": "neutral_narration",
-      "register_lock": "none",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true,
-        "reclaimed_language": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "Narrator quoting pride banner; in-group reclamation in public space",
+      "id": "slur_008_TEMPLATE_transphobic",
+      "excerpt": "[INSERT EXCERPT WITH TRANSPHOBIC SLUR]",
+      "register": "[dialogue|narration|social_media|quoted_material]",
+      "register_lock": "[hard|soft|none]",
+      "slur_detected": "[TERM]",
+      "category": "sexuality_gender",
+      "target_group": "Trans people",
+      "narrative_stance": "[speaker_endorses|narrator_condemns|neutral_report]",
+      "risk_bucket": "[VOICE_AUTHENTIC|NARRATIVE_CONDEMNATION|MARKET_RISK|PROHIBITED_USE]",
+      "allowed_action": "[PRESERVE_WITH_FLAG|FLAG_ONLY|BLOCK_AUTOREWRITE]",
+      "rationale": "[WHY THIS CLASSIFICATION?]",
       "wave_issues": [
         {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "low",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Reclaimed language in pride context; narrator reporting factually. No action.",
+          "wave_item": "SLUR_DETECTED_TRANSPHOBIC",
+          "label": "[LABEL TEXT]",
+          "severity": "[low|medium|high|critical]",
+          "true_positive": true,
+          "correct_label": true,
+          "correct_severity": true,
+          "correct_action": true,
           "proposed_revision": null,
-          "alternatives": null
+          "why_flagged": "[EXPLANATION]",
+          "action_taken": "[ACTION]"
         }
       ]
     },
     {
-      "id": "TS-SLUR-024",
-      "chapter": 5,
-      "excerpt": "The [DISABILITY_SLUR]s were kept in the basement, out of sight.",
-      "register": "neutral_narration",
-      "register_lock": "none",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true,
-        "historical_context": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "Historical documentation of institutionalization; condemns practice through 'out of sight'",
+      "id": "slur_009_TEMPLATE_disability_reclaimed",
+      "excerpt": "[INSERT EXCERPT WITH DISABILITY TERM - RECLAIMED CONTEXT]",
+      "register": "[dialogue|narration|social_media|quoted_material]",
+      "register_lock": "[hard|soft|none]",
+      "slur_detected": "[TERM]",
+      "category": "disability",
+      "target_group": "[SPECIFIC DISABILITY COMMUNITY]",
+      "narrative_stance": "[speaker_endorses|narrator_condemns|neutral_report]",
+      "risk_bucket": "[VOICE_AUTHENTIC|NARRATIVE_CONDEMNATION|MARKET_RISK|PROHIBITED_USE]",
+      "allowed_action": "[PRESERVE_WITH_FLAG|FLAG_ONLY|BLOCK_AUTOREWRITE]",
+      "rationale": "[WHY THIS CLASSIFICATION?]",
       "wave_issues": [
         {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "HISTORICAL_CONTEXT_ONLY",
-          "severity": "medium",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Historical term in institutional abuse context; preserve with sensitivity note for accuracy.",
+          "wave_item": "RECLAIMED_LANGUAGE_DETECTED",
+          "label": "[LABEL TEXT]",
+          "severity": "[low|medium|high|critical]",
+          "true_positive": true,
+          "correct_label": true,
+          "correct_severity": true,
+          "correct_action": true,
           "proposed_revision": null,
-          "alternatives": null
+          "why_flagged": "[EXPLANATION]",
+          "action_taken": "[ACTION]"
         }
       ]
     },
     {
-      "id": "TS-SLUR-025",
-      "chapter": 1,
-      "excerpt": "\"I'd rather die than be called a [GENDER_SLUR],\" she said fiercely.",
-      "register": "dialogue",
-      "register_lock": "hard",
-      "style_flags": {
-        "allow_colloquial": true,
-        "contains_slur": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "Character expressing refusal of derogatory label; self-advocacy",
+      "id": "slur_010_TEMPLATE_xenophobic_dehumanizing",
+      "excerpt": "[INSERT EXCERPT WITH XENOPHOBIC/DEHUMANIZING LANGUAGE]",
+      "register": "[dialogue|narration|social_media|quoted_material]",
+      "register_lock": "[hard|soft|none]",
+      "slur_detected": "[TERM OR PHRASE]",
+      "category": "[race_ethnicity|nationality|class_status]",
+      "target_group": "[SPECIFIC GROUP]",
+      "narrative_stance": "[speaker_endorses|narrator_condemns|neutral_report]",
+      "risk_bucket": "[VOICE_AUTHENTIC|NARRATIVE_CONDEMNATION|MARKET_RISK|PROHIBITED_USE]",
+      "allowed_action": "[PRESERVE_WITH_FLAG|FLAG_ONLY|BLOCK_AUTOREWRITE]",
+      "rationale": "[WHY THIS CLASSIFICATION?]",
       "wave_issues": [
         {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "low",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Character rejecting slur label; voice-essential for resistance narrative.",
+          "wave_item": "DEHUMANIZING_LANGUAGE_DETECTED",
+          "label": "[LABEL TEXT]",
+          "severity": "[low|medium|high|critical]",
+          "true_positive": true,
+          "correct_label": true,
+          "correct_severity": true,
+          "correct_action": true,
           "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-026",
-      "chapter": 4,
-      "excerpt": "The teacher said 'colored people' like it was 1965.",
-      "register": "close_third",
-      "register_lock": "soft",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": false
-      },
-      "slur_classification": "NARRATIVE_CONDEMNATION",
-      "narrative_context": "Character observation condemning outdated language; 'like it was 1965' signals disapproval",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "OUTDATED_TERMINOLOGY_DETECTION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "low",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Outdated term quoted to critique character; narrative condemns. Preserve.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-027",
-      "chapter": 2,
-      "excerpt": "\"Where I come from, we call that being a [RECLAIMED_SLUR],\" he said proudly.",
-      "register": "dialogue",
-      "register_lock": "hard",
-      "style_flags": {
-        "allow_colloquial": true,
-        "contains_slur": true,
-        "reclaimed_language": true
-      },
-      "slur_classification": "VOICE_AUTHENTIC",
-      "narrative_context": "In-group pride statement; regional/cultural in-group usage",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "low",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Regional in-group reclamation with pride marker; voice-essential. No action.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-028",
-      "chapter": 6,
-      "excerpt": "The narrator describes them as [ETHNIC_SLUR]s throughout the text.",
-      "register": "neutral_narration",
-      "register_lock": "none",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": false
-      },
-      "slur_classification": "PROHIBITED_USE",
-      "narrative_context": "Meta-analysis flagging authorial slur usage; not narrative condemnation",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "PROHIBITED_USE_DETECTED",
-          "severity": "critical",
-          "correct_action": "BLOCK_PUBLICATION",
-          "rationale": "Pattern of authorial slur usage flagged; requires editorial review before publication.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-029",
-      "chapter": 3,
-      "excerpt": "\"The correct term is 'intellectually disabled,' not '[OUTDATED_MEDICAL_TERM],'\" the doctor corrected.",
-      "register": "dialogue",
-      "register_lock": "hard",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true,
-        "historical_context": true
-      },
-      "slur_classification": "NARRATIVE_CONDEMNATION",
-      "narrative_context": "Character explicitly correcting outdated terminology; educational moment",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "low",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Outdated term quoted to educate; explicitly condemned. Preserve for pedagogical value.",
-          "proposed_revision": null,
-          "alternatives": null
-        }
-      ]
-    },
-    {
-      "id": "TS-SLUR-030",
-      "chapter": 5,
-      "excerpt": "\"I hate that word,\" she said when he used '[GENDER_SLUR].'",
-      "register": "close_third",
-      "register_lock": "soft",
-      "style_flags": {
-        "allow_colloquial": false,
-        "contains_slur": true
-      },
-      "slur_classification": "NARRATIVE_CONDEMNATION",
-      "narrative_context": "Character explicitly condemning slur; emotional response demonstrates harm",
-      "wave_issues": [
-        {
-          "wave_number": 99,
-          "wave_item": "SLUR_CONTEXT_CLASSIFICATION",
-          "detected_by_base44": true,
-          "is_true_positive": true,
-          "label": "VOICE_CONTEXT_ALLOWED",
-          "severity": "medium",
-          "correct_action": "DO_NOT_AUTOREWRITE",
-          "rationale": "Slur mentioned to show character pain; explicit condemnation. Preserve for emotional impact.",
-          "proposed_revision": null,
-          "alternatives": null
+          "why_flagged": "[EXPLANATION]",
+          "action_taken": "[ACTION]"
         }
       ]
     }
