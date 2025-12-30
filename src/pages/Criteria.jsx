@@ -13,25 +13,62 @@ export default function Criteria() {
                 <div className="text-center mb-12">
                     <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <BookOpen className="w-4 h-4 mr-2" />
-                        Professional Evaluation Framework
+                        Professional Revision Framework
                     </Badge>
                     <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
-                        How Our Evaluation Works
+                        What is WAVE?
                     </h1>
                     <p className="text-xl text-slate-600">
-                        A Professional Framework for Understanding Manuscripts
+                        RevisionGrade's professional revision framework: dozens of focused checks that help you turn a working draft into a submission-ready manuscript—without flattening voice.
                     </p>
                 </div>
 
                 {/* Introduction */}
                 <div className="prose prose-lg prose-slate max-w-none mb-12">
                     <p className="text-lg text-slate-700 leading-relaxed">
-                        Our evaluation system is designed to reflect how experienced agents, editors, and development teams actually assess writing—not how algorithms score text.
-                    </p>
-                    <p className="text-lg text-slate-700 leading-relaxed">
-                        It provides clear, structured feedback on craft, clarity, and readiness, while preserving the judgment and nuance that creative work requires.
+                        WAVE is a late-stage revision system for manuscripts that already work at the story level but still need disciplined editing to read as professional and submission-ready. It is checklist-driven, multi-pass, and diagnostic: each Wave isolates a failure pattern, explains why it weakens the manuscript, and gives a concrete way to fix it. Base44 surfaces the relevant Waves, explains the "why," and leaves every change up to you.
                     </p>
                 </div>
+
+                {/* WAVE Order Card */}
+                <Card className="mb-8 border-0 shadow-lg bg-gradient-to-br from-blue-50 to-indigo-50">
+                    <CardContent className="p-8">
+                        <h2 className="text-2xl font-bold text-slate-900 mb-4">WAVE runs in the right order (structure → momentum → polish)</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <Badge className="bg-blue-100 text-blue-700 mb-2">Early Waves</Badge>
+                                <p className="text-slate-700 leading-relaxed">
+                                    Focus on foundational narrative integrity and scene-level logic: does the story actually hold together on its own?
+                                </p>
+                            </div>
+                            <div>
+                                <Badge className="bg-amber-100 text-amber-700 mb-2">Mid Waves</Badge>
+                                <p className="text-slate-700 leading-relaxed">
+                                    Focus on momentum, cohesion, and what the manuscript earns on the page: is anything dragging, redundant, or unfocused?
+                                </p>
+                            </div>
+                            <div>
+                                <Badge className="bg-purple-100 text-purple-700 mb-2">Late Waves</Badge>
+                                <p className="text-slate-700 leading-relaxed">
+                                    Focus on authority-level clarity and voice-safe refinement: does the work read confident and professional to agents and editors?
+                                </p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* What WAVE is Not */}
+                <Card className="mb-8 border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100">
+                    <CardContent className="p-6">
+                        <h2 className="text-2xl font-bold text-slate-900 mb-4">What WAVE is not</h2>
+                        <p className="text-slate-700 leading-relaxed">
+                            WAVE is not a first-draft tool, a style guide, a voice-flattening system, or a replacement for judgment. It doesn't tell you what to write—it shows you where the draft is undercutting you, so you can remove weakness on purpose.
+                        </p>
+                        <p className="text-slate-600 text-sm mt-4 italic">
+                            Full Wave definitions are proprietary and are presented in-app in context, alongside your manuscript pages.
+                        </p>
+                    </CardContent>
+                </Card>
 
                 {/* What We Evaluate */}
                 <Card className="mb-8 border-0 shadow-lg">
