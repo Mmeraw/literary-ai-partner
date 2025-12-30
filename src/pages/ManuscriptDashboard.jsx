@@ -604,7 +604,7 @@ export default function ManuscriptDashboard() {
                     {evaluatedChapters < chapters.length && ' Score stabilizes as more chapters are evaluated.'}
                   </p>
 
-                  {/* Trusted Path™ Zone Indicator */}
+                  {/* Trusted Path™ Zone Indicator + Hard Structural Gate */}
                   {trustedPathZone && (
                     <div className={`p-3 rounded-lg border-2 ${
                       trustedPathZone.zone === 'failure' ? 'bg-red-50 border-red-200' :
@@ -633,10 +633,20 @@ export default function ManuscriptDashboard() {
                         {trustedPathZone.zone === 'failure' && 
                           'Diagnostic only. Structural repair required before automated polish.'}
                         {trustedPathZone.zone === 'conditional' && 
-                          'Guided rebuild with limited local edits in stable segments.'}
+                          'Sentence-level polish disabled below 8.0. Focus on structural fixes first.'}
                         {trustedPathZone.zone === 'full' && 
                           'Full automated revision enabled. Structure supports polish.'}
                       </p>
+                      {globalScore < 8.0 && (
+                        <div className="mt-2 pt-2 border-t border-amber-200">
+                          <p className="text-xs text-amber-800 font-medium">
+                            🔒 Hard Structural Gate Active
+                          </p>
+                          <p className="text-xs text-amber-700 mt-1">
+                            Polish suggestions are hidden until score reaches 8.0. This protects you from false progress—structure before style.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>

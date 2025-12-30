@@ -72,21 +72,25 @@ Deno.serve(async (req) => {
 
     const { text, title, wave_number = 1, submission_id, session_id, evaluation_result, style_mode = 'neutral', manuscript_score } = await req.json();
 
-    // TRUSTED PATH THRESHOLD GATING
+    // TRUSTED PATH THRESHOLD GATING + HARD STRUCTURAL GATE
     // Calculate zone if manuscript_score provided
     let trustedPathZone = null;
     let canPolish = true;
+    let structuralGateActive = false;
 
     if (manuscript_score !== undefined && manuscript_score !== null) {
       if (manuscript_score < 6.0) {
         trustedPathZone = 'failure';
         canPolish = false;
+        structuralGateActive = true;
       } else if (manuscript_score < 8.0) {
         trustedPathZone = 'conditional';
         canPolish = 'limited';
+        structuralGateActive = true; // HARD GATE: No sentence polish below 8.0
       } else {
         trustedPathZone = 'full';
         canPolish = true;
+        structuralGateActive = false;
       }
     }
 
@@ -425,6 +429,43 @@ Return JSON with validated results.`;
       }
     });
 
+    // CATEGORIZE FINDINGS: Structural vs Sentence-Level Polish
+    const categorizeFinding = (item, waveNum) => {
+      // Sentence-level polish waves (style, rhythm, metaphor, micro-wording)
+      const POLISH_WAVES = new Set([
+        1, // Body-part clichés
+        8, // Abstract triples
+        9, // Motif hygiene
+        10, // Duplicate brilliance
+        11, // Theme after shown
+        15, // On-the-nose explanations
+        23, // Sentence start variety
+        25, // Metaphor freshness
+        26, // Cliché alarm
+        27, // Rhythm balance
+        28, // Paragraph endings
+        45, // Transaction metaphor discipline
+        46, // Over-detail in repeated beats
+        49, // Avoid repeating same insight
+        51, // Late-stage sentence vanity
+        56, // Earned aphorisms
+        57, // Silence as action
+        58, // Negative space
+        61  // Reflexive pronouns
+      ]);
+      
+      // Check if this is polish vs structural/clarity
+      if (POLISH_WAVES.has(waveNum)) {
+        return 'sentence_polish';
+      }
+      
+      // Check severity/priority - High = structural, Low = polish
+      if (item.priority === 'High') return 'structural';
+      if (item.priority === 'Low') return 'sentence_polish';
+      
+      return 'craft_improvement'; // Medium priority craft improvements
+    };
+
     // FINAL: Only return suggestions where verdict = "revise"
     const approvedSuggestions = validation.validated
       .filter(item => item.verdict === "revise")
@@ -434,7 +475,8 @@ Return JSON with validated results.`;
         why_flagged: item.why_flagged || item.narrative_justification,
         why_this_fix: item.why_this_fix || "Strengthens clarity and narrative directness",
         priority: item.priority || "Medium",
-        constraint_fidelity_score: item.constraint_fidelity_score || 90
+        constraint_fidelity_score: item.constraint_fidelity_score || 90,
+        category: categorizeFinding(item, wave_number)
       }));
 
     // SINGLE PRIMARY FIX PROTOCOL: Validate if alternatives are viable
@@ -497,15 +539,23 @@ Return JSON with validated results.`;
       return { allows_alternatives: true, alternatives_reason: null, lock_scope: null, lock_type: null };
     };
 
-    // Add wave name, IDs, and sort by priority to approved suggestions
-    // Apply conditional filtering if in conditional zone
+    // HARD STRUCTURAL GATE: Block sentence-level polish below 8.0
     let filteredSuggestions = approvedSuggestions;
 
-    if (trustedPathZone === 'conditional') {
-      // In conditional zone: only allow High and Medium priority, limit quantity
+    if (structuralGateActive && manuscript_score < 8.0) {
+      // CRITICAL RULE: Below 8.0, hide all sentence-level polish
+      filteredSuggestions = approvedSuggestions.filter(s => {
+        // Only keep structural and clarity fixes
+        return s.category === 'structural' || 
+               (s.category === 'craft_improvement' && s.priority === 'High');
+      });
+      
+      console.log(`[STRUCTURAL_GATE] Score ${manuscript_score}: Blocked ${approvedSuggestions.length - filteredSuggestions.length} polish suggestions`);
+    } else if (trustedPathZone === 'conditional') {
+      // In conditional zone (6.0-7.9): only allow High and Medium priority, limit quantity
       filteredSuggestions = approvedSuggestions
         .filter(s => s.priority === 'High' || s.priority === 'Medium')
-        .slice(0, 20); // Limit to 20 safe edits in conditional zone
+        .slice(0, 20);
     }
 
     const suggestions = filteredSuggestions
@@ -571,7 +621,10 @@ Return JSON with validated results.`;
           suggestions,
           wave_number,
           trusted_path_zone: trustedPathZone,
-          trusted_path_can_polish: canPolish
+          trusted_path_can_polish: canPolish,
+          structural_gate_active: structuralGateActive,
+          blocked_polish_count: structuralGateActive ? approvedSuggestions.length - suggestions.length : 0,
+          manuscript_score: manuscript_score
         });
       } catch (dbError) {
         // If DB fails (e.g., anonymous user), return suggestions without saving
@@ -583,7 +636,10 @@ Return JSON with validated results.`;
           wave_number,
           anonymous: true,
           trusted_path_zone: trustedPathZone,
-          trusted_path_can_polish: canPolish
+          trusted_path_can_polish: canPolish,
+          structural_gate_active: structuralGateActive,
+          blocked_polish_count: structuralGateActive ? approvedSuggestions.length - suggestions.length : 0,
+          manuscript_score: manuscript_score
         });
       }
       }
