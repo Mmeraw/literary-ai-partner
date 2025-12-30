@@ -49,7 +49,11 @@ export default function Home() {
                             Rough drafts, single chapters/scenes, full manuscripts/screenplays—all elevate via WAVE.
                         </p>
 
-                        <p className="mt-6 text-lg sm:text-xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
+                        <p className="mt-6 text-lg sm:text-xl text-slate-700 italic max-w-3xl mx-auto leading-relaxed">
+                            We don't write your book. We help you understand it—so you can write it better.
+                        </p>
+
+                        <p className="mt-4 text-lg sm:text-xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
                             A complete system transforming manuscripts into agent-ready query packages, producer pitches, and studio-ready pitch decks.
                         </p>
 
