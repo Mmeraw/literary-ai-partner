@@ -375,11 +375,11 @@ SCORING GUIDELINES:
                 });
 
                 // Update progress - starting chapter evaluation
-                const wavePercent = 40 + Math.floor((i / chapters.length) * 50);
+                const wavePercent = 40 + Math.floor((i / freshChapters.length) * 50);
                 await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
-                        chapters_total: chapters.length,
-                        chapters_summarized: chapters.length,
+                        chapters_total: freshChapters.length,
+                        chapters_summarized: freshChapters.length,
                         chapters_wave_done: i,
                         current_phase: 'wave',
                         percent_complete: wavePercent,
@@ -391,8 +391,8 @@ SCORING GUIDELINES:
                 // Show "Running agent analysis" progress
                 await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
-                        chapters_total: chapters.length,
-                        chapters_summarized: chapters.length,
+                        chapters_total: freshChapters.length,
+                        chapters_summarized: freshChapters.length,
                         chapters_wave_done: i,
                         current_phase: 'wave',
                         percent_complete: wavePercent + 1,
@@ -699,15 +699,13 @@ WAVE SYSTEM FRAMEWORK:
             } catch (error) {
             console.error(`Chapter ${i + 1} WAVE evaluation failed:`, error);
             
-            const currentRetryCount = chapter.retry_count || 0;
-            
+            // Don't increment retry_count here - it's already incremented earlier in the retry check
             await base44.asServiceRole.entities.Chapter.update(chapter.id, {
                 status: 'failed',
-                error_message: error.message,
-                retry_count: currentRetryCount
+                error_message: error.message
             });
 
-            // CRITICAL FIX: Increment chapters_wave_done by i+1 (not i) so progress moves forward
+            // Always move progress forward
             const wavePercent = 40 + Math.floor(((i + 1) / freshChapters.length) * 50);
             await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                 evaluation_progress: {
@@ -716,9 +714,8 @@ WAVE SYSTEM FRAMEWORK:
                     chapters_wave_done: i + 1,
                     current_phase: 'wave',
                     percent_complete: wavePercent,
-                    current_step: `Chapter ${i + 1} failed (timeout/error), continuing...`,
-                    last_updated: new Date().toISOString(),
-                    error_message: `Chapter ${i + 1}: ${error.message}`
+                    current_step: `Chapter ${i + 1} failed, continuing...`,
+                    last_updated: new Date().toISOString()
                 }
             });
             // Continue with remaining chapters
