@@ -123,10 +123,30 @@ export default function InternalBase44Responsibilities() {
           </div>
           <p className="text-slate-600">
             <strong>Last Updated</strong>: 2025-12-30<br />
+            <strong>Last Reviewed</strong>: 2025-12-30<br />
             <strong>Authority</strong>: Base44 Engineering Team<br />
-            <strong>Scope</strong>: All engine behavior, evaluation logic, thresholds, and internal guarantees
+            <strong>Scope</strong>: All engine behavior, evaluation logic, thresholds, and internal guarantees<br />
+            <strong>Next Review Trigger</strong>: Any changes to evaluation logic, thresholds, or output schemas
           </p>
         </div>
+
+        {/* Change Control Rules */}
+        <Card className="mb-8 border-2 border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle>Change Control Rules</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-slate-700">
+            <p>
+              <strong>If engine behavior changes</strong>: Update this document + InternalTrustedPathContract
+            </p>
+            <p>
+              <strong>If thresholds or gating rules change</strong>: Update InternalTrustedPathContract and notify RevisionGrade UX/PM for UI updates
+            </p>
+            <p className="font-semibold text-emerald-900 mt-3">
+              This is the enforcement mechanism that prevents engine changes from breaking product promises.
+            </p>
+          </CardContent>
+        </Card>
 
         {/* Overview */}
         <Card className="mb-8 border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white">

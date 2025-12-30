@@ -29,10 +29,33 @@ export default function InternalTrustedPathContract() {
           </div>
           <p className="text-slate-600">
             <strong>Last Updated</strong>: 2025-12-30<br />
+            <strong>Last Reviewed</strong>: 2025-12-30<br />
             <strong>Authority</strong>: Joint (RevisionGrade UX/PM + Base44 Engineering)<br />
-            <strong>Change Protocol</strong>: Requires approval from both parties
+            <strong>Change Protocol</strong>: Requires approval from both parties<br />
+            <strong>Next Review Trigger</strong>: Any changes to status semantics, thresholds, or Trusted Path copy
           </p>
         </div>
+
+        {/* Change Control Rules */}
+        <Card className="mb-8 border-2 border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle>Change Control Rules</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-slate-700">
+            <p>
+              <strong>If engine behavior changes</strong>: Base44 updates Base44Responsibilities + this Shared Contract
+            </p>
+            <p>
+              <strong>If user promises/UX messaging changes</strong>: RevisionGrade UX/PM updates RevisionGradeResponsibilities + this Shared Contract
+            </p>
+            <p>
+              <strong>If thresholds or gating rules change</strong>: Both parties must update this Shared Contract
+            </p>
+            <p className="font-semibold text-amber-900 mt-3">
+              This is the enforcement mechanism that keeps product and engine permanently in sync.
+            </p>
+          </CardContent>
+        </Card>
 
         {/* Core Principles */}
         <Card className="mb-8 border-2 border-purple-200">

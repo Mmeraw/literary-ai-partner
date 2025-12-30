@@ -101,10 +101,30 @@ export default function InternalRevisionGradeResponsibilities() {
           </div>
           <p className="text-slate-600">
             <strong>Last Updated</strong>: 2025-12-30<br />
+            <strong>Last Reviewed</strong>: 2025-12-30<br />
             <strong>Authority</strong>: RevisionGrade Product Owner<br />
-            <strong>Scope</strong>: All user-facing promises, UX behavior, terminology, and product positioning
+            <strong>Scope</strong>: All user-facing promises, UX behavior, terminology, and product positioning<br />
+            <strong>Next Review Trigger</strong>: Any changes to user promises, UX messaging, or Trusted Path copy
           </p>
         </div>
+
+        {/* Change Control Rules */}
+        <Card className="mb-8 border-2 border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle>Change Control Rules</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-slate-700">
+            <p>
+              <strong>If user promises or UX messaging changes</strong>: Update this document + InternalTrustedPathContract
+            </p>
+            <p>
+              <strong>If engine exposes new fields or behaviors</strong>: Coordinate with Base44 to update UI/copy surfaces before deployment
+            </p>
+            <p className="font-semibold text-indigo-900 mt-3">
+              This is the enforcement mechanism that prevents product drift from engine reality.
+            </p>
+          </CardContent>
+        </Card>
 
         {/* Overview */}
         <Card className="mb-8 border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white">

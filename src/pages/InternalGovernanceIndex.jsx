@@ -48,6 +48,17 @@ export default function InternalGovernanceIndex() {
           </CardContent>
         </Card>
 
+        {/* Canonical vs Index */}
+        <Card className="mb-8 border-2 border-amber-200 bg-amber-50">
+          <CardContent className="p-4">
+            <p className="text-sm text-slate-700">
+              <strong>Note</strong>: This index page is a <strong>navigation router</strong>, not a governance authority. 
+              The three canonical documents below are the authoritative sources. 
+              Any behavior, messaging, or threshold changes must update the relevant canonical page(s).
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Canonical Documents */}
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-slate-900 mb-4">Canonical Documentation</h2>
