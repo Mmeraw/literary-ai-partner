@@ -8,11 +8,13 @@ import { Upload, Loader2, BookOpen, FileText } from 'lucide-react';
 import { toast } from "sonner";
 import { createPageUrl } from '@/utils';
 import TransgressiveModeSelector from '@/components/evaluation/TransgressiveModeSelector';
+import LanguageVariantSelector from '@/components/evaluation/LanguageVariantSelector';
 
 export default function UploadManuscript() {
   const [title, setTitle] = useState('');
   const [text, setText] = useState(sessionStorage.getItem('uploadedText') || '');
   const [evaluationMode, setEvaluationMode] = useState('standard');
+  const [languageVariant, setLanguageVariant] = useState('en-US');
   const [isUploading, setIsUploading] = useState(false);
 
   // Clear sessionStorage after loading
@@ -58,6 +60,7 @@ export default function UploadManuscript() {
         full_text: text,
         word_count: wordCount,
         evaluation_mode: evaluationMode,
+        language_variant: languageVariant,
         status: 'splitting'
       });
 
@@ -173,6 +176,13 @@ export default function UploadManuscript() {
               <p className="mt-1 text-xs text-slate-500">
                 You can submit partial drafts, excerpts, or complete works. Your text is never shared or published.
               </p>
+            </div>
+
+            <div className="p-4 sm:p-6 rounded-xl bg-white border border-slate-200">
+              <LanguageVariantSelector 
+                value={languageVariant}
+                onChange={setLanguageVariant}
+              />
             </div>
 
             <div className="p-4 sm:p-6 rounded-xl bg-white border border-slate-200">
