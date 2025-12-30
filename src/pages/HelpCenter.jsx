@@ -1,258 +1,359 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { 
     BookOpen, 
-    FileText, 
+    CheckCircle2,
     Sparkles, 
     HelpCircle,
-    PlayCircle,
-    Target,
-    Users,
-    Mail,
-    Search,
-    ArrowRight,
-    CheckCircle2,
-    Zap,
-    Award,
-    TrendingUp,
-    Film
+    Shield,
+    AlertCircle,
+    Mail
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
 export default function HelpCenter() {
-    const [searchQuery, setSearchQuery] = useState('');
-
-    const helpCategories = [
-        {
-            icon: Sparkles,
-            title: 'Getting Started',
-            description: 'New to RevisionGrade™? Start here',
-            color: 'from-indigo-500 to-purple-600',
-            articles: [
-                { title: 'How RevisionGrade Works', page: 'Methodology', icon: BookOpen },
-                { title: 'Understanding Your Scores', page: 'Criteria', icon: Award },
-                { title: 'Frequently Asked Questions', page: 'FAQ', icon: HelpCircle },
-                { title: 'Pricing & Plans', page: 'Pricing', icon: Target }
-            ]
-        },
-        {
-            icon: FileText,
-            title: 'Evaluation & Analysis',
-            description: 'Understand your manuscript feedback',
-            color: 'from-emerald-500 to-teal-600',
-            articles: [
-                { title: '12 Story Evaluation Criteria', page: 'Criteria', icon: CheckCircle2 },
-                { title: 'WAVE Revision System', page: 'Methodology', icon: Zap },
-                { title: 'Revision Mode™ Guide', page: 'FAQ', icon: Sparkles, anchor: 'revision-mode' },
-                { title: 'Sample Analysis Examples', page: 'SampleAnalysis', icon: FileText }
-            ]
-        },
-        {
-            icon: Target,
-            title: 'Submission Tools',
-            description: 'Create agent-ready packages',
-            color: 'from-blue-500 to-cyan-600',
-            articles: [
-                { title: 'Complete Submission Package', page: 'CompletePackage', icon: Package },
-                { title: 'Synopsis Generator', page: 'Synopsis', icon: FileText },
-                { title: 'Query Letter Builder', page: 'QueryLetter', icon: Mail },
-                { title: 'Find Literary Agents', page: 'FindAgents', icon: Users }
-            ]
-        },
-        {
-            icon: Film,
-            title: 'Film & TV Adaptation',
-            description: 'Hollywood-ready pitch materials',
-            color: 'from-purple-500 to-pink-600',
-            articles: [
-                { title: 'Film Adaptation Package', page: 'FilmAdaptation', icon: Film },
-                { title: 'Pitch Deck Generator', page: 'PitchGenerator', icon: Target },
-                { title: 'Screenplay Formatting', page: 'ScreenplayFormatter', icon: FileText }
-            ]
-        },
-        {
-            icon: TrendingUp,
-            title: 'Progress & Reports',
-            description: 'Track your writing improvement',
-            color: 'from-amber-500 to-orange-600',
-            articles: [
-                { title: 'Progress Dashboard', page: 'Progress', icon: TrendingUp },
-                { title: 'Revision History', page: 'History', icon: FileText },
-                { title: 'Comparative Analysis', page: 'Comparables', icon: BarChart3 }
-            ]
-        },
-        {
-            icon: Users,
-            title: 'Enterprise & Teams',
-            description: 'Solutions for organizations',
-            color: 'from-slate-600 to-slate-800',
-            articles: [
-                { title: 'Enterprise Features', page: 'Enterprise', icon: Users },
-                { title: 'For Writing Professionals', page: 'ForProfessionals', icon: Award },
-                { title: 'Contact Sales', page: 'Contact', icon: Mail }
-            ]
-        }
-    ];
-
-    const quickLinks = [
-        { title: 'Upload Manuscript', page: 'UploadManuscript', icon: BookOpen, color: 'indigo' },
-        { title: 'Quick Evaluation', page: 'Evaluate', icon: Sparkles, color: 'purple' },
-        { title: 'View Pricing', page: 'Pricing', icon: Target, color: 'emerald' },
-        { title: 'Contact Support', page: 'Contact', icon: Mail, color: 'blue' }
-    ];
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-            <div className="max-w-7xl mx-auto px-6 py-12">
+            <div className="max-w-4xl mx-auto px-6 py-12">
                 {/* Header */}
                 <div className="text-center mb-12">
-                    <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
-                        <HelpCircle className="w-4 h-4 mr-2" />
-                        Help Center
-                    </Badge>
-                    <h1 className="text-4xl font-bold text-slate-900 mb-4">
-                        How can we help you?
+                    <h1 className="text-4xl font-bold text-slate-900 mb-3">
+                        RevisionGrade™ Help Center
                     </h1>
-                    <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-                        Find guides, FAQs, and resources to get the most out of RevisionGrade™
+                    <p className="text-xl text-slate-600 italic">
+                        Guidance, not guesswork. Clarity before craft.
                     </p>
+                </div>
 
-                    {/* Search Bar */}
-                    <div className="mt-8 max-w-2xl mx-auto">
-                        <div className="relative">
-                            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-                            <Input
-                                type="text"
-                                placeholder="Search help articles..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-12 h-14 text-lg border-slate-300 focus:border-indigo-500"
-                            />
-                        </div>
+                {/* Welcome */}
+                <Card className="mb-8 border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white">
+                    <CardContent className="p-8">
+                        <h2 className="text-2xl font-bold text-slate-900 mb-4">
+                            Welcome to the RevisionGrade Help Center.
+                        </h2>
+                        <p className="text-slate-700 leading-relaxed mb-4">
+                            This space exists to help you understand how the system works, what to expect, and how to use it effectively—without jargon or technical overhead.
+                        </p>
+                        <p className="text-slate-700 leading-relaxed font-semibold">
+                            RevisionGrade is designed for writers who want clarity, not shortcuts. Everything here is built to support thoughtful revision, not replace creative judgment.
+                        </p>
+                    </CardContent>
+                </Card>
+
+                {/* Getting Started */}
+                <div className="mb-12">
+                    <div className="flex items-center gap-2 mb-6">
+                        <BookOpen className="w-6 h-6 text-indigo-600" />
+                        <h2 className="text-2xl font-bold text-slate-900">Getting Started</h2>
                     </div>
+
+                    <Card className="mb-6">
+                        <CardHeader>
+                            <CardTitle>What Is RevisionGrade?</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-slate-700">
+                            <p>
+                                RevisionGrade is a manuscript analysis and revision system designed to help writers understand what their work needs—and what it doesn't.
+                            </p>
+                            <p>
+                                It evaluates structure, clarity, and narrative logic so you can make informed decisions about revision.
+                            </p>
+                            <p className="font-semibold text-indigo-900">
+                                👉 It does not write your book for you.
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>How RevisionGrade Works</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ol className="space-y-2 text-slate-700">
+                                <li className="flex items-start gap-2">
+                                    <span className="font-semibold text-indigo-600">1.</span>
+                                    <span>You upload your manuscript</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="font-semibold text-indigo-600">2.</span>
+                                    <span>The system analyzes structure, coherence, and narrative health</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="font-semibold text-indigo-600">3.</span>
+                                    <span>You receive clear diagnostics and revision guidance</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="font-semibold text-indigo-600">4.</span>
+                                    <span>You decide how to proceed</span>
+                                </li>
+                            </ol>
+                            <p className="text-slate-700 mt-4 font-semibold">
+                                RevisionGrade helps you see what matters before you spend time rewriting.
+                            </p>
+                        </CardContent>
+                    </Card>
                 </div>
 
-                {/* Quick Links */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16">
-                    {quickLinks.map((link, idx) => (
-                        <Link key={idx} to={createPageUrl(link.page)}>
-                            <Card className="border-0 shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer">
-                                <CardContent className="p-6 text-center">
-                                    <div className={`inline-flex p-3 rounded-xl bg-${link.color}-100 mb-3 group-hover:scale-110 transition-transform`}>
-                                        <link.icon className={`w-5 h-5 text-${link.color}-600`} />
-                                    </div>
-                                    <p className="text-sm font-medium text-slate-900">{link.title}</p>
-                                </CardContent>
-                            </Card>
-                        </Link>
-                    ))}
-                </div>
+                {/* Trusted Path */}
+                <div className="mb-12">
+                    <div className="flex items-center gap-2 mb-6">
+                        <Shield className="w-6 h-6 text-purple-600" />
+                        <h2 className="text-2xl font-bold text-slate-900">Trusted Path™</h2>
+                    </div>
 
-                {/* Help Categories */}
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {helpCategories.map((category, idx) => (
-                        <Card key={idx} className="border-0 shadow-md hover:shadow-lg transition-all duration-300">
+                    <Card className="mb-6 border-2 border-purple-200">
+                        <CardHeader>
+                            <CardTitle>What Is Trusted Path?</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-slate-700">
+                            <p>
+                                Trusted Path is an optional mode that applies recommended revisions automatically when your manuscript is structurally ready.
+                            </p>
+                            <p>
+                                It is designed for writers who want forward momentum without manually approving every micro-edit.
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <div className="grid md:grid-cols-2 gap-6 mb-6">
+                        <Card>
                             <CardHeader>
-                                <div className="flex items-start gap-4">
-                                    <div className={`p-3 rounded-xl bg-gradient-to-br ${category.color}`}>
-                                        <category.icon className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <CardTitle className="text-xl">{category.title}</CardTitle>
-                                        <p className="text-sm text-slate-600 mt-1">{category.description}</p>
-                                    </div>
-                                </div>
+                                <CardTitle className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                                    What Trusted Path Does
+                                </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="space-y-2">
-                                    {category.articles.map((article, articleIdx) => (
-                                        <Link 
-                                            key={articleIdx} 
-                                            to={createPageUrl(article.page) + (article.anchor ? `#${article.anchor}` : '')}
-                                            className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors group"
-                                        >
-                                            <article.icon className="w-4 h-4 text-slate-400 group-hover:text-indigo-600" />
-                                            <span className="text-sm text-slate-700 group-hover:text-indigo-600 flex-1">
-                                                {article.title}
-                                            </span>
-                                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                        </Link>
-                                    ))}
-                                </div>
+                                <ul className="space-y-2 text-sm text-slate-700">
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-emerald-600">•</span>
+                                        <span>Applies high-confidence revisions where structure supports them</span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-emerald-600">•</span>
+                                        <span>Prioritizes clarity, cohesion, and readability</span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-emerald-600">•</span>
+                                        <span>Avoids surface polish when deeper issues are present</span>
+                                    </li>
+                                </ul>
                             </CardContent>
                         </Card>
-                    ))}
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <AlertCircle className="w-5 h-5 text-red-600" />
+                                    What Trusted Path Does Not Do
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <ul className="space-y-2 text-sm text-slate-700">
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-red-600">•</span>
+                                        <span>It does not rewrite your book</span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-red-600">•</span>
+                                        <span>It does not invent plot or character</span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-red-600">•</span>
+                                        <span>It does not guarantee publication</span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-red-600">•</span>
+                                        <span>It does not replace your creative judgment</span>
+                                    </li>
+                                </ul>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    <Card className="bg-purple-50 border-purple-200">
+                        <CardContent className="p-6">
+                            <p className="text-slate-700 font-semibold">
+                                Trusted Path works with your intent—not instead of it.
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="mt-6">
+                        <CardHeader>
+                            <CardTitle>When Trusted Path Is Limited</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-slate-700">
+                            <p>
+                                If your manuscript has major structural issues (missing beats, unclear stakes, broken causality), Trusted Path will pause line-level editing and guide you toward structural repair instead.
+                            </p>
+                            <p className="mt-3 font-semibold text-indigo-900">
+                                This prevents wasted effort and protects the integrity of your work.
+                            </p>
+                        </CardContent>
+                    </Card>
                 </div>
 
-                {/* Popular Resources */}
-                <div className="mt-16">
-                    <h2 className="text-2xl font-bold text-slate-900 mb-6">Popular Resources</h2>
-                    <div className="grid md:grid-cols-3 gap-6">
+                {/* Using RevisionGrade Effectively */}
+                <div className="mb-12">
+                    <div className="flex items-center gap-2 mb-6">
+                        <Sparkles className="w-6 h-6 text-indigo-600" />
+                        <h2 className="text-2xl font-bold text-slate-900">Using RevisionGrade Effectively</h2>
+                    </div>
+
+                    <Card>
+                        <CardContent className="p-6">
+                            <div className="space-y-4 text-slate-700">
+                                <div>
+                                    <p className="font-semibold text-slate-900 mb-1">Step 1 — Upload Your Manuscript</p>
+                                    <p className="text-sm">RevisionGrade scans your work for structure, clarity, and narrative health.</p>
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-slate-900 mb-1">Step 2 — Review the Diagnosis</p>
+                                    <p className="text-sm">You'll see where your manuscript is strong and where it needs attention.</p>
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-slate-900 mb-1">Step 3 — Choose Your Path</p>
+                                    <p className="text-sm"><strong>Manual Review:</strong> You review and apply suggestions yourself.</p>
+                                    <p className="text-sm"><strong>Trusted Path:</strong> The system applies safe, structural improvements automatically.</p>
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-slate-900 mb-1">Step 4 — Refine and Iterate</p>
+                                    <p className="text-sm">Use feedback to strengthen your manuscript. Re-run analysis as needed.</p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* What RevisionGrade Is (and Isn't) */}
+                <div className="mb-12">
+                    <h2 className="text-2xl font-bold text-slate-900 mb-6">What RevisionGrade Is (and Isn't)</h2>
+                    
+                    <div className="grid md:grid-cols-2 gap-6">
+                        <Card className="border-2 border-emerald-200">
+                            <CardHeader>
+                                <CardTitle className="text-emerald-900">RevisionGrade IS:</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <ul className="space-y-2 text-sm text-slate-700">
+                                    <li className="flex items-start gap-2">
+                                        <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" />
+                                        <span>A diagnostic and guidance system</span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" />
+                                        <span>A professional-level structural evaluator</span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" />
+                                        <span>A tool for serious writers who want clarity</span>
+                                    </li>
+                                </ul>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-2 border-red-200">
+                            <CardHeader>
+                                <CardTitle className="text-red-900">RevisionGrade is NOT:</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <ul className="space-y-2 text-sm text-slate-700">
+                                    <li className="flex items-start gap-2">
+                                        <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
+                                        <span>A ghostwriter</span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
+                                        <span>A shortcut to publication</span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
+                                        <span>A replacement for creative judgment</span>
+                                    </li>
+                                </ul>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+
+                {/* FAQs */}
+                <div className="mb-12">
+                    <div className="flex items-center gap-2 mb-6">
+                        <HelpCircle className="w-6 h-6 text-indigo-600" />
+                        <h2 className="text-2xl font-bold text-slate-900">Frequently Asked Questions</h2>
+                    </div>
+
+                    <div className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">Will RevisionGrade rewrite my book?</CardTitle>
+                            </CardHeader>
+                            <CardContent className="text-slate-700">
+                                <p>No. It highlights issues and suggests improvements. You remain the author.</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">Can it make my book publishable?</CardTitle>
+                            </CardHeader>
+                            <CardContent className="text-slate-700">
+                                <p>It can help you understand what stands between your draft and professional quality—but it cannot guarantee publication.</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">Why does it sometimes block editing?</CardTitle>
+                            </CardHeader>
+                            <CardContent className="text-slate-700">
+                                <p>Because polishing broken structure wastes time. The system protects you from that.</p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    <div className="mt-6 text-center">
                         <Link to={createPageUrl('FAQ')}>
-                            <Card className="border-2 border-indigo-200 hover:border-indigo-400 transition-colors cursor-pointer">
-                                <CardContent className="p-6">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <HelpCircle className="w-5 h-5 text-indigo-600" />
-                                        <h3 className="font-semibold text-slate-900">Frequently Asked Questions</h3>
-                                    </div>
-                                    <p className="text-sm text-slate-600">
-                                        Find answers to common questions about pricing, features, and how RevisionGrade™ works
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        </Link>
-
-                        <Link to={createPageUrl('Methodology')}>
-                            <Card className="border-2 border-purple-200 hover:border-purple-400 transition-colors cursor-pointer">
-                                <CardContent className="p-6">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <BookOpen className="w-5 h-5 text-purple-600" />
-                                        <h3 className="font-semibold text-slate-900">Our Methodology</h3>
-                                    </div>
-                                    <p className="text-sm text-slate-600">
-                                        Learn how the 12 Story Evaluation Criteria and WAVE Revision System work
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        </Link>
-
-                        <Link to={createPageUrl('SampleAnalysis')}>
-                            <Card className="border-2 border-emerald-200 hover:border-emerald-400 transition-colors cursor-pointer">
-                                <CardContent className="p-6">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <FileText className="w-5 h-5 text-emerald-600" />
-                                        <h3 className="font-semibold text-slate-900">Sample Analysis</h3>
-                                    </div>
-                                    <p className="text-sm text-slate-600">
-                                        See example evaluations to understand how your manuscript will be analyzed
-                                    </p>
-                                </CardContent>
-                            </Card>
+                            <button className="px-6 py-3 bg-white border-2 border-indigo-200 hover:border-indigo-400 text-indigo-700 rounded-lg font-medium transition-colors">
+                                View All FAQs
+                            </button>
                         </Link>
                     </div>
                 </div>
 
-                {/* Contact Support */}
-                <div className="mt-16">
-                    <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50">
-                        <CardContent className="p-8 text-center">
-                            <Mail className="w-12 h-12 mx-auto mb-4 text-blue-600" />
-                            <h2 className="text-2xl font-bold text-slate-900 mb-3">
-                                Still need help?
-                            </h2>
-                            <p className="text-slate-600 mb-6 max-w-xl mx-auto">
-                                Can't find what you're looking for? Our support team is here to help.
-                            </p>
+                {/* Need More Help */}
+                <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50">
+                    <CardContent className="p-8 text-center">
+                        <Mail className="w-12 h-12 mx-auto mb-4 text-blue-600" />
+                        <h2 className="text-2xl font-bold text-slate-900 mb-3">
+                            Need More Help?
+                        </h2>
+                        <p className="text-slate-700 mb-6 max-w-xl mx-auto">
+                            If you're unsure how to interpret results or want guidance on next steps, consult the contextual explanations inside the tool or visit our detailed documentation.
+                        </p>
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                             <Link to={createPageUrl('Contact')}>
                                 <button className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
                                     Contact Support
                                 </button>
                             </Link>
-                        </CardContent>
-                    </Card>
+                            <Link to={createPageUrl('FAQ')}>
+                                <button className="px-6 py-3 bg-white border-2 border-slate-300 hover:border-slate-400 text-slate-700 rounded-lg font-medium transition-colors">
+                                    Browse FAQs
+                                </button>
+                            </Link>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Summary Statement */}
+                <div className="mt-12 p-6 rounded-xl bg-slate-100 border-2 border-slate-300">
+                    <p className="text-center text-slate-700 italic">
+                        RevisionGrade helps you see your manuscript clearly—so you can revise with purpose, not guesswork.
+                    </p>
                 </div>
             </div>
         </div>
