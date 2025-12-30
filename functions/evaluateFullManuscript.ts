@@ -483,25 +483,221 @@ Provide overall score (1-10) and verdict.`,
                     'Agent Analysis'
                     );
 
-                    // Show "Running WAVE analysis" progress
-                    await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-                    evaluation_progress: {
-                        chapters_total: freshChapters.length,
-                        chapters_summarized: freshChapters.length,
-                        chapters_wave_done: i,
-                        current_phase: 'wave',
-                        percent_complete: wavePercent + 2,
-                        current_step: `Chapter ${i + 1}: Running 63 WAVE craft checks (attempt ${attempt + 1})...`,
-                        last_updated: new Date().toISOString()
-                    }
-                    });
-
-                    // WAVE Revision System evaluation (61+ waves, three-tier framework)
-                    // Use 150s timeout to allow complex craft analysis to complete
+                    // WAVE Revision System evaluation - SPLIT INTO THREE TIERS
                     waveErrors = [];
+                    let earlyWaveScore = 0;
+                    let midWaveScore = 0;
+                    let lateWaveScore = 0;
+                    let allWaveHits = [];
 
+                    // TIER 1: EARLY WAVES (Structural Truth) - 60s timeout
                     try {
-                    waveAnalysis = await withTimeout(
+                        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                            evaluation_progress: {
+                                chapters_total: freshChapters.length,
+                                chapters_summarized: freshChapters.length,
+                                chapters_wave_done: i,
+                                current_phase: 'wave',
+                                percent_complete: wavePercent + 2,
+                                current_step: `Chapter ${i + 1}: Early WAVE (Structural) - attempt ${attempt + 1}`,
+                                last_updated: new Date().toISOString()
+                            }
+                        });
+
+                        const earlyWave = await withTimeout(
+                            base44.asServiceRole.integrations.Core.InvokeLLM({
+                                prompt: `You are an elite developmental editor. Analyze EARLY TIER structural issues only.
+
+EARLY TIER CHECKS (Structural Truth):
+- POV Honesty (Wave 2): No mind-reading, observable proof only
+- Concrete Stakes (Wave 17): What's at risk if this fails?
+- Character Consistency (Wave 36): Voice logic maintained?
+
+CHAPTER: ${chapter.title}
+TEXT: ${chapter.text}
+
+For each issue: category, severity, description, example_quote, fix_suggestion.
+Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
+                                response_json_schema: {
+                                    type: "object",
+                                    properties: {
+                                        score: { type: "number" },
+                                        criticalIssues: { type: "array", items: { type: "string" } },
+                                        strengthAreas: { type: "array", items: { type: "string" } },
+                                        waveHits: {
+                                            type: "array",
+                                            items: {
+                                                type: "object",
+                                                properties: {
+                                                    category: { type: "string" },
+                                                    severity: { type: "string" },
+                                                    description: { type: "string" },
+                                                    example_quote: { type: "string" },
+                                                    fix_suggestion: { type: "string" }
+                                                },
+                                                required: ["category", "severity", "description", "example_quote", "fix_suggestion"]
+                                            }
+                                        }
+                                    },
+                                    required: ["score", "criticalIssues", "strengthAreas", "waveHits"]
+                                }
+                            }),
+                            60000,
+                            'Early WAVE'
+                        );
+                        earlyWaveScore = earlyWave.score;
+                        allWaveHits.push(...earlyWave.waveHits);
+                    } catch (error) {
+                        console.error('Early WAVE failed:', error.message);
+                        waveErrors.push({ tier: 'early', error: error.message });
+                        earlyWaveScore = agentAnalysis.overallScore; // fallback
+                    }
+
+                    // TIER 2: MID WAVES (Momentum & Meaning) - 60s timeout
+                    try {
+                        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                            evaluation_progress: {
+                                chapters_total: freshChapters.length,
+                                chapters_summarized: freshChapters.length,
+                                chapters_wave_done: i,
+                                current_phase: 'wave',
+                                percent_complete: wavePercent + 4,
+                                current_step: `Chapter ${i + 1}: Mid WAVE (Craft) - attempt ${attempt + 1}`,
+                                last_updated: new Date().toISOString()
+                            }
+                        });
+
+                        const midWave = await withTimeout(
+                            base44.asServiceRole.integrations.Core.InvokeLLM({
+                                prompt: `You are an elite developmental editor. Analyze MID TIER craft issues only.
+
+MID TIER CHECKS (Momentum & Meaning):
+- Generic Nouns (Wave 3): Replace "room," "thing," "place" with specificity
+- Filter Verbs (Wave 4): Remove "I saw/felt/heard" distance
+- Adverb Diet (Wave 5): Weak verbs propped up by adverbs?
+- Active Voice (Wave 6): Restore agency, name actors
+- Negation Discipline (Wave 7): Say what happened, not what didn't
+- Dialogue Tags (Wave 13): Over-attribution bloat?
+
+CHAPTER: ${chapter.title}
+TEXT: ${chapter.text}
+
+For each issue: category, severity, description, example_quote, fix_suggestion.
+Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
+                                response_json_schema: {
+                                    type: "object",
+                                    properties: {
+                                        score: { type: "number" },
+                                        criticalIssues: { type: "array", items: { type: "string" } },
+                                        strengthAreas: { type: "array", items: { type: "string" } },
+                                        waveHits: {
+                                            type: "array",
+                                            items: {
+                                                type: "object",
+                                                properties: {
+                                                    category: { type: "string" },
+                                                    severity: { type: "string" },
+                                                    description: { type: "string" },
+                                                    example_quote: { type: "string" },
+                                                    fix_suggestion: { type: "string" }
+                                                },
+                                                required: ["category", "severity", "description", "example_quote", "fix_suggestion"]
+                                            }
+                                        }
+                                    },
+                                    required: ["score", "criticalIssues", "strengthAreas", "waveHits"]
+                                }
+                            }),
+                            60000,
+                            'Mid WAVE'
+                        );
+                        midWaveScore = midWave.score;
+                        allWaveHits.push(...midWave.waveHits);
+                    } catch (error) {
+                        console.error('Mid WAVE failed:', error.message);
+                        waveErrors.push({ tier: 'mid', error: error.message });
+                        midWaveScore = agentAnalysis.overallScore; // fallback
+                    }
+
+                    // TIER 3: LATE WAVES (Authority & Polish) - 60s timeout
+                    try {
+                        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                            evaluation_progress: {
+                                chapters_total: freshChapters.length,
+                                chapters_summarized: freshChapters.length,
+                                chapters_wave_done: i,
+                                current_phase: 'wave',
+                                percent_complete: wavePercent + 6,
+                                current_step: `Chapter ${i + 1}: Late WAVE (Polish) - attempt ${attempt + 1}`,
+                                last_updated: new Date().toISOString()
+                            }
+                        });
+
+                        const lateWave = await withTimeout(
+                            base44.asServiceRole.integrations.Core.InvokeLLM({
+                                prompt: `You are an elite developmental editor. Analyze LATE TIER polish issues only.
+
+LATE TIER CHECKS (Authority & Polish):
+- Body-Part Clichés (Wave 1): Jaw/chest/eyes that don't change action
+- Abstract Triples (Wave 8): Two beats sharpen, three soften
+- Motif Hygiene (Wave 9): Spotlight once per section
+- On-the-Nose Explanations (Wave 15): Cut "because," "which meant"
+- Reflexive Redundancy (Wave 61): himself/herself/own/just without function
+
+CHAPTER: ${chapter.title}
+TEXT: ${chapter.text}
+
+For each issue: category, severity, description, example_quote, fix_suggestion.
+Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
+                                response_json_schema: {
+                                    type: "object",
+                                    properties: {
+                                        score: { type: "number" },
+                                        criticalIssues: { type: "array", items: { type: "string" } },
+                                        strengthAreas: { type: "array", items: { type: "string" } },
+                                        waveHits: {
+                                            type: "array",
+                                            items: {
+                                                type: "object",
+                                                properties: {
+                                                    category: { type: "string" },
+                                                    severity: { type: "string" },
+                                                    description: { type: "string" },
+                                                    example_quote: { type: "string" },
+                                                    fix_suggestion: { type: "string" }
+                                                },
+                                                required: ["category", "severity", "description", "example_quote", "fix_suggestion"]
+                                            }
+                                        }
+                                    },
+                                    required: ["score", "criticalIssues", "strengthAreas", "waveHits"]
+                                }
+                            }),
+                            60000,
+                            'Late WAVE'
+                        );
+                        lateWaveScore = lateWave.score;
+                        allWaveHits.push(...lateWave.waveHits);
+                    } catch (error) {
+                        console.error('Late WAVE failed:', error.message);
+                        waveErrors.push({ tier: 'late', error: error.message });
+                        lateWaveScore = agentAnalysis.overallScore; // fallback
+                    }
+
+                    // Aggregate WAVE results
+                    const avgWaveScore = (earlyWaveScore + midWaveScore + lateWaveScore) / 3;
+                    waveAnalysis = {
+                        waveScore: avgWaveScore,
+                        criticalIssues: waveErrors.length > 0 ? waveErrors.map(e => `${e.tier} tier: ${e.error}`) : [],
+                        strengthAreas: [],
+                        waveHits: allWaveHits,
+                        partial: waveErrors.length > 0,
+                        tiered_scores: { early: earlyWaveScore, mid: midWaveScore, late: lateWaveScore }
+                    };
+
+                    // Legacy monolithic WAVE code removed - now using tiered approach
+                    try {
+                    const legacyWave = await withTimeout(
                         base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are an elite developmental editor applying the complete WAVE Revision System (61+ waves organized in three tiers).
 
