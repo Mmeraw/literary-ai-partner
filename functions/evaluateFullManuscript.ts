@@ -383,7 +383,7 @@ SCORING GUIDELINES:
                         chapters_wave_done: i,
                         current_phase: 'wave',
                         percent_complete: wavePercent,
-                        current_step: `Evaluating Chapter ${i + 1}: ${chapter.title}`,
+                        current_step: `Evaluating Chapter ${i + 1}: ${chapter.title} (attempt ${attempt + 1}/${MAX_RETRIES})`,
                         last_updated: new Date().toISOString()
                     }
                 });
@@ -396,7 +396,7 @@ SCORING GUIDELINES:
                         chapters_wave_done: i,
                         current_phase: 'wave',
                         percent_complete: wavePercent + 1,
-                        current_step: `Chapter ${i + 1}: Running 12 Agent Criteria checks...`,
+                        current_step: `Chapter ${i + 1}: Running 12 Agent Criteria checks (attempt ${attempt + 1})...`,
                         last_updated: new Date().toISOString()
                     }
                 });
