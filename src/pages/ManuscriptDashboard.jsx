@@ -430,6 +430,9 @@ export default function ManuscriptDashboard() {
                   <div className="text-3xl font-bold text-slate-800">
                     {evaluatedChapters > 0 ? avgChapterScore.toFixed(1) : '—'}/10
                   </div>
+                  {chaptersWithPartialWave > 0 && evaluatedChapters > 0 && (
+                    <p className="text-xs text-amber-600 mt-1">Partial - {chaptersWithPartialWave} skipped</p>
+                  )}
                 </div>
               </div>
               {scoreThresholdMet && <Progress value={globalScore * 10} className="h-3 mt-4" />}
