@@ -465,13 +465,13 @@ export default function Revise() {
                       Structural Revision Required
                     </h3>
                     <p className="text-sm text-amber-800 mb-3">
-                      The revisions being suggested on this page are structural, not line-level polish. Your current WAVE RevisionGrade score is below 8.0, which means the chapter's story spine, clarity, and coherence still need work before sentence-level refinement is appropriate.
+                      The revisions being suggested on this page are structural, not line-level polish. Your current WAVE RevisionGrade score is below 8.0, which means the story spine, clarity, and coherence of this section still need work before sentence-level refinement is appropriate.
                     </p>
                     <p className="text-sm text-amber-800 mb-3">
                       Line-level polish (wording, rhythm, and stylistic tweaks) only becomes available when the WAVE score is 8.0 or higher.
                     </p>
                     <p className="text-sm text-amber-900 font-medium">
-                      Please address the structural issues highlighted in this report, revise your chapter, and then resubmit for a new evaluation.
+                      Please address the structural issues highlighted in this report, revise this work, and then resubmit for a new evaluation.
                     </p>
                   </div>
                 </div>
