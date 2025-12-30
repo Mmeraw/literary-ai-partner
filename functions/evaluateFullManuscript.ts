@@ -412,8 +412,8 @@ SCORING GUIDELINES:
             };
 
             // Story Evaluation (Agents, Editors, Script Readers) - 2 minute timeout
-                const agentAnalysis = await withTimeout(
-                    base44.asServiceRole.integrations.Core.InvokeLLM({
+            agentAnalysis = await withTimeout(
+                base44.asServiceRole.integrations.Core.InvokeLLM({
                     prompt: `You are a professional evaluator (agent/editor/script reader). Analyze this chapter against the 12 Story Evaluation Criteria.
 
 CRITICAL EVALUATION RULES (NON-NEGOTIABLE):
