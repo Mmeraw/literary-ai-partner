@@ -83,6 +83,44 @@ export default function ValidationReport() {
 
         {results && (
           <div className="space-y-6">
+            {/* Bundle Summary */}
+            {results.bundle_summary && (
+              <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-purple-50">
+                <CardHeader>
+                  <CardTitle>Gold Bundle Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div>
+                      <div className="text-sm text-slate-600 mb-1">Total Examples</div>
+                      <div className="text-3xl font-bold text-slate-900">{results.bundle_summary.total_examples}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-slate-600 mb-1">Total Issues</div>
+                      <div className="text-3xl font-bold text-slate-900">{results.bundle_summary.total_issues}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-slate-600 mb-1">ID Collisions</div>
+                      <div className={`text-3xl font-bold ${results.bundle_summary.collisions === 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {results.bundle_summary.collisions}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-6 pt-6 border-t border-slate-200">
+                    <h4 className="text-sm font-semibold text-slate-700 mb-3">Register Breakdown</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {Object.entries(results.bundle_summary.register_breakdown).map(([register, count]) => (
+                        <div key={register} className="p-3 rounded-lg bg-white border border-slate-200">
+                          <div className="text-xs text-slate-600">{register}</div>
+                          <div className="text-2xl font-bold text-indigo-600">{count}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Summary Stats */}
             <div className="grid md:grid-cols-4 gap-4">
               <Card>

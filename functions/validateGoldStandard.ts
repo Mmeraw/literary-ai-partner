@@ -16,14 +16,45 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    // Load gold standard from file
+    // Load and validate gold standard
     const goldBundlePath = new URL('./toadstone_gold.v1.json', import.meta.url);
     const goldBundleText = await Deno.readTextFile(goldBundlePath);
-    const goldBundle = JSON.parse(goldBundleText);
+    
+    let goldBundle;
+    try {
+      goldBundle = JSON.parse(goldBundleText);
+    } catch (error) {
+      return Response.json({ 
+        error: 'Invalid JSON in gold bundle', 
+        details: error.message 
+      }, { status: 400 });
+    }
+
+    // Validate gold bundle structure
+    const validationErrors = validateGoldBundleStructure(goldBundle);
+    if (validationErrors.length > 0) {
+      return Response.json({ 
+        error: 'Gold bundle validation failed', 
+        validation_errors: validationErrors 
+      }, { status: 400 });
+    }
+
+    // Check for ID collisions
+    const idCollisions = checkIdCollisions(goldBundle.examples);
+    if (idCollisions.length > 0) {
+      return Response.json({ 
+        error: 'ID collisions detected in gold bundle', 
+        collisions: idCollisions 
+      }, { status: 400 });
+    }
+
+    // Generate bundle summary
+    const bundleSummary = generateBundleSummary(goldBundle);
 
     const results = {
       timestamp: new Date().toISOString(),
       gold_bundle_id: goldBundle.batch_id,
+      bundle_summary: bundleSummary,
       total_examples: goldBundle.examples.length,
       total_gold_issues: 0,
       comparisons: [],
@@ -62,6 +93,90 @@ Deno.serve(async (req) => {
     }, { status: 500 });
   }
 });
+
+/**
+ * Validate gold bundle structure
+ */
+function validateGoldBundleStructure(bundle) {
+  const errors = [];
+
+  if (!bundle.batch_id) errors.push('Missing batch_id');
+  if (!Array.isArray(bundle.examples)) errors.push('Missing or invalid examples array');
+
+  if (bundle.examples) {
+    bundle.examples.forEach((ex, idx) => {
+      if (!ex.id) errors.push(`Example ${idx}: missing id`);
+      if (!ex.excerpt) errors.push(`Example ${idx}: missing excerpt`);
+      if (!ex.register) errors.push(`Example ${idx}: missing register`);
+      if (!ex.register_lock) errors.push(`Example ${idx}: missing register_lock`);
+      if (!Array.isArray(ex.wave_issues)) errors.push(`Example ${idx}: missing wave_issues array`);
+
+      if (ex.wave_issues) {
+        ex.wave_issues.forEach((issue, issueIdx) => {
+          if (!issue.wave_number) errors.push(`Example ${idx}, issue ${issueIdx}: missing wave_number`);
+          if (!issue.wave_item) errors.push(`Example ${idx}, issue ${issueIdx}: missing wave_item`);
+          if (!issue.label) errors.push(`Example ${idx}, issue ${issueIdx}: missing label`);
+          if (!issue.severity) errors.push(`Example ${idx}, issue ${issueIdx}: missing severity`);
+          if (!issue.correct_action) errors.push(`Example ${idx}, issue ${issueIdx}: missing correct_action`);
+        });
+      }
+    });
+  }
+
+  return errors;
+}
+
+/**
+ * Check for ID collisions
+ */
+function checkIdCollisions(examples) {
+  const idCounts = new Map();
+  const collisions = [];
+
+  examples.forEach(ex => {
+    const count = idCounts.get(ex.id) || 0;
+    idCounts.set(ex.id, count + 1);
+  });
+
+  for (const [id, count] of idCounts.entries()) {
+    if (count > 1) {
+      collisions.push({ id, count });
+    }
+  }
+
+  return collisions;
+}
+
+/**
+ * Generate bundle summary
+ */
+function generateBundleSummary(bundle) {
+  const registerBreakdown = {};
+  const registerLockBreakdown = {};
+  let totalIssues = 0;
+
+  bundle.examples.forEach(ex => {
+    // Count by register
+    registerBreakdown[ex.register] = (registerBreakdown[ex.register] || 0) + 1;
+    
+    // Count by register_lock
+    const lockKey = `${ex.register}/${ex.register_lock}`;
+    registerLockBreakdown[lockKey] = (registerLockBreakdown[lockKey] || 0) + 1;
+    
+    // Count issues
+    totalIssues += ex.wave_issues.length;
+  });
+
+  return {
+    batches_loaded: 1, // Single canonical bundle
+    total_examples: bundle.examples.length,
+    unique_ids: bundle.examples.length,
+    collisions: 0,
+    total_issues: totalIssues,
+    register_breakdown: registerBreakdown,
+    register_lock_breakdown: registerLockBreakdown
+  };
+}
 
 /**
  * Simulate Base44 evaluation
