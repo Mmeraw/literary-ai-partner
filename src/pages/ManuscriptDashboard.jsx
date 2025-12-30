@@ -24,8 +24,10 @@ export default function ManuscriptDashboard() {
     },
     enabled: !!manuscriptId,
     refetchInterval: (data) => {
-      // Poll every 2 seconds if evaluating
-      return ['summarizing', 'spine_evaluating', 'evaluating_chapters'].includes(data?.status) ? 2000 : false;
+      // Poll every 2 seconds if evaluating OR if evaluation incomplete
+      const isEvaluating = ['summarizing', 'spine_evaluating', 'evaluating_chapters'].includes(data?.status);
+      const hasIncompleteEval = data?.evaluation_progress?.percent_complete < 100 && data?.evaluation_progress?.percent_complete > 0;
+      return (isEvaluating || hasIncompleteEval) ? 2000 : false;
     },
     refetchIntervalInBackground: true,
     refetchOnMount: true,
@@ -151,10 +153,20 @@ export default function ManuscriptDashboard() {
     const handleResumeEvaluation = async () => {
       toast.info('Resuming evaluation...');
       try {
+        // Force status back to evaluating_chapters to ensure polling continues
+        await base44.entities.Manuscript.update(manuscriptId, {
+          status: 'evaluating_chapters',
+          evaluation_progress: {
+            ...progress,
+            current_step: 'Restarting evaluation...',
+            last_updated: new Date().toISOString()
+          }
+        });
+
         await base44.functions.invoke('evaluateFullManuscript', {
           manuscript_id: manuscriptId
         });
-        toast.success('Evaluation resumed');
+        toast.success('Evaluation restarted');
         window.location.reload();
       } catch (error) {
         toast.error('Failed to resume. Try again.');
@@ -223,7 +235,7 @@ export default function ManuscriptDashboard() {
 
             <div className="mt-6 p-4 rounded-lg bg-indigo-50 border border-indigo-200">
               <p className="text-xs text-indigo-800 mb-3">
-                You can leave this page open or close it—evaluation runs on our servers. Refresh to check progress.
+                Stuck at {percentComplete}%? Evaluation runs in background—click below to force restart from current position.
               </p>
               <Button
                 onClick={handleResumeEvaluation}
@@ -231,7 +243,7 @@ export default function ManuscriptDashboard() {
                 size="sm"
                 className="w-full"
               >
-                Resume/Retry Evaluation
+                Force Restart Evaluation
               </Button>
             </div>
             </CardContent>
