@@ -107,10 +107,7 @@ export default function Criteria() {
                             </div>
 
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 mb-3">WAVE Revision System</h3>
-                                <p className="text-slate-700 mb-3">
-                                    A professional, multi-pass revision framework organized in three tiers:
-                                </p>
+                                <h3 className="text-lg font-semibold text-slate-900 mb-3">WAVE runs in the right order (structure → momentum → polish):</h3>
                                 <div className="space-y-2 mb-3">
                                     <div className="flex items-start gap-2">
                                         <Badge className="bg-blue-100 text-blue-700 flex-shrink-0">Early</Badge>
