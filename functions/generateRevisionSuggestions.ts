@@ -70,11 +70,22 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    const { text, title, wave_number = 1, submission_id, evaluation_result, style_mode = 'neutral' } = await req.json();
+    const { text, title, wave_number = 1, submission_id, session_id, evaluation_result, style_mode = 'neutral' } = await req.json();
 
-    // Support both direct text/title (anonymous) or submission_id (logged in)
+    // Support both direct text/title (anonymous), submission_id, or session_id
     let workingText = text;
     let workingTitle = title || 'Untitled';
+    
+    // Priority: text > session_id > submission_id
+    if (!workingText && session_id) {
+      // Fetch from existing session
+      const sessions = await base44.asServiceRole.entities.RevisionSession.filter({ id: session_id });
+      if (!sessions || sessions.length === 0) {
+        return Response.json({ error: 'Session not found' }, { status: 404 });
+      }
+      workingText = sessions[0].original_text;
+      workingTitle = sessions[0].title || 'Untitled';
+    }
     
     if (!workingText && submission_id) {
       // Fetch from database if submission_id provided
@@ -92,7 +103,7 @@ Deno.serve(async (req) => {
     }
 
     if (!workingText) {
-      return Response.json({ error: 'Text required (either directly or via submission_id)' }, { status: 400 });
+      return Response.json({ error: 'Text required (either directly, via session_id, or via submission_id)' }, { status: 400 });
     }
 
     const wave = WAVES[wave_number];
@@ -433,36 +444,58 @@ Return JSON with validated results.`;
       };
     });
 
-    // Create revision session
-    const sessionData = {
-      submission_id: submission_id || `temp_${Date.now()}`,
-      title: workingTitle,
-      original_text: workingText,
-      current_text: workingText,
-      current_wave: wave_number,
-      current_position: 0,
-      suggestions: suggestions,
-      status: 'in_progress'
-    };
+    // Create or update revision session
+    if (session_id) {
+      // Update existing session with suggestions
+      try {
+        await base44.asServiceRole.entities.RevisionSession.update(session_id, {
+          suggestions: suggestions,
+          current_wave: wave_number,
+          current_position: 0,
+          status: 'in_progress'
+        });
+        return Response.json({ 
+          session_id: session_id,
+          wave_name: wave.name,
+          suggestions,
+          wave_number 
+        });
+      } catch (updateError) {
+        console.error('Could not update session:', updateError);
+        return Response.json({ error: 'Failed to update session with suggestions' }, { status: 500 });
+      }
+    } else {
+      // Create new session
+      const sessionData = {
+        submission_id: submission_id || `temp_${Date.now()}`,
+        title: workingTitle,
+        original_text: workingText,
+        current_text: workingText,
+        current_wave: wave_number,
+        current_position: 0,
+        suggestions: suggestions,
+        status: 'in_progress'
+      };
 
-    try {
-      const session = await base44.entities.RevisionSession.create(sessionData);
-      return Response.json({ 
-        session_id: session.id,
-        wave_name: wave.name,
-        suggestions,
-        wave_number 
-      });
-    } catch (dbError) {
-      // If DB fails (e.g., anonymous user), return suggestions without saving
-      console.warn('Could not save session to DB:', dbError);
-      return Response.json({ 
-        session_id: null,
-        wave_name: wave.name,
-        suggestions,
-        wave_number,
-        anonymous: true
-      });
+      try {
+        const session = await base44.entities.RevisionSession.create(sessionData);
+        return Response.json({ 
+          session_id: session.id,
+          wave_name: wave.name,
+          suggestions,
+          wave_number 
+        });
+      } catch (dbError) {
+        // If DB fails (e.g., anonymous user), return suggestions without saving
+        console.warn('Could not save session to DB:', dbError);
+        return Response.json({ 
+          session_id: null,
+          wave_name: wave.name,
+          suggestions,
+          wave_number,
+          anonymous: true
+        });
+      }
     }
 
   } catch (error) {
