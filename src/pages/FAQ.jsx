@@ -747,19 +747,19 @@ export default function FAQ() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-xl">
                                 <Sparkles className="w-5 h-5 text-indigo-600" />
-                                Revision Mode
+                                Revision Mode™
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <Accordion type="single" collapsible className="w-full">
                                 <AccordionItem value="what-is-revision-mode">
                                     <AccordionTrigger>
-                                        What is Revision Mode?
+                                        What is Revision Mode™?
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="space-y-3 text-slate-700">
                                             <p>
-                                                Revision Mode is a diagnostic and guidance system designed to evaluate a manuscript's structure, clarity, and narrative function. 
+                                                Revision Mode™ is a diagnostic and guidance system designed to evaluate a manuscript's structure, clarity, and narrative function. 
                                                 It identifies where a manuscript succeeds, where it fails, and what kind of revision is required to move it closer to professional standards.
                                             </p>
                                             <p className="font-semibold text-indigo-900">
@@ -771,13 +771,13 @@ export default function FAQ() {
 
                                 <AccordionItem value="automatic-fix">
                                     <AccordionTrigger>
-                                        Does Revision Mode "fix" my manuscript automatically?
+                                        Does Revision Mode™ "fix" my manuscript automatically?
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="space-y-3 text-slate-700">
                                             <p><strong>No.</strong></p>
                                             <p>
-                                                Revision Mode does not generate a finished, publishable manuscript from weak or incomplete material. 
+                                                Revision Mode™ does not generate a finished, publishable manuscript from weak or incomplete material. 
                                                 It does not replace the author's creative labor, judgment, or voice.
                                             </p>
                                             <p className="font-semibold text-slate-900">Instead, it provides:</p>
@@ -799,7 +799,7 @@ export default function FAQ() {
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="space-y-3 text-slate-700">
-                                            <p><strong>Revision Mode will tell you—clearly and honestly.</strong></p>
+                                            <p><strong>Revision Mode™ will tell you—clearly and honestly.</strong></p>
                                             <p>If your manuscript suffers from:</p>
                                             <ul className="list-disc ml-6 space-y-1">
                                                 <li>Weak or missing plot structure</li>
@@ -823,13 +823,13 @@ export default function FAQ() {
 
                                 <AccordionItem value="guarantee-publishable">
                                     <AccordionTrigger>
-                                        Does Revision Mode guarantee a publishable result?
+                                        Does Revision Mode™ guarantee a publishable result?
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="space-y-3 text-slate-700">
                                             <p><strong>No.</strong></p>
                                             <p>
-                                                Revision Mode does not guarantee publication, agent interest, or commercial success.
+                                                Revision Mode™ does not guarantee publication, agent interest, or commercial success.
                                             </p>
                                             <p className="font-semibold text-slate-900">What it guarantees is:</p>
                                             <ul className="list-disc ml-6 space-y-1">
@@ -846,7 +846,7 @@ export default function FAQ() {
 
                                 <AccordionItem value="why-no-rewrite">
                                     <AccordionTrigger>
-                                        Why doesn't Revision Mode just "rewrite it better"?
+                                        Why doesn't Revision Mode™ just "rewrite it better"?
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="space-y-3 text-slate-700">
@@ -858,7 +858,7 @@ export default function FAQ() {
                                                 <li>Give false confidence</li>
                                             </ul>
                                             <p className="text-indigo-900 font-semibold mt-3">
-                                                RevisionGrade is designed to build stronger writers, not mask problems with artificial polish.
+                                                RevisionGrade™ is designed to build stronger writers, not mask problems with artificial polish.
                                             </p>
                                         </div>
                                     </AccordionContent>
@@ -866,11 +866,11 @@ export default function FAQ() {
 
                                 <AccordionItem value="who-for">
                                     <AccordionTrigger>
-                                        Who is Revision Mode for?
+                                        Who is Revision Mode™ for?
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="space-y-3 text-slate-700">
-                                            <p><strong>Revision Mode is ideal for:</strong></p>
+                                            <p><strong>Revision Mode™ is ideal for:</strong></p>
                                             <ul className="list-disc ml-6 space-y-1">
                                                 <li>Writers who want professional-level feedback</li>
                                                 <li>Authors preparing for agents or publishers</li>
@@ -886,7 +886,7 @@ export default function FAQ() {
 
                                 <AccordionItem value="what-to-expect">
                                     <AccordionTrigger>
-                                        What should I expect after running Revision Mode?
+                                        What should I expect after running Revision Mode™?
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="space-y-3 text-slate-700">
@@ -916,7 +916,7 @@ export default function FAQ() {
                                             <strong>Because honesty scales. Illusions do not.</strong>
                                         </p>
                                         <p className="text-slate-700 mt-3">
-                                            RevisionGrade treats writing as a craft—not a button to press—and respects both the reader and the author 
+                                            RevisionGrade™ treats writing as a craft—not a button to press—and respects both the reader and the author 
                                             by refusing to fake improvement.
                                         </p>
                                     </AccordionContent>
@@ -924,12 +924,12 @@ export default function FAQ() {
 
                                 <AccordionItem value="core-philosophy">
                                     <AccordionTrigger>
-                                        What is the core philosophy behind Revision Mode?
+                                        What is the core philosophy behind Revision Mode™?
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="space-y-3 text-slate-700">
                                             <p className="font-semibold text-indigo-900">
-                                                Revision Mode does not create talent.
+                                                Revision Mode™ does not create talent.
                                             </p>
                                             <p>
                                                 It reveals it, challenges it, and helps it grow.
@@ -953,11 +953,11 @@ export default function FAQ() {
                             <div>
                                 <h3 className="font-semibold text-slate-900 mb-2">Public-Facing Disclaimer</h3>
                                 <p className="text-slate-700">
-                                    <strong>RevisionGrade does not write or rewrite your manuscript.</strong>
+                                    <strong>RevisionGrade™ does not write or rewrite your manuscript.</strong>
                                 </p>
                                 <p className="text-slate-700 mt-2">
                                     It evaluates structure, clarity, and narrative effectiveness using professional editorial criteria. 
-                                    Revision Mode identifies where a manuscript succeeds, where it fails, and what kind of revision is required. 
+                                    Revision Mode™ identifies where a manuscript succeeds, where it fails, and what kind of revision is required. 
                                     It does not guarantee publication, representation, or commercial success.
                                 </p>
                                 <p className="text-slate-700 mt-2">
@@ -966,8 +966,8 @@ export default function FAQ() {
                             </div>
 
                             <div className="border-t border-amber-200 pt-4">
-                                <h3 className="font-semibold text-slate-900 mb-2">What Revision Mode Is Not</h3>
-                                <p className="text-slate-700 mb-2">Revision Mode is not:</p>
+                                <h3 className="font-semibold text-slate-900 mb-2">What Revision Mode™ Is Not</h3>
+                                <p className="text-slate-700 mb-2">Revision Mode™ is not:</p>
                                 <ul className="list-disc ml-6 space-y-1 text-slate-700">
                                     <li>A ghostwriter</li>
                                     <li>A shortcut to publication</li>
@@ -983,11 +983,13 @@ export default function FAQ() {
                             <div className="border-t border-amber-200 pt-4">
                                 <h3 className="font-semibold text-slate-900 mb-2">Legal Statement</h3>
                                 <p className="text-slate-700 text-sm">
-                                    RevisionGrade provides analytical feedback based on narrative structure, industry standards, and comparative 
-                                    storytelling models. All feedback is advisory in nature. Use of Revision Mode does not guarantee publishability, 
+                                    RevisionGrade™ provides analytical feedback based on narrative structure, industry standards, and comparative 
+                                    storytelling models. All feedback is advisory in nature. Use of Revision Mode™ does not guarantee publishability, 
                                     market success, or representation. The user retains full responsibility for creative decisions, revisions, and 
-                                    final outcomes. RevisionGrade does not claim authorship, ownership, or creative contribution to submitted works. 
-                                    All intellectual property remains solely with the user.
+                                    final outcomes. RevisionGrade™ does not claim authorship, ownership, or creative contribution to submitted works. 
+                                    All intellectual property remains solely with the user. RevisionGrade™ does not permanently overwrite a user's 
+                                    original manuscript; users should retain a copy of their original submission. Any revision suggestions or outputs 
+                                    are intended to support the user's own editorial process, not replace it.
                                 </p>
                             </div>
 
