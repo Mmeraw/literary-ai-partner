@@ -422,7 +422,7 @@ export default function Revise() {
           
           <div className="flex items-center justify-between mb-2">
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">{session.title}</h1>
+              <h1 className="text-3xl font-bold text-slate-900">{session.title || 'Untitled Revision'}</h1>
               <p className="text-slate-600 mt-1">
                 <Badge className="bg-indigo-100 text-indigo-700 border-0">
                   <Sparkles className="w-3 h-3 mr-1" />

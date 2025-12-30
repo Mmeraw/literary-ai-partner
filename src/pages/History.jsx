@@ -39,9 +39,30 @@ export default function History() {
         initialData: []
     });
 
+    const { data: allSessions } = useQuery({
+        queryKey: ['revisionSessions'],
+        queryFn: async () => {
+            return await base44.entities.RevisionSession.list('-created_date');
+        },
+        initialData: []
+    });
+
     const activeSubmissions = allSubmissions.filter(s => !s.deleted_at);
     const trashedSubmissions = allSubmissions.filter(s => s.deleted_at);
-    const submissions = activeTab === 'active' ? activeSubmissions : trashedSubmissions;
+    
+    // Merge submissions with their completed revision sessions
+    const enrichedSubmissions = activeSubmissions.map(submission => {
+        const completedSession = allSessions.find(s => 
+            s.submission_id === submission.id && s.status === 'completed'
+        );
+        return {
+            ...submission,
+            has_completed_revision: !!completedSession,
+            session_id: completedSession?.id
+        };
+    });
+    
+    const submissions = activeTab === 'active' ? enrichedSubmissions : trashedSubmissions;
 
     const deleteMutation = useMutation({
         mutationFn: async (id) => {
@@ -322,11 +343,11 @@ export default function History() {
                                                                    <StatusIcon className="w-3 h-3 mr-1" />
                                                                    {statusConfig.label}
                                                                </Badge>
-                                                               {submission.revised_text && (
-                                                                   <Badge className="bg-emerald-100 text-emerald-700 border-0">
-                                                                       <Sparkles className="w-3 h-3 mr-1" />
-                                                                       Revised
-                                                                   </Badge>
+                                                               {(submission.revised_text || submission.has_completed_revision) && (
+                                                                  <Badge className="bg-emerald-100 text-emerald-700 border-0">
+                                                                      <Sparkles className="w-3 h-3 mr-1" />
+                                                                      Revised
+                                                                  </Badge>
                                                                )}
                                                                 {activeTab === 'active' ? (
                                                                     <Button
@@ -390,35 +411,39 @@ export default function History() {
                                                                     <Download className="w-3 h-3 mr-1" />
                                                                     Original
                                                                 </Button>
-                                                                {submission.revised_text ? (
-                                                                    <Button
-                                                                        size="sm"
-                                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                                                                        onClick={(e) => {
-                                                                            e.preventDefault();
-                                                                            e.stopPropagation();
-                                                                            const blob = new Blob([submission.revised_text], { type: 'text/plain' });
-                                                                            const url = URL.createObjectURL(blob);
-                                                                            const a = document.createElement('a');
-                                                                            a.href = url;
-                                                                            a.download = `${submission.title}_revised.txt`;
-                                                                            a.click();
-                                                                            URL.revokeObjectURL(url);
-                                                                            toast.success('Revised text downloaded');
-                                                                        }}
-                                                                    >
-                                                                        <Sparkles className="w-3 h-3 mr-1" />
-                                                                        Revised
-                                                                    </Button>
+                                                                {submission.revised_text || submission.session_id ? (
+                                                                   <Button
+                                                                       size="sm"
+                                                                       className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                                       onClick={(e) => {
+                                                                           e.preventDefault();
+                                                                           e.stopPropagation();
+                                                                           if (submission.revised_text) {
+                                                                               const blob = new Blob([submission.revised_text], { type: 'text/plain' });
+                                                                               const url = URL.createObjectURL(blob);
+                                                                               const a = document.createElement('a');
+                                                                               a.href = url;
+                                                                               a.download = `${submission.title}_revised.txt`;
+                                                                               a.click();
+                                                                               URL.revokeObjectURL(url);
+                                                                               toast.success('Revised text downloaded');
+                                                                           } else if (submission.session_id) {
+                                                                               window.location.href = createPageUrl(`Revise?session=${submission.session_id}`);
+                                                                           }
+                                                                       }}
+                                                                   >
+                                                                       <Sparkles className="w-3 h-3 mr-1" />
+                                                                       {submission.revised_text ? 'Download Revised' : 'View Revision'}
+                                                                   </Button>
                                                                 ) : (
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="outline"
-                                                                        disabled
-                                                                        className="opacity-50"
-                                                                    >
-                                                                        No Revision Yet
-                                                                    </Button>
+                                                                   <Button
+                                                                       size="sm"
+                                                                       variant="outline"
+                                                                       disabled
+                                                                       className="opacity-50"
+                                                                   >
+                                                                       No Revision Yet
+                                                                   </Button>
                                                                 )}
                                                                 <Button
                                                                     size="sm"
