@@ -539,15 +539,29 @@ export default function ManuscriptDashboard() {
                             size="sm" 
                             className="bg-purple-600 hover:bg-purple-700"
                             onClick={async () => {
-                              const session = await base44.entities.RevisionSession.create({
-                                submission_id: chapter.id,
-                                title: chapter.title,
-                                original_text: chapter.text,
-                                current_text: chapter.text,
-                                suggestions: [],
-                                status: 'in_progress'
-                              });
-                              window.location.href = createPageUrl(`Revise?session=${session.id}`);
+                              toast.loading('Generating revision suggestions...', { id: 'revision' });
+                              try {
+                                const session = await base44.entities.RevisionSession.create({
+                                  submission_id: chapter.id,
+                                  title: chapter.title,
+                                  original_text: chapter.text,
+                                  current_text: chapter.text,
+                                  suggestions: [],
+                                  status: 'in_progress'
+                                });
+
+                                // Generate suggestions
+                                const response = await base44.functions.invoke('generateRevisionSuggestions', {
+                                  session_id: session.id,
+                                  text: chapter.text,
+                                  style_mode: 'neutral'
+                                });
+
+                                toast.success('Revision suggestions ready!', { id: 'revision' });
+                                window.location.href = createPageUrl(`Revise?session=${session.id}`);
+                              } catch (error) {
+                                toast.error('Failed to generate suggestions', { id: 'revision' });
+                              }
                             }}
                           >
                             <Waves className="w-4 h-4 mr-2" />
