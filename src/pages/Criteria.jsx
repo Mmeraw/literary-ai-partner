@@ -107,7 +107,7 @@ export default function Criteria() {
                             </div>
 
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 mb-3">61+ WAVE Revision System</h3>
+                                <h3 className="text-lg font-semibold text-slate-900 mb-3">WAVE Revision System</h3>
                                 <p className="text-slate-700 mb-3">
                                     A professional, multi-pass revision framework organized in three tiers:
                                 </p>
@@ -126,7 +126,7 @@ export default function Criteria() {
                                     </div>
                                 </div>
                                 <p className="text-sm text-slate-600 italic">
-                                    Identifies 61+ craft-level failure modes including body-part clichés, filter verbs, mind-reading, generic nouns, negation stacks, motif overuse, reflexive redundancy, and more.
+                                    Identifies scores of craft-level failure modes including body-part clichés, filter verbs, mind-reading, generic nouns, negation stacks, motif overuse, reflexive redundancy, and more.
                                 </p>
                             </div>
                         </div>
