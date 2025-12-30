@@ -696,6 +696,18 @@ SCORING GUIDELINES:
         // Update manuscript with spine evaluation (apply integrity penalty)
         const adjustedSpineScore = Math.max(0, spineEvaluation.overallScore - integrityPenalty);
 
+        // Calculate Trusted Path zone based on spine score
+        const getTrustedPathZone = (score) => {
+            if (score < 6.0) return 'failure';
+            if (score < 8.0) return 'conditional';
+            return 'full';
+        };
+
+        const trustedPathZone = getTrustedPathZone(adjustedSpineScore);
+        const trustedPathCanPolish = trustedPathZone === 'full' ? true : 
+                                      trustedPathZone === 'conditional' ? 'limited' : 
+                                      false;
+
         // HARD HANDOFF STEP 1: Write spine terminal state FIRST
         await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
             spine_score: adjustedSpineScore,
@@ -704,7 +716,9 @@ SCORING GUIDELINES:
                 integrity_adjusted: !integrity.is_clean,
                 integrity_penalty: integrityPenalty,
                 raw_score: spineEvaluation.overallScore,
-                evaluation_mode: evaluationMode
+                evaluation_mode: evaluationMode,
+                trusted_path_zone: trustedPathZone,
+                trusted_path_can_polish: trustedPathCanPolish
             },
             spine_completed_at: new Date().toISOString(),
             status: 'spine_complete',
@@ -880,7 +894,19 @@ SCORING GUIDELINES:
         const revisiongradeOverall = manuscript.spine_score && avgChapterScore
             ? (0.5 * manuscript.spine_score + 0.5 * avgChapterScore)
             : manuscript.spine_score || avgChapterScore;
-        
+
+        // Calculate final Trusted Path zone based on composite score
+        const getTrustedPathZone = (score) => {
+            if (score < 6.0) return 'failure';
+            if (score < 8.0) return 'conditional';
+            return 'full';
+        };
+
+        const finalTrustedPathZone = getTrustedPathZone(revisiongradeOverall);
+        const finalCanPolish = finalTrustedPathZone === 'full' ? true : 
+                                finalTrustedPathZone === 'conditional' ? 'limited' : 
+                                false;
+
         const hasFailures = failedChapters.length > 0;
         const completionStatus = hasFailures ? 'ready_with_errors' : 'ready';
         const completionMessage = hasFailures 
@@ -916,7 +942,9 @@ SCORING GUIDELINES:
                 integrity_report: integrity,
                 integrity_clean: integrity.is_clean,
                 evaluation_mode: evaluationMode,
-                integrity_penalty_applied: integrityPenalty
+                integrity_penalty_applied: integrityPenalty,
+                trusted_path_zone: finalTrustedPathZone,
+                trusted_path_can_polish: finalCanPolish
             },
             evaluation_progress: {
                 chapters_total: finalChapters.length,

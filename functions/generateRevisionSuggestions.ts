@@ -70,7 +70,40 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    const { text, title, wave_number = 1, submission_id, session_id, evaluation_result, style_mode = 'neutral' } = await req.json();
+    const { text, title, wave_number = 1, submission_id, session_id, evaluation_result, style_mode = 'neutral', manuscript_score } = await req.json();
+
+    // TRUSTED PATH THRESHOLD GATING
+    // Calculate zone if manuscript_score provided
+    let trustedPathZone = null;
+    let canPolish = true;
+
+    if (manuscript_score !== undefined && manuscript_score !== null) {
+      if (manuscript_score < 6.0) {
+        trustedPathZone = 'failure';
+        canPolish = false;
+      } else if (manuscript_score < 8.0) {
+        trustedPathZone = 'conditional';
+        canPolish = 'limited';
+      } else {
+        trustedPathZone = 'full';
+        canPolish = true;
+      }
+    }
+
+    // Gate polish if in failure zone
+    if (trustedPathZone === 'failure') {
+      return Response.json({
+        error: 'structural_gating',
+        message: 'Structural readiness below threshold (6.0). Trusted Path is in diagnostic mode only.',
+        zone: trustedPathZone,
+        score: manuscript_score,
+        recommendations: [
+          'Focus on structural repair: missing beats, broken causality, unclear stakes',
+          'Address character motive gaps and scene purpose',
+          'Re-run evaluation after structural changes to unlock polish'
+        ]
+      }, { status: 403 });
+    }
 
     // Support both direct text/title (anonymous), submission_id, or session_id
     let workingText = text;
@@ -465,7 +498,17 @@ Return JSON with validated results.`;
     };
 
     // Add wave name, IDs, and sort by priority to approved suggestions
-    const suggestions = approvedSuggestions
+    // Apply conditional filtering if in conditional zone
+    let filteredSuggestions = approvedSuggestions;
+
+    if (trustedPathZone === 'conditional') {
+      // In conditional zone: only allow High and Medium priority, limit quantity
+      filteredSuggestions = approvedSuggestions
+        .filter(s => s.priority === 'High' || s.priority === 'Medium')
+        .slice(0, 20); // Limit to 20 safe edits in conditional zone
+    }
+
+    const suggestions = filteredSuggestions
       .map((s, idx) => {
         const altValidation = validateAlternatives(s, wave_number);
         return {
@@ -477,7 +520,8 @@ Return JSON with validated results.`;
           alternatives_status: altValidation.allows_alternatives ? null : "fidelity_locked",
           alternatives_reason: altValidation.alternatives_reason,
           lock_scope: altValidation.lock_scope,
-          lock_type: altValidation.lock_type
+          lock_type: altValidation.lock_type,
+          trusted_path_zone: trustedPathZone
         };
       })
       .sort((a, b) => {
@@ -525,7 +569,9 @@ Return JSON with validated results.`;
           session_id: session.id,
           wave_name: wave.name,
           suggestions,
-          wave_number 
+          wave_number,
+          trusted_path_zone: trustedPathZone,
+          trusted_path_can_polish: canPolish
         });
       } catch (dbError) {
         // If DB fails (e.g., anonymous user), return suggestions without saving
@@ -535,10 +581,12 @@ Return JSON with validated results.`;
           wave_name: wave.name,
           suggestions,
           wave_number,
-          anonymous: true
+          anonymous: true,
+          trusted_path_zone: trustedPathZone,
+          trusted_path_can_polish: canPolish
         });
       }
-    }
+      }
 
   } catch (error) {
     console.error('Revision generation error:', error);

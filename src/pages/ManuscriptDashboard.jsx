@@ -436,14 +436,26 @@ export default function ManuscriptDashboard() {
       ? (0.5 * manuscript.spine_score + 0.5 * avgChapterScore)
       : manuscript.spine_score || avgChapterScore);
 
-  // Trusted Path™ Threshold Zones
+  // Trusted Path™ Threshold Zones - prefer backend calculation
   const getTrustedPathZone = (score) => {
     if (score < 6.0) return { zone: 'failure', label: 'Structural Failure', color: 'red', canPolish: false };
     if (score < 8.0) return { zone: 'conditional', label: 'Conditional Readiness', color: 'amber', canPolish: 'limited' };
     return { zone: 'full', label: 'Full Trusted Path', color: 'emerald', canPolish: true };
   };
 
-  const trustedPathZone = globalScore ? getTrustedPathZone(globalScore) : null;
+  // Use backend-calculated zone if available, otherwise calculate from score
+  const trustedPathZone = manuscript?.revisiongrade_breakdown?.trusted_path_zone 
+    ? {
+        zone: manuscript.revisiongrade_breakdown.trusted_path_zone,
+        label: manuscript.revisiongrade_breakdown.trusted_path_zone === 'failure' ? 'Structural Failure' :
+               manuscript.revisiongrade_breakdown.trusted_path_zone === 'conditional' ? 'Conditional Readiness' :
+               'Full Trusted Path',
+        color: manuscript.revisiongrade_breakdown.trusted_path_zone === 'failure' ? 'red' :
+               manuscript.revisiongrade_breakdown.trusted_path_zone === 'conditional' ? 'amber' :
+               'emerald',
+        canPolish: manuscript.revisiongrade_breakdown.trusted_path_can_polish
+      }
+    : (globalScore ? getTrustedPathZone(globalScore) : null);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
