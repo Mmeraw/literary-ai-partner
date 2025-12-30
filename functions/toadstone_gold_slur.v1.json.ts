@@ -3,7 +3,7 @@
   "version": "1.0",
   "created": "2025-12-30",
   "frozen": false,
-  "description": "Controlled-risk gold standard for slur detection, classification, and action enforcement. Policy-critical: every entry sets precedent.",
+  "description": "Controlled-risk gold standard for slur detection, classification, and action enforcement. Covers explicit slurs, implicit references, and meta-linguistic framing.",
   "governance_rules": {
     "no_auto_rewrite": true,
     "slurs_only_in_context": true,
@@ -22,25 +22,30 @@
       "excerpt": "Marcus spat at the ground. \"Get out of here, you stupid n****r. This ain't your neighborhood.\"",
       "register": "dialogue",
       "register_lock": "hard",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_profanity": true,
+        "contains_slur": true
+      },
       "slur_detected": "n****r",
       "category": "race_ethnicity",
       "target_group": "Black people",
       "narrative_stance": "speaker_endorses",
       "risk_bucket": "VOICE_AUTHENTIC",
-      "allowed_action": "PRESERVE_WITH_FLAG",
-      "rationale": "Hard-locked dialogue depicting racist character. Voice-essential. Never auto-rewrite.",
       "wave_issues": [
         {
+          "wave_number": 99,
           "wave_item": "SLUR_DETECTED_RACIAL",
+          "detected_by_base44": true,
+          "is_true_positive": true,
           "label": "High-Risk Language: Racial Slur",
           "severity": "critical",
-          "true_positive": true,
           "correct_label": true,
           "correct_severity": true,
-          "correct_action": true,
+          "correct_action": "DO_NOT_AUTOREWRITE",
           "proposed_revision": null,
           "why_flagged": "Paradigmatic anti-Black racial slur in hostile dialogue context.",
-          "action_taken": "FLAG_FOR_MARKET_RISK"
+          "rationale": "Hard-locked dialogue depicting racist character. Voice-essential. Never auto-rewrite."
         }
       ]
     },
@@ -49,25 +54,30 @@
       "excerpt": "The graffiti read 'f****ts die here'—a stark reminder of the violence this community still faced daily.",
       "register": "narration",
       "register_lock": "none",
+      "style_flags": {
+        "allow_colloquial": false,
+        "allow_profanity": false,
+        "contains_slur": true
+      },
       "slur_detected": "f****ts",
       "category": "sexuality_gender",
       "target_group": "Gay men / Queer men",
       "narrative_stance": "narrator_condemns",
       "risk_bucket": "NARRATIVE_CONDEMNATION",
-      "allowed_action": "PRESERVE_WITH_FLAG",
-      "rationale": "Narrator reporting hate speech in critical context. Condemning stance clear. Preserve for thematic integrity.",
       "wave_issues": [
         {
+          "wave_number": 99,
           "wave_item": "SLUR_DETECTED_HOMOPHOBIC",
+          "detected_by_base44": true,
+          "is_true_positive": true,
           "label": "High-Risk Language: Homophobic Slur",
           "severity": "high",
-          "true_positive": true,
           "correct_label": true,
           "correct_severity": true,
-          "correct_action": true,
+          "correct_action": "DO_NOT_AUTOREWRITE",
           "proposed_revision": null,
           "why_flagged": "Homophobic slur in quoted hate speech context. Narrator condemns, but retailer/platform may flag.",
-          "action_taken": "FLAG_FOR_EDITORIAL_REVIEW"
+          "rationale": "Narrator reporting hate speech in critical context. Condemning stance clear. Preserve for thematic integrity."
         }
       ]
     },
@@ -76,25 +86,30 @@
       "excerpt": "\"Don't be such a r****d,\" Jake laughed, tossing the controller aside.",
       "register": "dialogue",
       "register_lock": "hard",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_profanity": true,
+        "contains_slur": true
+      },
       "slur_detected": "r****d",
       "category": "disability",
       "target_group": "People with intellectual disabilities",
       "narrative_stance": "speaker_endorses",
       "risk_bucket": "MARKET_RISK",
-      "allowed_action": "FLAG_ONLY",
-      "rationale": "Ableist slur in casual dialogue. Character voice, but high market risk (many platforms classify as hate content).",
       "wave_issues": [
         {
+          "wave_number": 99,
           "wave_item": "SLUR_DETECTED_ABLEIST",
+          "detected_by_base44": true,
+          "is_true_positive": true,
           "label": "High-Risk Language: Ableist Slur",
           "severity": "high",
-          "true_positive": true,
           "correct_label": true,
           "correct_severity": true,
-          "correct_action": true,
+          "correct_action": "DO_NOT_AUTOREWRITE",
           "proposed_revision": null,
           "why_flagged": "Disability-targeted slur used as casual insult. High platform content policy risk.",
-          "action_taken": "FLAG_FOR_MARKET_RISK"
+          "rationale": "Ableist slur in casual dialogue. Character voice, but high market risk."
         }
       ]
     },
@@ -103,25 +118,30 @@
       "excerpt": "\"We're here, we're queer, and we're not going anywhere,\" Maya shouted, fist raised. The crowd of queer activists roared approval.",
       "register": "narration",
       "register_lock": "none",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_profanity": false,
+        "contains_slur": false
+      },
       "slur_detected": "queer",
       "category": "sexuality_gender",
       "target_group": "LGBTQ+ people",
       "narrative_stance": "neutral_report",
       "risk_bucket": "VOICE_AUTHENTIC",
-      "allowed_action": "PRESERVE_WITH_FLAG",
-      "rationale": "Reclaimed term in in-group activist context. Widely accepted in contemporary LGBTQ+ usage. Low risk, but flag for awareness.",
       "wave_issues": [
         {
+          "wave_number": 99,
           "wave_item": "RECLAIMED_LANGUAGE_DETECTED",
+          "detected_by_base44": true,
+          "is_true_positive": true,
           "label": "Reclaimed Language: Context Review",
           "severity": "low",
-          "true_positive": true,
           "correct_label": true,
           "correct_severity": true,
-          "correct_action": true,
+          "correct_action": "PRESERVE_WITH_FLAG",
           "proposed_revision": null,
           "why_flagged": "Historically marginalized term now reclaimed by target community. In-group usage detected. Preserve.",
-          "action_taken": "FLAG_FOR_AWARENESS"
+          "rationale": "Reclaimed term in in-group activist context. Widely accepted in contemporary LGBTQ+ usage. Low risk, but flag for awareness."
         }
       ]
     },
@@ -130,160 +150,244 @@
       "excerpt": "\"Shut up, you stupid b***h,\" he snarled, his hand tightening around her wrist.",
       "register": "dialogue",
       "register_lock": "hard",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_profanity": true,
+        "contains_slur": true
+      },
       "slur_detected": "b***h",
       "category": "sexuality_gender",
       "target_group": "Women",
       "narrative_stance": "speaker_endorses",
       "risk_bucket": "MARKET_RISK",
-      "allowed_action": "PRESERVE_WITH_FLAG",
-      "rationale": "Gendered insult in hostile, violent context. Character voice depicting abuse. Preserve but flag for retailer sensitivity.",
       "wave_issues": [
         {
+          "wave_number": 99,
           "wave_item": "SLUR_DETECTED_GENDERED",
+          "detected_by_base44": true,
+          "is_true_positive": true,
           "label": "High-Risk Language: Gendered Slur",
           "severity": "medium",
-          "true_positive": true,
           "correct_label": true,
           "correct_severity": true,
-          "correct_action": true,
+          "correct_action": "DO_NOT_AUTOREWRITE",
           "proposed_revision": null,
           "why_flagged": "Misogynistic slur in violence/abuse context. Voice-authentic but market-sensitive.",
-          "action_taken": "FLAG_FOR_MARKET_RISK"
+          "rationale": "Gendered insult in hostile, violent context. Character voice depicting abuse. Preserve but flag for retailer sensitivity."
         }
       ]
     },
     {
-      "id": "slur_006_TEMPLATE_racial",
-      "excerpt": "[INSERT EXCERPT WITH RACIAL SLUR]",
-      "register": "[dialogue|narration|social_media|quoted_material]",
-      "register_lock": "[hard|soft|none]",
-      "slur_detected": "[TERM]",
-      "category": "race_ethnicity",
-      "target_group": "[SPECIFIC GROUP]",
-      "narrative_stance": "[speaker_endorses|narrator_condemns|neutral_report]",
-      "risk_bucket": "[VOICE_AUTHENTIC|NARRATIVE_CONDEMNATION|MARKET_RISK|PROHIBITED_USE]",
-      "allowed_action": "[PRESERVE_WITH_FLAG|FLAG_ONLY|BLOCK_AUTOREWRITE]",
-      "rationale": "[WHY THIS CLASSIFICATION?]",
+      "id": "SLUR-006",
+      "excerpt": "He spat the word [SLUR] like it was a curse, daring anyone to challenge him.",
+      "register": "dialogue",
+      "register_lock": "hard",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_profanity": true,
+        "contains_slur": true
+      },
       "wave_issues": [
         {
-          "wave_item": "SLUR_DETECTED_[CATEGORY]",
-          "label": "[LABEL TEXT]",
-          "severity": "[low|medium|high|critical]",
-          "true_positive": true,
-          "correct_label": true,
-          "correct_severity": true,
-          "correct_action": true,
-          "proposed_revision": null,
-          "why_flagged": "[EXPLANATION]",
-          "action_taken": "[ACTION]"
+          "wave_number": 99,
+          "wave_item": "SLUR_CONTEXT_HOSTILE",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "MARKET_RISK_REVIEW",
+          "severity": "high",
+          "correct_action": "DO_NOT_AUTOREWRITE",
+          "rationale": "Slur used intentionally in hostile dialogue; must be preserved for narrative authenticity but flagged for review."
         }
       ]
     },
     {
-      "id": "slur_007_TEMPLATE_antisemitic",
-      "excerpt": "[INSERT EXCERPT WITH ANTISEMITIC SLUR]",
-      "register": "[dialogue|narration|social_media|quoted_material]",
-      "register_lock": "[hard|soft|none]",
-      "slur_detected": "[TERM]",
-      "category": "religion",
-      "target_group": "Jewish people",
-      "narrative_stance": "[speaker_endorses|narrator_condemns|neutral_report]",
-      "risk_bucket": "[VOICE_AUTHENTIC|NARRATIVE_CONDEMNATION|MARKET_RISK|PROHIBITED_USE]",
-      "allowed_action": "[PRESERVE_WITH_FLAG|FLAG_ONLY|BLOCK_AUTOREWRITE]",
-      "rationale": "[WHY THIS CLASSIFICATION?]",
+      "id": "SLUR-007",
+      "excerpt": "They called him a [SLUR] behind his back, laughing like it was nothing.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_profanity": true
+      },
       "wave_issues": [
         {
-          "wave_item": "SLUR_DETECTED_ANTISEMITIC",
-          "label": "[LABEL TEXT]",
-          "severity": "[low|medium|high|critical]",
-          "true_positive": true,
-          "correct_label": true,
-          "correct_severity": true,
-          "correct_action": true,
-          "proposed_revision": null,
-          "why_flagged": "[EXPLANATION]",
-          "action_taken": "[ACTION]"
+          "wave_number": 99,
+          "wave_item": "SLUR_NARRATIVE_REFERENCE",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "MARKET_RISK_REVIEW",
+          "severity": "high",
+          "correct_action": "DO_NOT_AUTOREWRITE",
+          "rationale": "Narrative depiction of discrimination; must not be sanitized or normalized."
         }
       ]
     },
     {
-      "id": "slur_008_TEMPLATE_transphobic",
-      "excerpt": "[INSERT EXCERPT WITH TRANSPHOBIC SLUR]",
-      "register": "[dialogue|narration|social_media|quoted_material]",
-      "register_lock": "[hard|soft|none]",
-      "slur_detected": "[TERM]",
-      "category": "sexuality_gender",
-      "target_group": "Trans people",
-      "narrative_stance": "[speaker_endorses|narrator_condemns|neutral_report]",
-      "risk_bucket": "[VOICE_AUTHENTIC|NARRATIVE_CONDEMNATION|MARKET_RISK|PROHIBITED_USE]",
-      "allowed_action": "[PRESERVE_WITH_FLAG|FLAG_ONLY|BLOCK_AUTOREWRITE]",
-      "rationale": "[WHY THIS CLASSIFICATION?]",
+      "id": "SLUR-008",
+      "excerpt": "The word hung in the air — ugly, sharp, meant to wound.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": false
+      },
       "wave_issues": [
         {
-          "wave_item": "SLUR_DETECTED_TRANSPHOBIC",
-          "label": "[LABEL TEXT]",
-          "severity": "[low|medium|high|critical]",
-          "true_positive": true,
-          "correct_label": true,
-          "correct_severity": true,
-          "correct_action": true,
-          "proposed_revision": null,
-          "why_flagged": "[EXPLANATION]",
-          "action_taken": "[ACTION]"
+          "wave_number": 99,
+          "wave_item": "IMPLIED_SLUR_REFERENCE",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "VOICE_CONTEXT_ONLY",
+          "severity": "low",
+          "correct_action": "KEEP",
+          "rationale": "Implicit reference to a slur without repetition; literary framing, not abuse."
         }
       ]
     },
     {
-      "id": "slur_009_TEMPLATE_disability_reclaimed",
-      "excerpt": "[INSERT EXCERPT WITH DISABILITY TERM - RECLAIMED CONTEXT]",
-      "register": "[dialogue|narration|social_media|quoted_material]",
-      "register_lock": "[hard|soft|none]",
-      "slur_detected": "[TERM]",
-      "category": "disability",
-      "target_group": "[SPECIFIC DISABILITY COMMUNITY]",
-      "narrative_stance": "[speaker_endorses|narrator_condemns|neutral_report]",
-      "risk_bucket": "[VOICE_AUTHENTIC|NARRATIVE_CONDEMNATION|MARKET_RISK|PROHIBITED_USE]",
-      "allowed_action": "[PRESERVE_WITH_FLAG|FLAG_ONLY|BLOCK_AUTOREWRITE]",
-      "rationale": "[WHY THIS CLASSIFICATION?]",
+      "id": "SLUR-009",
+      "excerpt": "\"Say it again,\" he said, daring him to repeat the slur.",
+      "register": "dialogue",
+      "register_lock": "hard",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_profanity": true
+      },
       "wave_issues": [
         {
-          "wave_item": "RECLAIMED_LANGUAGE_DETECTED",
-          "label": "[LABEL TEXT]",
-          "severity": "[low|medium|high|critical]",
-          "true_positive": true,
-          "correct_label": true,
-          "correct_severity": true,
-          "correct_action": true,
-          "proposed_revision": null,
-          "why_flagged": "[EXPLANATION]",
-          "action_taken": "[ACTION]"
+          "wave_number": 99,
+          "wave_item": "SLUR_MENTION_META",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "MARKET_RISK_REVIEW",
+          "severity": "medium",
+          "correct_action": "DO_NOT_AUTOREWRITE",
+          "rationale": "Meta-reference to slur use; not itself a slur, but still sensitive."
         }
       ]
     },
     {
-      "id": "slur_010_TEMPLATE_xenophobic_dehumanizing",
-      "excerpt": "[INSERT EXCERPT WITH XENOPHOBIC/DEHUMANIZING LANGUAGE]",
-      "register": "[dialogue|narration|social_media|quoted_material]",
-      "register_lock": "[hard|soft|none]",
-      "slur_detected": "[TERM OR PHRASE]",
-      "category": "[race_ethnicity|nationality|class_status]",
-      "target_group": "[SPECIFIC GROUP]",
-      "narrative_stance": "[speaker_endorses|narrator_condemns|neutral_report]",
-      "risk_bucket": "[VOICE_AUTHENTIC|NARRATIVE_CONDEMNATION|MARKET_RISK|PROHIBITED_USE]",
-      "allowed_action": "[PRESERVE_WITH_FLAG|FLAG_ONLY|BLOCK_AUTOREWRITE]",
-      "rationale": "[WHY THIS CLASSIFICATION?]",
+      "id": "SLUR-010",
+      "excerpt": "The word was old, ugly, and soaked in history — a weapon disguised as language.",
+      "register": "neutral_narration",
+      "register_lock": "none",
+      "style_flags": {
+        "allow_colloquial": false
+      },
       "wave_issues": [
         {
-          "wave_item": "DEHUMANIZING_LANGUAGE_DETECTED",
-          "label": "[LABEL TEXT]",
-          "severity": "[low|medium|high|critical]",
-          "true_positive": true,
-          "correct_label": true,
-          "correct_severity": true,
-          "correct_action": true,
-          "proposed_revision": null,
-          "why_flagged": "[EXPLANATION]",
-          "action_taken": "[ACTION]"
+          "wave_number": 99,
+          "wave_item": "SLUR_HISTORICAL_CONTEXT",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "MARKET_RISK_REVIEW",
+          "severity": "medium",
+          "correct_action": "KEEP",
+          "rationale": "Historical framing of slur usage; educational and contextual."
+        }
+      ]
+    },
+    {
+      "id": "SLUR-011",
+      "excerpt": "He muttered something ugly under his breath — the kind of word you don't repeat.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 99,
+          "wave_item": "IMPLICIT_SLUR_REFERENCE",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "VOICE_CONTEXT_ONLY",
+          "severity": "low",
+          "correct_action": "KEEP",
+          "rationale": "Implicit reference avoids explicit reproduction; acceptable narrative strategy."
+        }
+      ]
+    },
+    {
+      "id": "SLUR-012",
+      "excerpt": "She recoiled when he used that word, the one everyone pretends not to hear.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": false
+      },
+      "wave_issues": [
+        {
+          "wave_number": 99,
+          "wave_item": "SLUR_EMOTIONAL_IMPACT",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "MARKET_RISK_REVIEW",
+          "severity": "medium",
+          "correct_action": "KEEP",
+          "rationale": "Depicts harm caused by language; does not endorse it."
+        }
+      ]
+    },
+    {
+      "id": "SLUR-013",
+      "excerpt": "The insult hit harder than the punch that followed.",
+      "register": "neutral_narration",
+      "register_lock": "none",
+      "style_flags": {
+        "allow_colloquial": false
+      },
+      "wave_issues": [
+        {
+          "wave_number": 99,
+          "wave_item": "IMPLICIT_SLUR_IMPACT",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "VOICE_CONTEXT_ONLY",
+          "severity": "low",
+          "correct_action": "KEEP",
+          "rationale": "Allusive reference to verbal abuse without repetition of slur."
+        }
+      ]
+    },
+    {
+      "id": "SLUR-014",
+      "excerpt": "He knew better than to repeat the word, even jokingly.",
+      "register": "neutral_narration",
+      "register_lock": "none",
+      "style_flags": {
+        "allow_colloquial": false
+      },
+      "wave_issues": [
+        {
+          "wave_number": 99,
+          "wave_item": "SLUR_AWARENESS",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "VOICE_CONTEXT_ONLY",
+          "severity": "low",
+          "correct_action": "KEEP",
+          "rationale": "Acknowledges slur awareness without reproducing it."
+        }
+      ]
+    },
+    {
+      "id": "SLUR-015",
+      "excerpt": "The room went quiet when the word was said — everyone knew what it meant.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": false
+      },
+      "wave_issues": [
+        {
+          "wave_number": 99,
+          "wave_item": "SLUR_CONTEXTUAL_SILENCE",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "MARKET_RISK_REVIEW",
+          "severity": "medium",
+          "correct_action": "KEEP",
+          "rationale": "Implicit depiction of harmful language without reproducing it; safe and contextually necessary."
         }
       ]
     }
