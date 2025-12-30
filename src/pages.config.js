@@ -45,6 +45,7 @@ import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
 import SlurHandlingPolicy from './pages/SlurHandlingPolicy';
+import EthicsAndSafety from './pages/EthicsAndSafety';
 import __Layout from './Layout.jsx';
 
 
@@ -96,6 +97,7 @@ export const PAGES = {
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
     "SlurHandlingPolicy": SlurHandlingPolicy,
+    "EthicsAndSafety": EthicsAndSafety,
 }
 
 export const pagesConfig = {

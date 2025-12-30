@@ -44,6 +44,7 @@ const resourcesPages = [
     { name: 'FAQ', page: 'FAQ', icon: HelpCircle },
     { name: 'Methodology', page: 'Methodology', icon: FileText },
     { name: 'WAVE Criteria', page: 'Criteria', icon: FileCheck },
+    { name: 'Ethics & Safety', page: 'EthicsAndSafety', icon: HelpCircle },
 ];
 
 export default function Layout({ children, currentPageName }) {
