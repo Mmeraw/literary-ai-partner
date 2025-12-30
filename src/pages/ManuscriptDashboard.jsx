@@ -151,25 +151,18 @@ export default function ManuscriptDashboard() {
     const percentComplete = progress.percent_complete || 0;
 
     const handleResumeEvaluation = async () => {
-      toast.info('Resuming evaluation...');
+      toast.info('Restarting evaluation...');
       try {
-        // Force status back to evaluating_chapters to ensure polling continues
-        await base44.entities.Manuscript.update(manuscriptId, {
-          status: 'evaluating_chapters',
-          evaluation_progress: {
-            ...progress,
-            current_step: 'Restarting evaluation...',
-            last_updated: new Date().toISOString()
-          }
-        });
-
+        // Trigger backend evaluation (will reset progress internally)
         await base44.functions.invoke('evaluateFullManuscript', {
           manuscript_id: manuscriptId
         });
-        toast.success('Evaluation restarted');
-        window.location.reload();
+        
+        toast.success('Evaluation restarted - progress will update automatically');
+        // No reload - let polling detect changes
       } catch (error) {
-        toast.error('Failed to resume. Try again.');
+        console.error('Resume error:', error);
+        toast.error('Failed to restart. Refresh page and try again.');
       }
     };
 
