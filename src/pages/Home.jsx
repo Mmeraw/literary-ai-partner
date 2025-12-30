@@ -218,21 +218,13 @@ export default function Home() {
             {/* How It Works - Workflow Diagram */}
             <div className="bg-slate-50 py-20">
                 <div className="max-w-6xl mx-auto px-6">
-                    <div className="text-center mb-10">
-                        <h2 className="text-4xl font-bold text-slate-900 mb-3">
-                            How the Revision Framework Works
-                        </h2>
-                    </div>
-                    <div className="flex justify-center mb-6">
+                    <div className="flex justify-center">
                         <img 
                             src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/81ce1b007_image.png"
                             alt="RevisionGrade End-to-End Author Workflow"
                             className="w-full max-w-4xl h-auto"
                         />
                     </div>
-                    <p className="text-center text-sm text-slate-600 italic mt-4">
-                        Where Evolution Meets Soul™
-                    </p>
                 </div>
             </div>
 
