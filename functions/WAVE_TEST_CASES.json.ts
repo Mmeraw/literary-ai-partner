@@ -1,0 +1,169 @@
+{
+  "test_cases": [
+    {
+      "wave_id": "WAVE-PSC-01",
+      "rule_name": "Physical State Continuity",
+      "text_snippet": "The notice curled at the corners, a film of dust over the paper. Blue Sharpie smeared like it was still wet where someone had dragged their thumb across it.",
+      "violation_type": "Contradictory physical state (aged + fresh)",
+      "why_it_fails": "Object described as long-aged (curling, dusty) and freshly smeared (wet ink) without transition language or causal explanation.",
+      "acceptable_fix_patterns": [
+        "The notice curled at the corners, a film of dust over the paper, the blue Sharpie long since blurred by rain and fingers.",
+        "The notice's corner had just begun to curl, dust not yet settled, blue Sharpie still wet where someone had dragged a thumb through it.",
+        "The notice curled at the corners, dust caught along the edge, but a fresh streak of blue showed where someone had recently tried to rub the name away."
+      ],
+      "severity": "Moderate",
+      "auto_fix_allowed": false,
+      "criterion_mapping": "Criterion 12: Narrative Closure & Promises Kept"
+    },
+    {
+      "wave_id": "WAVE-AUTH-01",
+      "rule_name": "Document Boundary Hygiene",
+      "text_snippet": "https://en.wikipedia.org/wiki/Naval_Station_Norfolk_Chambers_Field\n\nCdr V.U. Auns - 12 Dec 1983 - 16 Aug 1985 http://www.forposterityssake.ca/Navy/HMCS_FRASER_233.htm",
+      "violation_type": "Research notes embedded in narrative",
+      "why_it_fails": "Raw URLs and citations inside story text break immersion and signal 'draft artifact,' not finished prose.",
+      "acceptable_fix_patterns": [
+        "Move URLs to endnotes section",
+        "Replace with clean dateline: 'Naval Air Station, Norfolk, Virginia — 1985.'",
+        "Convert to in-scene image without citation"
+      ],
+      "severity": "Hard",
+      "auto_fix_allowed": false,
+      "criterion_mapping": "Criterion 10: Line-Level Craft & Polish"
+    },
+    {
+      "wave_id": "WAVE-C-01",
+      "rule_name": "Voice Drift / Register Control",
+      "text_snippet": "Aerial view of Norfolk naval base, 18 October 1985, with (left to right) the aircraft carriers America, John F. Kennedy, Nimitz, and Dwight D. Eisenhower moored at piers No. 11 and 12.",
+      "violation_type": "Research-caption intrusion",
+      "why_it_fails": "Register shifts from memoir/scene voice into museum placard language; momentum stalls.",
+      "acceptable_fix_patterns": [
+        "Four carriers sat like steel apartment blocks at the piers—America, Kennedy, Nimitz, Eisenhower.",
+        "Names big enough to swallow the harbor lined the waterfront.",
+        "The base looked staged for a postcard—until you got close enough to smell it."
+      ],
+      "severity": "Moderate",
+      "auto_fix_allowed": false,
+      "criterion_mapping": "Criterion 2: Narrative Voice & Style"
+    },
+    {
+      "wave_id": "WAVE-10-01",
+      "rule_name": "Placeholder Language",
+      "text_snippet": "local banks, hospitals, and other places where women were known to work",
+      "violation_type": "Vague catch-all",
+      "why_it_fails": "'Other places' is soft generality; reads like summary instead of sharp authority.",
+      "acceptable_fix_patterns": [
+        "local banks, hospitals, and credit unions",
+        "reception desks, ward stations, and switchboards",
+        "Delete 'and other places' entirely"
+      ],
+      "severity": "Soft",
+      "auto_fix_allowed": false,
+      "criterion_mapping": "Criterion 10: Line-Level Craft & Polish"
+    },
+    {
+      "wave_id": "WAVE-B-01",
+      "rule_name": "Image vs Interpretation",
+      "text_snippet": "Knowing he was from India, I knew his words were genuine.",
+      "violation_type": "Tell instead of show",
+      "why_it_fails": "Tells reader what to conclude instead of letting behavior/voice prove sincerity.",
+      "acceptable_fix_patterns": [
+        "He said it simply, like it was literal.",
+        "It didn't sound like flirtation; it sounded like duty.",
+        "I assumed sincerity—maybe because I wanted it."
+      ],
+      "severity": "Moderate",
+      "auto_fix_allowed": false,
+      "criterion_mapping": "Criterion 5: Thematic Resonance"
+    },
+    {
+      "wave_id": "WAVE-5-01",
+      "rule_name": "Adverb & Intensifier Diet",
+      "text_snippet": "It spread so quickly, I looked like Elephant Man.",
+      "violation_type": "Intensifier scaffolding",
+      "why_it_fails": "'So quickly' is classic intensifier that signals verb/image isn't doing full work.",
+      "acceptable_fix_patterns": [
+        "By morning, my nose was three times its size.",
+        "Each hour made it worse.",
+        "The swelling outran sleep."
+      ],
+      "severity": "Soft",
+      "auto_fix_allowed": true,
+      "criterion_mapping": "Criterion 10: Line-Level Craft & Polish"
+    },
+    {
+      "wave_id": "WAVE-B-02",
+      "rule_name": "Trust the Image",
+      "text_snippet": "Apparently, I was about four hours away from death, since the infection was eating its way through my soft tissue toward my brain.",
+      "violation_type": "Over-explanation of danger",
+      "why_it_fails": "The 'Elephant Man' image + ER urgency already carries danger; 'apparently' line explains what scene proves.",
+      "acceptable_fix_patterns": [
+        "The doctor didn't sit. He called for antibiotics before he finished looking.",
+        "They moved like they'd seen this end badly.",
+        "Someone said 'brain' and nobody corrected him."
+      ],
+      "severity": "Moderate",
+      "auto_fix_allowed": false,
+      "criterion_mapping": "Criterion 9: Stakes & Emotional Investment"
+    },
+    {
+      "wave_id": "WAVE-AUTH-02",
+      "rule_name": "Technical Noun Correctness",
+      "text_snippet": "the back of ship slammed into the wooden peer",
+      "violation_type": "Word choice error",
+      "why_it_fails": "Should be 'pier' not 'peer'; technical error breaks credibility in military/naval context.",
+      "acceptable_fix_patterns": [
+        "the back of the ship slammed into the wooden pier",
+        "the stern slammed into the timber pier",
+        "the ship's aft quarter hit the jetty"
+      ],
+      "severity": "Hard",
+      "auto_fix_allowed": true,
+      "criterion_mapping": "Criterion 10: Line-Level Craft & Polish"
+    },
+    {
+      "wave_id": "WAVE-4-01",
+      "rule_name": "Filter Verbs",
+      "text_snippet": "It was a terrifying move, seeing the ship charge towards the wooden pier.",
+      "violation_type": "Unnecessary camera layer",
+      "why_it_fails": "'Seeing' construction adds filter layer; sentence hits harder by delivering action directly.",
+      "acceptable_fix_patterns": [
+        "It was terrifying—the ship charging the pier.",
+        "The ship charged the pier; nobody breathed.",
+        "The pier rushed up, and the anchor still hadn't bitten."
+      ],
+      "severity": "Soft",
+      "auto_fix_allowed": false,
+      "criterion_mapping": "Criterion 2: Narrative Voice & Style"
+    },
+    {
+      "wave_id": "WAVE-CLOSURE-01",
+      "rule_name": "Thread Disappearance Without Signal",
+      "text_snippet": "I had singled out three women... Diane... She was my favorite. First choice. [Never mentioned again]",
+      "violation_type": "Character thread vanishes",
+      "why_it_fails": "Major thread introduced with stakes then disappears without on-page closure or acknowledgment.",
+      "acceptable_fix_patterns": [
+        "Diane never showed up.",
+        "That was the last I heard from Diane.",
+        "She chose not to come—I learned why years later."
+      ],
+      "severity": "Moderate",
+      "auto_fix_allowed": false,
+      "criterion_mapping": "Criterion 12: Narrative Closure & Promises Kept"
+    }
+  ],
+  "testing_protocol": {
+    "purpose": "Prevent regression; ensure WAVE catches authentic literary errors without over-correcting style",
+    "validation_steps": [
+      "Run evaluation against each test case",
+      "Verify flag triggers correctly",
+      "Confirm no false positives on acceptable_fix_patterns",
+      "Check severity classification matches human judgment",
+      "Ensure auto_fix_allowed is respected"
+    ],
+    "success_criteria": {
+      "detection_rate": "95%+ on flagged violations",
+      "false_positive_rate": "<5% on clean text",
+      "severity_accuracy": "90%+ matches human classification"
+    }
+  }
+}
