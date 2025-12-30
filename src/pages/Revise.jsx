@@ -30,7 +30,28 @@ export default function Revise() {
     queryFn: async () => {
       if (!sessionId) return null;
       const sessions = await base44.entities.RevisionSession.filter({ id: sessionId });
-      return sessions[0] || null;
+      const sess = sessions[0] || null;
+      
+      // If session has no suggestions, generate them
+      if (sess && (!sess.suggestions || sess.suggestions.length === 0)) {
+        toast.loading('Generating revision suggestions...', { id: 'gen-suggestions' });
+        try {
+          await base44.functions.invoke('generateRevisionSuggestions', {
+            session_id: sess.id,
+            text: sess.original_text,
+            style_mode: sess.style_mode || 'neutral'
+          });
+          // Refetch to get updated suggestions
+          const updated = await base44.entities.RevisionSession.filter({ id: sessionId });
+          toast.success('Suggestions ready!', { id: 'gen-suggestions' });
+          return updated[0] || null;
+        } catch (error) {
+          toast.error('Failed to generate suggestions', { id: 'gen-suggestions' });
+          console.error('Suggestion generation error:', error);
+        }
+      }
+      
+      return sess;
     },
     enabled: !!sessionId
   });
