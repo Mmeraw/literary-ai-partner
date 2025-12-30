@@ -640,15 +640,19 @@ WAVE SYSTEM FRAMEWORK:
                         timestamp: new Date().toISOString()
                     });
 
-                    // Use fallback WAVE results
-                    waveAnalysis = {
-                        waveScore: agentAnalysis.overallScore, // Use agent score as fallback
-                        criticalIssues: ['WAVE analysis timed out - using agent-only scoring'],
-                        strengthAreas: [],
-                        waveHits: [],
-                        partial: true,
-                        error: waveError.message
-                    };
+                    // After WAVE_MAX_RETRIES, fail the WAVE portion but keep agent results
+                    if (attempt === WAVE_MAX_RETRIES - 1) {
+                        console.log(`WAVE failed after ${WAVE_MAX_RETRIES} attempts - using agent-only scoring`);
+                        waveAnalysis = {
+                            waveScore: agentAnalysis.overallScore, // Use agent score as fallback
+                            criticalIssues: [`WAVE analysis failed after ${WAVE_MAX_RETRIES} attempts - using agent-only scoring`],
+                            strengthAreas: [],
+                            waveHits: [],
+                            partial: true,
+                            error: waveError.message,
+                            retry_exhausted: true
+                        };
+                    }
                     }
 
                     // Combined score: 50% agent + 50% WAVE (apply integrity penalty)
