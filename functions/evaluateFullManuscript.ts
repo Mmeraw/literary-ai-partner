@@ -401,17 +401,17 @@ SCORING GUIDELINES:
                     }
                 });
 
-            // Timeout wrapper for LLM calls (2 minutes max per chapter)
-            const withTimeout = (promise, timeoutMs = 120000) => {
+            // Timeout wrapper for LLM calls
+            const withTimeout = (promise, timeoutMs = 120000, label = 'Operation') => {
                 return Promise.race([
                     promise,
                     new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('Chapter evaluation timeout - continuing with next chapter')), timeoutMs)
+                        setTimeout(() => reject(new Error(`${label} timeout after ${timeoutMs/1000}s`)), timeoutMs)
                     )
                 ]);
             };
 
-            // Story Evaluation (Agents, Editors, Script Readers)
+            // Story Evaluation (Agents, Editors, Script Readers) - 2 minute timeout
                 const agentAnalysis = await withTimeout(
                     base44.asServiceRole.integrations.Core.InvokeLLM({
                     prompt: `You are a professional evaluator (agent/editor/script reader). Analyze this chapter against the 12 Story Evaluation Criteria.
@@ -476,26 +476,33 @@ Provide overall score (1-10) and verdict.`,
                         }
                     },
                     required: ["overallScore", "verdict", "criteria"]
-                }
-                })
-                );
-
-                // Show "Running WAVE analysis" progress
-                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-                    evaluation_progress: {
-                        chapters_total: chapters.length,
-                        chapters_summarized: chapters.length,
-                        chapters_wave_done: i,
-                        current_phase: 'wave',
-                        percent_complete: wavePercent + 2,
-                        current_step: `Chapter ${i + 1}: Running 63 WAVE craft checks...`,
-                        last_updated: new Date().toISOString()
                     }
-                });
+                    }),
+                    120000,
+                    'Agent Analysis'
+                    );
 
-                // WAVE Revision System evaluation (61+ waves, three-tier framework)
-                const waveAnalysis = await withTimeout(
-                base44.asServiceRole.integrations.Core.InvokeLLM({
+                    // Show "Running WAVE analysis" progress
+                    await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                    evaluation_progress: {
+                    chapters_total: freshChapters.length,
+                    chapters_summarized: freshChapters.length,
+                    chapters_wave_done: i,
+                    current_phase: 'wave',
+                    percent_complete: wavePercent + 2,
+                    current_step: `Chapter ${i + 1}: Running 63 WAVE craft checks...`,
+                    last_updated: new Date().toISOString()
+                    }
+                    });
+
+                    // WAVE Revision System evaluation (61+ waves, three-tier framework)
+                    // Use shorter timeout (90s) to fail fast on problematic waves
+                    let waveAnalysis;
+                    let waveErrors = [];
+
+                    try {
+                    waveAnalysis = await withTimeout(
+                    base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are an elite developmental editor applying the complete WAVE Revision System (61+ waves organized in three tiers).
 
 CRITICAL WAVE RULES (NON-NEGOTIABLE):
@@ -618,8 +625,30 @@ WAVE SYSTEM FRAMEWORK:
                     },
                     required: ["waveScore", "criticalIssues", "strengthAreas", "waveHits"]
                     }
-                    })
+                    }),
+                    90000,
+                    'WAVE Analysis'
                     );
+                } catch (waveError) {
+                    console.error(`WAVE analysis failed for chapter ${i + 1}:`, waveError.message);
+                    
+                    // Log the failure but continue with degraded results
+                    waveErrors.push({
+                        phase: 'full_wave_analysis',
+                        error: waveError.message,
+                        timestamp: new Date().toISOString()
+                    });
+                    
+                    // Use fallback WAVE results
+                    waveAnalysis = {
+                        waveScore: agentAnalysis.overallScore, // Use agent score as fallback
+                        criticalIssues: ['WAVE analysis timed out - using agent-only scoring'],
+                        strengthAreas: [],
+                        waveHits: [],
+                        partial: true,
+                        error: waveError.message
+                    };
+                }
 
                     // Combined score: 50% agent + 50% WAVE (apply integrity penalty)
             const rawCombinedScore = (agentAnalysis.overallScore * 0.5) + (waveAnalysis.waveScore * 0.5);
@@ -638,22 +667,31 @@ WAVE SYSTEM FRAMEWORK:
                     waveScore: waveAnalysis.waveScore,
                     integrity_adjusted: !integrity.is_clean,
                     integrity_penalty: integrityPenalty,
-                    evaluation_mode: evaluationMode
+                    evaluation_mode: evaluationMode,
+                    wave_errors: waveErrors.length > 0 ? waveErrors : undefined,
+                    partial_wave: waveAnalysis.partial || false
                 },
                 wave_results_json: waveAnalysis,
-                status: 'evaluated'
+                status: 'evaluated',
+                error_message: waveErrors.length > 0 
+                    ? `Completed with ${waveErrors.length} WAVE check(s) skipped due to timeout` 
+                    : null
             });
 
             // Update progress after successful evaluation
-            const wavePercent = 40 + Math.floor(((i + 1) / chapters.length) * 50);
+            const wavePercent = 40 + Math.floor(((i + 1) / freshChapters.length) * 50);
+            const stepMessage = waveErrors.length > 0 
+                ? `Evaluated ${i + 1}/${freshChapters.length} chapters (${waveErrors.length} WAVE check(s) skipped)`
+                : `Evaluated ${i + 1}/${freshChapters.length} chapters`;
+                
             await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                 evaluation_progress: {
-                    chapters_total: chapters.length,
-                    chapters_summarized: chapters.length,
+                    chapters_total: freshChapters.length,
+                    chapters_summarized: freshChapters.length,
                     chapters_wave_done: i + 1,
                     current_phase: 'wave',
                     percent_complete: wavePercent,
-                    current_step: `Evaluated ${i + 1}/${chapters.length} chapters`,
+                    current_step: stepMessage,
                     last_updated: new Date().toISOString()
                 }
             });
