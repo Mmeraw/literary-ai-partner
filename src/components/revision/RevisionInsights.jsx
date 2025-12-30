@@ -41,7 +41,7 @@ export default function RevisionInsights({ session }) {
 
   return (
     <Card className="bg-white border-slate-200">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-indigo-600" />
           Revision Insights
@@ -54,10 +54,10 @@ export default function RevisionInsights({ session }) {
               <div className="flex items-center justify-center mb-1">
                 <insight.icon className={`w-4 h-4 ${insight.color}`} />
               </div>
-              <div className={`text-xl font-bold ${insight.color}`}>
+              <div className={`text-lg font-bold ${insight.color}`}>
                 {insight.value}
               </div>
-              <div className="text-xs text-slate-500 mt-1">
+              <div className="text-xs text-slate-500">
                 {insight.label}
               </div>
             </div>
