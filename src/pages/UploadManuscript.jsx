@@ -7,10 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Loader2, BookOpen, FileText } from 'lucide-react';
 import { toast } from "sonner";
 import { createPageUrl } from '@/utils';
+import TransgressiveModeSelector from '@/components/evaluation/TransgressiveModeSelector';
 
 export default function UploadManuscript() {
   const [title, setTitle] = useState('');
   const [text, setText] = useState(sessionStorage.getItem('uploadedText') || '');
+  const [evaluationMode, setEvaluationMode] = useState('standard');
   const [isUploading, setIsUploading] = useState(false);
 
   // Clear sessionStorage after loading
@@ -55,6 +57,7 @@ export default function UploadManuscript() {
         title: manuscriptTitle,
         full_text: text,
         word_count: wordCount,
+        evaluation_mode: evaluationMode,
         status: 'splitting'
       });
 
@@ -170,6 +173,13 @@ export default function UploadManuscript() {
               <p className="mt-1 text-xs text-slate-500">
                 You can submit partial drafts, excerpts, or complete works. Your text is never shared or published.
               </p>
+            </div>
+
+            <div className="p-4 sm:p-6 rounded-xl bg-white border border-slate-200">
+              <TransgressiveModeSelector 
+                value={evaluationMode}
+                onChange={setEvaluationMode}
+              />
             </div>
 
             <div className="p-3 sm:p-4 rounded-lg bg-indigo-50 border border-indigo-200">

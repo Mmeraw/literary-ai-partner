@@ -14,6 +14,7 @@ import SuggestionCard from '@/components/evaluation/SuggestionCard';
 import CriteriaPanel from '@/components/evaluation/CriteriaPanel';
 import FinalOutput from '@/components/evaluation/FinalOutput';
 import StyleModeSelector from '@/components/evaluation/StyleModeSelector';
+import TransgressiveModeSelector from '@/components/evaluation/TransgressiveModeSelector';
 import ThoughtTagCard from '@/components/evaluation/ThoughtTagCard';
 
 // 13 Story Evaluation Criteria (Agent/Editor Standards)
@@ -131,14 +132,20 @@ export default function Evaluate() {
     const [title, setTitle] = useState('');
     const [text, setText] = useState('');
     const [styleMode, setStyleMode] = useState('neutral');
+    const [evaluationMode, setEvaluationMode] = useState('standard');
     
     // Load screenplay from session storage if available
     React.useEffect(() => {
         const screenplayText = sessionStorage.getItem('screenplay_text');
+        const screenplayMode = sessionStorage.getItem('screenplay_mode');
         if (screenplayText) {
             setText(screenplayText);
             setTitle('Formatted Screenplay');
             sessionStorage.removeItem('screenplay_text');
+        }
+        if (screenplayMode) {
+            setEvaluationMode(screenplayMode);
+            sessionStorage.removeItem('screenplay_mode');
         }
     }, []);
     const [currentStep, setCurrentStep] = useState(1);
@@ -181,7 +188,8 @@ export default function Evaluate() {
             const response = await base44.functions.invoke('evaluateQuickSubmission', {
                 title,
                 text,
-                styleMode
+                styleMode,
+                evaluationMode
             });
 
             if (!response.data.success) {
@@ -275,6 +283,13 @@ export default function Evaluate() {
                                     <StyleModeSelector 
                                         value={styleMode}
                                         onChange={setStyleMode}
+                                    />
+                                </div>
+
+                                <div className="p-6 rounded-xl bg-white border border-slate-200">
+                                    <TransgressiveModeSelector 
+                                        value={evaluationMode}
+                                        onChange={setEvaluationMode}
                                     />
                                 </div>
 

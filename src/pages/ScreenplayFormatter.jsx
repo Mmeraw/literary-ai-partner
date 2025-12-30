@@ -9,10 +9,12 @@ import { Film, Loader2, Download, Sparkles, ArrowRight, Copy } from 'lucide-reac
 import { toast } from "sonner";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import TransgressiveModeSelector from '@/components/evaluation/TransgressiveModeSelector';
 
 export default function ScreenplayFormatter() {
     const [inputText, setInputText] = useState(sessionStorage.getItem('uploadedText') || '');
     const [formattedText, setFormattedText] = useState('');
+    const [evaluationMode, setEvaluationMode] = useState('standard');
     const [isFormatting, setIsFormatting] = useState(false);
     const [mode, setMode] = useState('auto');
 
@@ -65,6 +67,7 @@ export default function ScreenplayFormatter() {
 
     const handleSendToEvaluation = () => {
         sessionStorage.setItem('screenplay_text', formattedText);
+        sessionStorage.setItem('screenplay_mode', evaluationMode);
         window.location.href = createPageUrl('Evaluate');
     };
 
@@ -116,8 +119,14 @@ export default function ScreenplayFormatter() {
                                     : "Paste crude screenplay here...\n\nExample:\nLocation: Store\nBrutus steps inside.\nThe man grins.\n\"Welcome,\" he says..."
                                 }
                                 className="min-h-[500px] font-mono text-sm"
-                            />
-                            <div className="mt-4 flex gap-3">
+                                />
+                                <div className="mt-4 p-4 rounded-xl bg-white border border-slate-200">
+                                <TransgressiveModeSelector 
+                                   value={evaluationMode}
+                                   onChange={setEvaluationMode}
+                                />
+                                </div>
+                                <div className="mt-4 flex gap-3">
                                 <Button
                                     onClick={handleFormat}
                                     disabled={isFormatting || !inputText.trim()}
