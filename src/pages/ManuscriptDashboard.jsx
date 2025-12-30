@@ -24,12 +24,13 @@ export default function ManuscriptDashboard() {
     },
     enabled: !!manuscriptId,
     refetchInterval: (data) => {
-      // Poll every 3 seconds if evaluating
-      return ['summarizing', 'spine_evaluating', 'evaluating_chapters'].includes(data?.status) ? 3000 : false;
+      // Poll every 2 seconds if evaluating
+      return ['summarizing', 'spine_evaluating', 'evaluating_chapters'].includes(data?.status) ? 2000 : false;
     },
     refetchIntervalInBackground: true,
     refetchOnMount: true,
-    refetchOnWindowFocus: true
+    refetchOnWindowFocus: true,
+    staleTime: 0
   });
 
   const { data: chapters = [], isLoading: loadingChapters } = useQuery({
