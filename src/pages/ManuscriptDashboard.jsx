@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,8 @@ export default function ManuscriptDashboard() {
   const [searchParams] = useSearchParams();
   const manuscriptId = searchParams.get('id');
   const [isEvaluatingSpine, setIsEvaluatingSpine] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: manuscript, isLoading: loadingManuscript } = useQuery({
     queryKey: ['manuscript', manuscriptId],
@@ -151,18 +153,24 @@ export default function ManuscriptDashboard() {
     const percentComplete = progress.percent_complete || 0;
 
     const handleResumeEvaluation = async () => {
+      setIsRestarting(true);
       toast.info('Restarting evaluation...');
       try {
-        // Trigger backend evaluation (will reset progress internally)
+        // Trigger backend evaluation
         await base44.functions.invoke('evaluateFullManuscript', {
           manuscript_id: manuscriptId
         });
         
-        toast.success('Evaluation restarted - progress will update automatically');
-        // No reload - let polling detect changes
+        // Force immediate refetch to pick up changes
+        await queryClient.invalidateQueries({ queryKey: ['manuscript', manuscriptId] });
+        await queryClient.refetchQueries({ queryKey: ['manuscript', manuscriptId] });
+        
+        toast.success('Evaluation restarted successfully');
       } catch (error) {
         console.error('Resume error:', error);
-        toast.error('Failed to restart. Refresh page and try again.');
+        toast.error('Failed to restart. Please try again.');
+      } finally {
+        setIsRestarting(false);
       }
     };
 
@@ -235,8 +243,16 @@ export default function ManuscriptDashboard() {
                 variant="outline"
                 size="sm"
                 className="w-full"
+                disabled={isRestarting}
               >
-                Force Restart Evaluation
+                {isRestarting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Restarting...
+                  </>
+                ) : (
+                  'Force Restart Evaluation'
+                )}
               </Button>
             </div>
             </CardContent>
