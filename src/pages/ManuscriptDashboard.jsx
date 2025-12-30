@@ -150,20 +150,20 @@ export default function ManuscriptDashboard() {
   }
 
   // Show evaluation progress screen (exclude ready_with_errors - that shows results)
-  if (['summarizing', 'spine_evaluating', 'spine_complete', 'evaluating_chapters'].includes(manuscript?.status)) {
+  if (['summarizing', 'spine_evaluating', 'spine_complete', 'wave_trigger_retrying', 'evaluating_chapters'].includes(manuscript?.status)) {
     const progress = manuscript.evaluation_progress || {};
     const percentComplete = progress.percent_complete || 0;
 
     const handleResumeEvaluation = async () => {
       setIsRestarting(true);
-      toast.info('Restarting evaluation...');
+      toast.info('Resuming chapter evaluation...');
       try {
         // Trigger backend evaluation (runs in background)
         await base44.functions.invoke('evaluateFullManuscript', {
           manuscript_id: manuscriptId
         });
 
-        toast.success('Evaluation restarted - polling for updates...');
+        toast.success('Chapter evaluation resumed - polling for updates...');
 
         // Wait 2 seconds then force refetch
         setTimeout(() => {
@@ -172,7 +172,7 @@ export default function ManuscriptDashboard() {
         }, 2000);
       } catch (error) {
         console.error('Resume error:', error);
-        toast.error('Failed to restart. Please try again.');
+        toast.error('Failed to resume. Please try again.');
       } finally {
         setIsRestarting(false);
       }
@@ -240,7 +240,13 @@ export default function ManuscriptDashboard() {
 
             <div className="mt-6 p-4 rounded-lg bg-indigo-50 border border-indigo-200">
               <p className="text-xs text-indigo-800 mb-3">
-                Stuck at {percentComplete}%? Evaluation runs in background—click below to force restart from current position.
+                {manuscript.status === 'spine_complete' && !manuscript.phase_3_started_at ? (
+                  <>Spine complete—WAVE analysis not started. Click below to resume chapter evaluation.</>
+                ) : manuscript.status === 'wave_trigger_retrying' ? (
+                  <>Auto-retry in progress (attempt {manuscript.wave_trigger_retry_count || 0}/2). Wait or force restart below.</>
+                ) : (
+                  <>Stuck at {percentComplete}%? Evaluation runs in background—click below to force restart from current position.</>
+                )}
               </p>
               <Button
                 onClick={handleResumeEvaluation}
@@ -252,8 +258,10 @@ export default function ManuscriptDashboard() {
                 {isRestarting ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Restarting...
+                    Resuming...
                   </>
+                ) : manuscript.status === 'spine_complete' ? (
+                  'Resume Chapter Evaluation'
                 ) : (
                   'Force Restart Evaluation'
                 )}
@@ -271,6 +279,71 @@ export default function ManuscriptDashboard() {
         <Card>
           <CardContent className="p-6">
             <p className="text-slate-600">Manuscript not found</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show terminal failure screen if Phase 3 trigger permanently failed
+  if (manuscript.status === 'wave_trigger_failed') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-red-50 flex items-center justify-center">
+        <Card className="border-0 shadow-2xl max-w-2xl w-full mx-4 border-red-200">
+          <CardContent className="p-8">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-red-100 mb-4">
+                <span className="text-3xl">⚠️</span>
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Evaluation Failed</h2>
+              <p className="text-slate-600">
+                Chapter analysis could not start after multiple attempts
+              </p>
+            </div>
+
+            <div className="p-4 rounded-lg bg-red-50 border border-red-200 mb-6">
+              <p className="text-sm text-red-800 mb-2">
+                <strong>Error:</strong> {manuscript.wave_trigger_error || 'Phase 3 failed to trigger'}
+              </p>
+              <p className="text-xs text-red-700">
+                Failed at: {new Date(manuscript.wave_trigger_failed_at).toLocaleString()}
+              </p>
+            </div>
+
+            {manuscript.spine_score && (
+              <div className="p-4 rounded-lg bg-green-50 border border-green-200 mb-6">
+                <p className="text-sm text-green-800">
+                  <strong>Good news:</strong> Spine evaluation completed successfully with a score of <strong>{manuscript.spine_score.toFixed(1)}/10</strong>
+                </p>
+              </div>
+            )}
+
+            <Button
+              onClick={async () => {
+                setIsRestarting(true);
+                toast.info('Attempting to resume chapter evaluation...');
+                try {
+                  await base44.functions.invoke('evaluateFullManuscript', { manuscript_id: manuscriptId });
+                  toast.success('Retry started - refreshing...');
+                  setTimeout(() => window.location.reload(), 2000);
+                } catch (error) {
+                  toast.error('Retry failed. Please contact support.');
+                } finally {
+                  setIsRestarting(false);
+                }
+              }}
+              className="w-full"
+              disabled={isRestarting}
+            >
+              {isRestarting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Retrying...
+                </>
+              ) : (
+                'Retry Chapter Evaluation'
+              )}
+            </Button>
           </CardContent>
         </Card>
       </div>

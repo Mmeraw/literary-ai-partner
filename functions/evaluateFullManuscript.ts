@@ -658,19 +658,55 @@ SCORING GUIDELINES:
                 evaluation_mode: evaluationMode
             },
             spine_completed_at: new Date().toISOString(),
-            status: 'spine_complete'
+            status: 'spine_complete',
+            next_phase: 'wave_phase_3',
+            wave_trigger_retry_count: 0
         });
 
         console.log(`🚪 PHASE_2_SPINE_EXIT`, { runId, manuscriptId, spineScore: adjustedSpineScore, timestamp: new Date().toISOString() });
+
+        // Schedule delayed check to auto-retry if Phase 3 doesn't start
+        setTimeout(async () => {
+            try {
+                const [checkManuscript] = await base44.asServiceRole.entities.Manuscript.filter({ id: manuscriptId });
+                if (!checkManuscript.phase_3_started_at && checkManuscript.status === 'spine_complete') {
+                    const retryCount = checkManuscript.wave_trigger_retry_count || 0;
+                    if (retryCount < 2) {
+                        console.log(`⚠️ AUTO_RETRY_PHASE_3`, { runId, manuscriptId, retryCount });
+                        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                            status: 'wave_trigger_retrying',
+                            wave_trigger_retry_count: retryCount + 1
+                        });
+                        // Re-invoke this function to continue evaluation
+                        await base44.asServiceRole.functions.invoke('evaluateFullManuscript', { manuscript_id: manuscriptId });
+                    } else {
+                        console.error(`❌ AUTO_RETRY_EXHAUSTED`, { runId, manuscriptId });
+                        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                            status: 'wave_trigger_failed',
+                            wave_trigger_error: 'Phase 3 failed to start after 2 retries',
+                            wave_trigger_failed_at: new Date().toISOString()
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error(`❌ AUTO_RETRY_CHECK_FAILED`, { runId, manuscriptId, error: error.message });
+            }
+        }, 45000); // Check after 45 seconds
         } else {
         // Spine already done, mark as complete if not already
         if (!manuscript.spine_completed_at) {
             await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                 spine_completed_at: new Date().toISOString(),
-                status: 'spine_complete'
+                status: 'spine_complete',
+                next_phase: 'wave_phase_3'
             });
         }
         console.log(`🚪 PHASE_2_SPINE_SKIPPED`, { runId, manuscriptId, reason: 'already_complete', timestamp: new Date().toISOString() });
+        }
+
+        // Check if this is a retry scenario
+        if (manuscript.status === 'spine_complete' && !manuscript.phase_3_started_at) {
+            console.log(`🔄 RESUME_FROM_SPINE_COMPLETE`, { runId, manuscriptId });
         }
 
         // PHASE 3: WAVE chapter craft evaluation - PARALLEL EXECUTION
