@@ -62,7 +62,7 @@ export default function Home() {
                         </p>
 
                         <p className="mt-2 text-sm text-slate-600 max-w-2xl mx-auto">
-                            Dual-Layer Validation: 12 Agent Criteria + 60+ WAVE Checks
+                            Dual-Layer Validation: 12 Agent Criteria + Proprietary WAVE Framework
                         </p>
 
                         <p className="mt-6 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">
@@ -116,16 +116,16 @@ export default function Home() {
                     </div>
                     <div className="space-y-4 text-slate-700">
                         <p className="leading-relaxed">
-                            WAVE is a <strong>60+-wave craft framework</strong> built from years of revising and evaluating full-length novels, screenplays, and narrative nonfiction. It defines what gets graded: hook, structure, line-level authority, motif hygiene, pacing, and more.
+                            WAVE is a late-stage revision system for manuscripts that already work at the story level but still need disciplined editing to read as professional and submission-ready. It is diagnostic and multi-pass: each evaluation isolates a failure pattern, explains why it weakens the manuscript, and gives a concrete way to fix it.
                         </p>
                         <p className="leading-relaxed">
-                            The online tool does not "discover" these rules; it <strong>executes them</strong>.
+                            Base44 applies the WAVE framework to every chapter automatically, then reports which areas need attention and why—so you see the standards and stay in control of every change.
                         </p>
                         <p className="leading-relaxed font-semibold text-indigo-900">
                             The app is AI-powered, but the standards are human-crafted WAVE IP.
                         </p>
                         <p className="text-sm text-slate-600 italic mt-4 pt-4 border-t border-indigo-200">
-                            The full 60+ WAVE checks, thresholds, and scoring logic remain proprietary and are implemented in software; writers see the decisions and explanations, not the underlying code.
+                            The WAVE framework, thresholds, and scoring logic remain proprietary and are implemented in software; writers see the decisions and explanations, not the underlying code.
                         </p>
                     </div>
                 </div>
@@ -143,11 +143,11 @@ export default function Home() {
                             In practice, trained and untrained eyes give your manuscript seconds at each gate. Does it intrigue, captivate, and hold attention? If not, you don't get a reply—from agents, editors, publishers, producers, or executives. It's a closed loop: work that doesn't hold attention simply falls out of the system.
                         </p>
                         <p className="leading-relaxed">
-                            You may have a brilliant story, but if the pages trip over the 12 Story Evaluation Criteria that professionals use—and the 60+ structural and line-level checks in the WAVE Guide—it will be rejected long before anyone sees the ending. Agents and readers evaluate in seconds what took you years to build.
+                            You may have a brilliant story, but if the pages trip over the 12 Story Evaluation Criteria that professionals use—and the scores of structural and line-level checks in the WAVE Guide—it will be rejected long before anyone sees the ending. Agents and readers evaluate in seconds what took you years to build.
                         </p>
                         <div className="p-6 rounded-xl bg-indigo-900/50 border border-indigo-700">
                             <p className="leading-relaxed text-white">
-                                <strong>Elevate Your Game™</strong> by running your work through the RevisionGrade framework: a PhD-calibrated scoring engine built on the 12 Story Evaluation Criteria and the 60+ WAVE Revision System. There is no other technology that combines those standards into one coherent, repeatable diagnostic pass—so you know exactly where your manuscript stands.
+                                <strong>Elevate Your Game™</strong> by running your work through the RevisionGrade framework: a PhD-calibrated scoring engine built on the 12 Story Evaluation Criteria and the proprietary WAVE Revision System. There is no other technology that combines those standards into one coherent, repeatable diagnostic pass—so you know exactly where your manuscript stands.
                             </p>
                         </div>
                     </div>
@@ -240,7 +240,7 @@ export default function Home() {
                     </div>
 
                     <div className="p-8 rounded-xl bg-white border-2 border-purple-200">
-                        <h3 className="text-xl font-bold text-slate-900 mb-4">WAVE (60+ Checks)</h3>
+                        <h3 className="text-xl font-bold text-slate-900 mb-4">WAVE (Proprietary Framework)</h3>
                         <div className="space-y-2">
                             {[
                                 '5-Part Mythic Arc',
@@ -249,7 +249,7 @@ export default function Home() {
                                 'Structural risks',
                                 'Producer viability',
                                 'Canon compliance',
-                                '+ 54 more...'
+                                '+ scores more...'
                             ].map((item, idx) => (
                                 <div key={idx} className="flex items-center gap-2">
                                     <CheckCircle2 className="w-4 h-4 text-purple-600" />
@@ -307,7 +307,7 @@ export default function Home() {
                                 Wave Revision Guide
                             </Badge>
                             <h2 className="text-3xl font-bold text-white mb-6">
-                                60+ Revision Checkpoints
+                                Proprietary Revision Framework
                             </h2>
                             <p className="text-slate-300 leading-relaxed mb-8">
                                 Our proprietary Wave Revision System covers everything from 
