@@ -12,115 +12,41 @@ import { motion } from 'framer-motion';
 export default function Home() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-            {/* Pipeline Banner */}
-            <div className="bg-slate-900 border-b border-slate-700 py-3">
-                <div className="max-w-7xl mx-auto px-6">
-                    <p className="text-center text-slate-200 text-sm md:text-[0.95rem] font-medium tracking-wide">
-                        Manuscript Evaluation → Agent Ready™ → Revise → Polish → Compare → Pitch → Query
-                    </p>
-                </div>
-            </div>
-
-            {/* Workflow Diagram */}
-            <div className="bg-white py-12">
-                <div className="max-w-6xl mx-auto px-6">
-                    <div className="text-center mb-8">
-                        <h2 className="text-3xl font-bold text-slate-900 mb-3">
-                            End-to-End Author Workflow
-                        </h2>
-                        <p className="text-slate-600">
-                            From rough manuscript to submission-ready package
-                        </p>
-                    </div>
-                    <div className="flex justify-center">
-                        <img 
-                            src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/81ce1b007_image.png"
-                            alt="RevisionGrade End-to-End Author Workflow"
-                            className="w-full max-w-4xl h-auto"
-                        />
-                    </div>
-                </div>
-            </div>
-
             {/* Hero Section */}
             <div className="relative overflow-hidden">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-100 via-transparent to-transparent opacity-60" />
                 <div className="absolute top-20 left-10 w-72 h-72 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" />
                 <div className="absolute top-40 right-10 w-72 h-72 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse delay-1000" />
-                
-                <div className="relative max-w-6xl mx-auto px-6 py-12 sm:py-16">
+
+                <div className="relative max-w-6xl mx-auto px-6 py-20 sm:py-28">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.6 }}
                         className="text-center"
                     >
-                        <Badge className="mb-6 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200 text-sm font-medium">
-                            <Sparkles className="w-4 h-4 mr-2" />
-                            Transmedia Intelligence for Serious Storytellers
-                        </Badge>
-
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-tight pb-4">
-                            <span className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent pb-2">
-                                Your Writing → Publishing-Ready & Hollywood-Ready
+                        <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-slate-900 tracking-tight leading-tight mb-6">
+                            <span className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                                Your Manuscript Deserves<br />Agent-Ready Standards
                             </span>
                         </h1>
 
-                        <p className="mt-4 text-base sm:text-lg text-slate-600 italic max-w-3xl mx-auto">
-                            Rough drafts, single chapters/scenes, full manuscripts/screenplays—all elevate via WAVE.
+                        <p className="mt-6 text-xl sm:text-2xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
+                            12 Agent Criteria. 60+ WAVE Diagnostics. Complete Query Packages.<br />
+                            <strong>Get professional feedback in hours, not months.</strong>
                         </p>
 
-                        <p className="mt-6 text-lg sm:text-xl text-slate-700 italic max-w-3xl mx-auto leading-relaxed">
-                            We don't write your book. We help you understand it—so you can write it better.
-                        </p>
-
-                        <p className="mt-4 text-lg sm:text-xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
-                            A complete system transforming manuscripts into agent-ready query packages, producer pitches, and studio-ready pitch decks.
-                        </p>
-
-                        <p className="mt-4 text-base sm:text-lg text-indigo-600 font-semibold max-w-2xl mx-auto">
-                            Evaluate → Structure → Package → Pitch
-                        </p>
-
-                        <p className="mt-2 text-sm text-slate-600 max-w-2xl mx-auto">
-                            Dual-Layer Validation: 12 Agent Criteria + Proprietary WAVE Framework
-                        </p>
-
-                        <p className="mt-6 text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">
-                            <strong className="text-slate-900">Upload Your Complete Work → Download Publishing + Producer Packages</strong>
-                        </p>
-
-                        <p className="mt-2 text-sm text-slate-500 max-w-2xl mx-auto">
-                            Canon Validated. Production-Ready. Transmedia-Grade Pipeline.
-                        </p>
-
-                        <div className="mt-6 space-y-2 flex flex-col items-center">
-                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-100 border border-indigo-200">
-                                <Shield className="w-4 h-4 text-indigo-600" />
-                                <span className="text-sm font-medium text-indigo-900">Governed by Production Canon v2.0</span>
-                            </div>
-                            <p className="text-sm text-slate-600 max-w-lg">
-                                72 Criteria. Zero Guesswork. Hollywood-Ready.
-                            </p>
-                        </div>
-
-                        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+                        <div className="mt-10">
                             <Link to={createPageUrl('UploadManuscript')}>
-                                <Button size="lg" className="h-14 px-6 sm:px-8 text-base sm:text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
-                                    <BookOpen className="w-5 h-5 mr-2 flex-shrink-0" />
-                                    Upload Any Stage → Free Evaluation
-                                </Button>
-                            </Link>
-                            <Link to={createPageUrl('Evaluate')}>
-                                <Button size="lg" variant="outline" className="h-14 px-8 text-lg border-slate-300">
-                                    <Sparkles className="w-5 h-5 mr-2" />
-                                    Quick Evaluation
+                                <Button size="lg" className="h-16 px-10 text-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-xl shadow-indigo-500/30">
+                                    <BookOpen className="w-6 h-6 mr-3 flex-shrink-0" />
+                                    Upload Manuscript → Free Evaluation
                                 </Button>
                             </Link>
                         </div>
-                        
-                        <p className="mt-4 text-sm text-slate-500">
-                            30-Day Money Back Guarantee
+
+                        <p className="mt-6 text-sm text-slate-500">
+                            30-Day Money Back Guarantee • No Credit Card Required
                         </p>
                     </motion.div>
                 </div>
@@ -293,6 +219,31 @@ export default function Home() {
                             <span className="text-sm font-medium text-slate-700">{item}</span>
                         </div>
                     ))}
+                </div>
+            </div>
+
+            {/* How It Works - Workflow Diagram */}
+            <div className="bg-white py-16">
+                <div className="max-w-6xl mx-auto px-6">
+                    <div className="text-center mb-12">
+                        <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            How It Works
+                        </Badge>
+                        <h2 className="text-3xl font-bold text-slate-900 mb-3">
+                            End-to-End Author Workflow
+                        </h2>
+                        <p className="text-lg text-slate-600">
+                            From rough manuscript to submission-ready package
+                        </p>
+                    </div>
+                    <div className="flex justify-center">
+                        <img 
+                            src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/81ce1b007_image.png"
+                            alt="RevisionGrade End-to-End Author Workflow"
+                            className="w-full max-w-4xl h-auto rounded-lg shadow-lg"
+                        />
+                    </div>
                 </div>
             </div>
 
