@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
       rhythmical: "Cadence-driven, repetition for effect, oral-tradition pulse. Music in the prose.",
       literary: "Dense imagery, subtext layering, mythic elevation. Sophisticated, literary fiction standards.",
       commercial: "Tight pacing, accessible language, hooky dialogue. Reader engagement and momentum.",
-      transgressive: "Intentional aesthetic transgression. Evaluate effectiveness of extremity, not appropriateness. Flag only: lazy execution, repetitive shock, incoherent cruelty, or contradiction of internal logic. Preserve provocative voice and thematic darkness.",
+      transgressive: "TRANSGRESSIVE MODE (Authorial Intent): Dark realism, grotesque, extremity is assumed intentional. Evaluate CONTROL and PRECISION, not moral alignment. Ask 'Is this precise?' not 'Is this offensive?' Flag ONLY: repetitive shock without escalation, contradicts internal logic, weakens character integrity, collapses into unintentional parody. Do NOT flag: offensive language, violence, disturbing content, moral ambiguity. Preserve dark voice and thematic function.",
       trauma_memoir: "Survivor testimony. Psychological accuracy is paramount. Respect embodied experience. Flag only: gratuitousness without therapeutic purpose, exploitation of trauma, invented details, or tonal inconsistency. Preserve authentic voice and sensory truth."
     }[style_mode] || "Standard industry conventions.";
 
@@ -146,10 +146,11 @@ CRITICAL RULES (NON-NEGOTIABLE):
 4. PRESERVE VOICE. Respect author's authority, authenticity, and tone.
 5. MODE-SPECIFIC RULES:
    ${style_mode === 'transgressive' ? `
-   - TRANSGRESSIVE MODE: Do not flag offensive content, slurs, or violence as errors
-   - Flag ONLY: repetitive shock without escalation, incoherent cruelty, contradictions
-   - Ask: "Is this precise?" NOT "Is this offensive?"
-   - Evaluate control and thematic function, not moral alignment
+   - TRANSGRESSIVE MODE ACTIVE: Offensive/extreme content is INTENTIONAL, not an error
+   - DO NOT FLAG: violence, slurs, disturbing imagery, moral darkness, offensive language
+   - FLAG ONLY IF: repetitive without escalation, contradicts internal logic, weakens character integrity, unintentional parody
+   - QUESTION: "Is this precise and controlled?" NOT "Is this appropriate?"
+   - Evaluate: thematic function, psychological truth, narrative control
    ` : style_mode === 'trauma_memoir' ? `
    - TRAUMA MEMOIR MODE: Treat content as survivor testimony
    - Do not flag difficult content as "gratuitous" unless it serves no therapeutic/narrative purpose
@@ -229,10 +230,11 @@ CRITICAL VALIDATION RULES (NON-NEGOTIABLE):
 4. RISK ASSESSMENT: For every flagged issue, note what could be lost if changed.
 5. MODE-SPECIFIC VALIDATION:
    ${style_mode === 'transgressive' ? `
-   - TRANSGRESSIVE MODE ACTIVE: Offensive/extreme content is NOT automatically flagged
-   - Evaluate effectiveness: Does darkness serve psychological/thematic function?
-   - Flag ONLY IF: repetitive without escalation, empty shock value, narrative incoherence
-   - Do NOT soften, moralize, or suggest removal of intentional transgression
+   - TRANSGRESSIVE MODE VALIDATION: Extreme content is assumed craft choice, not mistake
+   - ASSUME: Violence, darkness, disturbing imagery serves thematic/psychological function
+   - FLAG ONLY IF: repetitive shock (no escalation), contradicts character logic, narrative incoherence, unintentional parody
+   - NEVER: soften, moralize, suggest removal of darkness, flag as "gratuitous" or "offensive"
+   - PRESERVE: authorial control, dark voice, extremity, moral ambiguity
    ` : style_mode === 'trauma_memoir' ? `
    - TRAUMA MEMOIR MODE ACTIVE: Difficult content is testimony, not gratuitousness
    - Preserve embodied/sensory detail even when disturbing (key to authenticity)

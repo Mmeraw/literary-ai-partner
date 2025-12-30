@@ -32,8 +32,8 @@ const STYLE_MODES = [
     },
     {
         value: "transgressive",
-        label: "Transgressive / Dark Fiction",
-        description: "Intentional extremity—evaluates craft & control, not moral alignment"
+        label: "Transgressive (Authorial Intent)",
+        description: "Dark realism, grotesque, extremity—evaluates precision & control, not politeness. No sanitization."
     },
     {
         value: "trauma_memoir",
