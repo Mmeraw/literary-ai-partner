@@ -41,9 +41,10 @@ import Synopsis from './pages/Synopsis';
 import Terms from './pages/Terms';
 import UploadManuscript from './pages/UploadManuscript';
 import UploadWork from './pages/UploadWork';
+import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
-import ValidationReport from './pages/ValidationReport';
+import SlurHandlingPolicy from './pages/SlurHandlingPolicy';
 import __Layout from './Layout.jsx';
 
 
@@ -91,9 +92,10 @@ export const PAGES = {
     "Terms": Terms,
     "UploadManuscript": UploadManuscript,
     "UploadWork": UploadWork,
+    "ValidationReport": ValidationReport,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
-    "ValidationReport": ValidationReport,
+    "SlurHandlingPolicy": SlurHandlingPolicy,
 }
 
 export const pagesConfig = {
