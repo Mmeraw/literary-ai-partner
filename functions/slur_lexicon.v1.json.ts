@@ -7,9 +7,26 @@
     "always_flag": true,
     "context_required": true
   },
+  "lexicon_keys": {
+    "SLUR::RACE::N_WORD_HARD_R": "n***er",
+    "SLUR::RACE::ETHNIC_DEROGATORY_TERM_A": "c*on",
+    "SLUR::SEXUALITY::F_SLUR": "f*ggot",
+    "SLUR::RELIGION::K_SLUR": "k*ke",
+    "SLUR::RACE::C_SLUR": "ch*nk",
+    "SLUR::RACE::S_SLUR": "sp*c",
+    "SLUR::DISABILITY::R_SLUR": "r*tard",
+    "SLUR::DISABILITY::C_SLUR": "cr*pple",
+    "SLUR::GENDER::B_SLUR": "b*tch",
+    "SLUR::GENDER::S_SLUR": "sl*t",
+    "SLUR::GENDER::W_SLUR": "wh*re",
+    "SLUR::RACE::P_SLUR": "p*ki",
+    "SLUR::MIXED::T_LABEL": "t*rrorist",
+    "SLUR::CLASS::I_LABEL": "illeg*l"
+  },
   "entries": [
     {
       "term": "n***er",
+      "lexicon_key": "SLUR::RACE::N_WORD_HARD_R",
       "display_form": "n***er",
       "variants": ["nigga", "ni**a", "n1gger", "nigg@", "niggaz", "niggas"],
       "category": "race_ethnicity",
@@ -34,6 +51,7 @@
     },
     {
       "term": "f*ggot",
+      "lexicon_key": "SLUR::SEXUALITY::F_SLUR",
       "display_form": "f*ggot",
       "variants": ["fag", "f@g", "f4g", "fagg0t"],
       "category": "sexuality_gender",
@@ -72,6 +90,7 @@
     },
     {
       "term": "k*ke",
+      "lexicon_key": "SLUR::RELIGION::K_SLUR",
       "display_form": "k*ke",
       "variants": ["k1ke"],
       "category": "religion",
@@ -224,6 +243,7 @@
     },
     {
       "term": "c*on",
+      "lexicon_key": "SLUR::RACE::ETHNIC_DEROGATORY_TERM_A",
       "display_form": "c*on",
       "variants": ["coon", "c00n"],
       "category": "race_ethnicity",

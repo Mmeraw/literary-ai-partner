@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
 
     // SLUR DATASET: Additional governance validation
     if (dataset === 'slur') {
-      const slurValidationErrors = validateSlurGovernance(goldBundle);
+      const slurValidationErrors = await validateSlurGovernance(goldBundle);
       if (slurValidationErrors.length > 0) {
         return Response.json({ 
           error: 'Slur governance validation failed', 
@@ -167,7 +167,7 @@ function checkIdCollisions(examples) {
 /**
  * Validate slur-specific governance rules
  */
-function validateSlurGovernance(bundle) {
+async function validateSlurGovernance(bundle) {
   const errors = [];
 
   if (!bundle.governance_rules) {
@@ -175,20 +175,46 @@ function validateSlurGovernance(bundle) {
     return errors;
   }
 
-  if (bundle.governance_rules.auto_rewrite_prohibited !== true) {
-    errors.push('auto_rewrite_prohibited must be true');
+  // Load slur lexicon for validation
+  let lexiconData;
+  try {
+    const lexiconPath = new URL('./slur_lexicon.v1.json', import.meta.url);
+    const lexiconText = await Deno.readTextFile(lexiconPath);
+    lexiconData = JSON.parse(lexiconText);
+  } catch (error) {
+    errors.push(`Failed to load slur lexicon: ${error.message}`);
+    return errors;
   }
 
   bundle.examples.forEach((ex, idx) => {
-    // Check slur classification exists
-    if (ex.style_flags?.contains_slur && !ex.slur_classification) {
-      errors.push(`Example ${idx} (${ex.id}): contains_slur=true but missing slur_classification`);
+    // Lexicon match check
+    if (ex.slur_term_id && ex.slur_lexicon_required_match) {
+      const hasMatch = lexiconData?.lexicon_keys && 
+                      Object.keys(lexiconData.lexicon_keys).includes(ex.slur_term_id);
+      
+      if (!hasMatch) {
+        errors.push(`Example ${idx} (${ex.id}): slur_term_id "${ex.slur_term_id}" not found in lexicon`);
+      }
     }
 
-    // Validate slur classification values
-    const validClassifications = ['VOICE_AUTHENTIC', 'NARRATIVE_CONDEMNATION', 'MARKET_RISK', 'PROHIBITED_USE'];
-    if (ex.slur_classification && !validClassifications.includes(ex.slur_classification)) {
-      errors.push(`Example ${idx} (${ex.id}): invalid slur_classification "${ex.slur_classification}"`);
+    // Hard rule: contains_slur → MARKET_RISK_REVIEW + DO_NOT_AUTOREWRITE
+    if (ex.style_flags?.contains_slur === true) {
+      const issue = ex.wave_issues?.[0];
+      if (!issue) {
+        errors.push(`Example ${idx} (${ex.id}): contains_slur=true but no wave_issues defined`);
+      } else {
+        if (issue.label !== 'MARKET_RISK_REVIEW') {
+          errors.push(`Example ${idx} (${ex.id}): contains_slur=true must have label MARKET_RISK_REVIEW, got ${issue.label}`);
+        }
+        
+        if (issue.correct_action !== 'DO_NOT_AUTOREWRITE') {
+          errors.push(`Example ${idx} (${ex.id}): contains_slur=true must have correct_action DO_NOT_AUTOREWRITE, got ${issue.correct_action}`);
+        }
+        
+        if (issue.severity !== 'high' && issue.severity !== 'critical') {
+          errors.push(`Example ${idx} (${ex.id}): contains_slur=true must have severity high/critical, got ${issue.severity}`);
+        }
+      }
     }
 
     // Check no auto-rewrites proposed
