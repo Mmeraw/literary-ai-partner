@@ -392,15 +392,24 @@ export default function ManuscriptDashboard() {
               ) : (
                 <>
                   <div className="text-5xl font-bold text-slate-400 mb-4">
-                    In Progress
+                    {manuscript.spine_score && evaluatedChapters === 0 ? 'Spine Complete' : 'In Progress'}
                   </div>
                   <p className="text-sm text-slate-700 mb-4">
-                    {manuscript.spine_score ? (
+                    {manuscript.spine_score && evaluatedChapters === 0 ? (
+                      <>Spine evaluation: <span className="font-semibold text-indigo-600">{manuscript.spine_score.toFixed(1)}/10</span>. WAVE craft checks needed to unlock full score.</>
+                    ) : manuscript.spine_score ? (
                       <>Spine evaluation: <span className="font-semibold text-indigo-600">{manuscript.spine_score.toFixed(1)}/10</span>. Run chapter analysis to unlock your full score.</>
                     ) : (
                       'Complete evaluation to see your overall score.'
                     )}
                   </p>
+                  {chaptersWithPartialWave > 0 && (
+                    <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                      <p className="text-xs text-amber-800">
+                        <span className="font-semibold">Note:</span> {chaptersWithPartialWave} chapter(s) completed with WAVE checks skipped due to timeouts. Story analysis complete, craft scoring unavailable.
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
               <div className="grid grid-cols-2 gap-4 pt-4 border-t">
