@@ -89,11 +89,11 @@ export default function Criteria() {
                     <CardContent className="p-8">
                         <h2 className="text-2xl font-bold text-slate-900 mb-6">What We Evaluate</h2>
                         <p className="text-slate-700 mb-6 leading-relaxed">
-                            RevisionGrade uses a two-layer evaluation framework powered by the WAVE Revision System (61+ waves) designed to mirror professional editorial assessment. Each manuscript is reviewed across:
+                            RevisionGrade uses a two-layer evaluation framework powered by the WAVE Revision System (proprietary revision framework) designed to mirror professional editorial assessment. Each manuscript is reviewed across:
                         </p>
                         <div className="space-y-6 mb-6">
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 mb-3">12 Story Evaluation Criteria</h3>
+                                <h3 className="text-lg font-semibold text-slate-900 mb-3">13 Story Evaluation Criteria</h3>
                                 <div className="grid md:grid-cols-2 gap-3">
                                     {[
                                         'Opening Hook',
@@ -102,6 +102,7 @@ export default function Criteria() {
                                         'Conflict & Tension Escalation',
                                         'Thematic Resonance',
                                         'Structure, Pacing & Flow',
+                                        'Scene Architecture & Causality',
                                         'Dialogue & Subtext',
                                         'Worldbuilding & Immersion',
                                         'Stakes & Emotional Investment',
@@ -125,19 +126,19 @@ export default function Criteria() {
                                 <div className="space-y-2 mb-3">
                                     <div className="flex items-start gap-2">
                                         <Badge className="bg-blue-100 text-blue-700 flex-shrink-0">Early</Badge>
-                                        <span className="text-sm text-slate-700">Structural truth, POV integrity, stakes clarity</span>
+                                        <span className="text-sm text-slate-700">Foundational narrative integrity and scene-level logic</span>
                                     </div>
                                     <div className="flex items-start gap-2">
                                         <Badge className="bg-amber-100 text-amber-700 flex-shrink-0">Mid</Badge>
-                                        <span className="text-sm text-slate-700">Momentum, specificity, scene mechanics, dialogue purpose</span>
+                                        <span className="text-sm text-slate-700">Momentum, cohesion, and what the manuscript earns on the page</span>
                                     </div>
                                     <div className="flex items-start gap-2">
                                         <Badge className="bg-purple-100 text-purple-700 flex-shrink-0">Late</Badge>
-                                        <span className="text-sm text-slate-700">Authority, polish, submission readiness</span>
+                                        <span className="text-sm text-slate-700">Authority-level clarity and voice-safe refinement</span>
                                     </div>
                                 </div>
                                 <p className="text-sm text-slate-600 italic">
-                                    Identifies scores of craft-level failure modes including body-part clichés, filter verbs, mind-reading, generic nouns, negation stacks, motif overuse, reflexive redundancy, and more.
+                                    Identifies patterns that can quietly reduce clarity, authority, and submission readiness—then explains what triggered and why.
                                 </p>
                             </div>
                         </div>
