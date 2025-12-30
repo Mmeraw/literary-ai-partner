@@ -547,7 +547,7 @@ export default function ManuscriptDashboard() {
                                 suggestions: [],
                                 status: 'in_progress'
                               });
-                              window.location.href = createPageUrl(`Revise?sessionId=${session.id}`);
+                              window.location.href = createPageUrl(`Revise?session=${session.id}`);
                             }}
                           >
                             <Waves className="w-4 h-4 mr-2" />
