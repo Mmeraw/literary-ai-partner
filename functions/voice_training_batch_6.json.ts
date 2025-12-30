@@ -1,128 +1,573 @@
 {
-  "batch_id": "TOADSTONE-FP-B6",
-  "project": "TOADSTONE",
-  "version": "voice_register_v1_training",
-  "meta": {
-    "source": "USER_FEEDBACK_REJECTIONS",
-    "total_examples": 4,
-    "date_created": "2025-12-30",
-    "training_purpose": "Prevent voice flattening in transgressive/lyrical mode; all 4 suggestions were rejected by author",
-    "note": "Transgression Mode should NOT normalize these—they are intentional stylistic choices"
+  "batch_id": "TS-B6",
+  "source": {
+    "title": "TOADSTONE - POWER OF BELIEF (ORIGINAL RELEASE TO SURE PRINT AND DESIGN) Chapters 1-19 (25 Feb 2019).docx",
+    "notes": "Continued training batch demonstrating voice protection rules, house style enforcement, and severity caps by register_lock"
   },
   "examples": [
     {
-      "id": "TOADSTONE-FP-001",
-      "chapter": null,
-      "excerpt": "his head still bobbing like a pigeon walkin' along struttin' its stuff",
-      "register": "neutral_narration",
-      "register_lock": "soft",
+      "id": "TS-B6-001",
+      "chapter": 1,
+      "excerpt": "\"That's gross. I told you I don't want to do this kinda skulduggery.\"",
+      "register": "dialogue",
+      "register_lock": "hard",
       "style_flags": {
         "allow_colloquial": true,
         "allow_dialect_spellings": true,
-        "allow_metaphorical_language": true
+        "allow_profanity": true
       },
       "wave_issues": [
         {
-          "wave_number": 4,
-          "wave_item": "W4.WORDING.BODY_PART_CLICHE",
+          "wave_number": 2,
+          "wave_item": "W2.REGISTER.CASUAL_DICTION",
+          "detected_by_base44": true,
+          "is_true_positive": false,
+          "label": "NO_ACTION",
+          "severity": "low",
+          "correct_action": "keep",
+          "rationale": "\"kinda\" is intentional colloquial voice in hard-locked dialogue; do not normalize."
+        }
+      ],
+      "source_citation": "turn17file0:L1-L6"
+    },
+    {
+      "id": "TS-B6-002",
+      "chapter": 1,
+      "excerpt": "\"Yeah, yeah, yeah, come on, we will learn somethin' about frogs that we didn't learn while in biology.\"",
+      "register": "dialogue",
+      "register_lock": "hard",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_dialect_spellings": true,
+        "allow_profanity": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 1,
+          "wave_item": "W1.CORRECTNESS.NONSTANDARD_APOSTROPHE",
           "detected_by_base44": true,
           "is_true_positive": false,
           "label": "VOICE_REGISTER_REVIEW",
           "severity": "low",
           "correct_action": "keep",
-          "rationale": "This is NOT a cliché—it's a lyrical, rhythmic phrase with stacked motion verbs ('walkin' along struttin'') that matches the colloquial, comic register. Shortening to 'strutting around' removes the musicality and cadence. This is intentional voice.",
-          "incorrect_suggestion": "his head still bobbing like a pigeon strutting around",
-          "why_incorrect": "Loses stacked rhythm, removes dialect spelling ('walkin''), and flattens the comic swagger of 'its stuff'."
+          "rationale": "\"somethin'\" is dialect spelling used for character voice; advisory only."
         }
       ],
-      "author_feedback": "Too truncated, I need the lyrical rhythm, since that is my unique voice"
+      "source_citation": "turn17file0:L4-L6"
     },
     {
-      "id": "TOADSTONE-FP-002",
-      "chapter": null,
-      "excerpt": "scroggin carcass",
+      "id": "TS-B6-003",
+      "chapter": 1,
+      "excerpt": "Billy wasn't in the mood for tormenting creatures, so he moved to the Jeep to turning something calming on the stereo.",
       "register": "neutral_narration",
-      "register_lock": "soft",
+      "register_lock": "none",
+      "style_flags": {
+        "allow_colloquial": false,
+        "allow_dialect_spellings": false,
+        "allow_profanity": false
+      },
+      "wave_issues": [
+        {
+          "wave_number": 1,
+          "wave_item": "W1.CORRECTNESS.GRAMMAR.INFINITIVE_ERROR",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "CLARITY_REVIEW",
+          "severity": "high",
+          "correct_action": "revise_required",
+          "rationale": "\"to turning\" is a grammar/infinitive construction error that interrupts comprehension.",
+          "proposed_revision": "Billy wasn't in the mood for tormenting creatures, so he moved to the Jeep to turn on something calming on the stereo.",
+          "alternatives": [
+            "Billy wasn't in the mood for tormenting creatures, so he moved to the Jeep and turned on something calming.",
+            "Billy wasn't in the mood for tormenting creatures, so he headed to the Jeep to put something calming on the stereo.",
+            "Not in the mood for tormenting creatures, Billy went to the Jeep to put on something calming."
+          ]
+        }
+      ],
+      "source_citation": "turn17file0:L13-L17"
+    },
+    {
+      "id": "TS-B6-004",
+      "chapter": 1,
+      "excerpt": "\"Hey, DJ, let's find that pot of gold. You know the one! Turn it on.\"",
+      "register": "dialogue",
+      "register_lock": "hard",
       "style_flags": {
         "allow_colloquial": true,
-        "allow_dialect_spellings": false,
-        "allow_metaphorical_language": true,
-        "allow_neologisms": true
+        "allow_dialect_spellings": true,
+        "allow_profanity": true
       },
       "wave_issues": [
         {
           "wave_number": 3,
-          "wave_item": "W3.DICTION.UNCLEAR_COINAGE",
+          "wave_item": "W3.TONE.CULTURAL_IDIOM",
           "detected_by_base44": true,
           "is_true_positive": false,
           "label": "NO_ACTION",
           "severity": "low",
           "correct_action": "keep",
-          "rationale": "'scroggin carcass' is an idiosyncratic, intentional coinage that gives the narrative its fingerprint. Do not normalize to 'trail mix body' or similar generic alternatives unless there is genuine clarity failure.",
-          "incorrect_suggestion": "[presumed normalization, e.g., 'trail mix body' or 'snack-stuffed body']",
-          "why_incorrect": "Erases distinctive, grotesque imagery that defines the author's voice."
+          "rationale": "Idiom + playful register is intentional; do not flatten into literal wording."
         }
       ],
-      "author_feedback": "scroggin carcass is AMAZING fun wording, why would we change it!!!"
+      "source_citation": "turn17file0:L13-L18"
     },
     {
-      "id": "TOADSTONE-FP-003",
-      "chapter": null,
-      "excerpt": "His jaws of life made good on their fine-print promise",
-      "register": "neutral_narration",
+      "id": "TS-B6-005",
+      "chapter": 1,
+      "excerpt": "Wanna' make ya all mine",
+      "register": "lyrics_or_chant",
+      "register_lock": "hard",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_dialect_spellings": true,
+        "allow_profanity": true,
+        "allow_lyrics_blocks": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 2,
+          "wave_item": "W2.REGISTER.CASUAL_CONTRACTION",
+          "detected_by_base44": true,
+          "is_true_positive": false,
+          "label": "NO_ACTION",
+          "severity": "low",
+          "correct_action": "keep",
+          "rationale": "\"Wanna'\" and \"ya\" are protected in hard-locked lyrics/chant; normalization is disallowed."
+        }
+      ],
+      "source_citation": "turn17file0:L21-L27"
+    },
+    {
+      "id": "TS-B6-006",
+      "chapter": 1,
+      "excerpt": "Savoury meat—  meet--  meat-- time to dine",
+      "register": "lyrics_or_chant",
       "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_dialect_spellings": true,
+        "allow_profanity": true,
+        "allow_lyrics_blocks": true,
+        "project_american_english": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 1,
+          "wave_item": "W1.HOUSE_STYLE.US_UK_SPELLING",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "HOUSE_STYLE_REVIEW",
+          "severity": "medium",
+          "correct_action": "revise_recommended",
+          "rationale": "If the project is American-English house style, \"Savoury\" should be normalized (unless deliberately Canadian/UK).",
+          "proposed_revision": "Savory meat—  meet--  meat-- time to dine",
+          "alternatives": [
+            "Savory meat—  meet—  meat—time to dine",
+            "Savory meat—meet meat—time to dine",
+            "Savory meat—meat, meat—time to dine"
+          ]
+        }
+      ],
+      "source_citation": "turn17file0:L55-L59"
+    },
+    {
+      "id": "TS-B6-007",
+      "chapter": 1,
+      "excerpt": "Meth was abundant and inexpensive at the street level. And they weren't foolish enough to be blowing their paycheques on cocaine: the most expensive, shortest-lasting, bingo-bango-bongo upper of them all.",
+      "register": "neutral_narration",
+      "register_lock": "none",
       "style_flags": {
         "allow_colloquial": false,
         "allow_dialect_spellings": false,
-        "allow_metaphorical_language": true
+        "allow_profanity": false,
+        "project_american_english": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 1,
+          "wave_item": "W1.HOUSE_STYLE.US_UK_SPELLING",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "HOUSE_STYLE_REVIEW",
+          "severity": "medium",
+          "correct_action": "revise_recommended",
+          "rationale": "\"paycheques\" is UK/Canadian spelling; if American house style is enforced, normalize for consistency.",
+          "proposed_revision": "Meth was abundant and inexpensive at the street level. And they weren't foolish enough to be blowing their paychecks on cocaine: the most expensive, shortest-lasting, bingo-bango-bongo upper of them all.",
+          "alternatives": [
+            "Meth was abundant and inexpensive at the street level. They weren't foolish enough to blow their paychecks on cocaine—the most expensive, shortest-lasting, bingo-bango-bongo upper of them all.",
+            "Meth was abundant and cheap at street level. They weren't foolish enough to blow their paychecks on cocaine—the most expensive, shortest-lasting upper of them all.",
+            "Meth was abundant and inexpensive at street level, and they weren't foolish enough to blow their paychecks on cocaine—the priciest, shortest-lasting upper of them all."
+          ]
+        }
+      ],
+      "source_citation": "turn17file5:L2-L5"
+    },
+    {
+      "id": "TS-B6-008",
+      "chapter": 1,
+      "excerpt": "\"Yo, yo, when ya gonna learn to beat me at cribbage?\"",
+      "register": "dialogue",
+      "register_lock": "hard",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_dialect_spellings": true,
+        "allow_profanity": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 2,
+          "wave_item": "W2.REGISTER.CASUAL_CONTRACTION",
+          "detected_by_base44": true,
+          "is_true_positive": false,
+          "label": "NO_ACTION",
+          "severity": "low",
+          "correct_action": "keep",
+          "rationale": "\"ya\" + \"gonna\" is character voice; do not normalize in hard-locked dialogue."
+        }
+      ],
+      "source_citation": "turn17file2:L2-L5"
+    },
+    {
+      "id": "TS-B6-009",
+      "chapter": 1,
+      "excerpt": "\"It ain't just ya I'm tryin' to beat. Speakin' of beat, I'm tired. Time for me to hit the fart sack.\"",
+      "register": "dialogue",
+      "register_lock": "hard",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_dialect_spellings": true,
+        "allow_profanity": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 2,
+          "wave_item": "W2.REGISTER.DIALECT_FORMS",
+          "detected_by_base44": true,
+          "is_true_positive": false,
+          "label": "NO_ACTION",
+          "severity": "low",
+          "correct_action": "keep",
+          "rationale": "Ain't/tryin'/speakin' are intentional dialect markers. Do not convert to standardized forms."
+        }
+      ],
+      "source_citation": "turn17file2:L5-L9"
+    },
+    {
+      "id": "TS-B6-010",
+      "chapter": 1,
+      "excerpt": "_______.",
+      "register": "formatting_marker",
+      "register_lock": "none",
+      "style_flags": {
+        "required_section_break_marker": "***"
+      },
+      "wave_issues": [
+        {
+          "wave_number": 1,
+          "wave_item": "W1.FORMAT.SECTION_BREAK_MARKER_MISMATCH",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "FORMAT_BREAK",
+          "severity": "high",
+          "correct_action": "revise_required",
+          "rationale": "Section divider uses underscores; if project contract requires \"***\", this is a strict format violation.",
+          "proposed_revision": "***",
+          "alternatives": [
+            "***",
+            "***",
+            "***"
+          ]
+        }
+      ],
+      "source_citation": "turn17file2:L13-L16"
+    },
+    {
+      "id": "TS-B6-011",
+      "chapter": 1,
+      "excerpt": "Watching this would see many frogs foaming at the mouth.",
+      "register": "neutral_narration",
+      "register_lock": "none",
+      "style_flags": {
+        "allow_colloquial": false
+      },
+      "wave_issues": [
+        {
+          "wave_number": 9,
+          "wave_item": "W9.CLARITY.MISASSIGNED_SUBJECT",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "CLARITY_REVIEW",
+          "severity": "high",
+          "correct_action": "revise_required",
+          "rationale": "The subject \"Watching this\" is ungrammatical/illogical; the sentence implies an observer rather than describing the scene.",
+          "proposed_revision": "Anyone watching would have seen many frogs foaming at the mouth.",
+          "alternatives": [
+            "From a distance, you'd have seen many frogs foaming at the mouth.",
+            "An onlooker would have seen many frogs foaming at the mouth.",
+            "Up close, it was clear: many frogs were foaming at the mouth."
+          ]
+        }
+      ],
+      "source_citation": "turn17file2:L14-L16"
+    },
+    {
+      "id": "TS-B6-012",
+      "chapter": 1,
+      "excerpt": "Billy had read that in the Middle East, ISIL was known to be giving methamphetamines ... to help their fighters remain awake and be more confident and courageous. But Americans too? Billy had checked it out himself, and there seemed to be some truth to it.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": false
+      },
+      "wave_issues": [
+        {
+          "wave_number": 2,
+          "wave_item": "W2.POV.EPISTEMIC_CUE_REQUIRED",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "POV_HONESTY_REVIEW",
+          "severity": "medium",
+          "correct_action": "revise_recommended",
+          "rationale": "High-stakes factual claims blur narrator fact vs. character belief. Add a cue to anchor this as Billy's mental model (if intended).",
+          "proposed_revision": "Billy had read that in the Middle East, ISIL was known to be giving methamphetamines to help their fighters stay awake and feel more confident. But Americans too? Billy had checked sources himself—enough to convince him there might be truth to it.",
+          "alternatives": [
+            "Billy had read that ISIL used methamphetamines to keep fighters awake and fearless. But Americans too? He'd skimmed enough articles to make it feel possible.",
+            "Billy had read claims about ISIL using methamphetamines to keep fighters awake. Americans too? He'd looked it up—just enough to feed the suspicion.",
+            "Billy had read that ISIL used methamphetamines to keep fighters awake and brave. Americans too? He'd checked and found fragments that felt uncomfortably real."
+          ]
+        }
+      ],
+      "source_citation": "turn17file4:L9-L13"
+    },
+    {
+      "id": "TS-B6-013",
+      "chapter": 1,
+      "excerpt": "Already jacked up on Tina and hearing the music, Brutus kicked it up a notch. Billy had just poured gasoline on his flame!",
+      "register": "neutral_narration",
+      "register_lock": "none",
+      "style_flags": {
+        "allow_colloquial": true
       },
       "wave_issues": [
         {
           "wave_number": 4,
-          "wave_item": "W4.WORDING.BODY_PART_CLICHE",
-          "detected_by_base44": true,
-          "is_true_positive": false,
-          "label": "VOICE_REGISTER_REVIEW",
-          "severity": "low",
-          "correct_action": "keep",
-          "rationale": "'jaws of life' is a black-comic, culturally loaded metaphor (rescue tool → predatory jaw) that characterizes tone. 'His mouth made good on its promise' is flat exposition that strips the metaphor and loses the 'fine-print promise' nuance.",
-          "incorrect_suggestion": "His mouth made good on its promise",
-          "why_incorrect": "Erases strong, darkly comic imagery; removes cultural resonance; flattens tone to generic narration."
+          "wave_item": "W4.REPETITION.IDIOMATIC_OVERLAP",
+          "detected_by_base44": false,
+          "is_true_positive": true,
+          "label": "OPTIONAL_CRAFT_POLISH",
+          "severity": "medium",
+          "correct_action": "revise_recommended",
+          "rationale": "\"kicked it up a notch\" + \"poured gasoline on his flame\" stacks two intensifier idioms back-to-back; consider sharpening to one image for punch.",
+          "proposed_revision": "Already jacked up on Tina and hearing the music, Brutus kicked it up a notch—like Billy had poured gasoline on his flame.",
+          "alternatives": [
+            "Already jacked up on Tina and hearing the music, Brutus kicked it up a notch. Billy had fed the fire.",
+            "Already jacked up on Tina and hearing the music, Brutus escalated. Billy had poured gasoline on him.",
+            "Already jacked up on Tina and hearing the music, Brutus ramped up. Billy had lit the fuse."
+          ]
         }
       ],
-      "author_feedback": "'jaws of life' metaphor, gorgeous!!! why cut it???"
+      "source_citation": "turn17file1:L64-L65"
     },
     {
-      "id": "TOADSTONE-FP-004",
-      "chapter": null,
-      "excerpt": "his heart was still doing pitter-patter at the thought of Bambi and company",
+      "id": "TS-B6-014",
+      "chapter": 1,
+      "excerpt": ""Slice and dice, no need ta be nice ..." (extended lyrics block)",
+      "register": "lyrics_or_chant",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_dialect_spellings": true,
+        "allow_profanity": true,
+        "allow_lyrics_blocks": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 5,
+          "wave_item": "W5.LEGAL.CLEARANCE.LYRICS_LENGTH_BLOCK",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "CLEARANCE_RISK_REVIEW",
+          "severity": "high",
+          "correct_action": "verify_intent",
+          "rationale": "Long lyric-style blocks often trigger rights/clearance review in publishing/audiobook workflows (even if original). Flag as clearance risk, not a prose/grammar error."
+        }
+      ],
+      "source_citation": "turn17file13:L40-L46"
+    },
+    {
+      "id": "TS-B6-015",
+      "chapter": 1,
+      "excerpt": "Applying lab safety rules and guidelines where he could, the lab manager grabbed the specimen container...",
+      "register": "neutral_narration",
+      "register_lock": "none",
+      "style_flags": {
+        "allow_colloquial": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 3,
+          "wave_item": "W3.REGISTER.COLLISION.ELEVATED_WITH_SLANG_SCENE",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "STYLE_SIGNAL",
+          "severity": "medium",
+          "correct_action": "verify_intent",
+          "rationale": "Clinical phrasing ("lab safety rules… lab manager… specimen container") collides with the surrounding slang/chant brutality. Not wrong—flag as register-collision fit-check."
+        }
+      ],
+      "source_citation": "turn17file13:L47-L49"
+    },
+    {
+      "id": "TS-B6-016",
+      "chapter": 1,
+      "excerpt": "\"Freakin' hell, he thought, fireflies blink on and off, yet here they are all off.\"",
       "register": "close_third",
       "register_lock": "soft",
       "style_flags": {
         "allow_colloquial": true,
-        "allow_dialect_spellings": false,
-        "allow_metaphorical_language": true,
-        "allow_whimsical_tone": true
+        "allow_dialect_spellings": false
       },
       "wave_issues": [
         {
-          "wave_number": 4,
-          "wave_item": "W4.WORDING.BODY_PART_CLICHE",
+          "wave_number": 2,
+          "wave_item": "W2.INTERNALITY.THUGHT_TAG",
+          "detected_by_base44": false,
+          "is_true_positive": true,
+          "label": "OPTIONAL_CRAFT_POLISH",
+          "severity": "medium",
+          "correct_action": "revise_recommended",
+          "rationale": "Thought-tag \"he thought\" may be a removable filter if you're aiming for tighter close-third. (Optional; do not treat as error.)",
+          "proposed_revision": "\"Freakin' hell—fireflies blink on and off, yet here they are all off.\"",
+          "alternatives": [
+            "\"Freakin' hell—fireflies blink on and off, yet here they are: all off.\"",
+            "\"Freakin' hell. Fireflies blink on and off. Yet here they are—off.\"",
+            "\"Freakin' hell. Fireflies blink. Yet this—nothing.\""
+          ]
+        }
+      ],
+      "source_citation": "turn17file6:L23-L27"
+    },
+    {
+      "id": "TS-B6-017",
+      "chapter": 1,
+      "excerpt": "\"Bring it on, frog boys! I'll spray you little buggers if I have to!\"",
+      "register": "dialogue",
+      "register_lock": "hard",
+      "style_flags": {
+        "allow_colloquial": true,
+        "allow_profanity": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 2,
+          "wave_item": "W2.REGISTER.CASUAL_TAUNT",
           "detected_by_base44": true,
           "is_true_positive": false,
           "label": "NO_ACTION",
           "severity": "low",
           "correct_action": "keep",
-          "rationale": "'pitter-patter' is childlike and whimsical on purpose, tuned perfectly to 'Bambi and company.' 'Racing' is generic and reports state without the tonal joke or internal echo. This is voice integrity, not cliché.",
-          "incorrect_suggestion": "his heart was still racing at the thought of Bambi and his friends",
-          "why_incorrect": "Kills the childlike whimsy; loses tonal comedy; 'and his friends' is more generic than 'and company.'"
+          "rationale": "Taunting slang is intentional character voice; do not sanitize/neutralize."
         }
       ],
-      "author_feedback": "[rejected with thumbs down, Issue Identified note: 'The original expression adds a whimsical touch to describe emotional response, fitting the narrative tone.']"
+      "source_citation": "turn17file6:L27-L28"
+    },
+    {
+      "id": "TS-B6-018",
+      "chapter": 1,
+      "excerpt": "Nothing can stop these bad boys! They can drop an elk or even a grizzly. Hell, they've been known to drop mature bull elephants.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 3,
+          "wave_item": "W3.CREDIBILITY.HYPERBOLE_RISK",
+          "detected_by_base44": false,
+          "is_true_positive": true,
+          "label": "CREDIBILITY_REVIEW",
+          "severity": "medium",
+          "correct_action": "verify_intent",
+          "rationale": "The elephant claim reads as hyperbole. If it's meant as character bragging, it's fine; if meant literally, it may trigger disbelief. Flag as intent check."
+        }
+      ],
+      "source_citation": "turn17file6:L31-L31"
+    },
+    {
+      "id": "TS-B6-019",
+      "chapter": 1,
+      "excerpt": "The giants' heat, breath, and body odours were enticing to the mosquitoes hovering nearby...",
+      "register": "neutral_narration",
+      "register_lock": "none",
+      "style_flags": {
+        "project_american_english": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 1,
+          "wave_item": "W1.HOUSE_STYLE.US_UK_SPELLING",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "HOUSE_STYLE_REVIEW",
+          "severity": "medium",
+          "correct_action": "revise_recommended",
+          "rationale": "\"odours\" is UK/Canadian spelling; normalize to \"odors\" if American house style is enforced.",
+          "proposed_revision": "The giants' heat, breath, and body odors were enticing to the mosquitoes hovering nearby...",
+          "alternatives": [
+            "The giants' heat, breath, and body odors drew the mosquitoes in close...",
+            "The giants' heat and breath—and their body odors—pulled mosquitoes closer...",
+            "The giants' heat and breath attracted mosquitoes; their body odors did the rest..."
+          ]
+        }
+      ],
+      "source_citation": "turn17file2:L14-L15"
+    },
+    {
+      "id": "TS-B6-020",
+      "chapter": 1,
+      "excerpt": "Billy ... drank silly water from a brown urn.",
+      "register": "close_third",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 2,
+          "wave_item": "W2.CLARITY.LOCAL_IDIOM_UNDEFINED",
+          "detected_by_base44": true,
+          "is_true_positive": true,
+          "label": "CLARITY_REVIEW",
+          "severity": "medium",
+          "correct_action": "revise_recommended",
+          "rationale": "\"silly water\" may be clear in context (alcohol), but without a cue it can momentarily slow readers. Flag as optional clarity cue.",
+          "proposed_revision": "Billy ... drank silly water—cheap liquor—from a brown urn.",
+          "alternatives": [
+            "Billy ... drank silly water, the cheap stuff, from a brown urn.",
+            "Billy ... drank silly water from a brown urn, chasing the buzz.",
+            "Billy ... drank silly water from a brown urn—something harsh and numbing."
+          ]
+        }
+      ],
+      "source_citation": "turn17file2:L16-L16"
     }
   ],
-  "policy_notes": {
-    "transgression_mode_must_respect_voice": "In Transgression Mode, these suggestions should NEVER be auto-applied or presented as 'fixes.' They can be surfaced as optional 'plain English alternatives' with explicit warnings that they flatten tone.",
-    "body_part_cliche_vs_intentional_metaphor": "W4.WORDING.BODY_PART_CLICHE must distinguish between tired expressions ('my heart sank') and intentional, loaded metaphors ('jaws of life,' 'pitter-patter'). If the phrase has semantic density or tonal function, mark as NO_ACTION or VOICE_REGISTER_REVIEW (low severity)."
+  "severity_policy": {
+    "mapping": {
+      "low": "soft",
+      "medium": "medium",
+      "high": "strong"
+    },
+    "hard_lock_caps": {
+      "dialogue": "low",
+      "interior_monologue": "low",
+      "lyrics_or_chant": "low"
+    },
+    "notes": [
+      "In register_lock=hard segments, colloquial/dialect/profanity triggers must never exceed severity=low and should default to NO_ACTION.",
+      "House-style spelling consistency in neutral narration can be medium; do not treat dialect spellings in dialogue as house-style errors.",
+      "Lyrics-length blocks should be flagged as CLEARANCE_RISK_REVIEW (score-affecting only if your product treats publishability risks as score-relevant)."
+    ]
   }
 }
