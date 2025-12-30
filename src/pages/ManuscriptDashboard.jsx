@@ -153,6 +153,12 @@ export default function ManuscriptDashboard() {
   if (['summarizing', 'spine_evaluating', 'spine_complete', 'wave_trigger_retrying', 'evaluating_chapters'].includes(manuscript?.status)) {
     const progress = manuscript.evaluation_progress || {};
     const percentComplete = progress.percent_complete || 0;
+    
+    // Calculate staleness (no update in 20+ seconds)
+    const lastUpdated = progress.last_updated ? new Date(progress.last_updated) : null;
+    const now = new Date();
+    const secondsSinceUpdate = lastUpdated ? Math.floor((now - lastUpdated) / 1000) : null;
+    const isStale = secondsSinceUpdate && secondsSinceUpdate > 20;
 
     const handleResumeEvaluation = async () => {
       setIsRestarting(true);
@@ -190,12 +196,33 @@ export default function ManuscriptDashboard() {
               <p className="text-slate-600">
                 Running comprehensive analysis: 13 Agent Criteria + 63 WAVE Checks
               </p>
+              {lastUpdated && (
+                <p className="text-xs text-slate-500 mt-2">
+                  Last update: {lastUpdated.toLocaleTimeString()} 
+                  {secondsSinceUpdate && ` (${secondsSinceUpdate}s ago)`}
+                </p>
+              )}
             </div>
+
+            {/* Stale State Warning */}
+            {isStale && (
+              <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                <p className="text-sm text-amber-800 text-center">
+                  ⚠️ No response for {secondsSinceUpdate}s—background processing may be slow. 
+                  {manuscript.status === 'wave_trigger_retrying' && ' Auto-retry in progress...'}
+                </p>
+              </div>
+            )}
 
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-slate-700">
                   {progress.current_step || 'Starting evaluation...'}
+                  {manuscript.status === 'wave_trigger_retrying' && (
+                    <Badge className="ml-2 bg-amber-500 text-white">
+                      Auto-retry {manuscript.wave_trigger_retry_count || 0}/2
+                    </Badge>
+                  )}
                 </span>
                 <span className="text-sm font-semibold text-indigo-600">
                   {percentComplete}%
