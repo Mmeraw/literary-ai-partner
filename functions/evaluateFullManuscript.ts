@@ -625,7 +625,7 @@ WAVE SYSTEM FRAMEWORK:
                     required: ["waveScore", "criticalIssues", "strengthAreas", "waveHits"]
                     }
                     }),
-                    90000,
+                    150000,
                     'WAVE Analysis'
                     );
                     } catch (waveError) {
