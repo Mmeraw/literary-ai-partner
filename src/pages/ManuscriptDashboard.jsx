@@ -93,7 +93,7 @@ export default function ManuscriptDashboard() {
       reportText += '\n';
     }
     
-    reportText += `12 SPINE CRITERIA\n${'='.repeat(50)}\n\n`;
+    reportText += `13 SPINE CRITERIA\n${'='.repeat(50)}\n\n`;
     evaluation.criteria?.forEach(criterion => {
       reportText += `${criterion.name} - ${criterion.score}/10\n${'-'.repeat(50)}\n`;
       
@@ -183,7 +183,7 @@ export default function ManuscriptDashboard() {
               </div>
               <h2 className="text-2xl font-bold text-slate-900 mb-2">Evaluating Your Manuscript</h2>
               <p className="text-slate-600">
-                Running comprehensive analysis: 12 Agent Criteria + 60+ WAVE Checks
+                Running comprehensive analysis: 13 Agent Criteria + 63 WAVE Checks
               </p>
             </div>
 
