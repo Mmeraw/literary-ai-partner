@@ -436,6 +436,15 @@ export default function ManuscriptDashboard() {
       ? (0.5 * manuscript.spine_score + 0.5 * avgChapterScore)
       : manuscript.spine_score || avgChapterScore);
 
+  // Trusted Path™ Threshold Zones
+  const getTrustedPathZone = (score) => {
+    if (score < 6.0) return { zone: 'failure', label: 'Structural Failure', color: 'red', canPolish: false };
+    if (score < 8.0) return { zone: 'conditional', label: 'Conditional Readiness', color: 'amber', canPolish: 'limited' };
+    return { zone: 'full', label: 'Full Trusted Path', color: 'emerald', canPolish: true };
+  };
+
+  const trustedPathZone = globalScore ? getTrustedPathZone(globalScore) : null;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
       <div className="max-w-7xl mx-auto px-6 py-12">
@@ -582,6 +591,42 @@ export default function ManuscriptDashboard() {
                     Based on spine + chapter-level analysis.
                     {evaluatedChapters < chapters.length && ' Score stabilizes as more chapters are evaluated.'}
                   </p>
+
+                  {/* Trusted Path™ Zone Indicator */}
+                  {trustedPathZone && (
+                    <div className={`p-3 rounded-lg border-2 ${
+                      trustedPathZone.zone === 'failure' ? 'bg-red-50 border-red-200' :
+                      trustedPathZone.zone === 'conditional' ? 'bg-amber-50 border-amber-200' :
+                      'bg-emerald-50 border-emerald-200'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className={`w-2 h-2 rounded-full ${
+                          trustedPathZone.zone === 'failure' ? 'bg-red-500' :
+                          trustedPathZone.zone === 'conditional' ? 'bg-amber-500' :
+                          'bg-emerald-500'
+                        }`} />
+                        <span className={`text-sm font-semibold ${
+                          trustedPathZone.zone === 'failure' ? 'text-red-900' :
+                          trustedPathZone.zone === 'conditional' ? 'text-amber-900' :
+                          'text-emerald-900'
+                        }`}>
+                          Trusted Path™: {trustedPathZone.label}
+                        </span>
+                      </div>
+                      <p className={`text-xs ${
+                        trustedPathZone.zone === 'failure' ? 'text-red-700' :
+                        trustedPathZone.zone === 'conditional' ? 'text-amber-700' :
+                        'text-emerald-700'
+                      }`}>
+                        {trustedPathZone.zone === 'failure' && 
+                          'Diagnostic only. Structural repair required before automated polish.'}
+                        {trustedPathZone.zone === 'conditional' && 
+                          'Guided rebuild with limited local edits in stable segments.'}
+                        {trustedPathZone.zone === 'full' && 
+                          'Full automated revision enabled. Structure supports polish.'}
+                      </p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>

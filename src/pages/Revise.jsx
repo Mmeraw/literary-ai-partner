@@ -238,8 +238,31 @@ export default function Revise() {
     toast.success('Thank you for your feedback!');
   };
 
+  const calculateSessionScore = () => {
+    if (!session?.evaluation_result) return null;
+    const spineScore = session.evaluation_result.spineScore || 0;
+    const waveScore = session.evaluation_result.waveScore || 0;
+    return (spineScore + waveScore) / 2;
+  };
+
+  const getTrustedPathZone = (score) => {
+    if (!score) return null;
+    if (score < 6.0) return { zone: 'failure', label: 'Structural Failure', canPolish: false };
+    if (score < 8.0) return { zone: 'conditional', label: 'Conditional Readiness', canPolish: 'limited' };
+    return { zone: 'full', label: 'Full Trusted Path', canPolish: true };
+  };
+
+  const sessionScore = calculateSessionScore();
+  const trustedPathZone = getTrustedPathZone(sessionScore);
+
   const handleApplyBestRevisions = async () => {
     if (!session) return;
+
+    // Check Trusted Path zone
+    if (trustedPathZone && trustedPathZone.zone === 'failure') {
+      toast.error('Structural readiness too low. Focus on structural repair first.', { id: 'trusted-path' });
+      return;
+    }
 
     toast.loading('Applying Trusted Path revisions...', { id: 'trusted-path' });
 
@@ -427,41 +450,93 @@ export default function Revise() {
           </div>
 
           {/* Smart Features Banner */}
-          <SmartFeaturesBanner />
+          <SmartFeaturesBanner trustedPathZone={trustedPathZone} />
 
           {/* Trusted Path - Phase 1 */}
           {!isSessionComplete && session.suggestions.some(s => s.status === 'pending') && (
-            <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 mt-4">
+            <Card className={`border-2 mt-4 ${
+              trustedPathZone?.zone === 'failure' ? 'bg-gradient-to-br from-red-50 to-red-100 border-red-300' :
+              trustedPathZone?.zone === 'conditional' ? 'bg-gradient-to-br from-amber-50 to-amber-100 border-amber-300' :
+              'bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200'
+            }`}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <Sparkles className="w-5 h-5 text-indigo-600" />
+                      <Sparkles className={`w-5 h-5 ${
+                        trustedPathZone?.zone === 'failure' ? 'text-red-600' :
+                        trustedPathZone?.zone === 'conditional' ? 'text-amber-600' :
+                        'text-indigo-600'
+                      }`} />
                       <h3 className="font-semibold text-slate-900">Trusted Path</h3>
-                      <Badge variant="outline" className="text-xs">Optional</Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {trustedPathZone?.label || 'Optional'}
+                      </Badge>
                     </div>
-                    <p className="text-sm text-slate-700 mb-3">
-                      Auto-apply High and Medium priority recommendations. Review, undo, or edit any change. Original always preserved.
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <Button
-                        onClick={handleApplyBestRevisions}
-                        disabled={updateSessionMutation.isPending}
-                        className="bg-indigo-600 hover:bg-indigo-700"
-                      >
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Apply Trusted Path ({session.suggestions.filter(s => s.status === 'pending' && (s.priority === 'High' || s.priority === 'Medium')).length} changes)
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={handleRestoreOriginal}
-                        disabled={session.current_text === session.original_text}
-                        className="border-slate-300"
-                      >
-                        <ArrowLeft className="w-4 h-4 mr-2" />
-                        Restore Original
-                      </Button>
-                    </div>
+
+                    {trustedPathZone?.zone === 'failure' ? (
+                      <>
+                        <p className="text-sm text-red-800 mb-3 font-semibold">
+                          ⚠️ Structural readiness below threshold (6.0). Trusted Path will focus on diagnostic guidance.
+                        </p>
+                        <p className="text-xs text-red-700 mb-3">
+                          Applying polish to structurally unstable content would mask core problems. Focus on structural repair first.
+                        </p>
+                        <Button variant="outline" className="border-red-300 text-red-700" disabled>
+                          Automated Polish Blocked
+                        </Button>
+                      </>
+                    ) : trustedPathZone?.zone === 'conditional' ? (
+                      <>
+                        <p className="text-sm text-amber-800 mb-3">
+                          ⚠️ Conditional readiness (6.0-7.9). Trusted Path will apply limited edits only in stable segments.
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <Button
+                            onClick={handleApplyBestRevisions}
+                            disabled={updateSessionMutation.isPending}
+                            className="bg-amber-600 hover:bg-amber-700"
+                          >
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Apply Safe Edits ({session.suggestions.filter(s => s.status === 'pending' && (s.priority === 'High' || s.priority === 'Medium')).length} changes)
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={handleRestoreOriginal}
+                            disabled={session.current_text === session.original_text}
+                            className="border-slate-300"
+                          >
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            Restore Original
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-slate-700 mb-3">
+                          Auto-apply High and Medium priority recommendations. Review, undo, or edit any change. Original always preserved.
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <Button
+                            onClick={handleApplyBestRevisions}
+                            disabled={updateSessionMutation.isPending}
+                            className="bg-indigo-600 hover:bg-indigo-700"
+                          >
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Apply Trusted Path ({session.suggestions.filter(s => s.status === 'pending' && (s.priority === 'High' || s.priority === 'Medium')).length} changes)
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={handleRestoreOriginal}
+                            disabled={session.current_text === session.original_text}
+                            className="border-slate-300"
+                          >
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            Restore Original
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </CardContent>
