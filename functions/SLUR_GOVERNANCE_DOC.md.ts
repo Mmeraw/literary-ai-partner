@@ -1,0 +1,214 @@
+# Slur & High-Risk Language Governance
+**RevisionGrade™ Internal Document**  
+**Version:** 1.0  
+**Last Updated:** 2025-12-30  
+**Owner:** Base44 + RevisionGrade Engineering  
+
+---
+
+## 1. Purpose & Scope
+
+This document governs how RevisionGrade handles slurs, reclaimed language, and high-risk phrasing to prevent:
+- **Overcensorship** (flattening authentic voice)
+- **Legal exposure** (accidental auto-rewrites of protected speech)
+- **Liability drift** (sanitizing content that depicts vs. endorses)
+
+### Non-Negotiable Rules
+1. **NO AUTO-REWRITE** of any slur, ever
+2. **Slurs appear only in context** (excerpts), never in rewrite suggestions
+3. **All cases must be classified** into risk buckets
+4. **No generative training** on slur text
+
+---
+
+## 2. Risk Classification System
+
+### Classification Buckets
+
+| Bucket | Definition | Action |
+|--------|-----------|--------|
+| **VOICE_AUTHENTIC** | Character voice, historical realism, or socially grounded usage | Preserve + flag for awareness |
+| **NARRATIVE_CONDEMNATION** | Text explicitly condemns or critiques the slur | Preserve (critical for theme) |
+| **MARKET_RISK** | May violate retailer/platform content policy | Flag for editorial review |
+| **PROHIBITED_USE** | Authorial endorsement or gratuitous usage | Block auto-publish |
+
+### Detection Logic
+
+```
+IF slur detected:
+  1. Identify register (dialogue, narration, close-third)
+  2. Check register_lock (hard, soft, none)
+  3. Assess narrative stance (condemns, neutral, endorses)
+  4. Classify into bucket
+  5. Flag with appropriate label
+  6. NEVER propose auto-rewrite
+```
+
+---
+
+## 3. Allowed Actions by Context
+
+### Hard-Locked Dialogue
+- **Always preserve** (character voice is inviolable)
+- Label: `VOICE_CONTEXT_ALLOWED` or `MARKET_RISK_REVIEW`
+- Severity: low–medium
+- Action: `DO_NOT_AUTOREWRITE`
+
+### Soft-Locked Interiority (Close-Third)
+- **Preserve if character POV**, not narrator endorsement
+- Label: `VOICE_CONTEXT_ALLOWED` or `MARKET_RISK_REVIEW`
+- Severity: medium
+- Action: `DO_NOT_AUTOREWRITE`
+
+### Neutral Narration (No Lock)
+- **Condemning context:** preserve with `VOICE_CONTEXT_ALLOWED`
+- **Endorsing context:** block with `PROHIBITED_USE_DETECTED`
+- Severity: high–critical
+- Action: `BLOCK_PUBLICATION` if endorsement detected
+
+### Historical/Academic Context
+- Label: `HISTORICAL_CONTEXT_ONLY`
+- Severity: medium
+- Action: `DO_NOT_AUTOREWRITE` + sensitivity note
+
+---
+
+## 4. Reclaimed Language
+
+### Definition
+Language historically used as slur but reclaimed by target community for in-group identity.
+
+### Handling Rules
+1. **In-group usage:** preserve (voice-essential)
+2. **Out-group usage:** flag as `MARKET_RISK_REVIEW`
+3. **Ambiguous speaker:** default to `VOICE_CONTEXT_ALLOWED` + flag
+
+### Examples
+- LGBTQ+ community reclaiming gender/sexuality terms
+- Disability community reclaiming medical terms
+- Ethnic communities reclaiming racial terms
+
+**Critical:** Base44 NEVER decides if reclamation is "appropriate"—only flags for editorial awareness.
+
+---
+
+## 5. Prohibited Actions
+
+Base44 **MUST NOT**:
+- ❌ Auto-replace slur with euphemism
+- ❌ Generate "sanitized alternatives"
+- ❌ Normalize dialect/nonstandard grammar in slur contexts
+- ❌ Apply "grammar correction" to reclaimed language
+- ❌ Suggest removal without explaining narrative impact
+
+---
+
+## 6. Validation & Testing
+
+### TS-GOLD-V1-SLUR Pass Criteria
+- ✅ **100% detection rate** (all slurs flagged)
+- ✅ **0% auto-rewrite rate** (proposed_revision always null)
+- ✅ **≥95% classification accuracy** (correct bucket assignment)
+- ✅ **0% grammar false positives** (no "fix the slang" suggestions)
+
+### Regression Testing
+Run `validateGoldStandard` with `dataset: 'slur'` before any deployment that touches:
+- Voice/register detection
+- Severity calibration
+- Label assignment
+- Alternative generation logic
+
+---
+
+## 7. Escalation Protocol
+
+### When Base44 Detects Prohibited Use
+1. Flag with `PROHIBITED_USE_DETECTED`
+2. Set severity: `critical`
+3. Action: `BLOCK_PUBLICATION`
+4. User sees: "Editorial review required before publishing"
+5. **No auto-rewrite** offered
+
+### When Classification Is Ambiguous
+1. Default to most permissive bucket (`VOICE_AUTHENTIC`)
+2. Flag for manual review
+3. Log ambiguity for training set expansion
+
+---
+
+## 8. Legal & Ethical Framework
+
+### Protected Speech
+RevisionGrade respects:
+- **Artistic expression** (depicting vs. endorsing)
+- **Historical accuracy** (period-appropriate language)
+- **Social commentary** (critiquing systemic language)
+- **In-group reclamation** (self-identification)
+
+### Liability Protection
+By **never auto-rewriting slurs**, RevisionGrade avoids:
+- Implied editorial endorsement
+- Misrepresentation of authorial intent
+- Legal exposure from "correcting" protected speech
+
+---
+
+## 9. Training Data Governance
+
+### What Goes Into Training
+- ✅ **Contextual examples** (slur + register + classification)
+- ✅ **Detection patterns** (how to identify slur presence)
+- ✅ **Risk bucket logic** (how to classify stance)
+
+### What NEVER Goes Into Training
+- ❌ **Slur rewrites** (no "say this instead" pairs)
+- ❌ **Generative alternatives** (no LLM-produced replacements)
+- ❌ **Out-of-context slur lists** (no decontextualized terms)
+
+---
+
+## 10. UI/UX Guidance
+
+### How to Present Flags to Users
+
+**Good:**
+> ⚠️ **Market Risk Review Required**  
+> This passage contains language that may violate retailer content policies. We've flagged it for your awareness but made no changes—your voice, your choice.
+
+**Bad:**
+> ❌ **Offensive Language Detected**  
+> RevisionGrade recommends replacing "[slur]" with "[euphemism]" to improve readability.
+
+### Key Principles
+- **Transparency:** Explain why flagged
+- **Neutrality:** No moral judgment
+- **Authorial control:** User decides action
+- **Educational:** Link to resources on market standards
+
+---
+
+## 11. Version Control
+
+### TS-GOLD-V1-SLUR
+- **30 examples** covering 4 risk buckets
+- **Frozen as of:** 2025-12-30
+- **Next version:** Add Batch 8 stress cases (nested contexts, multi-paragraph POV shifts)
+
+### Schema Updates
+Any changes to risk buckets, labels, or actions require:
+1. Update `SLUR_LEXICON_SCHEMA.json`
+2. Regenerate validation harness
+3. Run full regression suite
+4. Document in changelog
+
+---
+
+## 12. Contact & Support
+
+**Questions about classification?** → [Internal escalation process]  
+**User complaints?** → [Support ticket system]  
+**Legal concerns?** → [Legal team contact]
+
+---
+
+**End of Document**

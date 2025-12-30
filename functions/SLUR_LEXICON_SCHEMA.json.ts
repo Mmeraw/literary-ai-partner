@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Slur Lexicon Entry Schema",
+  "description": "Classification schema for high-risk language handling in RevisionGrade",
+  "type": "object",
+  "required": [
+    "term",
+    "display_form",
+    "category",
+    "target_groups",
+    "is_paradigmatic_slur",
+    "is_reclaimed_possible",
+    "default_risk_bucket",
+    "default_allowed_action"
+  ],
+  "properties": {
+    "term": {
+      "type": "string",
+      "description": "Internal reference ID (lowercase, underscored)"
+    },
+    "display_form": {
+      "type": "string",
+      "description": "How to reference in documentation (may be redacted)"
+    },
+    "variants": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Spelling variations, abbreviations, phonetic forms"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "race_ethnicity",
+        "nationality",
+        "religion",
+        "sexuality_gender",
+        "disability",
+        "class_status",
+        "appearance",
+        "mixed"
+      ],
+      "description": "Primary classification category"
+    },
+    "target_groups": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Specific communities targeted by this term"
+    },
+    "is_paradigmatic_slur": {
+      "type": "boolean",
+      "description": "True if universally recognized as offensive (no context makes it acceptable in narrator voice)"
+    },
+    "is_reclaimed_possible": {
+      "type": "boolean",
+      "description": "True if in-group reclamation exists in contemporary usage"
+    },
+    "default_risk_bucket": {
+      "type": "string",
+      "enum": [
+        "VOICE_AUTHENTIC",
+        "NARRATIVE_CONDEMNATION",
+        "MARKET_RISK",
+        "PROHIBITED_USE"
+      ],
+      "description": "Default classification when context is ambiguous"
+    },
+    "default_allowed_action": {
+      "type": "string",
+      "enum": [
+        "PRESERVE_WITH_FLAG",
+        "FLAG_ONLY",
+        "BLOCK_AUTOREWRITE"
+      ],
+      "description": "What Base44 is permitted to do with this term"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Special handling instructions, historical context, sensitivity notes"
+    },
+    "example_contexts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["register", "stance"],
+        "properties": {
+          "register": {
+            "type": "string",
+            "enum": ["dialogue", "narration", "social_media", "quoted_material"],
+            "description": "Where the term appears"
+          },
+          "stance": {
+            "type": "string",
+            "enum": ["speaker_endorses", "narrator_condemns", "neutral_report"],
+            "description": "Narrative positioning toward the term"
+          },
+          "comment": {
+            "type": "string",
+            "description": "Brief explanation of how to handle this context"
+          }
+        }
+      }
+    }
+  }
+}
