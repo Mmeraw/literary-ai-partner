@@ -335,13 +335,16 @@ SCORING GUIDELINES:
         const WAVE_MAX_RETRIES = 2; // Hard cap for WAVE-specific failures
 
         for (let i = 0; i < freshChapters.length; i++) {
-            console.log(`📖 Processing chapter ${i + 1}/${freshChapters.length}: ${freshChapters[i].title}`);
-
             const chapter = freshChapters[i];
+            console.log(`📖 Processing chapter ${i + 1}/${freshChapters.length}: ${chapter.title}`, {
+                status: chapter.status,
+                wave_status: chapter.wave_status,
+                has_score: !!chapter.evaluation_score
+            });
 
-            // Skip if already evaluated
-            if (chapter.status === 'evaluated' && chapter.evaluation_score) {
-                console.log(`Chapter ${i + 1} already evaluated, skipping`);
+            // Skip if WAVE already evaluated (use dedicated wave_status field)
+            if (chapter.wave_status === 'evaluated' && chapter.evaluation_score) {
+                console.log(`Chapter ${i + 1} WAVE already evaluated, skipping`);
                 continue;
             }
 
