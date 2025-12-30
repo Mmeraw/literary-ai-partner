@@ -562,6 +562,9 @@ ${chapter.text}`;
                 }
 
         // PHASE 2: Spine synthesis (all summaries at once)
+        const runId = `${manuscriptId}_${Date.now()}`;
+        console.log(`🚪 PHASE_2_SPINE_ENTRY`, { runId, manuscriptId, timestamp: new Date().toISOString() });
+
         // Skip if spine already evaluated
         if (!manuscript.spine_score || !manuscript.spine_evaluation) {
             await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
@@ -643,7 +646,7 @@ SCORING GUIDELINES:
 
         // Update manuscript with spine evaluation (apply integrity penalty)
         const adjustedSpineScore = Math.max(0, spineEvaluation.overallScore - integrityPenalty);
-        
+
         await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
             spine_score: adjustedSpineScore,
             spine_evaluation: {
@@ -664,6 +667,8 @@ SCORING GUIDELINES:
                 last_updated: new Date().toISOString()
             }
         });
+
+        console.log(`🚪 PHASE_2_SPINE_EXIT`, { runId, manuscriptId, spineScore: adjustedSpineScore, timestamp: new Date().toISOString() });
         } else {
         // Spine already done, update status for WAVE phase
         await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
@@ -678,12 +683,18 @@ SCORING GUIDELINES:
                 last_updated: new Date().toISOString()
             }
         });
+
+        console.log(`🚪 PHASE_2_SPINE_SKIPPED`, { runId, manuscriptId, reason: 'already_complete', timestamp: new Date().toISOString() });
         }
 
         // PHASE 3: WAVE chapter craft evaluation - PARALLEL EXECUTION
+        console.log(`🚪 PHASE_3_WAVE_ENTRY`, { runId, manuscriptId, chaptersCount: chapters.length, timestamp: new Date().toISOString() });
+
         // Reload chapters to get fresh status after summaries/spine
         const freshChapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
-        
+
+        console.log(`📊 WAVE_PREP`, { runId, freshChaptersCount: freshChapters.length, timestamp: new Date().toISOString() });
+
         // WATCHDOG: Fail stale "running" chapters (stuck >15 min)
         const now = new Date();
         const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
@@ -704,23 +715,20 @@ SCORING GUIDELINES:
         
         // Reload after watchdog cleanup
         const cleanedChapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
-        
-        // PHASE GATE ENTRY LOG (cannot lie)
-        const runId = `${manuscriptId}_${Date.now()}`;
-        console.log(`🚪 PHASE_3_ENTRY`, {
-            runId,
-            manuscriptId,
-            phase: 'PHASE_3_WAVE',
-            chaptersCount: cleanedChapters.length,
-            chapterIds: cleanedChapters.map(ch => ch.id),
-            timestamp: new Date().toISOString()
-        });
+
+        console.log(`🔄 WAVE_RELOAD_AFTER_WATCHDOG`, { runId, cleanedCount: cleanedChapters.length, timestamp: new Date().toISOString() });
 
         const MAX_RETRIES = 2;
         const MAX_CONCURRENT_CHAPTERS = 4; // Prevent stampede - batch chapters
 
         // PARALLEL ORCHESTRATION: Evaluate chapters in batches to prevent overload
-        console.log(`🚀 Starting batched evaluation: ${cleanedChapters.length} chapters, max ${MAX_CONCURRENT_CHAPTERS} concurrent`);
+        console.log(`🚀 WAVE_ORCHESTRATION_START`, { 
+            runId, 
+            totalChapters: cleanedChapters.length, 
+            maxConcurrent: MAX_CONCURRENT_CHAPTERS,
+            maxRetries: MAX_RETRIES,
+            timestamp: new Date().toISOString() 
+        });
         
         const allResults = [];
         for (let batchStart = 0; batchStart < cleanedChapters.length; batchStart += MAX_CONCURRENT_CHAPTERS) {
@@ -735,7 +743,12 @@ SCORING GUIDELINES:
             allResults.push(...batchResults);
         }
 
-        console.log(`✅ All chapters processed: ${allResults.filter(r => r.status === 'fulfilled').length} succeeded, ${allResults.filter(r => r.status === 'rejected').length} failed`);
+        console.log(`✅ WAVE_ORCHESTRATION_COMPLETE`, { 
+            runId, 
+            succeeded: allResults.filter(r => r.status === 'fulfilled').length, 
+            failed: allResults.filter(r => r.status === 'rejected').length,
+            timestamp: new Date().toISOString() 
+        });
 
 
         // PHASE 4: Final composite scoring
