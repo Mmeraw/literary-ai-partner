@@ -59,10 +59,13 @@ export default function Home() {
                             WAVE is a late-stage revision system for manuscripts that already work at the story level but still need disciplined editing to read as professional and submission-ready. It is diagnostic and multi-pass: each evaluation isolates a failure pattern, explains why it weakens the manuscript, and gives a concrete way to fix it.
                         </p>
                         <p className="leading-relaxed">
-                            Base44 applies the WAVE framework to every chapter automatically, then reports which areas need attention and why—so you see the standards and stay in control of every change.
+                            RevisionGrade applies WAVE across your chapters automatically, then reports which areas need attention and why—so you see the standards and stay in control of every change.
                         </p>
                         <p className="leading-relaxed font-semibold text-indigo-900">
-                            The app is AI-powered, but the standards are human-crafted WAVE IP.
+                            Revision Framework-AI executes the analysis. WAVE defines the standards.
+                        </p>
+                        <p className="leading-relaxed font-semibold text-indigo-900">
+                            The intellectual property—the standards themselves—is human-crafted.
                         </p>
                         <p className="text-sm text-slate-600 italic mt-4 pt-4 border-t border-indigo-200">
                             The WAVE framework, thresholds, and scoring logic remain proprietary and are implemented in software; writers see the decisions and explanations, not the underlying code.
