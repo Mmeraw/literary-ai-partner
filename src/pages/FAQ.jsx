@@ -35,6 +35,24 @@ export default function FAQ() {
                     </p>
                 </div>
 
+                {/* Why We Built It This Way */}
+                <Card className="border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white shadow-lg mb-8">
+                    <CardHeader>
+                        <CardTitle className="text-2xl text-indigo-900">Why We Built It This Way</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-slate-700 space-y-3">
+                        <p>
+                            <strong>Built to evaluate stories the way agents and editors actually read</strong>—balancing craft, clarity, and real-world market readiness.
+                        </p>
+                        <p>
+                            This evaluation system was designed to reflect how professional agents, editors, and script readers actually assess work—not just craft in isolation, but readiness for the market. The 12 Story Evaluation Criteria measure narrative strength, clarity, and execution, while an internal meta-layer captures the quieter factors that influence real acquisition decisions, such as conceptual clarity, reader load, originality, and professional polish.
+                        </p>
+                        <p>
+                            Together, they allow us to assess not only how well a story is written, but whether it functions as a viable, compelling piece of work in today's publishing and screen markets—without overburdening creators with opaque or subjective judgment.
+                        </p>
+                    </CardContent>
+                </Card>
+
                 {/* FAQ Sections */}
                 <div className="space-y-8">
                     {/* Pricing & Value */}
@@ -188,6 +206,31 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
+                                <AccordionItem value="write-rewrite">
+                                    <AccordionTrigger>
+                                        Does RevisionGrade write or rewrite my book?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                RevisionGrade <strong>does not generate original story content</strong> (new scenes, new plot, or invented dialogue) and it does not act as a co-writer.
+                                            </p>
+                                            <p>
+                                                It <strong>does generate revision options</strong> for your existing text—including line edits and structural rewrites—then lets you decide what to apply: accept, reject, request alternatives, or apply a "Trusted Path" that batches recommended changes.
+                                            </p>
+                                            <p className="font-semibold text-indigo-900">
+                                                You remain in control of what gets changed.
+                                            </p>
+                                            <p className="text-sm text-slate-600 mt-3 italic">
+                                                One-line summary: "RevisionGrade doesn't invent your story — it helps you revise it, with you in control."
+                                            </p>
+                                            <p className="text-sm text-slate-600 mt-2">
+                                                <strong>Trusted Path note:</strong> Trusted Path applies recommended edits automatically. You can review, undo, or export clean text anytime.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
                                 <AccordionItem value="what-it-does">
                                     <AccordionTrigger>
                                         What RevisionGrade™ does — and does not — do
@@ -195,18 +238,18 @@ export default function FAQ() {
                                     <AccordionContent>
                                         <div className="space-y-3 text-slate-700">
                                             <p>
-                                                RevisionGrade™ is <strong>not a grammar checker, rewrite engine, or content generator</strong>.
+                                                RevisionGrade™ is <strong>not a grammar checker or generic writing assistant</strong>.
                                             </p>
                                             <p className="font-semibold text-slate-900">It does not:</p>
                                             <ul className="list-disc ml-6 space-y-1">
-                                                <li>Rewrite your prose for you</li>
-                                                <li>Generate new scenes or dialogue</li>
+                                                <li>Generate original story content (new plot, scenes, characters)</li>
                                                 <li>Act as a co-writer</li>
                                                 <li>Provide margin notes like a human editor</li>
                                             </ul>
                                             <p className="font-semibold text-slate-900 mt-3">It does:</p>
                                             <ul className="list-disc ml-6 space-y-1">
                                                 <li>Evaluate your manuscript or screenplay against agent-calibrated criteria</li>
+                                                <li>Generate revision options for your existing text (with your approval)</li>
                                                 <li>Diagnose structural and craft risks</li>
                                                 <li>Surface recurring weaknesses</li>
                                                 <li>Measure whether your revisions actually improve the work</li>
@@ -295,6 +338,44 @@ export default function FAQ() {
                                             </p>
                                             <p className="text-indigo-900 font-semibold">
                                                 Better judgment comes from alignment, not volume.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="comparison-methodology">
+                                    <AccordionTrigger>
+                                        How does RevisionGrade evaluate my manuscript against published novels if it hasn't read every book?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p className="font-semibold text-slate-900">
+                                                The key insight: You don't compare manuscripts by reading every other book word-for-word. You compare them by measuring patterns—not prose.
+                                            </p>
+                                            <p>
+                                                RevisionGrade does not claim to have read every novel ever written. It does something far more precise and defensible: <strong>it evaluates how a manuscript behaves relative to known, measurable narrative patterns extracted from professionally successful fiction</strong>.
+                                            </p>
+                                            <p className="font-semibold text-slate-900 mt-3">
+                                                A novel is judged by structural, rhythmic, and cognitive signals that repeat across successful books:
+                                            </p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>How quickly conflict is introduced</li>
+                                                <li>How tension rises and releases</li>
+                                                <li>How often interiority appears</li>
+                                                <li>How scenes turn</li>
+                                                <li>How stakes escalate</li>
+                                                <li>How dialogue functions under pressure</li>
+                                                <li>How exposition is distributed</li>
+                                                <li>How POV and psychic distance behave</li>
+                                            </ul>
+                                            <p className="mt-3">
+                                                These patterns can be measured. They don't require the AI to have read every novel ever written—only to understand what successful narrative architecture looks like.
+                                            </p>
+                                            <p className="text-indigo-900 font-semibold mt-3">
+                                                "RevisionGrade doesn't compare your manuscript to other books. It compares your manuscript to how effective books are built."
+                                            </p>
+                                            <p className="text-sm text-slate-600 mt-3 italic">
+                                                Editors don't read every novel either—they recognize patterns. Your system is doing the same thing—systematically.
                                             </p>
                                         </div>
                                     </AccordionContent>
