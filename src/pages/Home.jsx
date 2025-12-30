@@ -27,7 +27,7 @@ export default function Home() {
 
                         <p className="mt-6 text-xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
                             Revision Framework-AI. 13 Agent Criteria. WAVE Diagnostics.<br />
-                            From manuscript to query-ready—one system.
+                            From manuscript / screenplay to query-ready—one system.
                         </p>
 
                         <div className="mt-10">
