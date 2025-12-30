@@ -290,30 +290,17 @@ SCORING GUIDELINES:
                 continue;
             }
 
-            // If chapter stuck in 'evaluating' status, mark as failed and skip
-            // (Aggressive recovery: any chapter in evaluating state when we start a new run is considered hung)
-            if (chapter.status === 'evaluating') {
-                console.log(`Chapter ${i + 1} was stuck in evaluating status, marking as failed and skipping`);
+            // Reset any chapter stuck in 'evaluating' or retry failed chapters
+            if (chapter.status === 'evaluating' || chapter.status === 'failed') {
+                console.log(`Chapter ${i + 1} status: ${chapter.status} - resetting for retry`);
                 await base44.asServiceRole.entities.Chapter.update(chapter.id, {
-                    status: 'failed',
-                    error_message: 'Previous evaluation attempt did not complete'
+                    status: 'summarized',
+                    error_message: null,
+                    evaluation_score: null,
+                    evaluation_result: null,
+                    wave_results_json: null
                 });
-
-                // Update progress to show we skipped this chapter
-                const evaluatedSoFar = chapters.filter(ch => ch.status === 'evaluated').length;
-                const wavePercent = 40 + Math.floor(((i + 1) / chapters.length) * 50);
-                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-                    evaluation_progress: {
-                        chapters_total: chapters.length,
-                        chapters_summarized: chapters.length,
-                        chapters_wave_done: evaluatedSoFar,
-                        current_phase: 'wave',
-                        percent_complete: wavePercent,
-                        current_step: `Skipped stuck chapter ${i + 1}, continuing...`,
-                        last_updated: new Date().toISOString()
-                    }
-                });
-                continue;
+                // Don't continue - let it run through normal evaluation below
             }
 
             try {
@@ -587,18 +574,18 @@ WAVE SYSTEM FRAMEWORK:
                 error_message: error.message
             });
 
-            // Update progress to show we moved past this chapter
+            // CRITICAL FIX: Increment chapters_wave_done by i+1 (not i) so progress moves forward
             const wavePercent = 40 + Math.floor(((i + 1) / chapters.length) * 50);
             await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                 evaluation_progress: {
                     chapters_total: chapters.length,
                     chapters_summarized: chapters.length,
-                    chapters_wave_done: i,
+                    chapters_wave_done: i + 1,
                     current_phase: 'wave',
                     percent_complete: wavePercent,
-                    current_step: `Chapter ${i + 1} failed, continuing...`,
+                    current_step: `Chapter ${i + 1} failed (timeout/error), continuing...`,
                     last_updated: new Date().toISOString(),
-                    error_message: `Chapter ${i + 1} error: ${error.message}`
+                    error_message: `Chapter ${i + 1}: ${error.message}`
                 }
             });
             // Continue with remaining chapters
