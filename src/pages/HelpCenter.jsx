@@ -199,6 +199,80 @@ export default function HelpCenter() {
                             </CardContent>
                         </Card>
 
+                        <Card className="border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <HelpCircle className="w-5 h-5 text-indigo-600" />
+                                    Trusted Path™ Threshold Model
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4 text-slate-700">
+                                <p className="font-semibold text-slate-900">
+                                    Trusted Path™ does not operate on a single on/off switch.
+                                </p>
+                                <p>
+                                    It uses tiered structural thresholds to decide how and how far automated revision can safely proceed. This protects accuracy, prevents false confidence, and preserves authorial control.
+                                </p>
+
+                                <div className="space-y-4 mt-4">
+                                    {/* Zone 1 */}
+                                    <div className="p-4 rounded-lg bg-red-50 border-2 border-red-200">
+                                        <h4 className="font-bold text-red-900 mb-2">0.0–5.9: Structural Failure Zone</h4>
+                                        <p className="text-sm mb-2"><strong>Status:</strong> Diagnostic only</p>
+                                        <p className="text-sm font-semibold mb-2">Trusted Path behavior:</p>
+                                        <ul className="list-disc ml-6 space-y-1 text-sm">
+                                            <li>Structural analysis only</li>
+                                            <li>No line-level or stylistic rewriting</li>
+                                            <li>Full identification of missing or unstable narrative elements</li>
+                                            <li>Output a prioritized "Repair Map" (missing beats, broken causality, unclear stakes, motive gaps) with recommended sequence of work</li>
+                                        </ul>
+                                        <p className="text-sm mt-3 italic text-red-900">
+                                            <strong>What this means:</strong> The manuscript lacks sufficient structural integrity for safe revision. Applying polish here would hide core problems rather than fix them.
+                                        </p>
+                                    </div>
+
+                                    {/* Zone 2 */}
+                                    <div className="p-4 rounded-lg bg-amber-50 border-2 border-amber-200">
+                                        <h4 className="font-bold text-amber-900 mb-2">6.0–7.9: Conditional Readiness Zone</h4>
+                                        <p className="text-sm mb-2"><strong>Status:</strong> Guided rebuild with limited local edits</p>
+                                        <p className="text-sm font-semibold mb-2">Trusted Path behavior:</p>
+                                        <ul className="list-disc ml-6 space-y-1 text-sm">
+                                            <li>Diagnose structural weaknesses and gaps</li>
+                                            <li>Propose scaffolded fixes (missing scenes, bridges, beats) as options</li>
+                                            <li>Allow localized line-level edits only in segments that meet internal stability criteria</li>
+                                            <li>Keep full-manuscript polish locked or clearly marked as "not recommended yet"</li>
+                                            <li>Label any local edits as "safe-zone edits" and explain why they were eligible (e.g., stable scene purpose + clear causality in that segment)</li>
+                                        </ul>
+                                        <p className="text-sm mt-3 italic text-amber-900">
+                                            <strong>What this means:</strong> The story has emerging structure but is not consistently stable. Trusted Path focuses on rebuilding architecture first and only polishes where it is safe to do so.
+                                        </p>
+                                    </div>
+
+                                    {/* Zone 3 */}
+                                    <div className="p-4 rounded-lg bg-emerald-50 border-2 border-emerald-200">
+                                        <h4 className="font-bold text-emerald-900 mb-2">8.0–10.0: Full Trusted Path Zone</h4>
+                                        <p className="text-sm mb-2"><strong>Status:</strong> Full automated revision enabled</p>
+                                        <p className="text-sm font-semibold mb-2">Trusted Path behavior:</p>
+                                        <ul className="list-disc ml-6 space-y-1 text-sm">
+                                            <li>Apply vetted line-level and stylistic revisions across the manuscript where structure supports them</li>
+                                            <li>Maintain authorial intent, without inventing new plotlines, themes, or characters</li>
+                                            <li>Surface remaining structural risks transparently while still allowing global polish</li>
+                                            <li>Preserve the "no ghostwriting" contract: revisions refine execution; they do not manufacture story architecture</li>
+                                        </ul>
+                                        <p className="text-sm mt-3 italic text-emerald-900">
+                                            <strong>What this means:</strong> Core narrative integrity is present. Trusted Path can safely refine execution—clarity, coherence, pacing—without pretending to fix a broken story.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 p-4 rounded-lg bg-slate-100 border border-slate-300">
+                                    <p className="text-sm text-slate-700 italic font-semibold">
+                                        "Trusted Path adjusts its behavior based on structural readiness: it diagnoses in failure, guides rebuild in borderline cases, and only applies full automated polish once your story's architecture is strong enough to support it."
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
+
                         <Card>
                             <CardHeader>
                                 <CardTitle>Step 4 — Review the Trusted Path outputs</CardTitle>
