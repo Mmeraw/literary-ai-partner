@@ -62,10 +62,10 @@ export default function Home() {
                             RevisionGrade applies WAVE across your chapters automatically, then reports which areas need attention and why—so you see the standards and stay in control of every change.
                         </p>
                         <p className="leading-relaxed font-semibold text-indigo-900">
-                            Revision Framework-AI executes the analysis. WAVE defines the standards.
+                            Revision Framework-AI executes the analysis. WAVE defines the standard.
                         </p>
                         <p className="leading-relaxed font-semibold text-indigo-900">
-                            The intellectual property—the standards themselves—is human-crafted.
+                            The intellectual property—the standard itself—is human-crafted.
                         </p>
                         <p className="text-sm text-slate-600 italic mt-4 pt-4 border-t border-indigo-200">
                             The WAVE framework, thresholds, and scoring logic remain proprietary and are implemented in software; writers see the decisions and explanations, not the underlying code.
