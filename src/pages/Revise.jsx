@@ -25,6 +25,8 @@ export default function Revise() {
   const [trustedPathEnabled, setTrustedPathEnabled] = useState(false);
   const [showBeforeAfter, setShowBeforeAfter] = useState(false);
 
+  const [generationAttempted, setGenerationAttempted] = useState(false);
+
   const { data: session, isLoading } = useQuery({
     queryKey: ['revisionSession', sessionId],
     queryFn: async () => {
@@ -32,8 +34,9 @@ export default function Revise() {
       const sessions = await base44.entities.RevisionSession.filter({ id: sessionId });
       const sess = sessions[0] || null;
       
-      // If session has no suggestions, generate them
-      if (sess && (!sess.suggestions || sess.suggestions.length === 0)) {
+      // If session has no suggestions, generate them (only once)
+      if (sess && (!sess.suggestions || sess.suggestions.length === 0) && !generationAttempted) {
+        setGenerationAttempted(true);
         toast.loading('Generating revision suggestions...', { id: 'gen-suggestions' });
         try {
           await base44.functions.invoke('generateRevisionSuggestions', {
@@ -46,14 +49,17 @@ export default function Revise() {
           toast.success('Suggestions ready!', { id: 'gen-suggestions' });
           return updated[0] || null;
         } catch (error) {
-          toast.error('Failed to generate suggestions', { id: 'gen-suggestions' });
+          toast.error('Failed to generate suggestions. Please try reloading.', { id: 'gen-suggestions' });
           console.error('Suggestion generation error:', error);
+          return sess; // Return session even on failure to stop loading loop
         }
       }
       
       return sess;
     },
-    enabled: !!sessionId
+    enabled: !!sessionId,
+    retry: false, // Don't auto-retry if generation fails
+    refetchOnMount: false // Only fetch once per mount
   });
 
   const updateSessionMutation = useMutation({
@@ -346,6 +352,28 @@ export default function Revise() {
             <Link to={createPageUrl('History')}>
               <Button className="mt-4">Back to History</Button>
             </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show error if suggestions failed to generate
+  if (!session.suggestions || session.suggestions.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold text-red-900 mb-2">Suggestion Generation Failed</h3>
+            <p className="text-slate-600 mb-4">Unable to generate revision suggestions for this session.</p>
+            <div className="flex gap-2">
+              <Link to={createPageUrl('History')}>
+                <Button variant="outline">Back to History</Button>
+              </Link>
+              <Button onClick={() => window.location.reload()}>
+                Try Again
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
