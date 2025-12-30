@@ -16,18 +16,90 @@ import FinalOutput from '@/components/evaluation/FinalOutput';
 import StyleModeSelector from '@/components/evaluation/StyleModeSelector';
 import ThoughtTagCard from '@/components/evaluation/ThoughtTagCard';
 
+// 12 Story Evaluation Criteria (Agent/Editor Standards)
 const LITERARY_CRITERIA = [
-    "opening_hook", "narrative_voice_style", "character_depth_introduction", "conflict_tension_escalation",
-    "thematic_resonance", "structure_pacing_flow", "dialogue_subtext", "worldbuilding_immersion",
-    "stakes_emotional_investment", "line_level_craft_polish", "marketability_genre_position",
-    "narrative_closure_promises_kept", "would_keep_reading_gate"
+  "opening_hook",
+  "narrative_voice_style", 
+  "character_depth_introduction",
+  "conflict_tension_escalation",
+  "thematic_resonance",
+  "structure_pacing_flow",
+  "dialogue_subtext",
+  "worldbuilding_immersion",
+  "stakes_emotional_investment",
+  "line_level_craft_polish",
+  "marketability_genre_position",
+  "would_keep_reading_gate"
 ];
 
+// 61+ WAVE Revision System (Craft-Level Checks)
 const WAVE_CRITERIA = [
-    "sentence_variety", "word_economy", "sensory_details", "active_voice",
-    "verb_strength", "adverb_reduction", "dialogue_tags", "beat_placement",
-    "scene_structure", "transition_flow", "tension_maintenance", "emotional_beats",
-    "character_voice", "internal_monologue", "description_balance", "pacing_rhythm"
+  // EARLY WAVES (1-16): Structural Truth
+  "body_part_cliches",
+  "pov_honesty",
+  "concrete_specificity",
+  "filter_verbs",
+  "adverb_diet",
+  "active_voice",
+  "negation_discipline",
+  "abstract_triples",
+  "motif_hygiene",
+  "duplicate_brilliance",
+  "theme_after_shown",
+  "micro_location_economy",
+  "dialogue_tags",
+  "dialogue_under_pressure",
+  "on_the_nose_explanations",
+  "orientation_paragraphs",
+
+  // MID WAVES (17-40): Momentum & Meaning
+  "concrete_stakes",
+  "seed_the_timer",
+  "consequence_marker",
+  "decision_line",
+  "choreography_compression",
+  "continuity_naming",
+  "sentence_start_variety",
+  "overused_sensory_words",
+  "metaphor_freshness",
+  "cliche_alarm",
+  "rhythm_balance",
+  "paragraph_endings",
+  "scene_entry",
+  "scene_exit",
+  "information_density",
+  "spatial_clarity",
+  "pronoun_clarity",
+  "time_clarity",
+  "emotional_escalation",
+  "character_consistency",
+  "dialogue_purpose",
+  "exposition_camouflage",
+  "tension_without_saying_tension",
+  "avoiding_summary_voice",
+
+  // LATE WAVES (41-61): Authority & Polish
+  "concrete_proof_lines",
+  "symbol_motif_placement",
+  "system_detail_accuracy",
+  "institutional_stakes",
+  "transaction_metaphor_discipline",
+  "over_detail_repeated_beats",
+  "compression_similar_scenes",
+  "cutting_redundant_instructions",
+  "avoid_repeating_insight",
+  "replace_explained_beats",
+  "late_stage_sentence_vanity",
+  "emotional_honesty_audit",
+  "narrative_distance_control",
+  "ending_trust",
+  "reader_trust_test",
+  "earned_aphorisms_only",
+  "silence_as_action",
+  "negative_space",
+  "final_consistency_pass",
+  "submission_read_pass",
+  "reflexive_pronouns_redundancy"
 ];
 
 // Helper to sort WAVE hits by tier and wave number
