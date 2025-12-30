@@ -128,7 +128,7 @@ These passes answer one question: **Does this read like work that understands re
 
 ---
 
-## THE 61+ WAVE SYSTEM
+## THE 63 WAVE SYSTEM
 
 ### WAVE 1 — Body-Part Clichés (jaw / chest / eyes / breath)
 **Draft Stage:** Mid/Late
@@ -381,6 +381,39 @@ Writers use these words unconsciously as:
 - Internal thought placeholders
 
 Agents and editors spot them immediately.
+
+---
+
+### WAVE 62 — Continuity of Time & Physical State
+**Draft Stage:** Late
+
+**Why it fails:** Manuscripts that lose track of physical continuity or time erode reader trust. Injuries vanish, clothing changes without explanation, time skips occur without acknowledgment.
+
+**Quick Test:** Track physical state markers (wounds, exhaustion, clothing) and time markers (sunrise, hours passing) across scenes. If something disappears or resets without cause, flag it.
+
+**One-Line Rule:** The world must obey itself—time passes, injuries persist, objects stay where placed.
+
+---
+
+### WAVE 63 — Narrative Closure & Promises Kept
+**Draft Stage:** Late
+
+**Why it fails:** Narrative elements introduced by the text create implicit reader contracts. Abandoned arcs, unfulfilled promises, and unresolved character threads undermine reader trust and signal lack of authorial control.
+
+**Quick Test:** List every character introduced, every conflict seeded, every question raised, every promise made. Ask: Did this resolve, stay intentionally open with acknowledgment, or vanish without trace?
+
+**One-Line Rule:** Readers forgive open endings—they don't forgive forgotten ones.
+
+**Evaluation Criteria:**
+- Character arcs introduced must conclude or be acknowledged as ongoing
+- Narrative promises (setups, foreshadowing, mysteries) must resolve or be intentionally deferred
+- Causal chains must complete—actions must have consequences
+- Relationships introduced must reach resolution, stasis, or acknowledged continuation
+- Objects/symbols given significance must serve their narrative purpose
+
+**Authorization Rule:**
+- **Keep open** when: Intentional ambiguity serves theme, sequels planned, literary tradition supports open endings
+- **Flag as abandoned** when: Reader expects closure but receives silence, setup has no payoff, character disappears without narrative reason
 
 ---
 
