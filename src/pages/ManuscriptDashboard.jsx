@@ -158,15 +158,18 @@ export default function ManuscriptDashboard() {
       setIsRestarting(true);
       toast.info('Restarting evaluation...');
       try {
-        // Trigger backend evaluation (this will reset progress and continue)
+        // Trigger backend evaluation (runs in background)
         await base44.functions.invoke('evaluateFullManuscript', {
           manuscript_id: manuscriptId
         });
 
-        toast.success('Evaluation restarted');
+        toast.success('Evaluation restarted - polling for updates...');
 
-        // Force reload immediately
-        window.location.reload();
+        // Wait 2 seconds then force refetch
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['manuscript', manuscriptId] });
+          queryClient.invalidateQueries({ queryKey: ['chapters', manuscriptId] });
+        }, 2000);
       } catch (error) {
         console.error('Resume error:', error);
         toast.error('Failed to restart. Please try again.');
