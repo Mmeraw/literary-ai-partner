@@ -160,16 +160,15 @@ export default function ManuscriptDashboard() {
         await base44.functions.invoke('evaluateFullManuscript', {
           manuscript_id: manuscriptId
         });
-        
+
         toast.success('Evaluation restarted');
-        
-        // Reload page after short delay to ensure fresh data
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
+
+        // Force reload immediately
+        window.location.reload();
       } catch (error) {
         console.error('Resume error:', error);
         toast.error('Failed to restart. Please try again.');
+      } finally {
         setIsRestarting(false);
       }
     };
