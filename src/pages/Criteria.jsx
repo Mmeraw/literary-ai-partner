@@ -25,9 +25,23 @@ export default function Criteria() {
 
                 {/* Introduction */}
                 <div className="prose prose-lg prose-slate max-w-none mb-12">
-                    <p className="text-lg text-slate-700 leading-relaxed">
-                        WAVE is a late-stage revision system for manuscripts that already work at the story level but still need disciplined editing to read as professional and submission-ready. It is checklist-driven, multi-pass, and diagnostic: each Wave isolates a failure pattern, explains why it weakens the manuscript, and gives a concrete way to fix it. Base44 surfaces the relevant Waves, explains the "why," and leaves every change up to you.
-                    </p>
+                    <Card className="border-0 shadow-md bg-white">
+                        <CardContent className="p-6 space-y-4">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-900 mb-3">What is WAVE?</h2>
+                                <p className="text-slate-700 leading-relaxed">
+                                    WAVE is a late-stage revision system for manuscripts that already work at the story level but still need disciplined editing to read as professional and submission-ready. It is diagnostic and multi-pass: each evaluation isolates a failure pattern, explains why it weakens the manuscript, and gives a concrete way to fix it.
+                                </p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 mb-3">How Base44 applies WAVE</h3>
+                                <p className="text-slate-700 leading-relaxed">
+                                    Base44—powered by multiple AI systems including ChatGPT and Perplexity—executes the WAVE framework on your manuscript, applying the proprietary standards consistently across every chapter. It surfaces where the draft succeeds and where it undermines itself, explains the "why" behind each flag, and leaves every creative decision to you.
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
 
                 {/* WAVE Order Card */}
