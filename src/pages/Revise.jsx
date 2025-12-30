@@ -452,6 +452,33 @@ export default function Revise() {
           {/* Smart Features Banner */}
           <SmartFeaturesBanner trustedPathZone={trustedPathZone} />
 
+          {/* HARD STRUCTURAL GATE BANNER */}
+          {sessionScore && sessionScore < 8.0 && (
+            <Card className="border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 mt-4">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center">
+                    <Info className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-amber-900 mb-3">
+                      Structural Revision Required
+                    </h3>
+                    <p className="text-sm text-amber-800 mb-3">
+                      The revisions being suggested on this page are structural, not line-level polish. Your current WAVE RevisionGrade score is below 8.0, which means the chapter's story spine, clarity, and coherence still need work before sentence-level refinement is appropriate.
+                    </p>
+                    <p className="text-sm text-amber-800 mb-3">
+                      Line-level polish (wording, rhythm, and stylistic tweaks) only becomes available when the WAVE score is 8.0 or higher.
+                    </p>
+                    <p className="text-sm text-amber-900 font-medium">
+                      Please address the structural issues highlighted in this report, revise your chapter, and then resubmit for a new evaluation.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Trusted Path - Phase 1 */}
           {!isSessionComplete && session.suggestions.some(s => s.status === 'pending') && (
             <Card className={`border-2 mt-4 ${
