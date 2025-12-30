@@ -17,6 +17,10 @@ import ForProfessionals from './pages/ForProfessionals';
 import HelpCenter from './pages/HelpCenter';
 import History from './pages/History';
 import Home from './pages/Home';
+import InternalBase44Responsibilities from './pages/InternalBase44Responsibilities';
+import InternalGovernanceIndex from './pages/InternalGovernanceIndex';
+import InternalRevisionGradeResponsibilities from './pages/InternalRevisionGradeResponsibilities';
+import InternalTrustedPathContract from './pages/InternalTrustedPathContract';
 import InviteUser from './pages/InviteUser';
 import LogoGenerator from './pages/LogoGenerator';
 import ManuscriptDashboard from './pages/ManuscriptDashboard';
@@ -39,10 +43,6 @@ import UploadManuscript from './pages/UploadManuscript';
 import UploadWork from './pages/UploadWork';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
-import InternalGovernanceIndex from './pages/InternalGovernanceIndex';
-import InternalTrustedPathContract from './pages/InternalTrustedPathContract';
-import InternalRevisionGradeResponsibilities from './pages/InternalRevisionGradeResponsibilities';
-import InternalBase44Responsibilities from './pages/InternalBase44Responsibilities';
 import __Layout from './Layout.jsx';
 
 
@@ -66,6 +66,10 @@ export const PAGES = {
     "HelpCenter": HelpCenter,
     "History": History,
     "Home": Home,
+    "InternalBase44Responsibilities": InternalBase44Responsibilities,
+    "InternalGovernanceIndex": InternalGovernanceIndex,
+    "InternalRevisionGradeResponsibilities": InternalRevisionGradeResponsibilities,
+    "InternalTrustedPathContract": InternalTrustedPathContract,
     "InviteUser": InviteUser,
     "LogoGenerator": LogoGenerator,
     "ManuscriptDashboard": ManuscriptDashboard,
@@ -88,10 +92,6 @@ export const PAGES = {
     "UploadWork": UploadWork,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
-    "InternalGovernanceIndex": InternalGovernanceIndex,
-    "InternalTrustedPathContract": InternalTrustedPathContract,
-    "InternalRevisionGradeResponsibilities": InternalRevisionGradeResponsibilities,
-    "InternalBase44Responsibilities": InternalBase44Responsibilities,
 }
 
 export const pagesConfig = {

@@ -4,13 +4,14 @@ import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import FeedbackAnalytics from '@/components/analytics/FeedbackAnalytics';
 import {
     BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import { 
     Eye, Clock, Globe, Smartphone, Users, TrendingUp,
-    Calendar, Monitor, Tablet, Phone
+    Calendar, Monitor, Tablet, Phone, ThumbsDown
 } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 
@@ -208,6 +209,10 @@ export default function Analytics() {
                         <TabsTrigger value="time">Time Patterns</TabsTrigger>
                         <TabsTrigger value="devices">Devices</TabsTrigger>
                         <TabsTrigger value="sources">Traffic Sources</TabsTrigger>
+                        <TabsTrigger value="feedback">
+                            <ThumbsDown className="w-4 h-4 mr-2" />
+                            Feedback
+                        </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="pages">
@@ -340,6 +345,10 @@ export default function Analytics() {
                                 </div>
                             </CardContent>
                         </Card>
+                    </TabsContent>
+
+                    <TabsContent value="feedback">
+                        <FeedbackAnalytics />
                     </TabsContent>
                 </Tabs>
             </div>
