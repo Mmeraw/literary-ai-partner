@@ -160,7 +160,7 @@ export default function Home() {
 
                 <div className="grid md:grid-cols-2 gap-8">
                     <div className="p-8 rounded-xl bg-white border-2 border-indigo-200">
-                        <h3 className="text-xl font-bold text-slate-900 mb-4">Agent Ready™ (12 Criteria)</h3>
+                        <h3 className="text-xl font-bold text-slate-900 mb-4">Agent Ready™ (13 Criteria)</h3>
                         <div className="space-y-2">
                             {[
                                 'Logline strength',
@@ -169,7 +169,7 @@ export default function Home() {
                                 'Comp alignment',
                                 'Voice authority',
                                 'Thematic coherence',
-                                '+ 6 more...'
+                                '+ 7 more...'
                             ].map((item, idx) => (
                                 <div key={idx} className="flex items-center gap-2">
                                     <CheckCircle2 className="w-4 h-4 text-indigo-600" />
@@ -183,7 +183,7 @@ export default function Home() {
                         <h3 className="text-xl font-bold text-slate-900 mb-4">WAVE (Proprietary Framework)</h3>
                         <div className="space-y-2">
                             {[
-                                '5-Part Mythic Arc',
+                                'Adaptive Narrative Structure Analysis',
                                 'Visual translation',
                                 'Tone enforcement',
                                 'Structural risks',
@@ -218,12 +218,51 @@ export default function Home() {
             {/* How It Works - Workflow Diagram */}
             <div className="bg-slate-50 py-20">
                 <div className="max-w-6xl mx-auto px-6">
-                    <div className="flex justify-center">
+                    <div className="flex justify-center mb-16">
                         <img 
                             src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/81ce1b007_image.png"
                             alt="RevisionGrade End-to-End Author Workflow"
                             className="w-full max-w-4xl h-auto"
                         />
+                    </div>
+
+                    {/* How WAVE Adapts */}
+                    <div className="max-w-4xl mx-auto">
+                        <div className="p-8 rounded-xl bg-white border border-slate-200">
+                            <h3 className="text-2xl font-bold text-slate-900 mb-4">
+                                How WAVE Adapts to Your Story
+                            </h3>
+                            <p className="text-slate-700 mb-6">
+                                Our Narrative Structure Analysis works across all genres:
+                            </p>
+                            <div className="space-y-3 mb-6">
+                                <div className="flex items-start gap-3">
+                                    <CheckCircle2 className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-1" />
+                                    <div>
+                                        <strong className="text-slate-900">Mythic & archetypal narratives</strong>
+                                        <span className="text-slate-600"> (epic, fantasy, quest-driven)</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <CheckCircle2 className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-1" />
+                                    <div>
+                                        <strong className="text-slate-900">Contemporary realism</strong>
+                                        <span className="text-slate-600"> (character-driven, introspective)</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <CheckCircle2 className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-1" />
+                                    <div>
+                                        <strong className="text-slate-900">Experimental structures</strong>
+                                        <span className="text-slate-600"> (non-linear, fragmented, meta)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <p className="text-slate-700 leading-relaxed">
+                                The system identifies the structural patterns unique to YOUR story, 
+                                then evaluates against agent and producer standards.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
