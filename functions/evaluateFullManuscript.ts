@@ -628,16 +628,17 @@ WAVE SYSTEM FRAMEWORK:
                     90000,
                     'WAVE Analysis'
                     );
-                } catch (waveError) {
-                    console.error(`WAVE analysis failed for chapter ${i + 1}:`, waveError.message);
-                    
+                    } catch (waveError) {
+                    console.error(`WAVE analysis failed for chapter ${i + 1}, attempt ${attempt + 1}:`, waveError.message);
+
                     // Log the failure but continue with degraded results
                     waveErrors.push({
                         phase: 'full_wave_analysis',
+                        attempt: attempt + 1,
                         error: waveError.message,
                         timestamp: new Date().toISOString()
                     });
-                    
+
                     // Use fallback WAVE results
                     waveAnalysis = {
                         waveScore: agentAnalysis.overallScore, // Use agent score as fallback
@@ -647,79 +648,87 @@ WAVE SYSTEM FRAMEWORK:
                         partial: true,
                         error: waveError.message
                     };
-                }
+                    }
 
                     // Combined score: 50% agent + 50% WAVE (apply integrity penalty)
-            const rawCombinedScore = (agentAnalysis.overallScore * 0.5) + (waveAnalysis.waveScore * 0.5);
-            const combinedScore = Math.max(0, rawCombinedScore - integrityPenalty);
+                    const rawCombinedScore = (agentAnalysis.overallScore * 0.5) + (waveAnalysis.waveScore * 0.5);
+                    const combinedScore = Math.max(0, rawCombinedScore - integrityPenalty);
 
-            // Update chapter
-            await base44.asServiceRole.entities.Chapter.update(chapter.id, {
-                evaluation_score: combinedScore,
-                chapter_craft_score: waveAnalysis.waveScore,
-                evaluation_result: {
-                    ...agentAnalysis,
-                    waveAnalysis: waveAnalysis,
-                    combinedScore: combinedScore,
-                    rawCombinedScore: rawCombinedScore,
-                    agentScore: agentAnalysis.overallScore,
-                    waveScore: waveAnalysis.waveScore,
-                    integrity_adjusted: !integrity.is_clean,
-                    integrity_penalty: integrityPenalty,
-                    evaluation_mode: evaluationMode,
-                    wave_errors: waveErrors.length > 0 ? waveErrors : undefined,
-                    partial_wave: waveAnalysis.partial || false
-                },
-                wave_results_json: waveAnalysis,
-                status: 'evaluated',
-                error_message: waveErrors.length > 0 
-                    ? `Completed with ${waveErrors.length} WAVE check(s) skipped due to timeout` 
-                    : null
-            });
+                    // Update chapter with results
+                    await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                    evaluation_score: combinedScore,
+                    chapter_craft_score: waveAnalysis.waveScore,
+                    evaluation_result: {
+                        ...agentAnalysis,
+                        waveAnalysis: waveAnalysis,
+                        combinedScore: combinedScore,
+                        rawCombinedScore: rawCombinedScore,
+                        agentScore: agentAnalysis.overallScore,
+                        waveScore: waveAnalysis.waveScore,
+                        integrity_adjusted: !integrity.is_clean,
+                        integrity_penalty: integrityPenalty,
+                        evaluation_mode: evaluationMode,
+                        wave_errors: waveErrors.length > 0 ? waveErrors : undefined,
+                        partial_wave: waveAnalysis.partial || false,
+                        attempts: attempt + 1
+                    },
+                    wave_results_json: waveAnalysis,
+                    status: 'evaluated',
+                    error_message: waveErrors.length > 0 
+                        ? `Completed with ${waveErrors.length} WAVE check(s) skipped due to timeout` 
+                        : null
+                    });
 
-            // Update progress after successful evaluation
-            const wavePercent = 40 + Math.floor(((i + 1) / freshChapters.length) * 50);
-            const stepMessage = waveErrors.length > 0 
-                ? `Evaluated ${i + 1}/${freshChapters.length} chapters (${waveErrors.length} WAVE check(s) skipped)`
-                : `Evaluated ${i + 1}/${freshChapters.length} chapters`;
-                
-            await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-                evaluation_progress: {
-                    chapters_total: freshChapters.length,
-                    chapters_summarized: freshChapters.length,
-                    chapters_wave_done: i + 1,
-                    current_phase: 'wave',
-                    percent_complete: wavePercent,
-                    current_step: stepMessage,
-                    last_updated: new Date().toISOString()
-                }
-            });
+                    // Update progress after successful evaluation
+                    const finalWavePercent = 40 + Math.floor(((i + 1) / freshChapters.length) * 50);
+                    const stepMessage = waveErrors.length > 0 
+                    ? `Evaluated ${i + 1}/${freshChapters.length} chapters (${waveErrors.length} WAVE check(s) skipped)`
+                    : `Evaluated ${i + 1}/${freshChapters.length} chapters`;
 
-            } catch (error) {
-            console.error(`Chapter ${i + 1} WAVE evaluation failed:`, error);
-            
-            // Don't increment retry_count here - it's already incremented earlier in the retry check
-            await base44.asServiceRole.entities.Chapter.update(chapter.id, {
-                status: 'failed',
-                error_message: error.message
-            });
+                    await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                    evaluation_progress: {
+                        chapters_total: freshChapters.length,
+                        chapters_summarized: freshChapters.length,
+                        chapters_wave_done: i + 1,
+                        current_phase: 'wave',
+                        percent_complete: finalWavePercent,
+                        current_step: stepMessage,
+                        last_updated: new Date().toISOString()
+                    }
+                    });
 
-            // Always move progress forward
-            const wavePercent = 40 + Math.floor(((i + 1) / freshChapters.length) * 50);
-            await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-                evaluation_progress: {
-                    chapters_total: freshChapters.length,
-                    chapters_summarized: freshChapters.length,
-                    chapters_wave_done: i + 1,
-                    current_phase: 'wave',
-                    percent_complete: wavePercent,
-                    current_step: `Chapter ${i + 1} failed, continuing...`,
-                    last_updated: new Date().toISOString()
-                }
-            });
-            // Continue with remaining chapters
-            }
-            }
+                    evaluationSuccess = true;
+                    break; // Success, exit retry loop
+
+                    } catch (error) {
+                    console.error(`Chapter ${i + 1} evaluation attempt ${attempt + 1} failed:`, error);
+
+                    // If this was the last attempt, mark chapter as failed
+                    if (attempt === MAX_RETRIES - 1) {
+                    await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                        status: 'failed',
+                        error_message: `All ${MAX_RETRIES} attempts failed: ${error.message}`,
+                        retry_count: MAX_RETRIES
+                    });
+
+                    // Always move progress forward
+                    const failWavePercent = 40 + Math.floor(((i + 1) / freshChapters.length) * 50);
+                    await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                        evaluation_progress: {
+                            chapters_total: freshChapters.length,
+                            chapters_summarized: freshChapters.length,
+                            chapters_wave_done: i + 1,
+                            current_phase: 'wave',
+                            percent_complete: failWavePercent,
+                            current_step: `Chapter ${i + 1} failed after ${MAX_RETRIES} attempts, continuing...`,
+                            last_updated: new Date().toISOString()
+                        }
+                    });
+                    }
+                    // Otherwise, loop will retry
+                    }
+                    } // End retry loop
+                    }
 
         // PHASE 4: Final composite scoring
         // Reload all chapters to get final status
