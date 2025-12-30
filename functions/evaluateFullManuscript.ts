@@ -174,7 +174,7 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
 }
 
 // JOB HANDLER: Aggregate chapter results and finalize
-async function aggregateChapterResults(chapter, agentAnalysis, waveScores, waveHits, waveErrors, integrity, integrityPenalty, evaluationMode, base44) {
+async function aggregateChapterResults(chapter, agentAnalysis, waveScores, waveHits, waveErrors, integrity, integrityPenalty, evaluationMode, base44, finalStatus = 'evaluated') {
     const avgWaveScore = (waveScores.early + waveScores.mid + waveScores.late) / 3;
     const waveAnalysis = {
         waveScore: avgWaveScore,
@@ -211,11 +211,11 @@ async function aggregateChapterResults(chapter, agentAnalysis, waveScores, waveH
             late: waveScores.late,
             combined: waveAnalysis.waveScore
         },
-        status: 'evaluated',
-        wave_status: 'evaluated',
+        status: finalStatus,
+        wave_status: finalStatus,
         wave_completed_at: new Date().toISOString(),
         error_message: waveErrors.length > 0 
-            ? `Completed with ${waveErrors.length} WAVE check(s) skipped due to timeout` 
+            ? `Completed with ${waveErrors.length} tier(s) failed/timeout` 
             : null
     });
 
@@ -248,13 +248,17 @@ async function evaluateChapterParallel(chapter, chapterIndex, totalChapters, man
         return { success: false, exceeded_retries: true };
     }
 
-    // Mark as running
+    // Mark as running with per-tier status tracking
     try {
         await base44.asServiceRole.entities.Chapter.update(chapter.id, { 
             status: 'evaluating',
             wave_status: 'running',
             wave_started_at: new Date().toISOString(),
             wave_progress: { tier: 'early', completed_tiers: [] },
+            agent_status: 'queued',
+            early_status: 'queued',
+            mid_status: 'queued',
+            late_status: 'queued',
             error_message: null,
             retry_count: retryCount
         });
@@ -284,17 +288,39 @@ async function evaluateChapterParallel(chapter, chapterIndex, totalChapters, man
             }
         });
 
-        // Run Agent Analysis
-        const agentAnalysis = await evaluateChapterAgent(chapter, base44);
-
-        // Run WAVE tiers in parallel
-        const [earlyResult, midResult, lateResult] = await Promise.allSettled([
-            evaluateChapterWaveTier(chapter, 'early', base44),
-            evaluateChapterWaveTier(chapter, 'mid', base44),
-            evaluateChapterWaveTier(chapter, 'late', base44)
+        // FAIL-SOFT: Run Agent Analysis and WAVE tiers in parallel (Agent won't block WAVE)
+        await base44.asServiceRole.entities.Chapter.update(chapter.id, { agent_status: 'running' });
+        
+        const [agentResult, earlyResult, midResult, lateResult] = await Promise.allSettled([
+            evaluateChapterAgent(chapter, base44),
+            (async () => {
+                await base44.asServiceRole.entities.Chapter.update(chapter.id, { early_status: 'running' });
+                return evaluateChapterWaveTier(chapter, 'early', base44);
+            })(),
+            (async () => {
+                await base44.asServiceRole.entities.Chapter.update(chapter.id, { mid_status: 'running' });
+                return evaluateChapterWaveTier(chapter, 'mid', base44);
+            })(),
+            (async () => {
+                await base44.asServiceRole.entities.Chapter.update(chapter.id, { late_status: 'running' });
+                return evaluateChapterWaveTier(chapter, 'late', base44);
+            })()
         ]);
 
-        // Collect results and errors
+        // Save per-tier statuses
+        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+            agent_status: agentResult.status === 'fulfilled' ? 'succeeded' : 'failed',
+            early_status: earlyResult.status === 'fulfilled' ? 'succeeded' : 'failed',
+            mid_status: midResult.status === 'fulfilled' ? 'succeeded' : 'failed',
+            late_status: lateResult.status === 'fulfilled' ? 'succeeded' : 'failed'
+        });
+
+        // Use agent result if available, fallback if failed
+        const agentAnalysis = agentResult.status === 'fulfilled' 
+            ? agentResult.value 
+            : { overallScore: 5, verdict: 'Agent analysis timed out', criteria: [] };
+
+        // Collect results and errors (add agent errors too)
         const waveScores = {
             early: earlyResult.status === 'fulfilled' ? earlyResult.value.score : agentAnalysis.overallScore,
             mid: midResult.status === 'fulfilled' ? midResult.value.score : agentAnalysis.overallScore,
@@ -308,16 +334,21 @@ async function evaluateChapterParallel(chapter, chapterIndex, totalChapters, man
         ];
 
         const waveErrors = [
+            ...(agentResult.status === 'rejected' ? [{ tier: 'agent', error: agentResult.reason.message }] : []),
             ...(earlyResult.status === 'rejected' ? [{ tier: 'early', error: earlyResult.reason.message }] : []),
             ...(midResult.status === 'rejected' ? [{ tier: 'mid', error: midResult.reason.message }] : []),
             ...(lateResult.status === 'rejected' ? [{ tier: 'late', error: lateResult.reason.message }] : [])
         ];
 
-        // Aggregate and save
-        await aggregateChapterResults(chapter, agentAnalysis, waveScores, waveHits, waveErrors, integrity, integrityPenalty, evaluationMode, base44);
+        // Determine final status: evaluated if most tiers passed, partial if some failed
+        const successCount = [agentResult, earlyResult, midResult, lateResult].filter(r => r.status === 'fulfilled').length;
+        const finalStatus = successCount >= 3 ? 'evaluated' : successCount >= 1 ? 'partial' : 'failed';
 
-        console.log(`✅ Chapter ${chapterIndex + 1} evaluation complete`);
-        return { success: true };
+        // Aggregate and save with final status
+        await aggregateChapterResults(chapter, agentAnalysis, waveScores, waveHits, waveErrors, integrity, integrityPenalty, evaluationMode, base44, finalStatus);
+
+        console.log(`✅ Chapter ${chapterIndex + 1} evaluation complete (${finalStatus})`);
+        return { success: true, status: finalStatus };
 
     } catch (error) {
         console.error(`Chapter ${chapterIndex + 1} evaluation failed:`, error);
@@ -686,16 +717,25 @@ SCORING GUIDELINES:
         });
 
         const MAX_RETRIES = 2;
+        const MAX_CONCURRENT_CHAPTERS = 4; // Prevent stampede - batch chapters
 
-        // PARALLEL ORCHESTRATION: Evaluate all chapters concurrently
-        const chapterEvaluationPromises = cleanedChapters.map((chapter, i) => 
-            evaluateChapterParallel(chapter, i, cleanedChapters.length, manuscriptId, freshChapters.length, base44, integrity, integrityPenalty, evaluationMode, MAX_RETRIES)
-        );
+        // PARALLEL ORCHESTRATION: Evaluate chapters in batches to prevent overload
+        console.log(`🚀 Starting batched evaluation: ${cleanedChapters.length} chapters, max ${MAX_CONCURRENT_CHAPTERS} concurrent`);
+        
+        const allResults = [];
+        for (let batchStart = 0; batchStart < cleanedChapters.length; batchStart += MAX_CONCURRENT_CHAPTERS) {
+            const batch = cleanedChapters.slice(batchStart, batchStart + MAX_CONCURRENT_CHAPTERS);
+            console.log(`📦 Processing batch: chapters ${batchStart + 1}-${Math.min(batchStart + MAX_CONCURRENT_CHAPTERS, cleanedChapters.length)}`);
+            
+            const batchPromises = batch.map((chapter, i) => 
+                evaluateChapterParallel(chapter, batchStart + i, cleanedChapters.length, manuscriptId, freshChapters.length, base44, integrity, integrityPenalty, evaluationMode, MAX_RETRIES)
+            );
+            
+            const batchResults = await Promise.allSettled(batchPromises);
+            allResults.push(...batchResults);
+        }
 
-        // Wait for all chapters to complete (or fail)
-        const chapterResults = await Promise.allSettled(chapterEvaluationPromises);
-
-        console.log(`✅ All chapters processed: ${chapterResults.filter(r => r.status === 'fulfilled').length} succeeded, ${chapterResults.filter(r => r.status === 'rejected').length} failed`);
+        console.log(`✅ All chapters processed: ${allResults.filter(r => r.status === 'fulfilled').length} succeeded, ${allResults.filter(r => r.status === 'rejected').length} failed`);
 
 
         // PHASE 4: Final composite scoring
