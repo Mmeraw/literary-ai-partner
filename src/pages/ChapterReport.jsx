@@ -30,12 +30,30 @@ export default function ChapterReport() {
     );
   }
 
-  if (!chapter || !chapter.evaluation_result) {
+  if (!chapter) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card>
           <CardContent className="p-6">
-            <p className="text-slate-600">Chapter evaluation not found</p>
+            <p className="text-slate-600 mb-4">Chapter not found</p>
+            <Link to={createPageUrl('Dashboard')}>
+              <Button variant="outline">Back to Dashboard</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!chapter.evaluation_result) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50">
+        <Card className="max-w-md">
+          <CardContent className="p-8 text-center">
+            <Loader2 className="w-12 h-12 mx-auto mb-4 text-indigo-600 animate-spin" />
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Evaluation In Progress</h3>
+            <p className="text-slate-600 mb-4">This may take 20-30 seconds. Please wait...</p>
+            <p className="text-xs text-slate-500">The page will automatically update when complete.</p>
           </CardContent>
         </Card>
       </div>

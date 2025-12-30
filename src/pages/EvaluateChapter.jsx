@@ -207,7 +207,7 @@ Provide: waveScore (1-10), criticalIssues (array), strengthAreas (array).`,
             ) : (
               <>
                 <Sparkles className="w-5 h-5 mr-2" />
-                Evaluate This Chapter
+                Evaluate This Writing
               </>
             )}
           </Button>
