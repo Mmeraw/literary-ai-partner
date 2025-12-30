@@ -11,7 +11,26 @@ const withTimeout = (promise, timeoutMs = 120000, label = 'Operation') => {
 };
 
 // JOB HANDLER: Evaluate chapter with agent criteria
-async function evaluateChapterAgent(chapter, base44) {
+async function evaluateChapterAgent(chapter, base44, evaluationMode) {
+    const modeGuidance = evaluationMode === 'transgressive' ? `
+
+TRANSGRESSIVE MODE ACTIVE (Critical Override):
+- ASSUME INTENT: Violence, offensive language, disturbing imagery, moral darkness are CRAFT CHOICES, not errors
+- DO NOT PENALIZE: Extremity, shock, discomfort, moral ambiguity, provocative content
+- EVALUATE: Narrative control, thematic function, psychological precision, character logic consistency
+- FLAG ONLY IF: Repetitive without escalation, contradicts internal logic, weakens character integrity, unintentional parody
+- QUESTION: "Is this precise and controlled?" NOT "Is this appropriate or offensive?"
+- PRESERVE: Dark voice, extremity, authorial control, transgressive aesthetic
+` : evaluationMode === 'trauma_memoir' ? `
+
+TRAUMA MEMOIR MODE ACTIVE (Critical Override):
+- TREAT AS TESTIMONY: Content reflects survivor experience, not gratuitous choice
+- DO NOT PENALIZE: Difficult/disturbing content, embodied sensory detail, psychological accuracy
+- EVALUATE: Authenticity, coherence, therapeutic/narrative function
+- FLAG ONLY IF: Exploitation framing, invented details, breaks psychological truth
+- PRESERVE: Survivor voice, embodied truth, sensory accuracy
+` : '';
+
     const agentAnalysis = await withTimeout(
         base44.asServiceRole.integrations.Core.InvokeLLM({
             prompt: `You are a professional evaluator (agent/editor/script reader). Analyze this chapter against the 12 Story Evaluation Criteria.
@@ -25,6 +44,7 @@ CRITICAL EVALUATION RULES (NON-NEGOTIABLE):
    - Do not flag proper nouns, ranks, units as "unclear" without cause
 4. PRESERVE VOICE. Honor author's authority, lived experience, and narrative choices.
 5. EVIDENCE-BASED. Every weakness must cite specific text; every strength must show proof.
+${modeGuidance}
 
 12 STORY EVALUATION CRITERIA (rate each 1-10):
 1. Opening Hook (opening_hook)
@@ -85,18 +105,30 @@ Provide overall score (1-10) and verdict.`,
 }
 
 // JOB HANDLER: Evaluate chapter WAVE tier
-async function evaluateChapterWaveTier(chapter, tier, base44) {
+async function evaluateChapterWaveTier(chapter, tier, base44, evaluationMode) {
+    const modePrefix = evaluationMode === 'transgressive' ? `
+
+TRANSGRESSIVE MODE: Extremity is intentional craft. Evaluate precision, not politeness.
+- Do NOT flag: violence, offensive language, disturbing content, moral darkness
+- Flag ONLY: repetitive shock, contradicts logic, weakens character, unintentional parody
+` : evaluationMode === 'trauma_memoir' ? `
+
+TRAUMA MEMOIR MODE: Treat as survivor testimony. Respect embodied truth.
+- Do NOT flag: difficult content, sensory detail, psychological accuracy
+- Flag ONLY: exploitation, invented details, tonal breaks
+` : '';
+
     const tierConfig = {
         early: {
             prompt: `You are an elite developmental editor. Analyze EARLY TIER structural issues only.
+        ${modePrefix}
+        EARLY TIER CHECKS (Structural Truth):
+        - POV Honesty (Wave 2): No mind-reading, observable proof only
+        - Concrete Stakes (Wave 17): What's at risk if this fails?
+        - Character Consistency (Wave 36): Voice logic maintained?
 
-EARLY TIER CHECKS (Structural Truth):
-- POV Honesty (Wave 2): No mind-reading, observable proof only
-- Concrete Stakes (Wave 17): What's at risk if this fails?
-- Character Consistency (Wave 36): Voice logic maintained?
-
-CHAPTER: ${chapter.title}
-TEXT: ${chapter.text}
+        CHAPTER: ${chapter.title}
+        TEXT: ${chapter.text}
 
 For each issue: category, severity, description, example_quote, fix_suggestion.
 Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
@@ -104,8 +136,8 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
         },
         mid: {
             prompt: `You are an elite developmental editor. Analyze MID TIER craft issues only.
-
-MID TIER CHECKS (Momentum & Meaning):
+        ${modePrefix}
+        MID TIER CHECKS (Momentum & Meaning):
 - Generic Nouns (Wave 3): Replace "room," "thing," "place" with specificity
 - Filter Verbs (Wave 4): Remove "I saw/felt/heard" distance
 - Adverb Diet (Wave 5): Weak verbs propped up by adverbs?
@@ -122,8 +154,8 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
         },
         late: {
             prompt: `You are an elite developmental editor. Analyze LATE TIER polish issues only.
-
-LATE TIER CHECKS (Authority & Polish):
+        ${modePrefix}
+        LATE TIER CHECKS (Authority & Polish):
 - Body-Part Clichés (Wave 1): Jaw/chest/eyes that don't change action
 - Abstract Triples (Wave 8): Two beats sharpen, three soften
 - Motif Hygiene (Wave 9): Spotlight once per section
@@ -292,18 +324,18 @@ async function evaluateChapterParallel(chapter, chapterIndex, totalChapters, man
         await base44.asServiceRole.entities.Chapter.update(chapter.id, { agent_status: 'running' });
         
         const [agentResult, earlyResult, midResult, lateResult] = await Promise.allSettled([
-            evaluateChapterAgent(chapter, base44),
+            evaluateChapterAgent(chapter, base44, evaluationMode),
             (async () => {
                 await base44.asServiceRole.entities.Chapter.update(chapter.id, { early_status: 'running' });
-                return evaluateChapterWaveTier(chapter, 'early', base44);
+                return evaluateChapterWaveTier(chapter, 'early', base44, evaluationMode);
             })(),
             (async () => {
                 await base44.asServiceRole.entities.Chapter.update(chapter.id, { mid_status: 'running' });
-                return evaluateChapterWaveTier(chapter, 'mid', base44);
+                return evaluateChapterWaveTier(chapter, 'mid', base44, evaluationMode);
             })(),
             (async () => {
                 await base44.asServiceRole.entities.Chapter.update(chapter.id, { late_status: 'running' });
-                return evaluateChapterWaveTier(chapter, 'late', base44);
+                return evaluateChapterWaveTier(chapter, 'late', base44, evaluationMode);
             })()
         ]);
 
@@ -580,7 +612,23 @@ ${chapter.text}`;
                 }
             });
 
-        const spinePrompt = `You are a literary agent–style evaluator and developmental editor. Evaluate the manuscript's narrative architecture using chapter summaries.
+        const spineModeGuidance = evaluationMode === 'transgressive' ? `
+
+TRANSGRESSIVE MODE ACTIVE:
+- ASSUME INTENT: Violence, darkness, disturbing content, moral ambiguity are intentional craft choices
+- DO NOT PENALIZE: Extremity, shock value, offensive content, provocative material
+- EVALUATE: Narrative control, thematic coherence, psychological precision
+- FLAG ONLY IF: Contradicts internal logic, repetitive without escalation, weakens character integrity
+` : evaluationMode === 'trauma_memoir' ? `
+
+TRAUMA MEMOIR MODE ACTIVE:
+- TREAT AS TESTIMONY: Content reflects survivor experience
+- DO NOT PENALIZE: Difficult material, embodied sensory detail, psychological accuracy
+- EVALUATE: Authenticity, coherence, narrative function
+- PRESERVE: Survivor voice, embodied truth
+` : '';
+
+      const spinePrompt = `You are a literary agent–style evaluator and developmental editor. Evaluate the manuscript's narrative architecture using chapter summaries.
 
 CRITICAL RULES (NON-NEGOTIABLE):
 1. NO INVENTION. Judge only what's in the summaries.
@@ -588,7 +636,7 @@ CRITICAL RULES (NON-NEGOTIABLE):
 3. DOCUMENT IDENTITY: Extract 3 anchors (names, locations, events) and verify consistency.
 4. CITE SOURCES. Reference specific chapter indices (e.g., 'Ch. 7–9').
 5. PRESERVE VOICE. Respect author's authority, genre conventions, technical authenticity.
-
+${spineModeGuidance}
 EVALUATION MODE: This is diagnostic assessment, not rewriting guidance.
 
 TASK: Using the provided chapter summary objects (not raw prose), produce a whole-manuscript 'Spine Evaluation' and score the manuscript on 12 agent criteria (1–10).
