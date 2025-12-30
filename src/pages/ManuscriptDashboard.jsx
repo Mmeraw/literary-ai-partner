@@ -26,10 +26,12 @@ export default function ManuscriptDashboard() {
     },
     enabled: !!manuscriptId,
     refetchInterval: (data) => {
-      // Poll every 2 seconds if evaluating OR if evaluation incomplete
-      const isEvaluating = ['summarizing', 'spine_evaluating', 'evaluating_chapters'].includes(data?.status);
-      const hasIncompleteEval = data?.evaluation_progress?.percent_complete < 100 && data?.evaluation_progress?.percent_complete > 0;
-      return (isEvaluating || hasIncompleteEval) ? 2000 : false;
+      // Poll every 2 seconds during any evaluation phase or if progress incomplete
+      if (!data) return 2000; // Keep polling until data loads
+      const isEvaluating = ['uploaded', 'splitting', 'summarizing', 'spine_evaluating', 'evaluating_chapters'].includes(data.status);
+      const hasActiveProgress = data.evaluation_progress && data.evaluation_progress.current_phase !== 'finalize';
+      const hasIncompleteProgress = data.evaluation_progress?.percent_complete < 100;
+      return (isEvaluating || hasActiveProgress || hasIncompleteProgress) ? 2000 : false;
     },
     refetchIntervalInBackground: true,
     refetchOnMount: true,
