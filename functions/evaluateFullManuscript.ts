@@ -1,5 +1,338 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+// Timeout wrapper for LLM calls
+const withTimeout = (promise, timeoutMs = 120000, label = 'Operation') => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => 
+            setTimeout(() => reject(new Error(`${label} timeout after ${timeoutMs/1000}s`)), timeoutMs)
+        )
+    ]);
+};
+
+// JOB HANDLER: Evaluate chapter with agent criteria
+async function evaluateChapterAgent(chapter, base44) {
+    const agentAnalysis = await withTimeout(
+        base44.asServiceRole.integrations.Core.InvokeLLM({
+            prompt: `You are a professional evaluator (agent/editor/script reader). Analyze this chapter against the 12 Story Evaluation Criteria.
+
+CRITICAL EVALUATION RULES (NON-NEGOTIABLE):
+1. NO HALLUCINATION. Quote only text that exists. Do not invent examples.
+2. DOCUMENT IDENTITY. Extract 3 anchors (character names, key events, setting details) to verify you're evaluating the correct text.
+3. RESPECT PROTECTED ZONES:
+   - Do not penalize operational authenticity (orders, briefings, technical procedures)
+   - Do not penalize genre-appropriate jargon or specialized terminology
+   - Do not flag proper nouns, ranks, units as "unclear" without cause
+4. PRESERVE VOICE. Honor author's authority, lived experience, and narrative choices.
+5. EVIDENCE-BASED. Every weakness must cite specific text; every strength must show proof.
+
+12 STORY EVALUATION CRITERIA (rate each 1-10):
+1. Opening Hook (opening_hook)
+2. Narrative Voice & Style (narrative_voice_style)
+3. Character Depth & Introduction (character_depth_introduction)
+4. Conflict, Tension & Escalation (conflict_tension_escalation)
+5. Thematic Resonance (thematic_resonance)
+6. Structure, Pacing & Flow (structure_pacing_flow)
+7. Dialogue & Subtext (dialogue_subtext)
+8. Worldbuilding & Immersion (worldbuilding_immersion)
+9. Stakes & Emotional Investment (stakes_emotional_investment)
+10. Line-Level Craft & Polish (line_level_craft_polish)
+11. Marketability & Genre Position (marketability_genre_position)
+12. 'Would They Keep Reading?' Gate (would_keep_reading_gate)
+
+RED-FLAG CHECKS (embedded in criteria):
+- POV discipline, no head-hopping
+- Protagonist clear and active early
+- No backstory dumps without scene pressure
+- Scene anchoring (who, where, what's happening)
+- Story logic coherent, no contradictions
+
+CHAPTER: ${chapter.title}
+
+TEXT:
+${chapter.text}
+
+For each criterion provide: score (1-10), strengths (array), weaknesses (array), notes (detailed commentary), evidence_excerpts (2-4 short text excerpts showing why this score was given).
+Provide overall score (1-10) and verdict.`,
+            response_json_schema: {
+                type: "object",
+                properties: {
+                    overallScore: { type: "number" },
+                    verdict: { type: "string" },
+                    criteria: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: {
+                                name: { type: "string" },
+                                score: { type: "number" },
+                                strengths: { type: "array", items: { type: "string" } },
+                                weaknesses: { type: "array", items: { type: "string" } },
+                                notes: { type: "string" },
+                                evidence_excerpts: { type: "array", items: { type: "string" } }
+                            },
+                            required: ["name", "score", "strengths", "weaknesses", "notes"]
+                        }
+                    }
+                },
+                required: ["overallScore", "verdict", "criteria"]
+            }
+        }),
+        120000,
+        'Agent Analysis'
+    );
+    return agentAnalysis;
+}
+
+// JOB HANDLER: Evaluate chapter WAVE tier
+async function evaluateChapterWaveTier(chapter, tier, base44) {
+    const tierConfig = {
+        early: {
+            prompt: `You are an elite developmental editor. Analyze EARLY TIER structural issues only.
+
+EARLY TIER CHECKS (Structural Truth):
+- POV Honesty (Wave 2): No mind-reading, observable proof only
+- Concrete Stakes (Wave 17): What's at risk if this fails?
+- Character Consistency (Wave 36): Voice logic maintained?
+
+CHAPTER: ${chapter.title}
+TEXT: ${chapter.text}
+
+For each issue: category, severity, description, example_quote, fix_suggestion.
+Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
+            timeout: 60000
+        },
+        mid: {
+            prompt: `You are an elite developmental editor. Analyze MID TIER craft issues only.
+
+MID TIER CHECKS (Momentum & Meaning):
+- Generic Nouns (Wave 3): Replace "room," "thing," "place" with specificity
+- Filter Verbs (Wave 4): Remove "I saw/felt/heard" distance
+- Adverb Diet (Wave 5): Weak verbs propped up by adverbs?
+- Active Voice (Wave 6): Restore agency, name actors
+- Negation Discipline (Wave 7): Say what happened, not what didn't
+- Dialogue Tags (Wave 13): Over-attribution bloat?
+
+CHAPTER: ${chapter.title}
+TEXT: ${chapter.text}
+
+For each issue: category, severity, description, example_quote, fix_suggestion.
+Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
+            timeout: 60000
+        },
+        late: {
+            prompt: `You are an elite developmental editor. Analyze LATE TIER polish issues only.
+
+LATE TIER CHECKS (Authority & Polish):
+- Body-Part Clichés (Wave 1): Jaw/chest/eyes that don't change action
+- Abstract Triples (Wave 8): Two beats sharpen, three soften
+- Motif Hygiene (Wave 9): Spotlight once per section
+- On-the-Nose Explanations (Wave 15): Cut "because," "which meant"
+- Reflexive Redundancy (Wave 61): himself/herself/own/just without function
+
+CHAPTER: ${chapter.title}
+TEXT: ${chapter.text}
+
+For each issue: category, severity, description, example_quote, fix_suggestion.
+Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
+            timeout: 60000
+        }
+    };
+
+    const config = tierConfig[tier];
+    const waveResult = await withTimeout(
+        base44.asServiceRole.integrations.Core.InvokeLLM({
+            prompt: config.prompt,
+            response_json_schema: {
+                type: "object",
+                properties: {
+                    score: { type: "number" },
+                    criticalIssues: { type: "array", items: { type: "string" } },
+                    strengthAreas: { type: "array", items: { type: "string" } },
+                    waveHits: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: {
+                                category: { type: "string" },
+                                severity: { type: "string" },
+                                description: { type: "string" },
+                                example_quote: { type: "string" },
+                                fix_suggestion: { type: "string" }
+                            },
+                            required: ["category", "severity", "description", "example_quote", "fix_suggestion"]
+                        }
+                    }
+                },
+                required: ["score", "criticalIssues", "strengthAreas", "waveHits"]
+            }
+        }),
+        config.timeout,
+        `${tier.toUpperCase()} WAVE`
+    );
+    return waveResult;
+}
+
+// JOB HANDLER: Aggregate chapter results and finalize
+async function aggregateChapterResults(chapter, agentAnalysis, waveScores, waveHits, waveErrors, integrity, integrityPenalty, evaluationMode, base44) {
+    const avgWaveScore = (waveScores.early + waveScores.mid + waveScores.late) / 3;
+    const waveAnalysis = {
+        waveScore: avgWaveScore,
+        criticalIssues: waveErrors.length > 0 ? waveErrors.map(e => `${e.tier} tier: ${e.error}`) : [],
+        strengthAreas: [],
+        waveHits: waveHits,
+        partial: waveErrors.length > 0,
+        tiered_scores: waveScores
+    };
+
+    const rawCombinedScore = (agentAnalysis.overallScore * 0.5) + (waveAnalysis.waveScore * 0.5);
+    const combinedScore = Math.max(0, rawCombinedScore - integrityPenalty);
+
+    await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+        evaluation_score: combinedScore,
+        chapter_craft_score: waveAnalysis.waveScore,
+        evaluation_result: {
+            ...agentAnalysis,
+            waveAnalysis: waveAnalysis,
+            combinedScore: combinedScore,
+            rawCombinedScore: rawCombinedScore,
+            agentScore: agentAnalysis.overallScore,
+            waveScore: waveAnalysis.waveScore,
+            integrity_adjusted: !integrity.is_clean,
+            integrity_penalty: integrityPenalty,
+            evaluation_mode: evaluationMode,
+            wave_errors: waveErrors.length > 0 ? waveErrors : undefined,
+            partial_wave: waveAnalysis.partial || false
+        },
+        wave_results_json: waveAnalysis,
+        wave_scores: {
+            early: waveScores.early,
+            mid: waveScores.mid,
+            late: waveScores.late,
+            combined: waveAnalysis.waveScore
+        },
+        status: 'evaluated',
+        wave_status: 'evaluated',
+        wave_completed_at: new Date().toISOString(),
+        error_message: waveErrors.length > 0 
+            ? `Completed with ${waveErrors.length} WAVE check(s) skipped due to timeout` 
+            : null
+    });
+
+    return { combinedScore, waveAnalysis };
+}
+
+// PARALLEL CHAPTER EVALUATOR
+async function evaluateChapterParallel(chapter, chapterIndex, totalChapters, manuscriptId, summarizedCount, base44, integrity, integrityPenalty, evaluationMode, MAX_RETRIES) {
+    console.log(`📖 Processing chapter ${chapterIndex + 1}/${totalChapters}: ${chapter.title}`, {
+        status: chapter.status,
+        wave_status: chapter.wave_status,
+        has_score: !!chapter.evaluation_score
+    });
+
+    // Skip if WAVE already evaluated
+    if (chapter.wave_status === 'evaluated' && chapter.evaluation_score) {
+        console.log(`Chapter ${chapterIndex + 1} WAVE already evaluated, skipping`);
+        return { success: true, skipped: true };
+    }
+
+    // Check retry count
+    const retryCount = chapter.retry_count || 0;
+    if ((chapter.status === 'evaluating' || chapter.status === 'failed') && retryCount >= MAX_RETRIES) {
+        console.log(`Chapter ${chapterIndex + 1} exceeded retry limit (${retryCount} attempts), marking as permanently failed`);
+        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+            status: 'failed',
+            wave_status: 'failed',
+            error_message: `Exceeded retry limit (${MAX_RETRIES} attempts) - chapter evaluation incomplete`
+        });
+        return { success: false, exceeded_retries: true };
+    }
+
+    // Mark as running
+    try {
+        await base44.asServiceRole.entities.Chapter.update(chapter.id, { 
+            status: 'evaluating',
+            wave_status: 'running',
+            wave_started_at: new Date().toISOString(),
+            wave_progress: { tier: 'early', completed_tiers: [] },
+            error_message: null,
+            retry_count: retryCount
+        });
+        console.log(`💾 Chapter ${chapterIndex + 1} marked wave_status='running'`);
+    } catch (saveError) {
+        console.error(`❌ CRITICAL: Failed to save wave_status='running' for chapter ${chapterIndex + 1}:`, saveError);
+        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+            wave_status: 'failed',
+            wave_error: `Save failure: ${saveError.message}`,
+            wave_completed_at: new Date().toISOString()
+        });
+        throw new Error(`Save failure before WAVE start: ${saveError.message}`);
+    }
+
+    try {
+        // Update progress
+        const wavePercent = 40 + Math.floor((chapterIndex / totalChapters) * 50);
+        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+            evaluation_progress: {
+                chapters_total: totalChapters,
+                chapters_summarized: summarizedCount,
+                chapters_wave_done: chapterIndex,
+                current_phase: 'wave',
+                percent_complete: wavePercent + 1,
+                current_step: `Chapter ${chapterIndex + 1}: Running analysis...`,
+                last_updated: new Date().toISOString()
+            }
+        });
+
+        // Run Agent Analysis
+        const agentAnalysis = await evaluateChapterAgent(chapter, base44);
+
+        // Run WAVE tiers in parallel
+        const [earlyResult, midResult, lateResult] = await Promise.allSettled([
+            evaluateChapterWaveTier(chapter, 'early', base44),
+            evaluateChapterWaveTier(chapter, 'mid', base44),
+            evaluateChapterWaveTier(chapter, 'late', base44)
+        ]);
+
+        // Collect results and errors
+        const waveScores = {
+            early: earlyResult.status === 'fulfilled' ? earlyResult.value.score : agentAnalysis.overallScore,
+            mid: midResult.status === 'fulfilled' ? midResult.value.score : agentAnalysis.overallScore,
+            late: lateResult.status === 'fulfilled' ? lateResult.value.score : agentAnalysis.overallScore
+        };
+
+        const waveHits = [
+            ...(earlyResult.status === 'fulfilled' ? earlyResult.value.waveHits : []),
+            ...(midResult.status === 'fulfilled' ? midResult.value.waveHits : []),
+            ...(lateResult.status === 'fulfilled' ? lateResult.value.waveHits : [])
+        ];
+
+        const waveErrors = [
+            ...(earlyResult.status === 'rejected' ? [{ tier: 'early', error: earlyResult.reason.message }] : []),
+            ...(midResult.status === 'rejected' ? [{ tier: 'mid', error: midResult.reason.message }] : []),
+            ...(lateResult.status === 'rejected' ? [{ tier: 'late', error: lateResult.reason.message }] : [])
+        ];
+
+        // Aggregate and save
+        await aggregateChapterResults(chapter, agentAnalysis, waveScores, waveHits, waveErrors, integrity, integrityPenalty, evaluationMode, base44);
+
+        console.log(`✅ Chapter ${chapterIndex + 1} evaluation complete`);
+        return { success: true };
+
+    } catch (error) {
+        console.error(`Chapter ${chapterIndex + 1} evaluation failed:`, error);
+        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+            status: 'failed',
+            wave_status: 'failed',
+            wave_error: error.message,
+            wave_completed_at: new Date().toISOString(),
+            error_message: `Evaluation failed: ${error.message}`,
+            retry_count: retryCount + 1
+        });
+        throw error;
+    }
+}
+
 // Background evaluation runner
 async function runEvaluation(manuscriptId, base44) {
     try {
@@ -316,7 +649,7 @@ SCORING GUIDELINES:
         });
         }
 
-        // PHASE 3: WAVE chapter craft evaluation
+        // PHASE 3: WAVE chapter craft evaluation - PARALLEL EXECUTION
         // Reload chapters to get fresh status after summaries/spine
         const freshChapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
         
@@ -353,535 +686,17 @@ SCORING GUIDELINES:
         });
 
         const MAX_RETRIES = 2;
-        const WAVE_MAX_RETRIES = 2; // Hard cap for WAVE-specific failures
 
-        for (let i = 0; i < cleanedChapters.length; i++) {
-            const chapter = cleanedChapters[i];
-            console.log(`📖 Processing chapter ${i + 1}/${cleanedChapters.length}: ${chapter.title}`, {
-                status: chapter.status,
-                wave_status: chapter.wave_status,
-                has_score: !!chapter.evaluation_score
-            });
+        // PARALLEL ORCHESTRATION: Evaluate all chapters concurrently
+        const chapterEvaluationPromises = cleanedChapters.map((chapter, i) => 
+            evaluateChapterParallel(chapter, i, cleanedChapters.length, manuscriptId, freshChapters.length, base44, integrity, integrityPenalty, evaluationMode, MAX_RETRIES)
+        );
 
-            // Skip if WAVE already evaluated (use dedicated wave_status field)
-            if (chapter.wave_status === 'evaluated' && chapter.evaluation_score) {
-                console.log(`Chapter ${i + 1} WAVE already evaluated, skipping`);
-                continue;
-            }
+        // Wait for all chapters to complete (or fail)
+        const chapterResults = await Promise.allSettled(chapterEvaluationPromises);
 
-            // Check retry count and handle exceeded retries
-            const retryCount = chapter.retry_count || 0;
+        console.log(`✅ All chapters processed: ${chapterResults.filter(r => r.status === 'fulfilled').length} succeeded, ${chapterResults.filter(r => r.status === 'rejected').length} failed`);
 
-            // If stuck in evaluating or failed AND exceeded retries, mark as permanently failed
-            if ((chapter.status === 'evaluating' || chapter.status === 'failed') && retryCount >= MAX_RETRIES) {
-                console.log(`Chapter ${i + 1} exceeded retry limit (${retryCount} attempts), marking as permanently failed`);
-                await base44.asServiceRole.entities.Chapter.update(chapter.id, {
-                    status: 'failed',
-                    error_message: `Exceeded retry limit (${MAX_RETRIES} attempts) - chapter evaluation incomplete`
-                });
-
-                // Count this as "done" so we can move on
-                const wavePercent = 40 + Math.floor(((i + 1) / cleanedChapters.length) * 50);
-                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-                    evaluation_progress: {
-                        chapters_total: cleanedChapters.length,
-                        chapters_summarized: freshChapters.length,
-                        chapters_wave_done: i + 1,
-                        current_phase: 'wave',
-                        percent_complete: wavePercent,
-                        current_step: `Chapter ${i + 1} permanently failed after ${MAX_RETRIES} retries`,
-                        last_updated: new Date().toISOString()
-                    }
-                });
-                continue;
-            }
-
-            // Retry loop for this chapter's evaluation
-            let evaluationSuccess = false;
-            let agentAnalysis = null;
-            let waveAnalysis = null;
-            let waveErrors = [];
-
-            for (let attempt = 0; attempt < MAX_RETRIES && !evaluationSuccess; attempt++) {
-                try {
-                    console.log(`Chapter ${i + 1} evaluation attempt ${attempt + 1}/${MAX_RETRIES}`);
-
-                    // PROGRESSIVE PERSISTENCE: Mark WAVE as running before starting
-                    try {
-                        await base44.asServiceRole.entities.Chapter.update(chapter.id, { 
-                            status: 'evaluating',
-                            wave_status: 'running',
-                            wave_started_at: new Date().toISOString(),
-                            wave_progress: { tier: 'early', completed_tiers: [] },
-                            error_message: null,
-                            retry_count: attempt
-                        });
-                        console.log(`💾 Chapter ${i + 1} marked wave_status='running'`);
-                    } catch (saveError) {
-                        console.error(`❌ CRITICAL: Failed to save wave_status='running' for chapter ${i + 1}:`, saveError);
-                        // If we can't even mark it as running, fail fast
-                        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
-                            wave_status: 'failed',
-                            wave_error: `Save failure: ${saveError.message}`,
-                            wave_completed_at: new Date().toISOString()
-                        });
-                        throw new Error(`Save failure before WAVE start: ${saveError.message}`);
-                    }
-
-                // Update progress - starting chapter evaluation
-                const wavePercent = 40 + Math.floor((i / cleanedChapters.length) * 50);
-                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-                    evaluation_progress: {
-                        chapters_total: cleanedChapters.length,
-                        chapters_summarized: freshChapters.length,
-                        chapters_wave_done: i,
-                        current_phase: 'wave',
-                        percent_complete: wavePercent,
-                        current_step: `Evaluating Chapter ${i + 1}: ${chapter.title} (attempt ${attempt + 1}/${MAX_RETRIES})`,
-                        last_updated: new Date().toISOString()
-                    }
-                });
-
-                // Show "Running agent analysis" progress
-                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-                    evaluation_progress: {
-                        chapters_total: cleanedChapters.length,
-                        chapters_summarized: freshChapters.length,
-                        chapters_wave_done: i,
-                        current_phase: 'wave',
-                        percent_complete: wavePercent + 1,
-                        current_step: `Chapter ${i + 1}: Deep story analysis (attempt ${attempt + 1})...`,
-                        last_updated: new Date().toISOString()
-                    }
-                });
-
-            // Timeout wrapper for LLM calls
-            const withTimeout = (promise, timeoutMs = 120000, label = 'Operation') => {
-                return Promise.race([
-                    promise,
-                    new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error(`${label} timeout after ${timeoutMs/1000}s`)), timeoutMs)
-                    )
-                ]);
-            };
-
-            // Story Evaluation (Agents, Editors, Script Readers) - 2 minute timeout
-            agentAnalysis = await withTimeout(
-                base44.asServiceRole.integrations.Core.InvokeLLM({
-                    prompt: `You are a professional evaluator (agent/editor/script reader). Analyze this chapter against the 12 Story Evaluation Criteria.
-
-CRITICAL EVALUATION RULES (NON-NEGOTIABLE):
-1. NO HALLUCINATION. Quote only text that exists. Do not invent examples.
-2. DOCUMENT IDENTITY. Extract 3 anchors (character names, key events, setting details) to verify you're evaluating the correct text.
-3. RESPECT PROTECTED ZONES:
-   - Do not penalize operational authenticity (orders, briefings, technical procedures)
-   - Do not penalize genre-appropriate jargon or specialized terminology
-   - Do not flag proper nouns, ranks, units as "unclear" without cause
-4. PRESERVE VOICE. Honor author's authority, lived experience, and narrative choices.
-5. EVIDENCE-BASED. Every weakness must cite specific text; every strength must show proof.
-
-12 STORY EVALUATION CRITERIA (rate each 1-10):
-1. Opening Hook (opening_hook)
-2. Narrative Voice & Style (narrative_voice_style)
-3. Character Depth & Introduction (character_depth_introduction)
-4. Conflict, Tension & Escalation (conflict_tension_escalation)
-5. Thematic Resonance (thematic_resonance)
-6. Structure, Pacing & Flow (structure_pacing_flow)
-7. Dialogue & Subtext (dialogue_subtext)
-8. Worldbuilding & Immersion (worldbuilding_immersion)
-9. Stakes & Emotional Investment (stakes_emotional_investment)
-10. Line-Level Craft & Polish (line_level_craft_polish)
-11. Marketability & Genre Position (marketability_genre_position)
-12. 'Would They Keep Reading?' Gate (would_keep_reading_gate)
-
-RED-FLAG CHECKS (embedded in criteria):
-- POV discipline, no head-hopping
-- Protagonist clear and active early
-- No backstory dumps without scene pressure
-- Scene anchoring (who, where, what's happening)
-- Story logic coherent, no contradictions
-
-CHAPTER: ${chapter.title}
-
-TEXT:
-${chapter.text}
-
-For each criterion provide: score (1-10), strengths (array), weaknesses (array), notes (detailed commentary), evidence_excerpts (2-4 short text excerpts showing why this score was given).
-Provide overall score (1-10) and verdict.`,
-                response_json_schema: {
-                    type: "object",
-                    properties: {
-                        overallScore: { type: "number" },
-                        verdict: { type: "string" },
-                        criteria: {
-                            type: "array",
-                            items: {
-                                type: "object",
-                                properties: {
-                                    name: { type: "string" },
-                                    score: { type: "number" },
-                                    strengths: { type: "array", items: { type: "string" } },
-                                    weaknesses: { type: "array", items: { type: "string" } },
-                                    notes: { type: "string" },
-                                    evidence_excerpts: { type: "array", items: { type: "string" } }
-                                },
-                                required: ["name", "score", "strengths", "weaknesses", "notes"]
-                            }
-                        }
-                    },
-                    required: ["overallScore", "verdict", "criteria"]
-                    }
-                    }),
-                    120000,
-                    'Agent Analysis'
-                    );
-
-                    // WAVE Revision System evaluation - SPLIT INTO THREE TIERS
-                    waveErrors = [];
-                    let earlyWaveScore = 0;
-                    let midWaveScore = 0;
-                    let lateWaveScore = 0;
-                    let allWaveHits = [];
-
-                    // TIER 1: EARLY WAVES (Structural Truth) - 60s timeout
-                    try {
-                        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-                            evaluation_progress: {
-                                chapters_total: cleanedChapters.length,
-                                chapters_summarized: freshChapters.length,
-                                chapters_wave_done: i,
-                                current_phase: 'wave',
-                                percent_complete: wavePercent + 2,
-                                current_step: `Chapter ${i + 1}: Early WAVE (Structural) - attempt ${attempt + 1}`,
-                                last_updated: new Date().toISOString()
-                            }
-                        });
-
-                        const earlyWave = await withTimeout(
-                            base44.asServiceRole.integrations.Core.InvokeLLM({
-                                prompt: `You are an elite developmental editor. Analyze EARLY TIER structural issues only.
-
-EARLY TIER CHECKS (Structural Truth):
-- POV Honesty (Wave 2): No mind-reading, observable proof only
-- Concrete Stakes (Wave 17): What's at risk if this fails?
-- Character Consistency (Wave 36): Voice logic maintained?
-
-CHAPTER: ${chapter.title}
-TEXT: ${chapter.text}
-
-For each issue: category, severity, description, example_quote, fix_suggestion.
-Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
-                                response_json_schema: {
-                                    type: "object",
-                                    properties: {
-                                        score: { type: "number" },
-                                        criticalIssues: { type: "array", items: { type: "string" } },
-                                        strengthAreas: { type: "array", items: { type: "string" } },
-                                        waveHits: {
-                                            type: "array",
-                                            items: {
-                                                type: "object",
-                                                properties: {
-                                                    category: { type: "string" },
-                                                    severity: { type: "string" },
-                                                    description: { type: "string" },
-                                                    example_quote: { type: "string" },
-                                                    fix_suggestion: { type: "string" }
-                                                },
-                                                required: ["category", "severity", "description", "example_quote", "fix_suggestion"]
-                                            }
-                                        }
-                                    },
-                                    required: ["score", "criticalIssues", "strengthAreas", "waveHits"]
-                                }
-                            }),
-                            60000,
-                            'Early WAVE'
-                        );
-                        earlyWaveScore = earlyWave.score;
-                        allWaveHits.push(...earlyWave.waveHits);
-                        
-                        // PROGRESSIVE PERSISTENCE: Save Early tier completion
-                        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
-                            wave_progress: { tier: 'mid', completed_tiers: ['early'] },
-                            wave_scores: { early: earlyWaveScore }
-                        });
-                        console.log(`✅ Early tier saved: score=${earlyWaveScore}`);
-                    } catch (error) {
-                        console.error('Early WAVE failed:', error.message);
-                        waveErrors.push({ tier: 'early', error: error.message });
-                        earlyWaveScore = agentAnalysis.overallScore; // fallback
-                    }
-
-                    // TIER 2: MID WAVES (Momentum & Meaning) - 60s timeout
-                    try {
-                        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-                            evaluation_progress: {
-                                chapters_total: cleanedChapters.length,
-                                chapters_summarized: freshChapters.length,
-                                chapters_wave_done: i,
-                                current_phase: 'wave',
-                                percent_complete: wavePercent + 4,
-                                current_step: `Chapter ${i + 1}: Mid WAVE (Craft) - attempt ${attempt + 1}`,
-                                last_updated: new Date().toISOString()
-                            }
-                        });
-
-                        const midWave = await withTimeout(
-                            base44.asServiceRole.integrations.Core.InvokeLLM({
-                                prompt: `You are an elite developmental editor. Analyze MID TIER craft issues only.
-
-MID TIER CHECKS (Momentum & Meaning):
-- Generic Nouns (Wave 3): Replace "room," "thing," "place" with specificity
-- Filter Verbs (Wave 4): Remove "I saw/felt/heard" distance
-- Adverb Diet (Wave 5): Weak verbs propped up by adverbs?
-- Active Voice (Wave 6): Restore agency, name actors
-- Negation Discipline (Wave 7): Say what happened, not what didn't
-- Dialogue Tags (Wave 13): Over-attribution bloat?
-
-CHAPTER: ${chapter.title}
-TEXT: ${chapter.text}
-
-For each issue: category, severity, description, example_quote, fix_suggestion.
-Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
-                                response_json_schema: {
-                                    type: "object",
-                                    properties: {
-                                        score: { type: "number" },
-                                        criticalIssues: { type: "array", items: { type: "string" } },
-                                        strengthAreas: { type: "array", items: { type: "string" } },
-                                        waveHits: {
-                                            type: "array",
-                                            items: {
-                                                type: "object",
-                                                properties: {
-                                                    category: { type: "string" },
-                                                    severity: { type: "string" },
-                                                    description: { type: "string" },
-                                                    example_quote: { type: "string" },
-                                                    fix_suggestion: { type: "string" }
-                                                },
-                                                required: ["category", "severity", "description", "example_quote", "fix_suggestion"]
-                                            }
-                                        }
-                                    },
-                                    required: ["score", "criticalIssues", "strengthAreas", "waveHits"]
-                                }
-                            }),
-                            60000,
-                            'Mid WAVE'
-                        );
-                        midWaveScore = midWave.score;
-                        allWaveHits.push(...midWave.waveHits);
-                        
-                        // PROGRESSIVE PERSISTENCE: Save Mid tier completion
-                        const completedTiers = ['early', 'mid'];
-                        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
-                            wave_progress: { tier: 'late', completed_tiers: completedTiers },
-                            wave_scores: { early: earlyWaveScore, mid: midWaveScore }
-                        });
-                        console.log(`✅ Mid tier saved: score=${midWaveScore}`);
-                    } catch (error) {
-                        console.error('Mid WAVE failed:', error.message);
-                        waveErrors.push({ tier: 'mid', error: error.message });
-                        midWaveScore = agentAnalysis.overallScore; // fallback
-                    }
-
-                    // TIER 3: LATE WAVES (Authority & Polish) - 60s timeout
-                    try {
-                        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-                            evaluation_progress: {
-                                chapters_total: cleanedChapters.length,
-                                chapters_summarized: freshChapters.length,
-                                chapters_wave_done: i,
-                                current_phase: 'wave',
-                                percent_complete: wavePercent + 6,
-                                current_step: `Chapter ${i + 1}: Late WAVE (Polish) - attempt ${attempt + 1}`,
-                                last_updated: new Date().toISOString()
-                            }
-                        });
-
-                        const lateWave = await withTimeout(
-                            base44.asServiceRole.integrations.Core.InvokeLLM({
-                                prompt: `You are an elite developmental editor. Analyze LATE TIER polish issues only.
-
-LATE TIER CHECKS (Authority & Polish):
-- Body-Part Clichés (Wave 1): Jaw/chest/eyes that don't change action
-- Abstract Triples (Wave 8): Two beats sharpen, three soften
-- Motif Hygiene (Wave 9): Spotlight once per section
-- On-the-Nose Explanations (Wave 15): Cut "because," "which meant"
-- Reflexive Redundancy (Wave 61): himself/herself/own/just without function
-
-CHAPTER: ${chapter.title}
-TEXT: ${chapter.text}
-
-For each issue: category, severity, description, example_quote, fix_suggestion.
-Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
-                                response_json_schema: {
-                                    type: "object",
-                                    properties: {
-                                        score: { type: "number" },
-                                        criticalIssues: { type: "array", items: { type: "string" } },
-                                        strengthAreas: { type: "array", items: { type: "string" } },
-                                        waveHits: {
-                                            type: "array",
-                                            items: {
-                                                type: "object",
-                                                properties: {
-                                                    category: { type: "string" },
-                                                    severity: { type: "string" },
-                                                    description: { type: "string" },
-                                                    example_quote: { type: "string" },
-                                                    fix_suggestion: { type: "string" }
-                                                },
-                                                required: ["category", "severity", "description", "example_quote", "fix_suggestion"]
-                                            }
-                                        }
-                                    },
-                                    required: ["score", "criticalIssues", "strengthAreas", "waveHits"]
-                                }
-                            }),
-                            60000,
-                            'Late WAVE'
-                        );
-                        lateWaveScore = lateWave.score;
-                        allWaveHits.push(...lateWave.waveHits);
-                        
-                        // PROGRESSIVE PERSISTENCE: Save Late tier completion
-                        const completedTiers = ['early', 'mid', 'late'];
-                        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
-                            wave_progress: { tier: 'late', completed_tiers: completedTiers },
-                            wave_scores: { early: earlyWaveScore, mid: midWaveScore, late: lateWaveScore }
-                        });
-                        console.log(`✅ Late tier saved: score=${lateWaveScore}`);
-                    } catch (error) {
-                        console.error('Late WAVE failed:', error.message);
-                        waveErrors.push({ tier: 'late', error: error.message });
-                        lateWaveScore = agentAnalysis.overallScore; // fallback
-                    }
-
-                    // Aggregate WAVE results
-                    const avgWaveScore = (earlyWaveScore + midWaveScore + lateWaveScore) / 3;
-                    waveAnalysis = {
-                        waveScore: avgWaveScore,
-                        criticalIssues: waveErrors.length > 0 ? waveErrors.map(e => `${e.tier} tier: ${e.error}`) : [],
-                        strengthAreas: [],
-                        waveHits: allWaveHits,
-                        partial: waveErrors.length > 0,
-                        tiered_scores: { early: earlyWaveScore, mid: midWaveScore, late: lateWaveScore }
-                    };
-
-
-
-                    // Combined score: 50% agent + 50% WAVE (apply integrity penalty)
-                    const rawCombinedScore = (agentAnalysis.overallScore * 0.5) + (waveAnalysis.waveScore * 0.5);
-                    const combinedScore = Math.max(0, rawCombinedScore - integrityPenalty);
-
-                    // PROGRESSIVE PERSISTENCE: Final save with wave_status='evaluated'
-                    console.log(`✅ Chapter ${i + 1} evaluation complete: Agent=${agentAnalysis.overallScore}, WAVE=${waveAnalysis.waveScore}, Combined=${combinedScore}`);
-                    
-                    try {
-                        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
-                    evaluation_score: combinedScore,
-                    chapter_craft_score: waveAnalysis.waveScore,
-                    evaluation_result: {
-                        ...agentAnalysis,
-                        waveAnalysis: waveAnalysis,
-                        combinedScore: combinedScore,
-                        rawCombinedScore: rawCombinedScore,
-                        agentScore: agentAnalysis.overallScore,
-                        waveScore: waveAnalysis.waveScore,
-                        integrity_adjusted: !integrity.is_clean,
-                        integrity_penalty: integrityPenalty,
-                        evaluation_mode: evaluationMode,
-                        wave_errors: waveErrors.length > 0 ? waveErrors : undefined,
-                        partial_wave: waveAnalysis.partial || false,
-                        attempts: attempt + 1
-                    },
-                    wave_results_json: waveAnalysis,
-                    wave_scores: {
-                        early: earlyWaveScore,
-                        mid: midWaveScore,
-                        late: lateWaveScore,
-                        combined: waveAnalysis.waveScore
-                    },
-                    status: 'evaluated',
-                    wave_status: 'evaluated',
-                    wave_completed_at: new Date().toISOString(),
-                    error_message: waveErrors.length > 0 
-                        ? `Completed with ${waveErrors.length} WAVE check(s) skipped due to timeout` 
-                        : null
-                        });
-                        console.log(`💾 Chapter ${i + 1} saved with wave_status='evaluated'`);
-                    } catch (saveError) {
-                        console.error(`❌ CRITICAL: Failed to save final results for chapter ${i + 1}:`, saveError);
-                        // Try one last time to mark it as failed with the save error
-                        try {
-                            await base44.asServiceRole.entities.Chapter.update(chapter.id, {
-                                wave_status: 'failed',
-                                wave_error: `Final save failure: ${saveError.message}`,
-                                wave_completed_at: new Date().toISOString()
-                            });
-                        } catch (finalError) {
-                            console.error(`❌ DOUBLE FAILURE: Cannot even save error state:`, finalError);
-                        }
-                        throw new Error(`Final save failure: ${saveError.message}`);
-                    }
-
-                    // Update progress after successful evaluation
-                    const finalWavePercent = 40 + Math.floor(((i + 1) / cleanedChapters.length) * 50);
-                    const stepMessage = waveErrors.length > 0 
-                    ? `Evaluated ${i + 1}/${freshChapters.length} chapters (${waveErrors.length} WAVE check(s) skipped)`
-                    : `Evaluated ${i + 1}/${freshChapters.length} chapters`;
-
-                    await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-                    evaluation_progress: {
-                        chapters_total: cleanedChapters.length,
-                        chapters_summarized: freshChapters.length,
-                        chapters_wave_done: i + 1,
-                        current_phase: 'wave',
-                        percent_complete: finalWavePercent,
-                        current_step: stepMessage,
-                        last_updated: new Date().toISOString()
-                    }
-                    });
-
-                    evaluationSuccess = true;
-                    break; // Success, exit retry loop
-
-                    } catch (error) {
-                    console.error(`Chapter ${i + 1} evaluation attempt ${attempt + 1} failed:`, error);
-
-                    // If this was the last attempt, mark chapter as failed
-                    if (attempt === MAX_RETRIES - 1) {
-                    await base44.asServiceRole.entities.Chapter.update(chapter.id, {
-                        status: 'failed',
-                        wave_status: 'failed',
-                        wave_error: error.message,
-                        wave_completed_at: new Date().toISOString(),
-                        error_message: `All ${MAX_RETRIES} attempts failed: ${error.message}`,
-                        retry_count: MAX_RETRIES
-                    });
-                    console.log(`❌ Chapter ${i + 1} marked wave_status='failed'`);
-
-                    // Always move progress forward
-                    const failWavePercent = 40 + Math.floor(((i + 1) / cleanedChapters.length) * 50);
-                    await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-                        evaluation_progress: {
-                            chapters_total: cleanedChapters.length,
-                            chapters_summarized: freshChapters.length,
-                            chapters_wave_done: i + 1,
-                            current_phase: 'wave',
-                            percent_complete: failWavePercent,
-                            current_step: `Chapter ${i + 1} failed after ${MAX_RETRIES} attempts, continuing...`,
-                            last_updated: new Date().toISOString()
-                        }
-                    });
-                    }
-                    // Otherwise, loop will retry
-                    }
-                    } // End retry loop
-                    }
 
         // PHASE 4: Final composite scoring
         // Reload all chapters to get final status
