@@ -281,18 +281,18 @@ export default function ManuscriptDashboard() {
   const hasEvaluationWarnings = manuscript.status === 'ready_with_errors';
   const failedChapters = manuscript.evaluation_progress?.failed_chapters || [];
 
-  const evaluatedChapters = chapters.filter(ch => ch.status === 'evaluated').length;
+  const evaluatedChapters = chapters.filter(ch => ch.wave_status === 'evaluated' || ch.status === 'evaluated').length;
   const evaluatedWords = chapters
-    .filter(ch => ch.status === 'evaluated')
+    .filter(ch => ch.wave_status === 'evaluated' || ch.status === 'evaluated')
     .reduce((sum, ch) => sum + (ch.word_count || 0), 0);
 
   const avgChapterScore = evaluatedChapters > 0
-    ? chapters.reduce((sum, ch) => sum + (ch.evaluation_score || 0), 0) / evaluatedChapters
+    ? chapters.filter(ch => ch.wave_status === 'evaluated' || ch.status === 'evaluated').reduce((sum, ch) => sum + (ch.evaluation_score || 0), 0) / evaluatedChapters
     : 0;
 
   // Check if any chapters have partial WAVE results (spine done, WAVE incomplete)
   const chaptersWithPartialWave = chapters.filter(ch => 
-    ch.status === 'evaluated' && ch.evaluation_result?.partial_wave === true
+    (ch.wave_status === 'evaluated' || ch.status === 'evaluated') && ch.evaluation_result?.partial_wave === true
   ).length;
 
   // Score gating: only show overall if ≥30% chapters OR ≥25k words evaluated
