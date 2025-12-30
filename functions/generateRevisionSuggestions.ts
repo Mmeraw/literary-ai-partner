@@ -312,11 +312,15 @@ Then determine:
     - 90-99: Excellent, minor acceptable risk
     - 80-89: Acceptable but slightly interpretive
     - <80: Violates fidelity or introduces narrative change (REJECT)
-11. Is there only ONE valid fix? (yes/no)
+11. Priority Level (High/Medium/Low):
+    - High: Critical issues blocking readability/submission (POV breaches, filter verbs, passive voice)
+    - Medium: Craft improvements with measurable impact (generic nouns, adverbs, clichés)
+    - Low: Polish/style refinements (sentence variety, metaphor freshness)
+12. Is there only ONE valid fix? (yes/no)
     - If yes: mark alternatives = null, set alternatives_reason
-12. Does this construction serve voice/embodiment/agency? (yes/no)
-13. Which WAVE principle applies? (cite wave number)
-14. Final verdict: "keep" or "revise"
+13. Does this construction serve voice/embodiment/agency? (yes/no)
+14. Which WAVE principle applies? (cite wave number)
+15. Final verdict: "keep" or "revise"
 
 If "keep": explain what narrative function it serves
 If "revise": provide editorial rationale + constraint fidelity score
@@ -348,7 +352,9 @@ Return JSON with validated results.`;
                 serves_embodiment: { type: "boolean" },
                 narrative_justification: { type: "string" },
                 why_flagged: { type: "string" },
-                why_this_fix: { type: "string" }
+                why_this_fix: { type: "string" },
+                priority: { type: "string", enum: ["High", "Medium", "Low"] },
+                constraint_fidelity_score: { type: "number" }
               },
               required: ["original_text", "verdict", "narrative_justification"]
             }
@@ -365,7 +371,9 @@ Return JSON with validated results.`;
         original_text: item.original_text,
         suggested_text: item.suggested_text || item.original_text,
         why_flagged: item.why_flagged || item.narrative_justification,
-        why_this_fix: item.why_this_fix || "Strengthens clarity and narrative directness"
+        why_this_fix: item.why_this_fix || "Strengthens clarity and narrative directness",
+        priority: item.priority || "Medium",
+        constraint_fidelity_score: item.constraint_fidelity_score || 90
       }));
 
     // SINGLE PRIMARY FIX PROTOCOL: Validate if alternatives are viable
@@ -428,21 +436,27 @@ Return JSON with validated results.`;
       return { allows_alternatives: true, alternatives_reason: null, lock_scope: null, lock_type: null };
     };
 
-    // Add wave name and IDs to approved suggestions only
-    const suggestions = approvedSuggestions.map((s, idx) => {
-      const altValidation = validateAlternatives(s, wave_number);
-      return {
-        id: `w${wave_number}_${idx}`,
-        wave_name: wave.name,
-        ...s,
-        status: "pending",
-        alternatives: altValidation.allows_alternatives ? [] : null,
-        alternatives_status: altValidation.allows_alternatives ? null : "fidelity_locked",
-        alternatives_reason: altValidation.alternatives_reason,
-        lock_scope: altValidation.lock_scope,
-        lock_type: altValidation.lock_type
-      };
-    });
+    // Add wave name, IDs, and sort by priority to approved suggestions
+    const suggestions = approvedSuggestions
+      .map((s, idx) => {
+        const altValidation = validateAlternatives(s, wave_number);
+        return {
+          id: `w${wave_number}_${idx}`,
+          wave_name: wave.name,
+          ...s,
+          status: "pending",
+          alternatives: altValidation.allows_alternatives ? [] : null,
+          alternatives_status: altValidation.allows_alternatives ? null : "fidelity_locked",
+          alternatives_reason: altValidation.alternatives_reason,
+          lock_scope: altValidation.lock_scope,
+          lock_type: altValidation.lock_type
+        };
+      })
+      .sort((a, b) => {
+        // Sort by priority: High > Medium > Low
+        const priorityOrder = { High: 0, Medium: 1, Low: 2 };
+        return priorityOrder[a.priority] - priorityOrder[b.priority];
+      });
 
     // Create or update revision session
     if (session_id) {
