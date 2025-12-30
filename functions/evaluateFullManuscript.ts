@@ -445,7 +445,8 @@ async function runEvaluation(manuscriptId, base44) {
 
         // Apply development mode penalty if contaminated
         const integrityPenalty = integrity.is_clean ? 0 : 0.5;
-        const evaluationMode = integrity.mode;
+        // Get evaluation mode from manuscript, fallback to standard
+        const evaluationMode = manuscript.evaluation_mode || 'standard';
 
         // PHASE 1: Generate chapter summaries (structural abstraction)
         // Check which chapters already have summaries (for resume capability)
