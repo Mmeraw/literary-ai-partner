@@ -122,6 +122,16 @@ Deno.serve(async (req) => {
     // STAGE 1: Detect risk patterns (candidates only, not final decisions)
     const detectionPrompt = `You are a professional manuscript editor applying the WAVE Revision System. Focus on ${wave.name} (${wave.focus}).
 
+CRITICAL RULES (NON-NEGOTIABLE):
+1. NO FULL REWRITES. Output surgical patches only.
+2. NO HALLUCINATION. Do not flag patterns that aren't present in the text.
+3. PROTECTED ZONES - Do not touch:
+   - Operational authenticity (orders, checklists, briefings, radio phrasing)
+   - Proper nouns, ranks, units, dates, call signs, technical specs
+   - Poem line breaks and stanza structure
+   - Event sequence and cause-effect chain
+4. PRESERVE VOICE. Respect author's authority, authenticity, and tone.
+
     WAVE CONTEXT:
     - Tier: ${wave.tier}
     - This is wave ${wave_number} of 61+ in the professional revision system
@@ -183,6 +193,15 @@ Return JSON with candidates array.`;
 
     // STAGE 2: WAVE contextual validation (gating logic)
     const validationPrompt = `You are a literary editor applying the complete WAVE Revision System (61+ waves) + 12 Story Evaluation Criteria.
+
+CRITICAL VALIDATION RULES (NON-NEGOTIABLE):
+1. NO HALLUCINATION. Verify the flagged text actually exists in the original.
+2. PROTECTED ZONES CHECK:
+   - Reject if touching operational authenticity (orders, briefings, radio calls)
+   - Reject if changing proper nouns, ranks, units, dates, call signs
+   - Reject if altering poem structure or event sequence
+3. VOICE PRESERVATION: Reject if suggestion removes author's authority or authenticity.
+4. RISK ASSESSMENT: For every flagged issue, note what could be lost if changed.
 
     WAVE SYSTEM PHILOSOPHY:
     The WAVE system is designed to systematically remove weakness while preserving voice. It operates in stages:
