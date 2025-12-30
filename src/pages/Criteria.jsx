@@ -19,7 +19,7 @@ export default function Criteria() {
                         What is WAVE?
                     </h1>
                     <p className="text-xl text-slate-600">
-                        RevisionGrade's professional revision framework: dozens of focused checks that help you turn a working draft into a submission-ready manuscript—without flattening voice.
+                        RevisionGrade's professional revision framework: scores of focused checks that help you turn a working draft into a submission-ready manuscript—without flattening voice.
                     </p>
                 </div>
 
