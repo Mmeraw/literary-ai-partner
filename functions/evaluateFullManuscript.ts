@@ -320,8 +320,16 @@ SCORING GUIDELINES:
         // Reload chapters to get fresh status after summaries/spine
         const freshChapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
         
-        console.log(`🔍 PHASE 3 START: ${freshChapters.length} chapters to evaluate`);
-        console.log(`Chapter statuses:`, freshChapters.map(ch => ({ title: ch.title, status: ch.status, has_score: !!ch.evaluation_score })));
+        // PHASE GATE ENTRY LOG (cannot lie)
+        const runId = `${manuscriptId}_${Date.now()}`;
+        console.log(`🚪 PHASE_3_ENTRY`, {
+            runId,
+            manuscriptId,
+            phase: 'PHASE_3_WAVE',
+            chaptersCount: freshChapters.length,
+            chapterIds: freshChapters.map(ch => ch.id),
+            timestamp: new Date().toISOString()
+        });
 
         const MAX_RETRIES = 2;
         const WAVE_MAX_RETRIES = 2; // Hard cap for WAVE-specific failures
@@ -374,11 +382,16 @@ SCORING GUIDELINES:
                 try {
                     console.log(`Chapter ${i + 1} evaluation attempt ${attempt + 1}/${MAX_RETRIES}`);
 
+                    // PROGRESSIVE PERSISTENCE: Mark WAVE as running before starting
                     await base44.asServiceRole.entities.Chapter.update(chapter.id, { 
                         status: 'evaluating',
+                        wave_status: 'running',
+                        wave_started_at: new Date().toISOString(),
+                        wave_progress: { tier: 'early', completed_tiers: [] },
                         error_message: null,
                         retry_count: attempt
                     });
+                    console.log(`💾 Chapter ${i + 1} marked wave_status='running'`);
 
                 // Update progress - starting chapter evaluation
                 const wavePercent = 40 + Math.floor((i / freshChapters.length) * 50);
@@ -552,6 +565,13 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
                         );
                         earlyWaveScore = earlyWave.score;
                         allWaveHits.push(...earlyWave.waveHits);
+                        
+                        // PROGRESSIVE PERSISTENCE: Save Early tier completion
+                        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                            wave_progress: { tier: 'mid', completed_tiers: ['early'] },
+                            wave_scores: { early: earlyWaveScore }
+                        });
+                        console.log(`✅ Early tier saved: score=${earlyWaveScore}`);
                     } catch (error) {
                         console.error('Early WAVE failed:', error.message);
                         waveErrors.push({ tier: 'early', error: error.message });
@@ -618,6 +638,14 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
                         );
                         midWaveScore = midWave.score;
                         allWaveHits.push(...midWave.waveHits);
+                        
+                        // PROGRESSIVE PERSISTENCE: Save Mid tier completion
+                        const completedTiers = ['early', 'mid'];
+                        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                            wave_progress: { tier: 'late', completed_tiers: completedTiers },
+                            wave_scores: { early: earlyWaveScore, mid: midWaveScore }
+                        });
+                        console.log(`✅ Mid tier saved: score=${midWaveScore}`);
                     } catch (error) {
                         console.error('Mid WAVE failed:', error.message);
                         waveErrors.push({ tier: 'mid', error: error.message });
@@ -683,6 +711,14 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
                         );
                         lateWaveScore = lateWave.score;
                         allWaveHits.push(...lateWave.waveHits);
+                        
+                        // PROGRESSIVE PERSISTENCE: Save Late tier completion
+                        const completedTiers = ['early', 'mid', 'late'];
+                        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                            wave_progress: { tier: 'late', completed_tiers: completedTiers },
+                            wave_scores: { early: earlyWaveScore, mid: midWaveScore, late: lateWaveScore }
+                        });
+                        console.log(`✅ Late tier saved: score=${lateWaveScore}`);
                     } catch (error) {
                         console.error('Late WAVE failed:', error.message);
                         waveErrors.push({ tier: 'late', error: error.message });
@@ -706,7 +742,7 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
                     const rawCombinedScore = (agentAnalysis.overallScore * 0.5) + (waveAnalysis.waveScore * 0.5);
                     const combinedScore = Math.max(0, rawCombinedScore - integrityPenalty);
 
-                    // Update chapter with results
+                    // PROGRESSIVE PERSISTENCE: Final save with wave_status='evaluated'
                     console.log(`✅ Chapter ${i + 1} evaluation complete: Agent=${agentAnalysis.overallScore}, WAVE=${waveAnalysis.waveScore}, Combined=${combinedScore}`);
                     
                     await base44.asServiceRole.entities.Chapter.update(chapter.id, {
@@ -727,13 +763,21 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
                         attempts: attempt + 1
                     },
                     wave_results_json: waveAnalysis,
+                    wave_scores: {
+                        early: earlyWaveScore,
+                        mid: midWaveScore,
+                        late: lateWaveScore,
+                        combined: waveAnalysis.waveScore
+                    },
                     status: 'evaluated',
+                    wave_status: 'evaluated',
+                    wave_completed_at: new Date().toISOString(),
                     error_message: waveErrors.length > 0 
                         ? `Completed with ${waveErrors.length} WAVE check(s) skipped due to timeout` 
                         : null
                     });
                     
-                    console.log(`💾 Chapter ${i + 1} saved with status='evaluated'`);
+                    console.log(`💾 Chapter ${i + 1} saved with wave_status='evaluated'`);
 
                     // Update progress after successful evaluation
                     const finalWavePercent = 40 + Math.floor(((i + 1) / freshChapters.length) * 50);
@@ -763,9 +807,13 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
                     if (attempt === MAX_RETRIES - 1) {
                     await base44.asServiceRole.entities.Chapter.update(chapter.id, {
                         status: 'failed',
+                        wave_status: 'failed',
+                        wave_error: error.message,
+                        wave_completed_at: new Date().toISOString(),
                         error_message: `All ${MAX_RETRIES} attempts failed: ${error.message}`,
                         retry_count: MAX_RETRIES
                     });
+                    console.log(`❌ Chapter ${i + 1} marked wave_status='failed'`);
 
                     // Always move progress forward
                     const failWavePercent = 40 + Math.floor(((i + 1) / freshChapters.length) * 50);
@@ -822,6 +870,20 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
         const completionMessage = hasFailures 
             ? `Evaluation complete (${failedChapters.length} chapter(s) failed)`
             : 'Evaluation complete';
+
+        // PHASE GATE EXIT LOG (proof of completion)
+        console.log(`🚪 PHASE_3_EXIT`, {
+            runId,
+            manuscriptId,
+            phase: 'PHASE_3_WAVE',
+            counts: {
+                total: finalChapters.length,
+                evaluated: evaluatedChapters.length,
+                failed: failedChapters.length,
+                stuck: stuckChapters.length
+            },
+            timestamp: new Date().toISOString()
+        });
 
         console.log(`Finalizing manuscript: ${evaluatedChapters.length} evaluated, ${failedChapters.length} failed, ${finalChapters.length} total`);
 

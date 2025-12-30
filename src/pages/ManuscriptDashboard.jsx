@@ -526,12 +526,12 @@ export default function ManuscriptDashboard() {
                   </div>
 
                   <div className="flex items-center gap-4">
-                    {chapter.status === 'evaluated' ? (
-                      <>
-                        <Badge className="bg-green-100 text-green-700">
-                          <CheckCircle2 className="w-3 h-3 mr-1" />
-                          {chapter.evaluation_score?.toFixed(1)}/10
-                        </Badge>
+                      {chapter.wave_status === 'evaluated' ? (
+                        <>
+                          <Badge className="bg-green-100 text-green-700">
+                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                            {chapter.evaluation_score?.toFixed(1)}/10
+                          </Badge>
                         <div className="flex gap-2">
                           <Link to={createPageUrl(`ChapterReport?id=${chapter.id}`)}>
                             <Button variant="outline" size="sm">
@@ -564,6 +564,20 @@ export default function ManuscriptDashboard() {
                             Start Revision
                           </Button>
                         </div>
+                      </>
+                    ) : chapter.wave_status === 'running' ? (
+                      <>
+                        <Badge className="bg-blue-100 text-blue-700">
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          Evaluating...
+                        </Badge>
+                      </>
+                    ) : chapter.wave_status === 'failed' ? (
+                      <>
+                        <Badge className="bg-red-100 text-red-700">
+                          <Circle className="w-3 h-3 mr-1" />
+                          Failed
+                        </Badge>
                       </>
                     ) : (
                       <>
