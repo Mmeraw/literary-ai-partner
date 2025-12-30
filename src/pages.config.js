@@ -41,6 +41,8 @@ import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
 import InternalGovernanceIndex from './pages/InternalGovernanceIndex';
 import InternalTrustedPathContract from './pages/InternalTrustedPathContract';
+import InternalRevisionGradeResponsibilities from './pages/InternalRevisionGradeResponsibilities';
+import InternalBase44Responsibilities from './pages/InternalBase44Responsibilities';
 import __Layout from './Layout.jsx';
 
 
@@ -88,6 +90,8 @@ export const PAGES = {
     "WhyRevisionGrade": WhyRevisionGrade,
     "InternalGovernanceIndex": InternalGovernanceIndex,
     "InternalTrustedPathContract": InternalTrustedPathContract,
+    "InternalRevisionGradeResponsibilities": InternalRevisionGradeResponsibilities,
+    "InternalBase44Responsibilities": InternalBase44Responsibilities,
 }
 
 export const pagesConfig = {
