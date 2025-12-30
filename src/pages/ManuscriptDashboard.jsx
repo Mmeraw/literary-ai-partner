@@ -539,8 +539,8 @@ export default function ManuscriptDashboard() {
                             size="sm" 
                             className="bg-purple-600 hover:bg-purple-700"
                             onClick={async () => {
-                              toast.loading('Generating revision suggestions...', { id: 'revision' });
                               try {
+                                toast.loading('Preparing revision session...', { id: 'revision' });
                                 const session = await base44.entities.RevisionSession.create({
                                   submission_id: chapter.id,
                                   title: chapter.title,
@@ -549,18 +549,11 @@ export default function ManuscriptDashboard() {
                                   suggestions: [],
                                   status: 'in_progress'
                                 });
-
-                                // Generate suggestions
-                                const response = await base44.functions.invoke('generateRevisionSuggestions', {
-                                  session_id: session.id,
-                                  text: chapter.text,
-                                  style_mode: 'neutral'
-                                });
-
-                                toast.success('Revision suggestions ready!', { id: 'revision' });
+                                toast.success('Opening revision interface...', { id: 'revision' });
                                 window.location.href = createPageUrl(`Revise?session=${session.id}`);
                               } catch (error) {
-                                toast.error('Failed to generate suggestions', { id: 'revision' });
+                                toast.error('Failed to create revision session', { id: 'revision' });
+                                console.error('Revision session creation error:', error);
                               }
                             }}
                           >
