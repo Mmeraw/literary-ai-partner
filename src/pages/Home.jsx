@@ -12,35 +12,28 @@ import { motion } from 'framer-motion';
 export default function Home() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-            {/* Hero Section */}
-            <div className="relative overflow-hidden">
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-100 via-transparent to-transparent opacity-60" />
-                <div className="absolute top-20 left-10 w-72 h-72 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" />
-                <div className="absolute top-40 right-10 w-72 h-72 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse delay-1000" />
-
-                <div className="relative max-w-6xl mx-auto px-6 py-20 sm:py-28">
+            {/* Hero Section - Clean & Focused */}
+            <div className="bg-white">
+                <div className="max-w-5xl mx-auto px-6 pt-16 pb-24 sm:pt-20 sm:pb-32">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.6 }}
                         className="text-center"
                     >
-                        <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-slate-900 tracking-tight leading-tight mb-6">
-                            <span className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                                Your Manuscript Deserves<br />Agent-Ready Standards
-                            </span>
+                        <h1 className="text-5xl sm:text-6xl font-bold text-indigo-600 tracking-tight leading-tight mb-6">
+                            RevisionGrade™ — The Authoritative Revision Framework
                         </h1>
 
-                        <p className="mt-6 text-xl sm:text-2xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
-                            12 Agent Criteria. 60+ WAVE Diagnostics. Complete Query Packages.<br />
-                            <strong>Get professional feedback in hours, not months.</strong>
+                        <p className="mt-6 text-xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
+                            Revision Framework-AI. 13 Agent Criteria. WAVE Diagnostics.<br />
+                            From manuscript to query-ready—one system.
                         </p>
 
                         <div className="mt-10">
                             <Link to={createPageUrl('UploadManuscript')}>
-                                <Button size="lg" className="h-16 px-10 text-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-xl shadow-indigo-500/30">
-                                    <BookOpen className="w-6 h-6 mr-3 flex-shrink-0" />
-                                    Upload Manuscript → Free Evaluation
+                                <Button size="lg" className="h-16 px-12 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-lg">
+                                    Upload Your Manuscript
                                 </Button>
                             </Link>
                         </div>
@@ -223,27 +216,23 @@ export default function Home() {
             </div>
 
             {/* How It Works - Workflow Diagram */}
-            <div className="bg-white py-16">
+            <div className="bg-slate-50 py-20">
                 <div className="max-w-6xl mx-auto px-6">
-                    <div className="text-center mb-12">
-                        <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
-                            <Sparkles className="w-4 h-4 mr-2" />
-                            How It Works
-                        </Badge>
-                        <h2 className="text-3xl font-bold text-slate-900 mb-3">
-                            End-to-End Author Workflow
+                    <div className="text-center mb-10">
+                        <h2 className="text-4xl font-bold text-slate-900 mb-3">
+                            How the Revision Framework Works
                         </h2>
-                        <p className="text-lg text-slate-600">
-                            From rough manuscript to submission-ready package
-                        </p>
                     </div>
-                    <div className="flex justify-center">
+                    <div className="flex justify-center mb-6">
                         <img 
                             src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/81ce1b007_image.png"
                             alt="RevisionGrade End-to-End Author Workflow"
-                            className="w-full max-w-4xl h-auto rounded-lg shadow-lg"
+                            className="w-full max-w-4xl h-auto"
                         />
                     </div>
+                    <p className="text-center text-sm text-slate-600 italic mt-4">
+                        Where Evolution Meets Soul™
+                    </p>
                 </div>
             </div>
 
@@ -319,24 +308,18 @@ export default function Home() {
                 </div>
             </div>
 
-            {/* CTA Section */}
-            <div className="max-w-4xl mx-auto px-6 py-10 text-center">
-                <div className="p-10 rounded-3xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100">
-                    <Zap className="w-12 h-12 mx-auto mb-6 text-indigo-600" />
-                    <h2 className="text-3xl font-bold text-slate-900 mb-4">
-                        Upload Manuscript → Get Agent Ready™ + Film Deck
+            {/* Final CTA Section */}
+            <div className="bg-white py-20">
+                <div className="max-w-3xl mx-auto px-6 text-center">
+                    <h2 className="text-4xl font-bold text-slate-900 mb-4">
+                        Ready to Transform Your Manuscript?
                     </h2>
-                    <p className="text-slate-600 mb-2 max-w-xl mx-auto font-semibold">
-                        Complete Submission in 6 Hours, Not 6 Months
-                    </p>
-                    <p className="text-sm text-slate-500 mb-8">
-                        Powered by SYNOPSIS_MASTER_v1.0 + FILM_PITCH_MASTER_v2.0
+                    <p className="text-lg text-slate-600 mb-8">
+                        30-Day Money Back Guarantee • No Credit Card Required
                     </p>
                     <Link to={createPageUrl('UploadManuscript')}>
-                        <Button size="lg" className="h-14 px-10 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
-                            <Sparkles className="w-5 h-5 mr-2" />
-                            Get Started Now
-                            <ArrowRight className="w-5 h-5 ml-2" />
+                        <Button size="lg" className="h-16 px-12 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-lg">
+                            Start Your Free Evaluation
                         </Button>
                     </Link>
                 </div>
