@@ -281,18 +281,29 @@ export default function ManuscriptDashboard() {
   const hasEvaluationWarnings = manuscript.status === 'ready_with_errors';
   const failedChapters = manuscript.evaluation_progress?.failed_chapters || [];
 
-  const evaluatedChapters = chapters.filter(ch => ch.wave_status === 'evaluated' || ch.status === 'evaluated').length;
+  const evaluatedChapters = chapters.filter(ch => 
+    ch.wave_status === 'evaluated' || ch.wave_status === 'partial' || 
+    ch.status === 'evaluated' || ch.status === 'partial'
+  ).length;
   const evaluatedWords = chapters
-    .filter(ch => ch.wave_status === 'evaluated' || ch.status === 'evaluated')
+    .filter(ch => 
+      ch.wave_status === 'evaluated' || ch.wave_status === 'partial' || 
+      ch.status === 'evaluated' || ch.status === 'partial'
+    )
     .reduce((sum, ch) => sum + (ch.word_count || 0), 0);
 
   const avgChapterScore = evaluatedChapters > 0
-    ? chapters.filter(ch => ch.wave_status === 'evaluated' || ch.status === 'evaluated').reduce((sum, ch) => sum + (ch.evaluation_score || 0), 0) / evaluatedChapters
+    ? chapters.filter(ch => 
+        ch.wave_status === 'evaluated' || ch.wave_status === 'partial' || 
+        ch.status === 'evaluated' || ch.status === 'partial'
+      ).reduce((sum, ch) => sum + (ch.evaluation_score || 0), 0) / evaluatedChapters
     : 0;
 
   // Check if any chapters have partial WAVE results (spine done, WAVE incomplete)
   const chaptersWithPartialWave = chapters.filter(ch => 
-    (ch.wave_status === 'evaluated' || ch.status === 'evaluated') && ch.evaluation_result?.partial_wave === true
+    (ch.wave_status === 'evaluated' || ch.wave_status === 'partial' || 
+     ch.status === 'evaluated' || ch.status === 'partial') && 
+    ch.evaluation_result?.partial_wave === true
   ).length;
 
   // Score gating: only show overall if ≥30% chapters OR ≥25k words evaluated
@@ -526,11 +537,12 @@ export default function ManuscriptDashboard() {
                   </div>
 
                   <div className="flex items-center gap-4">
-                      {chapter.wave_status === 'evaluated' ? (
+                      {(chapter.wave_status === 'evaluated' || chapter.wave_status === 'partial') ? (
                         <>
-                          <Badge className="bg-green-100 text-green-700">
+                          <Badge className={chapter.wave_status === 'partial' ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}>
                             <CheckCircle2 className="w-3 h-3 mr-1" />
                             {chapter.evaluation_score?.toFixed(1)}/10
+                            {chapter.wave_status === 'partial' && ' (Partial)'}
                           </Badge>
                         <div className="flex gap-2">
                           <Link to={createPageUrl(`ChapterReport?id=${chapter.id}`)}>
