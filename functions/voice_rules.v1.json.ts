@@ -1,53 +1,70 @@
 {
   "version": "1.0",
-  "description": "Operational rules for Base44 voice/register protection and slang handling",
-  "last_updated": "2025-12-30",
   "rules": [
     {
-      "id": "VR-001",
-      "description": "Protect colloquial forms in dialogue or interior monologue.",
+      "id": "VR001_PROTECT_COLLOQUIAL_IN_HARD_DIALOGUE",
+      "description": "Protect colloquial forms in dialogue or interior monologue with hard lock.",
       "conditions": {
-        "register_lock": "hard",
-        "style_flags.allow_colloquial": true
+        "all": [
+          {
+            "path": "segment.voice.registerLock",
+            "eq": "hard"
+          },
+          {
+            "path": "segment.voice.allowColloquial",
+            "eq": true
+          },
+          {
+            "path": "finding.type",
+            "in": [
+              "COLLOQUIAL_NORMALIZATION",
+              "DIALECT_NORMALIZATION"
+            ]
+          }
+        ]
       },
-      "action": {
-        "label": "NO_ACTION",
-        "severity": "none",
-        "recommended_action": "keep",
-        "note": "Colloquial form preserved by design."
-      },
-      "examples": ["wanna", "gonna", "gotta", "lemme", "ain't", "ya", "'em", "kinda", "sorta"]
+      "then": {
+        "set": {
+          "finding.label": "NO_ACTION",
+          "finding.severity": "soft"
+        },
+        "drop": [
+          "finding.proposedRevision",
+          "finding.alternatives"
+        ]
+      }
     },
     {
-      "id": "VR-002",
+      "id": "VR002_FLAG_SLANG_DENSITY",
       "description": "Flag excessive slang density without forcing correction.",
       "conditions": {
         "register_lock": "soft",
-        "slang_density_threshold": ">3 per 250 words per speaker block"
+        "slang_density": "high"
       },
       "action": {
         "label": "VOICE_REGISTER_REVIEW",
         "severity": "soft",
-        "recommended_action": "revise_optional",
-        "note": "High density of colloquial forms; review for readability, not correction."
+        "note": "High density of colloquial forms; review for readability."
       }
     },
     {
-      "id": "VR-003",
+      "id": "VR003_CLARITY_LOSS_IN_COLLOQUIAL",
       "description": "Detect potential clarity loss in colloquial speech.",
       "conditions": {
         "clarity_score": "low",
-        "register_lock": ["soft", "none"]
+        "register_lock": [
+          "soft",
+          "none"
+        ]
       },
       "action": {
         "label": "CLARITY_REVIEW",
         "severity": "medium",
-        "recommended_action": "revise_optional",
-        "note": "Meaning may be unclear; suggest optional clarification without changing voice."
+        "note": "Meaning may be unclear; suggest optional clarification."
       }
     },
     {
-      "id": "VR-004",
+      "id": "VR004_PREVENT_NORMALIZATION_UNDER_HARD_LOCK",
       "description": "Prevent normalization of dialect under hard lock.",
       "conditions": {
         "register_lock": "hard",
@@ -56,78 +73,270 @@
       "action": {
         "label": "NO_ACTION",
         "severity": "none",
-        "recommended_action": "keep",
         "note": "Normalization blocked by voice protection."
       }
     },
     {
-      "id": "VR-005",
-      "description": "Escalate potentially offensive or legally risky slang.",
+      "id": "VR005_RACIAL_SLURS_MARKET_RISK",
+      "description": "Racial slurs in dialogue are ALLOWED but trigger market risk review with voice-preserving alternatives.",
+      "examples": [
+        "Chinaman",
+        "Nigga",
+        "nigger",
+        "spic",
+        "chink",
+        "kike",
+        "wetback",
+        "raghead",
+        "gook"
+      ],
       "conditions": {
-        "contains_sensitive_term": true
+        "all": [
+          {
+            "path": "segment.voice.register",
+            "in": [
+              "dialogue",
+              "interior_monologue"
+            ]
+          },
+          {
+            "path": "segment.voice.registerLock",
+            "eq": "hard"
+          },
+          {
+            "path": "finding.type",
+            "eq": "RACIAL_SLUR_DETECTED"
+          }
+        ]
       },
-      "action": {
-        "label": "MARKET_RISK_REVIEW",
-        "severity": "medium",
-        "recommended_action": "verify_intent",
-        "note": "Review for audience and distribution context; do not auto-sanitize. Provide voice-preserving alternatives."
+      "then": {
+        "set": {
+          "finding.label": "MARKET_RISK_REVIEW",
+          "finding.severity": "high",
+          "finding.recommended_action": "verify_intent",
+          "finding.note": "Racial slur detected in dialogue. This is CHARACTER VOICE and is protected from auto-correction. Review for: (1) Audience fit, (2) Platform/distribution risk, (3) Intent clarity. Do NOT sanitize into bland replacements."
+        },
+        "require": [
+          "finding.alternatives",
+          "finding.risk_explanation"
+        ],
+        "never": [
+          "auto_apply",
+          "normalize",
+          "sanitize_to_generic"
+        ]
       }
     },
     {
-      "id": "VR-006",
-      "description": "Colloquial forms in neutral narration trigger fit review (not error).",
+      "id": "VR006_PROFANITY_VOICE_REVIEW",
+      "description": "Profanity in dialogue is ALLOWED. Trigger soft review only if project settings or density warrant it.",
+      "examples": [
+        "fuck",
+        "shit",
+        "damn",
+        "hell",
+        "ass",
+        "bastard",
+        "piss",
+        "crap"
+      ],
       "conditions": {
-        "register": "neutral_narration",
-        "register_lock": "none",
-        "contains_colloquial": true
+        "all": [
+          {
+            "path": "segment.voice.register",
+            "in": [
+              "dialogue",
+              "interior_monologue"
+            ]
+          },
+          {
+            "path": "segment.voice.registerLock",
+            "eq": "hard"
+          },
+          {
+            "path": "segment.voice.allowProfanity",
+            "eq": true
+          },
+          {
+            "path": "finding.type",
+            "eq": "PROFANITY_DETECTED"
+          }
+        ]
       },
-      "action": {
-        "label": "VOICE_REGISTER_REVIEW",
-        "severity": "medium",
-        "recommended_action": "revise_optional",
-        "note": "Colloquial form in neutral narration—review for house style fit, not grammar."
+      "then": {
+        "set": {
+          "finding.label": "NO_ACTION",
+          "finding.severity": "none",
+          "finding.note": "Profanity protected in dialogue/interior voice zone."
+        }
       }
     },
     {
-      "id": "VR-007",
-      "description": "Dialect spelling overuse reduces readability.",
+      "id": "VR007_PROFANITY_DENSITY_CHECK",
+      "description": "If profanity density is extreme, surface optional review (not error).",
       "conditions": {
-        "dialect_apostrophe_density": ">1 per sentence over 5+ sentences"
+        "all": [
+          {
+            "path": "segment.voice.register",
+            "in": [
+              "dialogue",
+              "interior_monologue"
+            ]
+          },
+          {
+            "path": "finding.type",
+            "eq": "PROFANITY_DETECTED"
+          },
+          {
+            "path": "profanity_density",
+            "gt": 5
+          }
+        ]
       },
-      "action": {
-        "label": "CLARITY_REVIEW",
-        "severity": "soft",
-        "recommended_action": "revise_optional",
-        "note": "Reduce density, keep flavor. Do not standardize everything."
+      "then": {
+        "set": {
+          "finding.label": "VOICE_REGISTER_REVIEW",
+          "finding.severity": "soft",
+          "finding.recommended_action": "revise_optional",
+          "finding.note": "High profanity density detected. Consider variety for rhythm, not correction for propriety."
+        }
       }
     },
     {
-      "id": "VR-008",
-      "description": "Register collision detection.",
+      "id": "VR008_GENDERED_SLURS_MARKET_RISK",
+      "description": "Gendered/sexual slurs in dialogue are ALLOWED but trigger market risk review.",
+      "examples": [
+        "whore",
+        "slut",
+        "bitch",
+        "cunt",
+        "tramp",
+        "ho",
+        "prostitute (when used as slur)"
+      ],
       "conditions": {
-        "contains_both": ["high_formality_legal_phrasing", "heavy_slang"],
-        "no_tonal_bridge": true
+        "all": [
+          {
+            "path": "segment.voice.register",
+            "in": [
+              "dialogue",
+              "interior_monologue"
+            ]
+          },
+          {
+            "path": "segment.voice.registerLock",
+            "eq": "hard"
+          },
+          {
+            "path": "finding.type",
+            "eq": "GENDERED_SLUR_DETECTED"
+          }
+        ]
       },
-      "action": {
-        "label": "VOICE_REGISTER_REVIEW",
-        "severity": "medium",
-        "recommended_action": "verify_intent",
-        "note": "Mixed registers without transition—may be intentional code-switching."
+      "then": {
+        "set": {
+          "finding.label": "MARKET_RISK_REVIEW",
+          "finding.severity": "medium",
+          "finding.recommended_action": "verify_intent",
+          "finding.note": "Gendered slur detected in dialogue. CHARACTER VOICE is protected. Review for: (1) Characterization intent, (2) Audience sensitivity, (3) Market positioning. Provide voice-preserving alternatives if author wants options."
+        },
+        "require": [
+          "finding.alternatives"
+        ],
+        "never": [
+          "auto_apply",
+          "delete_without_consent"
+        ]
       }
     },
     {
-      "id": "VR-009",
-      "description": "Model uncertainty about slang meaning.",
+      "id": "VR009_SLURS_IN_NARRATION_ESCALATE",
+      "description": "Slurs in neutral narration (not dialogue) escalate to critical review—likely authorial voice issue unless transgressive mode.",
       "conditions": {
-        "meaning_confidence": "<0.7",
-        "is_slang_or_idiom": true
+        "all": [
+          {
+            "path": "segment.voice.register",
+            "in": [
+              "neutral_narration",
+              "expository_narration"
+            ]
+          },
+          {
+            "path": "finding.type",
+            "in": [
+              "RACIAL_SLUR_DETECTED",
+              "GENDERED_SLUR_DETECTED"
+            ]
+          }
+        ]
       },
-      "action": {
-        "label": "CLARITY_REVIEW",
-        "severity": "soft",
-        "recommended_action": "verify_intent",
-        "note": "Uncertain meaning—ask author, do not hallucinate definition."
+      "then": {
+        "set": {
+          "finding.label": "MARKET_RISK_REVIEW",
+          "finding.severity": "critical",
+          "finding.recommended_action": "revise_required",
+          "finding.note": "Slur detected in narrative voice (not character dialogue). This reads as authorial endorsement unless transgressive mode is enabled. Confirm intent or revise."
+        }
+      }
+    },
+    {
+      "id": "VR010_SLANG_IN_NARRATION_IS_REVIEW_NOT_ERROR",
+      "description": "Slang in neutral narration triggers review for fit, not grammar error.",
+      "conditions": {
+        "all": [
+          {
+            "path": "segment.voice.register",
+            "eq": "neutral_narration"
+          },
+          {
+            "path": "finding.type",
+            "eq": "SLANG_TOKEN"
+          }
+        ]
+      },
+      "then": {
+        "set": {
+          "finding.label": "VOICE_REGISTER_REVIEW",
+          "finding.severity": "medium"
+        }
+      }
+    },
+    {
+      "id": "VR020_MARKET_RISK_TERMS_REQUIRE_REVIEW",
+      "description": "Any market-risk term requires explicit review with voice-preserving alternatives.",
+      "conditions": {
+        "any": [
+          {
+            "path": "finding.type",
+            "eq": "DEROGATORY_TERM"
+          },
+          {
+            "path": "finding.type",
+            "eq": "HIGHLY_LOADED_REFERENCE"
+          }
+        ]
+      },
+      "then": {
+        "set": {
+          "finding.label": "MARKET_RISK_REVIEW",
+          "finding.severity": "medium"
+        }
       }
     }
-  ]
+  ],
+  "meta": {
+    "principle": "Voice protection means ALLOWING risky language in character zones while surfacing market/audience risk WITHOUT sanitizing it into blandness.",
+    "never_auto_sanitize": [
+      "racial_slurs",
+      "profanity",
+      "gendered_slurs",
+      "colloquialisms",
+      "dialect_spelling"
+    ],
+    "always_provide": [
+      "voice_preserving_alternatives",
+      "risk_explanation",
+      "intent_verification_prompt"
+    ]
+  }
 }
