@@ -569,7 +569,7 @@ export default function ManuscriptDashboard() {
                       <>
                         <Badge className="bg-blue-100 text-blue-700">
                           <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          Evaluating...
+                          Evaluating... {chapter.wave_progress?.tier && `(${chapter.wave_progress.tier})`}
                         </Badge>
                       </>
                     ) : chapter.wave_status === 'failed' ? (
@@ -578,6 +578,21 @@ export default function ManuscriptDashboard() {
                           <Circle className="w-3 h-3 mr-1" />
                           Failed
                         </Badge>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={async () => {
+                            try {
+                              await base44.functions.invoke('evaluateFullManuscript', { manuscript_id: manuscriptId });
+                              toast.success('Retry started');
+                              setTimeout(() => queryClient.invalidateQueries({ queryKey: ['chapters', manuscriptId] }), 2000);
+                            } catch (error) {
+                              toast.error('Retry failed');
+                            }
+                          }}
+                        >
+                          Retry WAVE
+                        </Button>
                       </>
                     ) : (
                       <>

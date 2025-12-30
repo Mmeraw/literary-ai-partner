@@ -320,23 +320,44 @@ SCORING GUIDELINES:
         // Reload chapters to get fresh status after summaries/spine
         const freshChapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
         
+        // WATCHDOG: Fail stale "running" chapters (stuck >15 min)
+        const now = new Date();
+        const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+        for (const ch of freshChapters) {
+            if (ch.wave_status === 'running' && ch.wave_started_at) {
+                const startedAt = new Date(ch.wave_started_at);
+                const elapsed = now - startedAt;
+                if (elapsed > STALE_THRESHOLD_MS) {
+                    console.log(`⏱️ Failing stale chapter: ${ch.title} (running for ${Math.round(elapsed/60000)}m)`);
+                    await base44.asServiceRole.entities.Chapter.update(ch.id, {
+                        wave_status: 'failed',
+                        wave_error: `Stale run detected (started ${Math.round(elapsed/60000)}m ago, likely worker crash)`,
+                        wave_completed_at: new Date().toISOString()
+                    });
+                }
+            }
+        }
+        
+        // Reload after watchdog cleanup
+        const cleanedChapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
+        
         // PHASE GATE ENTRY LOG (cannot lie)
         const runId = `${manuscriptId}_${Date.now()}`;
         console.log(`🚪 PHASE_3_ENTRY`, {
             runId,
             manuscriptId,
             phase: 'PHASE_3_WAVE',
-            chaptersCount: freshChapters.length,
-            chapterIds: freshChapters.map(ch => ch.id),
+            chaptersCount: cleanedChapters.length,
+            chapterIds: cleanedChapters.map(ch => ch.id),
             timestamp: new Date().toISOString()
         });
 
         const MAX_RETRIES = 2;
         const WAVE_MAX_RETRIES = 2; // Hard cap for WAVE-specific failures
 
-        for (let i = 0; i < freshChapters.length; i++) {
-            const chapter = freshChapters[i];
-            console.log(`📖 Processing chapter ${i + 1}/${freshChapters.length}: ${chapter.title}`, {
+        for (let i = 0; i < cleanedChapters.length; i++) {
+            const chapter = cleanedChapters[i];
+            console.log(`📖 Processing chapter ${i + 1}/${cleanedChapters.length}: ${chapter.title}`, {
                 status: chapter.status,
                 wave_status: chapter.wave_status,
                 has_score: !!chapter.evaluation_score
@@ -360,10 +381,10 @@ SCORING GUIDELINES:
                 });
 
                 // Count this as "done" so we can move on
-                const wavePercent = 40 + Math.floor(((i + 1) / freshChapters.length) * 50);
+                const wavePercent = 40 + Math.floor(((i + 1) / cleanedChapters.length) * 50);
                 await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
-                        chapters_total: freshChapters.length,
+                        chapters_total: cleanedChapters.length,
                         chapters_summarized: freshChapters.length,
                         chapters_wave_done: i + 1,
                         current_phase: 'wave',
@@ -386,21 +407,32 @@ SCORING GUIDELINES:
                     console.log(`Chapter ${i + 1} evaluation attempt ${attempt + 1}/${MAX_RETRIES}`);
 
                     // PROGRESSIVE PERSISTENCE: Mark WAVE as running before starting
-                    await base44.asServiceRole.entities.Chapter.update(chapter.id, { 
-                        status: 'evaluating',
-                        wave_status: 'running',
-                        wave_started_at: new Date().toISOString(),
-                        wave_progress: { tier: 'early', completed_tiers: [] },
-                        error_message: null,
-                        retry_count: attempt
-                    });
-                    console.log(`💾 Chapter ${i + 1} marked wave_status='running'`);
+                    try {
+                        await base44.asServiceRole.entities.Chapter.update(chapter.id, { 
+                            status: 'evaluating',
+                            wave_status: 'running',
+                            wave_started_at: new Date().toISOString(),
+                            wave_progress: { tier: 'early', completed_tiers: [] },
+                            error_message: null,
+                            retry_count: attempt
+                        });
+                        console.log(`💾 Chapter ${i + 1} marked wave_status='running'`);
+                    } catch (saveError) {
+                        console.error(`❌ CRITICAL: Failed to save wave_status='running' for chapter ${i + 1}:`, saveError);
+                        // If we can't even mark it as running, fail fast
+                        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                            wave_status: 'failed',
+                            wave_error: `Save failure: ${saveError.message}`,
+                            wave_completed_at: new Date().toISOString()
+                        });
+                        throw new Error(`Save failure before WAVE start: ${saveError.message}`);
+                    }
 
                 // Update progress - starting chapter evaluation
-                const wavePercent = 40 + Math.floor((i / freshChapters.length) * 50);
+                const wavePercent = 40 + Math.floor((i / cleanedChapters.length) * 50);
                 await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
-                        chapters_total: freshChapters.length,
+                        chapters_total: cleanedChapters.length,
                         chapters_summarized: freshChapters.length,
                         chapters_wave_done: i,
                         current_phase: 'wave',
@@ -413,7 +445,7 @@ SCORING GUIDELINES:
                 // Show "Running agent analysis" progress
                 await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
-                        chapters_total: freshChapters.length,
+                        chapters_total: cleanedChapters.length,
                         chapters_summarized: freshChapters.length,
                         chapters_wave_done: i,
                         current_phase: 'wave',
@@ -515,7 +547,7 @@ Provide overall score (1-10) and verdict.`,
                     try {
                         await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                             evaluation_progress: {
-                                chapters_total: freshChapters.length,
+                                chapters_total: cleanedChapters.length,
                                 chapters_summarized: freshChapters.length,
                                 chapters_wave_done: i,
                                 current_phase: 'wave',
@@ -585,7 +617,7 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
                     try {
                         await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                             evaluation_progress: {
-                                chapters_total: freshChapters.length,
+                                chapters_total: cleanedChapters.length,
                                 chapters_summarized: freshChapters.length,
                                 chapters_wave_done: i,
                                 current_phase: 'wave',
@@ -659,7 +691,7 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
                     try {
                         await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                             evaluation_progress: {
-                                chapters_total: freshChapters.length,
+                                chapters_total: cleanedChapters.length,
                                 chapters_summarized: freshChapters.length,
                                 chapters_wave_done: i,
                                 current_phase: 'wave',
@@ -748,7 +780,8 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
                     // PROGRESSIVE PERSISTENCE: Final save with wave_status='evaluated'
                     console.log(`✅ Chapter ${i + 1} evaluation complete: Agent=${agentAnalysis.overallScore}, WAVE=${waveAnalysis.waveScore}, Combined=${combinedScore}`);
                     
-                    await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                    try {
+                        await base44.asServiceRole.entities.Chapter.update(chapter.id, {
                     evaluation_score: combinedScore,
                     chapter_craft_score: waveAnalysis.waveScore,
                     evaluation_result: {
@@ -778,19 +811,32 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
                     error_message: waveErrors.length > 0 
                         ? `Completed with ${waveErrors.length} WAVE check(s) skipped due to timeout` 
                         : null
-                    });
-                    
-                    console.log(`💾 Chapter ${i + 1} saved with wave_status='evaluated'`);
+                        });
+                        console.log(`💾 Chapter ${i + 1} saved with wave_status='evaluated'`);
+                    } catch (saveError) {
+                        console.error(`❌ CRITICAL: Failed to save final results for chapter ${i + 1}:`, saveError);
+                        // Try one last time to mark it as failed with the save error
+                        try {
+                            await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                                wave_status: 'failed',
+                                wave_error: `Final save failure: ${saveError.message}`,
+                                wave_completed_at: new Date().toISOString()
+                            });
+                        } catch (finalError) {
+                            console.error(`❌ DOUBLE FAILURE: Cannot even save error state:`, finalError);
+                        }
+                        throw new Error(`Final save failure: ${saveError.message}`);
+                    }
 
                     // Update progress after successful evaluation
-                    const finalWavePercent = 40 + Math.floor(((i + 1) / freshChapters.length) * 50);
+                    const finalWavePercent = 40 + Math.floor(((i + 1) / cleanedChapters.length) * 50);
                     const stepMessage = waveErrors.length > 0 
                     ? `Evaluated ${i + 1}/${freshChapters.length} chapters (${waveErrors.length} WAVE check(s) skipped)`
                     : `Evaluated ${i + 1}/${freshChapters.length} chapters`;
 
                     await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
-                        chapters_total: freshChapters.length,
+                        chapters_total: cleanedChapters.length,
                         chapters_summarized: freshChapters.length,
                         chapters_wave_done: i + 1,
                         current_phase: 'wave',
@@ -819,10 +865,10 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
                     console.log(`❌ Chapter ${i + 1} marked wave_status='failed'`);
 
                     // Always move progress forward
-                    const failWavePercent = 40 + Math.floor(((i + 1) / freshChapters.length) * 50);
+                    const failWavePercent = 40 + Math.floor(((i + 1) / cleanedChapters.length) * 50);
                     await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                         evaluation_progress: {
-                            chapters_total: freshChapters.length,
+                            chapters_total: cleanedChapters.length,
                             chapters_summarized: freshChapters.length,
                             chapters_wave_done: i + 1,
                             current_phase: 'wave',
