@@ -319,11 +319,16 @@ SCORING GUIDELINES:
         // PHASE 3: WAVE chapter craft evaluation
         // Reload chapters to get fresh status after summaries/spine
         const freshChapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
+        
+        console.log(`🔍 PHASE 3 START: ${freshChapters.length} chapters to evaluate`);
+        console.log(`Chapter statuses:`, freshChapters.map(ch => ({ title: ch.title, status: ch.status, has_score: !!ch.evaluation_score })));
 
         const MAX_RETRIES = 2;
         const WAVE_MAX_RETRIES = 2; // Hard cap for WAVE-specific failures
 
         for (let i = 0; i < freshChapters.length; i++) {
+            console.log(`📖 Processing chapter ${i + 1}/${freshChapters.length}: ${freshChapters[i].title}`);
+
             const chapter = freshChapters[i];
 
             // Skip if already evaluated
