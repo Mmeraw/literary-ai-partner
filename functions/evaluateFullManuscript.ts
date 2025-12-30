@@ -485,24 +485,23 @@ Provide overall score (1-10) and verdict.`,
                     // Show "Running WAVE analysis" progress
                     await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
                     evaluation_progress: {
-                    chapters_total: freshChapters.length,
-                    chapters_summarized: freshChapters.length,
-                    chapters_wave_done: i,
-                    current_phase: 'wave',
-                    percent_complete: wavePercent + 2,
-                    current_step: `Chapter ${i + 1}: Running 63 WAVE craft checks...`,
-                    last_updated: new Date().toISOString()
+                        chapters_total: freshChapters.length,
+                        chapters_summarized: freshChapters.length,
+                        chapters_wave_done: i,
+                        current_phase: 'wave',
+                        percent_complete: wavePercent + 2,
+                        current_step: `Chapter ${i + 1}: Running 63 WAVE craft checks (attempt ${attempt + 1})...`,
+                        last_updated: new Date().toISOString()
                     }
                     });
 
                     // WAVE Revision System evaluation (61+ waves, three-tier framework)
                     // Use shorter timeout (90s) to fail fast on problematic waves
-                    let waveAnalysis;
-                    let waveErrors = [];
+                    waveErrors = [];
 
                     try {
                     waveAnalysis = await withTimeout(
-                    base44.asServiceRole.integrations.Core.InvokeLLM({
+                        base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are an elite developmental editor applying the complete WAVE Revision System (61+ waves organized in three tiers).
 
 CRITICAL WAVE RULES (NON-NEGOTIABLE):
