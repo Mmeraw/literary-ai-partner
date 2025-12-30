@@ -29,6 +29,16 @@ const STYLE_MODES = [
         value: "hybrid",
         label: "Hybrid (Advanced)",
         description: "Dominant mode + controlled drift for mixed registers"
+    },
+    {
+        value: "transgressive",
+        label: "Transgressive / Dark Fiction",
+        description: "Intentional extremity—evaluates craft & control, not moral alignment"
+    },
+    {
+        value: "trauma_memoir",
+        label: "Trauma Memoir / Testimony",
+        description: "Survivor narrative—respects psychological accuracy & embodied truth"
     }
 ];
 
