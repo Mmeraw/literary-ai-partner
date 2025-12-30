@@ -39,7 +39,7 @@ const evaluatePages = [
 ];
 
 const resourcesPages = [
-    { name: 'Sample Analysis', page: 'SampleAnalysis', icon: FileCheck },
+    { name: 'Sample Analyses', page: 'SampleAnalyses', icon: FileCheck },
     { name: 'FAQ', page: 'FAQ', icon: HelpCircle },
     { name: 'Methodology', page: 'Methodology', icon: FileText },
     { name: 'WAVE Criteria', page: 'Criteria', icon: FileCheck },
