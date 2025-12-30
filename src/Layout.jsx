@@ -8,6 +8,9 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
     DropdownMenuSeparator,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import { 
     BookOpen, Sparkles, Menu, X, LogOut, BarChart3,
@@ -242,7 +245,30 @@ export default function Layout({ children, currentPageName }) {
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-56">
-                                    {resourcesPages.map((item) => (
+                                    <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger>
+                                            <FileCheck className="w-4 h-4 mr-2" />
+                                            Sample Analyses
+                                        </DropdownMenuSubTrigger>
+                                        <DropdownMenuSubContent>
+                                            <DropdownMenuItem asChild>
+                                                <Link to={createPageUrl('SampleAnalyses')} className="cursor-pointer">
+                                                    Overview
+                                                </Link>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem asChild>
+                                                <Link to={createPageUrl('SampleChapterAnalysis')} className="cursor-pointer">
+                                                    Executive Summary (12 pages)
+                                                </Link>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem asChild>
+                                                <Link to={createPageUrl('SampleComparativeAnalysis')} className="cursor-pointer">
+                                                    Full Pitch Deck (38 pages)
+                                                </Link>
+                                            </DropdownMenuItem>
+                                        </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                    {resourcesPages.filter(item => item.page !== 'SampleAnalyses').map((item) => (
                                         <DropdownMenuItem key={item.page} asChild>
                                             <Link to={createPageUrl(item.page)} className="flex items-center gap-2 cursor-pointer">
                                                 <item.icon className="w-4 h-4" />
@@ -427,7 +453,39 @@ export default function Layout({ children, currentPageName }) {
                                 </Button>
                                 {expandedMobile.resources && (
                                     <div className="ml-8 space-y-1 mt-1">
-                                        {resourcesPages.map((item) => (
+                                        <div>
+                                            <Button
+                                                variant="ghost"
+                                                onClick={() => toggleMobileSection('sampleAnalyses')}
+                                                className="w-full justify-between h-10 text-sm text-slate-600"
+                                            >
+                                                <span className="flex items-center">
+                                                    <FileCheck className="w-4 h-4 mr-2" />
+                                                    Sample Analyses
+                                                </span>
+                                                <ChevronDown className={cn("w-4 h-4 transition-transform", expandedMobile.sampleAnalyses && "rotate-180")} />
+                                            </Button>
+                                            {expandedMobile.sampleAnalyses && (
+                                                <div className="ml-6 space-y-1 mt-1">
+                                                    <Link to={createPageUrl('SampleAnalyses')} onClick={() => setMobileMenuOpen(false)}>
+                                                        <Button variant="ghost" className="w-full justify-start h-9 text-xs text-slate-600">
+                                                            Overview
+                                                        </Button>
+                                                    </Link>
+                                                    <Link to={createPageUrl('SampleChapterAnalysis')} onClick={() => setMobileMenuOpen(false)}>
+                                                        <Button variant="ghost" className="w-full justify-start h-9 text-xs text-slate-600">
+                                                            Executive Summary (12 pages)
+                                                        </Button>
+                                                    </Link>
+                                                    <Link to={createPageUrl('SampleComparativeAnalysis')} onClick={() => setMobileMenuOpen(false)}>
+                                                        <Button variant="ghost" className="w-full justify-start h-9 text-xs text-slate-600">
+                                                            Full Pitch Deck (38 pages)
+                                                        </Button>
+                                                    </Link>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {resourcesPages.filter(item => item.page !== 'SampleAnalyses').map((item) => (
                                             <Link key={item.page} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
                                                 <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
                                                     <item.icon className="w-4 h-4 mr-2" />
