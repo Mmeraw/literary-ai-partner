@@ -321,6 +321,7 @@ SCORING GUIDELINES:
         const freshChapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
 
         const MAX_RETRIES = 2;
+        const WAVE_MAX_RETRIES = 2; // Hard cap for WAVE-specific failures
 
         for (let i = 0; i < freshChapters.length; i++) {
             const chapter = freshChapters[i];
