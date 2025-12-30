@@ -40,8 +40,7 @@ export default function Methodology() {
                         <div className="p-4 rounded-lg bg-purple-50 border border-purple-200">
                             <h3 className="font-semibold text-purple-900 mb-2">Layer 2: WAVE Revision System (60+ Checks)</h3>
                             <p className="text-sm text-slate-700">
-                                Line-level craft diagnostics covering prose polish, sensory details, word economy, 
-                                sentence variety, and narrative clarity—proprietary framework developed over years of editorial work.
+                                Line-level craft diagnostics that help your pages read clean, controlled, and professional—powered by a proprietary framework developed over years of editorial work.
                             </p>
                         </div>
                     </CardContent>
@@ -96,6 +95,9 @@ export default function Methodology() {
                             structure, line-level authority, motif hygiene, pacing, and more.
                         </p>
                         <p className="text-slate-700">
+                            Base44 applies WAVE automatically to every chapter, then reports which Waves were triggered and why.
+                        </p>
+                        <p className="text-slate-700">
                             The online tool does not "discover" these rules; it <strong>executes them</strong>.
                         </p>
                         <div className="p-4 rounded-lg bg-purple-50 border border-purple-200">
@@ -135,7 +137,7 @@ export default function Methodology() {
                                 <div>
                                     <h4 className="font-semibold text-slate-900 mb-1">WAVE Diagnostics</h4>
                                     <p className="text-sm text-slate-600">
-                                        Line-by-line analysis flags craft issues based on 60+ proprietary WAVE checks, 
+                                        Line-by-line analysis flags craft issues based on scores of proprietary WAVE checks, 
                                         with severity ratings and specific fix suggestions.
                                     </p>
                                 </div>
