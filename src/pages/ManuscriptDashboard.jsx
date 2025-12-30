@@ -236,6 +236,24 @@ export default function ManuscriptDashboard() {
                   </span>
                 )}
               </div>
+              
+              {/* Show error message if present */}
+              {progress.error_message && (
+                <div className="mt-3 p-3 rounded-lg bg-red-50 border border-red-200">
+                  <p className="text-xs text-red-800 font-semibold">
+                    ✗ Error: {progress.error_message}
+                  </p>
+                </div>
+              )}
+              
+              {/* Show failed chapters count if any */}
+              {progress.failed_chapters?.length > 0 && (
+                <div className="mt-3 p-3 rounded-lg bg-red-50 border border-red-200">
+                  <p className="text-xs text-red-800 font-semibold">
+                    ✗ {progress.failed_chapters.length} chapter(s) failed
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="mt-6 p-4 rounded-lg bg-indigo-50 border border-indigo-200">
@@ -353,6 +371,11 @@ export default function ManuscriptDashboard() {
   // Show warning banner if evaluation completed with failures
   const hasEvaluationWarnings = manuscript.status === 'ready_with_errors';
   const failedChapters = manuscript.evaluation_progress?.failed_chapters || [];
+  
+  // Count currently failed chapters (ongoing failures, not just completed-with-errors)
+  const currentlyFailedChapters = chapters.filter(ch => 
+    ch.wave_status === 'failed' || ch.status === 'failed'
+  );
 
   // Terminal states: chapter reached completion (evaluated, partial, or failed)
   const TERMINAL = new Set(['evaluated', 'partial', 'failed']);
@@ -391,7 +414,63 @@ export default function ManuscriptDashboard() {
       <div className="max-w-7xl mx-auto px-6 py-12">
         {/* Header */}
         <div className="mb-8">
-          {hasEvaluationWarnings && failedChapters.length > 0 && (
+          {/* HARD FAILURE BANNER - Shows immediately when chapters fail */}
+          {currentlyFailedChapters.length > 0 && (
+            <Card className="mb-6 bg-red-50 border-2 border-red-300">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-500 flex items-center justify-center">
+                    <span className="text-white text-xl font-bold">✗</span>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-red-900 mb-1 text-lg">
+                      {currentlyFailedChapters.length} Chapter{currentlyFailedChapters.length > 1 ? 's' : ''} Failed
+                    </h3>
+                    <p className="text-sm text-red-800 mb-3">
+                      Evaluation failed for these chapters. You can retry individually below or restart the entire evaluation.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          toast.info('Restarting full evaluation...');
+                          try {
+                            await base44.functions.invoke('evaluateFullManuscript', { manuscript_id: manuscriptId });
+                            toast.success('Evaluation restarted');
+                            setTimeout(() => {
+                              queryClient.invalidateQueries({ queryKey: ['manuscript', manuscriptId] });
+                              queryClient.invalidateQueries({ queryKey: ['chapters', manuscriptId] });
+                            }, 2000);
+                          } catch (error) {
+                            toast.error('Restart failed');
+                          }
+                        }}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        Retry All Failed Chapters
+                      </Button>
+                      <details className="inline">
+                        <summary className="cursor-pointer text-sm text-red-700 hover:text-red-900 font-medium px-3 py-1 rounded hover:bg-red-100">
+                          Show Details
+                        </summary>
+                        <div className="mt-2 p-3 rounded-lg bg-white border border-red-200">
+                          <ul className="space-y-1 text-sm text-red-700">
+                            {currentlyFailedChapters.map((ch) => (
+                              <li key={ch.id}>
+                                <strong>{ch.title}:</strong> {ch.wave_error || ch.error_message || 'Processing failed'}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </details>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {hasEvaluationWarnings && failedChapters.length > 0 && currentlyFailedChapters.length === 0 && (
             <Card className="mb-6 bg-amber-50 border-amber-200">
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
@@ -660,26 +739,29 @@ export default function ManuscriptDashboard() {
                           Evaluating... {chapter.wave_progress?.tier && `(${chapter.wave_progress.tier})`}
                         </Badge>
                       </>
-                    ) : chapter.wave_status === 'failed' ? (
+                    ) : (chapter.wave_status === 'failed' || chapter.status === 'failed') ? (
                       <>
-                        <Badge className="bg-red-100 text-red-700">
-                          <Circle className="w-3 h-3 mr-1" />
-                          Failed
-                        </Badge>
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-100 border border-red-300">
+                          <span className="text-red-700 font-semibold text-sm">✗ FAILED</span>
+                        </div>
                         <Button 
                           size="sm" 
-                          variant="outline"
+                          className="bg-red-600 hover:bg-red-700 text-white"
                           onClick={async () => {
+                            toast.loading('Retrying chapter evaluation...', { id: 'retry' });
                             try {
                               await base44.functions.invoke('evaluateFullManuscript', { manuscript_id: manuscriptId });
-                              toast.success('Retry started');
-                              setTimeout(() => queryClient.invalidateQueries({ queryKey: ['chapters', manuscriptId] }), 2000);
+                              toast.success('Retry started', { id: 'retry' });
+                              setTimeout(() => {
+                                queryClient.invalidateQueries({ queryKey: ['chapters', manuscriptId] });
+                                queryClient.invalidateQueries({ queryKey: ['manuscript', manuscriptId] });
+                              }, 2000);
                             } catch (error) {
-                              toast.error('Retry failed');
+                              toast.error('Retry failed', { id: 'retry' });
                             }
                           }}
                         >
-                          Retry WAVE
+                          Retry Now
                         </Button>
                       </>
                     ) : (
