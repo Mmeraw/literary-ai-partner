@@ -47,8 +47,8 @@ export default function RevisionInsights({ session }) {
           Revision Insights
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-3 gap-4">
+      <CardContent className="pt-2">
+        <div className="grid grid-cols-3 gap-3">
           {insights.map((insight, idx) => (
             <div key={idx} className="text-center">
               <div className="flex items-center justify-center mb-1">

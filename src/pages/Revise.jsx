@@ -387,17 +387,17 @@ export default function Revise() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-      <div className="max-w-5xl mx-auto px-6 py-12">
+      <div className="max-w-5xl mx-auto px-6 py-4">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-4">
           <Link to={createPageUrl('History')}>
-            <Button variant="ghost" className="mb-4">
+            <Button variant="ghost" className="mb-2">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to History
             </Button>
           </Link>
           
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-2">
             <div>
               <h1 className="text-3xl font-bold text-slate-900">{session.title}</h1>
               <p className="text-slate-600 mt-1">
@@ -514,8 +514,8 @@ export default function Revise() {
           )}
 
           {/* Progress Bar */}
-          <Card className="bg-white/80 backdrop-blur-sm mt-4">
-            <CardContent className="p-4">
+          <Card className="bg-white/80 backdrop-blur-sm mt-2">
+            <CardContent className="p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-slate-700">
                   Suggestion {session.current_position + 1} of {session.suggestions.length}
@@ -530,7 +530,7 @@ export default function Revise() {
           </Card>
 
           {/* Revision Insights */}
-          <div className="mt-4">
+          <div className="mt-2">
             <RevisionInsights session={session} />
           </div>
         </div>
@@ -557,7 +557,7 @@ export default function Revise() {
         </AnimatePresence>
 
         {/* Navigation */}
-        <div className="flex justify-between mt-6">
+        <div className="flex justify-between mt-4">
           <Button
             variant="outline"
             onClick={() => handleNavigate('prev')}
