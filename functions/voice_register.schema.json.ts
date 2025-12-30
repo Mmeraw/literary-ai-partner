@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://revisiongrade.com/schema/voice_register.schema.json",
+  "title": "Voice Register Schema",
+  "description": "Defines how voice, register, and stylistic intent are encoded for evaluation.",
+  "type": "object",
+  "required": ["register", "register_lock", "style_flags"],
+  "properties": {
+    "register": {
+      "type": "string",
+      "enum": [
+        "dialogue",
+        "interior_monologue",
+        "close_third",
+        "neutral_narration",
+        "expository_narration",
+        "stylized_narration",
+        "transgressive_mode"
+      ]
+    },
+    "register_lock": {
+      "type": "string",
+      "enum": ["none", "soft", "hard"],
+      "description": "Hard prevents normalization; soft allows advisory review only."
+    },
+    "style_flags": {
+      "type": "object",
+      "properties": {
+        "allow_colloquial": { "type": "boolean" },
+        "allow_nonstandard_grammar": { "type": "boolean" },
+        "allow_profanity": { "type": "boolean" },
+        "allow_dialect_spellings": { "type": "boolean" }
+      },
+      "required": [
+        "allow_colloquial",
+        "allow_nonstandard_grammar",
+        "allow_profanity",
+        "allow_dialect_spellings"
+      ]
+    },
+    "speaker_id": {
+      "type": "string",
+      "description": "Optional identifier for consistent voice tracking across segments"
+    },
+    "register_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence score for register auto-detection"
+    }
+  }
+}
