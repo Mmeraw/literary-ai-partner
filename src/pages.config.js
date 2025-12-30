@@ -8,6 +8,7 @@ import Contact from './pages/Contact';
 import Criteria from './pages/Criteria';
 import Dashboard from './pages/Dashboard';
 import Enterprise from './pages/Enterprise';
+import EthicsAndSafety from './pages/EthicsAndSafety';
 import Evaluate from './pages/Evaluate';
 import EvaluateChapter from './pages/EvaluateChapter';
 import FAQ from './pages/FAQ';
@@ -36,6 +37,7 @@ import Revise from './pages/Revise';
 import SampleAnalysis from './pages/SampleAnalysis';
 import ScreenplayFormatter from './pages/ScreenplayFormatter';
 import SelectFormat from './pages/SelectFormat';
+import SlurHandlingPolicy from './pages/SlurHandlingPolicy';
 import SpineReport from './pages/SpineReport';
 import Synopsis from './pages/Synopsis';
 import Terms from './pages/Terms';
@@ -44,8 +46,6 @@ import UploadWork from './pages/UploadWork';
 import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
-import SlurHandlingPolicy from './pages/SlurHandlingPolicy';
-import EthicsAndSafety from './pages/EthicsAndSafety';
 import __Layout from './Layout.jsx';
 
 
@@ -60,6 +60,7 @@ export const PAGES = {
     "Criteria": Criteria,
     "Dashboard": Dashboard,
     "Enterprise": Enterprise,
+    "EthicsAndSafety": EthicsAndSafety,
     "Evaluate": Evaluate,
     "EvaluateChapter": EvaluateChapter,
     "FAQ": FAQ,
@@ -88,6 +89,7 @@ export const PAGES = {
     "SampleAnalysis": SampleAnalysis,
     "ScreenplayFormatter": ScreenplayFormatter,
     "SelectFormat": SelectFormat,
+    "SlurHandlingPolicy": SlurHandlingPolicy,
     "SpineReport": SpineReport,
     "Synopsis": Synopsis,
     "Terms": Terms,
@@ -96,8 +98,6 @@ export const PAGES = {
     "ValidationReport": ValidationReport,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
-    "SlurHandlingPolicy": SlurHandlingPolicy,
-    "EthicsAndSafety": EthicsAndSafety,
 }
 
 export const pagesConfig = {

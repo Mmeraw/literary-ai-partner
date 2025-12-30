@@ -27,8 +27,6 @@ const worksPages = [
 const evaluatePages = [
     { name: 'Complete Submission Package', page: 'CompletePackage', icon: Package, highlight: true },
     { name: 'New Evaluation', page: 'Evaluate', icon: Sparkles },
-    { name: 'Sample Analysis', page: 'SampleAnalysis', icon: FileCheck },
-    { name: 'Criteria', page: 'Criteria', icon: FileText },
     { name: 'Film Adaptation Package', page: 'FilmAdaptation', icon: Film },
     { name: 'Pitch Generator', page: 'PitchGenerator', icon: Target },
     { name: 'Pitch Builder', page: 'PitchBuilder', icon: Target },
@@ -41,6 +39,7 @@ const evaluatePages = [
 ];
 
 const resourcesPages = [
+    { name: 'Sample Analysis', page: 'SampleAnalysis', icon: FileCheck },
     { name: 'FAQ', page: 'FAQ', icon: HelpCircle },
     { name: 'Methodology', page: 'Methodology', icon: FileText },
     { name: 'WAVE Criteria', page: 'Criteria', icon: FileCheck },
