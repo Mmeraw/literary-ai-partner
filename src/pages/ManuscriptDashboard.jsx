@@ -285,6 +285,11 @@ export default function ManuscriptDashboard() {
     ? chapters.reduce((sum, ch) => sum + (ch.evaluation_score || 0), 0) / evaluatedChapters
     : 0;
 
+  // Check if any chapters have partial WAVE results (spine done, WAVE incomplete)
+  const chaptersWithPartialWave = chapters.filter(ch => 
+    ch.status === 'evaluated' && ch.evaluation_result?.partial_wave === true
+  ).length;
+
   // Score gating: only show overall if ≥30% chapters OR ≥25k words evaluated
   const scoreThresholdMet = (evaluatedChapters / chapters.length) >= 0.3 || evaluatedWords >= 25000;
 
