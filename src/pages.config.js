@@ -14,6 +14,7 @@ import FAQ from './pages/FAQ';
 import FilmAdaptation from './pages/FilmAdaptation';
 import FindAgents from './pages/FindAgents';
 import ForProfessionals from './pages/ForProfessionals';
+import HelpCenter from './pages/HelpCenter';
 import History from './pages/History';
 import Home from './pages/Home';
 import InviteUser from './pages/InviteUser';
@@ -38,7 +39,8 @@ import UploadManuscript from './pages/UploadManuscript';
 import UploadWork from './pages/UploadWork';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
-import HelpCenter from './pages/HelpCenter';
+import InternalGovernanceIndex from './pages/InternalGovernanceIndex';
+import InternalTrustedPathContract from './pages/InternalTrustedPathContract';
 import __Layout from './Layout.jsx';
 
 
@@ -59,6 +61,7 @@ export const PAGES = {
     "FilmAdaptation": FilmAdaptation,
     "FindAgents": FindAgents,
     "ForProfessionals": ForProfessionals,
+    "HelpCenter": HelpCenter,
     "History": History,
     "Home": Home,
     "InviteUser": InviteUser,
@@ -83,7 +86,8 @@ export const PAGES = {
     "UploadWork": UploadWork,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
-    "HelpCenter": HelpCenter,
+    "InternalGovernanceIndex": InternalGovernanceIndex,
+    "InternalTrustedPathContract": InternalTrustedPathContract,
 }
 
 export const pagesConfig = {
