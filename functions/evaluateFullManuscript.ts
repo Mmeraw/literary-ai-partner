@@ -707,6 +707,8 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
                     const combinedScore = Math.max(0, rawCombinedScore - integrityPenalty);
 
                     // Update chapter with results
+                    console.log(`✅ Chapter ${i + 1} evaluation complete: Agent=${agentAnalysis.overallScore}, WAVE=${waveAnalysis.waveScore}, Combined=${combinedScore}`);
+                    
                     await base44.asServiceRole.entities.Chapter.update(chapter.id, {
                     evaluation_score: combinedScore,
                     chapter_craft_score: waveAnalysis.waveScore,
@@ -730,6 +732,8 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
                         ? `Completed with ${waveErrors.length} WAVE check(s) skipped due to timeout` 
                         : null
                     });
+                    
+                    console.log(`💾 Chapter ${i + 1} saved with status='evaluated'`);
 
                     // Update progress after successful evaluation
                     const finalWavePercent = 40 + Math.floor(((i + 1) / freshChapters.length) * 50);
