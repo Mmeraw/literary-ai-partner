@@ -9,13 +9,14 @@ import { toast } from "sonner";
 export default function ValidationReport() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
+  const [dataset, setDataset] = useState('standard');
 
-  const handleRunValidation = async () => {
+  const handleRunValidation = async (selectedDataset = dataset) => {
     setLoading(true);
-    toast.loading('Running gold standard validation...', { id: 'validation' });
+    toast.loading(`Running ${selectedDataset} validation...`, { id: 'validation' });
 
     try {
-      const response = await base44.functions.invoke('validateGoldStandard', {});
+      const response = await base44.functions.invoke('validateGoldStandard', { dataset: selectedDataset });
       setResults(response.data);
       toast.success('Validation complete!', { id: 'validation' });
     } catch (error) {
@@ -60,23 +61,53 @@ export default function ValidationReport() {
                 Ready to Validate
               </h2>
               <p className="text-slate-600 mb-6 max-w-md mx-auto">
-                This will test the current system against {'{'}gold_bundle_examples{'}'} labeled examples covering register detection, severity calibration, and action classification.
+                Choose a gold standard dataset to validate Base44's voice/register behavior.
               </p>
-              <Button
-                onClick={handleRunValidation}
-                disabled={loading}
-                size="lg"
-                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Running Validation...
-                  </>
-                ) : (
-                  'Run Validation'
-                )}
-              </Button>
+              
+              <div className="flex justify-center gap-4 mb-6">
+                <Button
+                  onClick={() => {
+                    setDataset('standard');
+                    handleRunValidation('standard');
+                  }}
+                  disabled={loading}
+                  size="lg"
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                >
+                  {loading && dataset === 'standard' ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Running...
+                    </>
+                  ) : (
+                    'Standard Gold Set (TS-GOLD-V1)'
+                  )}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setDataset('slur');
+                    handleRunValidation('slur');
+                  }}
+                  disabled={loading}
+                  size="lg"
+                  variant="outline"
+                  className="border-red-300 text-red-700 hover:bg-red-50"
+                >
+                  {loading && dataset === 'slur' ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Running...
+                    </>
+                  ) : (
+                    'Slur Control Set (TS-SLUR-V1)'
+                  )}
+                </Button>
+              </div>
+              
+              <div className="text-xs text-slate-500 max-w-lg mx-auto">
+                <p className="mb-2"><strong>Standard:</strong> 30 examples covering voice, register, severity</p>
+                <p><strong>Slur Control:</strong> 30 examples testing NO-AUTOREWRITE enforcement + risk classification</p>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -322,9 +353,45 @@ export default function ValidationReport() {
               </CardContent>
             </Card>
 
-            <div className="flex justify-center">
+            {/* Slur-Specific Metrics */}
+            {results.bundle_summary?.slur_metrics && (
+              <Card className="border-0 shadow-lg border-red-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                    Slur Control Metrics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-700 mb-2">Classification Breakdown</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        {Object.entries(results.bundle_summary.slur_metrics.slur_classifications).map(([classification, count]) => (
+                          <div key={classification} className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                            <div className="text-xs text-slate-600">{classification}</div>
+                            <div className="text-2xl font-bold text-slate-900">{count}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-lg bg-red-50 border border-red-200">
+                      <h4 className="text-sm font-semibold text-red-900 mb-2">Critical Pass Criteria</h4>
+                      <ul className="space-y-1 text-sm text-red-800">
+                        <li>✓ 100% detection rate (all slurs flagged)</li>
+                        <li>✓ 0% auto-rewrite rate (proposed_revision always null)</li>
+                        <li>✓ ≥95% correct classification (VOICE_AUTHENTIC vs PROHIBITED_USE)</li>
+                        <li>✓ 0% grammar-correction false positives</li>
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <div className="flex justify-center gap-4">
               <Button
-                onClick={handleRunValidation}
+                onClick={() => handleRunValidation('standard')}
                 variant="outline"
                 disabled={loading}
               >
@@ -334,7 +401,22 @@ export default function ValidationReport() {
                     Re-running...
                   </>
                 ) : (
-                  'Re-run Validation'
+                  'Re-run Standard'
+                )}
+              </Button>
+              <Button
+                onClick={() => handleRunValidation('slur')}
+                variant="outline"
+                disabled={loading}
+                className="border-red-300 text-red-700 hover:bg-red-50"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Re-running...
+                  </>
+                ) : (
+                  'Re-run Slur Control'
                 )}
               </Button>
             </div>

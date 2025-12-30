@@ -16,8 +16,14 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    // Load and validate gold standard
-    const goldBundlePath = new URL('./toadstone_gold.v1.json', import.meta.url);
+    // Get dataset parameter (default: standard)
+    const { dataset = 'standard' } = await req.json().catch(() => ({}));
+
+    // Load appropriate gold standard
+    const goldBundlePath = dataset === 'slur' 
+      ? new URL('./toadstone_gold_slur.v1.json', import.meta.url)
+      : new URL('./toadstone_gold.v1.json', import.meta.url);
+    
     const goldBundleText = await Deno.readTextFile(goldBundlePath);
     
     let goldBundle;
@@ -48,8 +54,19 @@ Deno.serve(async (req) => {
       }, { status: 400 });
     }
 
+    // SLUR DATASET: Additional governance validation
+    if (dataset === 'slur') {
+      const slurValidationErrors = validateSlurGovernance(goldBundle);
+      if (slurValidationErrors.length > 0) {
+        return Response.json({ 
+          error: 'Slur governance validation failed', 
+          validation_errors: slurValidationErrors 
+        }, { status: 400 });
+      }
+    }
+
     // Generate bundle summary
-    const bundleSummary = generateBundleSummary(goldBundle);
+    const bundleSummary = generateBundleSummary(goldBundle, dataset === 'slur');
 
     const results = {
       timestamp: new Date().toISOString(),
@@ -148,12 +165,60 @@ function checkIdCollisions(examples) {
 }
 
 /**
+ * Validate slur-specific governance rules
+ */
+function validateSlurGovernance(bundle) {
+  const errors = [];
+
+  if (!bundle.governance_rules) {
+    errors.push('Missing governance_rules object');
+    return errors;
+  }
+
+  if (bundle.governance_rules.auto_rewrite_prohibited !== true) {
+    errors.push('auto_rewrite_prohibited must be true');
+  }
+
+  bundle.examples.forEach((ex, idx) => {
+    // Check slur classification exists
+    if (ex.style_flags?.contains_slur && !ex.slur_classification) {
+      errors.push(`Example ${idx} (${ex.id}): contains_slur=true but missing slur_classification`);
+    }
+
+    // Validate slur classification values
+    const validClassifications = ['VOICE_AUTHENTIC', 'NARRATIVE_CONDEMNATION', 'MARKET_RISK', 'PROHIBITED_USE'];
+    if (ex.slur_classification && !validClassifications.includes(ex.slur_classification)) {
+      errors.push(`Example ${idx} (${ex.id}): invalid slur_classification "${ex.slur_classification}"`);
+    }
+
+    // Check no auto-rewrites proposed
+    ex.wave_issues?.forEach((issue, issueIdx) => {
+      if (issue.proposed_revision !== null && issue.proposed_revision !== undefined) {
+        errors.push(`Example ${idx} (${ex.id}), issue ${issueIdx}: proposed_revision must be null (no auto-rewrites allowed)`);
+      }
+      if (issue.alternatives !== null && issue.alternatives !== undefined) {
+        errors.push(`Example ${idx} (${ex.id}), issue ${issueIdx}: alternatives must be null (no auto-rewrites allowed)`);
+      }
+    });
+  });
+
+  return errors;
+}
+
+/**
  * Generate bundle summary
  */
-function generateBundleSummary(bundle) {
+function generateBundleSummary(bundle, isSlurDataset = false) {
   const registerBreakdown = {};
   const registerLockBreakdown = {};
   let totalIssues = 0;
+
+  // Slur-specific metrics
+  const slurMetrics = isSlurDataset ? {
+    slur_classifications: {},
+    auto_rewrite_violations: 0,
+    detection_rate: 0
+  } : null;
 
   bundle.examples.forEach(ex => {
     // Count by register
@@ -165,9 +230,15 @@ function generateBundleSummary(bundle) {
     
     // Count issues
     totalIssues += ex.wave_issues.length;
+
+    // Slur-specific tracking
+    if (isSlurDataset && ex.slur_classification) {
+      slurMetrics.slur_classifications[ex.slur_classification] = 
+        (slurMetrics.slur_classifications[ex.slur_classification] || 0) + 1;
+    }
   });
 
-  return {
+  const summary = {
     batches_loaded: 1, // Single canonical bundle
     total_examples: bundle.examples.length,
     unique_ids: bundle.examples.length,
@@ -176,6 +247,12 @@ function generateBundleSummary(bundle) {
     register_breakdown: registerBreakdown,
     register_lock_breakdown: registerLockBreakdown
   };
+
+  if (isSlurDataset) {
+    summary.slur_metrics = slurMetrics;
+  }
+
+  return summary;
 }
 
 /**
