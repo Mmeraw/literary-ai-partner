@@ -73,10 +73,10 @@ export default function Revise() {
     const suggestion = session.suggestions.find(s => s.id === suggestionId);
     if (!suggestion) return;
 
-    // Apply the change to current_text
+    // Apply the change to current_text with bold markers
     const updatedText = session.current_text.replace(
       suggestion.original_text,
-      suggestion.suggested_text
+      `**${suggestion.suggested_text}**`
     );
 
     const updatedSuggestions = session.suggestions.map(s =>
@@ -149,7 +149,7 @@ export default function Revise() {
 
     const updatedText = session.current_text.replace(
       suggestion.original_text,
-      alternativeText
+      `**${alternativeText}**`
     );
 
     const updatedSuggestions = session.suggestions.map(s =>
@@ -284,7 +284,7 @@ export default function Revise() {
       const index = updatedText.indexOf(suggestion.original_text);
       if (index !== -1) {
         updatedText = updatedText.substring(0, index) + 
-                      suggestion.suggested_text + 
+                      `**${suggestion.suggested_text}**` + 
                       updatedText.substring(index + suggestion.original_text.length);
       }
     }
@@ -334,9 +334,9 @@ export default function Revise() {
     const suggestion = session.suggestions.find(s => s.id === suggestionId);
     if (!suggestion || suggestion.status !== 'accepted') return;
 
-    // Revert this specific change
+    // Revert this specific change (remove bold markers)
     const updatedText = session.current_text.replace(
-      suggestion.suggested_text,
+      `**${suggestion.suggested_text}**`,
       suggestion.original_text
     );
 

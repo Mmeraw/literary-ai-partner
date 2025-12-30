@@ -34,7 +34,10 @@ import Privacy from './pages/Privacy';
 import Progress from './pages/Progress';
 import QueryLetter from './pages/QueryLetter';
 import Revise from './pages/Revise';
+import SampleAnalyses from './pages/SampleAnalyses';
 import SampleAnalysis from './pages/SampleAnalysis';
+import SampleChapterAnalysis from './pages/SampleChapterAnalysis';
+import SampleComparativeAnalysis from './pages/SampleComparativeAnalysis';
 import ScreenplayFormatter from './pages/ScreenplayFormatter';
 import SelectFormat from './pages/SelectFormat';
 import SlurHandlingPolicy from './pages/SlurHandlingPolicy';
@@ -46,9 +49,6 @@ import UploadWork from './pages/UploadWork';
 import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
-import SampleAnalyses from './pages/SampleAnalyses';
-import SampleChapterAnalysis from './pages/SampleChapterAnalysis';
-import SampleComparativeAnalysis from './pages/SampleComparativeAnalysis';
 import __Layout from './Layout.jsx';
 
 
@@ -89,7 +89,10 @@ export const PAGES = {
     "Progress": Progress,
     "QueryLetter": QueryLetter,
     "Revise": Revise,
+    "SampleAnalyses": SampleAnalyses,
     "SampleAnalysis": SampleAnalysis,
+    "SampleChapterAnalysis": SampleChapterAnalysis,
+    "SampleComparativeAnalysis": SampleComparativeAnalysis,
     "ScreenplayFormatter": ScreenplayFormatter,
     "SelectFormat": SelectFormat,
     "SlurHandlingPolicy": SlurHandlingPolicy,
@@ -101,9 +104,6 @@ export const PAGES = {
     "ValidationReport": ValidationReport,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
-    "SampleAnalyses": SampleAnalyses,
-    "SampleChapterAnalysis": SampleChapterAnalysis,
-    "SampleComparativeAnalysis": SampleComparativeAnalysis,
 }
 
 export const pagesConfig = {
