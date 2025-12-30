@@ -21,6 +21,27 @@ export default function Home() {
                 </div>
             </div>
 
+            {/* Workflow Diagram */}
+            <div className="bg-white py-12">
+                <div className="max-w-6xl mx-auto px-6">
+                    <div className="text-center mb-8">
+                        <h2 className="text-3xl font-bold text-slate-900 mb-3">
+                            End-to-End Author Workflow
+                        </h2>
+                        <p className="text-slate-600">
+                            From rough manuscript to submission-ready package
+                        </p>
+                    </div>
+                    <div className="flex justify-center">
+                        <img 
+                            src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/81ce1b007_image.png"
+                            alt="RevisionGrade End-to-End Author Workflow"
+                            className="w-full max-w-4xl h-auto"
+                        />
+                    </div>
+                </div>
+            </div>
+
             {/* Hero Section */}
             <div className="relative overflow-hidden">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-100 via-transparent to-transparent opacity-60" />
