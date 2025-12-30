@@ -216,7 +216,7 @@ export default function ManuscriptDashboard() {
                   progress.current_phase === 'spine' ? 'bg-indigo-500 animate-pulse' :
                   manuscript.spine_score ? 'bg-green-500' : 'bg-slate-300'
                 }`} />
-                <span>Spine Evaluation (12 Agent Criteria)</span>
+                <span>Spine Evaluation (13 Agent Criteria)</span>
                 {manuscript.spine_score && <CheckCircle2 className="w-4 h-4 text-green-500 ml-auto" />}
               </div>
               <div className="flex items-center gap-2">
@@ -330,7 +330,7 @@ export default function ManuscriptDashboard() {
           <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-purple-50">
             <CardHeader>
               <CardTitle className="text-2xl">Overall RevisionGrade™</CardTitle>
-              <p className="text-sm text-slate-600 mt-1">Story + Craft: 12 Criteria + 60+ WAVE Checks</p>
+              <p className="text-sm text-slate-600 mt-1">Story + Craft: 13 Criteria + 63 WAVE Checks</p>
             </CardHeader>
             <CardContent>
               {scoreThresholdMet ? (
