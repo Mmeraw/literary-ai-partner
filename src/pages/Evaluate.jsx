@@ -16,24 +16,25 @@ import FinalOutput from '@/components/evaluation/FinalOutput';
 import StyleModeSelector from '@/components/evaluation/StyleModeSelector';
 import ThoughtTagCard from '@/components/evaluation/ThoughtTagCard';
 
-// 12 Story Evaluation Criteria (Agent/Editor Standards)
-// Reference: functions/12_STORY_CRITERIA.md
+// 13 Story Evaluation Criteria (Agent/Editor Standards)
+// Reference: functions/13_STORY_CRITERIA.md
 const LITERARY_CRITERIA = [
-  "opening_hook",
-  "narrative_voice_style", 
-  "character_depth_introduction",
-  "conflict_tension_escalation",
-  "thematic_resonance",
-  "structure_pacing_flow",
-  "dialogue_subtext",
-  "worldbuilding_immersion",
-  "stakes_emotional_investment",
-  "line_level_craft_polish",
-  "marketability_genre_position",
-  "would_keep_reading_gate"
+  "concept_core_premise",
+  "narrative_drive_momentum",
+  "character_depth_psychological_coherence",
+  "pov_voice_control",
+  "scene_construction_function",
+  "dialogue_authenticity_subtext",
+  "thematic_integration",
+  "worldbuilding_environmental_logic",
+  "pacing_structural_balance",
+  "prose_control_line_level_craft",
+  "tonal_authority_consistency",
+  "narrative_closure_promises_kept",
+  "professional_readiness_market_positioning"
 ];
 
-// 61 WAVE Revision System (Craft-Level Checks)
+// 63 WAVE Revision System (Craft-Level Checks)
 // Reference: MASTER_BIBLE - THE WAVE REVISION SYSTEM (Canonical)
 const WAVE_CRITERIA = [
   // EARLY WAVES (1-17): Structural Truth
@@ -101,7 +102,9 @@ const WAVE_CRITERIA = [
   { id: "W58", name: "Negative Space", tier: "late" },
   { id: "W59", name: "Final Consistency Pass", tier: "late" },
   { id: "W60", name: "Submission Read Pass", tier: "late" },
-  { id: "W61", name: "Reflexive Pronouns & Redundancy", tier: "late" }
+  { id: "W61", name: "Reflexive Pronouns & Redundancy", tier: "late" },
+  { id: "W62", name: "Continuity of Time & Physical State", tier: "late" },
+  { id: "W63", name: "Narrative Closure & Promises Kept", tier: "late" }
 ];
 
 // Helper to sort WAVE hits by tier and wave number
