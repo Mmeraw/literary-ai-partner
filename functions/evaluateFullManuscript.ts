@@ -319,7 +319,9 @@ SCORING GUIDELINES:
         // PHASE 3: WAVE chapter craft evaluation
         // Reload chapters to get fresh status after summaries/spine
         const freshChapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
-        
+
+        const MAX_RETRIES = 2;
+
         for (let i = 0; i < freshChapters.length; i++) {
             const chapter = freshChapters[i];
 
@@ -331,8 +333,7 @@ SCORING GUIDELINES:
 
             // Check retry count and handle exceeded retries
             const retryCount = chapter.retry_count || 0;
-            const MAX_RETRIES = 2;
-            
+
             // If stuck in evaluating or failed AND exceeded retries, mark as permanently failed
             if ((chapter.status === 'evaluating' || chapter.status === 'failed') && retryCount >= MAX_RETRIES) {
                 console.log(`Chapter ${i + 1} exceeded retry limit (${retryCount} attempts), marking as permanently failed`);
@@ -340,7 +341,7 @@ SCORING GUIDELINES:
                     status: 'failed',
                     error_message: `Exceeded retry limit (${MAX_RETRIES} attempts) - chapter evaluation incomplete`
                 });
-                
+
                 // Count this as "done" so we can move on
                 const wavePercent = 40 + Math.floor(((i + 1) / freshChapters.length) * 50);
                 await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
@@ -356,23 +357,22 @@ SCORING GUIDELINES:
                 });
                 continue;
             }
-            
-            // If chapter is failed or evaluating but under retry limit, reset for retry
-            if ((chapter.status === 'evaluating' || chapter.status === 'failed') && retryCount < MAX_RETRIES) {
-                console.log(`Chapter ${i + 1} status: ${chapter.status}, retry ${retryCount + 1}/${MAX_RETRIES}`);
-                await base44.asServiceRole.entities.Chapter.update(chapter.id, {
-                    status: 'summarized',
-                    error_message: null,
-                    retry_count: retryCount + 1
-                });
-                // Fall through to evaluation code below
-            }
 
-            try {
-                await base44.asServiceRole.entities.Chapter.update(chapter.id, { 
-                    status: 'evaluating',
-                    error_message: null
-                });
+            // Retry loop for this chapter's evaluation
+            let evaluationSuccess = false;
+            let agentAnalysis = null;
+            let waveAnalysis = null;
+            let waveErrors = [];
+
+            for (let attempt = 0; attempt < MAX_RETRIES && !evaluationSuccess; attempt++) {
+                try {
+                    console.log(`Chapter ${i + 1} evaluation attempt ${attempt + 1}/${MAX_RETRIES}`);
+
+                    await base44.asServiceRole.entities.Chapter.update(chapter.id, { 
+                        status: 'evaluating',
+                        error_message: null,
+                        retry_count: attempt
+                    });
 
                 // Update progress - starting chapter evaluation
                 const wavePercent = 40 + Math.floor((i / freshChapters.length) * 50);
