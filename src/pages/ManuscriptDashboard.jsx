@@ -148,7 +148,50 @@ export default function ManuscriptDashboard() {
   }
 
   // Show evaluation progress screen
-  if (['summarizing', 'spine_evaluating', 'evaluating_chapters'].includes(manuscript?.status)) {
+  if (['summarizing', 'spine_evaluating', 'evaluating_chapters', 'ready_with_errors'].includes(manuscript?.status)) {
+    const isComplete = manuscript.status === 'ready_with_errors' && manuscript.evaluation_progress?.percent_complete === 100;
+
+    if (isComplete) {
+      // Evaluation finished with some failures - show results with warning
+      const failedChapters = manuscript.evaluation_progress?.failed_chapters || [];
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 flex items-center justify-center">
+          <Card className="border-0 shadow-2xl max-w-2xl w-full mx-4">
+            <CardContent className="p-8">
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 mb-4">
+                  <CheckCircle2 className="w-8 h-8 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">Evaluation Complete (With Warnings)</h2>
+                <p className="text-slate-600">
+                  Most chapters evaluated successfully, but {failedChapters.length} chapter(s) could not be processed.
+                </p>
+              </div>
+
+              {failedChapters.length > 0 && (
+                <div className="mb-6 p-4 rounded-lg bg-amber-50 border border-amber-200">
+                  <p className="text-sm font-medium text-amber-800 mb-2">Failed Chapters:</p>
+                  <ul className="text-sm text-amber-700 space-y-1">
+                    {failedChapters.map((ch, idx) => (
+                      <li key={idx}>• {ch.title}: {ch.error || 'Timeout or processing error'}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <Button
+                onClick={() => window.location.reload()}
+                className="w-full bg-indigo-600 hover:bg-indigo-700"
+              >
+                View Results
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    // Still in progress
     const progress = manuscript.evaluation_progress || {};
     const percentComplete = progress.percent_complete || 0;
 

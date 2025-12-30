@@ -290,17 +290,39 @@ SCORING GUIDELINES:
                 continue;
             }
 
-            // Reset any chapter stuck in 'evaluating' or retry failed chapters
-            if (chapter.status === 'evaluating' || chapter.status === 'failed') {
-                console.log(`Chapter ${i + 1} status: ${chapter.status} - resetting for retry`);
+            // Check retry count and skip if exceeded
+            const retryCount = chapter.retry_count || 0;
+            const MAX_RETRIES = 2;
+            
+            if ((chapter.status === 'evaluating' || chapter.status === 'failed') && retryCount < MAX_RETRIES) {
+                console.log(`Chapter ${i + 1} status: ${chapter.status}, retry ${retryCount + 1}/${MAX_RETRIES}`);
                 await base44.asServiceRole.entities.Chapter.update(chapter.id, {
                     status: 'summarized',
                     error_message: null,
-                    evaluation_score: null,
-                    evaluation_result: null,
-                    wave_results_json: null
+                    retry_count: retryCount + 1
                 });
                 // Don't continue - let it run through normal evaluation below
+            } else if ((chapter.status === 'failed' || chapter.status === 'evaluating') && retryCount >= MAX_RETRIES) {
+                console.log(`Chapter ${i + 1} exceeded retry limit, marking as permanently failed`);
+                await base44.asServiceRole.entities.Chapter.update(chapter.id, {
+                    status: 'failed',
+                    error_message: `Exceeded retry limit (${MAX_RETRIES} attempts) - chapter evaluation incomplete`
+                });
+                
+                // Count this as "done" so we can move on
+                const wavePercent = 40 + Math.floor(((i + 1) / chapters.length) * 50);
+                await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                    evaluation_progress: {
+                        chapters_total: chapters.length,
+                        chapters_summarized: chapters.length,
+                        chapters_wave_done: i + 1,
+                        current_phase: 'wave',
+                        percent_complete: wavePercent,
+                        current_step: `Chapter ${i + 1} permanently failed after ${MAX_RETRIES} retries`,
+                        last_updated: new Date().toISOString()
+                    }
+                });
+                continue;
             }
 
             try {
@@ -606,14 +628,27 @@ WAVE SYSTEM FRAMEWORK:
             ? (0.5 * spineEvaluation.overallScore + 0.5 * avgChapterScore)
             : spineEvaluation.overallScore || avgChapterScore;
 
-        // Mark manuscript as ready
+        // Check if any chapters failed permanently
+        const failedChapters = await base44.asServiceRole.entities.Chapter.filter({ 
+            manuscript_id: manuscriptId, 
+            status: 'failed' 
+        });
+        
+        const hasFailures = failedChapters.length > 0;
+        const completionStatus = hasFailures ? 'ready_with_errors' : 'ready';
+        const completionMessage = hasFailures 
+            ? `Evaluation complete (${failedChapters.length} chapter(s) failed)`
+            : 'Evaluation complete';
+
+        // Mark manuscript as ready (even with failures)
         await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
-            status: 'ready',
+            status: completionStatus,
             revisiongrade_overall: revisiongradeOverall,
             revisiongrade_breakdown: {
                 spine_score: adjustedSpineScore,
                 average_chapter_score: avgChapterScore,
                 chapters_evaluated: evaluatedChapters.length,
+                chapters_failed: failedChapters.length,
                 chapters_total: chapters.length,
                 integrity_report: integrity,
                 integrity_clean: integrity.is_clean,
@@ -623,11 +658,13 @@ WAVE SYSTEM FRAMEWORK:
             evaluation_progress: {
                 chapters_total: chapters.length,
                 chapters_summarized: chapters.length,
-                chapters_wave_done: evaluatedChapters.length,
+                chapters_wave_done: chapters.length,
                 current_phase: 'finalize',
                 percent_complete: 100,
-                current_step: 'Evaluation complete',
-                last_updated: new Date().toISOString()
+                current_step: completionMessage,
+                last_updated: new Date().toISOString(),
+                has_failures: hasFailures,
+                failed_chapters: failedChapters.map(ch => ({ id: ch.id, title: ch.title, error: ch.error_message }))
             }
         });
 
