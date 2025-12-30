@@ -1,0 +1,211 @@
+# Base44 Voice Protection Implementation Roadmap
+
+## Status: Ready to Deploy
+
+All foundational governance documents are in place:
+- `voice_register.schema.json` - Interface definition
+- `voice_rules.v1.json` - Operational rules for slang/colloquial handling
+- `severity_policy.v1.json` - Auto-apply gating + Trusted Path integration
+- `acceptance_tests.v1.json` - Regression tests with real-world examples
+
+---
+
+## Phase 1: Immediate (Start Today)
+
+### Goal
+Teach Base44 what NOT to touch in voice-heavy zones.
+
+### Action Items
+
+1. **Implement Voice Register Classification**
+   - Add segment-level metadata: `register`, `register_lock`, `style_flags`
+   - Use provided schema: `functions/voice_register.schema.json`
+   - Classification can start simple:
+     - Quoted text → `dialogue` with `register_lock: "hard"`
+     - All dialogue gets `allow_colloquial: true` by default
+
+2. **Add Normalization Gate (Critical)**
+   ```typescript
+   if (segment.register_lock === "hard" && segment.style_flags.allow_colloquial) {
+     // Skip any "wanna" → "want to", "ya" → "you" transforms
+     // Output: NO_ACTION or VOICE_REGISTER_REVIEW (soft)
+   }
+   ```
+
+3. **Test Against Acceptance Suite**
+   - Run `acceptance_tests.v1.json` 
+   - All 8 tests must pass before moving to Phase 2
+   - Key test: "wanna" in dialogue must never become "want to"
+
+---
+
+## Phase 2: Severity Integration (Week 2)
+
+### Goal
+Ensure only "strong" severity suggestions are Trusted Path eligible.
+
+### Action Items
+
+1. **Add Severity to All WAVE Outputs**
+   - Every suggestion needs: `severity: "strong" | "medium" | "soft"`
+   - Apply `severity_policy.v1.json` rules
+   - Voice-locked zones cap at `severity: "soft"` for style issues
+
+2. **Update Trusted Path Gating**
+   - Only `severity === "strong"` AND `label === "ERROR" | "CLARITY_REVIEW"` can auto-apply
+   - VOICE_REGISTER_REVIEW = always manual review
+   - MARKET_RISK_REVIEW = always manual review
+
+3. **UI Changes**
+   - Show severity badges: 🔴 Strong / 🟡 Medium / ⚪ Soft
+   - Suppress or collapse "soft" suggestions in voice-heavy manuscripts
+
+---
+
+## Phase 3: Training Corpus (Week 3-4)
+
+### Goal
+Build canonical training examples from real manuscript data.
+
+### Data Collection Protocol
+
+1. **Source Material**
+   - Use uploaded chapter (already contains perfect test cases)
+   - Extract 20-40 examples per chapter focusing on:
+     - Dialogue with slang ("wanna", "ya", "gonna")
+     - Interior monologue with colloquial voice
+     - Market-risk terms that need review (not auto-sanitize)
+     - True errors that should be fixed everywhere
+
+2. **Labeling Format**
+   ```json
+   {
+     "excerpt": "How do ya do this?",
+     "register": "dialogue",
+     "register_lock": "hard",
+     "wave_triggered": "WAVE_1_GRAMMAR",
+     "correct_label": "NO_ACTION",
+     "correct_severity": "soft",
+     "rationale": "Colloquial 'ya' is character voice, not grammar error"
+   }
+   ```
+
+3. **Target Volume**
+   - Minimum: 100 examples (sufficient for v1)
+   - Optimal: 300-600 examples (production-ready)
+   - Include both "do nothing" and "do this" examples
+
+---
+
+## Phase 4: WAVE Cross-Validation (Week 5)
+
+### Goal
+Ensure existing WAVEs respect voice boundaries.
+
+### Audit Each WAVE
+
+For WAVE 1-6 (line-level style):
+- ✅ Fires correctly for true errors
+- ✅ Gets downgraded to "soft" in voice-locked segments
+- ✅ Never suggests "wanna" → "want to" in dialogue
+
+For WAVE 13-14, 23-25, 50-60 (higher-level craft):
+- ✅ Still fires in all registers (craft transcends register)
+- ✅ Severity adjusted based on impact
+
+---
+
+## Critical Success Metrics
+
+### Must Pass (Blockers)
+
+1. **Zero false positives on colloquial voice**
+   - "wanna", "gonna", "ya", "ain't" in dialogue = NO_ACTION
+   
+2. **Severity gating works**
+   - Only "strong" suggestions in Trusted Path auto-apply
+   - Voice zones never receive "strong" for style issues
+
+3. **Market risk handled correctly**
+   - Slurs/loaded terms → MARKET_RISK_REVIEW
+   - Alternatives preserve voice (not bland "organs harvested")
+
+### Should Pass (Quality)
+
+4. **True errors still caught**
+   - Broken syntax, unclear referents, continuity breaks
+   - These work regardless of register
+
+5. **User trust maintained**
+   - System explains WHY something was flagged vs. protected
+   - Authors feel "understood" not "corrected"
+
+---
+
+## Rollout Sequence (User-Facing)
+
+### Week 1-2: Internal Testing
+- Run voice protection on 5-10 manuscripts
+- Collect false positives/negatives
+- Tune thresholds
+
+### Week 3: Beta Testers
+- Invite 10-20 authors with "voice-heavy" work
+- Measure: satisfaction + false positive rate
+- Target: <5% voice-flattening complaints
+
+### Week 4: Soft Launch
+- Enable for all users with toggle:
+  - "Standard" (current behavior)
+  - "Voice-Aware" (new system)
+- Monitor adoption + feedback
+
+### Week 6: Full Deployment
+- Make voice-aware system default
+- Deprecate old normalization pipeline
+- Update marketing: "The only AI editor trained on voice preservation"
+
+---
+
+## Developer Handoff Checklist
+
+Before starting implementation, confirm Base44 has:
+
+- [ ] Access to all 4 JSON config files in `/functions`
+- [ ] TypeScript interfaces from this spec
+- [ ] Acceptance test runner that can load `acceptance_tests.v1.json`
+- [ ] A way to override WAVE outputs based on `voice_rules.v1.json`
+- [ ] Severity policy enforcement at suggestion-generation time
+- [ ] UI component to display register/lock status (for transparency)
+
+---
+
+## Questions for Base44 Engineering
+
+1. **Current WAVE output format** - Do suggestions already have a severity field, or is that new?
+2. **Segment classification** - Do you already split text into segments, or is that new?
+3. **Override mechanism** - Can WAVE rules be overridden by pre-checks, or does this require pipeline refactor?
+4. **Testing infrastructure** - Do you have a test harness that can run JSON-based acceptance tests?
+
+---
+
+## Contact for Training Data
+
+When Base44 is ready for Phase 3 (training corpus extraction), provide:
+- Chapter-by-chapter access to manuscript
+- Annotation protocol (we provide the labeling, you ingest)
+- Feedback loop (Base44 runs, we validate, iterate)
+
+Target: 300 high-quality labeled examples within 2 weeks.
+
+---
+
+## Success = Differentiation
+
+Once this is live, RevisionGrade becomes the **only** AI writing tool that:
+- Preserves author voice by design
+- Respects colloquial/dialect intentionality  
+- Offers "no-change" as a valid AI response
+- Markets on "craft intelligence, not grammar policing"
+
+This is your moat.
