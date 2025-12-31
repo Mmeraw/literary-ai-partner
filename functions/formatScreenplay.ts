@@ -15,8 +15,13 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Text required' }, { status: 400 });
         }
 
+        // Normalize italics: convert *text* to <em>text</em> for consistent processing
+        let processedText = text
+            .replace(/\*([^*]+)\*/g, '<em>$1</em>')  // *italics* → <em>italics</em>
+            .replace(/<i>([^<]+)<\/i>/g, '<em>$1</em>');  // <i> → <em> for consistency
+
         // Auto-detect mode if not specified
-        const detectedMode = mode || (text.includes('INT.') || text.includes('EXT.') ? 'cleanup' : 'convert');
+        const detectedMode = mode || (processedText.includes('INT.') || processedText.includes('EXT.') ? 'cleanup' : 'convert');
 
         let prompt = '';
 
@@ -69,8 +74,16 @@ OUTPUT Option A:
 
 OUTPUT Option B: Remove (if action already shows this)
 
-PROSE TO CONVERT (may contain HTML tags):
-${text}
+VOICEOVER (V.O.) RULES:
+- Internal thoughts in italics (<em>) should become V.O. if they add dramatic value
+- Format: Character name centered with (V.O.) tag
+- Dialogue indented beneath (same as regular dialogue)
+- Example:
+                                MIKE (V.O.)
+            Why am I checking the rearview?
+
+PROSE TO CONVERT (may contain HTML tags and *asterisk* italics):
+${processedText}
 
 Output ONLY the formatted screenplay text. Strip all HTML tags. No explanations, no markdown. Raw WriterDuet-compatible screenplay only.`;
 
@@ -117,8 +130,13 @@ CRITICAL: HANDLING ITALICIZED TEXT (HTML <em> or <i> tags):
 - If italics = internal thought → convert to (V.O.) if dramatic, or remove if redundant
 - Use judgment: preserve powerful internal moments, cut the rest
 
-CRUDE SCREENPLAY (may contain HTML tags):
-${text}
+VOICEOVER (V.O.) RULES:
+- Convert internal thoughts (<em>) to V.O. if dramatic, otherwise remove
+- Format: Character name centered with (V.O.) tag
+- Dialogue indented beneath
+
+CRUDE SCREENPLAY (may contain HTML tags and *asterisk* italics):
+${processedText}
 
 Output ONLY the cleaned screenplay text. Strip all HTML tags. No explanations, no markdown. Raw WriterDuet-compatible screenplay only.`;
         }
