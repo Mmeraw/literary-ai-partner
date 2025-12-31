@@ -281,35 +281,29 @@ export default function Layout({ children, currentPageName }) {
                                         Resources <ChevronDown className="ml-1 h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="w-56">
-                                    <DropdownMenuSub>
-                                        <DropdownMenuSubTrigger>
-                                            <FileCheck className="w-4 h-4 mr-2" />
-                                            Sample Analyses
-                                        </DropdownMenuSubTrigger>
-                                        <DropdownMenuSubContent>
-                                            <DropdownMenuItem asChild>
-                                                <Link to={createPageUrl('SampleAnalyses')} className="cursor-pointer">
-                                                    Overview
-                                                </Link>
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem asChild>
-                                                <Link to={createPageUrl('SampleChapterAnalysis')} className="cursor-pointer">
-                                                    Executive Summary (12 pages)
-                                                </Link>
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem asChild>
-                                                <Link to={createPageUrl('SampleComparativeAnalysis')} className="cursor-pointer">
-                                                    Full Pitch Deck (39 pages)
-                                                </Link>
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem asChild>
-                                                <Link to={createPageUrl('SampleFilmPitchDeck')} className="cursor-pointer">
-                                                    Film Pitch Deck (Screenplay)
-                                                </Link>
-                                            </DropdownMenuItem>
-                                        </DropdownMenuSubContent>
-                                    </DropdownMenuSub>
+                                <DropdownMenuContent align="start" className="w-64">
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">Sample Analyses</div>
+                                    <DropdownMenuItem asChild>
+                                        <Link to={createPageUrl('SampleAnalyses')} className="cursor-pointer pl-6">
+                                            Overview
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem asChild>
+                                        <Link to={createPageUrl('SampleChapterAnalysis')} className="cursor-pointer pl-6">
+                                            Executive Summary
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem asChild>
+                                        <Link to={createPageUrl('SampleComparativeAnalysis')} className="cursor-pointer pl-6">
+                                            Full Pitch Deck
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem asChild>
+                                        <Link to={createPageUrl('SampleFilmPitchDeck')} className="cursor-pointer pl-6">
+                                            Film Pitch Deck
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
                                     {resourcesPages.filter(item => item.page !== 'SampleAnalyses').map((item) => (
                                         <DropdownMenuItem key={item.page} asChild>
                                             <Link to={createPageUrl(item.page)} className="flex items-center gap-2 cursor-pointer">
