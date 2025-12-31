@@ -21,11 +21,11 @@ export default function Home() {
                         transition={{ duration: 0.6 }}
                         className="text-center"
                     >
-                        <h1 className="text-4xl sm:text-5xl font-bold text-indigo-600 tracking-tight leading-tight mb-6">
+                        <h1 className="text-4xl sm:text-5xl font-bold text-indigo-600 tracking-tight leading-tight mb-3">
                             RevisionGrade™ — The Authoritative Revision Framework
                         </h1>
 
-                        <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-6">
+                        <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-3">
                             Built to meet the standards gatekeepers expect.
                         </p>
 
