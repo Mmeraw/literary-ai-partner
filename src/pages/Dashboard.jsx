@@ -76,7 +76,7 @@ export default function Dashboard() {
             .slice(0, 10);
     }, [chapters]);
 
-    // Pipeline categorization
+    // Pipeline categorization (STATE-BASED)
     const pipeline = useMemo(() => {
         const allWorks = [
             ...manuscripts.map(m => ({ 
@@ -98,10 +98,10 @@ export default function Dashboard() {
         ];
 
         return {
-            upload: allWorks.filter(w => ['uploaded', 'splitting', 'draft'].includes(w.status)),
-            evaluate: allWorks.filter(w => ['summarizing', 'evaluating', 'spine_evaluating'].includes(w.status)),
+            evaluate: allWorks.filter(w => ['uploaded', 'splitting', 'draft', 'summarizing', 'evaluating', 'spine_evaluating'].includes(w.status)),
             revise: allWorks.filter(w => ['ready', 'reviewed'].includes(w.status)),
-            output: allWorks.filter(w => w.status === 'finalized')
+            final: allWorks.filter(w => w.status === 'finalized'),
+            packages: [] // TODO: track package generation
         };
     }, [manuscripts, submissions]);
 
@@ -158,17 +158,18 @@ export default function Dashboard() {
                     />
                 </div>
 
-                {/* Pipeline Board */}
+                {/* Pipeline Board - STATE-BASED */}
                 <Card className="mb-8">
                     <CardHeader>
-                        <CardTitle>Pipeline Overview</CardTitle>
+                        <CardTitle>Project Pipeline</CardTitle>
+                        <p className="text-sm text-slate-600 mt-1">Evaluate → Revise → Finalize → Package</p>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <PipelineColumn title="Upload" works={pipeline.upload} stage="upload" />
                             <PipelineColumn title="Evaluate" works={pipeline.evaluate} stage="evaluate" />
                             <PipelineColumn title="Revise" works={pipeline.revise} stage="revise" />
-                            <PipelineColumn title="Output" works={pipeline.output} stage="output" />
+                            <PipelineColumn title="Final" works={pipeline.final} stage="final" />
+                            <PipelineColumn title="Packages" works={pipeline.packages} stage="packages" />
                         </div>
                     </CardContent>
                 </Card>
@@ -266,10 +267,10 @@ function PipelineColumn({ title, works, stage }) {
 
 function WorkCard({ work, stage }) {
     const getNextAction = () => {
-        if (stage === 'upload') return 'Start Evaluation';
         if (stage === 'evaluate') return 'View Progress';
-        if (stage === 'revise') return 'Open Dashboard';
-        return 'Build Output';
+        if (stage === 'revise') return 'Continue';
+        if (stage === 'final') return 'Build Package';
+        return 'Export';
     };
 
     const getLink = () => {

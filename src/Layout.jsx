@@ -15,19 +15,19 @@ import {
 import { 
     BookOpen, Sparkles, Menu, X, LogOut, BarChart3,
     ChevronDown, FileText, Film, Target, TrendingUp,
-    Users, Mail, HelpCircle, FileCheck, User, Crown, Package, Edit3
+    Users, Mail, HelpCircle, FileCheck, User, Crown, Package, Edit3, CheckCircle2
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
 import AnalyticsTracker from '@/components/AnalyticsTracker';
 
-// CANONICAL WORKFLOW: Upload → Evaluate → Revise → Output
+// CANONICAL WORKFLOW: Evaluate → Revise → Finalize → Package
 const uploadPages = [
     { name: 'Full Manuscript', page: 'UploadManuscript', icon: BookOpen },
     { name: 'Chapter/Scene', page: 'Evaluate', icon: FileText },
 ];
 
-const outputPages = [
+const packagePages = [
     { name: 'Agent Package', page: 'CompletePackage', icon: Package, highlight: true },
     { name: 'Film Adaptation Package', page: 'FilmAdaptation', icon: Film, highlight: true },
     { name: 'Query Letter', page: 'QueryLetter', icon: Mail },
@@ -147,7 +147,7 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                         </Link>
 
-                        {/* Desktop Navigation - CANONICAL WORKFLOW */}
+                        {/* Desktop Navigation - STATE-BASED WORKFLOW */}
                         <div className="hidden md:flex items-center gap-1 flex-1">
                             <Link to={createPageUrl('Dashboard')}>
                                 <Button
@@ -163,7 +163,6 @@ export default function Layout({ children, currentPageName }) {
                                 </Button>
                             </Link>
 
-                            {/* Upload */}
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
@@ -182,17 +181,12 @@ export default function Layout({ children, currentPageName }) {
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            {/* Evaluate - Goes to Dashboard where results live */}
                             <Link to={createPageUrl('Dashboard')}>
-                                <Button
-                                    variant="ghost"
-                                    className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900"
-                                >
+                                <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
                                     Evaluate
                                 </Button>
                             </Link>
 
-                            {/* Revise */}
                             <Link to={createPageUrl('Revise')}>
                                 <Button
                                     variant="ghost"
@@ -207,15 +201,20 @@ export default function Layout({ children, currentPageName }) {
                                 </Button>
                             </Link>
 
-                            {/* Output */}
+                            <Link to={createPageUrl('Dashboard')}>
+                                <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
+                                    Finalize
+                                </Button>
+                            </Link>
+
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                        Output <ChevronDown className="ml-1 h-4 w-4" />
+                                        Packages <ChevronDown className="ml-1 h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-56">
-                                    {outputPages.map((item) => (
+                                    {packagePages.map((item) => (
                                         <DropdownMenuItem 
                                             key={item.page} 
                                             asChild
@@ -457,22 +456,30 @@ export default function Layout({ children, currentPageName }) {
                                 </Button>
                             </Link>
 
-                            {/* Output Section */}
+                            {/* Finalize (Direct Link) */}
+                            <Link to={createPageUrl('Dashboard')} onClick={() => setMobileMenuOpen(false)}>
+                                <Button variant="ghost" className="w-full justify-start h-12 text-slate-600">
+                                    <CheckCircle2 className="w-5 h-5 mr-3" />
+                                    Finalize
+                                </Button>
+                            </Link>
+
+                            {/* Packages Section */}
                             <div>
                                 <Button
                                     variant="ghost"
-                                    onClick={() => toggleMobileSection('output')}
+                                    onClick={() => toggleMobileSection('packages')}
                                     className="w-full justify-between h-12 text-slate-600"
                                 >
                                     <span className="flex items-center">
                                         <Package className="w-5 h-5 mr-3" />
-                                        Output
+                                        Packages
                                     </span>
-                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.output && "rotate-180")} />
+                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.packages && "rotate-180")} />
                                 </Button>
-                                {expandedMobile.output && (
+                                {expandedMobile.packages && (
                                     <div className="ml-8 space-y-1 mt-1">
-                                        {outputPages.map((item) => (
+                                        {packagePages.map((item) => (
                                             <Link key={item.page} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
                                                 <Button 
                                                     variant="ghost" 
