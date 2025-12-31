@@ -26,6 +26,27 @@ export default function FAQ() {
 
     const clearSearch = () => setSearchQuery('');
 
+    // Filter FAQ sections based on search query
+    const filteredSections = useMemo(() => {
+        if (!searchQuery.trim()) return null; // Show all when no search
+
+        const query = searchQuery.toLowerCase();
+        
+        // Search through all accordion triggers and content
+        const triggers = document.querySelectorAll('[data-faq-trigger]');
+        const matches = [];
+        
+        triggers.forEach(trigger => {
+            const text = trigger.textContent?.toLowerCase() || '';
+            const value = trigger.getAttribute('data-faq-value') || '';
+            if (text.includes(query) || value.includes(query)) {
+                matches.push(value);
+            }
+        });
+        
+        return matches;
+    }, [searchQuery]);
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             <div className="max-w-4xl mx-auto px-6 py-12">
