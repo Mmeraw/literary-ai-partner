@@ -51,6 +51,7 @@ import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
 import StorygateStudio from './pages/StorygateStudio';
+import StorygateReview from './pages/StorygateReview';
 import __Layout from './Layout.jsx';
 
 
@@ -108,6 +109,7 @@ export const PAGES = {
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
     "StorygateStudio": StorygateStudio,
+    "StorygateReview": StorygateReview,
 }
 
 export const pagesConfig = {

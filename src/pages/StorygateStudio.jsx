@@ -128,11 +128,11 @@ export default function StorygateStudio() {
                         Storygate Studio™
                     </h1>
                     <p className="text-2xl text-slate-300 mb-6">
-                        Selective Development for Exceptional Work
+                        A Selective Development Track for Exceptional Work
                     </p>
                     <p className="text-lg text-slate-400 max-w-2xl mx-auto">
-                        A curated development space for writers working on ambitious, high-potential projects 
-                        across fiction, screen, and narrative nonfiction.
+                        An invitation-based extension of RevisionGrade, created for projects that demonstrate 
+                        unusual promise, originality, or depth.
                     </p>
                 </div>
             </div>
@@ -141,16 +141,11 @@ export default function StorygateStudio() {
                 {/* What It Is */}
                 <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm mb-8">
                     <CardContent className="pt-6 space-y-4 text-slate-300">
-                        <p>
-                            We work with a <strong className="text-white">limited number of creators each cycle</strong>, 
-                            focusing on projects that demonstrate originality, craft, and the potential for meaningful 
-                            advancement—whether toward publication, representation, or deeper structural refinement.
-                        </p>
                         <p className="text-slate-400 italic">
-                            Storygate Studio is not an open workshop or general feedback service.
+                            It is not a general submission service.
                         </p>
                         <p className="text-white font-semibold">
-                            It is a selective review and development pathway for work that shows clear promise.
+                            It is a curated environment for serious creative work.
                         </p>
                     </CardContent>
                 </Card>
@@ -162,18 +157,13 @@ export default function StorygateStudio() {
                     </CardHeader>
                     <CardContent className="space-y-4 text-slate-300">
                         <p>
-                            Every submission is screened by the Storygate team.
+                            Submissions are reviewed internally.
                         </p>
-                        <p>Some projects may receive:</p>
-                        <ul className="list-disc ml-6 space-y-2">
-                            <li>Structural or narrative evaluation</li>
-                            <li>Targeted developmental feedback</li>
-                            <li>Strategic positioning insights</li>
-                            <li>In select cases, connection to representation or production contacts</li>
-                        </ul>
+                        <p>
+                            A small number may be invited into further consideration.
+                        </p>
                         <p className="text-slate-400 italic text-sm mt-4">
-                            Due to volume and the nature of the work, responses are limited to projects that 
-                            align with current review capacity.
+                            Due to volume and the nature of the process, not all submissions receive a response.
                         </p>
                     </CardContent>
                 </Card>
@@ -188,9 +178,9 @@ export default function StorygateStudio() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2 text-slate-300">
-                            <p>• A curated entry point for serious creative work</p>
-                            <p>• A signal of readiness for deeper development</p>
-                            <p>• A bridge between early drafts and professional-level positioning</p>
+                            <p>• A focused development pathway for high-potential work</p>
+                            <p>• A professional review layer beyond automated analysis</p>
+                            <p>• A bridge between promising material and deeper creative evaluation</p>
                         </CardContent>
                     </Card>
 
@@ -202,26 +192,56 @@ export default function StorygateStudio() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2 text-slate-300">
-                            <p>• A guarantee of representation, publication, or production</p>
-                            <p>• A general critique service</p>
-                            <p>• An open workshop or peer forum</p>
+                            <p>• A general editing or critique service</p>
+                            <p>• A guarantee of representation or publication</p>
+                            <p>• A paid shortcut to access</p>
                         </CardContent>
                     </Card>
                 </div>
 
-                {/* Who Should Submit */}
+                {/* Review Pathways */}
                 <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm mb-8">
                     <CardHeader>
-                        <CardTitle className="text-white">Who Should Submit</CardTitle>
+                        <CardTitle className="text-white">Review Pathways</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-2 text-slate-300">
-                        <p>Storygate Studio is best suited for creators who:</p>
-                        <ul className="list-disc ml-6 space-y-2 mt-4">
-                            <li>Have a complete or near-complete project</li>
-                            <li>Are seeking informed, strategic insight rather than line edits</li>
-                            <li>Understand that selection is competitive and limited</li>
-                            <li>Are prepared to receive honest, professional feedback</li>
-                        </ul>
+                    <CardContent className="space-y-4 text-slate-300">
+                        <div>
+                            <p className="font-semibold text-white">Initial Submission</p>
+                            <p className="text-sm text-slate-400">All submissions are reviewed internally.</p>
+                        </div>
+                        <div>
+                            <p className="font-semibold text-white">Storygate Review Pass</p>
+                            <p className="text-sm text-slate-400">Select projects may be invited into a structured review phase.</p>
+                        </div>
+                        <div>
+                            <p className="font-semibold text-white">Development Track</p>
+                            <p className="text-sm text-slate-400">A limited number of projects may be invited into deeper collaboration.</p>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Pricing */}
+                <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm mb-8">
+                    <CardHeader>
+                        <CardTitle className="text-white">Pricing & Engagement</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-slate-300">
+                        <p>
+                            <strong className="text-white">Submission to Storygate Studio is free.</strong>
+                        </p>
+                        <p className="text-sm text-slate-400">
+                            If a project is selected for further consideration, an optional paid engagement may be offered. 
+                            All terms are discussed in advance.
+                        </p>
+                    </CardContent>
+                </Card>
+
+                {/* Final Note */}
+                <Card className="border-indigo-800 bg-slate-900/50 backdrop-blur-sm mb-8">
+                    <CardContent className="pt-6">
+                        <p className="text-slate-300 text-center italic">
+                            Storygate Studio exists for work that is already reaching toward something more.
+                        </p>
                     </CardContent>
                 </Card>
 
