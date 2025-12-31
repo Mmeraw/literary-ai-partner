@@ -1,0 +1,116 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+// Access Control Oracle: Single source of truth for all access decisions
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { manuscript_id } = await req.json();
+
+        if (!manuscript_id) {
+            return Response.json({ error: 'manuscript_id required' }, { status: 400 });
+        }
+
+        // Get listing
+        const listings = await base44.asServiceRole.entities.ProjectListing.filter({ 
+            manuscript_id 
+        });
+        const listing = listings[0];
+
+        if (!listing) {
+            return Response.json({ 
+                access: false, 
+                reason: 'No listing found' 
+            });
+        }
+
+        // Creator always has access
+        if (listing.creator_email === user.email) {
+            return Response.json({ 
+                access: true, 
+                role: 'creator',
+                listing 
+            });
+        }
+
+        // Check if user is verified industry
+        const industryUsers = await base44.asServiceRole.entities.IndustryUser.filter({ 
+            user_email: user.email 
+        });
+        const industryUser = industryUsers[0];
+
+        if (!industryUser || industryUser.verification_status !== 'verified') {
+            return Response.json({ 
+                access: false, 
+                reason: 'Industry verification required' 
+            });
+        }
+
+        if (industryUser.suspended) {
+            return Response.json({ 
+                access: false, 
+                reason: 'Account suspended' 
+            });
+        }
+
+        // Check visibility
+        if (listing.visibility === 'private') {
+            return Response.json({ 
+                access: false, 
+                reason: 'Project is private' 
+            });
+        }
+
+        // For discoverable: can see metadata only
+        if (listing.visibility === 'discoverable') {
+            // Check for approved unlock
+            const unlocks = await base44.asServiceRole.entities.AccessUnlock.filter({
+                project_listing_id: listing.id,
+                industry_user_email: user.email,
+                status: 'approved'
+            });
+
+            if (unlocks.length > 0) {
+                return Response.json({ 
+                    access: true, 
+                    role: 'industry',
+                    listing,
+                    unlock: unlocks[0],
+                    contact_enabled: listing.contact_enabled && unlocks[0].contact_unlocked
+                });
+            }
+
+            // Can see listing but not materials
+            return Response.json({ 
+                access: 'metadata_only', 
+                role: 'industry',
+                listing: {
+                    id: listing.id,
+                    title: listing.title,
+                    genre: listing.genre,
+                    format: listing.format,
+                    logline: listing.logline,
+                    synopsis_public: listing.synopsis_public,
+                    word_count: listing.word_count,
+                    stage: listing.stage,
+                    revisiongrade_score: listing.revisiongrade_score,
+                    materials_available: listing.materials_available
+                }
+            });
+        }
+
+        return Response.json({ 
+            access: false, 
+            reason: 'Unknown visibility state' 
+        });
+
+    } catch (error) {
+        console.error('Check access error:', error);
+        return Response.json({ error: error.message }, { status: 500 });
+    }
+});
