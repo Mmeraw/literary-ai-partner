@@ -60,7 +60,7 @@ export default function Home() {
                     </div>
                     <div className="space-y-4 text-slate-700">
                         <p className="leading-relaxed">
-                            WAVE is a late-stage revision system for manuscripts / screenplays that already work at the story level but still need disciplined editing to read as professional and submission-ready. It is diagnostic and multi-pass: each evaluation isolates a failure pattern, explains why it weakens the writing, and gives a concrete way to fix it.
+                            WAVE is a late-stage revision system for writing that already works at the story level but still needs disciplined editing to read as professional and submission-ready. It is diagnostic and multi-pass: each evaluation isolates a failure pattern, explains why it weakens the writing, and gives a concrete way to fix it.
                         </p>
                         <p className="leading-relaxed">
                             RevisionGrade applies WAVE across your chapters automatically, then reports which areas need attention and why—so you see the standards and stay in control of every change.
