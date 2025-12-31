@@ -24,29 +24,6 @@ import { Button } from "@/components/ui/button";
 export default function FAQ() {
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Filter FAQ sections based on search
-    const filteredSections = useMemo(() => {
-        if (!searchQuery.trim()) return null;
-
-        const query = searchQuery.toLowerCase();
-        const matches = [];
-
-        // Search through all accordion items
-        document.querySelectorAll('[data-faq-trigger]').forEach((trigger) => {
-            const question = trigger.textContent.toLowerCase();
-            const content = trigger.nextElementSibling?.textContent.toLowerCase() || '';
-            
-            if (question.includes(query) || content.includes(query)) {
-                matches.push({
-                    question: trigger.textContent,
-                    value: trigger.getAttribute('data-faq-value')
-                });
-            }
-        });
-
-        return matches;
-    }, [searchQuery]);
-
     const clearSearch = () => setSearchQuery('');
 
     return (
@@ -89,11 +66,6 @@ export default function FAQ() {
                                 </Button>
                             )}
                         </div>
-                        {searchQuery && filteredSections && filteredSections.length === 0 && (
-                            <p className="text-sm text-slate-500 mt-3 text-center">
-                                No results found for "{searchQuery}". Try different keywords.
-                            </p>
-                        )}
                     </CardContent>
                 </Card>
 
