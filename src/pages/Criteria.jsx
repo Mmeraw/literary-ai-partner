@@ -35,10 +35,10 @@ export default function Criteria() {
                             </div>
 
                             <div>
-                               <h3 className="text-lg font-bold text-slate-900 mb-3">How Base44 applies WAVE</h3>
-                               <p className="text-slate-700 leading-relaxed">
-                                   Base44—powered by multiple AI systems including ChatGPT and Perplexity—executes the WAVE framework on your writing, applying the proprietary standards consistently throughout. It surfaces where the draft succeeds and where it undermines itself, explains the "why" behind each flag, and leaves every creative decision to you.
-                               </p>
+                                <h3 className="text-lg font-bold text-slate-900 mb-3">How Revision Framework-AI applies WAVE</h3>
+                                <p className="text-slate-700 leading-relaxed">
+                                    Revision Framework-AI—powered by multiple AI systems including ChatGPT and Perplexity—executes the WAVE framework on your writing, applying the proprietary standards consistently throughout. It surfaces where the draft succeeds and where it undermines itself, explains the "why" behind each flag, and leaves every creative decision to you.
+                                </p>
                             </div>
                         </CardContent>
                     </Card>

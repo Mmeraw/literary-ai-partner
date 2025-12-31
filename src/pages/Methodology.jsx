@@ -40,7 +40,7 @@ export default function Methodology() {
                         <div className="p-4 rounded-lg bg-purple-50 border border-purple-200">
                             <h3 className="font-semibold text-purple-900 mb-2">Layer 2: Proprietary Revision Framework</h3>
                             <p className="text-sm text-slate-700">
-                                Base44 applies its proprietary revision framework to evaluate manuscripts across structure, momentum, and clarity—surfacing where a draft succeeds and where it quietly undermines itself.
+                                Revision Framework-AI applies its proprietary revision framework to evaluate manuscripts across structure, momentum, and clarity—surfacing where a draft succeeds and where it quietly undermines itself.
                             </p>
                         </div>
                     </CardContent>
@@ -90,10 +90,10 @@ export default function Methodology() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <p className="text-slate-700">
-                           WAVE is a late-stage revision system for writing that already works at the story level but still needs disciplined editing to read as professional and submission-ready. It is diagnostic and multi-pass: each evaluation isolates a failure pattern, explains why it weakens the writing, and gives a concrete way to fix it. Base44 surfaces the relevant insights, explains the "why," and leaves every change up to you.
+                            WAVE is a late-stage revision system for writing that already works at the story level but still needs disciplined editing to read as professional and submission-ready. It is diagnostic and multi-pass: each evaluation isolates a failure pattern, explains why it weakens the writing, and gives a concrete way to fix it. Revision Framework-AI surfaces the relevant insights, explains the "why," and leaves every change up to you.
                         </p>
                         <p className="text-slate-700">
-                            Base44 applies the WAVE framework to every chapter automatically, then reports which areas need attention and why—so you see the standards and stay in control of every change.
+                            Revision Framework-AI applies the WAVE framework to every chapter automatically, then reports which areas need attention and why—so you see the standards and stay in control of every change.
                         </p>
                         <p className="text-slate-700">
                             The online tool does not "discover" these rules; it <strong>executes them</strong>.
@@ -147,7 +147,7 @@ export default function Methodology() {
                                 <div>
                                     <h4 className="font-semibold text-slate-900 mb-1">Composite Scoring</h4>
                                     <p className="text-sm text-slate-600">
-                                        Results are combined into a Base44 Calibrated Score (0-100) that reflects how your 
+                                        Results are combined into a Calibrated Score (0-100) that reflects how your 
                                         manuscript measures against professional editorial standards.
                                     </p>
                                 </div>
