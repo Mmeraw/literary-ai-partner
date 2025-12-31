@@ -15,7 +15,7 @@ import {
 import { 
     BookOpen, Sparkles, Menu, X, LogOut, BarChart3,
     ChevronDown, FileText, Film, Target, TrendingUp,
-    Users, Mail, HelpCircle, FileCheck, User, Crown, Package, Edit3, CheckCircle2
+    Users, Mail, HelpCircle, FileCheck, User, Crown, Package, Edit3, CheckCircle2, Shield
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
@@ -44,7 +44,7 @@ const resourcesPages = [
     { name: 'FAQ', page: 'FAQ', icon: HelpCircle },
     { name: 'Methodology', page: 'Methodology', icon: FileText },
     { name: 'WAVE Criteria', page: 'Criteria', icon: FileCheck },
-    { name: 'Ethics & Safety', page: 'EthicsAndSafety', icon: HelpCircle },
+    { name: 'Security & Ethics', page: 'SecurityAndEthics', icon: Shield },
 ];
 
 export default function Layout({ children, currentPageName }) {
