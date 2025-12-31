@@ -11,7 +11,8 @@ import {
     BookOpen,
     Sparkles,
     Search,
-    X
+    X,
+    Shield
 } from 'lucide-react';
 import {
     Accordion,
