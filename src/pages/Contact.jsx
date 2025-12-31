@@ -1,48 +1,54 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Mail, Building2, Loader2, CheckCircle2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Mail, Loader2, CheckCircle2, HelpCircle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 
 export default function Contact() {
-    const [isEnterprise, setIsEnterprise] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [formData, setFormData] = useState({
-        name: '',
         email: '',
-        company: '',
+        category: '',
         subject: '',
-        message: ''
+        message: '',
+        confirmed: false
     });
-
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('plan') === 'enterprise') {
-            setIsEnterprise(true);
-        }
-    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!formData.confirmed) {
+            toast.error('Please confirm you understand product usage questions are handled in-app');
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
-            await base44.integrations.Core.SendEmail({
-                to: 'michael@revisiongrade.com',
-                subject: isEnterprise 
-                    ? `Enterprise Inquiry: ${formData.company}` 
-                    : `Contact Form: ${formData.subject}`,
-                body: `
-${isEnterprise ? 'ENTERPRISE INQUIRY' : 'CONTACT FORM SUBMISSION'}
+            // Route to sales@ or support@ based on category
+            const isEnterpriseOrPartnership = ['enterprise', 'partnership'].includes(formData.category);
+            const recipientEmail = isEnterpriseOrPartnership 
+                ? 'sales@revisiongrade.com' 
+                : 'support@revisiongrade.com';
 
-Name: ${formData.name}
+            await base44.integrations.Core.SendEmail({
+                to: recipientEmail,
+                subject: `[${formData.category.toUpperCase()}] ${formData.subject}`,
+                body: `
+REVISIONGRADE CONTACT FORM
+
+Category: ${formData.category}
 Email: ${formData.email}
-${formData.company ? `Company: ${formData.company}\n` : ''}
-${!isEnterprise ? `Subject: ${formData.subject}\n` : ''}
+Subject: ${formData.subject}
+
 Message:
 ${formData.message}
                 `
@@ -62,22 +68,13 @@ ${formData.message}
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             <div className="max-w-3xl mx-auto px-6 py-12">
                 <div className="text-center mb-8">
-                    {isEnterprise ? (
-                        <>
-                            <Building2 className="w-12 h-12 text-indigo-600 mx-auto mb-4" />
-                            <h1 className="text-3xl font-bold text-slate-900">Enterprise Sales Inquiry</h1>
-                            <p className="mt-2 text-slate-600">
-                                Let's discuss how RevisionGrade™ can scale your organization
-                            </p>
-                        </>
-                    ) : (
-                        <>
-                            <h1 className="text-3xl font-bold text-slate-900">Contact Us</h1>
-                            <p className="mt-2 text-slate-600">
-                                We typically respond within 24-48 hours
-                            </p>
-                        </>
-                    )}
+                    <h1 className="text-3xl font-bold text-slate-900">Contact RevisionGrade</h1>
+                    <p className="mt-2 text-slate-600">
+                        For billing, account access, or partnership inquiries only.
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                        Product usage questions are supported through in-app documentation.
+                    </p>
                 </div>
 
                 {isSubmitted ? (
@@ -86,11 +83,11 @@ ${formData.message}
                             <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <CheckCircle2 className="w-8 h-8 text-emerald-600" />
                             </div>
-                            <h3 className="text-2xl font-bold text-slate-900 mb-2">Message Received!</h3>
+                            <h3 className="text-2xl font-bold text-slate-900 mb-2">Message Sent!</h3>
                             <p className="text-slate-600 mb-6">
                                 We'll respond to <strong>{formData.email}</strong> within 24-48 hours.
                             </p>
-                            <Button onClick={() => window.location.href = '/'}>
+                            <Button onClick={() => window.location.href = createPageUrl('Home')}>
                                 Return to Home
                             </Button>
                         </CardContent>
@@ -99,98 +96,85 @@ ${formData.message}
                     <>
                         <Card className="border-0 shadow-lg mb-6">
                             <CardHeader>
-                                <CardTitle>
-                                    {isEnterprise ? 'Tell us about your organization' : 'Send us a message'}
-                                </CardTitle>
+                                <CardTitle>Contact Form</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <form onSubmit={handleSubmit} className="space-y-4">
-                                    <div className="grid md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">
-                                                Name *
-                                            </label>
-                                            <Input
-                                                required
-                                                value={formData.name}
-                                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                                placeholder="John Smith"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">
-                                                Email *
-                                            </label>
-                                            <Input
-                                                required
-                                                type="email"
-                                                value={formData.email}
-                                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                                placeholder="john@example.com"
-                                            />
-                                        </div>
+                                <form onSubmit={handleSubmit} className="space-y-5">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Email address *
+                                        </label>
+                                        <Input
+                                            required
+                                            type="email"
+                                            value={formData.email}
+                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                            placeholder="you@example.com"
+                                        />
                                     </div>
 
-                                    {isEnterprise && (
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">
-                                                Company/Organization *
-                                            </label>
-                                            <Input
-                                                required
-                                                value={formData.company}
-                                                onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                                                placeholder="Acme Literary Agency"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {!isEnterprise && (
-                                        <>
-                                            <div>
-                                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                                    Company (optional)
-                                                </label>
-                                                <Input
-                                                    value={formData.company}
-                                                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                                                    placeholder="Your company or organization"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                                    Subject *
-                                                </label>
-                                                <Input
-                                                    required
-                                                    value={formData.subject}
-                                                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                                                    placeholder="How can we help?"
-                                                />
-                                            </div>
-                                        </>
-                                    )}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Category *
+                                        </label>
+                                        <Select
+                                            required
+                                            value={formData.category}
+                                            onValueChange={(value) => setFormData({ ...formData, category: value })}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a category" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="billing">Billing or subscription issue</SelectItem>
+                                                <SelectItem value="account">Account access or login</SelectItem>
+                                                <SelectItem value="enterprise">Enterprise / agency inquiry</SelectItem>
+                                                <SelectItem value="partnership">Partnership or media</SelectItem>
+                                                <SelectItem value="legal">Legal or privacy</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Subject *
+                                        </label>
+                                        <Input
+                                            required
+                                            value={formData.subject}
+                                            onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                                            placeholder="Short summary of your request"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
                                             Message *
                                         </label>
                                         <Textarea
                                             required
                                             value={formData.message}
                                             onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                                            placeholder={isEnterprise 
-                                                ? "Tell us about your organization's needs, team size, and evaluation volume..."
-                                                : "Your message..."
-                                            }
+                                            placeholder="Please include only information relevant to the selected category."
                                             className="h-32"
                                         />
+                                    </div>
+
+                                    <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 border border-amber-200">
+                                        <Checkbox
+                                            id="confirm"
+                                            checked={formData.confirmed}
+                                            onCheckedChange={(checked) => setFormData({ ...formData, confirmed: checked })}
+                                        />
+                                        <label htmlFor="confirm" className="text-sm text-slate-700 leading-relaxed cursor-pointer">
+                                            I understand that product usage questions are handled through the in-app Resource Guide and not via email.
+                                        </label>
                                     </div>
 
                                     <Button
                                         type="submit"
                                         className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
-                                        disabled={isSubmitting}
+                                        disabled={isSubmitting || !formData.confirmed}
                                     >
                                         {isSubmitting ? (
                                             <>
@@ -205,22 +189,38 @@ ${formData.message}
                             </CardContent>
                         </Card>
 
-                        <Card className="border-0 shadow-lg">
-                            <CardHeader>
-                                <CardTitle>Direct Email</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="flex items-center gap-3 p-4 rounded-lg bg-indigo-50 border border-indigo-200">
-                                    <Mail className="w-5 h-5 text-indigo-600" />
-                                    <a 
-                                        href="mailto:support@revisiongrade.com"
-                                        className="text-lg text-indigo-600 hover:text-indigo-700 font-medium"
-                                    >
-                                        support@revisiongrade.com
-                                    </a>
-                                </div>
-                            </CardContent>
-                        </Card>
+                        <div className="p-6 rounded-xl bg-indigo-50 border border-indigo-200 text-center">
+                            <HelpCircle className="w-8 h-8 text-indigo-600 mx-auto mb-3" />
+                            <h4 className="font-semibold text-slate-900 mb-2">Looking for help using RevisionGrade?</h4>
+                            <p className="text-sm text-slate-600 mb-4">
+                                Visit the in-app Resource Guide for walkthroughs, workflows, and documentation.
+                            </p>
+                            <Link to={createPageUrl('FAQ')}>
+                                <Button variant="outline" className="border-indigo-300 text-indigo-700 hover:bg-indigo-100">
+                                    View Resource Guide
+                                </Button>
+                            </Link>
+                        </div>
+
+                        <div className="mt-6 text-center">
+                            <p className="text-sm text-slate-500 mb-2">Or email us directly:</p>
+                            <div className="flex flex-col sm:flex-row justify-center gap-4">
+                                <a 
+                                    href="mailto:support@revisiongrade.com"
+                                    className="flex items-center justify-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium"
+                                >
+                                    <Mail className="w-4 h-4" />
+                                    support@revisiongrade.com
+                                </a>
+                                <a 
+                                    href="mailto:sales@revisiongrade.com"
+                                    className="flex items-center justify-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium"
+                                >
+                                    <Mail className="w-4 h-4" />
+                                    sales@revisiongrade.com
+                                </a>
+                            </div>
+                        </div>
                     </>
                 )}
             </div>
