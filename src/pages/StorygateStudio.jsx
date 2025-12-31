@@ -29,7 +29,9 @@ export default function StorygateStudio() {
         phone: '',
         project_title: '',
         format: '',
-        genre_tone: '',
+        genre: '',
+        genre_other: '',
+        tone: '',
         description: '',
         project_stage: '',
         seeking: [],
@@ -97,7 +99,9 @@ export default function StorygateStudio() {
                 phone: formData.phone,
                 project_title: formData.project_title,
                 format: formData.format,
-                genre_tone: formData.genre_tone,
+                genre: formData.genre,
+                genre_other: formData.genre_other,
+                tone: formData.tone,
                 description: formData.description,
                 project_stage: formData.project_stage,
                 seeking: formData.seeking,
@@ -370,17 +374,66 @@ export default function StorygateStudio() {
                                 </Select>
                             </div>
 
-                            {/* Genre / Tone */}
+                            {/* Primary Genre */}
+                            <div>
+                                <label className="block text-sm font-medium mb-2" style={{ color: '#F2EFEA' }}>
+                                    Primary Genre *
+                                </label>
+                                <Select 
+                                    value={formData.genre} 
+                                    onValueChange={(value) => setFormData({...formData, genre: value})}
+                                >
+                                    <SelectTrigger style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}>
+                                        <SelectValue placeholder="Select primary genre" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="literary_fiction">Literary fiction</SelectItem>
+                                        <SelectItem value="commercial_upmarket">Commercial / upmarket</SelectItem>
+                                        <SelectItem value="thriller_suspense">Thriller / suspense</SelectItem>
+                                        <SelectItem value="mystery_crime">Mystery / crime</SelectItem>
+                                        <SelectItem value="science_fiction">Science fiction</SelectItem>
+                                        <SelectItem value="fantasy">Fantasy</SelectItem>
+                                        <SelectItem value="horror">Horror</SelectItem>
+                                        <SelectItem value="historical_fiction">Historical fiction</SelectItem>
+                                        <SelectItem value="romance">Romance</SelectItem>
+                                        <SelectItem value="young_adult">Young adult (YA)</SelectItem>
+                                        <SelectItem value="middle_grade">Middle grade (MG)</SelectItem>
+                                        <SelectItem value="nonfiction">Nonfiction (memoir, narrative, essays, etc.)</SelectItem>
+                                        <SelectItem value="other_cross_genre">Other / Cross-genre</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Genre Other (conditional) */}
+                            {formData.genre === 'other_cross_genre' && (
+                                <div>
+                                    <label className="block text-sm font-medium mb-2" style={{ color: '#F2EFEA' }}>
+                                        Please specify genre *
+                                    </label>
+                                    <Input
+                                        value={formData.genre_other}
+                                        onChange={(e) => setFormData({...formData, genre_other: e.target.value})}
+                                        placeholder="e.g., Cli-fi thriller, Afrofuturism, etc."
+                                        style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                        required
+                                    />
+                                </div>
+                            )}
+
+                            {/* Tone (optional) */}
                             <div>
                                 <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
-                                    Genre / Tone
+                                    Tone (Optional)
                                 </label>
                                 <Input
-                                    value={formData.genre_tone}
-                                    onChange={(e) => setFormData({...formData, genre_tone: e.target.value})}
-                                    placeholder="e.g., Literary thriller, Psychological drama, Magical realism"
+                                    value={formData.tone}
+                                    onChange={(e) => setFormData({...formData, tone: e.target.value})}
+                                    placeholder="e.g., Dark, lyrical, satirical, intimate"
                                     style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
                                 />
+                                <p className="text-xs mt-1" style={{ color: '#7B7B7B' }}>
+                                    Genre and tone are evaluated separately. Tone does not affect eligibility.
+                                </p>
                             </div>
 
                             {/* Description */}
