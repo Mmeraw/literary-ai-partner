@@ -209,6 +209,12 @@ export default function Layout({ children, currentPageName }) {
                                 </Button>
                             </Link>
 
+                            <Link to={createPageUrl('ScreenplayFormatter')}>
+                                <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
+                                    Convert
+                                </Button>
+                            </Link>
+
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
@@ -435,7 +441,7 @@ export default function Layout({ children, currentPageName }) {
                             </div>
 
                             {/* Evaluate (Direct Link) */}
-                            <Link to={createPageUrl('Dashboard')} onClick={() => setMobileMenuOpen(false)}>
+                            <Link to={createPageUrl('Evaluate')} onClick={() => setMobileMenuOpen(false)}>
                                 <Button
                                     variant="ghost"
                                     className="w-full justify-start h-12 text-slate-600"
@@ -446,16 +452,27 @@ export default function Layout({ children, currentPageName }) {
                             </Link>
 
                             {/* Revise (Direct Link) */}
-                            <Link to={createPageUrl('Revise')} onClick={() => setMobileMenuOpen(false)}>
+                            <Link to={createPageUrl('History')} onClick={() => setMobileMenuOpen(false)}>
                                 <Button
                                     variant="ghost"
                                     className={cn(
                                         "w-full justify-start h-12",
-                                        currentPageName === 'Revise' ? "bg-indigo-50 text-indigo-700" : "text-slate-600"
+                                        currentPageName === 'History' ? "bg-indigo-50 text-indigo-700" : "text-slate-600"
                                     )}
                                 >
                                     <Edit3 className="w-5 h-5 mr-3" />
                                     Revise
+                                </Button>
+                            </Link>
+
+                            {/* Convert (Direct Link) */}
+                            <Link to={createPageUrl('ScreenplayFormatter')} onClick={() => setMobileMenuOpen(false)}>
+                                <Button
+                                    variant="ghost"
+                                    className="w-full justify-start h-12 text-slate-600"
+                                >
+                                    <Film className="w-5 h-5 mr-3" />
+                                    Convert
                                 </Button>
                             </Link>
 
