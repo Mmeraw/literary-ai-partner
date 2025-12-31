@@ -241,7 +241,93 @@ export default function Pricing() {
                 </div>
 
                 {/* FAQ / Notes */}
-                <div className="mt-16 max-w-3xl mx-auto">
+                <div className="mt-16 max-w-3xl mx-auto space-y-6">
+                    {/* Fair Use & Transparency */}
+                    <Card className="border-2 border-indigo-200 bg-white shadow-lg">
+                        <CardHeader>
+                            <CardTitle className="text-lg">Usage & Fair Use Policy</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <p className="text-sm text-slate-700">
+                                Each plan includes a monthly allocation of AI processing capacity, measured in tokens. 
+                                This allows us to deliver high-quality analysis while keeping pricing fair and predictable.
+                            </p>
+                            <div className="space-y-2 text-sm text-slate-700">
+                                <p className="font-semibold">To ensure performance for all users:</p>
+                                <ul className="ml-4 space-y-1">
+                                    <li>• Token usage resets monthly</li>
+                                    <li>• Usage is tracked per account</li>
+                                    <li>• Excessive or automated usage may be rate-limited</li>
+                                    <li>• Additional capacity can be added at any time</li>
+                                </ul>
+                            </div>
+                            <p className="text-sm text-slate-600 italic">
+                                We design our system to prioritize quality over volume, ensuring every analysis receives full attention and computational depth.
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    {/* Token Budget Table */}
+                    <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-50 to-white">
+                        <CardHeader>
+                            <CardTitle>Monthly Token Budgets by Tier</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b-2 border-slate-300">
+                                            <th className="text-left py-2 font-semibold text-slate-900">Tier</th>
+                                            <th className="text-left py-2 font-semibold text-slate-900">Monthly Tokens</th>
+                                            <th className="text-left py-2 font-semibold text-slate-900">Model Access</th>
+                                            <th className="text-left py-2 font-semibold text-slate-900">Intended Use</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-slate-700">
+                                        <tr className="border-b border-slate-200">
+                                            <td className="py-3">Starter</td>
+                                            <td className="py-3">250,000</td>
+                                            <td className="py-3">GPT-4o-mini only</td>
+                                            <td className="py-3">Sampling, short excerpts, exploratory feedback</td>
+                                        </tr>
+                                        <tr className="border-b border-slate-200">
+                                            <td className="py-3">Professional</td>
+                                            <td className="py-3">2,000,000</td>
+                                            <td className="py-3">GPT-4o-mini + GPT-4o</td>
+                                            <td className="py-3">Full manuscripts, iterative revision</td>
+                                        </tr>
+                                        <tr>
+                                            <td className="py-3">Enterprise</td>
+                                            <td className="py-3">Custom (10M–50M+)</td>
+                                            <td className="py-3">All models</td>
+                                            <td className="py-3">High-volume teams, institutional use</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Transparent Cost Philosophy */}
+                    <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-purple-50">
+                        <CardHeader>
+                            <CardTitle className="text-lg">Transparent Cost Philosophy</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-sm">
+                            <p className="text-slate-700">
+                                RevisionGrade uses industry-standard AI models with transparent pricing. 
+                                We do not inflate usage or obscure costs.
+                            </p>
+                            <div>
+                                <p className="font-semibold text-slate-900">Our goal is simple:</p>
+                                <p className="text-slate-700">
+                                    Give writers access to professional-grade analysis at a fraction of traditional editorial pricing.
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Usage & Billing Notes */}
                     <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-50 to-white">
                         <CardHeader>
                             <CardTitle>Usage & Billing Notes</CardTitle>
