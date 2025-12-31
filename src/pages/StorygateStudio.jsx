@@ -123,74 +123,81 @@ export default function StorygateStudio() {
                         <Sparkles className="w-4 h-4 mr-2" />
                         By RevisionGrade™
                     </Badge>
-                    <h1 className="text-5xl font-bold mb-4" style={{ color: '#7A1E1E' }}>
+                    <h1 className="text-5xl font-bold mb-2" style={{ color: '#7A1E1E' }}>
                         Storygate Studio™
                     </h1>
+                    <p className="text-sm mb-6" style={{ color: '#7B7B7B' }}>
+                        by RevisionGrade™
+                    </p>
                     <p className="text-2xl mb-6" style={{ color: '#F2EFEA' }}>
                         A Selective Development Track for Exceptional Work
                     </p>
-                    <p className="text-lg max-w-2xl mx-auto" style={{ color: '#7B7B7B' }}>
+                    <p className="text-lg max-w-2xl mx-auto mb-8" style={{ color: '#D4D4D4' }}>
                         An invitation-based extension of RevisionGrade, created for projects that demonstrate 
                         unusual promise, originality, or depth.
                     </p>
+                    <Button
+                        onClick={() => document.getElementById('submission-form')?.scrollIntoView({ behavior: 'smooth' })}
+                        className="h-12 px-8 hover:opacity-90 transition-opacity"
+                        style={{ backgroundColor: '#7A1E1E', color: '#F2EFEA' }}
+                    >
+                        Submit for Consideration
+                    </Button>
                 </div>
             </div>
 
             <div className="max-w-4xl mx-auto px-6 py-12">
                 {/* What It Is */}
-                <Card className="mb-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
+                <Card className="mb-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
                     <CardContent className="pt-6 space-y-4" style={{ color: '#F2EFEA' }}>
                         <p style={{ color: '#7B7B7B' }} className="italic">
                             It is not a general submission service.
                         </p>
-                        <p style={{ color: '#F2EFEA' }} className="font-semibold">
+                        <p style={{ color: '#D4D4D4' }} className="font-semibold">
                             It is a curated environment for serious creative work.
                         </p>
                     </CardContent>
                 </Card>
 
                 {/* How It Works */}
-                <Card className="mb-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
+                <Card className="mb-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
                     <CardHeader>
                         <CardTitle style={{ color: '#7A1E1E' }}>How It Works</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4" style={{ color: '#F2EFEA' }}>
+                    <CardContent className="space-y-4" style={{ color: '#D4D4D4' }}>
                         <p>
                             Submissions are reviewed internally.
                         </p>
                         <p>
                             A small number may be invited into further consideration.
                         </p>
-                        <p style={{ color: '#7B7B7B' }} className="italic text-sm mt-4">
-                            Due to volume and the nature of the process, not all submissions receive a response.
-                        </p>
                     </CardContent>
                 </Card>
 
                 {/* What It Is / Is Not */}
                 <div className="grid md:grid-cols-2 gap-6 mb-8">
-                    <Card style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
+                    <Card style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
                         <CardHeader>
                             <CardTitle style={{ color: '#A98E4A' }} className="flex items-center gap-2">
                                 <CheckCircle2 className="w-5 h-5" />
                                 What Storygate Studio Is
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-2" style={{ color: '#F2EFEA' }}>
+                        <CardContent className="space-y-2" style={{ color: '#D4D4D4' }}>
                             <p>• A focused development pathway for high-potential work</p>
                             <p>• A professional review layer beyond automated analysis</p>
                             <p>• A bridge between promising material and deeper creative evaluation</p>
                         </CardContent>
                     </Card>
 
-                    <Card style={{ borderColor: '#7A1E1E', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
+                    <Card style={{ borderColor: '#7A1E1E', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
                         <CardHeader>
                             <CardTitle style={{ color: '#7A1E1E' }} className="flex items-center gap-2">
                                 <X className="w-5 h-5" />
                                 What It Is Not
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-2" style={{ color: '#F2EFEA' }}>
+                        <CardContent className="space-y-2" style={{ color: '#D4D4D4' }}>
                             <p>• A general editing or critique service</p>
                             <p>• A guarantee of representation or publication</p>
                             <p>• A paid shortcut to access</p>
@@ -199,53 +206,53 @@ export default function StorygateStudio() {
                 </div>
 
                 {/* Review Pathways */}
-                <Card className="mb-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
+                <Card className="mb-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
                     <CardHeader>
                         <CardTitle style={{ color: '#7A1E1E' }}>Review Pathways</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4" style={{ color: '#F2EFEA' }}>
+                    <CardContent className="space-y-4" style={{ color: '#D4D4D4' }}>
                         <div>
-                            <p className="font-semibold" style={{ color: '#F2EFEA' }}>Initial Submission</p>
+                            <p className="font-semibold" style={{ color: '#D4D4D4' }}>Initial Submission</p>
                             <p className="text-sm" style={{ color: '#7B7B7B' }}>All submissions are reviewed internally.</p>
                         </div>
                         <div>
-                            <p className="font-semibold" style={{ color: '#F2EFEA' }}>Storygate Review Pass</p>
+                            <p className="font-semibold" style={{ color: '#D4D4D4' }}>Storygate Review Pass</p>
                             <p className="text-sm" style={{ color: '#7B7B7B' }}>Select projects may be invited into a structured review phase.</p>
                         </div>
                         <div>
-                            <p className="font-semibold" style={{ color: '#F2EFEA' }}>Development Track</p>
+                            <p className="font-semibold" style={{ color: '#D4D4D4' }}>Development Track</p>
                             <p className="text-sm" style={{ color: '#7B7B7B' }}>A limited number of projects may be invited into deeper collaboration.</p>
                         </div>
                     </CardContent>
                 </Card>
 
                 {/* Pricing */}
-                <Card className="mb-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
+                <Card className="mb-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
                     <CardHeader>
                         <CardTitle style={{ color: '#7A1E1E' }}>Pricing & Engagement</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-3" style={{ color: '#F2EFEA' }}>
+                    <CardContent className="space-y-3" style={{ color: '#D4D4D4' }}>
                         <p>
-                            <strong style={{ color: '#F2EFEA' }}>Submission to Storygate Studio is free.</strong>
+                            <strong style={{ color: '#D4D4D4' }}>Submission to Storygate Studio is free.</strong>
                         </p>
                         <p className="text-sm" style={{ color: '#7B7B7B' }}>
                             If a project is selected for further consideration, an optional paid engagement may be offered. 
-                            All terms are discussed in advance.
+                            All terms are discussed in advance. Due to volume, we cannot respond to all submissions.
                         </p>
                     </CardContent>
                 </Card>
 
                 {/* Final Note */}
-                <Card className="mb-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
+                <Card className="mb-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
                     <CardContent className="pt-6">
-                        <p style={{ color: '#F2EFEA' }} className="text-center italic">
+                        <p style={{ color: '#D4D4D4' }} className="text-center italic">
                             Storygate Studio exists for work that is already reaching toward something more.
                         </p>
                     </CardContent>
                 </Card>
 
                 {/* Submission Form */}
-                <Card style={{ borderColor: '#7A1E1E', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
+                <Card id="submission-form" style={{ borderColor: '#7A1E1E', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
                     <CardHeader>
                         <CardTitle style={{ color: '#7A1E1E' }}>Submit Your Project</CardTitle>
                         <p className="text-sm mt-2" style={{ color: '#7B7B7B' }}>
@@ -270,14 +277,14 @@ export default function StorygateStudio() {
 
                             {/* Format */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
                                     Format *
                                 </label>
                                 <Select 
                                     value={formData.format} 
                                     onValueChange={(value) => setFormData({...formData, format: value})}
                                 >
-                                    <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                                    <SelectTrigger style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}>
                                         <SelectValue placeholder="Select format" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -293,44 +300,45 @@ export default function StorygateStudio() {
 
                             {/* Genre / Tone */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
                                     Genre / Tone
                                 </label>
                                 <Input
                                     value={formData.genre_tone}
                                     onChange={(e) => setFormData({...formData, genre_tone: e.target.value})}
                                     placeholder="e.g., Literary thriller, Psychological drama, Magical realism"
-                                    className="bg-slate-800 border-slate-700 text-white"
+                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
                                 />
                             </div>
 
                             {/* Description */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
                                     Brief Description (300–500 words) *
                                 </label>
                                 <Textarea
                                     value={formData.description}
                                     onChange={(e) => setFormData({...formData, description: e.target.value})}
                                     placeholder="Describe the project, its themes, and what makes it distinct."
-                                    className="bg-slate-800 border-slate-700 text-white min-h-[200px]"
+                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                    className="min-h-[200px]"
                                     required
                                 />
-                                <p className="text-xs text-slate-500 mt-1">
+                                <p className="text-xs mt-1" style={{ color: '#7B7B7B' }}>
                                     Word count: {formData.description.split(/\s+/).filter(w => w).length}
                                 </p>
                             </div>
 
                             {/* Project Stage */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
                                     What stage is this project in? *
                                 </label>
                                 <Select 
                                     value={formData.project_stage} 
                                     onValueChange={(value) => setFormData({...formData, project_stage: value})}
                                 >
-                                    <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                                    <SelectTrigger style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}>
                                         <SelectValue placeholder="Select stage" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -343,7 +351,7 @@ export default function StorygateStudio() {
 
                             {/* What Are You Seeking */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
                                     What are you seeking? (Check all that apply)
                                 </label>
                                 <div className="space-y-2">
@@ -354,12 +362,13 @@ export default function StorygateStudio() {
                                         { value: 'professional', label: 'Professional feedback' },
                                         { value: 'direction', label: 'Unsure — seeking direction' }
                                     ].map(option => (
-                                        <label key={option.value} className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                                        <label key={option.value} className="flex items-center gap-2 cursor-pointer" style={{ color: '#D4D4D4' }}>
                                             <input
                                                 type="checkbox"
                                                 checked={formData.seeking.includes(option.value)}
                                                 onChange={() => handleSeekingToggle(option.value)}
-                                                className="rounded border-slate-700 bg-slate-800 text-indigo-600"
+                                                className="rounded"
+                                                style={{ borderColor: '#7B7B7B', backgroundColor: 'rgba(14, 14, 14, 0.6)' }}
                                             />
                                             {option.label}
                                         </label>
@@ -369,29 +378,31 @@ export default function StorygateStudio() {
 
                             {/* Why Storygate */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
                                     Why are you submitting to Storygate Studio, specifically? *
                                 </label>
-                                <p className="text-xs text-slate-500 mb-2">
+                                <p className="text-xs mb-2" style={{ color: '#7B7B7B' }}>
                                     (This helps us understand your goals and whether this is the right environment for your work.)
                                 </p>
                                 <Textarea
                                     value={formData.why_storygate}
                                     onChange={(e) => setFormData({...formData, why_storygate: e.target.value})}
                                     placeholder="What kind of collaboration are you seeking? Be honest."
-                                    className="bg-slate-800 border-slate-700 text-white min-h-[120px]"
+                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                    className="min-h-[120px]"
                                     required
                                 />
                             </div>
 
                             {/* Acknowledgment */}
-                            <div className="p-4 rounded-lg bg-amber-900/20 border border-amber-800/50">
-                                <label className="flex items-start gap-3 text-slate-300 cursor-pointer">
+                            <div className="p-4 rounded-lg" style={{ backgroundColor: 'rgba(169, 142, 74, 0.1)', borderWidth: '1px', borderColor: '#A98E4A' }}>
+                                <label className="flex items-start gap-3 cursor-pointer" style={{ color: '#D4D4D4' }}>
                                     <input
                                         type="checkbox"
                                         checked={formData.acknowledgment}
                                         onChange={(e) => setFormData({...formData, acknowledgment: e.target.checked})}
-                                        className="mt-1 rounded border-slate-700 bg-slate-800 text-indigo-600"
+                                        className="mt-1 rounded"
+                                        style={{ borderColor: '#7B7B7B', backgroundColor: 'rgba(14, 14, 14, 0.6)' }}
                                         required
                                     />
                                     <span className="text-sm">
@@ -418,19 +429,6 @@ export default function StorygateStudio() {
                                 )}
                             </Button>
                         </form>
-                    </CardContent>
-                </Card>
-
-                {/* Final Note */}
-                <Card className="mt-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
-                    <CardContent className="pt-6">
-                        <div className="flex items-start gap-3">
-                            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#7B7B7B' }} />
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>
-                                Due to volume, we cannot respond to all submissions. If your project aligns with our 
-                                current focus, you will be contacted directly. Thank you for your understanding.
-                            </p>
-                        </div>
                     </CardContent>
                 </Card>
             </div>
