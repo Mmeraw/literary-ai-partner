@@ -322,10 +322,10 @@ export default function Evaluate() {
                                             <Loader2 className="relative w-16 h-16 text-indigo-600 animate-spin" />
                                         </div>
                                         <h3 className="mt-8 text-xl font-semibold text-slate-800">
-                                            Analyzing Your Manuscript...
+                                            Processing Through RevisionGrade...
                                         </h3>
                                         <p className="mt-2 text-slate-500 text-center max-w-md">
-                                           Dual-layer evaluation: story structure + line-level craft against professional editorial standards
+                                           Applying 13 Story Evaluation Criteria and WAVE Revision System diagnostics
                                         </p>
                                     </>
                                 ) : error ? (

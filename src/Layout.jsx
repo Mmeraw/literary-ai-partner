@@ -563,13 +563,13 @@ export default function Layout({ children, currentPageName }) {
                                     Powered by the Proprietary WAVE Revision System • 13 Story Evaluation Criteria • Professional Editorial Standards
                                 </p>
                         <p className="text-xs text-slate-500 max-w-3xl mx-auto">
-                            <strong>Technology Transparency:</strong> RevisionGrade uses commercially licensed large language models to assist with textual analysis. 
+                            <strong>Technology Transparency:</strong> RevisionGrade uses the proprietary WAVE Revision System and 13 Story Evaluation Criteria framework, powered by the RevisionGrade analysis engine. 
                             All processing occurs securely, and no customer data is used to train external models. 
                             Usage is metered to ensure reliability and fair access for all users.
                         </p>
                         <div className="px-6 py-4 rounded-lg bg-slate-50 border border-slate-200 max-w-3xl mx-auto mb-4">
                             <p className="text-sm text-slate-600">
-                                <strong>Disclaimer:</strong> RevisionGrade provides AI-generated analysis calibrated against professional editorial standards. It does not replace human editorial judgment—final decisions remain with the author.
+                                <strong>Disclaimer:</strong> RevisionGrade provides framework-driven analysis calibrated against professional editorial standards. It does not replace human editorial judgment—final decisions remain with the author.
                             </p>
                         </div>
                         <div className="flex flex-wrap justify-center gap-6 text-sm">
