@@ -1,4 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import OpenAI from 'npm:openai@4.76.1';
+
+const openai = new OpenAI({
+    apiKey: Deno.env.get("OPENAI_API_KEY"),
+});
 
 Deno.serve(async (req) => {
   try {
@@ -32,8 +37,9 @@ Deno.serve(async (req) => {
     }).join('\n\n');
 
     // Evaluate spine
-    const spineAnalysis = await base44.integrations.Core.InvokeLLM({
-      prompt: `You are a senior literary agent evaluating a full manuscript for representation.
+    const spineResponse = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: `You are a senior literary agent evaluating a full manuscript for representation.
 
 MANUSCRIPT: ${manuscript.title}
 Total word count: ${manuscript.word_count}
@@ -57,32 +63,42 @@ Evaluate this COMPLETE MANUSCRIPT against these 12 criteria (rate 1-10):
 12. Overall Strength - Holistic assessment
 
 For each: score (1-10), strengths (array), weaknesses (array), notes (string).
-Also provide: overallScore (1-10), verdict (string), majorStrengths (array), criticalWeaknesses (array).`,
-      response_json_schema: {
-        type: "object",
-        properties: {
-          overallScore: { type: "number" },
-          verdict: { type: "string" },
-          majorStrengths: { type: "array", items: { type: "string" } },
-          criticalWeaknesses: { type: "array", items: { type: "string" } },
-          criteria: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                name: { type: "string" },
-                score: { type: "number" },
-                strengths: { type: "array", items: { type: "string" } },
-                weaknesses: { type: "array", items: { type: "string" } },
-                notes: { type: "string" }
-              },
-              required: ["name", "score", "strengths", "weaknesses", "notes"]
-            }
+Also provide: overallScore (1-10), verdict (string), majorStrengths (array), criticalWeaknesses (array).` }],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "spine_analysis",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              overallScore: { type: "number" },
+              verdict: { type: "string" },
+              majorStrengths: { type: "array", items: { type: "string" } },
+              criticalWeaknesses: { type: "array", items: { type: "string" } },
+              criteria: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    score: { type: "number" },
+                    strengths: { type: "array", items: { type: "string" } },
+                    weaknesses: { type: "array", items: { type: "string" } },
+                    notes: { type: "string" }
+                  },
+                  required: ["name", "score", "strengths", "weaknesses", "notes"],
+                  additionalProperties: false
+                }
+              }
+            },
+            required: ["overallScore", "verdict", "criteria"],
+            additionalProperties: false
           }
-        },
-        required: ["overallScore", "verdict", "criteria"]
+        }
       }
     });
+    const spineAnalysis = JSON.parse(spineResponse.choices[0].message.content);
 
     // Update manuscript with spine evaluation
     await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {

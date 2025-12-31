@@ -77,7 +77,8 @@
     "three": "^0.171.0",
     "vaul": "^1.1.2",
     "zod": "^3.24.2",
-    "mammoth": "^1.8.0"
+    "mammoth": "^1.8.0",
+    "openai": "^4.76.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",

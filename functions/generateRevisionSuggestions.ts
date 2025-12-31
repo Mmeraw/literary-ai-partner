@@ -1,4 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import OpenAI from 'npm:openai@4.76.1';
+
+const openai = new OpenAI({
+    apiKey: Deno.env.get("OPENAI_API_KEY"),
+});
 
 // Wave definitions (server-side only, never exposed to client)
 // Complete 61+ WAVE System definitions
@@ -231,28 +236,39 @@ ${truncatedText}
 
 Return JSON with candidates array.`;
 
-    const candidates = await base44.integrations.Core.InvokeLLM({
-      prompt: detectionPrompt,
-      response_json_schema: {
-        type: "object",
-        properties: {
-          candidates: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                original_text: { type: "string" },
-                suggested_text: { type: "string" },
-                pattern_detected: { type: "string" },
-                initial_reasoning: { type: "string" }
-              },
-              required: ["original_text", "suggested_text", "pattern_detected", "initial_reasoning"]
-            }
+    const candidatesResponse = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: detectionPrompt }],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "detection_candidates",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              candidates: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    original_text: { type: "string" },
+                    suggested_text: { type: "string" },
+                    pattern_detected: { type: "string" },
+                    initial_reasoning: { type: "string" }
+                  },
+                  required: ["original_text", "suggested_text", "pattern_detected", "initial_reasoning"],
+                  additionalProperties: false
+                }
+              }
+            },
+            required: ["candidates"],
+            additionalProperties: false
           }
-        },
-        required: ["candidates"]
+        }
       }
     });
+    const candidates = JSON.parse(candidatesResponse.choices[0].message.content);
 
     // STAGE 2: WAVE contextual validation (gating logic)
     const validationPrompt = `You are a literary editor applying the complete WAVE Revision System (61+ waves) + 12 Story Evaluation Criteria.
@@ -400,34 +416,45 @@ ${truncatedText}
 
 Return JSON with validated results.`;
 
-    const validation = await base44.integrations.Core.InvokeLLM({
-      prompt: validationPrompt,
-      response_json_schema: {
-        type: "object",
-        properties: {
-          validated: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                original_text: { type: "string" },
-                suggested_text: { type: "string" },
-                verdict: { type: "string", enum: ["keep", "revise"] },
-                serves_voice: { type: "boolean" },
-                serves_embodiment: { type: "boolean" },
-                narrative_justification: { type: "string" },
-                why_flagged: { type: "string" },
-                why_this_fix: { type: "string" },
-                priority: { type: "string", enum: ["High", "Medium", "Low"] },
-                constraint_fidelity_score: { type: "number" }
-              },
-              required: ["original_text", "verdict", "narrative_justification"]
-            }
+    const validationResponse = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: validationPrompt }],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "validation_results",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              validated: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    original_text: { type: "string" },
+                    suggested_text: { type: "string" },
+                    verdict: { type: "string", enum: ["keep", "revise"] },
+                    serves_voice: { type: "boolean" },
+                    serves_embodiment: { type: "boolean" },
+                    narrative_justification: { type: "string" },
+                    why_flagged: { type: "string" },
+                    why_this_fix: { type: "string" },
+                    priority: { type: "string", enum: ["High", "Medium", "Low"] },
+                    constraint_fidelity_score: { type: "number" }
+                  },
+                  required: ["original_text", "verdict", "narrative_justification"],
+                  additionalProperties: false
+                }
+              }
+            },
+            required: ["validated"],
+            additionalProperties: false
           }
-        },
-        required: ["validated"]
+        }
       }
     });
+    const validation = JSON.parse(validationResponse.choices[0].message.content);
 
     // CATEGORIZE FINDINGS: Structural vs Sentence-Level Polish
     const categorizeFinding = (item, waveNum) => {

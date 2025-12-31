@@ -1,4 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import OpenAI from 'npm:openai@4.76.1';
+
+const openai = new OpenAI({
+    apiKey: Deno.env.get("OPENAI_API_KEY"),
+});
 
 // Timeout wrapper for LLM calls
 const withTimeout = (promise, timeoutMs = 120000, label = 'Operation') => {
@@ -32,8 +37,10 @@ TRAUMA MEMOIR MODE ACTIVE (Critical Override):
 ` : '';
 
     const agentAnalysis = await withTimeout(
-        base44.asServiceRole.integrations.Core.InvokeLLM({
-            prompt: `You are a professional evaluator (agent/editor/script reader). Analyze this chapter against the 12 Story Evaluation Criteria.
+        (async () => {
+            const response = await openai.chat.completions.create({
+                model: "gpt-4o",
+                messages: [{ role: "user", content: `You are a professional evaluator (agent/editor/script reader). Analyze this chapter against the 12 Story Evaluation Criteria.
 
 CRITICAL EVALUATION RULES (NON-NEGOTIABLE):
 1. NO HALLUCINATION. Quote only text that exists. Do not invent examples.
@@ -73,31 +80,42 @@ TEXT:
 ${chapter.text}
 
 For each criterion provide: score (1-10), strengths (array), weaknesses (array), notes (detailed commentary), evidence_excerpts (2-4 short text excerpts showing why this score was given).
-Provide overall score (1-10) and verdict.`,
-            response_json_schema: {
-                type: "object",
-                properties: {
-                    overallScore: { type: "number" },
-                    verdict: { type: "string" },
-                    criteria: {
-                        type: "array",
-                        items: {
+Provide overall score (1-10) and verdict.` }],
+                response_format: {
+                    type: "json_schema",
+                    json_schema: {
+                        name: "agent_analysis",
+                        strict: true,
+                        schema: {
                             type: "object",
                             properties: {
-                                name: { type: "string" },
-                                score: { type: "number" },
-                                strengths: { type: "array", items: { type: "string" } },
-                                weaknesses: { type: "array", items: { type: "string" } },
-                                notes: { type: "string" },
-                                evidence_excerpts: { type: "array", items: { type: "string" } }
+                                overallScore: { type: "number" },
+                                verdict: { type: "string" },
+                                criteria: {
+                                    type: "array",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            name: { type: "string" },
+                                            score: { type: "number" },
+                                            strengths: { type: "array", items: { type: "string" } },
+                                            weaknesses: { type: "array", items: { type: "string" } },
+                                            notes: { type: "string" },
+                                            evidence_excerpts: { type: "array", items: { type: "string" } }
+                                        },
+                                        required: ["name", "score", "strengths", "weaknesses", "notes"],
+                                        additionalProperties: false
+                                    }
+                                }
                             },
-                            required: ["name", "score", "strengths", "weaknesses", "notes"]
+                            required: ["overallScore", "verdict", "criteria"],
+                            additionalProperties: false
                         }
                     }
-                },
-                required: ["overallScore", "verdict", "criteria"]
-            }
-        }),
+                }
+            });
+            return JSON.parse(response.choices[0].message.content);
+        })(),
         120000,
         'Agent Analysis'
     );
@@ -173,32 +191,45 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
 
     const config = tierConfig[tier];
     const waveResult = await withTimeout(
-        base44.asServiceRole.integrations.Core.InvokeLLM({
-            prompt: config.prompt,
-            response_json_schema: {
-                type: "object",
-                properties: {
-                    score: { type: "number" },
-                    criticalIssues: { type: "array", items: { type: "string" } },
-                    strengthAreas: { type: "array", items: { type: "string" } },
-                    waveHits: {
-                        type: "array",
-                        items: {
+        (async () => {
+            const response = await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [{ role: "user", content: config.prompt }],
+                response_format: {
+                    type: "json_schema",
+                    json_schema: {
+                        name: "wave_analysis",
+                        strict: true,
+                        schema: {
                             type: "object",
                             properties: {
-                                category: { type: "string" },
-                                severity: { type: "string" },
-                                description: { type: "string" },
-                                example_quote: { type: "string" },
-                                fix_suggestion: { type: "string" }
+                                score: { type: "number" },
+                                criticalIssues: { type: "array", items: { type: "string" } },
+                                strengthAreas: { type: "array", items: { type: "string" } },
+                                waveHits: {
+                                    type: "array",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            category: { type: "string" },
+                                            severity: { type: "string" },
+                                            description: { type: "string" },
+                                            example_quote: { type: "string" },
+                                            fix_suggestion: { type: "string" }
+                                        },
+                                        required: ["category", "severity", "description", "example_quote", "fix_suggestion"],
+                                        additionalProperties: false
+                                    }
+                                }
                             },
-                            required: ["category", "severity", "description", "example_quote", "fix_suggestion"]
+                            required: ["score", "criticalIssues", "strengthAreas", "waveHits"],
+                            additionalProperties: false
                         }
                     }
-                },
-                required: ["score", "criticalIssues", "strengthAreas", "waveHits"]
-            }
-        }),
+                }
+            });
+            return JSON.parse(response.choices[0].message.content);
+        })(),
         config.timeout,
         `${tier.toUpperCase()} WAVE`
     );
@@ -526,29 +557,39 @@ ${chapter.text}`;
                     }
                 });
 
-                const summary = await base44.asServiceRole.integrations.Core.InvokeLLM({
-                    prompt: summaryPrompt,
-                    response_json_schema: {
-                        type: "object",
-                        properties: {
-                            chapter_index: { type: "number" },
-                            chapter_title: { type: "string" },
-                            summary_200_300_words: { type: "string" },
-                            key_beats: { type: "array", items: { type: "string" } },
-                            characters_present: { type: "array", items: { type: "string" } },
-                            primary_pov: { type: "string" },
-                            settings: { type: "array", items: { type: "string" } },
-                            stakes_shift: { type: "string" },
-                            conflict_type: { type: "string" },
-                            turning_point: { type: "string" },
-                            unresolved_hooks: { type: "array", items: { type: "string" } },
-                            tension_level_1_5: { type: "number" },
-                            arc_movement_notes: { type: "string" },
-                            notes: { type: "string" }
-                        },
-                        required: ["chapter_index", "chapter_title", "summary_200_300_words", "key_beats"]
+                const summaryResponse = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    messages: [{ role: "user", content: summaryPrompt }],
+                    response_format: {
+                        type: "json_schema",
+                        json_schema: {
+                            name: "chapter_summary",
+                            strict: true,
+                            schema: {
+                                type: "object",
+                                properties: {
+                                    chapter_index: { type: "number" },
+                                    chapter_title: { type: "string" },
+                                    summary_200_300_words: { type: "string" },
+                                    key_beats: { type: "array", items: { type: "string" } },
+                                    characters_present: { type: "array", items: { type: "string" } },
+                                    primary_pov: { type: "string" },
+                                    settings: { type: "array", items: { type: "string" } },
+                                    stakes_shift: { type: "string" },
+                                    conflict_type: { type: "string" },
+                                    turning_point: { type: "string" },
+                                    unresolved_hooks: { type: "array", items: { type: "string" } },
+                                    tension_level_1_5: { type: "number" },
+                                    arc_movement_notes: { type: "string" },
+                                    notes: { type: "string" }
+                                },
+                                required: ["chapter_index", "chapter_title", "summary_200_300_words", "key_beats"],
+                                additionalProperties: false
+                            }
+                        }
                     }
                 });
+                const summary = JSON.parse(summaryResponse.choices[0].message.content);
 
                 await base44.asServiceRole.entities.Chapter.update(chapter.id, {
                     summary_json: summary,
@@ -665,33 +706,44 @@ SCORING GUIDELINES:
         CHAPTER SUMMARIES:
         ${JSON.stringify(chapterSummaries, null, 2)}`;
 
-        const spineEvaluation = await base44.asServiceRole.integrations.Core.InvokeLLM({
-            prompt: spinePrompt,
-            response_json_schema: {
-                type: "object",
-                properties: {
-                    overallScore: { type: "number" },
-                    verdict: { type: "string" },
-                    majorStrengths: { type: "array", items: { type: "string" } },
-                    criticalWeaknesses: { type: "array", items: { type: "string" } },
-                    criteria: {
-                        type: "array",
-                        items: {
-                            type: "object",
-                            properties: {
-                                name: { type: "string" },
-                                score: { type: "number" },
-                                strengths: { type: "array", items: { type: "string" } },
-                                weaknesses: { type: "array", items: { type: "string" } },
-                                notes: { type: "string" }
-                            },
-                            required: ["name", "score", "strengths", "weaknesses", "notes"]
-                        }
+        const spineResponse = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{ role: "user", content: spinePrompt }],
+            response_format: {
+                type: "json_schema",
+                json_schema: {
+                    name: "spine_evaluation",
+                    strict: true,
+                    schema: {
+                        type: "object",
+                        properties: {
+                            overallScore: { type: "number" },
+                            verdict: { type: "string" },
+                            majorStrengths: { type: "array", items: { type: "string" } },
+                            criticalWeaknesses: { type: "array", items: { type: "string" } },
+                            criteria: {
+                                type: "array",
+                                items: {
+                                    type: "object",
+                                    properties: {
+                                        name: { type: "string" },
+                                        score: { type: "number" },
+                                        strengths: { type: "array", items: { type: "string" } },
+                                        weaknesses: { type: "array", items: { type: "string" } },
+                                        notes: { type: "string" }
+                                    },
+                                    required: ["name", "score", "strengths", "weaknesses", "notes"],
+                                    additionalProperties: false
+                                }
+                            }
+                        },
+                        required: ["overallScore", "verdict", "majorStrengths", "criticalWeaknesses", "criteria"],
+                        additionalProperties: false
                     }
-                },
-                required: ["overallScore", "verdict", "majorStrengths", "criticalWeaknesses", "criteria"]
+                }
             }
         });
+        const spineEvaluation = JSON.parse(spineResponse.choices[0].message.content);
 
         // Update manuscript with spine evaluation (apply integrity penalty)
         const adjustedSpineScore = Math.max(0, spineEvaluation.overallScore - integrityPenalty);
