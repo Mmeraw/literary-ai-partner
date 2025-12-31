@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from '@/api/base44Client';
-import { Loader2 } from 'lucide-react';
-
-import ProjectOverview from '@/components/dashboard/ProjectOverview';
-import EvaluationsList from '@/components/dashboard/EvaluationsList';
-import RevisionHistory from '@/components/dashboard/RevisionHistory';
-import FeedbackPreferences from '@/components/dashboard/FeedbackPreferences';
+import { Loader2, BookOpen, CheckCircle2, Edit3, Package, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import { format } from 'date-fns';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Dashboard() {
     const { data: user } = useQuery({
@@ -14,22 +16,94 @@ export default function Dashboard() {
         queryFn: () => base44.auth.me()
     });
 
-    const { data: submissions, isLoading: loadingSubmissions } = useQuery({
+    const { data: submissions = [], isLoading: loadingSubmissions } = useQuery({
         queryKey: ['userSubmissions'],
         queryFn: () => base44.entities.Submission.list('-created_date', 100)
     });
 
-    const { data: manuscripts, isLoading: loadingManuscripts } = useQuery({
+    const { data: manuscripts = [], isLoading: loadingManuscripts } = useQuery({
         queryKey: ['userManuscripts'],
         queryFn: () => base44.entities.Manuscript.list('-created_date', 100)
     });
 
-    const { data: revisionSessions, isLoading: loadingSessions } = useQuery({
+    const { data: revisionSessions = [], isLoading: loadingSessions } = useQuery({
         queryKey: ['userRevisionSessions'],
         queryFn: () => base44.entities.RevisionSession.list('-created_date', 100)
     });
 
+    const { data: chapters = [] } = useQuery({
+        queryKey: ['userChapters'],
+        queryFn: () => base44.entities.Chapter.list('-created_date', 1000),
+        enabled: manuscripts.length > 0
+    });
+
     const isLoading = loadingSubmissions || loadingManuscripts || loadingSessions;
+
+    // Compute metrics
+    const metrics = useMemo(() => {
+        const totalWorks = submissions.length + manuscripts.length;
+        const evaluationsCompleted = submissions.filter(s => s.status === 'reviewed').length + 
+                                     manuscripts.filter(m => m.status === 'ready').length;
+        const activeRevisions = revisionSessions.filter(s => s.status === 'in_progress').length;
+        const finalVersions = revisionSessions.filter(s => s.status === 'completed').length;
+        
+        return {
+            totalWorks,
+            evaluationsCompleted,
+            activeRevisions,
+            finalVersions,
+            outputsGenerated: 0 // TODO: track outputs
+        };
+    }, [submissions, manuscripts, revisionSessions]);
+
+    // Error frequency analytics
+    const errorFrequency = useMemo(() => {
+        const errorCounts = {};
+        
+        // Aggregate WAVE errors from chapters
+        chapters.forEach(chapter => {
+            if (chapter.wave_results_json?.issues) {
+                chapter.wave_results_json.issues.forEach(issue => {
+                    const category = issue.category || issue.wave_name || 'Other';
+                    errorCounts[category] = (errorCounts[category] || 0) + 1;
+                });
+            }
+        });
+
+        return Object.entries(errorCounts)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+    }, [chapters]);
+
+    // Pipeline categorization
+    const pipeline = useMemo(() => {
+        const allWorks = [
+            ...manuscripts.map(m => ({ 
+                ...m, 
+                type: 'manuscript',
+                title: m.title,
+                score: m.spine_score ? Math.round(m.spine_score * 10) : null,
+                status: m.status,
+                lastActivity: m.updated_date || m.created_date
+            })),
+            ...submissions.map(s => ({ 
+                ...s, 
+                type: 'submission',
+                title: s.title,
+                score: s.overall_score ? Math.round(s.overall_score * 10) : null,
+                status: s.status,
+                lastActivity: s.updated_date || s.created_date
+            }))
+        ];
+
+        return {
+            upload: allWorks.filter(w => ['uploaded', 'splitting', 'draft'].includes(w.status)),
+            evaluate: allWorks.filter(w => ['summarizing', 'evaluating', 'spine_evaluating'].includes(w.status)),
+            revise: allWorks.filter(w => ['ready', 'reviewed'].includes(w.status)),
+            output: allWorks.filter(w => w.status === 'finalized')
+        };
+    }, [manuscripts, submissions]);
 
     if (isLoading) {
         return (
@@ -42,6 +116,7 @@ export default function Dashboard() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             <div className="max-w-7xl mx-auto px-6 py-12">
+                {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
                     <p className="mt-2 text-slate-600">
@@ -49,29 +124,209 @@ export default function Dashboard() {
                     </p>
                 </div>
 
-                <div className="space-y-8">
-                    {/* Project Overview */}
-                    <ProjectOverview 
-                        submissions={submissions || []}
-                        manuscripts={manuscripts || []}
-                        revisionSessions={revisionSessions || []}
+                {/* Overview Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+                    <MetricCard 
+                        label="Total Works" 
+                        value={metrics.totalWorks} 
+                        icon={BookOpen}
+                        color="from-indigo-500 to-blue-600"
                     />
-
-                    {/* Evaluations List */}
-                    <EvaluationsList 
-                        submissions={submissions || []}
-                        manuscripts={manuscripts || []}
+                    <MetricCard 
+                        label="Evaluations Completed" 
+                        value={metrics.evaluationsCompleted} 
+                        icon={CheckCircle2}
+                        color="from-emerald-500 to-teal-600"
                     />
-
-                    {/* Revision History */}
-                    <RevisionHistory 
-                        revisionSessions={revisionSessions || []}
+                    <MetricCard 
+                        label="Active Revisions" 
+                        value={metrics.activeRevisions} 
+                        icon={Edit3}
+                        color="from-amber-500 to-orange-600"
                     />
+                    <MetricCard 
+                        label="Final Versions" 
+                        value={metrics.finalVersions} 
+                        icon={CheckCircle2}
+                        color="from-purple-500 to-pink-600"
+                    />
+                    <MetricCard 
+                        label="Outputs Generated" 
+                        value={metrics.outputsGenerated} 
+                        icon={Package}
+                        color="from-slate-500 to-slate-600"
+                    />
+                </div>
 
-                    {/* Feedback Preferences */}
-                    <FeedbackPreferences user={user} />
+                {/* Pipeline Board */}
+                <Card className="mb-8">
+                    <CardHeader>
+                        <CardTitle>Pipeline Overview</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <PipelineColumn title="Upload" works={pipeline.upload} stage="upload" />
+                            <PipelineColumn title="Evaluate" works={pipeline.evaluate} stage="evaluate" />
+                            <PipelineColumn title="Revise" works={pipeline.revise} stage="revise" />
+                            <PipelineColumn title="Output" works={pipeline.output} stage="output" />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Activity Modules */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Latest Evaluations */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Latest Evaluations</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                {[...manuscripts, ...submissions]
+                                    .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
+                                    .slice(0, 5)
+                                    .map(work => (
+                                        <WorkRow key={work.id} work={work} />
+                                    ))}
+                                {manuscripts.length === 0 && submissions.length === 0 && (
+                                    <p className="text-sm text-slate-500 text-center py-8">No evaluations yet</p>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Error Frequency Analytics */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Top Error Types</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {errorFrequency.length > 0 ? (
+                                <ResponsiveContainer width="100%" height={300}>
+                                    <BarChart data={errorFrequency}>
+                                        <XAxis 
+                                            dataKey="name" 
+                                            angle={-45} 
+                                            textAnchor="end" 
+                                            height={100}
+                                            tick={{ fontSize: 11 }}
+                                        />
+                                        <YAxis />
+                                        <Tooltip />
+                                        <Bar dataKey="count" fill="#6366f1" />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <p className="text-sm text-slate-500 text-center py-8">
+                                    No error data yet. Complete a full manuscript evaluation to see insights.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function MetricCard({ label, value, icon: Icon, color }) {
+    return (
+        <Card>
+            <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-3">
+                    <div className={`p-3 rounded-xl bg-gradient-to-br ${color}`}>
+                        <Icon className="w-5 h-5 text-white" />
+                    </div>
+                </div>
+                <div className="text-3xl font-bold text-slate-900 mb-1">{value}</div>
+                <div className="text-xs text-slate-600">{label}</div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function PipelineColumn({ title, works, stage }) {
+    return (
+        <div className="bg-slate-50 rounded-lg p-4 min-h-[200px]">
+            <h3 className="font-semibold text-slate-900 mb-3 flex items-center justify-between">
+                {title}
+                <Badge variant="secondary">{works.length}</Badge>
+            </h3>
+            <div className="space-y-2">
+                {works.slice(0, 3).map(work => (
+                    <WorkCard key={work.id} work={work} stage={stage} />
+                ))}
+                {works.length === 0 && (
+                    <p className="text-xs text-slate-500 text-center py-4">No items</p>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function WorkCard({ work, stage }) {
+    const getNextAction = () => {
+        if (stage === 'upload') return 'Start Evaluation';
+        if (stage === 'evaluate') return 'View Progress';
+        if (stage === 'revise') return 'Open Dashboard';
+        return 'Build Output';
+    };
+
+    const getLink = () => {
+        if (work.type === 'manuscript') {
+            return createPageUrl(`ManuscriptDashboard?id=${work.id}`);
+        }
+        return createPageUrl(`ViewReport?submissionId=${work.id}`);
+    };
+
+    return (
+        <Card className="hover:shadow-md transition-shadow">
+            <CardContent className="p-3">
+                <h4 className="font-medium text-sm text-slate-900 mb-2 truncate">
+                    {work.title}
+                </h4>
+                <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
+                    <span>{work.type === 'manuscript' ? 'Novel' : 'Scene'}</span>
+                    {work.score && (
+                        <span className="font-semibold text-indigo-600">{work.score}/100</span>
+                    )}
+                </div>
+                <Link to={getLink()}>
+                    <Button size="sm" variant="outline" className="w-full text-xs">
+                        {getNextAction()}
+                    </Button>
+                </Link>
+            </CardContent>
+        </Card>
+    );
+}
+
+function WorkRow({ work }) {
+    const score = work.spine_score 
+        ? Math.round(work.spine_score * 10) 
+        : work.overall_score 
+        ? Math.round(work.overall_score * 10) 
+        : null;
+
+    const getScoreColor = (s) => {
+        if (s >= 80) return 'text-emerald-600';
+        if (s >= 60) return 'text-amber-600';
+        return 'text-rose-600';
+    };
+
+    return (
+        <div className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50">
+            <div className="flex-1">
+                <h4 className="font-medium text-sm text-slate-900">{work.title}</h4>
+                <p className="text-xs text-slate-600">
+                    {format(new Date(work.created_date), 'MMM d, yyyy')}
+                </p>
+            </div>
+            {score && (
+                <div className={`text-xl font-bold ${getScoreColor(score)}`}>
+                    {score}
+                </div>
+            )}
         </div>
     );
 }
