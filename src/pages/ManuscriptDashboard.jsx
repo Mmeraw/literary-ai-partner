@@ -462,6 +462,109 @@ export default function ManuscriptDashboard() {
       <div className="max-w-7xl mx-auto px-6 py-12">
         {/* Header */}
         <div className="mb-8">
+          {/* FINAL LOCK UI */}
+          {manuscript.is_final && (
+            <Card className="mb-6 bg-green-50 border-2 border-green-300">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-green-900 mb-1 text-lg">
+                      ✓ Version Locked as Final
+                    </h3>
+                    <p className="text-sm text-green-800 mb-2">
+                      This manuscript is read-only and ready for output generation.
+                      {manuscript.finalized_by && (
+                        <span className="block mt-1 text-xs">
+                          Finalized by {manuscript.finalized_by} • {new Date(manuscript.finalized_at).toLocaleString()}
+                        </span>
+                      )}
+                    </p>
+                    <div className="flex gap-2">
+                      <Link to={createPageUrl('CompletePackage?manuscriptId=' + manuscriptId)}>
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                          Generate Agent Package
+                        </Button>
+                      </Link>
+                      <Link to={createPageUrl('FilmAdaptation?manuscriptId=' + manuscriptId)}>
+                        <Button size="sm" variant="outline">
+                          Generate Film Package
+                        </Button>
+                      </Link>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            toast.loading('Cloning manuscript...', { id: 'clone' });
+                            const { data } = await base44.functions.invoke('cloneManuscript', {
+                              manuscript_id: manuscriptId
+                            });
+                            toast.success('Clone created', { id: 'clone' });
+                            window.location.href = createPageUrl(`ManuscriptDashboard?id=${data.cloned_manuscript_id}`);
+                          } catch (error) {
+                            toast.error('Clone failed', { id: 'clone' });
+                          }
+                        }}
+                      >
+                        Clone to Continue Editing
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* MARK AS FINAL BUTTON */}
+          {!manuscript.is_final && manuscript.spine_completed_at && (
+            <Card className="mb-6 bg-indigo-50 border-2 border-indigo-200">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-indigo-900 mb-1">Ready to Finalize?</h3>
+                    <p className="text-sm text-indigo-800 mb-3">
+                      Mark this version as Final to lock it for output generation. You can still clone it to continue working.
+                    </p>
+                    <Button 
+                      size="sm"
+                      className="bg-indigo-600 hover:bg-indigo-700"
+                      onClick={async () => {
+                        const confirmed = confirm(
+                          `Mark "${manuscript.title}" as Final?\n\n` +
+                          `This will:\n` +
+                          `• Lock this version (read-only)\n` +
+                          `• Enable output generation\n` +
+                          `• Create audit trail\n\n` +
+                          `You can clone it to continue editing.`
+                        );
+                        
+                        if (!confirmed) return;
+
+                        try {
+                          toast.loading('Marking as Final...', { id: 'final' });
+                          await base44.functions.invoke('markManuscriptFinal', {
+                            manuscript_id: manuscriptId,
+                            note: null
+                          });
+                          toast.success('Marked as Final', { id: 'final' });
+                          queryClient.invalidateQueries({ queryKey: ['manuscript', manuscriptId] });
+                        } catch (error) {
+                          toast.error(error.message || 'Failed to mark as Final', { id: 'final' });
+                        }
+                      }}
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      Mark as Final
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* HARD FAILURE BANNER - Shows immediately when chapters fail */}
           {currentlyFailedChapters.length > 0 && (
             <Card className="mb-6 bg-red-50 border-2 border-red-300">
