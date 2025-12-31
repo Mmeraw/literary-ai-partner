@@ -21,25 +21,30 @@ import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
 import AnalyticsTracker from '@/components/AnalyticsTracker';
 
-const worksPages = [
-    { name: 'Manuscripts', page: 'UploadManuscript', icon: BookOpen },
-    { name: 'Screenplays', page: 'ScreenplayFormatter', icon: Film },
-    { name: 'Chapters/Scenes', page: 'Evaluate', icon: FileText },
+// SEQUENTIAL WORKFLOW: Upload → Evaluate → Revise → Submit
+const uploadPages = [
+    { name: 'Full Manuscript', page: 'UploadManuscript', icon: BookOpen },
+    { name: 'Chapter/Scene', page: 'Evaluate', icon: FileText },
 ];
 
-const evaluatePages = [
+const createPages = [
+    { name: 'Novel to Screenplay', page: 'ScreenplayFormatter', icon: Film },
+    { name: 'Film Adaptation Package', page: 'FilmAdaptation', icon: Film, highlight: true },
+];
+
+const submitPages = [
     { name: 'Complete Submission Package', page: 'CompletePackage', icon: Package, highlight: true },
-    { name: 'New Evaluation', page: 'Evaluate', icon: Sparkles },
-    { name: 'Film Adaptation Package', page: 'FilmAdaptation', icon: Film },
-    { name: 'Pitch Generator', page: 'PitchGenerator', icon: Target },
-    { name: 'Pitch Builder', page: 'PitchBuilder', icon: Target },
-    { name: 'Synopsis', page: 'Synopsis', icon: FileText },
-    { name: 'Biography', page: 'Biography', icon: User },
-    { name: 'Comparables', page: 'Comparables', icon: TrendingUp },
-    { name: 'Find Agents', page: 'FindAgents', icon: Users },
     { name: 'Query Letter', page: 'QueryLetter', icon: Mail },
-    { name: 'Progress Reports', page: 'Progress', icon: BarChart3 },
-    { name: 'Storygate Studio', page: 'StorygateStudio', icon: Crown, highlight: true },
+    { name: 'Synopsis', page: 'Synopsis', icon: FileText },
+    { name: 'Pitch Generator', page: 'PitchGenerator', icon: Target },
+    { name: 'Author Biography', page: 'Biography', icon: User },
+    { name: 'Market Comparables', page: 'Comparables', icon: TrendingUp },
+    { name: 'Find Agents', page: 'FindAgents', icon: Users },
+];
+
+const trackPages = [
+    { name: 'Dashboard', page: 'Dashboard', icon: BarChart3 },
+    { name: 'Progress Reports', page: 'Progress', icon: TrendingUp },
 ];
 
 const resourcesPages = [
@@ -150,31 +155,17 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                         </Link>
 
-                        {/* Desktop Navigation */}
+                        {/* Desktop Navigation - SEQUENTIAL WORKFLOW */}
                         <div className="hidden md:flex items-center gap-1 flex-1">
-                            <Link to={createPageUrl('Dashboard')}>
-                                <Button
-                                    variant="ghost"
-                                    className={cn(
-                                        "h-9 px-3 text-sm",
-                                        currentPageName === 'Dashboard' 
-                                            ? "bg-indigo-50 text-indigo-700" 
-                                            : "text-slate-600 hover:text-slate-900"
-                                    )}
-                                >
-                                    Dashboard
-                                </Button>
-                            </Link>
-
-                            {/* Works Dropdown */}
+                            {/* 1. UPLOAD */}
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                        Works <ChevronDown className="ml-1 h-4 w-4" />
+                                        1. Upload <ChevronDown className="ml-1 h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-56">
-                                    {worksPages.map((item) => (
+                                    {uploadPages.map((item) => (
                                         <DropdownMenuItem key={item.page} asChild>
                                             <Link to={createPageUrl(item.page)} className="flex items-center gap-2 cursor-pointer">
                                                 <item.icon className="w-4 h-4" />
@@ -185,19 +176,68 @@ export default function Layout({ children, currentPageName }) {
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            {/* Evaluate Dropdown */}
+                            {/* 2. EVALUATE (links to Dashboard - results live there) */}
+                            <Link to={createPageUrl('Dashboard')}>
+                                <Button
+                                    variant="ghost"
+                                    className={cn(
+                                        "h-9 px-3 text-sm",
+                                        currentPageName === 'Dashboard' 
+                                            ? "bg-indigo-50 text-indigo-700" 
+                                            : "text-slate-600 hover:text-slate-900"
+                                    )}
+                                >
+                                    2. Evaluate
+                                </Button>
+                            </Link>
+
+                            {/* 3. REVISE (links to Revise page) */}
+                            <Link to={createPageUrl('Revise')}>
+                                <Button
+                                    variant="ghost"
+                                    className={cn(
+                                        "h-9 px-3 text-sm",
+                                        currentPageName === 'Revise' 
+                                            ? "bg-indigo-50 text-indigo-700" 
+                                            : "text-slate-600 hover:text-slate-900"
+                                    )}
+                                >
+                                    3. Revise
+                                </Button>
+                            </Link>
+
+                            {/* 4. SUBMIT */}
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button 
-                                        variant="ghost" 
-                                        className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900"
-                                        aria-label="Evaluate manuscript and create revision suggestions"
-                                    >
-                                        Evaluate & Create <ChevronDown className="ml-1 h-4 w-4" />
+                                    <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
+                                        4. Submit <ChevronDown className="ml-1 h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="w-56 max-h-[320px] overflow-y-auto">
-                                    {evaluatePages.map((item) => (
+                                <DropdownMenuContent align="start" className="w-56">
+                                    {submitPages.map((item) => (
+                                        <DropdownMenuItem 
+                                            key={item.page} 
+                                            asChild
+                                            className={item.highlight ? "bg-indigo-50" : ""}
+                                        >
+                                            <Link to={createPageUrl(item.page)} className="flex items-center gap-2 cursor-pointer">
+                                                <item.icon className="w-4 h-4" />
+                                                {item.name}
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            {/* CREATE (Novel to Screenplay + Film Adaptation) */}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
+                                        Create <ChevronDown className="ml-1 h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-56">
+                                    {createPages.map((item) => (
                                         <DropdownMenuItem 
                                             key={item.page} 
                                             asChild
