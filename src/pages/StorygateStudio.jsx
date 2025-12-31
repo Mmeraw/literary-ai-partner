@@ -117,7 +117,7 @@ export default function StorygateStudio() {
     return (
         <div className="min-h-screen" style={{ backgroundColor: '#0E0E0E' }}>
             {/* Hero Section */}
-            <div className="relative overflow-hidden py-20 border-b" style={{ borderColor: '#A98E4A' }}>
+            <div className="relative overflow-hidden py-10 sm:py-20 border-b" style={{ borderColor: '#A98E4A' }}>
                 <div className="relative max-w-4xl mx-auto px-6 text-center">
                     <Badge className="mb-2 px-4 py-2" style={{ backgroundColor: 'rgba(122, 30, 30, 0.1)', color: '#A98E4A', borderColor: '#A98E4A' }}>
                         <Sparkles className="w-4 h-4 mr-2" />

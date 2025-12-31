@@ -14,7 +14,7 @@ export default function Home() {
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             {/* Hero Section - Clean & Focused */}
             <div className="bg-white">
-                <div className="max-w-5xl mx-auto px-6 pt-16 pb-12 sm:pt-20 sm:pb-16">
+                <div className="max-w-5xl mx-auto px-6 pt-8 pb-8 sm:pt-20 sm:pb-16">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
