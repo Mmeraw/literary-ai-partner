@@ -15,36 +15,28 @@ import {
 import { 
     BookOpen, Sparkles, Menu, X, LogOut, BarChart3,
     ChevronDown, FileText, Film, Target, TrendingUp,
-    Users, Mail, HelpCircle, FileCheck, User, Crown, Package
+    Users, Mail, HelpCircle, FileCheck, User, Crown, Package, Edit3
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
 import AnalyticsTracker from '@/components/AnalyticsTracker';
 
-// SEQUENTIAL WORKFLOW: Upload → Evaluate → Revise → Submit
+// CANONICAL WORKFLOW: Upload → Evaluate → Revise → Output
 const uploadPages = [
     { name: 'Full Manuscript', page: 'UploadManuscript', icon: BookOpen },
     { name: 'Chapter/Scene', page: 'Evaluate', icon: FileText },
 ];
 
-const createPages = [
-    { name: 'Novel to Screenplay', page: 'ScreenplayFormatter', icon: Film },
+const outputPages = [
+    { name: 'Agent Package', page: 'CompletePackage', icon: Package, highlight: true },
     { name: 'Film Adaptation Package', page: 'FilmAdaptation', icon: Film, highlight: true },
-];
-
-const submitPages = [
-    { name: 'Complete Submission Package', page: 'CompletePackage', icon: Package, highlight: true },
     { name: 'Query Letter', page: 'QueryLetter', icon: Mail },
     { name: 'Synopsis', page: 'Synopsis', icon: FileText },
     { name: 'Pitch Generator', page: 'PitchGenerator', icon: Target },
     { name: 'Author Biography', page: 'Biography', icon: User },
     { name: 'Market Comparables', page: 'Comparables', icon: TrendingUp },
     { name: 'Find Agents', page: 'FindAgents', icon: Users },
-];
-
-const trackPages = [
-    { name: 'Dashboard', page: 'Dashboard', icon: BarChart3 },
-    { name: 'Progress Reports', page: 'Progress', icon: TrendingUp },
+    { name: 'Novel to Screenplay', page: 'ScreenplayFormatter', icon: Film },
 ];
 
 const resourcesPages = [
@@ -155,13 +147,27 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                         </Link>
 
-                        {/* Desktop Navigation - SEQUENTIAL WORKFLOW */}
+                        {/* Desktop Navigation - CANONICAL WORKFLOW */}
                         <div className="hidden md:flex items-center gap-1 flex-1">
-                            {/* 1. UPLOAD */}
+                            <Link to={createPageUrl('Dashboard')}>
+                                <Button
+                                    variant="ghost"
+                                    className={cn(
+                                        "h-9 px-3 text-sm",
+                                        currentPageName === 'Dashboard' 
+                                            ? "bg-indigo-50 text-indigo-700" 
+                                            : "text-slate-600 hover:text-slate-900"
+                                    )}
+                                >
+                                    Dashboard
+                                </Button>
+                            </Link>
+
+                            {/* Upload */}
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                        1. Upload <ChevronDown className="ml-1 h-4 w-4" />
+                                        Upload <ChevronDown className="ml-1 h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-56">
@@ -176,22 +182,17 @@ export default function Layout({ children, currentPageName }) {
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            {/* 2. EVALUATE (links to Dashboard - results live there) */}
+                            {/* Evaluate - Goes to Dashboard where results live */}
                             <Link to={createPageUrl('Dashboard')}>
                                 <Button
                                     variant="ghost"
-                                    className={cn(
-                                        "h-9 px-3 text-sm",
-                                        currentPageName === 'Dashboard' 
-                                            ? "bg-indigo-50 text-indigo-700" 
-                                            : "text-slate-600 hover:text-slate-900"
-                                    )}
+                                    className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900"
                                 >
-                                    2. Evaluate
+                                    Evaluate
                                 </Button>
                             </Link>
 
-                            {/* 3. REVISE (links to Revise page) */}
+                            {/* Revise */}
                             <Link to={createPageUrl('Revise')}>
                                 <Button
                                     variant="ghost"
@@ -202,19 +203,19 @@ export default function Layout({ children, currentPageName }) {
                                             : "text-slate-600 hover:text-slate-900"
                                     )}
                                 >
-                                    3. Revise
+                                    Revise
                                 </Button>
                             </Link>
 
-                            {/* 4. SUBMIT */}
+                            {/* Output */}
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                        4. Submit <ChevronDown className="ml-1 h-4 w-4" />
+                                        Output <ChevronDown className="ml-1 h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-56">
-                                    {submitPages.map((item) => (
+                                    {outputPages.map((item) => (
                                         <DropdownMenuItem 
                                             key={item.page} 
                                             asChild
@@ -229,28 +230,19 @@ export default function Layout({ children, currentPageName }) {
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            {/* CREATE (Novel to Screenplay + Film Adaptation) */}
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                        Create <ChevronDown className="ml-1 h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="w-56">
-                                    {createPages.map((item) => (
-                                        <DropdownMenuItem 
-                                            key={item.page} 
-                                            asChild
-                                            className={item.highlight ? "bg-indigo-50" : ""}
-                                        >
-                                            <Link to={createPageUrl(item.page)} className="flex items-center gap-2 cursor-pointer">
-                                                <item.icon className="w-4 h-4" />
-                                                {item.name}
-                                            </Link>
-                                        </DropdownMenuItem>
-                                    ))}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                            <Link to={createPageUrl('Analytics')}>
+                                <Button
+                                    variant="ghost"
+                                    className={cn(
+                                        "h-9 px-3 text-sm",
+                                        currentPageName === 'Analytics' 
+                                            ? "bg-indigo-50 text-indigo-700" 
+                                            : "text-slate-600 hover:text-slate-900"
+                                    )}
+                                >
+                                    Analytics
+                                </Button>
+                            </Link>
 
                             {/* Pricing & Enterprise */}
                             <Link to={createPageUrl('Pricing')}>
@@ -411,22 +403,24 @@ export default function Layout({ children, currentPageName }) {
                                 </Button>
                             </Link>
 
-                            {/* Works Section */}
+
+
+                            {/* Upload Section */}
                             <div>
                                 <Button
                                     variant="ghost"
-                                    onClick={() => toggleMobileSection('works')}
+                                    onClick={() => toggleMobileSection('upload')}
                                     className="w-full justify-between h-12 text-slate-600"
                                 >
                                     <span className="flex items-center">
                                         <BookOpen className="w-5 h-5 mr-3" />
-                                        Works
+                                        Upload
                                     </span>
-                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.works && "rotate-180")} />
+                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.upload && "rotate-180")} />
                                 </Button>
-                                {expandedMobile.works && (
+                                {expandedMobile.upload && (
                                     <div className="ml-8 space-y-1 mt-1">
-                                        {worksPages.map((item) => (
+                                        {uploadPages.map((item) => (
                                             <Link key={item.page} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
                                                 <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
                                                     <item.icon className="w-4 h-4 mr-2" />
@@ -438,23 +432,47 @@ export default function Layout({ children, currentPageName }) {
                                 )}
                             </div>
 
-                            {/* Evaluate Section - HIGHLIGHTED */}
+                            {/* Evaluate (Direct Link) */}
+                            <Link to={createPageUrl('Dashboard')} onClick={() => setMobileMenuOpen(false)}>
+                                <Button
+                                    variant="ghost"
+                                    className="w-full justify-start h-12 text-slate-600"
+                                >
+                                    <Sparkles className="w-5 h-5 mr-3" />
+                                    Evaluate
+                                </Button>
+                            </Link>
+
+                            {/* Revise (Direct Link) */}
+                            <Link to={createPageUrl('Revise')} onClick={() => setMobileMenuOpen(false)}>
+                                <Button
+                                    variant="ghost"
+                                    className={cn(
+                                        "w-full justify-start h-12",
+                                        currentPageName === 'Revise' ? "bg-indigo-50 text-indigo-700" : "text-slate-600"
+                                    )}
+                                >
+                                    <Edit3 className="w-5 h-5 mr-3" />
+                                    Revise
+                                </Button>
+                            </Link>
+
+                            {/* Output Section */}
                             <div>
                                 <Button
                                     variant="ghost"
-                                    onClick={() => toggleMobileSection('evaluate')}
-                                    className="w-full justify-between h-12 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
-                                    aria-label="Evaluate manuscript and create revision suggestions"
+                                    onClick={() => toggleMobileSection('output')}
+                                    className="w-full justify-between h-12 text-slate-600"
                                 >
-                                    <span className="flex items-center font-medium">
-                                        <Sparkles className="w-5 h-5 mr-3" />
-                                        Evaluate & Create
+                                    <span className="flex items-center">
+                                        <Package className="w-5 h-5 mr-3" />
+                                        Output
                                     </span>
-                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.evaluate && "rotate-180")} />
+                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.output && "rotate-180")} />
                                 </Button>
-                                {expandedMobile.evaluate && (
+                                {expandedMobile.output && (
                                     <div className="ml-8 space-y-1 mt-1">
-                                        {evaluatePages.map((item) => (
+                                        {outputPages.map((item) => (
                                             <Link key={item.page} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
                                                 <Button 
                                                     variant="ghost" 
@@ -471,6 +489,20 @@ export default function Layout({ children, currentPageName }) {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Analytics (Direct Link) */}
+                            <Link to={createPageUrl('Analytics')} onClick={() => setMobileMenuOpen(false)}>
+                                <Button
+                                    variant="ghost"
+                                    className={cn(
+                                        "w-full justify-start h-12",
+                                        currentPageName === 'Analytics' ? "bg-indigo-50 text-indigo-700" : "text-slate-600"
+                                    )}
+                                >
+                                    <BarChart3 className="w-5 h-5 mr-3" />
+                                    Analytics
+                                </Button>
+                            </Link>
 
                             {/* Pricing & Enterprise */}
                             <Link to={createPageUrl('Pricing')} onClick={() => setMobileMenuOpen(false)}>
