@@ -26,11 +26,11 @@ const pdfExamples = [
         useCase: 'Cold outreach, email attachments, producer first-look'
     },
     {
-        title: 'Full Pitch Deck (38 pages)',
+        title: 'Full Pitch Deck (39 pages)',
         subtitle: 'Complete Transmedia Vision',
         description: 'Comprehensive deck including board game, ARG, Rocky Horror positioning, and franchise depth',
-        url: 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/d007f1a0e_FilmAdaptationPitchDeckV23V2.pdf',
-        pages: 38,
+        url: 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/5258ee816_Meraw_DominatusI_LostWorldOfMythoamphibia_FilmPitchDeck.pdf',
+        pages: 39,
         useCase: 'In-person meetings, franchise discussions, transmedia depth'
     }
 ];
