@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { 
     ChevronDown, 
     DollarSign, 
@@ -8,7 +9,9 @@ import {
     Award, 
     Users,
     BookOpen,
-    Sparkles
+    Sparkles,
+    Search,
+    X
 } from 'lucide-react';
 import {
     Accordion,
@@ -16,13 +19,41 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
 
 export default function FAQ() {
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Filter FAQ sections based on search
+    const filteredSections = useMemo(() => {
+        if (!searchQuery.trim()) return null;
+
+        const query = searchQuery.toLowerCase();
+        const matches = [];
+
+        // Search through all accordion items
+        document.querySelectorAll('[data-faq-trigger]').forEach((trigger) => {
+            const question = trigger.textContent.toLowerCase();
+            const content = trigger.nextElementSibling?.textContent.toLowerCase() || '';
+            
+            if (question.includes(query) || content.includes(query)) {
+                matches.push({
+                    question: trigger.textContent,
+                    value: trigger.getAttribute('data-faq-value')
+                });
+            }
+        });
+
+        return matches;
+    }, [searchQuery]);
+
+    const clearSearch = () => setSearchQuery('');
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             <div className="max-w-4xl mx-auto px-6 py-12">
                 {/* Header */}
-                <div className="text-center mb-12">
+                <div className="text-center mb-8">
                     <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <Sparkles className="w-4 h-4 mr-2" />
                         Frequently Asked Questions
@@ -34,6 +65,37 @@ export default function FAQ() {
                         Common questions about RevisionGrade™ and professional evaluation
                     </p>
                 </div>
+
+                {/* Search Bar */}
+                <Card className="border-2 border-indigo-200 shadow-lg mb-8">
+                    <CardContent className="pt-6">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                            <Input
+                                type="text"
+                                placeholder="Search FAQs... (e.g., 'pricing', 'AI usage', 'ownership')"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-10 pr-10 h-12 text-base"
+                            />
+                            {searchQuery && (
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={clearSearch}
+                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8"
+                                >
+                                    <X className="w-4 h-4" />
+                                </Button>
+                            )}
+                        </div>
+                        {searchQuery && filteredSections && filteredSections.length === 0 && (
+                            <p className="text-sm text-slate-500 mt-3 text-center">
+                                No results found for "{searchQuery}". Try different keywords.
+                            </p>
+                        )}
+                    </CardContent>
+                </Card>
 
                 {/* Why We Built It This Way */}
                 <Card className="border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white shadow-lg mb-8">
@@ -66,7 +128,7 @@ export default function FAQ() {
                         <CardContent>
                             <Accordion type="single" collapsible className="w-full">
                                 <AccordionItem value="price-comparison">
-                                    <AccordionTrigger>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="price-comparison">
                                         How does RevisionGrade compare to hiring a professional editor?
                                     </AccordionTrigger>
                                     <AccordionContent>
@@ -106,7 +168,7 @@ export default function FAQ() {
                                 </AccordionItem>
 
                                 <AccordionItem value="what-you-get">
-                                    <AccordionTrigger>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="what-you-get">
                                         What do I actually get for $99/month?
                                     </AccordionTrigger>
                                     <AccordionContent>
@@ -135,7 +197,7 @@ export default function FAQ() {
                                 </AccordionItem>
 
                                 <AccordionItem value="free-trial">
-                                    <AccordionTrigger>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="free-trial">
                                         Is there a free trial?
                                     </AccordionTrigger>
                                     <AccordionContent>
