@@ -21,7 +21,7 @@ export default function Home() {
                         transition={{ duration: 0.6 }}
                         className="text-center"
                     >
-                        <h1 className="text-5xl sm:text-6xl font-bold text-indigo-600 tracking-tight leading-tight mb-6">
+                        <h1 className="text-4xl sm:text-5xl font-bold text-indigo-600 tracking-tight leading-tight mb-6">
                             RevisionGrade™ — The Authoritative Revision Framework
                         </h1>
 
