@@ -21,30 +21,56 @@ import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
 import AnalyticsTracker from '@/components/AnalyticsTracker';
 
-// CANONICAL WORKFLOW: Upload → Evaluate → Results → Revise → Output
-const uploadPages = [
-    { name: 'Full Manuscript', page: 'UploadManuscript', icon: BookOpen },
-    { name: 'Chapter/Scene', page: 'Evaluate', icon: FileText },
+// CANONICAL WORKFLOW: Dashboard → Upload → Evaluate → Revise → Convert → Output
+const dashboardPages = [
+    { name: 'Overview', page: 'Dashboard', icon: BarChart3 },
+    { name: 'Analytics', page: 'Analytics', icon: TrendingUp },
 ];
 
-const packagePages = [
-    { name: 'Agent Package', page: 'CompletePackage', icon: Package, highlight: true },
-    { name: 'Film Adaptation Package', page: 'FilmAdaptation', icon: Film, highlight: true },
-    { name: 'Query Letter', page: 'QueryLetter', icon: Mail },
+const evaluatePages = [
+    { name: 'Scene(s) — partial or full', page: 'Evaluate', icon: FileText },
+    { name: 'Chapter(s) — partial or full', page: 'Evaluate', icon: FileText },
+    { name: 'Full Novel / Manuscript', page: 'UploadManuscript', icon: BookOpen },
+    { name: 'Full Screenplay', page: 'Evaluate', icon: Film },
+];
+
+const revisePages = [
+    { name: 'Scene(s) — partial or full', page: 'History', icon: Edit3 },
+    { name: 'Chapter(s) — partial or full', page: 'History', icon: Edit3 },
+    { name: 'Full Novel', page: 'History', icon: BookOpen },
+    { name: 'Full Screenplay', page: 'History', icon: Film },
+];
+
+const convertPages = [
+    { name: 'Chapter(s) → Scene(s)', page: 'ScreenplayFormatter', icon: Film },
+    { name: 'Full Novel → Full Screenplay', page: 'ScreenplayFormatter', icon: Film },
+];
+
+const outputPages = [
     { name: 'Synopsis', page: 'Synopsis', icon: FileText },
     { name: 'Pitch Generator', page: 'PitchGenerator', icon: Target },
-    { name: 'Author Biography', page: 'Biography', icon: User },
     { name: 'Market Comparables', page: 'Comparables', icon: TrendingUp },
-    { name: 'Find Agents', page: 'FindAgents', icon: Users },
-    { name: 'Novel to Screenplay', page: 'ScreenplayFormatter', icon: Film },
+    { name: 'Author Biography', page: 'Biography', icon: User },
+    { name: 'Query Letter', page: 'QueryLetter', icon: Mail },
+    { name: 'Agent Package', page: 'CompletePackage', icon: Package },
+    { name: 'Film Adaptation Package', page: 'FilmAdaptation', icon: Film },
+];
+
+const storygatePages = [
+    { name: 'My Listings', page: 'CreatorStoryGate', icon: FileText },
+    { name: 'Create Listing', page: 'CreateStoryGateListing', icon: Plus },
+    { name: 'Verification Queue', page: 'AdminVerificationQueue', icon: CheckCircle2, adminOnly: true },
 ];
 
 const resourcesPages = [
-    { name: 'Sample Analyses', page: 'SampleAnalyses', icon: FileCheck },
     { name: 'FAQ', page: 'FAQ', icon: HelpCircle },
+    { name: 'Sample Analyses', page: 'SampleAnalyses', icon: FileCheck },
     { name: 'Methodology', page: 'Methodology', icon: FileText },
-    { name: 'WAVE Criteria', page: 'Criteria', icon: FileCheck },
-    { name: 'Security & Ethics', page: 'SecurityAndEthics', icon: Shield },
+];
+
+const pricingPages = [
+    { name: 'Plans', page: 'Pricing', icon: Sparkles },
+    { name: 'Enterprise', page: 'Enterprise', icon: Crown },
 ];
 
 export default function Layout({ children, currentPageName }) {
@@ -156,32 +182,10 @@ export default function Layout({ children, currentPageName }) {
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-56">
-                                    <DropdownMenuItem asChild>
-                                        <Link to={createPageUrl('Dashboard')} className="cursor-pointer">
-                                            <BarChart3 className="w-4 h-4 mr-2" />
-                                            Overview
-                                        </Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem asChild>
-                                        <Link to={createPageUrl('Analytics')} className="cursor-pointer">
-                                            <TrendingUp className="w-4 h-4 mr-2" />
-                                            Analytics
-                                        </Link>
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                        Upload <ChevronDown className="ml-1 h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="w-56">
-                                    {uploadPages.map((item) => (
+                                    {dashboardPages.map((item) => (
                                         <DropdownMenuItem key={item.page} asChild>
-                                            <Link to={createPageUrl(item.page)} className="flex items-center gap-2 cursor-pointer">
-                                                <item.icon className="w-4 h-4" />
+                                            <Link to={createPageUrl(item.page)} className="cursor-pointer">
+                                                <item.icon className="w-4 h-4 mr-2" />
                                                 {item.name}
                                             </Link>
                                         </DropdownMenuItem>
@@ -189,31 +193,59 @@ export default function Layout({ children, currentPageName }) {
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            <Link to={createPageUrl('Evaluate')}>
-                                <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                    Evaluate
-                                </Button>
-                            </Link>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
+                                        Evaluate <ChevronDown className="ml-1 h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-56">
+                                    {evaluatePages.map((item, idx) => (
+                                        <DropdownMenuItem key={idx} asChild>
+                                            <Link to={createPageUrl(item.page)} className="cursor-pointer">
+                                                <item.icon className="w-4 h-4 mr-2" />
+                                                {item.name}
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
 
-                            <Link to={createPageUrl('History')}>
-                                <Button
-                                    variant="ghost"
-                                    className={cn(
-                                        "h-9 px-3 text-sm",
-                                        currentPageName === 'History' 
-                                            ? "bg-indigo-50 text-indigo-700" 
-                                            : "text-slate-600 hover:text-slate-900"
-                                    )}
-                                >
-                                    Revise
-                                </Button>
-                            </Link>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
+                                        Revise <ChevronDown className="ml-1 h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-56">
+                                    {revisePages.map((item, idx) => (
+                                        <DropdownMenuItem key={idx} asChild>
+                                            <Link to={createPageUrl(item.page)} className="cursor-pointer">
+                                                <item.icon className="w-4 h-4 mr-2" />
+                                                {item.name}
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
 
-                            <Link to={createPageUrl('ScreenplayFormatter')}>
-                                <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                    Convert
-                                </Button>
-                            </Link>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
+                                        Convert <ChevronDown className="ml-1 h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-56">
+                                    {convertPages.map((item, idx) => (
+                                        <DropdownMenuItem key={idx} asChild>
+                                            <Link to={createPageUrl(item.page)} className="cursor-pointer">
+                                                <item.icon className="w-4 h-4 mr-2" />
+                                                {item.name}
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
 
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -222,104 +254,74 @@ export default function Layout({ children, currentPageName }) {
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-56">
-                                    {packagePages.map((item) => (
-                                        <DropdownMenuItem 
-                                            key={item.page} 
-                                            asChild
-                                            className={item.highlight ? "bg-indigo-50" : ""}
-                                        >
-                                            <Link to={createPageUrl(item.page)} className="flex items-center gap-2 cursor-pointer">
-                                                <item.icon className="w-4 h-4" />
+                                    {outputPages.map((item) => (
+                                        <DropdownMenuItem key={item.page} asChild>
+                                            <Link to={createPageUrl(item.page)} className="cursor-pointer">
+                                                <item.icon className="w-4 h-4 mr-2" />
                                                 {item.name}
                                             </Link>
                                         </DropdownMenuItem>
                                     ))}
-                                    <DropdownMenuSeparator />
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">Resources</div>
-                                    <DropdownMenuItem asChild>
-                                        <Link to={createPageUrl('FAQ')} className="cursor-pointer">
-                                            <HelpCircle className="w-4 h-4 mr-2" />
-                                            FAQ
-                                        </Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem asChild>
-                                        <Link to={createPageUrl('SampleAnalyses')} className="cursor-pointer">
-                                            <FileCheck className="w-4 h-4 mr-2" />
-                                            Sample Analyses
-                                        </Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem asChild>
-                                        <Link to={createPageUrl('Methodology')} className="cursor-pointer">
-                                            <FileText className="w-4 h-4 mr-2" />
-                                            Methodology
-                                        </Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">More</div>
-                                    <DropdownMenuItem asChild>
-                                        <Link to={createPageUrl('Pricing')} className="cursor-pointer">
-                                            <Sparkles className="w-4 h-4 mr-2" />
-                                            Pricing
-                                        </Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem asChild>
-                                        <Link to={createPageUrl('StorygateStudio')} className="cursor-pointer">
-                                            <Crown className="w-4 h-4 mr-2" />
-                                            Storygate Studio
-                                        </Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem asChild>
-                                        <Link to={createPageUrl('Enterprise')} className="cursor-pointer">
-                                            <Crown className="w-4 h-4 mr-2" />
-                                            Enterprise
-                                        </Link>
-                                    </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
-
-                            {!loading && user && user.role === 'admin' && (
-                                <Link to={createPageUrl('AdminVerificationQueue')}>
-                                    <Button
-                                        variant="ghost"
-                                        className={cn(
-                                            "h-9 px-3 text-sm",
-                                            currentPageName === 'AdminVerificationQueue'
-                                                ? "bg-indigo-50 text-indigo-700"
-                                                : "text-slate-600 hover:text-slate-900"
-                                        )}
-                                    >
-                                        Verification Queue
-                                    </Button>
-                                </Link>
-                            )}
 
                             {!loading && user && (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                            StoryGate <ChevronDown className="ml-1 h-4 w-4" />
+                                            Storygate Studio <ChevronDown className="ml-1 h-4 w-4" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="start" className="w-56">
-                                        <DropdownMenuItem asChild>
-                                            <Link to={createPageUrl('CreatorStoryGate')} className="cursor-pointer">
-                                                My Listings
-                                            </Link>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem asChild>
-                                            <Link to={createPageUrl('CreateStoryGateListing')} className="cursor-pointer">
-                                                Create Listing
-                                            </Link>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem asChild>
-                                            <Link to={createPageUrl('StoryGatePortal')} className="cursor-pointer">
-                                                Industry Portal
-                                            </Link>
-                                        </DropdownMenuItem>
+                                        {storygatePages.map((item) => (
+                                            (!item.adminOnly || user.role === 'admin') && (
+                                                <DropdownMenuItem key={item.page} asChild>
+                                                    <Link to={createPageUrl(item.page)} className="cursor-pointer">
+                                                        <item.icon className="w-4 h-4 mr-2" />
+                                                        {item.name}
+                                                    </Link>
+                                                </DropdownMenuItem>
+                                            )
+                                        ))}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             )}
+
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
+                                        Resources <ChevronDown className="ml-1 h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-56">
+                                    {resourcesPages.map((item) => (
+                                        <DropdownMenuItem key={item.page} asChild>
+                                            <Link to={createPageUrl(item.page)} className="cursor-pointer">
+                                                <item.icon className="w-4 h-4 mr-2" />
+                                                {item.name}
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
+                                        Pricing <ChevronDown className="ml-1 h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-56">
+                                    {pricingPages.map((item) => (
+                                        <DropdownMenuItem key={item.page} asChild>
+                                            <Link to={createPageUrl(item.page)} className="cursor-pointer">
+                                                <item.icon className="w-4 h-4 mr-2" />
+                                                {item.name}
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
 
                         {/* Right side */}
@@ -413,23 +415,23 @@ export default function Layout({ children, currentPageName }) {
 
 
 
-                            {/* Upload Section */}
+                            {/* Evaluate Section */}
                             <div>
                                 <Button
                                     variant="ghost"
-                                    onClick={() => toggleMobileSection('upload')}
+                                    onClick={() => toggleMobileSection('evaluate')}
                                     className="w-full justify-between h-12 text-slate-600"
                                 >
                                     <span className="flex items-center">
-                                        <BookOpen className="w-5 h-5 mr-3" />
-                                        Upload
+                                        <Sparkles className="w-5 h-5 mr-3" />
+                                        Evaluate
                                     </span>
-                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.upload && "rotate-180")} />
+                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.evaluate && "rotate-180")} />
                                 </Button>
-                                {expandedMobile.upload && (
+                                {expandedMobile.evaluate && (
                                     <div className="ml-8 space-y-1 mt-1">
-                                        {uploadPages.map((item) => (
-                                            <Link key={item.page} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
+                                        {evaluatePages.map((item, idx) => (
+                                            <Link key={idx} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
                                                 <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
                                                     <item.icon className="w-4 h-4 mr-2" />
                                                     {item.name}
@@ -440,41 +442,59 @@ export default function Layout({ children, currentPageName }) {
                                 )}
                             </div>
 
-                            {/* Evaluate (Direct Link) */}
-                            <Link to={createPageUrl('Evaluate')} onClick={() => setMobileMenuOpen(false)}>
+                            {/* Revise Section */}
+                            <div>
                                 <Button
                                     variant="ghost"
-                                    className="w-full justify-start h-12 text-slate-600"
+                                    onClick={() => toggleMobileSection('revise')}
+                                    className="w-full justify-between h-12 text-slate-600"
                                 >
-                                    <Sparkles className="w-5 h-5 mr-3" />
-                                    Evaluate
+                                    <span className="flex items-center">
+                                        <Edit3 className="w-5 h-5 mr-3" />
+                                        Revise
+                                    </span>
+                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.revise && "rotate-180")} />
                                 </Button>
-                            </Link>
+                                {expandedMobile.revise && (
+                                    <div className="ml-8 space-y-1 mt-1">
+                                        {revisePages.map((item, idx) => (
+                                            <Link key={idx} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
+                                                <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
+                                                    <item.icon className="w-4 h-4 mr-2" />
+                                                    {item.name}
+                                                </Button>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
 
-                            {/* Revise (Direct Link) */}
-                            <Link to={createPageUrl('History')} onClick={() => setMobileMenuOpen(false)}>
+                            {/* Convert Section */}
+                            <div>
                                 <Button
                                     variant="ghost"
-                                    className={cn(
-                                        "w-full justify-start h-12",
-                                        currentPageName === 'History' ? "bg-indigo-50 text-indigo-700" : "text-slate-600"
-                                    )}
+                                    onClick={() => toggleMobileSection('convert')}
+                                    className="w-full justify-between h-12 text-slate-600"
                                 >
-                                    <Edit3 className="w-5 h-5 mr-3" />
-                                    Revise
+                                    <span className="flex items-center">
+                                        <Film className="w-5 h-5 mr-3" />
+                                        Convert
+                                    </span>
+                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.convert && "rotate-180")} />
                                 </Button>
-                            </Link>
-
-                            {/* Convert (Direct Link) */}
-                            <Link to={createPageUrl('ScreenplayFormatter')} onClick={() => setMobileMenuOpen(false)}>
-                                <Button
-                                    variant="ghost"
-                                    className="w-full justify-start h-12 text-slate-600"
-                                >
-                                    <Film className="w-5 h-5 mr-3" />
-                                    Convert
-                                </Button>
-                            </Link>
+                                {expandedMobile.convert && (
+                                    <div className="ml-8 space-y-1 mt-1">
+                                        {convertPages.map((item, idx) => (
+                                            <Link key={idx} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
+                                                <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
+                                                    <item.icon className="w-4 h-4 mr-2" />
+                                                    {item.name}
+                                                </Button>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Output Section */}
                             <div>
@@ -491,15 +511,9 @@ export default function Layout({ children, currentPageName }) {
                                 </Button>
                                 {expandedMobile.output && (
                                     <div className="ml-8 space-y-1 mt-1">
-                                        {packagePages.map((item) => (
+                                        {outputPages.map((item) => (
                                             <Link key={item.page} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
-                                                <Button 
-                                                    variant="ghost" 
-                                                    className={cn(
-                                                        "w-full justify-start h-10 text-sm",
-                                                        item.highlight ? "text-indigo-600" : "text-slate-600"
-                                                    )}
-                                                >
+                                                <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
                                                     <item.icon className="w-4 h-4 mr-2" />
                                                     {item.name}
                                                 </Button>
@@ -509,35 +523,36 @@ export default function Layout({ children, currentPageName }) {
                                 )}
                             </div>
 
-                            {/* Pricing & Enterprise */}
-                            <Link to={createPageUrl('Pricing')} onClick={() => setMobileMenuOpen(false)}>
-                                <Button 
-                                    variant="ghost"
-                                    className={cn(
-                                        "w-full justify-start h-12",
-                                        currentPageName === 'Pricing' ? "bg-indigo-50 text-indigo-700" : "text-slate-600"
+                            {/* Storygate Studio Section */}
+                            {user && (
+                                <div>
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => toggleMobileSection('storygate')}
+                                        className="w-full justify-between h-12 text-slate-600"
+                                    >
+                                        <span className="flex items-center">
+                                            <Crown className="w-5 h-5 mr-3" />
+                                            Storygate Studio
+                                        </span>
+                                        <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.storygate && "rotate-180")} />
+                                    </Button>
+                                    {expandedMobile.storygate && (
+                                        <div className="ml-8 space-y-1 mt-1">
+                                            {storygatePages.map((item) => (
+                                                (!item.adminOnly || user.role === 'admin') && (
+                                                    <Link key={item.page} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
+                                                        <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
+                                                            <item.icon className="w-4 h-4 mr-2" />
+                                                            {item.name}
+                                                        </Button>
+                                                    </Link>
+                                                )
+                                            ))}
+                                        </div>
                                     )}
-                                >
-                                    <Sparkles className="w-5 h-5 mr-3" />
-                                    Pricing
-                                </Button>
-                            </Link>
-
-                            <Link to={createPageUrl('StorygateStudio')} onClick={() => setMobileMenuOpen(false)}>
-                                <Button className="w-full justify-start h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white">
-                                    <Crown className="w-5 h-5 mr-3" />
-                                    Storygate Studio
-                                </Button>
-                            </Link>
-
-                            <Link to={createPageUrl('Enterprise')} onClick={() => setMobileMenuOpen(false)}>
-                                <Button className="w-full justify-start h-12 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white">
-                                    <Crown className="w-5 h-5 mr-3" />
-                                    Enterprise
-                                </Button>
-                            </Link>
-
-                            <div className="border-t border-slate-200 my-2" />
+                                </div>
+                            )}
 
                             {/* Resources Section */}
                             <div>
@@ -554,55 +569,46 @@ export default function Layout({ children, currentPageName }) {
                                 </Button>
                                 {expandedMobile.resources && (
                                     <div className="ml-8 space-y-1 mt-1">
-                                        <div>
-                                            <Button
-                                                variant="ghost"
-                                                onClick={() => toggleMobileSection('sampleAnalyses')}
-                                                className="w-full justify-between h-10 text-sm text-slate-600"
-                                            >
-                                                <span className="flex items-center">
-                                                    <FileCheck className="w-4 h-4 mr-2" />
-                                                    Sample Analyses
-                                                </span>
-                                                <ChevronDown className={cn("w-4 h-4 transition-transform", expandedMobile.sampleAnalyses && "rotate-180")} />
-                                            </Button>
-                                            {expandedMobile.sampleAnalyses && (
-                                                <div className="ml-6 space-y-1 mt-1">
-                                                    <Link to={createPageUrl('SampleAnalyses')} onClick={() => setMobileMenuOpen(false)}>
-                                                        <Button variant="ghost" className="w-full justify-start h-9 text-xs text-slate-600">
-                                                            Overview
-                                                        </Button>
-                                                    </Link>
-                                                    <Link to={createPageUrl('SampleChapterAnalysis')} onClick={() => setMobileMenuOpen(false)}>
-                                                        <Button variant="ghost" className="w-full justify-start h-9 text-xs text-slate-600">
-                                                            Executive Summary (12 pages)
-                                                        </Button>
-                                                    </Link>
-                                                    <Link to={createPageUrl('SampleComparativeAnalysis')} onClick={() => setMobileMenuOpen(false)}>
-                                                        <Button variant="ghost" className="w-full justify-start h-9 text-xs text-slate-600">
-                                                            Full Pitch Deck (39 pages)
-                                                        </Button>
-                                                    </Link>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <Link to={createPageUrl('FAQ')} onClick={() => setMobileMenuOpen(false)}>
-                                           <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
-                                               <HelpCircle className="w-4 h-4 mr-2" />
-                                               FAQ
-                                           </Button>
-                                        </Link>
-                                        {resourcesPages.filter(item => item.page !== 'SampleAnalyses' && item.page !== 'FAQ').map((item) => (
-                                           <Link key={item.page} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
-                                               <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
-                                                   <item.icon className="w-4 h-4 mr-2" />
-                                                   {item.name}
-                                               </Button>
-                                           </Link>
+                                        {resourcesPages.map((item) => (
+                                            <Link key={item.page} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
+                                                <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
+                                                    <item.icon className="w-4 h-4 mr-2" />
+                                                    {item.name}
+                                                </Button>
+                                            </Link>
                                         ))}
                                     </div>
                                 )}
                             </div>
+
+                            {/* Pricing Section */}
+                            <div>
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => toggleMobileSection('pricing')}
+                                    className="w-full justify-between h-12 text-slate-600"
+                                >
+                                    <span className="flex items-center">
+                                        <Sparkles className="w-5 h-5 mr-3" />
+                                        Pricing
+                                    </span>
+                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.pricing && "rotate-180")} />
+                                </Button>
+                                {expandedMobile.pricing && (
+                                    <div className="ml-8 space-y-1 mt-1">
+                                        {pricingPages.map((item) => (
+                                            <Link key={item.page} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
+                                                <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
+                                                    <item.icon className="w-4 h-4 mr-2" />
+                                                    {item.name}
+                                                </Button>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="border-t border-slate-200 my-2" />
 
                             <div className="border-t border-slate-200 my-2" />
 

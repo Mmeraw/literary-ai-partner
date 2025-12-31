@@ -1,3 +1,4 @@
+import AdminVerificationQueue from './pages/AdminVerificationQueue';
 import Analytics from './pages/Analytics';
 import Biography from './pages/Biography';
 import ChapterReport from './pages/ChapterReport';
@@ -5,6 +6,7 @@ import Comparables from './pages/Comparables';
 import ComparativeReport from './pages/ComparativeReport';
 import CompletePackage from './pages/CompletePackage';
 import Contact from './pages/Contact';
+import CreateStoryGateListing from './pages/CreateStoryGateListing';
 import CreatorStoryGate from './pages/CreatorStoryGate';
 import Criteria from './pages/Criteria';
 import Dashboard from './pages/Dashboard';
@@ -56,12 +58,11 @@ import UploadWork from './pages/UploadWork';
 import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
-import AdminVerificationQueue from './pages/AdminVerificationQueue';
-import CreateStoryGateListing from './pages/CreateStoryGateListing';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "AdminVerificationQueue": AdminVerificationQueue,
     "Analytics": Analytics,
     "Biography": Biography,
     "ChapterReport": ChapterReport,
@@ -69,6 +70,7 @@ export const PAGES = {
     "ComparativeReport": ComparativeReport,
     "CompletePackage": CompletePackage,
     "Contact": Contact,
+    "CreateStoryGateListing": CreateStoryGateListing,
     "CreatorStoryGate": CreatorStoryGate,
     "Criteria": Criteria,
     "Dashboard": Dashboard,
@@ -120,8 +122,6 @@ export const PAGES = {
     "ValidationReport": ValidationReport,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
-    "AdminVerificationQueue": AdminVerificationQueue,
-    "CreateStoryGateListing": CreateStoryGateListing,
 }
 
 export const pagesConfig = {
