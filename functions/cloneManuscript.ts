@@ -1,0 +1,72 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { manuscript_id } = await req.json();
+
+        if (!manuscript_id) {
+            return Response.json({ error: 'manuscript_id required' }, { status: 400 });
+        }
+
+        // Fetch original manuscript
+        const manuscripts = await base44.entities.Manuscript.filter({ id: manuscript_id });
+        const original = manuscripts[0];
+
+        if (!original) {
+            return Response.json({ error: 'Manuscript not found' }, { status: 404 });
+        }
+
+        if (original.created_by !== user.email) {
+            return Response.json({ error: 'Forbidden: You do not own this manuscript' }, { status: 403 });
+        }
+
+        // Create clone with parent reference
+        const cloneData = {
+            title: `${original.title} (Clone)`,
+            full_text: original.full_text,
+            word_count: original.word_count,
+            language_variant: original.language_variant,
+            evaluation_mode: original.evaluation_mode,
+            market_path: original.market_path,
+            parent_manuscript_id: manuscript_id,
+            status: 'uploaded',
+            is_final: false
+        };
+
+        const clonedManuscript = await base44.entities.Manuscript.create(cloneData);
+
+        // Create audit log
+        await base44.entities.Analytics.create({
+            page: 'ManuscriptDashboard',
+            path: `/manuscript/${manuscript_id}`,
+            event_type: 'manuscript_cloned',
+            user_id: user.id,
+            metadata: {
+                original_manuscript_id: manuscript_id,
+                cloned_manuscript_id: clonedManuscript.id,
+                original_title: original.title,
+                cloned_title: cloneData.title,
+                cloned_by: user.email,
+                cloned_at: new Date().toISOString()
+            }
+        });
+
+        return Response.json({ 
+            success: true,
+            message: 'Manuscript cloned successfully',
+            cloned_manuscript_id: clonedManuscript.id,
+            original_manuscript_id: manuscript_id
+        });
+
+    } catch (error) {
+        console.error('Error cloning manuscript:', error);
+        return Response.json({ error: error.message }, { status: 500 });
+    }
+});

@@ -1,0 +1,74 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { manuscript_id, note } = await req.json();
+
+        if (!manuscript_id) {
+            return Response.json({ error: 'manuscript_id required' }, { status: 400 });
+        }
+
+        // Fetch manuscript
+        const manuscripts = await base44.entities.Manuscript.filter({ id: manuscript_id });
+        const manuscript = manuscripts[0];
+
+        if (!manuscript) {
+            return Response.json({ error: 'Manuscript not found' }, { status: 404 });
+        }
+
+        if (manuscript.created_by !== user.email) {
+            return Response.json({ error: 'Forbidden: You do not own this manuscript' }, { status: 403 });
+        }
+
+        if (manuscript.is_final) {
+            return Response.json({ error: 'Manuscript is already marked as Final' }, { status: 400 });
+        }
+
+        // Check if manuscript is ready for finalization
+        if (!manuscript.spine_completed_at) {
+            return Response.json({ 
+                error: 'Manuscript must complete evaluation before marking as Final' 
+            }, { status: 400 });
+        }
+
+        // Mark as final with audit info
+        await base44.entities.Manuscript.update(manuscript_id, {
+            is_final: true,
+            finalized_at: new Date().toISOString(),
+            finalized_by: user.email,
+            finalization_note: note || null
+        });
+
+        // Create audit log entry
+        await base44.entities.Analytics.create({
+            page: 'ManuscriptDashboard',
+            path: `/manuscript/${manuscript_id}`,
+            event_type: 'manuscript_finalized',
+            user_id: user.id,
+            metadata: {
+                manuscript_id,
+                manuscript_title: manuscript.title,
+                finalized_by: user.email,
+                finalized_at: new Date().toISOString(),
+                note: note || null
+            }
+        });
+
+        return Response.json({ 
+            success: true,
+            message: 'Manuscript marked as Final and locked',
+            manuscript_id 
+        });
+
+    } catch (error) {
+        console.error('Error marking manuscript as final:', error);
+        return Response.json({ error: error.message }, { status: 500 });
+    }
+});
