@@ -39,20 +39,20 @@ export default function Dashboard() {
 
     const isLoading = loadingSubmissions || loadingManuscripts || loadingSessions;
 
-    // Compute metrics
+    // Compute metrics (CANONICAL SPEC v1.1)
     const metrics = useMemo(() => {
         const totalWorks = submissions.length + manuscripts.length;
         const evaluationsCompleted = submissions.filter(s => s.status === 'reviewed').length + 
-                                     manuscripts.filter(m => m.status === 'ready').length;
-        const activeRevisions = revisionSessions.filter(s => s.status === 'in_progress').length;
-        const finalVersions = revisionSessions.filter(s => s.status === 'completed').length;
+                                     manuscripts.filter(m => m.spine_completed_at).length;
+        const activeRevisions = revisionSessions.filter(s => ['queued', 'running', 'paused'].includes(s.status)).length;
+        const finalVersions = manuscripts.filter(m => m.is_final).length;
         
         return {
             totalWorks,
             evaluationsCompleted,
             activeRevisions,
             finalVersions,
-            outputsGenerated: 0 // TODO: track outputs
+            outputsGenerated: 0 // TODO: track package generation
         };
     }, [submissions, manuscripts, revisionSessions]);
 
@@ -199,52 +199,132 @@ export default function Dashboard() {
                     </CardContent>
                 </Card>
 
-                {/* Activity Modules */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Latest Evaluations */}
+                {/* Activity Modules - CANONICAL SPEC v1.1 */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                    {/* Evaluations (Latest per Work) */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Latest Evaluations</CardTitle>
+                            <CardTitle>Evaluations (Latest per Work)</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-3">
                                 {[...manuscripts, ...submissions]
+                                    .filter(w => 
+                                        (w.spine_completed_at) || 
+                                        (w.status === 'reviewed')
+                                    )
                                     .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
                                     .slice(0, 5)
                                     .map(work => (
                                         <WorkRow key={work.id} work={work} />
                                     ))}
-                                {manuscripts.length === 0 && submissions.length === 0 && (
+                                {manuscripts.filter(m => m.spine_completed_at).length === 0 && 
+                                 submissions.filter(s => s.status === 'reviewed').length === 0 && (
                                     <p className="text-sm text-slate-500 text-center py-8">No evaluations yet</p>
                                 )}
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Error Frequency Analytics */}
+                    {/* Revisions & Creations (Active) */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Top Error Types</CardTitle>
+                            <CardTitle>Revisions & Creations (Active)</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                {revisionSessions
+                                    .filter(s => ['queued', 'running', 'paused'].includes(s.status))
+                                    .slice(0, 5)
+                                    .map(session => (
+                                        <div key={session.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 border border-slate-100">
+                                            <div className="flex-1">
+                                                <h4 className="font-medium text-sm text-slate-900">{session.title}</h4>
+                                                <p className="text-xs text-slate-600">Mode: Revision Session</p>
+                                            </div>
+                                            <Link to={createPageUrl(`Revise?sessionId=${session.id}`)}>
+                                                <Button size="sm" variant="outline">Continue</Button>
+                                            </Link>
+                                        </div>
+                                    ))}
+                                {revisionSessions.filter(s => ['queued', 'running', 'paused'].includes(s.status)).length === 0 && (
+                                    <p className="text-sm text-slate-500 text-center py-8">No active revisions</p>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Final Versions + Analytics Snapshot */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Final Versions (flagged) */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Final Versions</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                {manuscripts
+                                    .filter(m => m.is_final)
+                                    .map(m => (
+                                        <div key={m.id} className="p-4 rounded-lg border border-green-200 bg-green-50">
+                                            <div className="flex items-start justify-between mb-3">
+                                                <div className="flex-1">
+                                                    <h4 className="font-medium text-sm text-slate-900">{m.title}</h4>
+                                                    <p className="text-xs text-slate-600 mt-1">
+                                                        Locked {format(new Date(m.updated_date), 'MMM d, yyyy')}
+                                                    </p>
+                                                </div>
+                                                <Badge className="bg-green-100 text-green-700 border-green-300">Final</Badge>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <Link to={createPageUrl('CompletePackage')}>
+                                                    <Button size="sm" variant="outline" className="text-xs">
+                                                        Prepare Agent Package
+                                                    </Button>
+                                                </Link>
+                                                <Link to={createPageUrl('FilmAdaptation')}>
+                                                    <Button size="sm" variant="outline" className="text-xs">
+                                                        Prepare Film
+                                                    </Button>
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    ))}
+                                {manuscripts.filter(m => m.is_final).length === 0 && (
+                                    <p className="text-sm text-slate-500 text-center py-8">No final versions yet</p>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Analytics Snapshot */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Analytics Snapshot</CardTitle>
+                            <p className="text-xs text-slate-600 mt-1">Top Issues + Trends + Status</p>
                         </CardHeader>
                         <CardContent>
                             {errorFrequency.length > 0 ? (
-                                <ResponsiveContainer width="100%" height={300}>
-                                    <BarChart data={errorFrequency}>
-                                        <XAxis 
-                                            dataKey="name" 
-                                            angle={-45} 
-                                            textAnchor="end" 
-                                            height={100}
-                                            tick={{ fontSize: 11 }}
-                                        />
-                                        <YAxis />
-                                        <Tooltip />
-                                        <Bar dataKey="count" fill="#6366f1" />
-                                    </BarChart>
-                                </ResponsiveContainer>
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        {errorFrequency.slice(0, 5).map((error, idx) => (
+                                            <div key={idx} className="flex items-center justify-between p-2 rounded bg-slate-50">
+                                                <span className="text-sm text-slate-900 truncate flex-1">{error.name}</span>
+                                                <Badge variant="secondary" className="ml-2">{error.count}</Badge>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="pt-3 border-t border-slate-200 text-center">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <TrendingUp className="w-4 h-4 text-emerald-600" />
+                                            <span className="text-sm font-medium text-emerald-600">Improving</span>
+                                        </div>
+                                    </div>
+                                </div>
                             ) : (
                                 <p className="text-sm text-slate-500 text-center py-8">
-                                    No error data yet. Complete a full manuscript evaluation to see insights.
+                                    No data yet. Complete evaluations to see insights.
                                 </p>
                             )}
                         </CardContent>
