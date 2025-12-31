@@ -21,7 +21,7 @@ import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
 import AnalyticsTracker from '@/components/AnalyticsTracker';
 
-// CANONICAL WORKFLOW: Evaluate → Revise → Finalize → Package
+// CANONICAL WORKFLOW: Upload → Evaluate → Results → Revise → Output
 const uploadPages = [
     { name: 'Full Manuscript', page: 'UploadManuscript', icon: BookOpen },
     { name: 'Chapter/Scene', page: 'Evaluate', icon: FileText },
@@ -147,7 +147,7 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                         </Link>
 
-                        {/* Desktop Navigation - STATE-BASED WORKFLOW */}
+                        {/* Desktop Navigation - CANONICAL WORKFLOW */}
                         <div className="hidden md:flex items-center gap-1 flex-1">
                             <Link to={createPageUrl('Dashboard')}>
                                 <Button
@@ -201,16 +201,10 @@ export default function Layout({ children, currentPageName }) {
                                 </Button>
                             </Link>
 
-                            <Link to={createPageUrl('Dashboard')}>
-                                <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                    Finalize
-                                </Button>
-                            </Link>
-
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                        Packages <ChevronDown className="ml-1 h-4 w-4" />
+                                        Output <ChevronDown className="ml-1 h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-56">
@@ -456,28 +450,20 @@ export default function Layout({ children, currentPageName }) {
                                 </Button>
                             </Link>
 
-                            {/* Finalize (Direct Link) */}
-                            <Link to={createPageUrl('Dashboard')} onClick={() => setMobileMenuOpen(false)}>
-                                <Button variant="ghost" className="w-full justify-start h-12 text-slate-600">
-                                    <CheckCircle2 className="w-5 h-5 mr-3" />
-                                    Finalize
-                                </Button>
-                            </Link>
-
-                            {/* Packages Section */}
+                            {/* Output Section */}
                             <div>
                                 <Button
                                     variant="ghost"
-                                    onClick={() => toggleMobileSection('packages')}
+                                    onClick={() => toggleMobileSection('output')}
                                     className="w-full justify-between h-12 text-slate-600"
                                 >
                                     <span className="flex items-center">
                                         <Package className="w-5 h-5 mr-3" />
-                                        Packages
+                                        Output
                                     </span>
-                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.packages && "rotate-180")} />
+                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.output && "rotate-180")} />
                                 </Button>
-                                {expandedMobile.packages && (
+                                {expandedMobile.output && (
                                     <div className="ml-8 space-y-1 mt-1">
                                         {packagePages.map((item) => (
                                             <Link key={item.page} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>

@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Loader2, BookOpen, CheckCircle2, Edit3, Package, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -76,7 +77,7 @@ export default function Dashboard() {
             .slice(0, 10);
     }, [chapters]);
 
-    // Pipeline categorization (STATE-BASED)
+    // Pipeline categorization (CANONICAL WORKFLOW)
     const pipeline = useMemo(() => {
         const allWorks = [
             ...manuscripts.map(m => ({ 
@@ -85,6 +86,7 @@ export default function Dashboard() {
                 title: m.title,
                 score: m.spine_score ? Math.round(m.spine_score * 10) : null,
                 status: m.status,
+                is_final: m.is_final || false,
                 lastActivity: m.updated_date || m.created_date
             })),
             ...submissions.map(s => ({ 
@@ -93,15 +95,16 @@ export default function Dashboard() {
                 title: s.title,
                 score: s.overall_score ? Math.round(s.overall_score * 10) : null,
                 status: s.status,
+                is_final: false,
                 lastActivity: s.updated_date || s.created_date
             }))
         ];
 
         return {
-            evaluate: allWorks.filter(w => ['uploaded', 'splitting', 'draft', 'summarizing', 'evaluating', 'spine_evaluating'].includes(w.status)),
-            revise: allWorks.filter(w => ['ready', 'reviewed'].includes(w.status)),
-            final: allWorks.filter(w => w.status === 'finalized'),
-            packages: [] // TODO: track package generation
+            upload: allWorks.filter(w => ['uploaded', 'splitting', 'draft'].includes(w.status)),
+            evaluate: allWorks.filter(w => ['summarizing', 'evaluating', 'spine_evaluating'].includes(w.status)),
+            revise: allWorks.filter(w => ['ready', 'reviewed'].includes(w.status) && !w.is_final),
+            output: allWorks.filter(w => w.is_final)
         };
     }, [manuscripts, submissions]);
 
@@ -158,18 +161,18 @@ export default function Dashboard() {
                     />
                 </div>
 
-                {/* Pipeline Board - STATE-BASED */}
+                {/* Pipeline Board - CANONICAL WORKFLOW */}
                 <Card className="mb-8">
                     <CardHeader>
-                        <CardTitle>Project Pipeline</CardTitle>
-                        <p className="text-sm text-slate-600 mt-1">Evaluate → Revise → Finalize → Package</p>
+                        <CardTitle>Pipeline Overview</CardTitle>
+                        <p className="text-sm text-slate-600 mt-1">Upload → Evaluate → Revise → Output</p>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <PipelineColumn title="Upload" works={pipeline.upload} stage="upload" />
                             <PipelineColumn title="Evaluate" works={pipeline.evaluate} stage="evaluate" />
                             <PipelineColumn title="Revise" works={pipeline.revise} stage="revise" />
-                            <PipelineColumn title="Final" works={pipeline.final} stage="final" />
-                            <PipelineColumn title="Packages" works={pipeline.packages} stage="packages" />
+                            <PipelineColumn title="Output" works={pipeline.output} stage="output" />
                         </div>
                     </CardContent>
                 </Card>
@@ -267,10 +270,10 @@ function PipelineColumn({ title, works, stage }) {
 
 function WorkCard({ work, stage }) {
     const getNextAction = () => {
+        if (stage === 'upload') return 'Start Evaluation';
         if (stage === 'evaluate') return 'View Progress';
         if (stage === 'revise') return 'Continue';
-        if (stage === 'final') return 'Build Package';
-        return 'Export';
+        return 'Build Package';
     };
 
     const getLink = () => {
@@ -280,12 +283,20 @@ function WorkCard({ work, stage }) {
         return createPageUrl(`ViewReport?submissionId=${work.id}`);
     };
 
+    const getBadge = () => {
+        if (work.is_final) return <Badge className="text-xs bg-green-100 text-green-700">Final</Badge>;
+        return null;
+    };
+
     return (
         <Card className="hover:shadow-md transition-shadow">
             <CardContent className="p-3">
-                <h4 className="font-medium text-sm text-slate-900 mb-2 truncate">
-                    {work.title}
-                </h4>
+                <div className="flex items-start justify-between mb-2">
+                    <h4 className="font-medium text-sm text-slate-900 truncate flex-1">
+                        {work.title}
+                    </h4>
+                    {getBadge()}
+                </div>
                 <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
                     <span>{work.type === 'manuscript' ? 'Novel' : 'Scene'}</span>
                     {work.score && (
