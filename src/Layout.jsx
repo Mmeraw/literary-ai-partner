@@ -15,7 +15,7 @@ import {
 import { 
     BookOpen, Sparkles, Menu, X, LogOut, BarChart3,
     ChevronDown, FileText, Film, Target, TrendingUp,
-    Users, Mail, HelpCircle, FileCheck, User, Crown, Package, Edit3, CheckCircle2, Shield
+    Users, Mail, HelpCircle, FileCheck, User, Crown, Package, Edit3, CheckCircle2, Shield, Plus
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
