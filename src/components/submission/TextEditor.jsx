@@ -4,10 +4,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Type } from 'lucide-react';
+import RichTextEditor from '@/components/RichTextEditor';
 
 export default function TextEditor({ title, setTitle, text, setText }) {
-    const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
-    const charCount = text.length;
+    const plainText = text.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ');
+    const wordCount = plainText.trim() ? plainText.trim().split(/\s+/).filter(w => w).length : 0;
+    const charCount = plainText.length;
 
     return (
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
@@ -37,12 +39,11 @@ export default function TextEditor({ title, setTitle, text, setText }) {
                     <Label htmlFor="text" className="text-sm font-medium text-slate-600">
                         Draft Text
                     </Label>
-                    <Textarea
-                        id="text"
+                    <RichTextEditor
                         value={text}
-                        onChange={(e) => setText(e.target.value)}
+                        onChange={setText}
                         placeholder="Paste your draft paragraph, chapter, or scene here..."
-                        className="min-h-[400px] bg-white border-slate-200 focus:border-indigo-400 focus:ring-indigo-400/20 transition-all resize-none leading-relaxed text-slate-700"
+                        minHeight="400px"
                     />
                 </div>
 
