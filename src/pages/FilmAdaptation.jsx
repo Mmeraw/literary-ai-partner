@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import RichTextEditor from '@/components/RichTextEditor';
 import { 
     Film, Sparkles, Check, Download, ArrowRight, 
     FileText, Target, TrendingUp, Zap, BookOpen, Loader2, Upload, CheckCircle2
@@ -430,11 +431,11 @@ export default function FilmAdaptation() {
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
                                     Logline (Optional)
                                 </label>
-                                <Textarea
+                                <RichTextEditor
                                     value={manuscriptData.logline}
-                                    onChange={(e) => setManuscriptData(prev => ({ ...prev, logline: e.target.value }))}
+                                    onChange={(value) => setManuscriptData(prev => ({ ...prev, logline: value }))}
                                     placeholder="When an amphibian empire faces extinction..."
-                                    className="h-20"
+                                    minHeight="120px"
                                 />
                             </div>
 
@@ -445,23 +446,22 @@ export default function FilmAdaptation() {
                                 
                                 {/* Primary: Paste */}
                                 <div className="mb-4">
-                                    <Textarea
+                                    <RichTextEditor
                                         value={manuscriptData.manuscriptText}
-                                        onChange={(e) => {
-                                            const text = e.target.value;
-                                            const wordCount = text.split(/\s+/).filter(w => w).length;
+                                        onChange={(value) => {
+                                            const wordCount = value.replace(/<[^>]*>/g, '').split(/\s+/).filter(w => w).length;
                                             if (wordCount > 250000) {
                                                 toast.error('Text exceeds 250,000 word limit');
                                                 return;
                                             }
-                                            setManuscriptData(prev => ({ ...prev, manuscriptText: text }));
+                                            setManuscriptData(prev => ({ ...prev, manuscriptText: value }));
                                         }}
                                         placeholder="✏️ Paste your manuscript or screenplay text here (fastest)"
-                                        className="min-h-[280px] font-mono text-sm"
+                                        minHeight="320px"
                                     />
                                     {manuscriptData.manuscriptText && (
                                         <p className="text-sm text-emerald-600 mt-2">
-                                            ✓ Loaded {manuscriptData.manuscriptText.split(/\s+/).filter(w => w).length.toLocaleString()} words
+                                            ✓ Loaded {manuscriptData.manuscriptText.replace(/<[^>]*>/g, '').split(/\s+/).filter(w => w).length.toLocaleString()} words
                                         </p>
                                     )}
                                 </div>
