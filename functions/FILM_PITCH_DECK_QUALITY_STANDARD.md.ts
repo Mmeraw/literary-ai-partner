@@ -1,8 +1,53 @@
 # Film Pitch Deck Quality Standard
 **RevisionGrade™ Production-Ready Deck Template**
 
+## Core Philosophy
+**"Translate the soul. Do not sanitize it."**
+
+Translation, not transformation — interpret for industry audiences without rewriting authorial intent.
+
 ## Gold Standard Reference
 **Cartel Babies Film Pitch Deck** — Production-ready model demonstrating all target qualities.
+
+---
+
+## CARDINAL PRINCIPLES (Pre-Output Mindset)
+
+### 1. Translation, Not Transformation
+The deck must interpret the novel for industry audiences, not rewrite its meaning.
+- ❌ No thematic simplification that alters authorial intent
+- ✅ Compression may summarize, but not reframe
+
+### 2. Compression Without Sanitization
+Violence, trauma, and moral ambiguity may be summarized but never reframed as redemptive, inspirational, or uplifting unless explicitly present in the text.
+- ❌ Do not aestheticize suffering or turn brutality into spectacle
+- ✅ Convey tone and atmosphere without sanitizing
+
+### 3. Market Language ≠ Moral Softening
+Phrases like "survival," "found family," or "redemption" may be used only as shorthand for accessibility—not as tonal replacements for the novel's darker realities.
+- ❌ "Hero upgrade" for market appeal
+- ✅ Psychological contradictions and unresolved tensions remain
+
+### 4. Character Integrity First
+Protagonists must retain their psychological contradictions and unresolved tensions.
+- ❌ No "hero arc" imposed where none exists
+- ✅ "Not about becoming X, but about surviving Y"
+
+### 5. Visual Translation, Not Stylization
+Descriptions should convey tone and atmosphere without aestheticizing suffering or turning brutality into spectacle.
+- ❌ "Gorgeously brutal" or "beautifully tragic"
+- ✅ "Claustrophobic canvas, harsh light, chemical haze"
+
+### 6. Producer-Oriented Clarity
+The deck should clearly answer:
+- Why this story now?
+- Why this format?
+- Why this creative approach?
+
+Without flattening complexity.
+
+### 7. Tone Consistency Rule (Final Gate)
+**If a sentence would feel dishonest or reductive if spoken by a character in the story, it does not belong in the deck.**
 
 ---
 
@@ -14,11 +59,13 @@
 - **True stakes** — emotional and relational, not just survival
 - **Tonal lane** — prestige thriller vs pulp vs mythic; no genre drift
 - **Dual-protagonist parity** — when applicable, both arcs get equal weight
+- **Moral ambiguity** — no simplification for market appeal
 
 ### Structure & Pacing
 - **Character psychology over plot summary** — arcs, not events
 - **No plot invention** — compress only; never invent optimism or resolution
 - **Scene evidence over generic craft advice** — specific to manuscript
+- **Unresolved tensions** — preserved, not artificially resolved
 
 ---
 
@@ -60,6 +107,9 @@
 - ❌ Shift genre (thriller → comedy, prestige → pulp)
 - ❌ Compress character arcs into plot summaries
 - ❌ Use abstract worldbuilding over character stakes
+- ❌ Reframe violence/trauma as redemptive unless textually supported
+- ❌ Impose "hero upgrade" for market appeal
+- ❌ Aestheticize suffering or turn brutality into spectacle
 
 ### Structure Violations
 - ❌ Wall-of-text slides (dense executive summary style)
@@ -72,6 +122,7 @@
 - ❌ "Dark fairy tale" unless manuscript supports it
 - ❌ "Eco-horror" unless manuscript demonstrates it
 - ❌ Director names (e.g., "Del Toro") without thematic match
+- ❌ Language that characters would find dishonest or reductive
 
 ---
 
@@ -140,6 +191,9 @@
 - "Amphibian Empire: Aqua World mythology, rituals, and survival under threat"
 - Worldbuilding-dense, not cinematically articulated
 
+**Anti-pattern:**
+- "Gorgeously brutal" or "beautifully tragic" — aestheticizing suffering
+
 ---
 
 ## BUDGET & TIMELINE STANDARD
@@ -168,6 +222,7 @@
 **Bad:**
 - Generic: "protagonist must survive and escape"
 - Plot-driven: "guy escapes cartel"
+- Hero upgrade: "transforms into a warrior"
 
 ---
 
@@ -208,6 +263,7 @@
 
 Before delivering a pitch deck, verify:
 
+### Structural Gates
 1. ✅ **Tagline** — emotional hook before theme statement?
 2. ✅ **Logline** — character-driven, not plot-driven?
 3. ✅ **Protagonists** — arc articulation ("not about X, but about Y")?
@@ -216,8 +272,19 @@ Before delivering a pitch deck, verify:
 6. ✅ **Comps** — 4 films, thematically precise, box office data, budget-aligned?
 7. ✅ **Budget & Timeline** — range, justification, timeline?
 8. ✅ **Modular Structure** — one idea per slide, deck breathes?
+
+### Fidelity Gates (Cardinal Principles)
 9. ✅ **No Plot Invention** — compressed only, no optimism added?
-10. ✅ **Franchise Potential** — grounded in story logic?
+10. ✅ **No Sanitization** — violence/trauma not reframed as redemptive?
+11. ✅ **Character Integrity** — psychological contradictions retained?
+12. ✅ **Tone Consistency** — would a character say this without irony?
+13. ✅ **No Hero Upgrade** — protagonist arc not simplified for market appeal?
+14. ✅ **Visual Translation** — atmosphere conveyed without aestheticizing suffering?
+
+### Producer-Oriented Gates
+15. ✅ **Franchise Potential** — grounded in story logic?
+16. ✅ **Why This Story Now** — cultural relevance articulated?
+17. ✅ **Why This Format** — feature vs series rationale clear?
 
 ---
 
@@ -236,6 +303,7 @@ Before delivering a pitch deck, verify:
 - **No plot invention** — compress only
 - **No genre shift** — prestige thriller stays prestige thriller
 - **No optimism injection** — tone must match manuscript
+- **No sanitization** — violence/trauma not softened for market appeal
 
 ---
 
@@ -260,6 +328,9 @@ Before delivering a pitch deck, verify:
 - `plot_invention` — fidelity violation
 - `wall_of_text` — structure violation
 - `abstract_worldbuilding` — cinematic language failure
+- `sanitized_violence` — moral softening violation
+- `hero_upgrade` — character integrity violation
+- `aestheticized_suffering` — visual translation failure
 
 ---
 
@@ -273,4 +344,5 @@ Before delivering a pitch deck, verify:
 
 **Last Updated:** 2025-12-31  
 **Version:** 1.0  
-**Status:** Active Quality Standard
+**Status:** Active Quality Standard  
+**Philosophy:** "Translate the soul. Do not sanitize it."
