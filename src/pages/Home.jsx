@@ -90,7 +90,7 @@ export default function Home() {
                             In practice, trained and untrained eyes give your manuscript seconds at each gate. Does it intrigue, captivate, and hold attention? If not, you don't get a reply—from agents, editors, publishers, producers, or executives. It's a closed loop: work that doesn't hold attention simply falls out of the system.
                         </p>
                         <p className="leading-relaxed">
-                            You may have a brilliant story, but if the pages trip over the 12 Story Evaluation Criteria that professionals use—and the scores of structural and line-level checks in the WAVE Guide—it will be rejected long before anyone sees the ending. Agents and readers evaluate in seconds what took you years to build.
+                            You may have a brilliant story, but if the pages trip over the 13 Story Evaluation Criteria that professionals use—and the scores of structural and line-level checks in the WAVE Guide—it will be rejected long before anyone sees the ending. Agents and readers evaluate in seconds what took you years to build.
                         </p>
                         <div className="p-6 rounded-xl bg-indigo-900/50 border border-indigo-700">
                             <p className="leading-relaxed text-white">
@@ -332,7 +332,7 @@ export default function Home() {
                     <p className="text-sm text-slate-700 leading-relaxed">
                         Created by <strong>Michael J. Meraw (Major, Retired), CD, SCPM (Stanford), BComm, AGDM, MBA</strong>. 
                         RevisionGrade™ was designed by a former military pilot and corporate aerospace leader with deep expertise in root-cause corrective action, value-stream mapping, metrics-driven continuous improvement, and enterprise information / master-data governance (including authorship of governance policy at a global aerospace firm). 
-                        Drawing on systems-based quality disciplines used in large-scale aerospace and defense programs, he operationalized RevisionGrade's 12-criteria framework and the proprietary WAVE Revision System into the platform's evaluation framework. 
+                        Drawing on systems-based quality disciplines used in large-scale aerospace and defense programs, he operationalized RevisionGrade's 13 Story Evaluation Criteria framework and the proprietary WAVE Revision System into the platform's evaluation framework. 
                         AI-assisted tools generate analysis and revision suggestions within this framework; final decisions always remain with the writer.{' '}
                         <a 
                             href="https://michaeljmeraw.com" 
