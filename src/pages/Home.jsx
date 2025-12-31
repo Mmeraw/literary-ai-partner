@@ -25,7 +25,11 @@ export default function Home() {
                             RevisionGrade™ — The Authoritative Revision Framework
                         </h1>
 
-                        <p className="mt-6 text-xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
+                        <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-6">
+                            Built to meet the standards gatekeepers expect.
+                        </p>
+
+                        <p className="text-xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
                             Revision Framework-AI. 13 Agent Criteria. WAVE Diagnostics.<br />
                             From manuscript / screenplay to query-ready—one system.
                         </p>
@@ -39,7 +43,7 @@ export default function Home() {
                         </div>
 
                         <p className="mt-6 text-sm text-slate-500">
-                            30-Day Money Back Guarantee • No Credit Card Required
+                            Free Evaluation • See Proof in Resources
                         </p>
                     </motion.div>
                 </div>
