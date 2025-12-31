@@ -266,6 +266,11 @@ export default function Layout({ children, currentPageName }) {
                                                     Full Pitch Deck (38 pages)
                                                 </Link>
                                             </DropdownMenuItem>
+                                            <DropdownMenuItem asChild>
+                                                <Link to={createPageUrl('SampleFilmPitchDeck')} className="cursor-pointer">
+                                                    Film Pitch Deck (Screenplay)
+                                                </Link>
+                                            </DropdownMenuItem>
                                         </DropdownMenuSubContent>
                                     </DropdownMenuSub>
                                     {resourcesPages.filter(item => item.page !== 'SampleAnalyses').map((item) => (
