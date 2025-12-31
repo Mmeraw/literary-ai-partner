@@ -259,6 +259,51 @@ Without flattening complexity.
 
 ---
 
+## ROUTING RULES (MANDATORY)
+
+### High-Performance Model Architecture
+**For all film adaptation, evaluation, and revision workflows, we route each task through the most appropriate high-performance model available.**
+
+Model selection is determined by task type—analysis, narrative synthesis, structural evaluation, or tonal calibration—so that each output meets professional, industry-grade standards.
+
+**Our system prioritizes quality, consistency, and creative fidelity over speed or cost optimization.**
+
+### Model Selection
+**CRITICAL: Brand-Representative Outputs → Highest-Quality Model Only**
+
+Film adaptation outputs that face the industry require nuance and brand representation:
+- ✅ **Loglines** — highest-quality model
+- ✅ **Synopses** — highest-quality model
+- ✅ **Pitch decks** — highest-quality model
+- ✅ **Coverage-style summaries** — highest-quality model
+- ✅ **Adaptation revision guides** — highest-quality model
+- ✅ **Character arcs** — highest-quality model
+- ✅ **Thematic analysis** — highest-quality model
+- ✅ **Visual style descriptions** — highest-quality model
+
+Internal/structural operations can use cheaper models or heuristics:
+- ⚡ **Grading** — cheaper model or heuristic logic
+- ⚡ **Internal scoring** — cheaper model or heuristic logic
+- ⚡ **Structural flags** — cheaper model or heuristic logic
+- ⚡ **Beat detection** — cheaper model or heuristic logic
+- ⚡ **POV balance checks** — cheaper model or heuristic logic
+- ⚡ **Length/ratio metrics** — cheaper model or heuristic logic
+- ⚡ **Comps research** — cheaper model
+- ⚡ **Budget estimation** — cheaper model
+
+### Temperature Settings
+- **Logline, tagline, comps** — Temperature 0.3 (conservative, no invention)
+- **Synopsis, themes, visual style** — Temperature 0.7 (balanced)
+- **Franchise potential** — Temperature 0.5 (grounded speculation)
+
+### Conservative Outputs
+- **No plot invention** — compress only
+- **No genre shift** — prestige thriller stays prestige thriller
+- **No optimism injection** — tone must match manuscript
+- **No sanitization** — violence/trauma not softened for market appeal
+
+---
+
 ## QUALITY GATES (Pre-Output Checklist)
 
 Before delivering a pitch deck, verify:
@@ -285,25 +330,6 @@ Before delivering a pitch deck, verify:
 15. ✅ **Franchise Potential** — grounded in story logic?
 16. ✅ **Why This Story Now** — cultural relevance articulated?
 17. ✅ **Why This Format** — feature vs series rationale clear?
-
----
-
-## ROUTING RULES
-
-### Model Selection
-- **Cheaper model** — structural evaluation, comps research, budget estimation
-- **Higher-end model** — logline, synopsis, character arcs, thematic analysis, visual style
-
-### Temperature Settings
-- **Logline, tagline, comps** — Temperature 0.3 (conservative, no invention)
-- **Synopsis, themes, visual style** — Temperature 0.7 (balanced)
-- **Franchise potential** — Temperature 0.5 (grounded speculation)
-
-### Conservative Outputs
-- **No plot invention** — compress only
-- **No genre shift** — prestige thriller stays prestige thriller
-- **No optimism injection** — tone must match manuscript
-- **No sanitization** — violence/trauma not softened for market appeal
 
 ---
 
@@ -343,6 +369,6 @@ Before delivering a pitch deck, verify:
 ---
 
 **Last Updated:** 2025-12-31  
-**Version:** 1.0  
+**Version:** 1.1  
 **Status:** Active Quality Standard  
 **Philosophy:** "Translate the soul. Do not sanitize it."
