@@ -149,19 +149,25 @@ export default function Layout({ children, currentPageName }) {
 
                         {/* Desktop Navigation - CANONICAL WORKFLOW */}
                         <div className="hidden md:flex items-center gap-1 flex-1">
-                            <Link to={createPageUrl('Dashboard')}>
-                                <Button
-                                    variant="ghost"
-                                    className={cn(
-                                        "h-9 px-3 text-sm",
-                                        currentPageName === 'Dashboard' 
-                                            ? "bg-indigo-50 text-indigo-700" 
-                                            : "text-slate-600 hover:text-slate-900"
-                                    )}
-                                >
-                                    Dashboard
-                                </Button>
-                            </Link>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
+                                        Dashboard <ChevronDown className="ml-1 h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-56">
+                                    <DropdownMenuItem asChild>
+                                        <Link to={createPageUrl('Dashboard')} className="cursor-pointer">
+                                            Overview
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem asChild>
+                                        <Link to={createPageUrl('Analytics')} className="cursor-pointer">
+                                            Analytics
+                                        </Link>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
 
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -222,34 +228,6 @@ export default function Layout({ children, currentPageName }) {
                                     ))}
                                 </DropdownMenuContent>
                             </DropdownMenu>
-
-                            <Link to={createPageUrl('Analytics')}>
-                                <Button
-                                    variant="ghost"
-                                    className={cn(
-                                        "h-9 px-3 text-sm",
-                                        currentPageName === 'Analytics' 
-                                            ? "bg-indigo-50 text-indigo-700" 
-                                            : "text-slate-600 hover:text-slate-900"
-                                    )}
-                                >
-                                    Analytics
-                                </Button>
-                            </Link>
-
-                            <Link to={createPageUrl('FAQ')}>
-                                <Button
-                                    variant="ghost"
-                                    className={cn(
-                                        "h-9 px-3 text-sm",
-                                        currentPageName === 'FAQ' 
-                                            ? "bg-indigo-50 text-indigo-700" 
-                                            : "text-slate-600 hover:text-slate-900"
-                                    )}
-                                >
-                                    FAQ
-                                </Button>
-                            </Link>
 
                             {/* StoryGate Navigation */}
                             {!loading && user && (
@@ -436,19 +414,34 @@ export default function Layout({ children, currentPageName }) {
                 {mobileMenuOpen && (
                     <div className="md:hidden absolute left-0 right-0 top-16 border-t border-slate-100 bg-white shadow-lg max-h-[calc(100vh-4rem)] overflow-y-auto">
                         <div className="px-4 py-3 space-y-1">
-                            {/* Dashboard */}
-                            <Link to={createPageUrl('Dashboard')} onClick={() => setMobileMenuOpen(false)}>
+                            {/* Dashboard Section */}
+                            <div>
                                 <Button
                                     variant="ghost"
-                                    className={cn(
-                                        "w-full justify-start h-12",
-                                        currentPageName === 'Dashboard' ? "bg-indigo-50 text-indigo-700" : "text-slate-600"
-                                    )}
+                                    onClick={() => toggleMobileSection('dashboard')}
+                                    className="w-full justify-between h-12 text-slate-600"
                                 >
-                                    <BarChart3 className="w-5 h-5 mr-3" />
-                                    Dashboard
+                                    <span className="flex items-center">
+                                        <BarChart3 className="w-5 h-5 mr-3" />
+                                        Dashboard
+                                    </span>
+                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.dashboard && "rotate-180")} />
                                 </Button>
-                            </Link>
+                                {expandedMobile.dashboard && (
+                                    <div className="ml-8 space-y-1 mt-1">
+                                        <Link to={createPageUrl('Dashboard')} onClick={() => setMobileMenuOpen(false)}>
+                                            <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
+                                                Overview
+                                            </Button>
+                                        </Link>
+                                        <Link to={createPageUrl('Analytics')} onClick={() => setMobileMenuOpen(false)}>
+                                            <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
+                                                Analytics
+                                            </Button>
+                                        </Link>
+                                    </div>
+                                )}
+                            </div>
 
 
 
@@ -536,34 +529,6 @@ export default function Layout({ children, currentPageName }) {
                                     </div>
                                 )}
                             </div>
-
-                            {/* Analytics (Direct Link) */}
-                            <Link to={createPageUrl('Analytics')} onClick={() => setMobileMenuOpen(false)}>
-                                <Button
-                                    variant="ghost"
-                                    className={cn(
-                                        "w-full justify-start h-12",
-                                        currentPageName === 'Analytics' ? "bg-indigo-50 text-indigo-700" : "text-slate-600"
-                                    )}
-                                >
-                                    <BarChart3 className="w-5 h-5 mr-3" />
-                                    Analytics
-                                </Button>
-                            </Link>
-
-                            {/* FAQ (Direct Link) */}
-                            <Link to={createPageUrl('FAQ')} onClick={() => setMobileMenuOpen(false)}>
-                                <Button
-                                    variant="ghost"
-                                    className={cn(
-                                        "w-full justify-start h-12",
-                                        currentPageName === 'FAQ' ? "bg-indigo-50 text-indigo-700" : "text-slate-600"
-                                    )}
-                                >
-                                    <HelpCircle className="w-5 h-5 mr-3" />
-                                    FAQ
-                                </Button>
-                            </Link>
 
                             {/* Pricing & Enterprise */}
                             <Link to={createPageUrl('Pricing')} onClick={() => setMobileMenuOpen(false)}>
