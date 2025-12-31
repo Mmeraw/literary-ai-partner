@@ -76,34 +76,57 @@ export default function Dashboard() {
             .slice(0, 10);
     }, [chapters]);
 
-    // Pipeline categorization (CANONICAL WORKFLOW)
+    // Pipeline categorization (CANONICAL WORKFLOW - STATE-BASED)
     const pipeline = useMemo(() => {
         const allWorks = [
-            ...manuscripts.map(m => ({ 
-                ...m, 
-                type: 'manuscript',
-                title: m.title,
-                score: m.spine_score ? Math.round(m.spine_score * 10) : null,
-                status: m.status,
-                is_final: m.is_final || false,
-                lastActivity: m.updated_date || m.created_date
-            })),
-            ...submissions.map(s => ({ 
-                ...s, 
-                type: 'submission',
-                title: s.title,
-                score: s.overall_score ? Math.round(s.overall_score * 10) : null,
-                status: s.status,
-                is_final: false,
-                lastActivity: s.updated_date || s.created_date
-            }))
+            ...manuscripts.map(m => {
+                // Determine state based on status + is_final flag
+                let state = 'upload';
+                if (['summarizing', 'spine_evaluating', 'evaluating_chapters'].includes(m.status)) {
+                    state = 'evaluate';
+                } else if ((['ready', 'ready_with_errors'].includes(m.status) && !m.is_final)) {
+                    state = 'revise';
+                } else if (m.is_final) {
+                    state = 'output';
+                }
+                
+                return { 
+                    ...m, 
+                    type: 'manuscript',
+                    title: m.title,
+                    score: m.spine_score ? Math.round(m.spine_score * 10) : null,
+                    status: m.status,
+                    is_final: m.is_final || false,
+                    lastActivity: m.updated_date || m.created_date,
+                    state
+                };
+            }),
+            ...submissions.map(s => {
+                let state = 'upload';
+                if (s.status === 'evaluating') {
+                    state = 'evaluate';
+                } else if (['ready', 'reviewed'].includes(s.status)) {
+                    state = 'revise';
+                }
+                
+                return { 
+                    ...s, 
+                    type: 'submission',
+                    title: s.title,
+                    score: s.overall_score ? Math.round(s.overall_score * 10) : null,
+                    status: s.status,
+                    is_final: false,
+                    lastActivity: s.updated_date || s.created_date,
+                    state
+                };
+            })
         ];
 
         return {
-            upload: allWorks.filter(w => ['uploaded', 'splitting', 'draft'].includes(w.status)),
-            evaluate: allWorks.filter(w => ['summarizing', 'evaluating', 'spine_evaluating'].includes(w.status)),
-            revise: allWorks.filter(w => ['ready', 'reviewed'].includes(w.status) && !w.is_final),
-            output: allWorks.filter(w => w.is_final)
+            upload: allWorks.filter(w => w.state === 'upload'),
+            evaluate: allWorks.filter(w => w.state === 'evaluate'),
+            revise: allWorks.filter(w => w.state === 'revise'),
+            output: allWorks.filter(w => w.state === 'output')
         };
     }, [manuscripts, submissions]);
 
@@ -168,10 +191,10 @@ export default function Dashboard() {
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <PipelineColumn title="Upload" works={pipeline.upload} stage="upload" />
-                            <PipelineColumn title="Evaluate" works={pipeline.evaluate} stage="evaluate" />
-                            <PipelineColumn title="Revise" works={pipeline.revise} stage="revise" />
-                            <PipelineColumn title="Output" works={pipeline.output} stage="output" />
+                            <PipelineColumn title="Upload" works={pipeline.upload} stage="upload" count={pipeline.upload.length} />
+                            <PipelineColumn title="Evaluate" works={pipeline.evaluate} stage="evaluate" count={pipeline.evaluate.length} />
+                            <PipelineColumn title="Revise" works={pipeline.revise} stage="revise" count={pipeline.revise.length} />
+                            <PipelineColumn title="Output" works={pipeline.output} stage="output" count={pipeline.output.length} />
                         </div>
                     </CardContent>
                 </Card>
@@ -268,11 +291,12 @@ function PipelineColumn({ title, works, stage }) {
 }
 
 function WorkCard({ work, stage }) {
+    // CANONICAL MICROCOPY - Next Action Labels
     const getNextAction = () => {
-        if (stage === 'upload') return 'Start Evaluation';
+        if (stage === 'upload') return 'Run Evaluation';
         if (stage === 'evaluate') return 'View Progress';
-        if (stage === 'revise') return 'Continue';
-        return 'Build Package';
+        if (stage === 'revise') return 'Continue Revision';
+        return 'Build Output';
     };
 
     const getLink = () => {
@@ -282,29 +306,50 @@ function WorkCard({ work, stage }) {
         return createPageUrl(`ViewReport?submissionId=${work.id}`);
     };
 
+    // CANONICAL MICROCOPY - Badge Labels
     const getBadge = () => {
-        if (work.is_final) return <Badge className="text-xs bg-green-100 text-green-700">Final</Badge>;
+        if (work.is_final) return <Badge className="text-xs bg-green-100 text-green-700 border-green-200">Locked</Badge>;
+        if (stage === 'evaluate') return <Badge variant="outline" className="text-xs">In Progress</Badge>;
+        if (stage === 'revise') return <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200">Needs Revision</Badge>;
         return null;
+    };
+
+    // Format last activity
+    const formatLastActivity = (date) => {
+        if (!date) return 'Just now';
+        const now = new Date();
+        const then = new Date(date);
+        const diffMs = now - then;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        return `${diffDays}d ago`;
     };
 
     return (
         <Card className="hover:shadow-md transition-shadow">
             <CardContent className="p-3">
                 <div className="flex items-start justify-between mb-2">
-                    <h4 className="font-medium text-sm text-slate-900 truncate flex-1">
+                    <h4 className="font-medium text-sm text-slate-900 truncate flex-1" title={work.title}>
                         {work.title}
                     </h4>
                     {getBadge()}
                 </div>
-                <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
+                <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
                     <span>{work.type === 'manuscript' ? 'Novel' : 'Scene'}</span>
                     {work.score && (
                         <span className="font-semibold text-indigo-600">{work.score}/100</span>
                     )}
                 </div>
+                <div className="text-xs text-slate-500 mb-3">
+                    Last activity: {formatLastActivity(work.lastActivity)}
+                </div>
                 <Link to={getLink()}>
                     <Button size="sm" variant="outline" className="w-full text-xs">
-                        {getNextAction()}
+                        {getNextAction()} →
                     </Button>
                 </Link>
             </CardContent>
