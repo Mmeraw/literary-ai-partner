@@ -104,8 +104,8 @@ export default function Home() {
             {/* Features Section */}
             <div className="max-w-6xl mx-auto px-6 py-14">
                 <div className="text-center mb-16">
-                    <h2 className="text-3xl font-bold text-slate-900">End-to-End IP Translation Engine</h2>
-                    <p className="mt-3 text-slate-600">Traditional: 6 months. 5 apps. $500+ → Base44: 6 hours. 1 tool. $99</p>
+                    <h2 className="text-3xl font-bold text-slate-900">End-to-End IP Standards Engine</h2>
+                    <p className="mt-3 text-slate-600">What once required months of back-and-forth, multiple tools, and subjective review is now unified into a single, standards-driven system.</p>
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-8">
