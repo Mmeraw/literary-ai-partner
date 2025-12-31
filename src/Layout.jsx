@@ -227,6 +227,17 @@ export default function Layout({ children, currentPageName }) {
                                 </Button>
                             </Link>
 
+                            <Link to={createPageUrl('StorygateStudio')}>
+                                <Button
+                                    className={cn(
+                                        "h-9 px-3 text-sm bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white",
+                                        currentPageName === 'StorygateStudio' && "from-purple-700 to-pink-700"
+                                    )}
+                                >
+                                    Storygate Studio
+                                </Button>
+                            </Link>
+
                             <Link to={createPageUrl('Enterprise')}>
                                 <Button
                                     className={cn(
@@ -432,6 +443,13 @@ export default function Layout({ children, currentPageName }) {
                                 >
                                     <Sparkles className="w-5 h-5 mr-3" />
                                     Pricing
+                                </Button>
+                            </Link>
+
+                            <Link to={createPageUrl('StorygateStudio')} onClick={() => setMobileMenuOpen(false)}>
+                                <Button className="w-full justify-start h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white">
+                                    <Crown className="w-5 h-5 mr-3" />
+                                    Storygate Studio
                                 </Button>
                             </Link>
 
