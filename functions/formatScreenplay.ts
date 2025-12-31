@@ -22,65 +22,105 @@ Deno.serve(async (req) => {
 
         if (detectedMode === 'convert') {
             // Novel/prose → screenplay conversion
-            prompt = `Convert this prose narrative into a properly formatted screenplay following WriterDuet standards.
+            prompt = `Convert this prose narrative into a properly formatted screenplay following the RevisionGrade Screenplay Formatting Standard (WriterDuet v1.0 compatible).
 
-CRITICAL FORMATTING RULES:
-1. Use proper sluglines: INT. or EXT. LOCATION – TIME OF DAY (use en dash –)
-2. ALL CAPS for character first appearances in action lines
-3. Character names centered in dialogue, ALL CAPS
-4. Dialogue indented below character names (no quotes needed, character name implies speech)
-5. Action lines: present tense, visual, filmable only
-6. Em dashes in action: no spaces (e.g., "slides by—corn")
-7. Em dashes as separators/labels: spaces allowed (e.g., "GLYPH VISIBLE: ● — the symbol pulses")
-8. Parentheticals sparingly, only for essential delivery notes
-9. Transitions (CUT TO:, FADE OUT.) right-aligned, only when necessary
+CRITICAL FORMATTING RULES (RevisionGrade Standard v1.0):
 
-CRITICAL: HANDLING ITALICIZED TEXT (formatted as <em> or <i> tags):
-- Italicized text often represents INTERNAL THOUGHT
-- If it's internal thought, you have two options:
-  A) Convert to (V.O.) voiceover if it adds dramatic value
-  B) Remove it entirely if it's unfilmable or redundant
-- Use your judgment: preserve powerful internal moments as V.O., cut the rest
-- If italics are just emphasis (not thought), preserve the meaning in action
+SLUGLINES:
+- Format: INT. or EXT. LOCATION – TIME OF DAY (en dash –)
+- ALL CAPS, left-aligned, one blank line before/after
+- Use CONTINUOUS only for truly immediate continuity
 
-Example italicized thought handling:
+CHARACTER INTRODUCTION:
+- First appearance: ALL CAPS + brief identifier (e.g., "MIKE (60s), ex-military, drives alone")
+- Cap one-off speakers on first mention (e.g., "A FARM WORKER whispers")
+
+DIALOGUE FORMATTING:
+- Character names: ALL CAPS, centered (~3.5" from left)
+- Dialogue: indented ~2.5", directly under name, NO QUOTES
+- Character name implies speech—no quotation marks needed
+- Parentheticals: brief, ~3.0" indent, between name and dialogue
+
+ACTION LINES:
+- Present tense, visual, filmable only
+- Left-aligned, no indent, 2-4 line blocks
+- Em dashes: tight in sentences (slides by—corn), spaced for labels (GLYPH: ● — pulses)
+
+SFX / SOUND:
+- Format: SFX: CRACK! A shot echoes.
+- ALL CAPS tag, sentence-case description
+
+TRANSITIONS:
+- Right-aligned (~6.0"), ALL CAPS (CUT TO:, FADE OUT.)
+- Use sparingly, one blank line before
+
+CRITICAL: HANDLING ITALICIZED TEXT (HTML <em> or <i> tags):
+- Italics = internal thought in most cases
+- OPTIONS:
+  A) Convert to (V.O.) voiceover if dramatically powerful
+  B) Remove if unfilmable/redundant with visual action
+- Preserve only strong internal moments; cut the rest
+
+Example:
 INPUT: "Then why am I checking the rearview mirror?" (italicized)
-OUTPUT: 
-                    MIKE (V.O.)
-        Then why am I checking the rearview mirror?
+OUTPUT Option A:
+                                MIKE (V.O.)
+            Then why am I checking the rearview mirror?
 
-OR remove if it's redundant with visual action.
+OUTPUT Option B: Remove (if action already shows this)
 
-PROSE TO CONVERT (may contain HTML tags for formatting):
+PROSE TO CONVERT (may contain HTML tags):
 ${text}
 
-Output ONLY the formatted screenplay text. Strip all HTML tags from final output. No explanations, no markdown formatting, just the raw screenplay text following WriterDuet standards.`;
+Output ONLY the formatted screenplay text. Strip all HTML tags. No explanations, no markdown. Raw WriterDuet-compatible screenplay only.`;
 
         } else {
             // Cleanup crude screenplay
-            prompt = `Clean up this crude screenplay draft to proper WriterDuet industry standards.
+            prompt = `Clean up this crude screenplay draft to the RevisionGrade Screenplay Formatting Standard (WriterDuet v1.0 compatible).
 
-FIX THESE ISSUES:
-1. Proper sluglines: INT./EXT. LOCATION – TIME OF DAY (use en dash –)
-2. ALL CAPS for character first appearances in action
-3. Centered character names in dialogue, ALL CAPS
-4. Remove prose descriptions - make visual/filmable
-5. Remove unfilmable internals (thoughts, feelings) OR convert to (V.O.) if powerful
-6. Present tense action lines only
-7. Remove section headers, prose labels
-8. Proper dialogue formatting (no quotes needed)
-9. Remove philosophical statements
-10. Clean up mixed tenses
-11. Em dashes: tight in action sentences, spaced for separators/labels
+FIX THESE ISSUES (RevisionGrade Standard v1.0):
 
-CRITICAL: HANDLING ITALICIZED TEXT (formatted as <em> or <i> tags):
-- If italics represent internal thought, convert to (V.O.) or remove if unfilmable
-- Use judgment: preserve dramatic internal moments as V.O., cut redundant ones
+SLUGLINES:
+- Format: INT./EXT. LOCATION – TIME OF DAY (en dash –)
+- ALL CAPS, left-aligned, one blank line before/after
+
+CHARACTER HANDLING:
+- First appearances: ALL CAPS in action (e.g., "MIKE (60s)...")
+- Consistent character names (including accents if used)
+
+DIALOGUE:
+- Character names: centered, ALL CAPS
+- Dialogue: indented ~2.5", NO QUOTES (character name implies speech)
+- Parentheticals: brief, ~3.0" indent
+
+ACTION LINES:
+- Present tense, visual, filmable only
+- Remove prose metaphors, unfilmable internals, philosophical statements
+- Em dashes: tight in sentences, spaced for labels
+- Break into 2-4 line blocks
+
+SFX / SOUND:
+- Format: SFX: DESCRIPTION
+- Consistent tagging
+
+TRANSITIONS:
+- Right-aligned, ALL CAPS, minimal use
+- One blank line before
+
+REMOVE:
+- Section headers, prose labels
+- Mixed tenses
+- Curly quotes (use straight " or none)
+- Special hyphens (use standard -)
+
+CRITICAL: HANDLING ITALICIZED TEXT (HTML <em> or <i> tags):
+- If italics = internal thought → convert to (V.O.) if dramatic, or remove if redundant
+- Use judgment: preserve powerful internal moments, cut the rest
 
 CRUDE SCREENPLAY (may contain HTML tags):
 ${text}
 
-Output ONLY the cleaned screenplay text. Strip all HTML tags from final output. No explanations, no markdown, just the raw formatted screenplay following WriterDuet standards.`;
+Output ONLY the cleaned screenplay text. Strip all HTML tags. No explanations, no markdown. Raw WriterDuet-compatible screenplay only.`;
         }
 
         const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
