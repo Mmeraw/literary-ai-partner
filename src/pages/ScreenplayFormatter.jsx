@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import TransgressiveModeSelector from '@/components/evaluation/TransgressiveModeSelector';
+import RichTextEditor from '@/components/RichTextEditor';
 
 export default function ScreenplayFormatter() {
     const [inputText, setInputText] = useState(sessionStorage.getItem('uploadedText') || '');
@@ -71,7 +72,9 @@ export default function ScreenplayFormatter() {
         window.location.href = createPageUrl('Evaluate');
     };
 
-    const wordCount = inputText.split(/\s+/).filter(w => w).length;
+    // Strip HTML tags for word count
+    const plainText = inputText.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ');
+    const wordCount = plainText.split(/\s+/).filter(w => w).length;
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
@@ -111,14 +114,14 @@ export default function ScreenplayFormatter() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Textarea
+                            <RichTextEditor
                                 value={inputText}
-                                onChange={(e) => setInputText(e.target.value)}
+                                onChange={setInputText}
                                 placeholder={mode === 'convert' 
-                                    ? "Paste novel prose here...\n\nExample:\nThe store smells like rotted sawdust. Brutus steps inside. The man behind the counter grins through gold teeth..."
-                                    : "Paste crude screenplay here...\n\nExample:\nLocation: Store\nBrutus steps inside.\nThe man grins.\n\"Welcome,\" he says..."
+                                    ? "Paste novel prose here... (formatting like italics and bold preserved)\n\nExample:\nThe store smells like rotted sawdust. Brutus steps inside. The man behind the counter grins through gold teeth..."
+                                    : "Paste crude screenplay here... (formatting preserved)\n\nExample:\nLocation: Store\nBrutus steps inside.\nThe man grins.\n\"Welcome,\" he says..."
                                 }
-                                className="min-h-[500px] font-mono text-sm"
+                                minHeight="500px"
                                 />
                                 <div className="mt-4 p-4 rounded-xl bg-white border border-slate-200">
                                 <TransgressiveModeSelector 
