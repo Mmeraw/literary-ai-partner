@@ -39,6 +39,7 @@ const evaluatePages = [
     { name: 'Find Agents', page: 'FindAgents', icon: Users },
     { name: 'Query Letter', page: 'QueryLetter', icon: Mail },
     { name: 'Progress Reports', page: 'Progress', icon: BarChart3 },
+    { name: 'Storygate Studio', page: 'StorygateStudio', icon: Crown, highlight: true },
 ];
 
 const resourcesPages = [
