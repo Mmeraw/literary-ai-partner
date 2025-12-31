@@ -237,6 +237,20 @@ export default function Layout({ children, currentPageName }) {
                                 </Button>
                             </Link>
 
+                            <Link to={createPageUrl('FAQ')}>
+                                <Button
+                                    variant="ghost"
+                                    className={cn(
+                                        "h-9 px-3 text-sm",
+                                        currentPageName === 'FAQ' 
+                                            ? "bg-indigo-50 text-indigo-700" 
+                                            : "text-slate-600 hover:text-slate-900"
+                                    )}
+                                >
+                                    FAQ
+                                </Button>
+                            </Link>
+
                             {/* StoryGate Navigation */}
                             {!loading && user && (
                                 <>
@@ -534,6 +548,20 @@ export default function Layout({ children, currentPageName }) {
                                 >
                                     <BarChart3 className="w-5 h-5 mr-3" />
                                     Analytics
+                                </Button>
+                            </Link>
+
+                            {/* FAQ (Direct Link) */}
+                            <Link to={createPageUrl('FAQ')} onClick={() => setMobileMenuOpen(false)}>
+                                <Button
+                                    variant="ghost"
+                                    className={cn(
+                                        "w-full justify-start h-12",
+                                        currentPageName === 'FAQ' ? "bg-indigo-50 text-indigo-700" : "text-slate-600"
+                                    )}
+                                >
+                                    <HelpCircle className="w-5 h-5 mr-3" />
+                                    FAQ
                                 </Button>
                             </Link>
 
