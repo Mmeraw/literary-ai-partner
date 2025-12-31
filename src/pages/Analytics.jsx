@@ -92,8 +92,12 @@ export default function Analytics() {
     const referrerSources = useMemo(() => {
         const sources = {};
         analytics.forEach(a => {
-            const ref = a.referrer === 'direct' ? 'Direct' : new URL(a.referrer).hostname;
-            sources[ref] = (sources[ref] || 0) + 1;
+            try {
+                const ref = a.referrer === 'direct' || !a.referrer ? 'Direct' : new URL(a.referrer).hostname;
+                sources[ref] = (sources[ref] || 0) + 1;
+            } catch (err) {
+                sources['Direct'] = (sources['Direct'] || 0) + 1;
+            }
         });
         return Object.entries(sources)
             .map(([source, count]) => ({ source, count }))
