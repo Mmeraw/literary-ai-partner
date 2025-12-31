@@ -18,7 +18,7 @@ const tiers = [
         features: [
             "Quick scene/chapter evaluation only",
             "25,000 words/month included",
-            "12 Literary Agent Criteria",
+            "13 Story Evaluation Criteria",
             "Wave Revision System",
             "Email support"
         ],
@@ -137,7 +137,7 @@ export default function Pricing() {
                         Choose Your Plan
                     </h1>
                     <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-                        Professional editorial judgment, repeatable over time. All plans include PhD-calibrated analysis and the proprietary WAVE Revision System.
+                        Professional editorial judgment, repeatable over time. All plans include PhD-calibrated analysis against 13 Story Evaluation Criteria and the proprietary WAVE Revision System.
                     </p>
                 </div>
             </div>

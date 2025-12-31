@@ -560,8 +560,8 @@ export default function Layout({ children, currentPageName }) {
                 <div className="max-w-7xl mx-auto px-6">
                     <div className="text-center space-y-4">
                         <p className="text-sm text-slate-500">
-                            Powered by the Proprietary WAVE Revision System • 12 Story Evaluation Criteria • Professional Editorial Standards
-                        </p>
+                                    Powered by the Proprietary WAVE Revision System • 13 Story Evaluation Criteria • Professional Editorial Standards
+                                </p>
                         <p className="text-xs text-slate-500 max-w-3xl mx-auto">
                             <strong>Technology Transparency:</strong> RevisionGrade uses commercially licensed large language models to assist with textual analysis. 
                             All processing occurs securely, and no customer data is used to train external models. 

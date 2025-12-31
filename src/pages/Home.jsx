@@ -30,7 +30,7 @@ export default function Home() {
                         </p>
 
                         <p className="text-xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
-                            Revision Framework-AI. 13 Agent Criteria. WAVE Diagnostics.<br />
+                            Revision Framework-AI. 13 Story Evaluation Criteria. WAVE Diagnostics.<br />
                             From manuscript / screenplay to query-ready—one system.
                         </p>
 
@@ -94,7 +94,7 @@ export default function Home() {
                         </p>
                         <div className="p-6 rounded-xl bg-indigo-900/50 border border-indigo-700">
                             <p className="leading-relaxed text-white">
-                                <strong>Elevate Your Game™</strong> by running your work through the RevisionGrade framework: a PhD-calibrated scoring engine built on the 12 Story Evaluation Criteria and the proprietary WAVE Revision System. There is no other technology that combines those standards into one coherent, repeatable diagnostic pass—so you know exactly where your manuscript stands.
+                                <strong>Elevate Your Game™</strong> by running your work through the RevisionGrade framework: a PhD-calibrated scoring engine built on the 13 Story Evaluation Criteria and the proprietary WAVE Revision System. There is no other technology that combines those standards into one coherent, repeatable diagnostic pass—so you know exactly where your manuscript stands.
                             </p>
                         </div>
                     </div>
@@ -167,7 +167,7 @@ export default function Home() {
 
                 <div className="grid md:grid-cols-2 gap-8">
                     <div className="p-8 rounded-xl bg-white border-2 border-indigo-200">
-                        <h3 className="text-xl font-bold text-slate-900 mb-4">Agent Ready™ (13 Criteria)</h3>
+                        <h3 className="text-xl font-bold text-slate-900 mb-4">Agent Ready™ (13 Story Evaluation Criteria)</h3>
                         <div className="space-y-2">
                             {[
                                 'Logline strength',
@@ -281,13 +281,13 @@ export default function Home() {
                         <div>
                             <Badge className="mb-4 bg-white/10 text-white border-white/20">
                                 <BookOpen className="w-4 h-4 mr-2" />
-                                12 Story Evaluation Criteria
+                                13 Story Evaluation Criteria
                             </Badge>
                             <h2 className="text-3xl font-bold text-white mb-6">
                                 Evaluated Like a Professional
                             </h2>
                             <p className="text-slate-300 leading-relaxed mb-8">
-                                Your work is scored on the same criteria agents, editors, and script readers use 
+                                Your work is scored on the same 13 criteria agents, editors, and script readers use 
                                 when reviewing submissions—from voice and pacing to emotional resonance 
                                 and market readiness.
                             </p>

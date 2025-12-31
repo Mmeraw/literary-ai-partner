@@ -175,10 +175,10 @@ export default function FAQ() {
                                         <div className="space-y-3 text-slate-700">
                                             <p><strong>Professional Plan includes:</strong></p>
                                             <ul className="list-disc ml-6 space-y-2">
-                                                <li><strong>Complete Agent-Ready Pipeline:</strong> Grade → Pitch → Synopsis → Bio → Comps → Agents → Query</li>
-                                                <li><strong>Unlimited evaluation runs</strong>, within a 500,000-word/month cap</li>
-                                                <li><strong>Full writing evaluation</strong> against 12 literary-agent criteria</li>
-                                                <li><strong>60+ WAVE Revision checks</strong> (sentence craft, dialogue, pacing, structure)</li>
+                                               <li><strong>Complete Agent-Ready Pipeline:</strong> Grade → Pitch → Synopsis → Bio → Comps → Agents → Query</li>
+                                               <li><strong>Unlimited evaluation runs</strong>, within a 500,000-word/month cap</li>
+                                               <li><strong>Full writing evaluation</strong> against 13 Story Evaluation Criteria</li>
+                                               <li><strong>60+ WAVE Revision checks</strong> (sentence craft, dialogue, pacing, structure)</li>
                                                 <li><strong>AI-generated submission assets:</strong> pitches, synopses, author bio, comparables</li>
                                                 <li><strong>Agent discovery & query letter builder</strong> with auto-embedded pitch/synopsis/bio</li>
                                                 <li><strong>Progress dashboard</strong> tracking improvement over time</li>
@@ -371,8 +371,8 @@ export default function FAQ() {
                                                 built on:
                                             </p>
                                             <ul className="list-disc ml-6 space-y-2">
-                                                <li><strong>12 literary-agent criteria</strong> (calibrated against publishing outcomes)</li>
-                                                <li><strong>60+ WAVE Revision checks</strong> (proprietary framework for structure and craft)</li>
+                                               <li><strong>13 Story Evaluation Criteria</strong> (calibrated against publishing outcomes)</li>
+                                               <li><strong>60+ WAVE Revision checks</strong> (proprietary framework for structure and craft)</li>
                                                 <li><strong>Longitudinal learning</strong> (tracks your growth, recurring issues, revision effectiveness)</li>
                                                 <li><strong>Submission-readiness focus</strong> (not grammar fixes or sentence rewrites)</li>
                                             </ul>
@@ -452,7 +452,7 @@ export default function FAQ() {
                                             <p>
                                                 Evaluation accuracy depends on <strong>submission length and completeness</strong>. 
                                                 The more text RevisionGrade can analyze, the more accurately it assesses structure, 
-                                                pacing, and character development across the 12 criteria.
+                                                pacing, and character development across the 13 criteria.
                                             </p>
                                             <p>
                                                 Best results come from:
@@ -516,7 +516,7 @@ export default function FAQ() {
 
                                             <p><strong>2. Analysis</strong></p>
                                             <p className="ml-4">
-                                                Three AI systems evaluate your work against 12 literary-agent criteria and 60+ WAVE checks, 
+                                                Three AI systems evaluate your work against 13 Story Evaluation Criteria and 60+ WAVE checks, 
                                                 identifying structural issues, pacing problems, and craft weaknesses.
                                             </p>
 
@@ -623,7 +623,7 @@ export default function FAQ() {
                                         <div className="space-y-3 text-slate-700">
                                             <p>
                                                 RevisionGrade™ evaluates <strong>narrative structure, craft, and readiness</strong>—which 
-                                                applies across genres. The 12 criteria cover:
+                                                applies across genres. The 13 criteria cover:
                                             </p>
                                             <ul className="list-disc ml-6 space-y-1">
                                                 <li>Hook, voice, character development</li>
