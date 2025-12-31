@@ -123,7 +123,7 @@ export default function StorygateStudio() {
                         <Sparkles className="w-4 h-4 mr-2" />
                         By RevisionGrade™
                     </Badge>
-                    <h1 className="text-5xl font-bold mb-2" style={{ color: '#7A1E1E' }}>
+                    <h1 className="text-5xl font-bold mb-1" style={{ color: '#7A1E1E' }}>
                         Storygate Studio™
                     </h1>
                     <p className="text-sm mb-6" style={{ color: '#7B7B7B' }}>
