@@ -1214,6 +1214,98 @@ export default function FAQ() {
                         </CardContent>
                     </Card>
 
+                    {/* AI Usage & Transparency */}
+                    <Card className="border-0 shadow-md">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <Sparkles className="w-5 h-5 text-indigo-600" />
+                                AI Usage & Transparency
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Accordion type="single" collapsible className="w-full">
+                                <AccordionItem value="how-ai-used">
+                                    <AccordionTrigger>
+                                        How does RevisionGrade use AI?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                RevisionGrade uses professional-grade language models to analyze structure, craft, and narrative patterns. 
+                                                These models are accessed directly and securely through industry-standard APIs.
+                                            </p>
+                                            <p className="font-semibold text-indigo-900">
+                                                We do not train on your work, and your content is never shared or reused.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="usage-calculated">
+                                    <AccordionTrigger>
+                                        How is usage calculated?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                Each plan includes a monthly allowance of AI processing, measured in tokens (a standard unit 
+                                                of text processing used across the industry).
+                                            </p>
+                                            <p className="font-semibold text-slate-900">This allows us to:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Maintain consistent performance</li>
+                                                <li>Prevent abuse or runaway usage</li>
+                                                <li>Keep pricing predictable and fair</li>
+                                            </ul>
+                                            <p className="text-sm text-slate-600 mt-3">
+                                                Most writers will never approach their limit under normal use.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="why-limits">
+                                    <AccordionTrigger>
+                                        Why are there usage limits at all?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                AI computation has real infrastructure costs. Rather than inflating subscription prices 
+                                                for everyone, we apply reasonable usage boundaries so that:
+                                            </p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Casual users aren't subsidizing heavy workloads</li>
+                                                <li>Professional users get predictable performance</li>
+                                                <li>The platform remains sustainable long-term</li>
+                                            </ul>
+                                            <p className="mt-3 font-semibold text-indigo-900">
+                                                If you ever need more capacity, upgrading or adding usage is always available.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="markup-costs">
+                                    <AccordionTrigger>
+                                        Do you mark up AI costs?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                We do not sell raw AI access. We provide a curated analysis system that includes 
+                                                orchestration, evaluation logic, and long-term data tracking.
+                                            </p>
+                                            <p className="font-semibold text-indigo-900">
+                                                Our pricing reflects the service, not just raw computation.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </CardContent>
+                    </Card>
+
                     {/* Privacy & Security */}
                     <Card className="border-0 shadow-md">
                         <CardHeader>
