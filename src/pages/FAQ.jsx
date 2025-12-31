@@ -31,7 +31,7 @@ export default function FAQ() {
                         Everything You Need to Know
                     </h1>
                     <p className="text-lg text-slate-600">
-                        Common questions about RevisionGrade™ and professional manuscript evaluation
+                        Common questions about RevisionGrade™ and professional evaluation
                     </p>
                 </div>
 
@@ -115,7 +115,7 @@ export default function FAQ() {
                                             <ul className="list-disc ml-6 space-y-2">
                                                 <li><strong>Complete Agent-Ready Pipeline:</strong> Grade → Pitch → Synopsis → Bio → Comps → Agents → Query</li>
                                                 <li><strong>Unlimited evaluation runs</strong>, within a 500,000-word/month cap</li>
-                                                <li><strong>Full manuscript & screenplay evaluation</strong> against 12 literary-agent criteria</li>
+                                                <li><strong>Full writing evaluation</strong> against 12 literary-agent criteria</li>
                                                 <li><strong>60+ WAVE Revision checks</strong> (sentence craft, dialogue, pacing, structure)</li>
                                                 <li><strong>AI-generated submission assets:</strong> pitches, synopses, author bio, comparables</li>
                                                 <li><strong>Agent discovery & query letter builder</strong> with auto-embedded pitch/synopsis/bio</li>
@@ -248,7 +248,7 @@ export default function FAQ() {
                                             </ul>
                                             <p className="font-semibold text-slate-900 mt-3">It does:</p>
                                             <ul className="list-disc ml-6 space-y-1">
-                                                <li>Evaluate your manuscript or screenplay against agent-calibrated criteria</li>
+                                                <li>Evaluate your writing against agent-calibrated criteria</li>
                                                 <li>Generate revision options for your existing text (with your approval)</li>
                                                 <li>Diagnose structural and craft risks</li>
                                                 <li>Surface recurring weaknesses</li>
@@ -257,7 +257,7 @@ export default function FAQ() {
                                                 <li><strong>Connect you to agents</strong> with targeted search and submission tracking</li>
                                             </ul>
                                             <p className="text-indigo-900 font-semibold mt-3">
-                                                In short: RevisionGrade™ takes you from manuscript to agent inbox—complete publishing pipeline in one platform.
+                                                In short: RevisionGrade™ takes you from draft to agent inbox—complete publishing pipeline in one platform.
                                             </p>
                                         </div>
                                     </AccordionContent>
@@ -449,8 +449,7 @@ export default function FAQ() {
                                         <div className="space-y-3 text-slate-700">
                                             <p><strong>1. Submit Your Work</strong></p>
                                             <p className="ml-4">
-                                                Upload a scene, chapter, or full manuscript. RevisionGrade™ automatically detects format 
-                                                (manuscript or screenplay).
+                                                Upload a scene, chapter, or full work. RevisionGrade™ automatically processes your writing.
                                             </p>
 
                                             <p><strong>2. Analysis</strong></p>
@@ -500,8 +499,7 @@ export default function FAQ() {
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <p className="text-slate-700">
-                                            RevisionGrade™ supports <strong>manuscripts (novels, memoirs, narrative nonfiction) and 
-                                            screenplays</strong>. Upload as plain text (.txt), Word (.docx), or paste directly into the editor.
+                                            RevisionGrade™ supports <strong>novels, memoirs, narrative nonfiction, and screenplays</strong>. Upload as plain text (.txt), Word (.docx), or paste directly into the editor.
                                         </p>
                                     </AccordionContent>
                                 </AccordionItem>
@@ -1233,7 +1231,7 @@ export default function FAQ() {
                                     <AccordionContent>
                                         <p className="text-slate-700">
                                             <strong>Yes.</strong> You retain full ownership and copyright of your creative work. 
-                                            RevisionGrade™ does not claim any rights to manuscripts or screenplays submitted for evaluation.
+                                            RevisionGrade™ does not claim any rights to any work submitted for evaluation.
                                         </p>
                                     </AccordionContent>
                                 </AccordionItem>
@@ -1244,7 +1242,7 @@ export default function FAQ() {
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <p className="text-slate-700">
-                                            Yes. Your manuscripts are stored securely and are never shared, published, or used for training 
+                                            Yes. Your work is stored securely and is never shared, published, or used for training 
                                             third-party AI models without your explicit consent.
                                         </p>
                                     </AccordionContent>

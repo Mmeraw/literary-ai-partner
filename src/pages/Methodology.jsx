@@ -65,8 +65,8 @@ export default function Methodology() {
                             <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
                                 <h4 className="font-semibold text-slate-900 mb-2">Editorial Analysis</h4>
                                 <p className="text-sm text-slate-600">
-                                    MFA Creative Writing + PhD English Literature specialists evaluated full manuscripts 
-                                    and screenplays, identifying structural issues, pacing problems, and thematic clarity.
+                                    MFA Creative Writing + PhD English Literature specialists evaluated complete works, 
+                                    identifying structural issues, pacing problems, and thematic clarity.
                                 </p>
                             </div>
                             <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
@@ -90,7 +90,7 @@ export default function Methodology() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <p className="text-slate-700">
-                            WAVE is a late-stage revision system for manuscripts that already work at the story level but still need disciplined editing to read as professional and submission-ready. It is diagnostic and multi-pass: each evaluation isolates a failure pattern, explains why it weakens the manuscript, and gives a concrete way to fix it. Base44 surfaces the relevant insights, explains the "why," and leaves every change up to you.
+                           WAVE is a late-stage revision system for writing that already works at the story level but still needs disciplined editing to read as professional and submission-ready. It is diagnostic and multi-pass: each evaluation isolates a failure pattern, explains why it weakens the writing, and gives a concrete way to fix it. Base44 surfaces the relevant insights, explains the "why," and leaves every change up to you.
                         </p>
                         <p className="text-slate-700">
                             Base44 applies the WAVE framework to every chapter automatically, then reports which areas need attention and why—so you see the standards and stay in control of every change.

@@ -28,17 +28,17 @@ export default function Criteria() {
                     <Card className="border-0 shadow-md bg-white">
                         <CardContent className="p-6 space-y-4">
                             <div>
-                                <h2 className="text-xl font-bold text-slate-900 mb-3">What is WAVE?</h2>
-                                <p className="text-slate-700 leading-relaxed">
-                                    WAVE is a late-stage revision system for manuscripts that already work at the story level but still need disciplined editing to read as professional and submission-ready. It is diagnostic and multi-pass: each evaluation isolates a failure pattern, explains why it weakens the manuscript, and gives a concrete way to fix it.
-                                </p>
+                               <h2 className="text-xl font-bold text-slate-900 mb-3">What is WAVE?</h2>
+                               <p className="text-slate-700 leading-relaxed">
+                                   WAVE is a late-stage revision system for writing that already works at the story level but still needs disciplined editing to read as professional and submission-ready. It is diagnostic and multi-pass: each evaluation isolates a failure pattern, explains why it weakens the writing, and gives a concrete way to fix it.
+                               </p>
                             </div>
 
                             <div>
-                                <h3 className="text-lg font-bold text-slate-900 mb-3">How Base44 applies WAVE</h3>
-                                <p className="text-slate-700 leading-relaxed">
-                                    Base44—powered by multiple AI systems including ChatGPT and Perplexity—executes the WAVE framework on your manuscript, applying the proprietary standards consistently across every chapter. It surfaces where the draft succeeds and where it undermines itself, explains the "why" behind each flag, and leaves every creative decision to you.
-                                </p>
+                               <h3 className="text-lg font-bold text-slate-900 mb-3">How Base44 applies WAVE</h3>
+                               <p className="text-slate-700 leading-relaxed">
+                                   Base44—powered by multiple AI systems including ChatGPT and Perplexity—executes the WAVE framework on your writing, applying the proprietary standards consistently throughout. It surfaces where the draft succeeds and where it undermines itself, explains the "why" behind each flag, and leaves every creative decision to you.
+                               </p>
                             </div>
                         </CardContent>
                     </Card>
@@ -89,7 +89,7 @@ export default function Criteria() {
                     <CardContent className="p-8">
                         <h2 className="text-2xl font-bold text-slate-900 mb-6">What We Evaluate</h2>
                         <p className="text-slate-700 mb-6 leading-relaxed">
-                            RevisionGrade uses a two-layer evaluation framework powered by the WAVE Revision System (proprietary revision framework) designed to mirror professional editorial assessment. Each manuscript is reviewed across:
+                           RevisionGrade uses a two-layer evaluation framework powered by the WAVE Revision System (proprietary revision framework) designed to mirror professional editorial assessment. Each work is reviewed across:
                         </p>
                         <div className="space-y-6 mb-6">
                             <div>
@@ -117,7 +117,7 @@ export default function Criteria() {
                                     ))}
                                 </div>
                                 <p className="text-sm text-slate-600 italic mt-4">
-                                    The structural and thematic foundation that agents and editors use to assess manuscript readiness.
+                                   The structural and thematic foundation that agents and editors use to assess submission readiness.
                                 </p>
                             </div>
 
@@ -138,7 +138,7 @@ export default function Criteria() {
                                     </div>
                                 </div>
                                 <p className="text-sm text-slate-600 italic">
-                                    Identifies patterns that can quietly reduce clarity, authority, and submission readiness—then explains what triggered and why.
+                                   Identifies patterns that can quietly reduce clarity, authority, and submission readiness—then explains what was triggered and why.
                                 </p>
                             </div>
                         </div>
