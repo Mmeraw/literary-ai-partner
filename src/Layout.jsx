@@ -158,11 +158,13 @@ export default function Layout({ children, currentPageName }) {
                                 <DropdownMenuContent align="start" className="w-56">
                                     <DropdownMenuItem asChild>
                                         <Link to={createPageUrl('Dashboard')} className="cursor-pointer">
+                                            <BarChart3 className="w-4 h-4 mr-2" />
                                             Overview
                                         </Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem asChild>
                                         <Link to={createPageUrl('Analytics')} className="cursor-pointer">
+                                            <TrendingUp className="w-4 h-4 mr-2" />
                                             Analytics
                                         </Link>
                                     </DropdownMenuItem>
@@ -187,18 +189,18 @@ export default function Layout({ children, currentPageName }) {
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            <Link to={createPageUrl('Dashboard')}>
+                            <Link to={createPageUrl('Evaluate')}>
                                 <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
                                     Evaluate
                                 </Button>
                             </Link>
 
-                            <Link to={createPageUrl('Revise')}>
+                            <Link to={createPageUrl('History')}>
                                 <Button
                                     variant="ghost"
                                     className={cn(
                                         "h-9 px-3 text-sm",
-                                        currentPageName === 'Revise' 
+                                        currentPageName === 'History' 
                                             ? "bg-indigo-50 text-indigo-700" 
                                             : "text-slate-600 hover:text-slate-900"
                                     )}
@@ -342,7 +344,13 @@ export default function Layout({ children, currentPageName }) {
                                         </Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
-                                    {resourcesPages.filter(item => item.page !== 'SampleAnalyses').map((item) => (
+                                    <DropdownMenuItem asChild>
+                                        <Link to={createPageUrl('FAQ')} className="flex items-center gap-2 cursor-pointer">
+                                            <HelpCircle className="w-4 h-4" />
+                                            FAQ
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    {resourcesPages.filter(item => item.page !== 'SampleAnalyses' && item.page !== 'FAQ').map((item) => (
                                         <DropdownMenuItem key={item.page} asChild>
                                             <Link to={createPageUrl(item.page)} className="flex items-center gap-2 cursor-pointer">
                                                 <item.icon className="w-4 h-4" />
@@ -607,13 +615,19 @@ export default function Layout({ children, currentPageName }) {
                                                 </div>
                                             )}
                                         </div>
-                                        {resourcesPages.filter(item => item.page !== 'SampleAnalyses').map((item) => (
-                                            <Link key={item.page} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
-                                                <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
-                                                    <item.icon className="w-4 h-4 mr-2" />
-                                                    {item.name}
-                                                </Button>
-                                            </Link>
+                                        <Link to={createPageUrl('FAQ')} onClick={() => setMobileMenuOpen(false)}>
+                                           <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
+                                               <HelpCircle className="w-4 h-4 mr-2" />
+                                               FAQ
+                                           </Button>
+                                        </Link>
+                                        {resourcesPages.filter(item => item.page !== 'SampleAnalyses' && item.page !== 'FAQ').map((item) => (
+                                           <Link key={item.page} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
+                                               <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
+                                                   <item.icon className="w-4 h-4 mr-2" />
+                                                   {item.name}
+                                               </Button>
+                                           </Link>
                                         ))}
                                     </div>
                                 )}
