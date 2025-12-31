@@ -399,9 +399,12 @@ export default function FilmAdaptation() {
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <CardTitle>Generate Film Pitch Deck</CardTitle>
-                                <Button variant="ghost" size="sm" onClick={() => setShowUploadForm(false)}>
-                                    ✕
-                                </Button>
+                                <button 
+                                    onClick={() => setShowUploadForm(false)}
+                                    className="text-slate-400 hover:text-slate-600 text-2xl leading-none"
+                                >
+                                    ×
+                                </button>
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -431,11 +434,11 @@ export default function FilmAdaptation() {
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
                                     Logline (Optional)
                                 </label>
-                                <RichTextEditor
+                                <Textarea
                                     value={manuscriptData.logline}
-                                    onChange={(value) => setManuscriptData(prev => ({ ...prev, logline: value }))}
+                                    onChange={(e) => setManuscriptData(prev => ({ ...prev, logline: e.target.value }))}
                                     placeholder="When an amphibian empire faces extinction..."
-                                    minHeight="120px"
+                                    className="min-h-[120px]"
                                 />
                             </div>
 
@@ -446,22 +449,22 @@ export default function FilmAdaptation() {
                                 
                                 {/* Primary: Paste */}
                                 <div className="mb-4">
-                                    <RichTextEditor
+                                    <Textarea
                                         value={manuscriptData.manuscriptText}
-                                        onChange={(value) => {
-                                            const wordCount = value.replace(/<[^>]*>/g, '').split(/\s+/).filter(w => w).length;
+                                        onChange={(e) => {
+                                            const wordCount = e.target.value.split(/\s+/).filter(w => w).length;
                                             if (wordCount > 250000) {
                                                 toast.error('Text exceeds 250,000 word limit');
                                                 return;
                                             }
-                                            setManuscriptData(prev => ({ ...prev, manuscriptText: value }));
+                                            setManuscriptData(prev => ({ ...prev, manuscriptText: e.target.value }));
                                         }}
                                         placeholder="✏️ Paste your manuscript or screenplay text here (fastest)"
-                                        minHeight="320px"
+                                        className="min-h-[320px]"
                                     />
                                     {manuscriptData.manuscriptText && (
                                         <p className="text-sm text-emerald-600 mt-2">
-                                            ✓ Loaded {manuscriptData.manuscriptText.replace(/<[^>]*>/g, '').split(/\s+/).filter(w => w).length.toLocaleString()} words
+                                            ✓ Loaded {manuscriptData.manuscriptText.split(/\s+/).filter(w => w).length.toLocaleString()} words
                                         </p>
                                     )}
                                 </div>
