@@ -23,6 +23,10 @@ import {
 
 export default function StorygateStudio() {
     const [formData, setFormData] = useState({
+        first_name: '',
+        last_name: '',
+        email: '',
+        phone: '',
         project_title: '',
         format: '',
         genre_tone: '',
@@ -47,6 +51,21 @@ export default function StorygateStudio() {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        if (!formData.first_name.trim()) {
+            toast.error('First name is required');
+            return;
+        }
+
+        if (!formData.last_name.trim()) {
+            toast.error('Last name is required');
+            return;
+        }
+
+        if (!formData.email.trim()) {
+            toast.error('Email is required');
+            return;
+        }
+
         if (!formData.project_title.trim()) {
             toast.error('Project title is required');
             return;
@@ -70,8 +89,12 @@ export default function StorygateStudio() {
         setIsSubmitting(true);
 
         try {
-            // Store submission (you'll need to create a StorygateSubmission entity)
+            // Store submission
             await base44.entities.StorygateSubmission.create({
+                first_name: formData.first_name,
+                last_name: formData.last_name,
+                email: formData.email,
+                phone: formData.phone,
                 project_title: formData.project_title,
                 format: formData.format,
                 genre_tone: formData.genre_tone,
@@ -259,6 +282,58 @@ export default function StorygateStudio() {
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-6">
+                            {/* Contact Information */}
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2" style={{ color: '#F2EFEA' }}>
+                                        First Name *
+                                    </label>
+                                    <Input
+                                        value={formData.first_name}
+                                        onChange={(e) => setFormData({...formData, first_name: e.target.value})}
+                                        style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2" style={{ color: '#F2EFEA' }}>
+                                        Last Name *
+                                    </label>
+                                    <Input
+                                        value={formData.last_name}
+                                        onChange={(e) => setFormData({...formData, last_name: e.target.value})}
+                                        style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2" style={{ color: '#F2EFEA' }}>
+                                        Email *
+                                    </label>
+                                    <Input
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                                        style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                        Phone (Optional)
+                                    </label>
+                                    <Input
+                                        type="tel"
+                                        value={formData.phone}
+                                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                                        style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                    />
+                                </div>
+                            </div>
+
                             {/* Project Title */}
                             <div>
                                 <label className="block text-sm font-medium mb-2" style={{ color: '#F2EFEA' }}>
