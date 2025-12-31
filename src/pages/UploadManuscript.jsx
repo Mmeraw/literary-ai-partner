@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Loader2, BookOpen, FileText } from 'lucide-react';
 import { toast } from "sonner";
 import { createPageUrl } from '@/utils';
 import TransgressiveModeSelector from '@/components/evaluation/TransgressiveModeSelector';
 import LanguageVariantSelector from '@/components/evaluation/LanguageVariantSelector';
+import RichTextEditor from '@/components/RichTextEditor';
 
 export default function UploadManuscript() {
   const [title, setTitle] = useState('');
@@ -30,7 +30,9 @@ export default function UploadManuscript() {
       return;
     }
 
-    const wordCount = text.split(/\s+/).filter(w => w).length;
+    // Strip HTML tags for word count
+    const plainText = text.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ');
+    const wordCount = plainText.split(/\s+/).filter(w => w).length;
     
     if (wordCount > 250000) {
       toast.error(
@@ -155,13 +157,13 @@ export default function UploadManuscript() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1 sm:mb-2">
-                Paste your writing below
+                Paste your writing below (formatting preserved: italics, bold, etc.)
               </label>
-              <Textarea
+              <RichTextEditor
                 value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Paste a paragraph, scene, chapter, or full manuscript here..."
-                className="min-h-[300px] sm:min-h-[400px] font-mono text-sm"
+                onChange={setText}
+                placeholder="Paste a paragraph, scene, chapter, or full manuscript here... (formatting like italics and bold will be preserved)"
+                minHeight="300px"
               />
               <div className="flex items-center justify-between mt-1">
                 <p className="text-xs sm:text-sm text-slate-500">
@@ -174,7 +176,7 @@ export default function UploadManuscript() {
                 )}
               </div>
               <p className="mt-1 text-xs text-slate-500">
-                You can submit partial drafts, excerpts, or complete works. Your text is never shared or published.
+                You can submit partial drafts, excerpts, or complete works. Formatting (italics, bold, caps) is preserved. Your text is never shared or published.
               </p>
             </div>
 
