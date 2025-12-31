@@ -228,138 +228,92 @@ export default function Layout({ children, currentPageName }) {
                                             </Link>
                                         </DropdownMenuItem>
                                     ))}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-
-                            {/* StoryGate Navigation */}
-                            {!loading && user && (
-                                <>
-                                    {user.role === 'admin' && (
-                                        <Link to={createPageUrl('AdminVerificationQueue')}>
-                                            <Button
-                                                variant="ghost"
-                                                className={cn(
-                                                    "h-9 px-3 text-sm",
-                                                    currentPageName === 'AdminVerificationQueue'
-                                                        ? "bg-indigo-50 text-indigo-700"
-                                                        : "text-slate-600 hover:text-slate-900"
-                                                )}
-                                            >
-                                                Verification Queue
-                                            </Button>
-                                        </Link>
-                                    )}
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                                StoryGate <ChevronDown className="ml-1 h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="start" className="w-56">
-                                            <DropdownMenuItem asChild>
-                                                <Link to={createPageUrl('CreatorStoryGate')} className="cursor-pointer">
-                                                    My Listings
-                                                </Link>
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem asChild>
-                                                <Link to={createPageUrl('CreateStoryGateListing')} className="cursor-pointer">
-                                                    Create Listing
-                                                </Link>
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem asChild>
-                                                <Link to={createPageUrl('StoryGatePortal')} className="cursor-pointer">
-                                                    Industry Portal
-                                                </Link>
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </>
-                            )}
-
-                            {/* Pricing & Enterprise */}
-                            <Link to={createPageUrl('Pricing')}>
-                                <Button
-                                    variant="ghost"
-                                    className={cn(
-                                        "h-9 px-3 text-sm",
-                                        currentPageName === 'Pricing' 
-                                            ? "bg-indigo-50 text-indigo-700" 
-                                            : "text-slate-600 hover:text-slate-900"
-                                    )}
-                                >
-                                    Pricing
-                                </Button>
-                            </Link>
-
-                            <Link to={createPageUrl('StorygateStudio')}>
-                                <Button
-                                    className={cn(
-                                        "h-9 px-3 text-sm bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white",
-                                        currentPageName === 'StorygateStudio' && "from-purple-700 to-pink-700"
-                                    )}
-                                >
-                                    Storygate Studio
-                                </Button>
-                            </Link>
-
-                            <Link to={createPageUrl('Enterprise')}>
-                                <Button
-                                    className={cn(
-                                        "h-9 px-3 text-sm bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white",
-                                        currentPageName === 'Enterprise' && "from-indigo-700 to-purple-700"
-                                    )}
-                                >
-                                    Enterprise
-                                </Button>
-                            </Link>
-
-                            {/* Resources Dropdown */}
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                        Resources <ChevronDown className="ml-1 h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="w-64">
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">Sample Analyses</div>
-                                    <DropdownMenuItem asChild>
-                                        <Link to={createPageUrl('SampleAnalyses')} className="cursor-pointer pl-6">
-                                            Overview
-                                        </Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem asChild>
-                                        <Link to={createPageUrl('SampleChapterAnalysis')} className="cursor-pointer pl-6">
-                                            Executive Summary
-                                        </Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem asChild>
-                                        <Link to={createPageUrl('SampleComparativeAnalysis')} className="cursor-pointer pl-6">
-                                            Full Pitch Deck
-                                        </Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem asChild>
-                                        <Link to={createPageUrl('SampleFilmPitchDeck')} className="cursor-pointer pl-6">
-                                            Film Pitch Deck
-                                        </Link>
-                                    </DropdownMenuItem>
                                     <DropdownMenuSeparator />
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">Resources</div>
                                     <DropdownMenuItem asChild>
-                                        <Link to={createPageUrl('FAQ')} className="flex items-center gap-2 cursor-pointer">
-                                            <HelpCircle className="w-4 h-4" />
+                                        <Link to={createPageUrl('FAQ')} className="cursor-pointer">
+                                            <HelpCircle className="w-4 h-4 mr-2" />
                                             FAQ
                                         </Link>
                                     </DropdownMenuItem>
-                                    {resourcesPages.filter(item => item.page !== 'SampleAnalyses' && item.page !== 'FAQ').map((item) => (
-                                        <DropdownMenuItem key={item.page} asChild>
-                                            <Link to={createPageUrl(item.page)} className="flex items-center gap-2 cursor-pointer">
-                                                <item.icon className="w-4 h-4" />
-                                                {item.name}
-                                            </Link>
-                                        </DropdownMenuItem>
-                                    ))}
+                                    <DropdownMenuItem asChild>
+                                        <Link to={createPageUrl('SampleAnalyses')} className="cursor-pointer">
+                                            <FileCheck className="w-4 h-4 mr-2" />
+                                            Sample Analyses
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem asChild>
+                                        <Link to={createPageUrl('Methodology')} className="cursor-pointer">
+                                            <FileText className="w-4 h-4 mr-2" />
+                                            Methodology
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">More</div>
+                                    <DropdownMenuItem asChild>
+                                        <Link to={createPageUrl('Pricing')} className="cursor-pointer">
+                                            <Sparkles className="w-4 h-4 mr-2" />
+                                            Pricing
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem asChild>
+                                        <Link to={createPageUrl('StorygateStudio')} className="cursor-pointer">
+                                            <Crown className="w-4 h-4 mr-2" />
+                                            Storygate Studio
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem asChild>
+                                        <Link to={createPageUrl('Enterprise')} className="cursor-pointer">
+                                            <Crown className="w-4 h-4 mr-2" />
+                                            Enterprise
+                                        </Link>
+                                    </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
+
+                            {!loading && user && user.role === 'admin' && (
+                                <Link to={createPageUrl('AdminVerificationQueue')}>
+                                    <Button
+                                        variant="ghost"
+                                        className={cn(
+                                            "h-9 px-3 text-sm",
+                                            currentPageName === 'AdminVerificationQueue'
+                                                ? "bg-indigo-50 text-indigo-700"
+                                                : "text-slate-600 hover:text-slate-900"
+                                        )}
+                                    >
+                                        Verification Queue
+                                    </Button>
+                                </Link>
+                            )}
+
+                            {!loading && user && (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
+                                            StoryGate <ChevronDown className="ml-1 h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="w-56">
+                                        <DropdownMenuItem asChild>
+                                            <Link to={createPageUrl('CreatorStoryGate')} className="cursor-pointer">
+                                                My Listings
+                                            </Link>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem asChild>
+                                            <Link to={createPageUrl('CreateStoryGateListing')} className="cursor-pointer">
+                                                Create Listing
+                                            </Link>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem asChild>
+                                            <Link to={createPageUrl('StoryGatePortal')} className="cursor-pointer">
+                                                Industry Portal
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            )}
                         </div>
 
                         {/* Right side */}
