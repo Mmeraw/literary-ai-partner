@@ -1505,6 +1505,80 @@ export default function FAQ() {
                         </CardContent>
                     </Card>
 
+                    {/* Genre, Classification & Evaluation */}
+                    <Card className="border-0 shadow-md">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <BookOpen className="w-5 h-5 text-indigo-600" />
+                                Genre, Classification & Evaluation
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Accordion type="single" collapsible className="w-full">
+                                <AccordionItem value="multiple-genres">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="multiple-genres">
+                                        Why can't I choose multiple genres?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            Because multi-label genre selection reduces scoring reliability. RevisionGrade™ and Storygate Studio™ 
+                                            use a single primary genre to anchor evaluation, then applies internal logic to account for hybrid 
+                                            or cross-genre qualities.
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="doesnt-fit-category">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="doesnt-fit-category">
+                                        What if my work doesn't fit cleanly into one category?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            That's common. Choose the genre that best reflects how your project would be positioned in the market. 
+                                            Hybrid or cross-genre elements can be described elsewhere in your submission and are considered during evaluation.
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="full-genre-list">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="full-genre-list">
+                                        Why can't I see the full list of genre categories?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            Because RevisionGrade's and Storygate Studio's internal taxonomy is designed for analytical consistency, 
+                                            not public selection. Exposing the full taxonomy would increase confusion without improving assessment accuracy.
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="genre-acceptance">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="genre-acceptance">
+                                        Does genre affect whether my project is accepted?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            No. Acceptance is based on craft, originality, and execution. Genre is used to contextualize evaluation—not 
+                                            to determine eligibility.
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="genre-viability">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="genre-viability">
+                                        Is genre used to judge commercial viability?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            Indirectly. Genre helps frame expectations and comparative benchmarks, but decisions are driven by quality, 
+                                            coherence, and professional readiness—not market trends alone.
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </CardContent>
+                    </Card>
+
                     {/* Privacy & Security */}
                     <Card className="border-0 shadow-md">
                         <CardHeader>
