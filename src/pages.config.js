@@ -5,6 +5,7 @@ import Comparables from './pages/Comparables';
 import ComparativeReport from './pages/ComparativeReport';
 import CompletePackage from './pages/CompletePackage';
 import Contact from './pages/Contact';
+import CreatorStoryGate from './pages/CreatorStoryGate';
 import Criteria from './pages/Criteria';
 import Dashboard from './pages/Dashboard';
 import Enterprise from './pages/Enterprise';
@@ -18,6 +19,7 @@ import ForProfessionals from './pages/ForProfessionals';
 import HelpCenter from './pages/HelpCenter';
 import History from './pages/History';
 import Home from './pages/Home';
+import IndustryVerification from './pages/IndustryVerification';
 import InternalBase44Responsibilities from './pages/InternalBase44Responsibilities';
 import InternalGovernanceIndex from './pages/InternalGovernanceIndex';
 import InternalRevisionGradeResponsibilities from './pages/InternalRevisionGradeResponsibilities';
@@ -44,6 +46,7 @@ import SecurityAndEthics from './pages/SecurityAndEthics';
 import SelectFormat from './pages/SelectFormat';
 import SlurHandlingPolicy from './pages/SlurHandlingPolicy';
 import SpineReport from './pages/SpineReport';
+import StoryGatePortal from './pages/StoryGatePortal';
 import StorygateReview from './pages/StorygateReview';
 import StorygateStudio from './pages/StorygateStudio';
 import Synopsis from './pages/Synopsis';
@@ -53,9 +56,8 @@ import UploadWork from './pages/UploadWork';
 import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
-import StoryGatePortal from './pages/StoryGatePortal';
-import CreatorStoryGate from './pages/CreatorStoryGate';
-import IndustryVerification from './pages/IndustryVerification';
+import AdminVerificationQueue from './pages/AdminVerificationQueue';
+import CreateStoryGateListing from './pages/CreateStoryGateListing';
 import __Layout from './Layout.jsx';
 
 
@@ -67,6 +69,7 @@ export const PAGES = {
     "ComparativeReport": ComparativeReport,
     "CompletePackage": CompletePackage,
     "Contact": Contact,
+    "CreatorStoryGate": CreatorStoryGate,
     "Criteria": Criteria,
     "Dashboard": Dashboard,
     "Enterprise": Enterprise,
@@ -80,6 +83,7 @@ export const PAGES = {
     "HelpCenter": HelpCenter,
     "History": History,
     "Home": Home,
+    "IndustryVerification": IndustryVerification,
     "InternalBase44Responsibilities": InternalBase44Responsibilities,
     "InternalGovernanceIndex": InternalGovernanceIndex,
     "InternalRevisionGradeResponsibilities": InternalRevisionGradeResponsibilities,
@@ -106,6 +110,7 @@ export const PAGES = {
     "SelectFormat": SelectFormat,
     "SlurHandlingPolicy": SlurHandlingPolicy,
     "SpineReport": SpineReport,
+    "StoryGatePortal": StoryGatePortal,
     "StorygateReview": StorygateReview,
     "StorygateStudio": StorygateStudio,
     "Synopsis": Synopsis,
@@ -115,9 +120,8 @@ export const PAGES = {
     "ValidationReport": ValidationReport,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
-    "StoryGatePortal": StoryGatePortal,
-    "CreatorStoryGate": CreatorStoryGate,
-    "IndustryVerification": IndustryVerification,
+    "AdminVerificationQueue": AdminVerificationQueue,
+    "CreateStoryGateListing": CreateStoryGateListing,
 }
 
 export const pagesConfig = {

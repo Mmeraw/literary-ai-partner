@@ -237,6 +237,52 @@ export default function Layout({ children, currentPageName }) {
                                 </Button>
                             </Link>
 
+                            {/* StoryGate Navigation */}
+                            {!loading && user && (
+                                <>
+                                    {user.role === 'admin' && (
+                                        <Link to={createPageUrl('AdminVerificationQueue')}>
+                                            <Button
+                                                variant="ghost"
+                                                className={cn(
+                                                    "h-9 px-3 text-sm",
+                                                    currentPageName === 'AdminVerificationQueue'
+                                                        ? "bg-indigo-50 text-indigo-700"
+                                                        : "text-slate-600 hover:text-slate-900"
+                                                )}
+                                            >
+                                                Verification Queue
+                                            </Button>
+                                        </Link>
+                                    )}
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
+                                                StoryGate <ChevronDown className="ml-1 h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="start" className="w-56">
+                                            <DropdownMenuItem asChild>
+                                                <Link to={createPageUrl('CreatorStoryGate')} className="cursor-pointer">
+                                                    My Listings
+                                                </Link>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem asChild>
+                                                <Link to={createPageUrl('CreateStoryGateListing')} className="cursor-pointer">
+                                                    Create Listing
+                                                </Link>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem asChild>
+                                                <Link to={createPageUrl('StoryGatePortal')} className="cursor-pointer">
+                                                    Industry Portal
+                                                </Link>
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </>
+                            )}
+
                             {/* Pricing & Enterprise */}
                             <Link to={createPageUrl('Pricing')}>
                                 <Button
