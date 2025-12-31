@@ -1368,6 +1368,143 @@ export default function FAQ() {
                         </CardContent>
                     </Card>
 
+                    {/* External Research & Privacy Controls */}
+                    <Card className="border-0 shadow-md">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <Sparkles className="w-5 h-5 text-indigo-600" />
+                                External Research & Privacy Controls
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Accordion type="single" collapsible className="w-full">
+                                <AccordionItem value="external-research-meaning">
+                                    <AccordionTrigger>
+                                        What does "external research" mean in RevisionGrade?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            External research refers to the use of real-world information outside your submitted writing 
+                                            to support factual verification and market context (for example: comparable titles with dates 
+                                            or performance figures).
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="manuscript-only-mode">
+                                    <AccordionTrigger>
+                                        What is "manuscript-only mode"?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            Manuscript-only mode means RevisionGrade uses only your submitted writing and internal story 
+                                            standards. No external lookup is performed.
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="research-required">
+                                    <AccordionTrigger>
+                                        Is external research required for evaluations and revisions?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            <strong>No.</strong> Most evaluations and revisions are fully manuscript-derived. 
+                                            External research is only relevant when you ask for outputs that depend on real-world facts.
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="works-without-research">
+                                    <AccordionTrigger>
+                                        What works without external research?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>RevisionGrade can produce high-quality outputs from your submitted writing alone, including:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Story and structural evaluation (pacing, stakes, POV, clarity, arcs)</li>
+                                                <li>Revision guidance and rewrite options (voice-preserving)</li>
+                                                <li>Scene breakdowns and beat mapping</li>
+                                                <li>Synopses (short/medium/long) based on your text</li>
+                                                <li>Loglines and taglines derived from the story</li>
+                                                <li>Query drafts and author bio drafts using your provided details</li>
+                                                <li>Pitch deck narrative sections without market-verified claims</li>
+                                                <li>Novel-to-screenplay drafting and formatting (spec-script conventions)</li>
+                                            </ul>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="when-research-needed">
+                                    <AccordionTrigger>
+                                        When is external research needed?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>External research may be needed when you request outputs that must be fact-accurate or market-verified, such as:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Comparable titles with dates, budgets, box office, sales, awards, or rankings</li>
+                                                <li>Current industry positioning claims (studios, streamers, formats, trend assertions)</li>
+                                                <li>Agent/producer/company discovery or verification</li>
+                                                <li>Any claim that depends on up-to-date public information</li>
+                                            </ul>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="research-control">
+                                    <AccordionTrigger>
+                                        Do I control when external research is used?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                <strong>Yes.</strong> Professional plan users can control permission behavior with 
+                                                the "Ask Before Research" toggle.
+                                            </p>
+                                            <p className="font-semibold text-slate-900 mt-3">When enabled:</p>
+                                            <p className="ml-4">
+                                                RevisionGrade will ask for your confirmation before using external research on tasks 
+                                                that may require it.
+                                            </p>
+                                            <p className="font-semibold text-slate-900 mt-3">When disabled:</p>
+                                            <p className="ml-4">
+                                                RevisionGrade will complete the request using only your submitted writing and internal 
+                                                standards. If a request cannot be answered responsibly without external verification, 
+                                                the system will either ask you to enable external research or offer a manuscript-derived alternative.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="research-privacy">
+                                    <AccordionTrigger>
+                                        Does RevisionGrade share my writing with the outside world?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            <strong>No.</strong> Your writing is analyzed within the platform's private processing environment. 
+                                            External research, when enabled, is used to retrieve public information—not to publish or expose 
+                                            your manuscript.
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="sometimes-research">
+                                    <AccordionTrigger>
+                                        Can I use external research sometimes and not others?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            Yes. You can switch settings per task or per project (depending on your plan).
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </CardContent>
+                    </Card>
+
                     {/* Privacy & Security */}
                     <Card className="border-0 shadow-md">
                         <CardHeader>

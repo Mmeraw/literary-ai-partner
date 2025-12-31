@@ -38,6 +38,7 @@ import SampleAnalyses from './pages/SampleAnalyses';
 import SampleAnalysis from './pages/SampleAnalysis';
 import SampleChapterAnalysis from './pages/SampleChapterAnalysis';
 import SampleComparativeAnalysis from './pages/SampleComparativeAnalysis';
+import SampleFilmPitchDeck from './pages/SampleFilmPitchDeck';
 import ScreenplayFormatter from './pages/ScreenplayFormatter';
 import SelectFormat from './pages/SelectFormat';
 import SlurHandlingPolicy from './pages/SlurHandlingPolicy';
@@ -49,7 +50,6 @@ import UploadWork from './pages/UploadWork';
 import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
-import SampleFilmPitchDeck from './pages/SampleFilmPitchDeck';
 import __Layout from './Layout.jsx';
 
 
@@ -94,6 +94,7 @@ export const PAGES = {
     "SampleAnalysis": SampleAnalysis,
     "SampleChapterAnalysis": SampleChapterAnalysis,
     "SampleComparativeAnalysis": SampleComparativeAnalysis,
+    "SampleFilmPitchDeck": SampleFilmPitchDeck,
     "ScreenplayFormatter": ScreenplayFormatter,
     "SelectFormat": SelectFormat,
     "SlurHandlingPolicy": SlurHandlingPolicy,
@@ -105,7 +106,6 @@ export const PAGES = {
     "ValidationReport": ValidationReport,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
-    "SampleFilmPitchDeck": SampleFilmPitchDeck,
 }
 
 export const pagesConfig = {
