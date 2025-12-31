@@ -275,7 +275,7 @@ export default function Layout({ children, currentPageName }) {
                                             </DropdownMenuItem>
                                             <DropdownMenuItem asChild>
                                                 <Link to={createPageUrl('SampleComparativeAnalysis')} className="cursor-pointer">
-                                                    Full Pitch Deck (38 pages)
+                                                    Full Pitch Deck (39 pages)
                                                 </Link>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem asChild>
@@ -503,7 +503,7 @@ export default function Layout({ children, currentPageName }) {
                                                     </Link>
                                                     <Link to={createPageUrl('SampleComparativeAnalysis')} onClick={() => setMobileMenuOpen(false)}>
                                                         <Button variant="ghost" className="w-full justify-start h-9 text-xs text-slate-600">
-                                                            Full Pitch Deck (38 pages)
+                                                            Full Pitch Deck (39 pages)
                                                         </Button>
                                                     </Link>
                                                 </div>
