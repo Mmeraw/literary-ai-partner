@@ -236,20 +236,31 @@ export default function QueryLetter() {
                                 <label className="text-sm font-medium text-slate-700 mb-2 block">
                                     Upload Manuscript or Screenplay (PDF, DOC, DOCX, RTF, or TXT)
                                 </label>
-                                <Input
+                                <input
                                     type="file"
                                     accept=".pdf,.doc,.docx,.rtf,.txt"
                                     onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (file && file.size > 25 * 1024 * 1024) {
                                             toast.error('File must be under 25MB');
+                                            e.target.value = '';
                                             return;
                                         }
                                         setAutoFormData({...autoFormData, manuscriptFile: file});
                                     }}
+                                    className="hidden"
+                                    id="query-manuscript-upload"
                                 />
+                                <label htmlFor="query-manuscript-upload">
+                                    <Button variant="outline" className="w-full" asChild>
+                                        <span className="cursor-pointer">
+                                            <Upload className="w-4 h-4 mr-2" />
+                                            Upload File
+                                        </span>
+                                    </Button>
+                                </label>
                                 {autoFormData.manuscriptFile && (
-                                    <p className="text-xs text-green-600 mt-1">
+                                    <p className="text-sm text-green-600 mt-2">
                                         ✓ {autoFormData.manuscriptFile.name}
                                     </p>
                                 )}
@@ -304,21 +315,32 @@ export default function QueryLetter() {
                                     </div>
                                 ) : autoFormData.bioMode === 'upload' ? (
                                     <div>
-                                        <Input
+                                        <input
                                             type="file"
                                             accept=".pdf,.doc,.docx,.rtf,.txt"
                                             onChange={(e) => {
                                                 const file = e.target.files?.[0];
                                                 if (file && file.size > 10 * 1024 * 1024) {
                                                     toast.error('File must be under 10MB');
+                                                    e.target.value = '';
                                                     return;
                                                 }
                                                 setAutoFormData({...autoFormData, bioFile: file});
                                             }}
+                                            className="hidden"
+                                            id="query-bio-upload"
                                         />
+                                        <label htmlFor="query-bio-upload">
+                                            <Button variant="outline" className="w-full" asChild>
+                                                <span className="cursor-pointer">
+                                                    <Upload className="w-4 h-4 mr-2" />
+                                                    Upload File
+                                                </span>
+                                            </Button>
+                                        </label>
                                         {autoFormData.bioFile && (
-                                            <p className="text-xs text-green-600 mt-1">
-                                                ✓ {autoFormData.bioFile.name} - We'll extract your bio from this file
+                                            <p className="text-sm text-green-600 mt-2">
+                                                ✓ {autoFormData.bioFile.name}
                                             </p>
                                         )}
                                     </div>

@@ -527,18 +527,21 @@ ${packageData.queryLetter}
                                                     variant="outline"
                                                     size="sm"
                                                     disabled={loadingBio}
+                                                    asChild
                                                 >
-                                                    {loadingBio ? (
-                                                        <>
-                                                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                                            Generating...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Upload className="w-3 h-3 mr-1" />
-                                                            Load CV or Resume
-                                                        </>
-                                                    )}
+                                                    <span>
+                                                        {loadingBio ? (
+                                                            <>
+                                                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                                                Processing...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Upload className="w-3 h-3 mr-1" />
+                                                                Upload File
+                                                            </>
+                                                        )}
+                                                    </span>
                                                 </Button>
                                             </label>
                                         </div>

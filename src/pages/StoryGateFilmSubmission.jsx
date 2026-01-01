@@ -348,7 +348,7 @@ export default function StoryGateFilmSubmission() {
                                         ) : (
                                             <>
                                                 <Upload className="w-4 h-4 mr-2" />
-                                                Choose File
+                                                Upload File
                                             </>
                                         )}
                                     </span>

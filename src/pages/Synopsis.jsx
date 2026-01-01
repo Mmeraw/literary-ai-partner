@@ -17,15 +17,15 @@ import { exportTxt } from '@/components/utils/exportTxt';
 export default function Synopsis() {
     const [manuscriptInfo, setManuscriptInfo] = useState('');
     const [generating, setGenerating] = useState(false);
+    const [uploadingFile, setUploadingFile] = useState(false);
+    const [uploadedFileName, setUploadedFileName] = useState('');
     const [synopses, setSynopses] = useState({
         query: '',
         standard: '',
         extended: ''
     });
     const [validation, setValidation] = useState({});
-    const [activeTab, setActiveTab] = useState('standard');
     
-    // Revision flows for each synopsis type
     const queryRevision = useRevisionFlow('synopsis');
     const standardRevision = useRevisionFlow('synopsis');
     const extendedRevision = useRevisionFlow('synopsis');
@@ -39,52 +39,52 @@ export default function Synopsis() {
     });
 
     const handleFileUpload = async (e) => {
-        console.log('🚀 handleFileUpload TRIGGERED at', new Date().toISOString());
         const file = e.target.files?.[0];
-        console.log('📁 File object:', { name: file?.name, size: file?.size, type: file?.type });
-        
-        if (!file) {
-            console.warn('❌ No file selected');
-            return;
-        }
+        if (!file) return;
 
         if (file.size > 25 * 1024 * 1024) {
-            console.error('❌ File too large:', file.size);
             toast.error('File must be under 25MB');
             return;
         }
 
-        console.log('✅ Starting upload flow...');
-        setGenerating(true);
+        setUploadingFile(true);
+        setUploadedFileName(file.name);
         
         try {
             toast.loading('Uploading manuscript...', { id: 'upload' });
-            console.log('📤 Calling base44.integrations.Core.UploadFile...');
             
             const uploadResult = await base44.integrations.Core.UploadFile({ file });
-            console.log('📦 UploadFile returned:', uploadResult);
-            
             const file_url = uploadResult?.file_url;
-            if (!file_url) throw new Error('No file_url in upload response');
             
-            toast.loading('Extracting manuscript text...', { id: 'upload' });
-            const fileResponse = await fetch(file_url);
-            const fileBuffer = await fileResponse.arrayBuffer();
-            const text = new TextDecoder().decode(fileBuffer);
+            if (!file_url) {
+                throw new Error('Upload failed');
+            }
+            
+            toast.loading('Extracting text...', { id: 'upload' });
+            
+            let text = '';
+            const fileName = file.name.toLowerCase();
+            
+            if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
+                const docxResult = await base44.functions.invoke('importDocx', { file_url });
+                text = docxResult.data?.text || '';
+            } else if (fileName.endsWith('.txt')) {
+                const response = await fetch(file_url);
+                text = await response.text();
+            } else {
+                const response = await fetch(file_url);
+                const buffer = await response.arrayBuffer();
+                text = new TextDecoder().decode(buffer);
+            }
             
             setManuscriptInfo(text);
-            toast.success('Manuscript loaded! You can now generate synopses.', { id: 'upload' });
+            toast.success('Manuscript loaded successfully!', { id: 'upload' });
         } catch (error) {
-            console.error('💥 Upload error:', error);
-            toast.error(
-                <div>
-                    <div className="font-semibold">Upload failed</div>
-                    <div className="text-xs mt-1">{error.message}</div>
-                </div>,
-                { id: 'upload', duration: 5000 }
-            );
+            console.error('Upload error:', error);
+            toast.error(`Upload failed: ${error.message}`, { id: 'upload' });
+            setUploadedFileName('');
         } finally {
-            setGenerating(false);
+            setUploadingFile(false);
             e.target.value = '';
         }
     };
@@ -95,7 +95,6 @@ export default function Synopsis() {
     };
 
     const generateSynopsis = async (type) => {
-        console.log('🚀 Generate synopsis triggered:', type);
         if (!manuscriptInfo.trim()) {
             toast.error('Please provide information about your manuscript');
             return;
@@ -103,13 +102,11 @@ export default function Synopsis() {
 
         setGenerating(true);
         try {
-            console.log('📤 Calling generateSynopsis...');
             const response = await base44.functions.invoke('generateSynopsis', {
                 manuscriptInfo,
                 synopsisType: type
             });
             
-            console.log('📦 Response:', response);
             const result = response.data || response;
 
             if (result.success) {
@@ -122,30 +119,17 @@ export default function Synopsis() {
                     [type]: result.validation
                 }));
                 
-                // Create baseline OutputVersion
                 const revision = type === 'query' ? queryRevision : type === 'standard' ? standardRevision : extendedRevision;
                 await revision.createBaseline(result.synopsis, `synopsis_${type}_${Date.now()}`);
                 
                 const versionName = type === 'query' ? 'Query' : type === 'standard' ? 'Standard' : 'Extended';
                 toast.success(`${versionName} synopsis generated! (${result.word_count} words)`);
             } else {
-                toast.error(
-                    <div>
-                        <div className="font-semibold">Generation failed</div>
-                        <div className="text-xs mt-1">{result.error || result.details || 'Unknown error'}</div>
-                    </div>,
-                    { duration: 5000 }
-                );
+                toast.error(result.error || 'Generation failed');
             }
         } catch (error) {
-            console.error('💥 Synopsis generation error:', error);
-            toast.error(
-                <div>
-                    <div className="font-semibold">Generation failed</div>
-                    <div className="text-xs mt-1">{error.message}</div>
-                </div>,
-                { duration: 5000 }
-            );
+            console.error('Synopsis generation error:', error);
+            toast.error('Failed to generate synopsis');
         } finally {
             setGenerating(false);
         }
@@ -156,24 +140,11 @@ export default function Synopsis() {
         toast.success('Copied to clipboard!');
     };
 
-    const downloadSynopsis = (text, filename) => {
-        const blob = new Blob([text], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success('Downloaded!');
-    };
-
     const handleRequestRevision = async (type) => {
         const revision = type === 'query' ? queryRevision : type === 'standard' ? standardRevision : extendedRevision;
         const currentContent = synopses[type];
         
-        // For demo: simulate a revised version (in production, call backend revision service)
         toast.info('Requesting AI revision...');
-        // TODO: Replace with actual revision generation call
         const revisedContent = currentContent + '\n\n[AI-generated revision would appear here]';
         
         await revision.requestRevision(currentContent, revisedContent);
@@ -182,7 +153,6 @@ export default function Synopsis() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             <div className="max-w-4xl mx-auto px-6 py-12">
-                {/* Header */}
                 <div className="text-center mb-10">
                     <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <FileText className="w-4 h-4 mr-2" />
@@ -197,7 +167,6 @@ export default function Synopsis() {
                     </p>
                 </div>
 
-                {/* Input Section */}
                 <Card className="mb-8">
                     <CardHeader>
                         <CardTitle>Tell Us About Your Story</CardTitle>
@@ -216,20 +185,43 @@ export default function Synopsis() {
                             <div className="flex-1 border-t border-slate-300"></div>
                         </div>
                         
-                        <input
-                            type="file"
-                            accept=".txt,.pdf,.doc,.docx"
-                            onChange={handleFileUpload}
-                            className="hidden"
-                            id="manuscript-upload-synopsis"
-                            disabled={generating}
-                        />
-                        <label htmlFor="manuscript-upload-synopsis" className="cursor-pointer block">
-                            <Button type="button" variant="outline" className="w-full" disabled={generating}>
-                                {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                                Upload Manuscript
-                            </Button>
-                        </label>
+                        <div className="flex flex-col gap-2">
+                            <input
+                                type="file"
+                                accept=".pdf,.doc,.docx,.rtf,.txt"
+                                onChange={handleFileUpload}
+                                className="hidden"
+                                id="synopsis-upload"
+                            />
+                            <label htmlFor="synopsis-upload">
+                                <Button 
+                                    type="button" 
+                                    variant="outline" 
+                                    className="w-full" 
+                                    disabled={uploadingFile}
+                                    asChild
+                                >
+                                    <span className="cursor-pointer">
+                                        {uploadingFile ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                Processing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Upload className="w-4 h-4 mr-2" />
+                                                Upload File
+                                            </>
+                                        )}
+                                    </span>
+                                </Button>
+                            </label>
+                            {uploadedFileName && (
+                                <p className="text-sm text-green-600">
+                                    ✓ {uploadedFileName}
+                                </p>
+                            )}
+                        </div>
                         
                         {manuscripts.length > 0 && (
                             <>
@@ -255,7 +247,6 @@ export default function Synopsis() {
                     </CardContent>
                 </Card>
 
-                {/* Synopsis Types */}
                 <Tabs defaultValue="standard" className="space-y-6">
                     <TabsList className="grid grid-cols-3 w-full">
                         <TabsTrigger value="query">Query (100-150)</TabsTrigger>
@@ -263,7 +254,6 @@ export default function Synopsis() {
                         <TabsTrigger value="extended">Extended (700-1000)</TabsTrigger>
                     </TabsList>
 
-                    {/* Query Synopsis */}
                     <TabsContent value="query" className="space-y-4">
                         <Card>
                             <CardHeader>
@@ -326,7 +316,7 @@ export default function Synopsis() {
                                                 showingViewer={queryRevision.showViewer}
                                                 processing={queryRevision.processing}
                                                 onRequestRevision={() => handleRequestRevision('query')}
-                                                onShowViewer={() => queryRevision.closeViewer() || (queryRevision.showViewer = true)}
+                                                onShowViewer={() => queryRevision.setShowViewer(true)}
                                                 onApprove={queryRevision.approveRevision}
                                                 onClose={queryRevision.closeViewer}
                                             />
@@ -337,7 +327,6 @@ export default function Synopsis() {
                         </Card>
                     </TabsContent>
 
-                    {/* Standard Synopsis */}
                     <TabsContent value="standard" className="space-y-4">
                         <Card>
                             <CardHeader>
@@ -411,7 +400,6 @@ export default function Synopsis() {
                         </Card>
                     </TabsContent>
 
-                    {/* Extended Synopsis */}
                     <TabsContent value="extended" className="space-y-4">
                         <Card>
                             <CardHeader>
@@ -486,7 +474,6 @@ export default function Synopsis() {
                     </TabsContent>
                 </Tabs>
 
-                {/* Tips */}
                 <Card className="mt-8 border-2 border-indigo-100">
                     <CardHeader>
                         <CardTitle>Synopsis Best Practices</CardTitle>
@@ -526,7 +513,6 @@ export default function Synopsis() {
                     </CardContent>
                 </Card>
 
-                {/* Integration Note */}
                 <div className="mt-8 p-6 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 text-center">
                     <h3 className="text-lg font-semibold text-slate-900 mb-2">
                         Ready for Query Letters

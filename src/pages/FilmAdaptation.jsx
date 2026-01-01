@@ -507,21 +507,22 @@ export default function FilmAdaptation() {
                                             id="docx-upload"
                                             disabled={convertingDocx}
                                         />
-                                        <label 
-                                            htmlFor="docx-upload" 
-                                            className="cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 transition-colors text-sm font-medium disabled:opacity-50 w-full"
-                                        >
-                                            {convertingDocx ? (
-                                                <>
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                    Converting...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <FileText className="w-4 h-4" />
-                                                    Upload Word/PDF
-                                                </>
-                                            )}
+                                        <label htmlFor="docx-upload">
+                                            <Button variant="outline" className="w-full" disabled={convertingDocx} asChild>
+                                                <span className="cursor-pointer">
+                                                    {convertingDocx ? (
+                                                        <>
+                                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                            Processing...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <FileText className="w-4 h-4 mr-2" />
+                                                            Upload File
+                                                        </>
+                                                    )}
+                                                </span>
+                                            </Button>
                                         </label>
                                     </div>
 
@@ -533,12 +534,13 @@ export default function FilmAdaptation() {
                                             className="hidden"
                                             id="txt-upload"
                                         />
-                                        <label 
-                                            htmlFor="txt-upload" 
-                                            className="cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md hover:bg-slate-100 transition-colors text-sm font-medium text-slate-600 w-full"
-                                        >
-                                            <Upload className="w-4 h-4" />
-                                            Upload TXT
+                                        <label htmlFor="txt-upload">
+                                            <Button variant="ghost" className="w-full" asChild>
+                                                <span className="cursor-pointer">
+                                                    <Upload className="w-4 h-4 mr-2" />
+                                                    Upload TXT
+                                                </span>
+                                            </Button>
                                         </label>
                                     </div>
                                 </div>

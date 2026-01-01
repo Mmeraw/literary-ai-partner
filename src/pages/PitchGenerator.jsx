@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,8 +28,8 @@ export default function PitchGenerator() {
     });
 
     const [uploadingFile, setUploadingFile] = useState(false);
+    const [uploadedFileName, setUploadedFileName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const fileInputRef = useRef(null);
 
     const { data: manuscripts = [] } = useQuery({
         queryKey: ['user-manuscripts'],
@@ -84,115 +84,46 @@ export default function PitchGenerator() {
     const elevatorRevision = useRevisionFlow('pitch');
 
     const handleFileUpload = async (e) => {
-        console.log('═══════════════════════════════════════════');
-        console.log('🚀 handleFileUpload TRIGGERED');
-        console.log('Timestamp:', new Date().toISOString());
-        console.log('Event:', e);
-        console.log('Event.target:', e.target);
-        console.log('Event.target.files:', e.target.files);
-        
         const file = e.target.files?.[0];
-        
-        if (!file) {
-            console.error('❌ NO FILE IN EVENT - e.target.files is empty or undefined');
-            console.log('e.target.files:', e.target.files);
-            return;
-        }
-        
-        console.log('✅ FILE DETECTED:');
-        console.log('  Name:', file.name);
-        console.log('  Size:', file.size, 'bytes', `(${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-        console.log('  Type:', file.type);
-        console.log('  Last Modified:', new Date(file.lastModified).toISOString());
+        if (!file) return;
 
         if (file.size > 25 * 1024 * 1024) {
-            console.error('❌ FILE TOO LARGE:', file.size, 'bytes');
             toast.error('File must be under 25MB');
             return;
         }
 
-        console.log('✅ File size OK, starting upload flow...');
         setUploadingFile(true);
+        setUploadedFileName(file.name);
         
         try {
             toast.loading('Uploading manuscript...', { id: 'upload' });
-            console.log('📤 Step 1: Calling base44.integrations.Core.UploadFile...');
             
             const uploadResult = await base44.integrations.Core.UploadFile({ file });
-            console.log('📦 UploadFile SUCCESS:', uploadResult);
-            
             const file_url = uploadResult?.file_url;
-            console.log('🔗 Extracted file_url:', file_url);
             
             if (!file_url) {
-                throw new Error('No file_url in upload response');
+                throw new Error('Upload failed');
             }
             
             toast.loading('Analyzing manuscript and extracting fields...', { id: 'upload' });
-            console.log('📤 Step 2: Calling extractPitchFields function with file_url...');
             
             const response = await base44.functions.invoke('extractPitchFields', { file_url });
-            console.log('📦 extractPitchFields SUCCESS');
-            console.log('Response object:', response);
-            console.log('Response.data:', response.data);
-            
             const result = response.data || response;
-            console.log('Parsed result:', result);
             
             if (result.success && result.fields) {
-                console.log('✅ EXTRACTION SUCCESS!');
-                console.log('Fields received:', result.fields);
                 setManuscriptInfo(result.fields);
-                toast.success(
-                    <div>
-                        <div className="font-semibold">✓ Fields extracted!</div>
-                        <div className="text-xs mt-1">Title: {result.fields.title}</div>
-                    </div>,
-                    { id: 'upload', duration: 6000 }
-                );
-                console.log('✅ UI UPDATED with extracted fields');
+                toast.success('Fields extracted successfully!', { id: 'upload' });
             } else {
-                console.error('❌ EXTRACTION FAILED');
-                console.error('Result:', result);
                 const errorMsg = result.error || result.details || 'Failed to extract fields';
                 toast.error(`Extraction failed: ${errorMsg}`, { id: 'upload' });
             }
         } catch (error) {
-            console.error('💥 FATAL ERROR IN UPLOAD FLOW');
-            console.error('Error object:', error);
-            console.error('Error.message:', error.message);
-            console.error('Error.stack:', error.stack);
-            console.error('Error.response:', error.response);
+            console.error('Upload error:', error);
             toast.error(`Upload failed: ${error.message}`, { id: 'upload' });
+            setUploadedFileName('');
         } finally {
-            console.log('🏁 Upload flow complete (success or failure)');
             setUploadingFile(false);
             e.target.value = '';
-            console.log('═══════════════════════════════════════════');
-        }
-    };
-
-    const handleSaveAsManuscript = async (fields, file_url) => {
-        try {
-            toast.loading('Saving as manuscript...', { id: 'save' });
-            
-            // Fetch full text
-            const fileResponse = await fetch(file_url);
-            const fileBuffer = await fileResponse.arrayBuffer();
-            const full_text = new TextDecoder().decode(fileBuffer);
-            const word_count = full_text.split(/\s+/).filter(w => w).length;
-            
-            const manuscript = await base44.entities.Manuscript.create({
-                title: fields.title,
-                full_text,
-                word_count,
-                status: 'uploaded'
-            });
-            
-            toast.success(`Saved as manuscript: ${fields.title}`, { id: 'save' });
-        } catch (error) {
-            console.error('Save manuscript error:', error);
-            toast.error('Failed to save manuscript', { id: 'save' });
         }
     };
 
@@ -211,7 +142,6 @@ export default function PitchGenerator() {
             if (response.data.success) {
                 setPitches(response.data.pitches);
                 
-                // Create baseline OutputVersions
                 await specificRevision.createBaseline(response.data.pitches.oneSentenceSpecific, `pitch_specific_${Date.now()}`);
                 await generalRevision.createBaseline(response.data.pitches.oneSentenceGeneral, `pitch_general_${Date.now()}`);
                 await elevatorRevision.createBaseline(response.data.pitches.elevator, `pitch_elevator_${Date.now()}`);
@@ -246,7 +176,6 @@ export default function PitchGenerator() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             <div className="max-w-6xl mx-auto px-6 py-12">
-                {/* Header */}
                 <div className="text-center mb-10">
                     <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <Sparkles className="w-4 h-4 mr-2" />
@@ -261,14 +190,12 @@ export default function PitchGenerator() {
                 </div>
 
                 <div className="grid lg:grid-cols-2 gap-8">
-                    {/* Input Section */}
                     <div className="space-y-6">
                         <Card>
                             <CardHeader>
                                 <CardTitle>Manuscript Information</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                {/* File Upload Section */}
                                 <div className="p-4 rounded-lg bg-indigo-50 border-2 border-dashed border-indigo-300">
                                     <div className="text-center">
                                         <Upload className="w-8 h-8 mx-auto mb-2 text-indigo-600" />
@@ -276,33 +203,42 @@ export default function PitchGenerator() {
                                             Auto-Fill from Manuscript
                                         </p>
                                         <p className="text-xs text-indigo-700 mb-3">
-                                            Upload your full manuscript/screenplay to populate all fields automatically
+                                            Upload your manuscript to populate all fields automatically
                                         </p>
                                         <input
-                                            ref={fileInputRef}
                                             type="file"
-                                            accept=".txt,.pdf,.doc,.docx,.rtf"
+                                            id="pitch-file-upload"
                                             onChange={handleFileUpload}
-                                            style={{ display: 'none' }}
+                                            className="hidden"
+                                            accept=".pdf,.doc,.docx,.rtf,.txt"
                                         />
-                                        <button
-                                            type="button"
-                                            onClick={() => fileInputRef.current?.click()}
-                                            disabled={uploadingFile}
-                                            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900 h-10 px-4 py-2"
-                                        >
-                                            {uploadingFile ? (
-                                                <>
-                                                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                                    Analyzing...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Upload className="w-4 h-4 mr-2" />
-                                                    Choose File
-                                                </>
-                                            )}
-                                        </button>
+                                        <label htmlFor="pitch-file-upload">
+                                            <Button 
+                                                type="button" 
+                                                variant="outline" 
+                                                disabled={uploadingFile}
+                                                asChild
+                                            >
+                                                <span className="cursor-pointer">
+                                                    {uploadingFile ? (
+                                                        <>
+                                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                            Analyzing...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Upload className="w-4 h-4 mr-2" />
+                                                            Upload File
+                                                        </>
+                                                    )}
+                                                </span>
+                                            </Button>
+                                        </label>
+                                        {uploadedFileName && (
+                                            <p className="text-xs text-green-600 mt-2">
+                                                ✓ {uploadedFileName}
+                                            </p>
+                                        )}
                                         <p className="text-xs text-slate-500 mt-2">
                                             PDF, DOC, DOCX, RTF, or TXT • Max 25MB
                                         </p>
@@ -313,7 +249,6 @@ export default function PitchGenerator() {
                                     OR LOAD FROM PREVIOUS WORK
                                 </div>
 
-                                {/* Previous Works Section */}
                                 {manuscripts.length > 0 && (
                                     <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
                                         <div className="flex items-center gap-2 mb-3">
@@ -480,7 +415,6 @@ export default function PitchGenerator() {
                         </Card>
                     </div>
 
-                    {/* Output Section */}
                     <div className="space-y-6">
                         <Card>
                             <CardHeader>
@@ -494,7 +428,6 @@ export default function PitchGenerator() {
                                         <TabsTrigger value="hollywood">Hollywood</TabsTrigger>
                                     </TabsList>
 
-                                    {/* One-Sentence Specific */}
                                     <TabsContent value="specific" className="space-y-4">
                                         <div>
                                             <div className="flex items-center justify-between mb-2">
@@ -597,7 +530,6 @@ export default function PitchGenerator() {
                                         </div>
                                     </TabsContent>
 
-                                    {/* Elevator Pitch */}
                                     <TabsContent value="elevator" className="space-y-4">
                                         <div>
                                             <div className="flex items-center justify-between mb-2">
@@ -673,7 +605,6 @@ export default function PitchGenerator() {
                                         </div>
                                     </TabsContent>
 
-                                    {/* Hollywood Logline */}
                                     <TabsContent value="hollywood" className="space-y-4">
                                         <div>
                                             <div className="flex items-center justify-between mb-2">
@@ -730,7 +661,6 @@ export default function PitchGenerator() {
                             </CardContent>
                         </Card>
 
-                        {/* Tips */}
                         <Card className="border-indigo-100">
                             <CardHeader>
                                 <CardTitle className="text-base">When to Use Each Version</CardTitle>
