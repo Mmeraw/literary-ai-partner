@@ -38,18 +38,32 @@ html {
 
 *::before, *::after {
   font-family: Arial, Helvetica, sans-serif !important;
-  font-feature-settings: "kern" 0, "liga" 0, "calt" 0 !important;
+  font-feature-settings: normal !important;
   font-variant: normal !important;
+  font-variant-ligatures: none !important;
 }
 
 html, body, #root, [id], [class] {
   font-family: Arial, Helvetica, sans-serif !important;
   font-feature-settings: normal !important;
   font-variant: normal !important;
+  font-variant-ligatures: none !important;
 }
 
 body * {
   font-family: Arial, Helvetica, sans-serif !important;
+  font-feature-settings: normal !important;
+  font-variant: normal !important;
+  font-variant-ligatures: none !important;
+}
+
+/* Extra aggressive for headings */
+h1, h2, h3, h4, h5, h6, .font-bold, .font-semibold, [class*="font-"] {
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-feature-settings: normal !important;
+  font-variant: normal !important;
+  font-variant-ligatures: none !important;
+  font-synthesis: none !important;
 }
 
 /* Nuclear override every text element */
@@ -57,6 +71,10 @@ div, span, p, h1, h2, h3, h4, h5, h6, a, button, input, textarea, select, label,
   font-family: Arial, Helvetica, sans-serif !important;
   font-feature-settings: normal !important;
   font-variant: normal !important;
+  font-variant-ligatures: none !important;
+  font-synthesis: none !important;
+  -webkit-font-feature-settings: normal !important;
+  -moz-font-feature-settings: normal !important;
 }
 
 /* Destroy all font classes */
