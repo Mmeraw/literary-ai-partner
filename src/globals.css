@@ -17,11 +17,12 @@ css
 
 html {
   font-family: Arial, Helvetica, sans-serif !important;
+  font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0, "swsh" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0, "ss11" 0, "ss12" 0, "ss13" 0, "ss14" 0, "ss15" 0, "ss16" 0, "ss17" 0, "ss18" 0, "ss19" 0, "ss20" 0, "salt" 0, "cswh" 0, "cv01" 0, "cv02" 0, "cv03" 0, "cv04" 0, "cv05" 0, "cv06" 0, "cv07" 0, "cv08" 0, "cv09" 0, "cv10" 0 !important;
 }
 
 * {
   font-family: Arial, Helvetica, sans-serif !important;
-  font-feature-settings: normal !important;
+  font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0, "swsh" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0, "ss11" 0, "ss12" 0, "ss13" 0, "ss14" 0, "ss15" 0, "ss16" 0, "ss17" 0, "ss18" 0, "ss19" 0, "ss20" 0, "salt" 0, "cswh" 0, "cv01" 0, "cv02" 0, "cv03" 0, "cv04" 0, "cv05" 0, "cv06" 0, "cv07" 0, "cv08" 0, "cv09" 0, "cv10" 0 !important;
   font-variant: normal !important;
   font-variant-ligatures: none !important;
   font-variant-alternates: normal !important;
@@ -29,11 +30,11 @@ html {
   font-variant-numeric: normal !important;
   font-variant-east-asian: normal !important;
   font-synthesis: none !important;
-  -webkit-font-feature-settings: normal !important;
-  -moz-font-feature-settings: normal !important;
+  -webkit-font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0, "swsh" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0, "ss11" 0, "ss12" 0, "ss13" 0, "ss14" 0, "ss15" 0, "ss16" 0, "ss17" 0, "ss18" 0, "ss19" 0, "ss20" 0, "salt" 0, "cswh" 0, "cv01" 0, "cv02" 0, "cv03" 0, "cv04" 0, "cv05" 0, "cv06" 0, "cv07" 0, "cv08" 0, "cv09" 0, "cv10" 0 !important;
+  -moz-font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0, "swsh" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0, "ss11" 0, "ss12" 0, "ss13" 0, "ss14" 0, "ss15" 0, "ss16" 0, "ss17" 0, "ss18" 0, "ss19" 0, "ss20" 0, "salt" 0, "cswh" 0, "cv01" 0, "cv02" 0, "cv03" 0, "cv04" 0, "cv05" 0, "cv06" 0, "cv07" 0, "cv08" 0, "cv09" 0, "cv10" 0 !important;
   -webkit-font-smoothing: antialiased !important;
   -moz-osx-font-smoothing: grayscale !important;
-  text-rendering: optimizeLegibility !important;
+  text-rendering: geometricPrecision !important;
 }
 
 *::before, *::after {
@@ -60,7 +61,7 @@ body * {
 /* Extra aggressive for headings */
 h1, h2, h3, h4, h5, h6, .font-bold, .font-semibold, [class*="font-"] {
   font-family: Arial, Helvetica, sans-serif !important;
-  font-feature-settings: normal !important;
+  font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0, "swsh" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0, "ss11" 0, "ss12" 0, "ss13" 0, "ss14" 0, "ss15" 0, "ss16" 0, "ss17" 0, "ss18" 0, "ss19" 0, "ss20" 0, "salt" 0, "cswh" 0, "cv01" 0, "cv02" 0, "cv03" 0, "cv04" 0, "cv05" 0, "cv06" 0, "cv07" 0, "cv08" 0, "cv09" 0, "cv10" 0 !important;
   font-variant: normal !important;
   font-variant-ligatures: none !important;
   font-synthesis: none !important;
@@ -69,12 +70,12 @@ h1, h2, h3, h4, h5, h6, .font-bold, .font-semibold, [class*="font-"] {
 /* Nuclear override every text element */
 div, span, p, h1, h2, h3, h4, h5, h6, a, button, input, textarea, select, label, li, td, th, nav, header, footer, section, article, aside, main, figure, figcaption, time, mark, strong, em, b, i, u, small, abbr, cite, code, pre, kbd, samp, var, sub, sup {
   font-family: Arial, Helvetica, sans-serif !important;
-  font-feature-settings: normal !important;
+  font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0, "swsh" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0, "ss11" 0, "ss12" 0, "ss13" 0, "ss14" 0, "ss15" 0, "ss16" 0, "ss17" 0, "ss18" 0, "ss19" 0, "ss20" 0, "salt" 0, "cswh" 0, "cv01" 0, "cv02" 0, "cv03" 0, "cv04" 0, "cv05" 0, "cv06" 0, "cv07" 0, "cv08" 0, "cv09" 0, "cv10" 0 !important;
   font-variant: normal !important;
   font-variant-ligatures: none !important;
   font-synthesis: none !important;
-  -webkit-font-feature-settings: normal !important;
-  -moz-font-feature-settings: normal !important;
+  -webkit-font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0, "swsh" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0 !important;
+  -moz-font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0, "swsh" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "ss09" 0, "ss10" 0 !important;
 }
 
 /* Destroy all font classes */
