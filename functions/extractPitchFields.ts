@@ -18,16 +18,31 @@ Deno.serve(async (req) => {
         console.log('📄 Step 1: Fetching manuscript file for pitch extraction...');
         console.log('File URL:', file_url);
         
-        const fileResponse = await fetch(file_url);
-        console.log('File response status:', fileResponse.status);
+        // Detect file type from URL
+        const isDocx = file_url.toLowerCase().endsWith('.docx') || file_url.toLowerCase().endsWith('.doc');
+        let fileText;
         
-        if (!fileResponse.ok) {
-            throw new Error(`Failed to fetch file: ${fileResponse.status} ${fileResponse.statusText}`);
+        if (isDocx) {
+            console.log('🔧 DOCX file detected - using import function...');
+            const importResult = await base44.functions.invoke('importDocx', { file_url });
+            if (!importResult.data.success) {
+                throw new Error(`DOCX import failed: ${importResult.data.error}`);
+            }
+            fileText = importResult.data.text;
+            console.log(`✅ DOCX imported successfully: ${fileText.length} characters`);
+        } else {
+            console.log('📄 Plain text file - fetching directly...');
+            const fileResponse = await fetch(file_url);
+            console.log('File response status:', fileResponse.status);
+            
+            if (!fileResponse.ok) {
+                throw new Error(`Failed to fetch file: ${fileResponse.status} ${fileResponse.statusText}`);
+            }
+            
+            const fileBuffer = await fileResponse.arrayBuffer();
+            fileText = new TextDecoder().decode(fileBuffer);
+            console.log(`✅ File fetched successfully: ${fileText.length} characters`);
         }
-        
-        const fileBuffer = await fileResponse.arrayBuffer();
-        const fileText = new TextDecoder().decode(fileBuffer);
-        console.log(`✅ File fetched successfully: ${fileText.length} characters`);
 
         // Use first 50k characters for analysis (or full text if shorter)
         const manuscriptSample = fileText.substring(0, Math.min(50000, fileText.length));
