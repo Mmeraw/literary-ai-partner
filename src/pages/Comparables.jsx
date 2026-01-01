@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TrendingUp, BookOpen, Target, Sparkles, Loader2 } from 'lucide-react';
+import { TrendingUp, BookOpen, Target, Sparkles, Loader2, Upload, FileText, CheckCircle2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -26,6 +26,9 @@ const GENRES = [
 export default function Comparables() {
     const [selectedGenre, setSelectedGenre] = useState('auto');
     const [generating, setGenerating] = useState(false);
+    const [uploadedFile, setUploadedFile] = useState(null);
+    const [extractedText, setExtractedText] = useState('');
+    const [uploadingFile, setUploadingFile] = useState(false);
 
     // Fetch user's manuscripts
     const { data: manuscripts = [], isLoading } = useQuery({
@@ -35,6 +38,84 @@ export default function Comparables() {
             return results.filter(m => m.status === 'ready');
         }
     });
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 25 * 1024 * 1024) {
+            toast.error('File must be under 25MB');
+            return;
+        }
+
+        setUploadingFile(true);
+        setUploadedFile(file.name);
+
+        try {
+            toast.loading('Uploading manuscript...', { id: 'upload' });
+
+            const uploadResult = await base44.integrations.Core.UploadFile({ file });
+            const file_url = uploadResult?.file_url;
+
+            if (!file_url) {
+                throw new Error('Upload failed');
+            }
+
+            toast.loading('Extracting text from manuscript...', { id: 'upload' });
+
+            const ingestionResult = await base44.functions.invoke('ingestUploadedFileToText', { file_url });
+            const ingestionData = ingestionResult.data || ingestionResult;
+
+            if (!ingestionData.success) {
+                throw new Error(ingestionData.error?.message || 'Text extraction failed');
+            }
+
+            setExtractedText(ingestionData.text);
+            console.log(`✅ Extracted ${ingestionData.meta.charCount} characters from ${ingestionData.meta.filename}`);
+            
+            toast.success(`File loaded: ${ingestionData.meta.charCount.toLocaleString()} characters extracted`, { id: 'upload' });
+        } catch (error) {
+            console.error('Upload error:', error);
+            toast.error(`Upload failed: ${error.message}`, { id: 'upload' });
+            setUploadedFile(null);
+            setExtractedText('');
+        } finally {
+            setUploadingFile(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleGenerateFromUpload = async () => {
+        if (!selectedGenre) {
+            toast.error('Please select a genre first');
+            return;
+        }
+
+        if (!extractedText) {
+            toast.error('Please upload a manuscript first');
+            return;
+        }
+
+        setGenerating(true);
+        try {
+            const { data } = await base44.functions.invoke('generateComparables', {
+                manuscriptText: extractedText,
+                genre: selectedGenre
+            });
+
+            if (data.success) {
+                toast.success('Comparables report generated!');
+                window.location.href = createPageUrl('ComparativeReport') + `?reportId=${data.report_id}`;
+            } else {
+                toast.error(data.error || 'Failed to generate comparables');
+            }
+        } catch (error) {
+            console.error('Comparables error:', error);
+            toast.error('Failed to generate comparables report');
+        } finally {
+            setGenerating(false);
+        }
+    };
 
     const handleGenerate = async (manuscriptId) => {
         if (!selectedGenre) {
@@ -123,7 +204,136 @@ export default function Comparables() {
                     </CardContent>
                 </Card>
 
-                {/* Genre Selection */}
+                {/* Upload Section */}
+                <Card className="mb-8 border-2 border-indigo-200">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Upload className="w-5 h-5 text-indigo-600" />
+                            Upload Manuscript for Analysis
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="p-6 rounded-lg bg-indigo-50 border-2 border-dashed border-indigo-300">
+                            <div className="text-center">
+                                <Upload className="w-10 h-10 mx-auto mb-3 text-indigo-600" />
+                                <p className="text-sm font-medium text-indigo-900 mb-2">
+                                    Upload a DOCX, PDF, or TXT file
+                                </p>
+                                <p className="text-xs text-indigo-700 mb-4">
+                                    We will extract readable text before analysis begins
+                                </p>
+                                <input
+                                    type="file"
+                                    id="comparables-upload"
+                                    onChange={handleFileUpload}
+                                    className="hidden"
+                                    accept=".pdf,.doc,.docx,.txt"
+                                />
+                                <label htmlFor="comparables-upload">
+                                    <Button 
+                                        type="button" 
+                                        variant="outline" 
+                                        disabled={uploadingFile}
+                                        asChild
+                                    >
+                                        <span className="cursor-pointer">
+                                            {uploadingFile ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                    Processing...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Upload className="w-4 h-4 mr-2" />
+                                                    Choose File
+                                                </>
+                                            )}
+                                        </span>
+                                    </Button>
+                                </label>
+                                <p className="text-xs text-slate-500 mt-3">
+                                    Maximum 25MB
+                                </p>
+                            </div>
+                        </div>
+
+                        {uploadedFile && extractedText && (
+                            <div className="p-4 rounded-lg bg-green-50 border border-green-200">
+                                <div className="flex items-start gap-3">
+                                    <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-green-900 mb-1">
+                                            File loaded successfully
+                                        </p>
+                                        <p className="text-xs text-green-700 mb-2">
+                                            Filename: {uploadedFile}
+                                        </p>
+                                        <p className="text-xs text-green-700">
+                                            Text extracted: {extractedText.length.toLocaleString()} characters
+                                        </p>
+                                        <details className="mt-3">
+                                            <summary className="text-xs font-medium text-green-800 cursor-pointer hover:text-green-900">
+                                                Preview extracted text
+                                            </summary>
+                                            <div className="mt-2 p-3 bg-white rounded border border-green-200 max-h-40 overflow-y-auto">
+                                                <p className="text-xs text-slate-700 whitespace-pre-wrap">
+                                                    {extractedText.substring(0, 500)}...
+                                                </p>
+                                            </div>
+                                        </details>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {extractedText && (
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                        Select Genre for Analysis
+                                    </label>
+                                    <Select value={selectedGenre} onValueChange={setSelectedGenre}>
+                                        <SelectTrigger className="w-full">
+                                            <SelectValue placeholder="Choose your genre..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {GENRES.map((genre) => (
+                                                <SelectItem key={genre.value} value={genre.value}>
+                                                    {genre.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <Button
+                                    onClick={handleGenerateFromUpload}
+                                    disabled={!selectedGenre || generating}
+                                    className="w-full bg-indigo-600 hover:bg-indigo-700"
+                                    size="lg"
+                                >
+                                    {generating ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Analyzing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="w-4 h-4 mr-2" />
+                                            Generate Comparables Analysis
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <div className="text-center text-sm text-slate-500 font-medium my-6">
+                    OR USE A PREVIOUS MANUSCRIPT
+                </div>
+
+                {/* Genre Selection for Previous Manuscripts */}
                 <Card className="mb-8">
                     <CardHeader>
                         <CardTitle>Select Genre for Analysis</CardTitle>

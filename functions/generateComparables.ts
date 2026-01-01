@@ -9,18 +9,27 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { manuscriptId, genre } = await req.json();
+        const { manuscriptId, manuscriptText, genre } = await req.json();
 
-        if (!manuscriptId || !genre) {
-            return Response.json({ error: 'manuscriptId and genre are required' }, { status: 400 });
+        if (!genre) {
+            return Response.json({ error: 'genre is required' }, { status: 400 });
         }
 
-        // Fetch manuscript
-        const manuscripts = await base44.entities.Manuscript.filter({ id: manuscriptId });
-        const manuscript = manuscripts[0];
+        let manuscript = null;
+        let manuscriptTextForAnalysis = manuscriptText;
 
-        if (!manuscript) {
-            return Response.json({ error: 'Manuscript not found' }, { status: 404 });
+        // Handle either manuscriptId OR manuscriptText (upload path)
+        if (manuscriptId) {
+            const manuscripts = await base44.entities.Manuscript.filter({ id: manuscriptId });
+            manuscript = manuscripts[0];
+
+            if (!manuscript) {
+                return Response.json({ error: 'Manuscript not found' }, { status: 404 });
+            }
+            
+            manuscriptTextForAnalysis = manuscript.full_text;
+        } else if (!manuscriptText) {
+            return Response.json({ error: 'Either manuscriptId or manuscriptText is required' }, { status: 400 });
         }
 
         // Auto-detect genre if requested
@@ -41,16 +50,20 @@ Return only the genre name (e.g., "thriller", "literary_fiction", "romance", "my
             finalGenre = detectedGenre.toLowerCase().replace(/\s+/g, '_');
         }
 
-        // Fetch chapters for detailed analysis
-        const chapters = await base44.entities.Chapter.filter({ manuscript_id: manuscriptId });
+        // Fetch chapters for detailed analysis (only if using existing manuscript)
+        const chapters = manuscriptId ? await base44.entities.Chapter.filter({ manuscript_id: manuscriptId }) : [];
 
         // Build manuscript analysis summary
-        const analysisSummary = {
+        const analysisSummary = manuscript ? {
             title: manuscript.title,
             word_count: manuscript.word_count,
             spine_score: manuscript.spine_score,
             revisiongrade_overall: manuscript.revisiongrade_overall,
             spine_evaluation: manuscript.spine_evaluation
+        } : {
+            title: 'Uploaded Manuscript',
+            word_count: manuscriptTextForAnalysis.split(/\s+/).length,
+            text_sample: manuscriptTextForAnalysis.substring(0, 5000)
         };
 
         // Use Perplexity for real-time market research
@@ -84,13 +97,12 @@ Return only the genre name (e.g., "thriller", "literary_fiction", "romance", "my
         // Generate comparables analysis
         const comparablesPrompt = `You are a literary agent analyst. Analyze this manuscript against genre benchmarks.
 
-Manuscript: "${manuscript.title}"
+Manuscript: "${analysisSummary.title}"
 Genre: ${finalGenre}
-Word Count: ${manuscript.word_count}
-Overall RevisionGrade Score: ${manuscript.revisiongrade_overall || manuscript.spine_score || 'N/A'}
+Word Count: ${analysisSummary.word_count}
+${manuscript ? `Overall RevisionGrade Score: ${manuscript.revisiongrade_overall || manuscript.spine_score || 'N/A'}` : ''}
 
-Spine Evaluation Summary:
-${JSON.stringify(manuscript.spine_evaluation, null, 2)}
+${manuscript ? `Spine Evaluation Summary:\n${JSON.stringify(manuscript.spine_evaluation, null, 2)}` : `Manuscript Sample:\n${analysisSummary.text_sample}\n\n(Note: This is an uploaded manuscript without prior evaluation)`}
 
 ${marketContext ? `Recent Market Research:\n${marketContext}\n\n` : ''}
 
@@ -164,12 +176,12 @@ Return structured JSON.`;
 
         // Create comparative report entity
         const report = await base44.entities.ComparativeReport.create({
-            manuscript_id: manuscriptId,
-            manuscript_title: manuscript.title,
+            manuscript_id: manuscriptId || 'uploaded',
+            manuscript_title: analysisSummary.title,
             genre: finalGenre,
             comparison_data: comparablesAnalysis,
             summary_bullets: [
-                `Overall RevisionGrade: ${manuscript.revisiongrade_overall || manuscript.spine_score || 'N/A'}/10`,
+                manuscript ? `Overall RevisionGrade: ${manuscript.revisiongrade_overall || manuscript.spine_score || 'N/A'}/10` : `Word Count: ${analysisSummary.word_count.toLocaleString()} words`,
                 `Comparable titles: ${comparablesAnalysis.comparable_titles.length} matches identified`,
                 `Criteria above genre average: ${comparablesAnalysis.criteria_scores.filter(c => c.above_average).length}/${comparablesAnalysis.criteria_scores.length}`,
                 ...comparablesAnalysis.revision_priorities.slice(0, 2)
