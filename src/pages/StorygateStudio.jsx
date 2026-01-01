@@ -172,9 +172,12 @@ export default function StorygateStudio() {
                     <p className="text-2xl mb-6" style={{ color: '#F2EFEA' }}>
                         A Selective Development Track for Exceptional Work
                     </p>
-                    <p className="text-lg max-w-2xl mx-auto mb-8" style={{ color: '#D4D4D4' }}>
+                    <p className="text-lg max-w-2xl mx-auto mb-6" style={{ color: '#D4D4D4' }}>
                         An invitation-based extension of RevisionGrade, created for projects that demonstrate 
                         unusual promise, originality, or depth.
+                    </p>
+                    <p className="text-base max-w-2xl mx-auto mb-8" style={{ color: '#D4D4D4' }}>
+                        We work with high-potential projects across fiction, screen, and narrative nonfiction—whether aimed at traditional publishing, film/TV adaptation, or both.
                     </p>
                     <Button
                         onClick={() => document.getElementById('submission-form')?.scrollIntoView({ behavior: 'smooth' })}

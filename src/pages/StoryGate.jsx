@@ -22,7 +22,7 @@ export default function StoryGate() {
                             StoryGate
                         </h1>
                         <p className="text-2xl mb-6 font-light" style={{ color: '#F2EFEA' }}>
-                            A secure, curated gateway to high-grade manuscripts and screen projects.
+                            A secure, curated gateway to high-grade manuscripts, books, and screen projects for publishing and screen industry professionals.
                         </p>
                         <p className="text-lg max-w-3xl mx-auto leading-relaxed mb-8" style={{ color: '#D4D4D4' }}>
                             StoryGate provides industry professionals with controlled access to projects that meet defined quality and presentation standards.<br />
