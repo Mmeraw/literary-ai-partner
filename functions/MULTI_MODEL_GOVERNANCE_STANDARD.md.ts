@@ -1,63 +1,95 @@
-# MULTI-MODEL GOVERNANCE STANDARD (CANON)
+# MULTI-MODEL GOVERNANCE STANDARD (CANONICAL)
 
-**Applies to:** RevisionGrade, StoryGate, and all derivative outputs  
-**Status:** Canonical / Enforced
-
----
-
-## 1) Purpose
-
-This standard defines how multiple AI systems may be used in RevisionGrade and StoryGate while preserving deterministic scoring, testability, and canon stability.
+**Applies To:** RevisionGrade, StoryGate, and all derivative systems  
+**Status:** Enforced Canon
 
 ---
 
-## 2) Authority Model
+## 1. Purpose
 
-**Primary System (Authoritative):** Owns all scoring, pass/fail decisions, readiness labels, and final user-visible language.
+This standard defines how multiple AI systems may be used within RevisionGrade and StoryGate while preserving deterministic behavior, auditability, and canonical consistency.
 
-**Advisory Systems (Non-authoritative):** May validate facts, detect risks, and suggest alternatives, but may not alter Primary outputs directly.
-
----
-
-## 3) Non-Negotiable Rules
-
-- Advisory systems must never change scores, readiness states, or canonical wording automatically.
-
-- Any disagreement or anomaly detected by an advisory system must result in a flag (internal) and/or review state, not an overwrite.
-
-- All user-visible outputs must be traceable to a single Primary decision chain.
+It ensures that auxiliary systems enhance reliability without compromising authoritative judgment or introducing ambiguity.
 
 ---
 
-## 4) Perplexity Usage Scope
+## 2. Authority Model
 
-Perplexity is permitted only as an advisory source for:
+### Primary System (Authoritative)
 
-- Agent research and verification
-- Market comparables validation
-- Time-sensitive factual checks (dates, credits, imprints, deal/news context)
+The Primary System is the sole authority for:
 
-**Perplexity is not permitted to generate or modify scoring, readiness labels, or final determinations.**
+- Final scoring and evaluations
+- Readiness determinations
+- Canonical language and output
+- Pass/fail and classification decisions
+
+**No other system may override or modify these outputs.**
+
+### Advisory Systems (Non-Authoritative)
+
+Advisory systems may assist by:
+
+- Validating factual claims
+- Identifying inconsistencies or risks
+- Suggesting alternative phrasings or contextual information
+
+Advisory systems may not:
+
+- Alter scores or readiness states
+- Replace or rewrite canonical output
+- Override Primary System decisions
+
+**All advisory input is non-binding.**
 
 ---
 
-## 5) Error Handling (No Silent Failures)
+## 3. Non-Negotiable Rules
 
-- No primary user action may fail silently.
-- If a generation/evaluation step fails, the UI must render an explicit error state and the system must log a structured error record.
+- Advisory systems must never alter authoritative outputs automatically.
+- Any disagreement or anomaly must trigger an internal review flag.
+- All user-visible outputs must be traceable to a single authoritative decision path.
+- Silent overrides are prohibited.
 
 ---
 
-## 6) Compliance Requirement
+## 4. Perplexity Usage Scope
 
-All new routes and refactors must explicitly declare:
+Perplexity may be used only for:
+
+- Agent and market research
+- Verification of factual or time-sensitive information
+- Contextual reference checks
+
+Perplexity may not:
+
+- Generate or modify final scores
+- Influence readiness labels
+- Produce user-facing determinations
+
+---
+
+## 5. Error Handling & Observability
+
+- No primary action may fail silently.
+- Failures must generate a visible error state and a structured log entry.
+- Logs must include timestamp, route, and failure category.
+
+---
+
+## 6. Compliance Requirement
+
+All features and refactors must explicitly declare:
 
 - Which system is Primary
 - Which systems are Advisory
 
-**Any deviation from this standard is a defect.**
+**Any deviation from this standard constitutes a defect.**
 
 ---
 
-**Last Updated:** 2026-01-01  
-**Authority:** RevisionGrade Core Team
+## Canonical Enforcement Statement
+
+StoryGate operates under a single authoritative decision model.  
+Supporting systems may inform but never override that authority.  
+This guarantees consistency, traceability, and trust across all outputs.
