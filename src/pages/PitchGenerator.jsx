@@ -291,11 +291,9 @@ export default function PitchGenerator() {
                                             </Button>
                                         ) : (
                                             <label htmlFor="pitch-file-upload" style={{ cursor: 'pointer' }}>
-                                                <Button variant="outline" asChild>
-                                                    <span>
-                                                        <Upload className="w-4 h-4 mr-2" />
-                                                        Choose File
-                                                    </span>
+                                                <Button variant="outline" type="button">
+                                                    <Upload className="w-4 h-4 mr-2" />
+                                                    Choose File
                                                 </Button>
                                             </label>
                                         )}

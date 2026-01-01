@@ -184,12 +184,10 @@ Generate both bios now.`,
                                     className="hidden"
                                     id="bio-file-upload"
                                 />
-                                <label htmlFor="bio-file-upload">
-                                    <Button variant="outline" asChild>
-                                        <span>
-                                            <Upload className="w-4 h-4 mr-2" />
-                                            Upload File
-                                        </span>
+                                <label htmlFor="bio-file-upload" style={{ cursor: 'pointer' }}>
+                                    <Button variant="outline" type="button">
+                                        <Upload className="w-4 h-4 mr-2" />
+                                        Upload File
                                     </Button>
                                 </label>
                                 <span className="text-xs text-slate-500">We'll extract relevant information automatically</span>
