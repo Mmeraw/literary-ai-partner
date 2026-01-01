@@ -36,7 +36,7 @@ Generate a complete 12-slide film pitch deck with the following structure:
 5. ANTAGONIST/CONFLICT: External and internal obstacles
 6. WORLD & SETTING: Visual style, tone references (e.g., del Toro, Villeneuve)
 7. THEMES: Core messages and resonance
-8. 5-PART MYTHIC STRUCTURE: Ordinary World, Call to Adventure, Trials, Climax, Resolution
+8. 5-PART NARRATIVE STRUCTURE: Ordinary World, Call to Adventure, Trials, Climax, Resolution
 9. VISUAL STYLE: Cinematography, color palette, mood
 10. TARGET AUDIENCE: Demographics, comparable films
 11. FRANCHISE POTENTIAL: Sequels, transmedia opportunities

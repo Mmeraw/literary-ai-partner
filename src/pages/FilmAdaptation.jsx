@@ -39,7 +39,7 @@ const features = [
     { icon: FileText, title: 'Literary Agent Package', desc: 'Queries + Synopses auto-generated' },
     { icon: Film, title: '12-Slide Pitch Content', desc: 'Structured text ready for your template' },
     { icon: TrendingUp, title: 'Screen Viability Score', desc: '0-100 calibrated rating' },
-    { icon: Target, title: '5-Part Mythic Structure', desc: 'Validated against canon' },
+    { icon: Target, title: '5-Part Narrative Structure', desc: 'Validated against canon' },
     { icon: Sparkles, title: 'Del Toro-Level Tone', desc: 'Enforced across all outputs' }
 ];
 
