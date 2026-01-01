@@ -181,13 +181,13 @@ Generate both bios now.`,
                                     type="file"
                                     accept=".pdf,.doc,.docx,.txt"
                                     onChange={handleFileUpload}
-                                    className="hidden"
+                                    style={{ display: 'none' }}
                                     id="bio-file-upload"
                                 />
                                 <label htmlFor="bio-file-upload" style={{ cursor: 'pointer' }}>
-                                    <Button variant="outline" type="button">
+                                    <Button variant="outline" type="button" disabled={uploadingFile}>
                                         <Upload className="w-4 h-4 mr-2" />
-                                        Upload File
+                                        {uploadingFile ? 'Uploading...' : 'Upload File'}
                                     </Button>
                                 </label>
                                 <span className="text-xs text-slate-500">We'll extract relevant information automatically</span>

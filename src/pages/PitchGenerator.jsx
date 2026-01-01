@@ -281,22 +281,24 @@ export default function PitchGenerator() {
                                             type="file"
                                             accept=".txt,.pdf,.doc,.docx"
                                             onChange={handleFileUpload}
-                                            className="hidden"
+                                            style={{ display: 'none' }}
                                             id="pitch-file-upload"
                                         />
-                                        {uploadingFile ? (
-                                            <Button variant="outline" disabled>
-                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                                Analyzing...
+                                        <label htmlFor="pitch-file-upload" style={{ cursor: 'pointer' }}>
+                                            <Button variant="outline" type="button" disabled={uploadingFile}>
+                                                {uploadingFile ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                                        Analyzing...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Upload className="w-4 h-4 mr-2" />
+                                                        Choose File
+                                                    </>
+                                                )}
                                             </Button>
-                                        ) : (
-                                            <label htmlFor="pitch-file-upload" style={{ cursor: 'pointer' }}>
-                                                <Button variant="outline" type="button">
-                                                    <Upload className="w-4 h-4 mr-2" />
-                                                    Choose File
-                                                </Button>
-                                            </label>
-                                        )}
+                                        </label>
                                         <p className="text-xs text-slate-500 mt-2">
                                             PDF, DOC, DOCX, or TXT • Max 25MB
                                         </p>
