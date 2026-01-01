@@ -1,3 +1,4 @@
+import AdminStoryGateOps from './pages/AdminStoryGateOps';
 import AdminVerificationQueue from './pages/AdminVerificationQueue';
 import Analytics from './pages/Analytics';
 import Biography from './pages/Biography';
@@ -59,11 +60,11 @@ import UploadWork from './pages/UploadWork';
 import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
-import AdminStoryGateOps from './pages/AdminStoryGateOps';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "AdminStoryGateOps": AdminStoryGateOps,
     "AdminVerificationQueue": AdminVerificationQueue,
     "Analytics": Analytics,
     "Biography": Biography,
@@ -125,7 +126,6 @@ export const PAGES = {
     "ValidationReport": ValidationReport,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
-    "AdminStoryGateOps": AdminStoryGateOps,
 }
 
 export const pagesConfig = {

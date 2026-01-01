@@ -35,9 +35,18 @@ export default function StorygateStudio() {
         description: '',
         project_stage: '',
         seeking: [],
+        evaluation_source: '',
+        revisiongrade_score: '',
+        evaluator_type: '',
+        evaluator_name: '',
+        evaluation_date: '',
+        evaluation_summary: '',
+        evaluation_file: null,
+        presentation_package: null,
         why_storygate: '',
         upload_file: null,
-        acknowledgment: false
+        acknowledgment_studio: false,
+        acknowledgment_rights: false
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
@@ -84,8 +93,13 @@ export default function StorygateStudio() {
             return;
         }
 
-        if (!formData.acknowledgment) {
-            toast.error('Please acknowledge the submission terms');
+        if (!formData.acknowledgment_studio) {
+            toast.error('Please acknowledge the studio submission terms');
+            return;
+        }
+
+        if (!formData.acknowledgment_rights) {
+            toast.error('Please confirm rights ownership');
             return;
         }
 
@@ -261,8 +275,9 @@ export default function StorygateStudio() {
                             <strong style={{ color: '#D4D4D4' }}>Submission to Storygate Studio is free.</strong>
                         </p>
                         <p className="text-sm" style={{ color: '#7B7B7B' }}>
-                            If a project is selected for further consideration, an optional paid engagement may be offered. 
-                            All terms are discussed in advance. Due to volume, we cannot respond to all submissions.
+                            All submissions are reviewed internally. A small number may be invited into further consideration. 
+                            For selected projects, Storygate Studio may offer a paid engagement tailored to the scope and needs of the work. 
+                            Pricing and terms are discussed only after a project has been reviewed.
                         </p>
                     </CardContent>
                 </Card>
@@ -502,6 +517,174 @@ export default function StorygateStudio() {
                                 </div>
                             </div>
 
+                            {/* Evaluation & Readiness */}
+                            <div className="p-6 rounded-lg" style={{ backgroundColor: 'rgba(169, 142, 74, 0.05)', borderWidth: '1px', borderColor: '#A98E4A' }}>
+                                <h3 className="text-lg font-semibold mb-3" style={{ color: '#7A1E1E' }}>Evaluation & Readiness</h3>
+                                <p className="text-sm mb-4" style={{ color: '#7B7B7B' }}>
+                                    Storygate Studio prioritizes projects that meet a clear readiness threshold. You may qualify using a RevisionGrade evaluation or an equivalent professional evaluation.
+                                </p>
+                                
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                        Evaluation Source *
+                                    </label>
+                                    <Select 
+                                        value={formData.evaluation_source} 
+                                        onValueChange={(value) => setFormData({...formData, evaluation_source: value})}
+                                    >
+                                        <SelectTrigger style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}>
+                                            <SelectValue placeholder="Select evaluation source" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="revisiongrade">RevisionGrade evaluation</SelectItem>
+                                            <SelectItem value="external">External professional evaluation</SelectItem>
+                                            <SelectItem value="none">No formal evaluation yet</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {formData.evaluation_source === 'revisiongrade' && (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                            RevisionGrade Score (0.0–10.0) *
+                                        </label>
+                                        <Input
+                                            type="number"
+                                            step="0.1"
+                                            min="0"
+                                            max="10"
+                                            value={formData.revisiongrade_score}
+                                            onChange={(e) => setFormData({...formData, revisiongrade_score: e.target.value})}
+                                            style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                            required
+                                        />
+                                        <p className="text-xs mt-2" style={{ color: '#7B7B7B' }}>
+                                            Projects with a RevisionGrade score of 8.0 or higher are prioritized for Storygate consideration.
+                                        </p>
+                                        {formData.revisiongrade_score && parseFloat(formData.revisiongrade_score) < 8.0 && (
+                                            <div className="mt-2 p-3 rounded" style={{ backgroundColor: 'rgba(122, 30, 30, 0.1)', borderWidth: '1px', borderColor: '#7A1E1E' }}>
+                                                <p className="text-xs flex items-start gap-2" style={{ color: '#7A1E1E' }}>
+                                                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                                                    <span>Projects below 8.0/10 are considered not yet ready; you may still submit, but they are unlikely to advance at this time.</span>
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {formData.evaluation_source === 'external' && (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                                Evaluator Type *
+                                            </label>
+                                            <Input
+                                                value={formData.evaluator_type}
+                                                onChange={(e) => setFormData({...formData, evaluator_type: e.target.value})}
+                                                placeholder="e.g., agent, editor, producer, third-party service"
+                                                style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                                Evaluator Name or Organization *
+                                            </label>
+                                            <Input
+                                                value={formData.evaluator_name}
+                                                onChange={(e) => setFormData({...formData, evaluator_name: e.target.value})}
+                                                style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                                Evaluation Date *
+                                            </label>
+                                            <Input
+                                                type="date"
+                                                value={formData.evaluation_date}
+                                                onChange={(e) => setFormData({...formData, evaluation_date: e.target.value})}
+                                                style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                                Summary Outcome *
+                                            </label>
+                                            <Textarea
+                                                value={formData.evaluation_summary}
+                                                onChange={(e) => setFormData({...formData, evaluation_summary: e.target.value})}
+                                                placeholder="Brief summary of the evaluation outcome"
+                                                style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                                className="min-h-[100px]"
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                                Upload Evaluation PDF or Report (Optional but Recommended)
+                                            </label>
+                                            <Input
+                                                type="file"
+                                                accept=".pdf"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file && file.size > 10 * 1024 * 1024) {
+                                                        toast.error('File size must be less than 10MB');
+                                                        e.target.value = '';
+                                                        return;
+                                                    }
+                                                    setFormData({...formData, evaluation_file: file});
+                                                }}
+                                                style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                            />
+                                            <p className="text-xs mt-2" style={{ color: '#7B7B7B' }}>
+                                                Equivalent professional evaluations should assess structure, readiness, clarity, and viability using a transparent, defensible methodology, and produce a clearly articulated evaluative outcome suitable for comparison.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {formData.evaluation_source === 'none' && (
+                                    <div className="p-3 rounded" style={{ backgroundColor: 'rgba(169, 142, 74, 0.1)', borderWidth: '1px', borderColor: '#A98E4A' }}>
+                                        <p className="text-sm" style={{ color: '#D4D4D4' }}>
+                                            You can submit without a formal evaluation, but projects with a RevisionGrade score of 8.0+ or an equivalent professional evaluation are prioritized for deeper consideration.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Presentation Package */}
+                            <div className="p-6 rounded-lg" style={{ backgroundColor: 'rgba(169, 142, 74, 0.05)', borderWidth: '1px', borderColor: '#A98E4A' }}>
+                                <h3 className="text-lg font-semibold mb-3" style={{ color: '#7A1E1E' }}>Presentation Package</h3>
+                                <p className="text-sm mb-4" style={{ color: '#7B7B7B' }}>
+                                    If available, upload a single professional presentation package (Film Adaptation Pitch Deck or equivalent) in PDF format. 
+                                    This document is a development artifact, not a substitute for your full manuscript or script; 
+                                    its purpose is to demonstrate clarity of concept, narrative cohesion, and industry awareness.
+                                </p>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                        Upload Presentation Package (PDF, Optional)
+                                    </label>
+                                    <Input
+                                        type="file"
+                                        accept=".pdf"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file && file.size > 10 * 1024 * 1024) {
+                                                toast.error('File size must be less than 10MB');
+                                                e.target.value = '';
+                                                return;
+                                            }
+                                            setFormData({...formData, presentation_package: file});
+                                        }}
+                                        style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                    />
+                                </div>
+                            </div>
+
                             {/* Why Storygate */}
                             <div>
                                 <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
@@ -544,20 +727,34 @@ export default function StorygateStudio() {
                                 />
                             </div>
 
-                            {/* Acknowledgment */}
-                            <div className="p-4 rounded-lg" style={{ backgroundColor: 'rgba(169, 142, 74, 0.1)', borderWidth: '1px', borderColor: '#A98E4A' }}>
+                            {/* Acknowledgment & Rights */}
+                            <div className="p-6 rounded-lg space-y-4" style={{ backgroundColor: 'rgba(169, 142, 74, 0.1)', borderWidth: '1px', borderColor: '#A98E4A' }}>
+                                <h3 className="text-sm font-semibold" style={{ color: '#7A1E1E' }}>Acknowledgment & Rights</h3>
                                 <label className="flex items-start gap-3 cursor-pointer" style={{ color: '#D4D4D4' }}>
                                     <input
                                         type="checkbox"
-                                        checked={formData.acknowledgment}
-                                        onChange={(e) => setFormData({...formData, acknowledgment: e.target.checked})}
+                                        checked={formData.acknowledgment_studio}
+                                        onChange={(e) => setFormData({...formData, acknowledgment_studio: e.target.checked})}
                                         className="mt-1 rounded"
                                         style={{ borderColor: '#7B7B7B', backgroundColor: 'rgba(14, 14, 14, 0.6)' }}
                                         required
                                     />
                                     <span className="text-sm">
                                         I understand that Storygate Studio cannot respond to all submissions and that 
-                                        submission does not guarantee review or feedback.
+                                        submission does not guarantee review, feedback, representation, publication, or production. *
+                                    </span>
+                                </label>
+                                <label className="flex items-start gap-3 cursor-pointer" style={{ color: '#D4D4D4' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.acknowledgment_rights}
+                                        onChange={(e) => setFormData({...formData, acknowledgment_rights: e.target.checked})}
+                                        className="mt-1 rounded"
+                                        style={{ borderColor: '#7B7B7B', backgroundColor: 'rgba(14, 14, 14, 0.6)' }}
+                                        required
+                                    />
+                                    <span className="text-sm">
+                                        I confirm that I own or control the rights to this work and am authorized to share it for professional consideration. *
                                     </span>
                                 </label>
                             </div>
