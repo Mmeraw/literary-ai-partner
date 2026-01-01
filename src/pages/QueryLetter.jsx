@@ -21,6 +21,8 @@ export default function QueryLetter() {
     const [autoFormData, setAutoFormData] = useState({
         manuscriptFile: null,
         bioText: '',
+        bioFile: null,
+        bioMode: 'manual', // 'manual' or 'upload'
         existingSynopsis: '',
         genre: ''
     });
@@ -30,26 +32,39 @@ export default function QueryLetter() {
     const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
 
     const handleAutoGenerate = async () => {
-        if (!autoFormData.manuscriptFile || !autoFormData.bioText) {
+        const hasBio = autoFormData.bioMode === 'manual' ? autoFormData.bioText : autoFormData.bioFile;
+        
+        if (!autoFormData.manuscriptFile || !hasBio) {
             toast.error('Please upload your manuscript and provide your bio');
             return;
         }
 
         setGenerating(true);
         try {
-            // Upload file
+            // Upload manuscript file
             const { file_url } = await base44.integrations.Core.UploadFile({ file: autoFormData.manuscriptFile });
             
+            let bioText = autoFormData.bioText;
+            
+            // If bio is uploaded as file, upload and extract
+            if (autoFormData.bioMode === 'upload' && autoFormData.bioFile) {
+                const { file_url: bio_url } = await base44.integrations.Core.UploadFile({ file: autoFormData.bioFile });
+                // Fetch and extract text from bio file
+                const bioResponse = await fetch(bio_url);
+                const bioBuffer = await bioResponse.arrayBuffer();
+                bioText = new TextDecoder().decode(bioBuffer);
+            }
+            
             // Generate complete query package
-            const response = await base44.functions.invoke('generateQueryLetterPackage', {
+            const { data } = await base44.functions.invoke('generateQueryLetterPackage', {
                 file_url,
-                bio: autoFormData.bioText,
+                bio: bioText,
                 existing_synopsis: autoFormData.existingSynopsis,
                 genre: autoFormData.genre
             });
 
-            setQueryLetter(response.query_letter);
-            setSuggestedAgents(response.suggested_agents || []);
+            setQueryLetter(data.query_letter);
+            setSuggestedAgents(data.suggested_agents || []);
             toast.success('Query letter generated with agent recommendations!');
         } catch (error) {
             toast.error('Failed to generate query letter');
@@ -162,12 +177,53 @@ export default function QueryLetter() {
                                 <label className="text-sm font-medium text-slate-700 mb-2 block">
                                     Author Bio (Required)
                                 </label>
-                                <Textarea
-                                    placeholder="Your writing credentials, publications, background..."
-                                    value={autoFormData.bioText}
-                                    onChange={(e) => setAutoFormData({...autoFormData, bioText: e.target.value})}
-                                    className="min-h-[100px]"
-                                />
+                                <div className="flex gap-2 mb-3">
+                                    <Button
+                                        type="button"
+                                        variant={autoFormData.bioMode === 'manual' ? 'default' : 'outline'}
+                                        onClick={() => setAutoFormData({...autoFormData, bioMode: 'manual', bioFile: null})}
+                                        className="flex-1"
+                                    >
+                                        Type Bio Manually
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={autoFormData.bioMode === 'upload' ? 'default' : 'outline'}
+                                        onClick={() => setAutoFormData({...autoFormData, bioMode: 'upload', bioText: ''})}
+                                        className="flex-1"
+                                    >
+                                        Upload CV/Resume
+                                    </Button>
+                                </div>
+                                
+                                {autoFormData.bioMode === 'manual' ? (
+                                    <Textarea
+                                        placeholder="Your writing credentials, publications, background..."
+                                        value={autoFormData.bioText}
+                                        onChange={(e) => setAutoFormData({...autoFormData, bioText: e.target.value})}
+                                        className="min-h-[100px]"
+                                    />
+                                ) : (
+                                    <div>
+                                        <Input
+                                            type="file"
+                                            accept=".pdf,.doc,.docx,.txt"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file && file.size > 5 * 1024 * 1024) {
+                                                    toast.error('CV/Resume must be under 5MB');
+                                                    return;
+                                                }
+                                                setAutoFormData({...autoFormData, bioFile: file});
+                                            }}
+                                        />
+                                        {autoFormData.bioFile && (
+                                            <p className="text-xs text-green-600 mt-1">
+                                                ✓ {autoFormData.bioFile.name}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="grid md:grid-cols-2 gap-4">
@@ -195,7 +251,7 @@ export default function QueryLetter() {
 
                             <Button 
                                 onClick={handleAutoGenerate}
-                                disabled={generating || !autoFormData.manuscriptFile || !autoFormData.bioText}
+                                disabled={generating || !autoFormData.manuscriptFile || (autoFormData.bioMode === 'manual' ? !autoFormData.bioText : !autoFormData.bioFile)}
                                 className="w-full bg-indigo-600 hover:bg-indigo-700"
                             >
                                 {generating ? (
