@@ -1,0 +1,10 @@
+# QA COMPLIANCE TEST MATRIX
+
+| Test Case | Expected Result |
+|-----------|----------------|
+| Advisory model disagrees with primary | Flag raised, output unchanged |
+| Advisory model unavailable | System continues with primary |
+| Primary system fails | User sees explicit error state |
+| Conflicting model outputs | Logged + review required |
+| Missing Primary declaration | Build fails |
+| Output produced | Traceable to single authority |

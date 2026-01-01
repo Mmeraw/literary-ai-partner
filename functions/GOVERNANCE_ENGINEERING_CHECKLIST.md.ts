@@ -1,0 +1,21 @@
+# ONE-PAGE ENGINEERING ENFORCEMENT CHECKLIST
+
+## Before Merge
+
+- ☐ Primary system explicitly defined
+- ☐ Advisory systems declared and scoped
+- ☐ No write-path from advisory to output
+- ☐ Error paths tested and visible
+- ☐ Logs include decision provenance
+
+---
+
+## After Merge
+
+- ☐ Outputs traceable to one authoritative source
+- ☐ No silent fallbacks observed
+- ☐ Monitoring confirms expected behavior
+
+---
+
+## ⚠️ Violation = Blocked Merge
