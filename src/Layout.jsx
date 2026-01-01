@@ -57,7 +57,8 @@ const outputPages = [
 ];
 
 const storygatePages = [
-    { name: 'About StoryGate Studio', page: 'StoryGate', icon: Crown },
+    { name: 'StoryGate Overview', page: 'StoryGate', icon: Shield },
+    { name: 'Studio Submission', page: 'StorygateStudio', icon: Crown },
     { name: 'My Listings', page: 'CreatorStoryGate', icon: FileText },
     { name: 'Create Listing', page: 'CreateStoryGateListing', icon: Plus },
     { name: 'Verification Queue', page: 'AdminVerificationQueue', icon: CheckCircle2, adminOnly: true },
