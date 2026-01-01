@@ -90,31 +90,42 @@ export default function PitchGenerator() {
     const elevatorRevision = useRevisionFlow('pitch');
 
     const handleFileUpload = async (e) => {
-        console.log('🚀 handleFileUpload TRIGGERED at', new Date().toISOString());
+        console.log('═══════════════════════════════════════════');
+        console.log('🚀 handleFileUpload TRIGGERED');
+        console.log('Timestamp:', new Date().toISOString());
+        console.log('Event:', e);
+        console.log('Event.target:', e.target);
+        console.log('Event.target.files:', e.target.files);
         
         const file = e.target.files?.[0];
-        console.log('📁 File object:', { name: file?.name, size: file?.size, type: file?.type });
         
         if (!file) {
-            console.warn('❌ No file selected');
+            console.error('❌ NO FILE IN EVENT - e.target.files is empty or undefined');
+            console.log('e.target.files:', e.target.files);
             return;
         }
+        
+        console.log('✅ FILE DETECTED:');
+        console.log('  Name:', file.name);
+        console.log('  Size:', file.size, 'bytes', `(${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+        console.log('  Type:', file.type);
+        console.log('  Last Modified:', new Date(file.lastModified).toISOString());
 
         if (file.size > 25 * 1024 * 1024) {
-            console.error('❌ File too large:', file.size);
+            console.error('❌ FILE TOO LARGE:', file.size, 'bytes');
             toast.error('File must be under 25MB');
             return;
         }
 
-        console.log('✅ Starting upload flow...');
+        console.log('✅ File size OK, starting upload flow...');
         setUploadingFile(true);
         
         try {
             toast.loading('Uploading manuscript...', { id: 'upload' });
-            console.log('📤 Calling base44.integrations.Core.UploadFile...');
+            console.log('📤 Step 1: Calling base44.integrations.Core.UploadFile...');
             
             const uploadResult = await base44.integrations.Core.UploadFile({ file });
-            console.log('📦 UploadFile returned:', uploadResult);
+            console.log('📦 UploadFile SUCCESS:', uploadResult);
             
             const file_url = uploadResult?.file_url;
             console.log('🔗 Extracted file_url:', file_url);
@@ -124,62 +135,46 @@ export default function PitchGenerator() {
             }
             
             toast.loading('Analyzing manuscript and extracting fields...', { id: 'upload' });
-            console.log('🔍 Calling extractPitchFields function...');
+            console.log('📤 Step 2: Calling extractPitchFields function with file_url...');
             
             const response = await base44.functions.invoke('extractPitchFields', { file_url });
-            console.log('📊 extractPitchFields response:', response);
-            console.log('📊 Response data:', response.data);
-            console.log('📊 Response keys:', Object.keys(response || {}));
+            console.log('📦 extractPitchFields SUCCESS');
+            console.log('Response object:', response);
+            console.log('Response.data:', response.data);
             
-            // base44.functions.invoke returns {data: {success, fields}}
             const result = response.data || response;
+            console.log('Parsed result:', result);
             
             if (result.success && result.fields) {
-                console.log('✅ Success! Fields:', result.fields);
+                console.log('✅ EXTRACTION SUCCESS!');
+                console.log('Fields received:', result.fields);
                 setManuscriptInfo(result.fields);
                 toast.success(
                     <div>
                         <div className="font-semibold">✓ Fields extracted!</div>
                         <div className="text-xs mt-1">Title: {result.fields.title}</div>
-                        <div className="text-xs">
-                            <button 
-                                onClick={() => handleSaveAsManuscript(result.fields, file_url)}
-                                className="underline mt-1"
-                            >
-                                Save as Manuscript →
-                            </button>
-                        </div>
                     </div>,
                     { id: 'upload', duration: 6000 }
                 );
+                console.log('✅ UI UPDATED with extracted fields');
             } else {
-                console.error('❌ Extraction returned failure:', result);
+                console.error('❌ EXTRACTION FAILED');
+                console.error('Result:', result);
                 const errorMsg = result.error || result.details || 'Failed to extract fields';
-                toast.error(
-                    <div>
-                        <div className="font-semibold">Extraction failed</div>
-                        <div className="text-xs mt-1">{errorMsg}</div>
-                    </div>,
-                    { id: 'upload', duration: 5000 }
-                );
+                toast.error(`Extraction failed: ${errorMsg}`, { id: 'upload' });
             }
         } catch (error) {
-            console.error('💥 CAUGHT ERROR:', error);
-            console.error('💥 Error name:', error.name);
-            console.error('💥 Error message:', error.message);
-            console.error('💥 Error stack:', error.stack);
-            const errorDetails = error.response?.data?.details || error.message;
-            toast.error(
-                <div>
-                    <div className="font-semibold">Upload failed</div>
-                    <div className="text-xs mt-1">{errorDetails}</div>
-                </div>,
-                { id: 'upload', duration: 5000 }
-            );
+            console.error('💥 FATAL ERROR IN UPLOAD FLOW');
+            console.error('Error object:', error);
+            console.error('Error.message:', error.message);
+            console.error('Error.stack:', error.stack);
+            console.error('Error.response:', error.response);
+            toast.error(`Upload failed: ${error.message}`, { id: 'upload' });
         } finally {
-            console.log('🏁 Upload flow complete');
+            console.log('🏁 Upload flow complete (success or failure)');
             setUploadingFile(false);
             e.target.value = '';
+            console.log('═══════════════════════════════════════════');
         }
     };
 
