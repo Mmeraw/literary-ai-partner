@@ -274,25 +274,21 @@ export default function PitchGenerator() {
                                             id="manuscript-upload"
                                             disabled={uploadingFile}
                                         />
-                                        <label htmlFor="manuscript-upload" className="cursor-pointer inline-block">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                disabled={uploadingFile}
-                                                className="bg-white hover:bg-slate-50"
-                                            >
-                                                {uploadingFile ? (
-                                                    <>
-                                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                        Analyzing...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Upload className="w-4 h-4 mr-2" />
-                                                        Choose File
-                                                    </>
-                                                )}
-                                            </Button>
+                                        <label 
+                                            htmlFor="manuscript-upload" 
+                                            className="cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 transition-colors text-sm font-medium disabled:opacity-50"
+                                        >
+                                            {uploadingFile ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    Analyzing...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Upload className="w-4 h-4" />
+                                                    Choose File
+                                                </>
+                                            )}
                                         </label>
                                         <p className="text-xs text-slate-500 mt-2">
                                             PDF, DOC, DOCX, or TXT • Max 25MB
