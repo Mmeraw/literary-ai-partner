@@ -1,0 +1,48 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { linkedin_url } = await req.json();
+
+        if (!linkedin_url) {
+            return Response.json({ error: 'linkedin_url is required' }, { status: 400 });
+        }
+
+        // Extract LinkedIn profile data using InvokeLLM with web context
+        const extractionPrompt = `Extract professional bio information from this LinkedIn profile: ${linkedin_url}
+
+Extract and return:
+- Current role/title
+- Key professional experience
+- Notable achievements/publications
+- Relevant education
+- Any writing/creative credentials
+
+Condense into a 2-3 sentence professional bio suitable for a literary agent query letter.
+Focus on writing credentials, publications, awards, and relevant professional background.`;
+
+        const bio = await base44.integrations.Core.InvokeLLM({
+            prompt: extractionPrompt,
+            add_context_from_internet: true
+        });
+
+        return Response.json({ 
+            success: true,
+            bio: bio
+        });
+
+    } catch (error) {
+        console.error('LinkedIn extraction error:', error);
+        return Response.json({ 
+            error: 'Failed to extract LinkedIn profile', 
+            details: error.message 
+        }, { status: 500 });
+    }
+});
