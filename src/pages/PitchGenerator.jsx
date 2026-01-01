@@ -256,6 +256,11 @@ export default function PitchGenerator() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
+            {debugLoaded && (
+                <div className="fixed top-0 left-0 right-0 bg-green-500 text-white text-center py-2 z-50 text-sm font-bold">
+                    ✅ PITCHGEN DEBUG LOADED - File is rendering correctly
+                </div>
+            )}
             <div className="max-w-6xl mx-auto px-6 py-12">
                 {/* Header */}
                 <div className="text-center mb-10">
