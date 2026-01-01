@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,7 @@ export default function PitchGenerator() {
 
     const [uploadingFile, setUploadingFile] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const fileInputRef = useRef(null);
 
     const { data: manuscripts = [] } = useQuery({
         queryKey: ['user-manuscripts'],
@@ -278,16 +279,16 @@ export default function PitchGenerator() {
                                             Upload your full manuscript/screenplay to populate all fields automatically
                                         </p>
                                         <input
+                                            ref={fileInputRef}
                                             type="file"
                                             accept=".txt,.pdf,.doc,.docx"
                                             onChange={handleFileUpload}
                                             className="hidden"
-                                            id="pitch-file-upload"
                                         />
                                         <Button 
                                             variant="outline" 
                                             type="button"
-                                            onClick={() => document.getElementById('pitch-file-upload').click()}
+                                            onClick={() => fileInputRef.current?.click()}
                                             disabled={uploadingFile}
                                         >
                                             {uploadingFile ? (

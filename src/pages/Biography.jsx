@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ export default function Biography() {
         long: ''
     });
     
+    const fileInputRef = useRef(null);
     const queryRevision = useRevisionFlow('biography');
     const longRevision = useRevisionFlow('biography');
 
@@ -182,16 +183,16 @@ Generate both bios now.`,
                             </label>
                             <div className="flex items-center gap-4">
                                 <input
+                                    ref={fileInputRef}
                                     type="file"
                                     accept=".pdf,.doc,.docx,.txt"
                                     onChange={handleFileUpload}
                                     className="hidden"
-                                    id="bio-file-upload"
                                 />
                                 <Button 
                                     variant="outline" 
                                     type="button"
-                                    onClick={() => document.getElementById('bio-file-upload').click()}
+                                    onClick={() => fileInputRef.current?.click()}
                                     disabled={uploadingFile}
                                 >
                                     <Upload className="w-4 h-4 mr-2" />
