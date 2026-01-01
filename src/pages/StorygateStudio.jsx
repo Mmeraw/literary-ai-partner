@@ -36,6 +36,7 @@ export default function StorygateStudio() {
         project_stage: '',
         seeking: [],
         why_storygate: '',
+        upload_file: null,
         acknowledgment: false
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -516,6 +517,30 @@ export default function StorygateStudio() {
                                     style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
                                     className="min-h-[120px]"
                                     required
+                                />
+                            </div>
+
+                            {/* Optional Upload */}
+                            <div>
+                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                    Optional Upload (Excerpt or Sample)
+                                </label>
+                                <p className="text-xs mb-2" style={{ color: '#7B7B7B' }}>
+                                    Upload a writing sample, excerpt, or relevant document (PDF, DOC, DOCX - max 10MB)
+                                </p>
+                                <Input
+                                    type="file"
+                                    accept=".pdf,.doc,.docx"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file && file.size > 10 * 1024 * 1024) {
+                                            toast.error('File size must be less than 10MB');
+                                            e.target.value = '';
+                                            return;
+                                        }
+                                        setFormData({...formData, upload_file: file});
+                                    }}
+                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
                                 />
                             </div>
 
