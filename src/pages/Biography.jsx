@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,123 +16,79 @@ export default function Biography() {
     const [inputText, setInputText] = useState('');
     const [generating, setGenerating] = useState(false);
     const [uploadingFile, setUploadingFile] = useState(false);
+    const [uploadedFileName, setUploadedFileName] = useState('');
     const [bios, setBios] = useState({
         query: '',
         long: ''
     });
     
-
     const queryRevision = useRevisionFlow('biography');
     const longRevision = useRevisionFlow('biography');
 
     const handleFileUpload = async (e) => {
-        console.log('═══════════════════════════════════════════');
-        console.log('🚀 handleFileUpload TRIGGERED');
-        console.log('Timestamp:', new Date().toISOString());
-        console.log('Event:', e);
-        console.log('Event.target:', e.target);
-        console.log('Event.target.files:', e.target.files);
-        
         const file = e.target.files?.[0];
-        
-        if (!file) {
-            console.error('❌ NO FILE IN EVENT - e.target.files is empty or undefined');
-            console.log('e.target.files:', e.target.files);
-            return;
-        }
-        
-        console.log('✅ FILE DETECTED:');
-        console.log('  Name:', file.name);
-        console.log('  Size:', file.size, 'bytes', `(${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-        console.log('  Type:', file.type);
-        console.log('  Last Modified:', new Date(file.lastModified).toISOString());
+        if (!file) return;
 
         if (file.size > 25 * 1024 * 1024) {
-            console.error('❌ FILE TOO LARGE:', file.size, 'bytes');
             toast.error('File must be under 25MB');
             return;
         }
 
-        console.log('✅ File size OK, starting upload flow...');
         setUploadingFile(true);
+        setUploadedFileName(file.name);
         
         try {
             toast.loading('Uploading file...', { id: 'upload' });
-            console.log('📤 Step 1: Calling base44.integrations.Core.UploadFile...');
             
             const uploadResult = await base44.integrations.Core.UploadFile({ file });
-            console.log('📦 UploadFile SUCCESS:', uploadResult);
-            
             const file_url = uploadResult?.file_url;
-            console.log('🔗 Extracted file_url:', file_url);
             
             if (!file_url) {
-                throw new Error('No file_url in upload response');
+                throw new Error('Upload failed');
             }
             
             let extractedText = '';
             const fileName = file.name.toLowerCase();
             
-            // Handle Word documents (.doc and .docx)
+            // Word documents
             if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
-                toast.loading('Converting Word document to text...', { id: 'upload' });
-                console.log('📤 Step 2: Word document detected, calling importDocx function...');
-                
+                toast.loading('Converting Word document...', { id: 'upload' });
                 const docxResult = await base44.functions.invoke('importDocx', { file_url });
-                console.log('📦 importDocx SUCCESS:', docxResult);
                 extractedText = docxResult.data?.text || '';
             } 
-            // Handle plain text files directly
+            // Plain text
             else if (fileName.endsWith('.txt')) {
                 toast.loading('Reading text file...', { id: 'upload' });
-                console.log('📤 Step 2: TXT detected, fetching directly...');
-                
                 const response = await fetch(file_url);
                 extractedText = await response.text();
-                console.log('📦 TXT fetch SUCCESS, length:', extractedText.length);
             }
-            // Handle other formats (PDF, RTF) via ExtractDataFromUploadedFile
+            // PDF/RTF via extraction API
             else {
-                toast.loading('Extracting text from file...', { id: 'upload' });
-                console.log('📤 Step 2: Calling ExtractDataFromUploadedFile...');
-                
+                toast.loading('Extracting text...', { id: 'upload' });
                 const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
                     file_url,
                     json_schema: {
                         type: "object",
-                        properties: {
-                            text: { type: "string" }
-                        }
+                        properties: { text: { type: "string" } }
                     }
                 });
-                console.log('📦 ExtractDataFromUploadedFile SUCCESS:', extracted);
-
+                
                 if (extracted.status === 'success') {
                     extractedText = extracted.output?.text || '';
                 } else {
-                    console.error('❌ EXTRACTION FAILED');
-                    console.error('Status:', extracted.status);
-                    console.error('Details:', extracted.details);
-                    throw new Error('Failed to extract text from file');
+                    throw new Error(extracted.details || 'Extraction failed');
                 }
             }
 
-            console.log('✅ EXTRACTION SUCCESS!');
-            console.log('Extracted text length:', extractedText.length);
             setInputText(extractedText);
-            toast.success('File uploaded and processed!', { id: 'upload' });
-            console.log('✅ UI UPDATED with extracted text');
+            toast.success('File processed successfully!', { id: 'upload' });
         } catch (error) {
-            console.error('💥 FATAL ERROR IN UPLOAD FLOW');
-            console.error('Error object:', error);
-            console.error('Error.message:', error.message);
-            console.error('Error.stack:', error.stack);
+            console.error('Upload error:', error);
             toast.error(`Upload failed: ${error.message}`, { id: 'upload' });
+            setUploadedFileName('');
         } finally {
-            console.log('🏁 Upload flow complete (success or failure)');
             setUploadingFile(false);
             e.target.value = '';
-            console.log('═══════════════════════════════════════════');
         }
     };
 
@@ -168,8 +124,8 @@ Generate both bios now.`,
                 response_json_schema: {
                     type: "object",
                     properties: {
-                        query_bio: { type: "string", description: "50-100 word query-ready bio" },
-                        long_bio: { type: "string", description: "200-250 word expanded bio" }
+                        query_bio: { type: "string" },
+                        long_bio: { type: "string" }
                     },
                     required: ["query_bio", "long_bio"]
                 }
@@ -180,7 +136,6 @@ Generate both bios now.`,
                 long: response.long_bio
             });
             
-            // Create baseline OutputVersions
             await queryRevision.createBaseline(response.query_bio, `bio_query_${Date.now()}`);
             await longRevision.createBaseline(response.long_bio, `bio_long_${Date.now()}`);
             
@@ -198,17 +153,6 @@ Generate both bios now.`,
         toast.success('Copied to clipboard!');
     };
 
-    const downloadBio = (text, filename) => {
-        const blob = new Blob([text], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success('Downloaded!');
-    };
-
     const handleRequestRevision = async (type) => {
         const revision = type === 'query' ? queryRevision : longRevision;
         const currentContent = bios[type];
@@ -222,7 +166,6 @@ Generate both bios now.`,
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             <div className="max-w-4xl mx-auto px-6 py-12">
-                {/* Header */}
                 <div className="text-center mb-10">
                     <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <User className="w-4 h-4 mr-2" />
@@ -236,7 +179,6 @@ Generate both bios now.`,
                     </p>
                 </div>
 
-                {/* Input Section */}
                 <Card className="mb-8">
                     <CardHeader>
                         <CardTitle>Your Information</CardTitle>
@@ -256,32 +198,55 @@ Generate both bios now.`,
 
                         <div className="border-t pt-4">
                             <label className="text-sm font-medium text-slate-700 mb-2 block">
-                                Or upload resume/CV (PDF, DOCX, DOC, TXT, RTF)
+                                Or upload resume/CV (PDF, DOC, DOCX, RTF, or TXT)
                             </label>
-                            <div className="flex items-center gap-4">
+                            <div className="flex flex-col gap-3">
                                 <input
                                     type="file"
-                                    id="bio-file-upload"
+                                    id="bio-upload"
                                     onChange={handleFileUpload}
-                                    style={{ display: 'none' }}
-                                    accept=".pdf,.doc,.docx,.txt,.rtf"
+                                    className="hidden"
+                                    accept=".pdf,.doc,.docx,.rtf,.txt"
                                 />
-                                <label htmlFor="bio-file-upload" style={{ cursor: 'pointer' }}>
-                                    <Button type="button" variant="outline" disabled={uploadingFile} asChild>
-                                        <span>
-                                            <Upload className="w-4 h-4 mr-2" />
-                                            {uploadingFile ? 'Uploading...' : 'Upload File'}
+                                <label htmlFor="bio-upload">
+                                    <Button 
+                                        type="button" 
+                                        variant="outline" 
+                                        disabled={uploadingFile}
+                                        asChild
+                                        className="w-full sm:w-auto"
+                                    >
+                                        <span className="cursor-pointer">
+                                            {uploadingFile ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                    Processing...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Upload className="w-4 h-4 mr-2" />
+                                                    Choose File
+                                                </>
+                                            )}
                                         </span>
                                     </Button>
                                 </label>
-                                <span className="text-xs text-slate-500">We'll extract relevant information automatically</span>
+                                {uploadedFileName && (
+                                    <div className="text-sm text-green-600 flex items-center gap-2">
+                                        ✓ {uploadedFileName}
+                                    </div>
+                                )}
+                                <p className="text-xs text-slate-500">
+                                    All text will be automatically extracted
+                                </p>
                             </div>
                         </div>
 
                         <Button 
                             onClick={generateBio}
                             disabled={generating || !inputText.trim()}
-                            className="w-full"
+                            className="w-full bg-indigo-600 hover:bg-indigo-700"
+                            size="lg"
                         >
                             {generating ? (
                                 <>
@@ -298,7 +263,6 @@ Generate both bios now.`,
                     </CardContent>
                 </Card>
 
-                {/* Generated Bios */}
                 {(bios.query || bios.long) && (
                     <Tabs defaultValue="query" className="space-y-6">
                         <TabsList className="grid grid-cols-2 w-full">
@@ -396,7 +360,6 @@ Generate both bios now.`,
                     </Tabs>
                 )}
 
-                {/* Tips */}
                 <Card className="mt-8 border-2 border-indigo-100">
                     <CardHeader>
                         <CardTitle>Biography Best Practices</CardTitle>
@@ -431,7 +394,6 @@ Generate both bios now.`,
                     </CardContent>
                 </Card>
 
-                {/* Integration Note */}
                 <div className="mt-8 p-6 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 text-center">
                     <h3 className="text-lg font-semibold text-slate-900 mb-2">
                         Auto-Insert Into Query Letter

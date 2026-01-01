@@ -10,23 +10,29 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const formData = await req.formData();
-        const file = formData.get('file');
+        const { file_url } = await req.json();
 
-        if (!file) {
-            return Response.json({ error: 'No file provided' }, { status: 400 });
+        if (!file_url) {
+            return Response.json({ error: 'file_url is required' }, { status: 400 });
+        }
+
+        // Fetch the file from the URL
+        const fileResponse = await fetch(file_url);
+        if (!fileResponse.ok) {
+            return Response.json({ error: `Failed to fetch file: ${fileResponse.statusText}` }, { status: 400 });
         }
 
         // Read file as buffer
-        const arrayBuffer = await file.arrayBuffer();
+        const arrayBuffer = await fileResponse.arrayBuffer();
         const buffer = new Uint8Array(arrayBuffer);
 
-        // Convert .docx to HTML (preserves italics, bold, etc.)
-        const result = await mammoth.convertToHtml({ buffer });
+        // Convert .docx to text (extract plain text)
+        const result = await mammoth.extractRawText({ buffer });
 
         return Response.json({
-            html: result.value,
-            messages: result.messages // warnings/errors from conversion
+            success: true,
+            text: result.value,
+            messages: result.messages
         });
 
     } catch (error) {
