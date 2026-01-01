@@ -111,7 +111,7 @@ export default function Home() {
                         {
                             icon: BookOpen,
                             title: "Agent Package",
-                            description: "Query, logline, and short/medium/long synopsis drafted from your manuscript or screenplay and calibrated to professional submission standards. You review and edit every line before sending.",
+                            description: "Query, logline, and short/medium/long synopsis drafted from your manuscript or screenplay and calibrated to professional submission standards. Review and approve every proposed change before sending—or opt in to TrustedPath™ to generate a draft you can refine and approve.",
                             color: "from-indigo-500 to-blue-600"
                         },
                         {
