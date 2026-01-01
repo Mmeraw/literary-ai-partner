@@ -499,25 +499,21 @@ export default function FilmAdaptation() {
                                             id="docx-upload"
                                             disabled={convertingDocx}
                                         />
-                                        <label htmlFor="docx-upload" className="cursor-pointer block">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                className="w-full"
-                                                disabled={convertingDocx}
-                                            >
-                                                {convertingDocx ? (
-                                                    <>
-                                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                        Converting...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <FileText className="w-4 h-4 mr-2" />
-                                                        Upload .DOCX
-                                                    </>
-                                                )}
-                                            </Button>
+                                        <label 
+                                            htmlFor="docx-upload" 
+                                            className="cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 transition-colors text-sm font-medium disabled:opacity-50 w-full"
+                                        >
+                                            {convertingDocx ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    Converting...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <FileText className="w-4 h-4" />
+                                                    Upload .DOCX
+                                                </>
+                                            )}
                                         </label>
                                     </div>
 
@@ -529,15 +525,12 @@ export default function FilmAdaptation() {
                                             className="hidden"
                                             id="txt-upload"
                                         />
-                                        <label htmlFor="txt-upload" className="cursor-pointer block">
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                className="w-full text-slate-600"
-                                            >
-                                                <Upload className="w-4 h-4 mr-2" />
-                                                TXT (advanced)
-                                            </Button>
+                                        <label 
+                                            htmlFor="txt-upload" 
+                                            className="cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md hover:bg-slate-100 transition-colors text-sm font-medium text-slate-600 w-full"
+                                        >
+                                            <Upload className="w-4 h-4" />
+                                            TXT (advanced)
                                         </label>
                                     </div>
                                 </div>
