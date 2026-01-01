@@ -4,10 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Mail, Download, Sparkles, Copy, Loader2 } from 'lucide-react';
+import { Mail, Download, Sparkles, Copy, Loader2, Upload, FileText, Zap } from 'lucide-react';
 import { toast } from 'sonner';
+import { base44 } from '@/api/base44Client';
 
 export default function QueryLetter() {
+    const [mode, setMode] = useState('auto'); // 'auto' or 'manual'
     const [formData, setFormData] = useState({
         manuscriptTitle: '',
         genre: '',
@@ -16,10 +18,47 @@ export default function QueryLetter() {
         bio: '',
         agentName: ''
     });
+    const [autoFormData, setAutoFormData] = useState({
+        manuscriptFile: null,
+        bioText: '',
+        existingSynopsis: '',
+        genre: ''
+    });
     const [generating, setGenerating] = useState(false);
     const [queryLetter, setQueryLetter] = useState('');
+    const [suggestedAgents, setSuggestedAgents] = useState([]);
+    const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
 
-    const handleGenerate = async () => {
+    const handleAutoGenerate = async () => {
+        if (!autoFormData.manuscriptFile || !autoFormData.bioText) {
+            toast.error('Please upload your manuscript and provide your bio');
+            return;
+        }
+
+        setGenerating(true);
+        try {
+            // Upload file
+            const { file_url } = await base44.integrations.Core.UploadFile({ file: autoFormData.manuscriptFile });
+            
+            // Generate complete query package
+            const response = await base44.functions.invoke('generateQueryLetterPackage', {
+                file_url,
+                bio: autoFormData.bioText,
+                existing_synopsis: autoFormData.existingSynopsis,
+                genre: autoFormData.genre
+            });
+
+            setQueryLetter(response.query_letter);
+            setSuggestedAgents(response.suggested_agents || []);
+            toast.success('Query letter generated with agent recommendations!');
+        } catch (error) {
+            toast.error('Failed to generate query letter');
+        } finally {
+            setGenerating(false);
+        }
+    };
+
+    const handleManualGenerate = async () => {
         if (!formData.manuscriptTitle || !formData.synopsis) {
             toast.error('Please provide at least a title and synopsis');
             return;
@@ -27,9 +66,9 @@ export default function QueryLetter() {
 
         setGenerating(true);
         try {
-            // Placeholder for future backend integration
-            toast.info('Query letter generation coming soon!');
-            // const response = await base44.functions.invoke('generateQueryLetter', formData);
+            const response = await base44.functions.invoke('generateQueryLetter', formData);
+            setQueryLetter(response.query_letter);
+            toast.success('Query letter generated!');
         } catch (error) {
             toast.error('Failed to generate query letter');
         } finally {
@@ -58,12 +97,126 @@ export default function QueryLetter() {
                     <h1 className="text-4xl font-bold text-slate-900 mb-4">
                         Generate Your Query Letter
                     </h1>
-                    <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-                        Create professional query letters optimized for literary agents. Follow industry standards with personalized touches.
+                    <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-4">
+                        Let us build your query letter directly from your manuscript or screenplay—synopsis, pitch, comps, and agent targeting done for you.
+                    </p>
+                    <p className="text-base text-slate-500 max-w-2xl mx-auto">
+                        Upload your material and a short bio, and RevisionGrade will generate an agent-ready query letter, including up to three tailored agent targets.
                     </p>
                 </div>
 
-                {/* Input Form */}
+                {/* Mode Selector */}
+                <div className="flex gap-4 justify-center mb-8">
+                    <Button
+                        onClick={() => setMode('auto')}
+                        variant={mode === 'auto' ? 'default' : 'outline'}
+                        className={mode === 'auto' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}
+                    >
+                        <Zap className="w-4 h-4 mr-2" />
+                        Let RevisionGrade Build It For Me
+                    </Button>
+                    <Button
+                        onClick={() => setMode('manual')}
+                        variant={mode === 'manual' ? 'default' : 'outline'}
+                        className={mode === 'manual' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}
+                    >
+                        <FileText className="w-4 h-4 mr-2" />
+                        I'll Fill In Details Myself
+                    </Button>
+                </div>
+
+                {/* Automated Mode */}
+                {mode === 'auto' && (
+                    <Card className="mb-8">
+                        <CardHeader>
+                            <CardTitle>Automated Query Letter Generation</CardTitle>
+                            <p className="text-sm text-slate-600 mt-2">
+                                We'll extract your synopsis, suggest comps, identify top agents, and write your query letter.
+                            </p>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <label className="text-sm font-medium text-slate-700 mb-2 block">
+                                    Upload Manuscript or Screenplay (PDF/DOC/DOCX)
+                                </label>
+                                <Input
+                                    type="file"
+                                    accept=".pdf,.doc,.docx"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file && file.size > 25 * 1024 * 1024) {
+                                            toast.error('File must be under 25MB');
+                                            return;
+                                        }
+                                        setAutoFormData({...autoFormData, manuscriptFile: file});
+                                    }}
+                                />
+                                {autoFormData.manuscriptFile && (
+                                    <p className="text-xs text-green-600 mt-1">
+                                        ✓ {autoFormData.manuscriptFile.name}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="text-sm font-medium text-slate-700 mb-2 block">
+                                    Author Bio (Required)
+                                </label>
+                                <Textarea
+                                    placeholder="Your writing credentials, publications, background..."
+                                    value={autoFormData.bioText}
+                                    onChange={(e) => setAutoFormData({...autoFormData, bioText: e.target.value})}
+                                    className="min-h-[100px]"
+                                />
+                            </div>
+
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-sm font-medium text-slate-700 mb-2 block">
+                                        Genre (Optional - we'll detect if blank)
+                                    </label>
+                                    <Input
+                                        placeholder="e.g., Literary Fiction, Thriller"
+                                        value={autoFormData.genre}
+                                        onChange={(e) => setAutoFormData({...autoFormData, genre: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-slate-700 mb-2 block">
+                                        Existing Synopsis (Optional)
+                                    </label>
+                                    <Input
+                                        placeholder="Leave blank to generate"
+                                        value={autoFormData.existingSynopsis}
+                                        onChange={(e) => setAutoFormData({...autoFormData, existingSynopsis: e.target.value})}
+                                    />
+                                </div>
+                            </div>
+
+                            <Button 
+                                onClick={handleAutoGenerate}
+                                disabled={generating || !autoFormData.manuscriptFile || !autoFormData.bioText}
+                                className="w-full bg-indigo-600 hover:bg-indigo-700"
+                            >
+                                {generating ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Analyzing & Generating...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Sparkles className="w-4 h-4 mr-2" />
+                                        Generate Complete Query Letter
+                                    </>
+                                )}
+                            </Button>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Manual Mode */}
+                {mode === 'manual' && (
+
                 <Card className="mb-8">
                     <CardHeader>
                         <CardTitle>Query Letter Details</CardTitle>
@@ -128,7 +281,7 @@ export default function QueryLetter() {
                         </div>
 
                         <Button 
-                            onClick={handleGenerate}
+                            onClick={handleManualGenerate}
                             disabled={generating || !formData.manuscriptTitle || !formData.synopsis}
                             className="w-full"
                         >
@@ -146,6 +299,45 @@ export default function QueryLetter() {
                         </Button>
                     </CardContent>
                 </Card>
+                )}
+
+                {/* Suggested Agents (Auto Mode Only) */}
+                {mode === 'auto' && suggestedAgents.length > 0 && (
+                    <Card className="mb-8 border-2 border-indigo-200">
+                        <CardHeader>
+                            <CardTitle>Suggested Literary Agents</CardTitle>
+                            <p className="text-sm text-slate-600 mt-2">
+                                Primary agent inserted in letter below. Two alternates provided for additional queries.
+                            </p>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            {suggestedAgents.map((agent, idx) => (
+                                <div 
+                                    key={idx}
+                                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                                        selectedAgentIndex === idx 
+                                            ? 'border-indigo-600 bg-indigo-50' 
+                                            : 'border-slate-200 hover:border-indigo-300'
+                                    }`}
+                                    onClick={() => setSelectedAgentIndex(idx)}
+                                >
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <p className="font-semibold text-slate-900">
+                                                {agent.name} {idx === 0 && <Badge className="ml-2">Primary</Badge>}
+                                            </p>
+                                            <p className="text-sm text-slate-600">{agent.agency}</p>
+                                            <p className="text-xs text-slate-500 mt-1">{agent.reason}</p>
+                                        </div>
+                                        {selectedAgentIndex === idx && (
+                                            <Badge className="bg-indigo-600">Selected</Badge>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Generated Query Letter */}
                 {queryLetter && (
