@@ -31,7 +31,7 @@ export default function Methodology() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200">
-                            <h3 className="font-semibold text-indigo-900 mb-2">Layer 1: Story Structure (12 Criteria)</h3>
+                            <h3 className="font-semibold text-indigo-900 mb-2">Layer 1: Story Structure (13 Criteria)</h3>
                             <p className="text-sm text-slate-700">
                                 Evaluates hook, voice, character development, pacing, dialogue, stakes, and marketability—
                                 the same criteria agents and editors use when reviewing submissions.
@@ -123,7 +123,7 @@ export default function Methodology() {
                                 <div>
                                     <h4 className="font-semibold text-slate-900 mb-1">Structural Analysis</h4>
                                     <p className="text-sm text-slate-600">
-                                        AI systems evaluate your work against 12 professional criteria, scoring each 1-10 
+                                        AI systems evaluate your work against 13 professional criteria, scoring each 1-10 
                                         and identifying strengths and weaknesses in story structure.
                                     </p>
                                 </div>
