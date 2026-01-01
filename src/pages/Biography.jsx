@@ -26,15 +26,53 @@ export default function Biography() {
     const longRevision = useRevisionFlow('biography');
 
     const handleFileUpload = async (e) => {
+        console.log('═══════════════════════════════════════════');
+        console.log('🚀 handleFileUpload TRIGGERED');
+        console.log('Timestamp:', new Date().toISOString());
+        console.log('Event:', e);
+        console.log('Event.target:', e.target);
+        console.log('Event.target.files:', e.target.files);
+        
         const file = e.target.files?.[0];
-        if (!file) return;
+        
+        if (!file) {
+            console.error('❌ NO FILE IN EVENT - e.target.files is empty or undefined');
+            console.log('e.target.files:', e.target.files);
+            return;
+        }
+        
+        console.log('✅ FILE DETECTED:');
+        console.log('  Name:', file.name);
+        console.log('  Size:', file.size, 'bytes', `(${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+        console.log('  Type:', file.type);
+        console.log('  Last Modified:', new Date(file.lastModified).toISOString());
 
+        if (file.size > 25 * 1024 * 1024) {
+            console.error('❌ FILE TOO LARGE:', file.size, 'bytes');
+            toast.error('File must be under 25MB');
+            return;
+        }
+
+        console.log('✅ File size OK, starting upload flow...');
         setUploadingFile(true);
+        
         try {
-            // Upload file
-            const { file_url } = await base44.integrations.Core.UploadFile({ file });
+            toast.loading('Uploading file...', { id: 'upload' });
+            console.log('📤 Step 1: Calling base44.integrations.Core.UploadFile...');
             
-            // Extract text from file
+            const uploadResult = await base44.integrations.Core.UploadFile({ file });
+            console.log('📦 UploadFile SUCCESS:', uploadResult);
+            
+            const file_url = uploadResult?.file_url;
+            console.log('🔗 Extracted file_url:', file_url);
+            
+            if (!file_url) {
+                throw new Error('No file_url in upload response');
+            }
+            
+            toast.loading('Extracting text from file...', { id: 'upload' });
+            console.log('📤 Step 2: Calling ExtractDataFromUploadedFile...');
+            
             const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
                 file_url,
                 json_schema: {
@@ -44,18 +82,31 @@ export default function Biography() {
                     }
                 }
             });
+            console.log('📦 ExtractDataFromUploadedFile SUCCESS:', extracted);
 
             if (extracted.status === 'success') {
+                console.log('✅ EXTRACTION SUCCESS!');
+                console.log('Extracted text length:', extracted.output?.text?.length || 0);
                 setInputText(extracted.output.text || '');
-                toast.success('File uploaded and processed');
+                toast.success('File uploaded and processed!', { id: 'upload' });
+                console.log('✅ UI UPDATED with extracted text');
             } else {
-                toast.error('Failed to extract text from file');
+                console.error('❌ EXTRACTION FAILED');
+                console.error('Status:', extracted.status);
+                console.error('Details:', extracted.details);
+                toast.error('Failed to extract text from file', { id: 'upload' });
             }
         } catch (error) {
-            console.error('File upload error:', error);
-            toast.error('Failed to upload file');
+            console.error('💥 FATAL ERROR IN UPLOAD FLOW');
+            console.error('Error object:', error);
+            console.error('Error.message:', error.message);
+            console.error('Error.stack:', error.stack);
+            toast.error(`Upload failed: ${error.message}`, { id: 'upload' });
         } finally {
+            console.log('🏁 Upload flow complete (success or failure)');
             setUploadingFile(false);
+            e.target.value = '';
+            console.log('═══════════════════════════════════════════');
         }
     };
 
