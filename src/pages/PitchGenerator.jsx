@@ -52,9 +52,12 @@ export default function PitchGenerator() {
                 file_url: 'data:text/plain;base64,' + btoa(textSample)
             });
             
-            if (response.success) {
-                setManuscriptInfo(response.fields);
+            const result = response.data || response;
+            if (result.success && result.fields) {
+                setManuscriptInfo(result.fields);
                 toast.success('Fields loaded from manuscript!', { id: 'load' });
+            } else {
+                toast.error(result.error || 'Failed to extract fields', { id: 'load' });
             }
         } catch (error) {
             console.error('Load error:', error);
