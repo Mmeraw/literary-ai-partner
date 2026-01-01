@@ -505,27 +505,24 @@ ${packageData.queryLetter}
                                                 id="cv-upload"
                                                 disabled={loadingBio}
                                             />
-                                            <label htmlFor="cv-upload">
+                                            <label htmlFor="cv-upload" className="cursor-pointer inline-block">
                                                 <Button
                                                     type="button"
                                                     variant="outline"
                                                     size="sm"
                                                     disabled={loadingBio}
-                                                    asChild
                                                 >
-                                                    <span className="cursor-pointer">
-                                                        {loadingBio ? (
-                                                            <>
-                                                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                                                Generating...
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Upload className="w-3 h-3 mr-1" />
-                                                                Load CV or Resume
-                                                            </>
-                                                        )}
-                                                    </span>
+                                                    {loadingBio ? (
+                                                        <>
+                                                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                                            Generating...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Upload className="w-3 h-3 mr-1" />
+                                                            Load CV or Resume
+                                                        </>
+                                                    )}
                                                 </Button>
                                             </label>
                                         </div>

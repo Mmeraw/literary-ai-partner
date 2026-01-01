@@ -486,27 +486,24 @@ export default function FilmAdaptation() {
                                             id="docx-upload"
                                             disabled={convertingDocx}
                                         />
-                                        <label htmlFor="docx-upload">
+                                        <label htmlFor="docx-upload" className="cursor-pointer block">
                                             <Button
                                                 type="button"
                                                 variant="outline"
                                                 className="w-full"
                                                 disabled={convertingDocx}
-                                                asChild
                                             >
-                                                <span className="cursor-pointer">
-                                                    {convertingDocx ? (
-                                                        <>
-                                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                            Converting...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <FileText className="w-4 h-4 mr-2" />
-                                                            Upload .DOCX
-                                                        </>
-                                                    )}
-                                                </span>
+                                                {convertingDocx ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                        Converting...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <FileText className="w-4 h-4 mr-2" />
+                                                        Upload .DOCX
+                                                    </>
+                                                )}
                                             </Button>
                                         </label>
                                     </div>
@@ -519,17 +516,14 @@ export default function FilmAdaptation() {
                                             className="hidden"
                                             id="txt-upload"
                                         />
-                                        <label htmlFor="txt-upload">
+                                        <label htmlFor="txt-upload" className="cursor-pointer block">
                                             <Button
                                                 type="button"
                                                 variant="ghost"
                                                 className="w-full text-slate-600"
-                                                asChild
                                             >
-                                                <span className="cursor-pointer">
-                                                    <Upload className="w-4 h-4 mr-2" />
-                                                    TXT (advanced)
-                                                </span>
+                                                <Upload className="w-4 h-4 mr-2" />
+                                                TXT (advanced)
                                             </Button>
                                         </label>
                                     </div>
