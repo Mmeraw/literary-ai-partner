@@ -48,6 +48,7 @@ import SecurityAndEthics from './pages/SecurityAndEthics';
 import SelectFormat from './pages/SelectFormat';
 import SlurHandlingPolicy from './pages/SlurHandlingPolicy';
 import SpineReport from './pages/SpineReport';
+import StoryGate from './pages/StoryGate';
 import StoryGatePortal from './pages/StoryGatePortal';
 import StorygateReview from './pages/StorygateReview';
 import StorygateStudio from './pages/StorygateStudio';
@@ -58,7 +59,6 @@ import UploadWork from './pages/UploadWork';
 import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
-import StoryGate from './pages/StoryGate';
 import __Layout from './Layout.jsx';
 
 
@@ -113,6 +113,7 @@ export const PAGES = {
     "SelectFormat": SelectFormat,
     "SlurHandlingPolicy": SlurHandlingPolicy,
     "SpineReport": SpineReport,
+    "StoryGate": StoryGate,
     "StoryGatePortal": StoryGatePortal,
     "StorygateReview": StorygateReview,
     "StorygateStudio": StorygateStudio,
@@ -123,7 +124,6 @@ export const PAGES = {
     "ValidationReport": ValidationReport,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
-    "StoryGate": StoryGate,
 }
 
 export const pagesConfig = {
