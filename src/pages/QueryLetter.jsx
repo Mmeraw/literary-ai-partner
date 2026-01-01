@@ -23,7 +23,8 @@ export default function QueryLetter() {
         manuscriptFile: null,
         bioText: '',
         linkedinUrl: '',
-        bioMode: 'linkedin', // 'linkedin' or 'manual'
+        bioFile: null,
+        bioMode: 'linkedin', // 'linkedin', 'manual', or 'upload'
         synopsisMode: 'auto', // 'auto' or 'manual'
         existingSynopsis: '',
         oneLinePitch: '',
@@ -38,7 +39,8 @@ export default function QueryLetter() {
     const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
 
     const handleAutoGenerate = async () => {
-        const hasBio = autoFormData.bioMode === 'linkedin' ? autoFormData.linkedinUrl : autoFormData.bioText;
+        const hasBio = autoFormData.bioMode === 'linkedin' ? autoFormData.linkedinUrl : 
+                       autoFormData.bioMode === 'upload' ? autoFormData.bioFile : autoFormData.bioText;
         
         if (!autoFormData.manuscriptFile || !hasBio) {
             toast.error('Please upload your manuscript and provide your bio source');
@@ -60,6 +62,17 @@ export default function QueryLetter() {
                 });
                 bioText = extractedBio.bio;
                 toast.success('LinkedIn profile extracted', { id: 'linkedin' });
+            }
+            
+            // If CV/Resume uploaded, extract bio
+            if (autoFormData.bioMode === 'upload' && autoFormData.bioFile) {
+                toast.loading('Extracting bio from CV...', { id: 'cv' });
+                const { file_url: bio_url } = await base44.integrations.Core.UploadFile({ file: autoFormData.bioFile });
+                const { data: extractedBio } = await base44.functions.invoke('uploadAndGenerateBio', {
+                    file_url: bio_url
+                });
+                bioText = extractedBio.bio;
+                toast.success('Bio extracted from CV', { id: 'cv' });
             }
             
             // Generate complete query package
@@ -190,24 +203,32 @@ export default function QueryLetter() {
                                     Author Bio Source (Required)
                                 </label>
                                 <p className="text-xs text-slate-500 mb-3">
-                                    Paste your LinkedIn profile link and RevisionGrade will auto-draft a professional bio for your query letter. Or paste your own bio if you prefer.
+                                    Paste your LinkedIn profile link, upload your CV/Resume, or paste your own bio.
                                 </p>
                                 <div className="flex gap-2 mb-3">
                                     <Button
                                         type="button"
                                         variant={autoFormData.bioMode === 'linkedin' ? 'default' : 'outline'}
-                                        onClick={() => setAutoFormData({...autoFormData, bioMode: 'linkedin', bioText: ''})}
-                                        className="flex-1"
+                                        onClick={() => setAutoFormData({...autoFormData, bioMode: 'linkedin', bioText: '', bioFile: null})}
+                                        className="flex-1 text-sm"
                                     >
-                                        LinkedIn URL (Recommended)
+                                        LinkedIn URL
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={autoFormData.bioMode === 'upload' ? 'default' : 'outline'}
+                                        onClick={() => setAutoFormData({...autoFormData, bioMode: 'upload', linkedinUrl: '', bioText: ''})}
+                                        className="flex-1 text-sm"
+                                    >
+                                        Upload CV/Resume
                                     </Button>
                                     <Button
                                         type="button"
                                         variant={autoFormData.bioMode === 'manual' ? 'default' : 'outline'}
-                                        onClick={() => setAutoFormData({...autoFormData, bioMode: 'manual', linkedinUrl: ''})}
-                                        className="flex-1"
+                                        onClick={() => setAutoFormData({...autoFormData, bioMode: 'manual', linkedinUrl: '', bioFile: null})}
+                                        className="flex-1 text-sm"
                                     >
-                                        Paste Bio Manually
+                                        Paste Bio
                                     </Button>
                                 </div>
                                 
@@ -221,6 +242,26 @@ export default function QueryLetter() {
                                         {autoFormData.linkedinUrl && (
                                             <p className="text-xs text-green-600 mt-1">
                                                 ✓ We'll extract your professional bio from LinkedIn
+                                            </p>
+                                        )}
+                                    </div>
+                                ) : autoFormData.bioMode === 'upload' ? (
+                                    <div>
+                                        <Input
+                                            type="file"
+                                            accept=".pdf,.doc,.docx"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file && file.size > 10 * 1024 * 1024) {
+                                                    toast.error('File must be under 10MB');
+                                                    return;
+                                                }
+                                                setAutoFormData({...autoFormData, bioFile: file});
+                                            }}
+                                        />
+                                        {autoFormData.bioFile && (
+                                            <p className="text-xs text-green-600 mt-1">
+                                                ✓ {autoFormData.bioFile.name} - We'll extract your bio from this file
                                             </p>
                                         )}
                                     </div>
@@ -360,7 +401,9 @@ export default function QueryLetter() {
 
                             <Button 
                                 onClick={handleAutoGenerate}
-                                disabled={generating || !autoFormData.manuscriptFile || (autoFormData.bioMode === 'linkedin' ? !autoFormData.linkedinUrl : !autoFormData.bioText)}
+                                disabled={generating || !autoFormData.manuscriptFile || 
+                                         (autoFormData.bioMode === 'linkedin' ? !autoFormData.linkedinUrl : 
+                                          autoFormData.bioMode === 'upload' ? !autoFormData.bioFile : !autoFormData.bioText)}
                                 className="w-full bg-indigo-600 hover:bg-indigo-700"
                             >
                                 {generating ? (
