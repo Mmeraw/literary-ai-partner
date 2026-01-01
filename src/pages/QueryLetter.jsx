@@ -88,7 +88,19 @@ export default function QueryLetter() {
                 genre: autoFormData.genre
             });
 
-            console.log('Full response:', response);
+            console.log('Full response object:', response);
+            console.log('Query letter field:', response.query_letter);
+            console.log('Suggested agents field:', response.suggested_agents);
+
+            // Validate response structure
+            if (!response || typeof response !== 'object') {
+                throw new Error('Invalid response format received');
+            }
+
+            if (!response.query_letter) {
+                console.error('Missing query_letter in response. Full response:', response);
+                throw new Error('Query letter not found in response');
+            }
 
             // base44.functions.invoke returns data directly
             setQueryLetter(response.query_letter);
@@ -96,7 +108,8 @@ export default function QueryLetter() {
             toast.success('Query letter generated with agent recommendations!');
         } catch (error) {
             console.error('Query letter generation error:', error);
-            toast.error('Failed to generate query letter: ' + (error.response?.data?.error || error.message));
+            const errorMsg = error.message || error.response?.data?.error || 'Unknown error occurred';
+            toast.error('Failed to generate query letter: ' + errorMsg);
         } finally {
             setGenerating(false);
         }
