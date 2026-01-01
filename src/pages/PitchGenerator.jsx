@@ -283,17 +283,13 @@ export default function PitchGenerator() {
                                             type="file"
                                             accept=".txt,.pdf,.doc,.docx"
                                             onChange={handleFileUpload}
-                                            className="hidden"
+                                            style={{ display: 'none' }}
                                         />
-                                        <Button 
+                                        <button
                                             type="button"
-                                            variant="outline"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                fileInputRef.current?.click();
-                                            }}
+                                            onClick={() => fileInputRef.current?.click()}
                                             disabled={uploadingFile}
+                                            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900 h-10 px-4 py-2"
                                         >
                                             {uploadingFile ? (
                                                 <>
@@ -306,7 +302,7 @@ export default function PitchGenerator() {
                                                     Choose File
                                                 </>
                                             )}
-                                        </Button>
+                                        </button>
                                         <p className="text-xs text-slate-500 mt-2">
                                             PDF, DOC, DOCX, or TXT • Max 25MB
                                         </p>
