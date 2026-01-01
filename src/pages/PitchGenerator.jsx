@@ -210,12 +210,13 @@ export default function PitchGenerator() {
                                         <p className="text-xs text-indigo-700 mb-3">
                                             Upload your full manuscript/screenplay to populate all fields automatically
                                         </p>
-                                        <Input
-                                            id="manuscript-upload"
+                                        <input
                                             type="file"
                                             accept=".pdf,.doc,.docx,.txt"
                                             onChange={handleFileUpload}
                                             className="hidden"
+                                            id="manuscript-upload"
+                                            disabled={uploadingFile}
                                         />
                                         <label htmlFor="manuscript-upload" className="cursor-pointer inline-block">
                                             <Button
