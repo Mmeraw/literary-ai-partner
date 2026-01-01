@@ -71,17 +71,28 @@ export default function Biography() {
             }
             
             let extractedText = '';
+            const fileName = file.name.toLowerCase();
             
-            // Handle DOCX files
-            if (file.name.toLowerCase().endsWith('.docx')) {
-                toast.loading('Converting DOCX to text...', { id: 'upload' });
-                console.log('📤 Step 2: DOCX detected, calling importDocx function...');
+            // Handle Word documents (.doc and .docx)
+            if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
+                toast.loading('Converting Word document to text...', { id: 'upload' });
+                console.log('📤 Step 2: Word document detected, calling importDocx function...');
                 
                 const docxResult = await base44.functions.invoke('importDocx', { file_url });
                 console.log('📦 importDocx SUCCESS:', docxResult);
                 extractedText = docxResult.data?.text || '';
-            } else {
-                // For non-DOCX files, use ExtractDataFromUploadedFile
+            } 
+            // Handle plain text files directly
+            else if (fileName.endsWith('.txt')) {
+                toast.loading('Reading text file...', { id: 'upload' });
+                console.log('📤 Step 2: TXT detected, fetching directly...');
+                
+                const response = await fetch(file_url);
+                extractedText = await response.text();
+                console.log('📦 TXT fetch SUCCESS, length:', extractedText.length);
+            }
+            // Handle other formats (PDF, RTF) via ExtractDataFromUploadedFile
+            else {
                 toast.loading('Extracting text from file...', { id: 'upload' });
                 console.log('📤 Step 2: Calling ExtractDataFromUploadedFile...');
                 
@@ -245,7 +256,7 @@ Generate both bios now.`,
 
                         <div className="border-t pt-4">
                             <label className="text-sm font-medium text-slate-700 mb-2 block">
-                                Or upload resume/CV (PDF, DOCX, TXT)
+                                Or upload resume/CV (PDF, DOCX, DOC, TXT, RTF)
                             </label>
                             <div className="flex items-center gap-4">
                                 <input
@@ -253,7 +264,7 @@ Generate both bios now.`,
                                     id="bio-file-upload"
                                     onChange={handleFileUpload}
                                     style={{ display: 'none' }}
-                                    accept=".pdf,.doc,.docx,.txt"
+                                    accept=".pdf,.doc,.docx,.txt,.rtf"
                                 />
                                 <label htmlFor="bio-file-upload" style={{ cursor: 'pointer' }}>
                                     <Button type="button" variant="outline" disabled={uploadingFile} asChild>
