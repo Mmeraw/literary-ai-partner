@@ -43,16 +43,16 @@ export default function Comparables() {
 
         setGenerating(true);
         try {
-            const response = await base44.functions.invoke('generateComparables', {
+            const { data } = await base44.functions.invoke('generateComparables', {
                 manuscriptId,
                 genre: selectedGenre
             });
 
-            if (response.data.success) {
+            if (data.success) {
                 toast.success('Comparables report generated!');
-                // Navigate to report or show results
+                window.location.href = createPageUrl('ComparativeReport') + `?reportId=${data.report_id}`;
             } else {
-                toast.error(response.data.error || 'Failed to generate comparables');
+                toast.error(data.error || 'Failed to generate comparables');
             }
         } catch (error) {
             console.error('Comparables error:', error);
