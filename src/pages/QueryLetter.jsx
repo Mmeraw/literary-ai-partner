@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Mail, Download, Sparkles, Copy, Loader2, Upload, FileText, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function QueryLetter() {
     const [mode, setMode] = useState('auto'); // 'auto' or 'manual'
