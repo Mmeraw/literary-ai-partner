@@ -288,44 +288,30 @@ export default function PitchGenerator() {
                                         <p className="text-xs text-indigo-700 mb-3">
                                             Upload your full manuscript/screenplay to populate all fields automatically
                                         </p>
-                                        <Button
-                                            variant="outline"
-                                            disabled={uploadingFile}
-                                            onClick={(e) => {
-                                                console.log('🔘🔘🔘 BUTTON CLICK EVENT FIRED 🔘🔘🔘');
-                                                console.log('Event:', e);
-                                                console.log('fileInputRef:', fileInputRef);
-                                                console.log('fileInputRef.current:', fileInputRef.current);
-                                                if (fileInputRef.current) {
-                                                    console.log('⚡ Triggering input.click()');
-                                                    fileInputRef.current.click();
-                                                } else {
-                                                    console.error('❌ REF IS NULL - FILE INPUT NOT MOUNTED');
-                                                }
-                                            }}
-                                        >
-                                            {uploadingFile ? (
-                                                <>
-                                                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                                    Analyzing...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Upload className="w-4 h-4 mr-2" />
-                                                    Choose File
-                                                </>
-                                            )}
-                                        </Button>
                                         <input
-                                            ref={fileInputRef}
                                             type="file"
                                             accept=".txt,.pdf,.doc,.docx"
-                                            onChange={(e) => {
-                                                console.log("✅ FILE INPUT CHANGED!", e.target.files?.[0]?.name);
-                                                handleFileUpload(e);
-                                            }}
+                                            onChange={handleFileUpload}
                                             className="hidden"
+                                            id="pitch-file-upload"
                                         />
+                                        <label htmlFor="pitch-file-upload">
+                                            <Button variant="outline" asChild disabled={uploadingFile}>
+                                                <span>
+                                                    {uploadingFile ? (
+                                                        <>
+                                                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                                            Analyzing...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Upload className="w-4 h-4 mr-2" />
+                                                            Choose File
+                                                        </>
+                                                    )}
+                                                </span>
+                                            </Button>
+                                        </label>
                                         <p className="text-xs text-slate-500 mt-2">
                                             PDF, DOC, DOCX, or TXT • Max 25MB
                                         </p>
