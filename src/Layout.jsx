@@ -15,7 +15,7 @@ import {
 import { 
     BookOpen, Sparkles, Menu, X, LogOut, BarChart3,
     ChevronDown, FileText, Film, Target, TrendingUp,
-    Users, Mail, HelpCircle, FileCheck, User, Crown, Package, Edit3, CheckCircle2, Shield, Plus
+    Users, Mail, HelpCircle, FileCheck, User, Crown, Package, Edit3, CheckCircle2, Shield, Plus, Upload
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
@@ -32,6 +32,7 @@ const evaluatePages = [
     { name: 'Chapter(s) — partial or full', page: 'Evaluate', icon: FileText },
     { name: 'Full Novel / Manuscript', page: 'UploadManuscript', icon: BookOpen },
     { name: 'Full Screenplay', page: 'Evaluate', icon: Film },
+    { name: 'Test Upload', page: 'TestUpload', icon: Upload },
 ];
 
 const revisePages = [
