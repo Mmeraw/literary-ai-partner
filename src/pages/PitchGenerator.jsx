@@ -518,13 +518,32 @@ export default function PitchGenerator() {
                                                     </div>
                                                 )}
                                             </div>
-                                            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 min-h-[100px]">
-                                                {pitches.oneSentenceSpecific ? (
-                                                    <p className="text-slate-800 leading-relaxed">{pitches.oneSentenceSpecific}</p>
-                                                ) : (
-                                                    <p className="text-slate-400 italic">Specific pitch will appear here...</p>
-                                                )}
-                                            </div>
+                                            {specificRevision.showViewer && specificRevision.revisionEventId ? (
+                                                <RevisionViewer
+                                                    revisionEventId={specificRevision.revisionEventId}
+                                                    onApprove={specificRevision.approveRevision}
+                                                />
+                                            ) : (
+                                                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 min-h-[100px]">
+                                                    {pitches.oneSentenceSpecific ? (
+                                                        <p className="text-slate-800 leading-relaxed">{pitches.oneSentenceSpecific}</p>
+                                                    ) : (
+                                                        <p className="text-slate-400 italic">Specific pitch will appear here...</p>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {pitches.oneSentenceSpecific && (
+                                                <RevisionControls
+                                                    hasBaseline={!!specificRevision.baselineVersionId}
+                                                    hasRevision={specificRevision.hasRevision}
+                                                    showingViewer={specificRevision.showViewer}
+                                                    processing={specificRevision.processing}
+                                                    onRequestRevision={() => handleRequestRevision('specific')}
+                                                    onShowViewer={() => specificRevision.setShowViewer(true)}
+                                                    onApprove={specificRevision.approveRevision}
+                                                    onClose={specificRevision.closeViewer}
+                                                />
+                                            )}
                                         </div>
 
                                         <div>
@@ -549,13 +568,32 @@ export default function PitchGenerator() {
                                                     </div>
                                                 )}
                                             </div>
-                                            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 min-h-[100px]">
-                                                {pitches.oneSentenceGeneral ? (
-                                                    <p className="text-slate-800 leading-relaxed">{pitches.oneSentenceGeneral}</p>
-                                                ) : (
-                                                    <p className="text-slate-400 italic">General pitch will appear here...</p>
-                                                )}
-                                            </div>
+                                            {generalRevision.showViewer && generalRevision.revisionEventId ? (
+                                                <RevisionViewer
+                                                    revisionEventId={generalRevision.revisionEventId}
+                                                    onApprove={generalRevision.approveRevision}
+                                                />
+                                            ) : (
+                                                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 min-h-[100px]">
+                                                    {pitches.oneSentenceGeneral ? (
+                                                        <p className="text-slate-800 leading-relaxed">{pitches.oneSentenceGeneral}</p>
+                                                    ) : (
+                                                        <p className="text-slate-400 italic">General pitch will appear here...</p>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {pitches.oneSentenceGeneral && (
+                                                <RevisionControls
+                                                    hasBaseline={!!generalRevision.baselineVersionId}
+                                                    hasRevision={generalRevision.hasRevision}
+                                                    showingViewer={generalRevision.showViewer}
+                                                    processing={generalRevision.processing}
+                                                    onRequestRevision={() => handleRequestRevision('general')}
+                                                    onShowViewer={() => generalRevision.setShowViewer(true)}
+                                                    onApprove={generalRevision.approveRevision}
+                                                    onClose={generalRevision.closeViewer}
+                                                />
+                                            )}
                                         </div>
                                     </TabsContent>
 
@@ -606,13 +644,32 @@ export default function PitchGenerator() {
                                                     </div>
                                                 )}
                                             </div>
-                                            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 min-h-[120px]">
-                                                {pitches.elevator ? (
-                                                    <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{pitches.elevator}</p>
-                                                ) : (
-                                                    <p className="text-slate-400 italic">Elevator pitch will appear here...</p>
-                                                )}
-                                            </div>
+                                            {elevatorRevision.showViewer && elevatorRevision.revisionEventId ? (
+                                                <RevisionViewer
+                                                    revisionEventId={elevatorRevision.revisionEventId}
+                                                    onApprove={elevatorRevision.approveRevision}
+                                                />
+                                            ) : (
+                                                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 min-h-[120px]">
+                                                    {pitches.elevator ? (
+                                                        <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{pitches.elevator}</p>
+                                                    ) : (
+                                                        <p className="text-slate-400 italic">Elevator pitch will appear here...</p>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {pitches.elevator && (
+                                                <RevisionControls
+                                                    hasBaseline={!!elevatorRevision.baselineVersionId}
+                                                    hasRevision={elevatorRevision.hasRevision}
+                                                    showingViewer={elevatorRevision.showViewer}
+                                                    processing={elevatorRevision.processing}
+                                                    onRequestRevision={() => handleRequestRevision('elevator')}
+                                                    onShowViewer={() => elevatorRevision.setShowViewer(true)}
+                                                    onApprove={elevatorRevision.approveRevision}
+                                                    onClose={elevatorRevision.closeViewer}
+                                                />
+                                            )}
                                         </div>
                                     </TabsContent>
 
