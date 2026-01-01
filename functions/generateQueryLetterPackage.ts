@@ -109,19 +109,47 @@ Return JSON array: [{ title, author, reason }]`;
             });
         }
 
-        // Step 3: Suggest literary agents
-        const agentsPrompt = `Suggest 3 literary agents who would be ideal for this ${metadata.genre} manuscript:
+        // Step 3: Suggest literary agents using Perplexity for real-time agent research
+        const perplexityApiKey = Deno.env.get('PERPLEXITY_API_KEY');
+        
+        let agentResearch = '';
+        if (perplexityApiKey) {
+            try {
+                const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${perplexityApiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'llama-3.1-sonar-small-128k-online',
+                        messages: [{
+                            role: 'user',
+                            content: `Find 3 currently active literary agents who represent ${metadata.genre} fiction. For each agent, provide: full name, agency name, recent sales or clients in this genre, and whether they're currently accepting queries. Focus on agents with recent sales (2023-2025).`
+                        }]
+                    })
+                });
+                
+                const perplexityData = await perplexityResponse.json();
+                agentResearch = perplexityData.choices?.[0]?.message?.content || '';
+            } catch (perplexityError) {
+                console.error('Perplexity API error:', perplexityError);
+            }
+        }
+        
+        const agentsPrompt = `Based on this real-time agent research, suggest 3 literary agents for this ${metadata.genre} manuscript:
 
 Title: ${metadata.title}
 Synopsis: ${finalSynopsis}
 
-For each agent, provide: name, agency, and specific reason why they'd be a good fit.
+${agentResearch ? `Current Agent Research:\n${agentResearch}\n\n` : ''}
+
+For each agent, provide: name, agency, and specific reason why they'd be a good fit based on their recent sales and client list.
 
 Return JSON array: [{ name, agency, reason }]`;
 
         const agents = await base44.integrations.Core.InvokeLLM({
             prompt: agentsPrompt,
-            add_context_from_internet: true,
             response_json_schema: {
                 type: 'object',
                 properties: {

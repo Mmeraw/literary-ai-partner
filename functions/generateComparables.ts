@@ -53,6 +53,34 @@ Return only the genre name (e.g., "thriller", "literary_fiction", "romance", "my
             spine_evaluation: manuscript.spine_evaluation
         };
 
+        // Use Perplexity for real-time market research
+        const perplexityApiKey = Deno.env.get('PERPLEXITY_API_KEY');
+        
+        let marketContext = '';
+        if (perplexityApiKey) {
+            try {
+                const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${perplexityApiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'llama-3.1-sonar-small-128k-online',
+                        messages: [{
+                            role: 'user',
+                            content: `Research bestselling ${finalGenre} novels published 2020-2025. Focus on: recent award winners, bestseller list titles, and critically acclaimed debuts. Include specific titles, authors, and what made them successful in the market.`
+                        }]
+                    })
+                });
+                
+                const perplexityData = await perplexityResponse.json();
+                marketContext = perplexityData.choices?.[0]?.message?.content || '';
+            } catch (perplexityError) {
+                console.error('Perplexity API error:', perplexityError);
+            }
+        }
+        
         // Generate comparables analysis
         const comparablesPrompt = `You are a literary agent analyst. Analyze this manuscript against genre benchmarks.
 
@@ -64,7 +92,9 @@ Overall RevisionGrade Score: ${manuscript.revisiongrade_overall || manuscript.sp
 Spine Evaluation Summary:
 ${JSON.stringify(manuscript.spine_evaluation, null, 2)}
 
-Task: Compare this manuscript to bestselling ${genre} titles from 2018-2025 across the 13 Story Evaluation Criteria:
+${marketContext ? `Recent Market Research:\n${marketContext}\n\n` : ''}
+
+Task: Compare this manuscript to bestselling ${genre} titles from 2020-2025 across the 13 Story Evaluation Criteria:
 1. Voice & Style
 2. Opening Hook
 3. Character Development
