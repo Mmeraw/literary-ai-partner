@@ -76,7 +76,7 @@ export default function QueryLetter() {
             }
             
             // Generate complete query package
-            const { data } = await base44.functions.invoke('generateQueryLetterPackage', {
+            const response = await base44.functions.invoke('generateQueryLetterPackage', {
                 file_url,
                 bio: bioText,
                 synopsis_mode: autoFormData.synopsisMode,
@@ -88,11 +88,14 @@ export default function QueryLetter() {
                 genre: autoFormData.genre
             });
 
-            setQueryLetter(data.query_letter);
-            setSuggestedAgents(data.suggested_agents || []);
+            console.log('Response:', response);
+
+            setQueryLetter(response.data.query_letter);
+            setSuggestedAgents(response.data.suggested_agents || []);
             toast.success('Query letter generated with agent recommendations!');
         } catch (error) {
-            toast.error('Failed to generate query letter');
+            console.error('Query letter generation error:', error);
+            toast.error('Failed to generate query letter: ' + (error.response?.data?.error || error.message));
         } finally {
             setGenerating(false);
         }
