@@ -251,6 +251,17 @@ export default function FilmAdaptation() {
         toast.success('Pitch deck downloaded!');
     };
 
+    const handleRevisionApproval = async (revisionEventId) => {
+        try {
+            await base44.functions.invoke('approveRevision', { revision_event_id: revisionEventId });
+            toast.success('Revision approved and promoted to baseline!');
+            setShowingRevision(false);
+            setRevisionEventId(null);
+        } catch (error) {
+            toast.error('Failed to approve revision');
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             {/* Hero Section */}

@@ -9,6 +9,7 @@ import { Sparkles, Copy, Download, Loader2, Target, Film, MessageSquare, Upload,
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
+import RevisionViewer from '@/components/RevisionViewer';
 
 export default function PitchGenerator() {
     const [manuscriptInfo, setManuscriptInfo] = useState({
@@ -70,6 +71,9 @@ export default function PitchGenerator() {
         paragraph: '',
         queryLetter: ''
     });
+    const [outputVersions, setOutputVersions] = useState({});
+    const [revisionEventId, setRevisionEventId] = useState(null);
+    const [showingRevision, setShowingRevision] = useState(false);
 
     const handleFileUpload = async (e) => {
         console.log('🚀 handleFileUpload TRIGGERED at', new Date().toISOString());
@@ -203,6 +207,21 @@ export default function PitchGenerator() {
 
             if (response.data.success) {
                 setPitches(response.data.pitches);
+                
+                // Create baseline OutputVersions
+                const versions = {};
+                for (const [type, content] of Object.entries(response.data.pitches)) {
+                    const version = await base44.entities.OutputVersion.create({
+                        output_id: `pitch_${Date.now()}_${type}`,
+                        output_type: 'pitch',
+                        version_number: 1,
+                        content,
+                        is_baseline: true
+                    });
+                    versions[type] = version;
+                }
+                setOutputVersions(versions);
+                
                 toast.success('Pitch variations generated!');
             } else {
                 toast.error(response.data.error || 'Failed to generate pitches');
@@ -229,6 +248,17 @@ export default function PitchGenerator() {
         a.click();
         URL.revokeObjectURL(url);
         toast.success('Downloaded!');
+    };
+
+    const handleRevisionApproval = async (revisionEventId) => {
+        try {
+            await base44.functions.invoke('approveRevision', { revision_event_id: revisionEventId });
+            toast.success('Revision approved and promoted to baseline!');
+            setShowingRevision(false);
+            setRevisionEventId(null);
+        } catch (error) {
+            toast.error('Failed to approve revision');
+        }
     };
 
     return (

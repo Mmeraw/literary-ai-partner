@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
 import { Link } from 'react-router-dom';
 import { StarRating, CanonAccuracyCheck } from '@/components/FeedbackWidget';
+import RevisionViewer from '@/components/RevisionViewer';
 
 export default function CompletePackage() {
     const [manuscriptInfo, setManuscriptInfo] = useState({
@@ -36,6 +37,9 @@ export default function CompletePackage() {
     const [loadingManuscript, setLoadingManuscript] = useState(false);
     const [loadingBio, setLoadingBio] = useState(false);
     const [includeCreatorMark, setIncludeCreatorMark] = useState(true);
+    const [outputVersions, setOutputVersions] = useState({});
+    const [revisionEventId, setRevisionEventId] = useState(null);
+    const [showingRevision, setShowingRevision] = useState(false);
 
     // Fetch user's manuscripts
     const { data: manuscripts = [], isLoading: manuscriptsLoading } = useQuery({
@@ -171,6 +175,16 @@ export default function CompletePackage() {
                     JSON.stringify(pkg).includes('[comparable');
 
                 setPackageData(response.data.package);
+                
+                // Create baseline OutputVersion for query letter
+                const version = await base44.entities.OutputVersion.create({
+                    output_id: `package_${Date.now()}`,
+                    output_type: 'complete_submission',
+                    version_number: 1,
+                    content: pkg.queryLetter,
+                    is_baseline: true
+                });
+                setOutputVersions({ query: version });
 
                 // Track behavioral signal - successful generation
                 try {
@@ -301,6 +315,17 @@ ${packageData.queryLetter}
         a.click();
         URL.revokeObjectURL(url);
         toast.success('Complete package downloaded!');
+    };
+
+    const handleRevisionApproval = async (revisionEventId) => {
+        try {
+            await base44.functions.invoke('approveRevision', { revision_event_id: revisionEventId });
+            toast.success('Revision approved and promoted to baseline!');
+            setShowingRevision(false);
+            setRevisionEventId(null);
+        } catch (error) {
+            toast.error('Failed to approve revision');
+        }
     };
 
     return (

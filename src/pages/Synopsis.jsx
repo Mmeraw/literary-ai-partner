@@ -18,6 +18,9 @@ export default function Synopsis() {
         standard: '',
         extended: ''
     });
+    const [outputVersions, setOutputVersions] = useState({});
+    const [revisionEventId, setRevisionEventId] = useState(null);
+    const [showingRevision, setShowingRevision] = useState(false);
     const [validation, setValidation] = useState({});
     
     const { data: manuscripts = [] } = useQuery({
@@ -151,6 +154,17 @@ export default function Synopsis() {
         a.click();
         URL.revokeObjectURL(url);
         toast.success('Downloaded!');
+    };
+
+    const handleRevisionApproval = async (revisionEventId) => {
+        try {
+            await base44.functions.invoke('approveRevision', { revision_event_id: revisionEventId });
+            toast.success('Revision approved and promoted to baseline!');
+            setShowingRevision(false);
+            setRevisionEventId(null);
+        } catch (error) {
+            toast.error('Failed to approve revision');
+        }
     };
 
     return (

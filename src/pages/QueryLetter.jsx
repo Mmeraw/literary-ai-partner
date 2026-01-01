@@ -8,6 +8,7 @@ import { Mail, Download, Sparkles, Copy, Loader2, Upload, FileText, Zap } from '
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import RevisionViewer from '@/components/RevisionViewer';
 
 export default function QueryLetter() {
     const [mode, setMode] = useState('auto'); // 'auto' or 'manual'
@@ -37,6 +38,9 @@ export default function QueryLetter() {
     const [queryLetter, setQueryLetter] = useState('');
     const [suggestedAgents, setSuggestedAgents] = useState([]);
     const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
+    const [outputVersionId, setOutputVersionId] = useState(null);
+    const [revisionEventId, setRevisionEventId] = useState(null);
+    const [showingRevision, setShowingRevision] = useState(false);
 
     const handleAutoGenerate = async () => {
         const hasBio = autoFormData.bioMode === 'linkedin' ? autoFormData.linkedinUrl : 
@@ -110,6 +114,17 @@ export default function QueryLetter() {
             // base44.functions.invoke returns data directly
             setQueryLetter(response.query_letter);
             setSuggestedAgents(response.suggested_agents || []);
+
+            // Create baseline OutputVersion
+            const version = await base44.entities.OutputVersion.create({
+                output_id: `query_${Date.now()}`,
+                output_type: 'query',
+                version_number: 1,
+                content: response.query_letter,
+                is_baseline: true
+            });
+            setOutputVersionId(version.id);
+
             toast.success('Query letter generated with agent recommendations!');
         } catch (error) {
             console.error('Query letter generation error:', error);
@@ -164,6 +179,17 @@ export default function QueryLetter() {
 
     const downloadPDF = () => {
         toast.info('PDF export coming soon!');
+    };
+
+    const handleRevisionApproval = async (revisionEventId) => {
+        try {
+            await base44.functions.invoke('approveRevision', { revision_event_id: revisionEventId });
+            toast.success('Revision approved and promoted to baseline!');
+            setShowingRevision(false);
+            setRevisionEventId(null);
+        } catch (error) {
+            toast.error('Failed to approve revision');
+        }
     };
 
     return (
@@ -595,9 +621,16 @@ export default function QueryLetter() {
                             <CardTitle>Your Query Letter</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 whitespace-pre-wrap font-serif">
-                                {queryLetter}
-                            </div>
+                                    {showingRevision && revisionEventId ? (
+                                        <RevisionViewer
+                                            revisionEventId={revisionEventId}
+                                            onApprove={handleRevisionApproval}
+                                        />
+                                    ) : (
+                                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 whitespace-pre-wrap font-serif">
+                                            {queryLetter}
+                                        </div>
+                                    )}
                             <div className="flex gap-2">
                                 <Button variant="outline" onClick={copyToClipboard}>
                                     <Copy className="w-4 h-4 mr-2" />
