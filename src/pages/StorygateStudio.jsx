@@ -167,7 +167,7 @@ export default function StorygateStudio() {
                         By RevisionGrade™
                     </Badge>
                     <h1 className="text-5xl font-bold mb-6" style={{ color: '#7A1E1E' }}>
-                        Storygate Studio™
+                        Storygate Studio
                     </h1>
                     <p className="text-2xl mb-6" style={{ color: '#F2EFEA' }}>
                         A Selective Development Track for Exceptional Work
