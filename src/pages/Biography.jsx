@@ -21,7 +21,7 @@ export default function Biography() {
         long: ''
     });
     
-    const fileInputRef = useRef(null);
+
     const queryRevision = useRevisionFlow('biography');
     const longRevision = useRevisionFlow('biography');
 
@@ -237,13 +237,15 @@ Generate both bios now.`,
                                     type="file"
                                     id="bio-file-upload"
                                     onChange={handleFileUpload}
-                                    className="hidden"
+                                    style={{ display: 'none' }}
                                     accept=".pdf,.doc,.docx,.txt"
                                 />
                                 <label htmlFor="bio-file-upload" style={{ cursor: 'pointer' }}>
-                                    <Button type="button" variant="outline" disabled={uploadingFile}>
-                                        <Upload className="w-4 h-4 mr-2" />
-                                        {uploadingFile ? 'Uploading...' : 'Upload File'}
+                                    <Button type="button" variant="outline" disabled={uploadingFile} asChild>
+                                        <span>
+                                            <Upload className="w-4 h-4 mr-2" />
+                                            {uploadingFile ? 'Uploading...' : 'Upload File'}
+                                        </span>
                                     </Button>
                                 </label>
                                 <span className="text-xs text-slate-500">We'll extract relevant information automatically</span>
