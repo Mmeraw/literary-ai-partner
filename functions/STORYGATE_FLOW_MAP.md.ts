@@ -1,0 +1,213 @@
+# Storygate Flow Map (Studio → StoryGate → Industry)
+
+**CANONICAL REFERENCE** — Last Updated: 2026-01-01
+
+This document defines the authoritative workflow from creator submission through Storygate Studio, internal review, StoryGate eligibility, industry access, and curator-facilitated introductions.
+
+---
+
+## 1. Creator Submission (Storygate Studio)
+
+### Entry Point
+- **URL:** `/StorygateStudio`
+- **Surface:** Storygate Studio submissions page + form
+
+### Data Captured
+
+**Creator Contact + Project Metadata:**
+- Title, format, genre, tone
+- Brief description (300-500 words)
+- Project stage (early draft / revised draft / near-final)
+
+**Intentions:**
+- "What are you seeking?" (structural evaluation, developmental insight, market positioning, professional feedback, direction)
+
+**Evaluation & Readiness:**
+- **Source:** RevisionGrade / External professional / None yet
+- **If RevisionGrade:** Score (0-10)
+- **If External:**
+  - Evaluator type/name/date/summary
+  - Optional PDF upload
+- **If None:** Acknowledged but not prioritized
+
+**Optional Presentation Package:**
+- Film Adaptation Pitch Deck or equivalent professional PDF
+
+**Required Acknowledgments:**
+1. No guarantee of review/response/representation
+2. Rights confirmation (owns/controls rights)
+
+### System Behavior
+- Creates a `StorygateSubmission` record
+- Status starts as `SUBMITTED`
+- **No project is visible in StoryGate yet** (private to internal review)
+
+---
+
+## 2. Internal Review (Private Dashboard)
+
+### Entry Point
+- Internal dashboard view: "Storygate Studio Submissions"
+
+### What You See Per Submission
+- All captured fields from Step 1
+- Any attached evaluation(s) and package
+- Internal notes field
+
+### Your Actions
+Assign a **Tier:**
+- **Tier 1** – Auto-Decline (not ready / off-scope)
+- **Tier 2** – Hold / Maybe
+- **Tier 3** – Review / Engage (worth deeper look)
+
+Optionally:
+- Run/attach a RevisionGrade evaluation
+- Store composite score
+
+### System Behavior
+- Updates `StorygateSubmission.status` (e.g., `DECLINED`, `HOLD`, `REVIEWING`)
+- Nothing is yet exposed to industry; this is purely internal
+
+---
+
+## 3. Eligibility Check for StoryGate
+
+When you think a project might be industry-facing, you run the **StoryGate eligibility check.**
+
+### Eligibility Conditions (Must All Pass)
+
+**Package Gate:**
+- Has a single professional presentation package PDF (RevisionGrade Film Adaptation Package or equivalent)
+
+**Score/Eval Gate:**
+- RevisionGrade score ≥ 8.0 **OR**
+- External professional evaluation that meets "equivalent" criteria:
+  - Assesses structure, readiness, clarity, viability
+  - Uses transparent, defensible methodology
+  - Produces clear evaluative outcome
+  - Documented (PDF or report)
+
+**Rights Gate:**
+- Rights confirmation is true
+
+### System Behavior
+- **If any gate fails** → Project stays Studio-only (flag as "Not StoryGate-eligible yet")
+- **If all gates pass** → You can promote to StoryGate
+
+---
+
+## 4. Promotion from Studio → StoryGate
+
+### Your Action
+- Click control in your dashboard: **"Promote to StoryGate"** (visible only when eligibility passes)
+
+### System Behavior
+Creates a `ProjectListing` for StoryGate:
+- Pulls in title, format, genre, logline/summary, key metadata
+- Links to presentation package PDF
+- Stores quality badge: "RevisionGrade 8.0+" or "Verified professional equivalent"
+- Sets `ProjectListing.status = ACTIVE` (appears in industry portal)
+- Keeps `StudioSubmission` linked (trace origin)
+
+---
+
+## 5. StoryGate (Industry Portal)
+
+### Entry Point for Industry
+- **URL:** `/StoryGate`
+- **Surface:** StoryGateBase page with:
+  - "Request Industry Access"
+  - "Sign in as Industry User"
+
+### Access Control
+- Only users with **VerifiedIndustry** (or Admin) role can see full listings
+- Others see nothing or shells
+- Listings shown are only `ProjectListings` created in Step 4 and marked `ACTIVE`
+
+### Industry Workflow
+1. Verified Industry user browses `ProjectListings`
+2. Clicks **"Request Access"** on a project
+3. System creates an `AccessUnlock` request for that `IndustryUser` + `ProjectListing`
+4. You or the creator sees the request in "Access Requests" dashboard
+
+---
+
+## 6. Creator / Your Approval of Industry Access
+
+### Entry Points
+- **Creator dashboard:** "Access Requests for My Projects"
+- **Your admin view:** Can see all requests across projects
+
+### Actions
+- Approve or deny each request
+- Optionally limit what artifacts are visible (logline only vs. full package, etc.)
+
+### System Behavior
+
+**On Approve:**
+- Creates an active `AccessUnlock` grant
+- Logs event in `AccessLog` (who, what, when, grant source)
+
+**On Deny:**
+- Logs denial event
+- Industry user sees "Access request declined" or similar
+
+---
+
+## 7. Industry Viewing & Your Role as Connector
+
+### Once Access is Granted
+
+**Industry User Can:**
+- View `ProjectListing` details and allowed artifacts:
+  - Logline
+  - Synopsis
+  - Sample pages
+  - Presentation package
+  - etc.
+- All views/downloads are logged in `AccessLog`
+
+**You (Curator) Can See, Per Project:**
+- Who requested access
+- Who was approved
+- Who has viewed/downloaded what and when
+
+**When You See a Strong Match:**
+- Use your outreach templates from the Operating Model doc
+- Make a discreet, non-agent introduction if you choose
+
+---
+
+## Complete Flow Summary
+
+```
+Studio Submission 
+  ↓
+Internal Review (Tier Assignment)
+  ↓
+Eligibility Check (Package + Score/Eval + Rights)
+  ↓
+Promote to StoryGate (if eligible)
+  ↓
+Industry Requests Access
+  ↓
+Creator/Your Approval
+  ↓
+Logged Viewing (all access tracked)
+  ↓
+Optional External Introduction (curator-facilitated)
+```
+
+---
+
+## Key Principles
+
+1. **No automatic industry access** — All submissions start private
+2. **Quality gates are non-negotiable** — Package + Score/Eval + Rights
+3. **Creator control** — Creators (or you) approve each industry request
+4. **Full audit trail** — Every view, request, unlock logged
+5. **Curator role is connector, not agent** — You facilitate introductions, not representation
+
+---
+
+**END OF CANONICAL FLOW MAP**
