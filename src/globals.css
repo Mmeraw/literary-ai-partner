@@ -1,17 +1,27 @@
 css
-/* BLOCK ALL WEB FONTS + FORCE ARIAL */
+/* NUCLEAR OPTION: FORCE SYSTEM ARIAL ONLY */
 @font-face {
   font-family: 'Inter';
   src: local('Arial');
 }
+@font-face {
+  font-family: 'Inter';
+  font-weight: 400;
+  src: local('Arial');
+}
+@font-face {
+  font-family: 'Inter';
+  font-weight: 700;
+  src: local('Arial');
+}
 
 html {
-  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+  font-family: Arial, Helvetica, sans-serif !important;
 }
 
 * {
   font-family: Arial, Helvetica, sans-serif !important;
-  font-feature-settings: "kern" 0, "liga" 0, "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "ss06" 0, "ss07" 0, "ss08" 0, "cv01" 0, "cv02" 0, "cv03" 0 !important;
+  font-feature-settings: normal !important;
   font-variant: normal !important;
   font-variant-ligatures: none !important;
   font-variant-alternates: normal !important;
@@ -19,9 +29,11 @@ html {
   font-variant-numeric: normal !important;
   font-variant-east-asian: normal !important;
   font-synthesis: none !important;
-  -webkit-font-feature-settings: "kern" 0, "liga" 0, "calt" 0 !important;
-  -moz-font-feature-settings: "kern" 0, "liga" 0, "calt" 0 !important;
-  text-rendering: geometricPrecision !important;
+  -webkit-font-feature-settings: normal !important;
+  -moz-font-feature-settings: normal !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: optimizeLegibility !important;
 }
 
 *::before, *::after {
