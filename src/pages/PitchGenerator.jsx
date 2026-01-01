@@ -15,6 +15,13 @@ import RevisionControls from '@/components/RevisionControls';
 import { exportTxt } from '@/components/utils/exportTxt';
 
 export default function PitchGenerator() {
+    const [debugLoaded, setDebugLoaded] = React.useState(false);
+    
+    React.useEffect(() => {
+        console.log('✅ PitchGenerator component mounted and rendered');
+        setDebugLoaded(true);
+    }, []);
+    
     const [manuscriptInfo, setManuscriptInfo] = useState({
         title: '',
         genre: '',
