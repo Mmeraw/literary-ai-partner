@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sparkles, Copy, Download, Loader2, Target, Film, MessageSquare } from 'lucide-react';
+import { Sparkles, Copy, Download, Loader2, Target, Film, MessageSquare, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 
@@ -22,6 +22,8 @@ export default function PitchGenerator() {
         uniqueHook: ''
     });
 
+    const [uploadingFile, setUploadingFile] = useState(false);
+
     const [generating, setGenerating] = useState(false);
     const [pitches, setPitches] = useState({
         oneSentenceSpecific: '',
@@ -32,6 +34,39 @@ export default function PitchGenerator() {
         paragraph: '',
         queryLetter: ''
     });
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 25 * 1024 * 1024) {
+            toast.error('File must be under 25MB');
+            return;
+        }
+
+        setUploadingFile(true);
+        try {
+            toast.loading('Uploading and analyzing manuscript...', { id: 'upload' });
+            
+            // Upload file
+            const { file_url } = await base44.integrations.Core.UploadFile({ file });
+            
+            // Extract all fields
+            const response = await base44.functions.invoke('extractPitchFields', { file_url });
+            
+            if (response.success) {
+                setManuscriptInfo(response.fields);
+                toast.success('All fields populated from manuscript!', { id: 'upload' });
+            } else {
+                toast.error('Failed to extract fields', { id: 'upload' });
+            }
+        } catch (error) {
+            console.error('File upload error:', error);
+            toast.error('Failed to process manuscript', { id: 'upload' });
+        } finally {
+            setUploadingFile(false);
+        }
+    };
 
     const generatePitches = async () => {
         if (!manuscriptInfo.title || !manuscriptInfo.logline) {
@@ -100,6 +135,56 @@ export default function PitchGenerator() {
                                 <CardTitle>Manuscript Information</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
+                                {/* File Upload Section */}
+                                <div className="p-4 rounded-lg bg-indigo-50 border-2 border-dashed border-indigo-300">
+                                    <div className="text-center">
+                                        <Upload className="w-8 h-8 mx-auto mb-2 text-indigo-600" />
+                                        <p className="text-sm font-medium text-indigo-900 mb-1">
+                                            Auto-Fill from Manuscript
+                                        </p>
+                                        <p className="text-xs text-indigo-700 mb-3">
+                                            Upload your full manuscript/screenplay to populate all fields automatically
+                                        </p>
+                                        <label htmlFor="manuscript-upload" className="cursor-pointer">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                disabled={uploadingFile}
+                                                className="bg-white hover:bg-slate-50"
+                                                asChild
+                                            >
+                                                <span>
+                                                    {uploadingFile ? (
+                                                        <>
+                                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                            Analyzing...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Upload className="w-4 h-4 mr-2" />
+                                                            Choose File
+                                                        </>
+                                                    )}
+                                                </span>
+                                            </Button>
+                                        </label>
+                                        <Input
+                                            id="manuscript-upload"
+                                            type="file"
+                                            accept=".pdf,.doc,.docx,.txt"
+                                            onChange={handleFileUpload}
+                                            className="hidden"
+                                        />
+                                        <p className="text-xs text-slate-500 mt-2">
+                                            PDF, DOC, DOCX, or TXT • Max 25MB
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="text-center text-xs text-slate-500 font-medium">
+                                    OR FILL IN MANUALLY
+                                </div>
+
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">
                                         Title *
