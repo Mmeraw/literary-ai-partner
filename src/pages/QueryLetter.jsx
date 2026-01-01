@@ -113,8 +113,27 @@ export default function QueryLetter() {
             toast.success('Query letter generated with agent recommendations!');
         } catch (error) {
             console.error('Query letter generation error:', error);
-            const errorMsg = error.message || error.response?.data?.error || 'Unknown error occurred';
-            toast.error('Failed to generate query letter: ' + errorMsg);
+            console.error('Error details:', {
+                message: error.message,
+                code: error.code,
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data
+            });
+            
+            // Check for server errors (500)
+            if (error.response?.status === 500 || error.code === 'ERR_BAD_RESPONSE') {
+                toast.error('Server Error: Query letter generation failed', {
+                    description: '⚠️ The backend service encountered an error (Status 500). This issue has been logged. Please try again or contact support if the problem persists.',
+                    duration: 10000
+                });
+            } else {
+                const errorMsg = error.message || error.response?.data?.error || 'Unknown error occurred';
+                toast.error('Failed to generate query letter: ' + errorMsg, {
+                    description: 'Please try again or contact support if the issue persists.',
+                    duration: 5000
+                });
+            }
         } finally {
             setGenerating(false);
         }
