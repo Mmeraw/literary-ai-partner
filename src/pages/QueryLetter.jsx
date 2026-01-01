@@ -234,11 +234,11 @@ export default function QueryLetter() {
                         <CardContent className="space-y-4">
                             <div>
                                 <label className="text-sm font-medium text-slate-700 mb-2 block">
-                                    Upload Manuscript or Screenplay (PDF/DOC/DOCX)
+                                    Upload Manuscript or Screenplay (PDF, DOC, DOCX, RTF, or TXT)
                                 </label>
                                 <Input
                                     type="file"
-                                    accept=".pdf,.doc,.docx"
+                                    accept=".pdf,.doc,.docx,.rtf,.txt"
                                     onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (file && file.size > 25 * 1024 * 1024) {
@@ -306,7 +306,7 @@ export default function QueryLetter() {
                                     <div>
                                         <Input
                                             type="file"
-                                            accept=".pdf,.doc,.docx"
+                                            accept=".pdf,.doc,.docx,.rtf,.txt"
                                             onChange={(e) => {
                                                 const file = e.target.files?.[0];
                                                 if (file && file.size > 10 * 1024 * 1024) {

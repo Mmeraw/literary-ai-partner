@@ -719,12 +719,12 @@ export default function StorygateStudio() {
                                     Optional Upload (Excerpt or Sample)
                                 </label>
                                 <p className="text-xs mb-2" style={{ color: '#7B7B7B' }}>
-                                    Upload a writing sample, excerpt, or relevant document (PDF, DOC, DOCX - max 10MB)
+                                    Upload a writing sample, excerpt, or relevant document (PDF, DOC, DOCX, RTF, or TXT - max 10MB)
                                 </p>
                                 <div className="relative">
                                     <Input
                                         type="file"
-                                        accept=".pdf,.doc,.docx"
+                                        accept=".pdf,.doc,.docx,.rtf,.txt"
                                         onChange={(e) => {
                                             const file = e.target.files?.[0];
                                             if (file && file.size > 10 * 1024 * 1024) {

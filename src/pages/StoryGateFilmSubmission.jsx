@@ -315,11 +315,11 @@ export default function StoryGateFilmSubmission() {
                                 Upload Supporting File (Optional)
                             </label>
                             <p className="text-xs mb-2" style={{ color: '#7B7B7B' }}>
-                                Upload a pitch deck, treatment, or manuscript excerpt (PDF or DOCX, max 25MB).
+                                Upload a pitch deck, treatment, or manuscript excerpt (PDF, DOC, DOCX, RTF, or TXT - max 25MB).
                             </p>
                             <input
                                 type="file"
-                                accept=".pdf,.docx"
+                                accept=".pdf,.doc,.docx,.rtf,.txt"
                                 onChange={handleFileUpload}
                                 className="hidden"
                                 id="file-upload"

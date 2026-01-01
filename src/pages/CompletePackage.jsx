@@ -515,7 +515,7 @@ ${packageData.queryLetter}
                                         <div>
                                             <input
                                                 type="file"
-                                                accept=".pdf,.doc,.docx,.txt"
+                                                accept=".pdf,.doc,.docx,.rtf,.txt"
                                                 onChange={handleCVUpload}
                                                 className="hidden"
                                                 id="cv-upload"

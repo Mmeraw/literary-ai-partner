@@ -501,7 +501,7 @@ export default function FilmAdaptation() {
                                     <div className="flex-1">
                                         <input
                                             type="file"
-                                            accept=".docx"
+                                            accept=".doc,.docx,.rtf,.pdf"
                                             onChange={handleDocxUpload}
                                             className="hidden"
                                             id="docx-upload"
@@ -519,7 +519,7 @@ export default function FilmAdaptation() {
                                             ) : (
                                                 <>
                                                     <FileText className="w-4 h-4" />
-                                                    Upload .DOCX
+                                                    Upload Word/PDF
                                                 </>
                                             )}
                                         </label>
@@ -538,13 +538,13 @@ export default function FilmAdaptation() {
                                             className="cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md hover:bg-slate-100 transition-colors text-sm font-medium text-slate-600 w-full"
                                         >
                                             <Upload className="w-4 h-4" />
-                                            TXT (advanced)
+                                            Upload TXT
                                         </label>
                                     </div>
                                 </div>
 
                                 <p className="text-xs text-slate-500 mt-3 text-center">
-                                    Word files auto-extracted + previewed for accuracy
+                                    Supports: DOC, DOCX, RTF, PDF, TXT • Word files auto-extracted + previewed
                                 </p>
                             </div>
 
