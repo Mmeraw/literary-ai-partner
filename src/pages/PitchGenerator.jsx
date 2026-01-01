@@ -72,40 +72,63 @@ export default function PitchGenerator() {
     });
 
     const handleFileUpload = async (e) => {
+        console.log('🚀 handleFileUpload TRIGGERED at', new Date().toISOString());
+        
         const file = e.target.files?.[0];
-        if (!file) return;
+        console.log('📁 File object:', { name: file?.name, size: file?.size, type: file?.type });
+        
+        if (!file) {
+            console.warn('❌ No file selected');
+            return;
+        }
 
         if (file.size > 25 * 1024 * 1024) {
+            console.error('❌ File too large:', file.size);
             toast.error('File must be under 25MB');
             return;
         }
 
+        console.log('✅ Starting upload flow...');
         setUploadingFile(true);
+        
         try {
             toast.loading('Uploading manuscript...', { id: 'upload' });
+            console.log('📤 Calling base44.integrations.Core.UploadFile...');
             
-            // Upload file
-            const { file_url } = await base44.integrations.Core.UploadFile({ file });
-            console.log('File uploaded:', file_url);
+            const uploadResult = await base44.integrations.Core.UploadFile({ file });
+            console.log('📦 UploadFile returned:', uploadResult);
+            
+            const file_url = uploadResult?.file_url;
+            console.log('🔗 Extracted file_url:', file_url);
+            
+            if (!file_url) {
+                throw new Error('No file_url in upload response');
+            }
             
             toast.loading('Analyzing manuscript and extracting fields...', { id: 'upload' });
+            console.log('🔍 Calling extractPitchFields function...');
             
-            // Extract all fields
             const response = await base44.functions.invoke('extractPitchFields', { file_url });
-            console.log('Extraction response:', response);
+            console.log('📊 extractPitchFields response:', response);
+            console.log('📊 Response type:', typeof response);
+            console.log('📊 Response keys:', Object.keys(response || {}));
             
             if (response.success && response.fields) {
+                console.log('✅ Success! Fields:', response.fields);
                 setManuscriptInfo(response.fields);
                 toast.success(`All fields populated! Title: ${response.fields.title}`, { id: 'upload' });
             } else {
-                console.error('Extraction failed:', response);
+                console.error('❌ Extraction returned failure:', response);
                 toast.error(response.error || 'Failed to extract fields', { id: 'upload' });
             }
         } catch (error) {
-            console.error('File upload error:', error);
-            console.error('Error details:', error.response?.data || error.message);
+            console.error('💥 CAUGHT ERROR:', error);
+            console.error('💥 Error name:', error.name);
+            console.error('💥 Error message:', error.message);
+            console.error('💥 Error stack:', error.stack);
             toast.error(`Failed to process manuscript: ${error.message}`, { id: 'upload' });
         } finally {
+            console.log('🏁 Upload flow complete');
             setUploadingFile(false);
         }
     };
