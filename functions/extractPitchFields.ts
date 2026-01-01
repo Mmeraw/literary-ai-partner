@@ -29,11 +29,11 @@ Deno.serve(async (req) => {
         // Handle Word documents (.doc, .docx)
         if (isWordDoc) {
             console.log('🔧 Word document detected - using importDocx function...');
-            const importResult = await base44.functions.invoke('importDocx', { file_url });
-            if (!importResult.data.success) {
-                throw new Error(`Word document import failed: ${importResult.data.error}`);
+            const importResult = await base44.asServiceRole.functions.invoke('importDocx', { file_url });
+            if (!importResult.success) {
+                throw new Error(`Word document import failed: ${importResult.error || 'Unknown error'}`);
             }
-            fileText = importResult.data.text;
+            fileText = importResult.text;
             console.log(`✅ Word document imported successfully: ${fileText.length} characters`);
         } 
         // Handle plain text files directly
