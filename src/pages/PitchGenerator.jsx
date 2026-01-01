@@ -312,7 +312,10 @@ export default function PitchGenerator() {
                                             ref={fileInputRef}
                                             type="file"
                                             accept=".txt,.pdf,.doc,.docx"
-                                            onChange={handleFileUpload}
+                                            onChange={(e) => {
+                                                console.log("✅ FILE INPUT CHANGED!", e.target.files?.[0]?.name);
+                                                handleFileUpload(e);
+                                            }}
                                             className="hidden"
                                         />
                                         <p className="text-xs text-slate-500 mt-2">
