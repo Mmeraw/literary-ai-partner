@@ -70,32 +70,47 @@ export default function Biography() {
                 throw new Error('No file_url in upload response');
             }
             
-            toast.loading('Extracting text from file...', { id: 'upload' });
-            console.log('📤 Step 2: Calling ExtractDataFromUploadedFile...');
+            let extractedText = '';
             
-            const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
-                file_url,
-                json_schema: {
-                    type: "object",
-                    properties: {
-                        text: { type: "string" }
-                    }
-                }
-            });
-            console.log('📦 ExtractDataFromUploadedFile SUCCESS:', extracted);
-
-            if (extracted.status === 'success') {
-                console.log('✅ EXTRACTION SUCCESS!');
-                console.log('Extracted text length:', extracted.output?.text?.length || 0);
-                setInputText(extracted.output.text || '');
-                toast.success('File uploaded and processed!', { id: 'upload' });
-                console.log('✅ UI UPDATED with extracted text');
+            // Handle DOCX files
+            if (file.name.toLowerCase().endsWith('.docx')) {
+                toast.loading('Converting DOCX to text...', { id: 'upload' });
+                console.log('📤 Step 2: DOCX detected, calling importDocx function...');
+                
+                const docxResult = await base44.functions.invoke('importDocx', { file_url });
+                console.log('📦 importDocx SUCCESS:', docxResult);
+                extractedText = docxResult.data?.text || '';
             } else {
-                console.error('❌ EXTRACTION FAILED');
-                console.error('Status:', extracted.status);
-                console.error('Details:', extracted.details);
-                toast.error('Failed to extract text from file', { id: 'upload' });
+                // For non-DOCX files, use ExtractDataFromUploadedFile
+                toast.loading('Extracting text from file...', { id: 'upload' });
+                console.log('📤 Step 2: Calling ExtractDataFromUploadedFile...');
+                
+                const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
+                    file_url,
+                    json_schema: {
+                        type: "object",
+                        properties: {
+                            text: { type: "string" }
+                        }
+                    }
+                });
+                console.log('📦 ExtractDataFromUploadedFile SUCCESS:', extracted);
+
+                if (extracted.status === 'success') {
+                    extractedText = extracted.output?.text || '';
+                } else {
+                    console.error('❌ EXTRACTION FAILED');
+                    console.error('Status:', extracted.status);
+                    console.error('Details:', extracted.details);
+                    throw new Error('Failed to extract text from file');
+                }
             }
+
+            console.log('✅ EXTRACTION SUCCESS!');
+            console.log('Extracted text length:', extractedText.length);
+            setInputText(extractedText);
+            toast.success('File uploaded and processed!', { id: 'upload' });
+            console.log('✅ UI UPDATED with extracted text');
         } catch (error) {
             console.error('💥 FATAL ERROR IN UPLOAD FLOW');
             console.error('Error object:', error);
