@@ -38,12 +38,14 @@ Deno.serve(async (req) => {
 1. Title (extract from document)
 2. Detected genre (if not provided: ${genre || 'detect'})
 3. Word count estimate
-4. Brief 2-paragraph synopsis (if not provided: ${existing_synopsis || 'generate'})
+${synopsis_mode === 'auto' ? '4. Brief 2-paragraph synopsis' : ''}
+${!one_line_pitch ? '5. One-line elevator pitch' : ''}
+${!pitch_paragraph ? '6. Query-letter pitch paragraph (compelling hook paragraph for agent)' : ''}
 
 Manuscript excerpt:
 ${manuscriptSample}
 
-Return JSON with: { title, genre, word_count, synopsis }`;
+Return JSON.`;
 
         const metadata = await base44.integrations.Core.InvokeLLM({
             prompt: metadataPrompt,
@@ -53,45 +55,65 @@ Return JSON with: { title, genre, word_count, synopsis }`;
                     title: { type: 'string' },
                     genre: { type: 'string' },
                     word_count: { type: 'number' },
-                    synopsis: { type: 'string' }
+                    synopsis: { type: 'string' },
+                    one_line_pitch: { type: 'string' },
+                    pitch_paragraph: { type: 'string' }
                 }
             }
         });
 
-        // Step 2: Generate comparable titles
-        const compsPrompt = `Based on this ${metadata.genre} manuscript titled "${metadata.title}":
+        // Use user-provided values or generated ones
+        const finalSynopsis = synopsis_mode === 'manual' && existing_synopsis ? existing_synopsis : metadata.synopsis;
+        const finalOneLinePitch = one_line_pitch || metadata.one_line_pitch;
+        const finalPitchParagraph = pitch_paragraph || metadata.pitch_paragraph;
 
-Synopsis: ${metadata.synopsis}
+        // Step 2: Generate or use provided comparable titles
+        let comps;
+        if (comps_mode === 'manual' && manual_comps) {
+            const compsLines = manual_comps.split('\n').filter(line => line.trim());
+            comps = { 
+                comparables: compsLines.map(line => ({ 
+                    title: line.trim(), 
+                    author: '', 
+                    reason: '' 
+                })) 
+            };
+        } else {
+            const compsPrompt = `Based on this ${metadata.genre} manuscript titled "${metadata.title}":
+
+Synopsis: ${finalSynopsis}
 
 Suggest 3-5 recent comparable titles that would strengthen a query letter. Include title, author, and brief reason for comparison.
 
 Return JSON array: [{ title, author, reason }]`;
 
-        const comps = await base44.integrations.Core.InvokeLLM({
-            prompt: compsPrompt,
-            response_json_schema: {
-                type: 'object',
-                properties: {
-                    comparables: {
-                        type: 'array',
-                        items: {
-                            type: 'object',
-                            properties: {
-                                title: { type: 'string' },
-                                author: { type: 'string' },
-                                reason: { type: 'string' }
+            comps = await base44.integrations.Core.InvokeLLM({
+                prompt: compsPrompt,
+                add_context_from_internet: true,
+                response_json_schema: {
+                    type: 'object',
+                    properties: {
+                        comparables: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    title: { type: 'string' },
+                                    author: { type: 'string' },
+                                    reason: { type: 'string' }
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
 
         // Step 3: Suggest literary agents
         const agentsPrompt = `Suggest 3 literary agents who would be ideal for this ${metadata.genre} manuscript:
 
 Title: ${metadata.title}
-Synopsis: ${metadata.synopsis}
+Synopsis: ${finalSynopsis}
 
 For each agent, provide: name, agency, and specific reason why they'd be a good fit.
 
@@ -125,16 +147,24 @@ Return JSON array: [{ name, agency, reason }]`;
 Title: ${metadata.title}
 Genre: ${metadata.genre}
 Word Count: ${metadata.word_count}
-Synopsis: ${metadata.synopsis}
+
+One-line Pitch:
+${finalOneLinePitch}
+
+Main Pitch Paragraph:
+${finalPitchParagraph}
+
+Synopsis:
+${finalSynopsis}
 
 Comparable Titles:
-${comps.comparables.map(c => `- ${c.title} by ${c.author}`).join('\n')}
+${comps.comparables.map(c => c.author ? `- ${c.title} by ${c.author}` : `- ${c.title}`).join('\n')}
 
 Author Bio: ${bio}
 
 Agent: ${primaryAgent.name} at ${primaryAgent.agency}
 
-Follow industry standards: personalized opening, compelling hook, brief synopsis, comparables, author bio, professional closing. Keep under 400 words.`;
+Follow industry standards: personalized opening, use the pitch paragraph as the hook, brief synopsis elements, comparables, author bio, professional closing. Keep under 400 words.`;
 
         const queryLetter = await base44.integrations.Core.InvokeLLM({
             prompt: queryPrompt
