@@ -82,23 +82,29 @@ export default function PitchGenerator() {
 
         setUploadingFile(true);
         try {
-            toast.loading('Uploading and analyzing manuscript...', { id: 'upload' });
+            toast.loading('Uploading manuscript...', { id: 'upload' });
             
             // Upload file
             const { file_url } = await base44.integrations.Core.UploadFile({ file });
+            console.log('File uploaded:', file_url);
+            
+            toast.loading('Analyzing manuscript and extracting fields...', { id: 'upload' });
             
             // Extract all fields
             const response = await base44.functions.invoke('extractPitchFields', { file_url });
+            console.log('Extraction response:', response);
             
-            if (response.success) {
+            if (response.success && response.fields) {
                 setManuscriptInfo(response.fields);
-                toast.success('All fields populated from manuscript!', { id: 'upload' });
+                toast.success(`All fields populated! Title: ${response.fields.title}`, { id: 'upload' });
             } else {
-                toast.error('Failed to extract fields', { id: 'upload' });
+                console.error('Extraction failed:', response);
+                toast.error(response.error || 'Failed to extract fields', { id: 'upload' });
             }
         } catch (error) {
             console.error('File upload error:', error);
-            toast.error('Failed to process manuscript', { id: 'upload' });
+            console.error('Error details:', error.response?.data || error.message);
+            toast.error(`Failed to process manuscript: ${error.message}`, { id: 'upload' });
         } finally {
             setUploadingFile(false);
         }

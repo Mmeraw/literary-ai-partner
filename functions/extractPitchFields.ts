@@ -15,37 +15,44 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'file_url is required' }, { status: 400 });
         }
 
-        console.log('📄 Fetching manuscript file for pitch extraction...');
+        console.log('📄 Step 1: Fetching manuscript file for pitch extraction...');
+        console.log('File URL:', file_url);
+        
         const fileResponse = await fetch(file_url);
+        console.log('File response status:', fileResponse.status);
+        
         if (!fileResponse.ok) {
             throw new Error(`Failed to fetch file: ${fileResponse.status} ${fileResponse.statusText}`);
         }
+        
         const fileBuffer = await fileResponse.arrayBuffer();
         const fileText = new TextDecoder().decode(fileBuffer);
-        console.log(`✅ File fetched: ${fileText.length} characters`);
+        console.log(`✅ File fetched successfully: ${fileText.length} characters`);
 
-        // Use first 50k characters for analysis
-        const manuscriptSample = fileText.substring(0, 50000);
+        // Use first 50k characters for analysis (or full text if shorter)
+        const manuscriptSample = fileText.substring(0, Math.min(50000, fileText.length));
+        console.log(`Using ${manuscriptSample.length} characters for analysis`);
 
-        console.log('🔍 Extracting all pitch fields from manuscript...');
-        const extractionPrompt = `Analyze this manuscript/screenplay and extract all fields for pitch generation:
+        console.log('🔍 Step 2: Extracting all pitch fields from manuscript...');
+        const extractionPrompt = `Analyze this manuscript/screenplay excerpt and extract all fields for pitch generation.
 
-Manuscript excerpt:
+MANUSCRIPT TEXT:
 ${manuscriptSample}
 
 Extract and provide:
-1. Title (from document)
-2. Genre (be specific, e.g., "Eco-horror, Dark Fantasy")
-3. Word count estimate
-4. Logline/pitch (1-2 compelling sentences)
-5. Key themes (comma-separated)
-6. Protagonist (name and brief description)
-7. Stakes (what's at risk?)
-8. Setting (location and time period)
-9. Unique hook (what makes this different from everything else in the genre?)
+1. Title - Extract from the document header or opening
+2. Genre - Be specific (e.g., "Eco-horror, Dark Fantasy", "Literary Thriller", "Contemporary Romance")
+3. Word count estimate - Based on the full manuscript length
+4. Logline - A compelling 1-2 sentence pitch that captures the core story
+5. Key themes - Comma-separated list of 3-5 key themes
+6. Protagonist - Name and brief description
+7. Stakes - What's at risk? What will happen if the protagonist fails?
+8. Setting - Location, time period, and world details
+9. Unique hook - What makes this story different from everything else in the genre? The distinctive element that sets it apart.
 
-Return structured JSON with all fields populated.`;
+Return structured JSON with all fields populated. Be specific and compelling.`;
 
+        console.log('Calling LLM for extraction...');
         const extracted = await base44.integrations.Core.InvokeLLM({
             prompt: extractionPrompt,
             response_json_schema: {
@@ -64,7 +71,8 @@ Return structured JSON with all fields populated.`;
             }
         });
 
-        console.log('✅ Extraction complete:', { title: extracted.title, genre: extracted.genre });
+        console.log('✅ Step 2 complete - Extraction successful');
+        console.log('Extracted data:', JSON.stringify(extracted, null, 2));
 
         return Response.json({
             success: true,
