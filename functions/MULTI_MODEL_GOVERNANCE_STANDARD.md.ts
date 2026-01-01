@@ -1,166 +1,63 @@
-# Multi-Model Governance & Decision Authority Policy
+# MULTI-MODEL GOVERNANCE STANDARD (CANON)
 
-**Applies To:** StoryGate, RevisionGrade, and all derivative systems  
-**Status:** Canonical / Enforced  
-**Locked:** 2026-01-01
-
----
-
-## 1. Purpose
-
-This policy defines how multiple AI systems are used within the StoryGate ecosystem to ensure accuracy, consistency, and accountability in all evaluative and generative outputs.
-
-It establishes a single-authority decision model supported by auxiliary systems that enhance reliability without introducing inconsistency.
+**Applies to:** RevisionGrade, StoryGate, and all derivative outputs  
+**Status:** Canonical / Enforced
 
 ---
 
-## 2. Core Principle
+## 1) Purpose
 
-**Only one system may issue authoritative judgments.**  
-**All other systems may advise, validate, or flag — but never override.**
-
-This preserves deterministic behavior, auditability, and trust.
+This standard defines how multiple AI systems may be used in RevisionGrade and StoryGate while preserving deterministic scoring, testability, and canon stability.
 
 ---
 
-## 3. System Roles
+## 2) Authority Model
 
-### Primary System (Authoritative Layer)
+**Primary System (Authoritative):** Owns all scoring, pass/fail decisions, readiness labels, and final user-visible language.
 
-Responsible for:
-- Final scoring and evaluation
-- Narrative and structural judgment
-- Output language and framing
-- Pass/fail decisions
-
-**Only this system may produce user-visible conclusions.**
-
-### Secondary Systems (Advisory Layer)
-
-May be used for:
-- Fact checking
-- Market validation
-- Inconsistency detection
-- Alternative phrasing suggestions
-
-**They cannot:**
-- Change scores
-- Rewrite outputs directly
-- Override primary decisions
+**Advisory Systems (Non-authoritative):** May validate facts, detect risks, and suggest alternatives, but may not alter Primary outputs directly.
 
 ---
 
-## 4. Conflict Resolution Protocol
+## 3) Non-Negotiable Rules
 
-When a discrepancy is detected:
+- Advisory systems must never change scores, readiness states, or canonical wording automatically.
 
-1. Flag issue internally
-2. Mark output as "Review Required"
-3. Route to human or primary-system adjudication
-4. Log decision and rationale
+- Any disagreement or anomaly detected by an advisory system must result in a flag (internal) and/or review state, not an overwrite.
 
-**No automatic override is permitted.**
+- All user-visible outputs must be traceable to a single Primary decision chain.
 
 ---
 
-## 5. Enforcement Rule
+## 4) Perplexity Usage Scope
 
-Any feature or workflow that:
-- Alters evaluation logic
-- Introduces alternate scoring
-- Modifies narrative output
+Perplexity is permitted only as an advisory source for:
 
-**Must explicitly designate which system is authoritative.**
+- Agent research and verification
+- Market comparables validation
+- Time-sensitive factual checks (dates, credits, imprints, deal/news context)
 
-Failure to do so is a compliance violation.
-
----
-
-## 6. Canonical Statement (External-Facing)
-
-> "Our platform employs a layered intelligence model: one system establishes authoritative judgments, while supporting systems provide verification and context. This ensures consistency, accuracy, and accountability."
+**Perplexity is not permitted to generate or modify scoring, readiness labels, or final determinations.**
 
 ---
 
-## 7. Technical Architecture
+## 5) Error Handling (No Silent Failures)
 
-```
-                ┌──────────────────────┐
-                │   User Submission    │
-                └─────────┬────────────┘
-                          │
-              ┌───────────▼───────────┐
-              │   Primary Engine       │
-              │  (Authoritative Core)  │
-              └───────────┬───────────┘
-                          │
-        ┌─────────────────┼─────────────────┐
-        │                 │                 │
-┌───────▼───────┐ ┌───────▼───────┐ ┌───────▼───────┐
-│ Fact Validator │ │ Style Checker │ │ Risk Analyzer │
-│ (Perplexity)   │ │ (LLM)         │ │ (Rules)       │
-└───────┬───────┘ └───────┬───────┘ └───────┬───────┘
-        │                 │                 │
-        └──────────────┬──┴───────┬─────────┘
-                       ▼          ▼
-                ┌─────────────────────────┐
-                │  Consolidation Layer    │
-                │  (Flags, Notes, Alerts) │
-                └──────────┬──────────────┘
-                           ▼
-                ┌─────────────────────────┐
-                │   Final Output Engine   │
-                └─────────────────────────┘
-```
+- No primary user action may fail silently.
+- If a generation/evaluation step fails, the UI must render an explicit error state and the system must log a structured error record.
 
 ---
 
-## 8. QA & Compliance Checklist
+## 6) Compliance Requirement
 
-### Pre-Release Validation
-- ✓ All outputs traceable to a single authoritative system
-- ✓ Advisory systems marked as "non-decisional"
-- ✓ Conflicting results trigger review flag
-- ✓ No silent overwrites of core output
-- ✓ Logs capture input, decision path, and final output
+All new routes and refactors must explicitly declare:
 
-### Runtime Checks
-- ✓ Errors surfaced to user
-- ✓ Partial failures never appear as success
-- ✓ All external calls logged with timestamps
+- Which system is Primary
+- Which systems are Advisory
 
-### Audit Readiness
-- ✓ Versioned outputs retained
-- ✓ Clear distinction between evaluation and advisory data
-- ✓ Reproducible results under same inputs
-
----
-
-## 9. Executive Summary (For Stakeholders)
-
-StoryGate employs a layered intelligence architecture to ensure quality, accuracy, and accountability.
-
-Rather than relying on a single model, we use:
-- **One authoritative system** to make final determinations
-- **Supporting systems** to validate facts, surface risks, and improve confidence
-
-This structure eliminates silent errors, ensures reproducibility, and supports professional-grade decision-making.
-
-It is intentionally conservative, auditable, and designed to scale without loss of integrity.
-
----
-
-## 10. Implementation Status
-
-- ✔ Governance defined
-- ✔ Technical framework specified
-- ✔ Enforcement mechanisms established
-- ✔ Perplexity integrated as advisory-only system (agent research, market comps)
-- ✔ Primary evaluation engine retains all scoring authority
-- ✔ Conflicts surface to user—no silent overrides
+**Any deviation from this standard is a defect.**
 
 ---
 
 **Last Updated:** 2026-01-01  
-**Authority:** RevisionGrade Core Team  
-**Compliance:** Mandatory for all new features and integrations
+**Authority:** RevisionGrade Core Team
