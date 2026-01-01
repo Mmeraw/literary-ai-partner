@@ -15,6 +15,8 @@ import RevisionControls from '@/components/RevisionControls';
 import { exportTxt } from '@/components/utils/exportTxt';
 
 export default function PitchGenerator() {
+    const fileInputRef = React.useRef(null);
+    
     const [manuscriptInfo, setManuscriptInfo] = useState({
         title: '',
         genre: '',
@@ -285,7 +287,7 @@ export default function PitchGenerator() {
                                         <Button
                                             variant="outline"
                                             disabled={uploadingFile}
-                                            onClick={() => document.getElementById('manuscript-upload-input')?.click()}
+                                            onClick={() => fileInputRef.current?.click()}
                                         >
                                             {uploadingFile ? (
                                                 <>
@@ -300,11 +302,11 @@ export default function PitchGenerator() {
                                             )}
                                         </Button>
                                         <input
+                                            ref={fileInputRef}
                                             type="file"
                                             accept=".txt,.pdf,.doc,.docx"
                                             onChange={handleFileUpload}
                                             className="hidden"
-                                            id="manuscript-upload-input"
                                         />
                                         <p className="text-xs text-slate-500 mt-2">
                                             PDF, DOC, DOCX, or TXT • Max 25MB
