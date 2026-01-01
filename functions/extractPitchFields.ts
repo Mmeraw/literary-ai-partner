@@ -15,53 +15,18 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'file_url is required' }, { status: 400 });
         }
 
-        console.log('📄 Step 1: Fetching and processing file directly...');
+        console.log('📄 Step 1: Ingesting manuscript via central pipeline...');
         
-        // Fetch file directly
-        const response = await fetch(file_url);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch file: ${response.status}`);
+        // Use central ingestion (contract requirement)
+        const ingestionResult = await base44.functions.invoke('ingestUploadedFileToText', { file_url });
+        const ingestionData = ingestionResult.data || ingestionResult;
+        
+        if (!ingestionData.success) {
+            throw new Error(`File ingestion failed: ${ingestionData.error?.message || 'Unknown error'}`);
         }
         
-        const fileName = file_url.split('/').pop() || 'unknown';
-        const arrayBuffer = await response.arrayBuffer();
-        
-        let fileText = '';
-        let fileType = 'txt';
-        
-        // Handle different file types
-        if (fileName.toLowerCase().endsWith('.docx') || fileName.toLowerCase().endsWith('.doc')) {
-            console.log('Processing Word document...');
-            fileType = 'docx';
-            const buffer = new Uint8Array(arrayBuffer);
-            const mammoth = await import('npm:mammoth@1.8.0');
-            const result = await mammoth.extractRawText({ buffer });
-            fileText = result.value;
-        } else if (fileName.toLowerCase().endsWith('.txt')) {
-            console.log('Processing TXT file...');
-            fileType = 'txt';
-            fileText = new TextDecoder().decode(arrayBuffer);
-        } else if (fileName.toLowerCase().endsWith('.pdf')) {
-            console.log('Processing PDF file...');
-            fileType = 'pdf';
-            const pdfResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
-                file_url,
-                json_schema: { type: 'object', properties: { text: { type: 'string' } } }
-            });
-            fileText = pdfResult.output?.text || '';
-        } else if (fileName.toLowerCase().endsWith('.rtf')) {
-            console.log('Processing RTF file...');
-            fileType = 'rtf';
-            const rtfResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
-                file_url,
-                json_schema: { type: 'object', properties: { text: { type: 'string' } } }
-            });
-            fileText = rtfResult.output?.text || '';
-        } else {
-            throw new Error(`Unsupported file type: ${fileName}`);
-        }
-        
-        console.log(`✅ File processed: ${fileText.length} characters from ${fileName}`);
+        const fileText = ingestionData.text;
+        console.log(`✅ File ingested: ${ingestionData.meta.charCount} characters from ${ingestionData.meta.filename}`);
 
         // Use first 50k characters for analysis (or full text if shorter)
         const manuscriptSample = fileText.substring(0, Math.min(50000, fileText.length));
