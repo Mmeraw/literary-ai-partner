@@ -9,6 +9,10 @@ import { FileText, Sparkles, Copy, Download, Loader2, Upload } from 'lucide-reac
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
+import { useRevisionFlow } from '@/components/useRevisionFlow';
+import RevisionViewer from '@/components/RevisionViewer';
+import RevisionControls from '@/components/RevisionControls';
+import { exportTxt } from '@/utils/exportTxt';
 
 export default function Synopsis() {
     const [manuscriptInfo, setManuscriptInfo] = useState('');
@@ -18,10 +22,13 @@ export default function Synopsis() {
         standard: '',
         extended: ''
     });
-    const [outputVersions, setOutputVersions] = useState({});
-    const [revisionEventId, setRevisionEventId] = useState(null);
-    const [showingRevision, setShowingRevision] = useState(false);
     const [validation, setValidation] = useState({});
+    const [activeTab, setActiveTab] = useState('standard');
+    
+    // Revision flows for each synopsis type
+    const queryRevision = useRevisionFlow('synopsis');
+    const standardRevision = useRevisionFlow('synopsis');
+    const extendedRevision = useRevisionFlow('synopsis');
     
     const { data: manuscripts = [] } = useQuery({
         queryKey: ['user-manuscripts'],
@@ -115,6 +122,10 @@ export default function Synopsis() {
                     [type]: result.validation
                 }));
                 
+                // Create baseline OutputVersion
+                const revision = type === 'query' ? queryRevision : type === 'standard' ? standardRevision : extendedRevision;
+                await revision.createBaseline(result.synopsis, `synopsis_${type}_${Date.now()}`);
+                
                 const versionName = type === 'query' ? 'Query' : type === 'standard' ? 'Standard' : 'Extended';
                 toast.success(`${versionName} synopsis generated! (${result.word_count} words)`);
             } else {
@@ -156,15 +167,16 @@ export default function Synopsis() {
         toast.success('Downloaded!');
     };
 
-    const handleRevisionApproval = async (revisionEventId) => {
-        try {
-            await base44.functions.invoke('approveRevision', { revision_event_id: revisionEventId });
-            toast.success('Revision approved and promoted to baseline!');
-            setShowingRevision(false);
-            setRevisionEventId(null);
-        } catch (error) {
-            toast.error('Failed to approve revision');
-        }
+    const handleRequestRevision = async (type) => {
+        const revision = type === 'query' ? queryRevision : type === 'standard' ? standardRevision : extendedRevision;
+        const currentContent = synopses[type];
+        
+        // For demo: simulate a revised version (in production, call backend revision service)
+        toast.info('Requesting AI revision...');
+        // TODO: Replace with actual revision generation call
+        const revisedContent = currentContent + '\n\n[AI-generated revision would appear here]';
+        
+        await revision.requestRevision(currentContent, revisedContent);
     };
 
     return (
@@ -281,26 +293,43 @@ export default function Synopsis() {
 
                                 {synopses.query && (
                                     <div className="space-y-4">
-                                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                                            <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{synopses.query}</p>
-                                            <div className="mt-3 flex items-center justify-between text-xs">
-                                                <span className="text-slate-500">{synopses.query.split(' ').length} words</span>
-                                                {validation.query && validation.query.pitfalls_detected?.length > 0 && (
-                                                    <Badge variant="outline" className="text-amber-600">
-                                                        {validation.query.pitfalls_detected.length} issues detected
-                                                    </Badge>
-                                                )}
+                                        {queryRevision.showViewer && queryRevision.revisionEventId ? (
+                                            <RevisionViewer
+                                                revisionEventId={queryRevision.revisionEventId}
+                                                onApprove={queryRevision.approveRevision}
+                                            />
+                                        ) : (
+                                            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                                                <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{synopses.query}</p>
+                                                <div className="mt-3 flex items-center justify-between text-xs">
+                                                    <span className="text-slate-500">{synopses.query.split(' ').length} words</span>
+                                                    {validation.query && validation.query.pitfalls_detected?.length > 0 && (
+                                                        <Badge variant="outline" className="text-amber-600">
+                                                            {validation.query.pitfalls_detected.length} issues detected
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex gap-2">
+                                        )}
+                                        <div className="flex gap-2 flex-wrap">
                                             <Button variant="outline" onClick={() => copyToClipboard(synopses.query)}>
                                                 <Copy className="w-4 h-4 mr-2" />
                                                 Copy
                                             </Button>
-                                            <Button variant="outline" onClick={() => downloadSynopsis(synopses.query, 'query-synopsis.txt')}>
+                                            <Button variant="outline" onClick={() => exportTxt(synopses.query, 'query-synopsis.txt')}>
                                                 <Download className="w-4 h-4 mr-2" />
                                                 Download
                                             </Button>
+                                            <RevisionControls
+                                                hasBaseline={!!queryRevision.baselineVersionId}
+                                                hasRevision={queryRevision.hasRevision}
+                                                showingViewer={queryRevision.showViewer}
+                                                processing={queryRevision.processing}
+                                                onRequestRevision={() => handleRequestRevision('query')}
+                                                onShowViewer={() => queryRevision.closeViewer() || (queryRevision.showViewer = true)}
+                                                onApprove={queryRevision.approveRevision}
+                                                onClose={queryRevision.closeViewer}
+                                            />
                                         </div>
                                     </div>
                                 )}
