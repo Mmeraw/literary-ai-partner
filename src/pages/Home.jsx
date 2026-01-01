@@ -22,29 +22,24 @@ export default function Home() {
                         className="text-center"
                     >
                         <h1 className="text-4xl sm:text-5xl font-bold text-indigo-600 tracking-tight leading-tight mb-3">
-                            RevisionGrade™ — The Authoritative Revision Framework
+                            RevisionGrade™ — A Professional Revision Framework
                         </h1>
 
                         <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-3">
                             Built to meet the standards gatekeepers expect.
                         </p>
 
-                        <p className="text-xl text-slate-700 max-w-3xl mx-auto leading-relaxed">
-                            Revision Framework-AI. 13 Story Evaluation Criteria. WAVE Diagnostics.<br />
-                            From manuscript / screenplay to query-ready—one system.
+                        <p className="text-base text-slate-600 max-w-2xl mx-auto mb-8">
+                            Proof in Resources.
                         </p>
 
-                        <div className="mt-10">
+                        <div>
                             <Link to={createPageUrl('UploadManuscript')}>
                                 <Button size="lg" className="h-16 px-12 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-lg">
-                                    Upload Your Writing
+                                    Start a Free Evaluation
                                 </Button>
                             </Link>
                         </div>
-
-                        <p className="mt-6 text-sm text-slate-500">
-                            Free evaluation—see proof in Resources
-                        </p>
                     </motion.div>
                 </div>
             </div>
