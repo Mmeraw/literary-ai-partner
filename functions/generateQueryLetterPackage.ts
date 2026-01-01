@@ -9,7 +9,17 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { file_url, bio, existing_synopsis, genre } = await req.json();
+        const { 
+            file_url, 
+            bio, 
+            synopsis_mode = 'auto',
+            existing_synopsis, 
+            one_line_pitch,
+            pitch_paragraph,
+            comps_mode = 'auto',
+            manual_comps,
+            genre 
+        } = await req.json();
 
         if (!file_url || !bio) {
             return Response.json({ error: 'file_url and bio are required' }, { status: 400 });

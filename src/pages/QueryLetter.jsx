@@ -24,7 +24,12 @@ export default function QueryLetter() {
         bioText: '',
         linkedinUrl: '',
         bioMode: 'linkedin', // 'linkedin' or 'manual'
+        synopsisMode: 'auto', // 'auto' or 'manual'
         existingSynopsis: '',
+        oneLinePitch: '',
+        pitchParagraph: '',
+        compsMode: 'auto', // 'auto' or 'manual'
+        manualComps: '',
         genre: ''
     });
     const [generating, setGenerating] = useState(false);
@@ -61,7 +66,12 @@ export default function QueryLetter() {
             const { data } = await base44.functions.invoke('generateQueryLetterPackage', {
                 file_url,
                 bio: bioText,
+                synopsis_mode: autoFormData.synopsisMode,
                 existing_synopsis: autoFormData.existingSynopsis,
+                one_line_pitch: autoFormData.oneLinePitch,
+                pitch_paragraph: autoFormData.pitchParagraph,
+                comps_mode: autoFormData.compsMode,
+                manual_comps: autoFormData.manualComps,
                 genre: autoFormData.genre
             });
 
@@ -224,41 +234,127 @@ export default function QueryLetter() {
                                 )}
                             </div>
 
-                            <div className="grid md:grid-cols-2 gap-4">
-                                <div>
+                            <div>
+                                <label className="text-sm font-medium text-slate-700 mb-2 block">
+                                    Genre (Optional)
+                                </label>
+                                <Select 
+                                    value={autoFormData.genre} 
+                                    onValueChange={(value) => setAutoFormData({...autoFormData, genre: value})}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="✨ Let RevisionGrade Choose (Recommended)" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="auto">✨ Let RevisionGrade Choose</SelectItem>
+                                        <SelectItem value="literary_fiction">Literary Fiction</SelectItem>
+                                        <SelectItem value="thriller">Thriller</SelectItem>
+                                        <SelectItem value="mystery">Mystery</SelectItem>
+                                        <SelectItem value="romance">Romance</SelectItem>
+                                        <SelectItem value="fantasy">Fantasy</SelectItem>
+                                        <SelectItem value="sci_fi">Science Fiction</SelectItem>
+                                        <SelectItem value="historical">Historical Fiction</SelectItem>
+                                        <SelectItem value="horror">Horror</SelectItem>
+                                        <SelectItem value="ya">Young Adult</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="border-t border-slate-200 pt-4 mt-4">
+                                <h3 className="text-sm font-semibold text-slate-900 mb-3">Query Letter Components</h3>
+                                
+                                {/* Synopsis Source */}
+                                <div className="mb-4">
                                     <label className="text-sm font-medium text-slate-700 mb-2 block">
-                                        Genre (Optional)
+                                        Synopsis Source
                                     </label>
-                                    <Select 
-                                        value={autoFormData.genre} 
-                                        onValueChange={(value) => setAutoFormData({...autoFormData, genre: value})}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="✨ Let RevisionGrade Choose (Recommended)" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="auto">✨ Let RevisionGrade Choose</SelectItem>
-                                            <SelectItem value="literary_fiction">Literary Fiction</SelectItem>
-                                            <SelectItem value="thriller">Thriller</SelectItem>
-                                            <SelectItem value="mystery">Mystery</SelectItem>
-                                            <SelectItem value="romance">Romance</SelectItem>
-                                            <SelectItem value="fantasy">Fantasy</SelectItem>
-                                            <SelectItem value="sci_fi">Science Fiction</SelectItem>
-                                            <SelectItem value="historical">Historical Fiction</SelectItem>
-                                            <SelectItem value="horror">Horror</SelectItem>
-                                            <SelectItem value="ya">Young Adult</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                    <div className="flex gap-2 mb-3">
+                                        <Button
+                                            type="button"
+                                            variant={autoFormData.synopsisMode === 'auto' ? 'default' : 'outline'}
+                                            onClick={() => setAutoFormData({...autoFormData, synopsisMode: 'auto', existingSynopsis: ''})}
+                                            className="flex-1 text-sm"
+                                        >
+                                            ✨ Let RevisionGrade Generate
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant={autoFormData.synopsisMode === 'manual' ? 'default' : 'outline'}
+                                            onClick={() => setAutoFormData({...autoFormData, synopsisMode: 'manual'})}
+                                            className="flex-1 text-sm"
+                                        >
+                                            I'll Paste My Own
+                                        </Button>
+                                    </div>
+                                    {autoFormData.synopsisMode === 'manual' && (
+                                        <Textarea
+                                            placeholder="Paste your 2-3 paragraph synopsis..."
+                                            value={autoFormData.existingSynopsis}
+                                            onChange={(e) => setAutoFormData({...autoFormData, existingSynopsis: e.target.value})}
+                                            className="min-h-[100px]"
+                                        />
+                                    )}
                                 </div>
+
+                                {/* Pitch Inputs */}
+                                <div className="mb-4 space-y-3">
+                                    <div>
+                                        <label className="text-sm font-medium text-slate-700 mb-2 block">
+                                            One-line Pitch (Optional)
+                                        </label>
+                                        <Input
+                                            placeholder="If you already have a short 'elevator' pitch, paste it here. Otherwise, RevisionGrade will suggest one."
+                                            value={autoFormData.oneLinePitch}
+                                            onChange={(e) => setAutoFormData({...autoFormData, oneLinePitch: e.target.value})}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-medium text-slate-700 mb-2 block">
+                                            Query-letter Pitch Paragraph (Optional)
+                                        </label>
+                                        <Textarea
+                                            placeholder="If you've drafted your main pitch paragraph, paste it here. Otherwise, we'll generate it from your material."
+                                            value={autoFormData.pitchParagraph}
+                                            onChange={(e) => setAutoFormData({...autoFormData, pitchParagraph: e.target.value})}
+                                            className="min-h-[80px]"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Comparables Source */}
                                 <div>
                                     <label className="text-sm font-medium text-slate-700 mb-2 block">
-                                        Existing Synopsis (Optional)
+                                        Comparable Titles
                                     </label>
-                                    <Input
-                                        placeholder="Leave blank to generate"
-                                        value={autoFormData.existingSynopsis}
-                                        onChange={(e) => setAutoFormData({...autoFormData, existingSynopsis: e.target.value})}
-                                    />
+                                    <p className="text-xs text-slate-500 mb-2">
+                                        We'll reference 2-3 comps in your query letter. You can supply them or let RevisionGrade propose options.
+                                    </p>
+                                    <div className="flex gap-2 mb-3">
+                                        <Button
+                                            type="button"
+                                            variant={autoFormData.compsMode === 'auto' ? 'default' : 'outline'}
+                                            onClick={() => setAutoFormData({...autoFormData, compsMode: 'auto', manualComps: ''})}
+                                            className="flex-1 text-sm"
+                                        >
+                                            ✨ Let RevisionGrade Suggest
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant={autoFormData.compsMode === 'manual' ? 'default' : 'outline'}
+                                            onClick={() => setAutoFormData({...autoFormData, compsMode: 'manual'})}
+                                            className="flex-1 text-sm"
+                                        >
+                                            I'll Enter My Own
+                                        </Button>
+                                    </div>
+                                    {autoFormData.compsMode === 'manual' && (
+                                        <Textarea
+                                            placeholder="Your comparable titles (2-3) - one per line&#10;e.g.:&#10;The Silent Patient by Alex Michaelides&#10;Gone Girl by Gillian Flynn"
+                                            value={autoFormData.manualComps}
+                                            onChange={(e) => setAutoFormData({...autoFormData, manualComps: e.target.value})}
+                                            className="min-h-[80px]"
+                                        />
+                                    )}
                                 </div>
                             </div>
 
