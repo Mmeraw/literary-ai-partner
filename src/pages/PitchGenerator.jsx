@@ -110,26 +110,82 @@ export default function PitchGenerator() {
             
             const response = await base44.functions.invoke('extractPitchFields', { file_url });
             console.log('📊 extractPitchFields response:', response);
-            console.log('📊 Response type:', typeof response);
+            console.log('📊 Response data:', response.data);
             console.log('📊 Response keys:', Object.keys(response || {}));
             
-            if (response.success && response.fields) {
-                console.log('✅ Success! Fields:', response.fields);
-                setManuscriptInfo(response.fields);
-                toast.success(`All fields populated! Title: ${response.fields.title}`, { id: 'upload' });
+            // base44.functions.invoke returns {data: {success, fields}}
+            const result = response.data || response;
+            
+            if (result.success && result.fields) {
+                console.log('✅ Success! Fields:', result.fields);
+                setManuscriptInfo(result.fields);
+                toast.success(
+                    <div>
+                        <div className="font-semibold">✓ Fields extracted!</div>
+                        <div className="text-xs mt-1">Title: {result.fields.title}</div>
+                        <div className="text-xs">
+                            <button 
+                                onClick={() => handleSaveAsManuscript(result.fields, file_url)}
+                                className="underline mt-1"
+                            >
+                                Save as Manuscript →
+                            </button>
+                        </div>
+                    </div>,
+                    { id: 'upload', duration: 6000 }
+                );
             } else {
-                console.error('❌ Extraction returned failure:', response);
-                toast.error(response.error || 'Failed to extract fields', { id: 'upload' });
+                console.error('❌ Extraction returned failure:', result);
+                const errorMsg = result.error || result.details || 'Failed to extract fields';
+                toast.error(
+                    <div>
+                        <div className="font-semibold">Extraction failed</div>
+                        <div className="text-xs mt-1">{errorMsg}</div>
+                    </div>,
+                    { id: 'upload', duration: 5000 }
+                );
             }
         } catch (error) {
             console.error('💥 CAUGHT ERROR:', error);
             console.error('💥 Error name:', error.name);
             console.error('💥 Error message:', error.message);
             console.error('💥 Error stack:', error.stack);
-            toast.error(`Failed to process manuscript: ${error.message}`, { id: 'upload' });
+            const errorDetails = error.response?.data?.details || error.message;
+            toast.error(
+                <div>
+                    <div className="font-semibold">Upload failed</div>
+                    <div className="text-xs mt-1">{errorDetails}</div>
+                </div>,
+                { id: 'upload', duration: 5000 }
+            );
         } finally {
             console.log('🏁 Upload flow complete');
             setUploadingFile(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleSaveAsManuscript = async (fields, file_url) => {
+        try {
+            toast.loading('Saving as manuscript...', { id: 'save' });
+            
+            // Fetch full text
+            const fileResponse = await fetch(file_url);
+            const fileBuffer = await fileResponse.arrayBuffer();
+            const full_text = new TextDecoder().decode(fileBuffer);
+            const word_count = full_text.split(/\s+/).filter(w => w).length;
+            
+            const manuscript = await base44.entities.Manuscript.create({
+                title: fields.title,
+                full_text,
+                word_count,
+                status: 'uploaded'
+            });
+            
+            toast.success(`Saved as manuscript: ${fields.title}`, { id: 'save' });
+        } catch (error) {
+            console.error('Save manuscript error:', error);
+            toast.error('Failed to save manuscript', { id: 'save' });
         }
     };
 
