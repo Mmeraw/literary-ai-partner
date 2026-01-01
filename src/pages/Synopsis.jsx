@@ -4,13 +4,21 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Sparkles, Copy, Download, Loader2 } from 'lucide-react';
+import { Input } from "@/components/ui/input";
+import { FileText, Sparkles, Copy, Download, Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
+import { useQuery } from '@tanstack/react-query';
 
 export default function Synopsis() {
     const [manuscriptInfo, setManuscriptInfo] = useState('');
     const [generating, setGenerating] = useState(false);
+    const [synopses, setSynopses] = useState({
+        query: '',
+        standard: '',
+        extended: ''
+    });
+    const [validation, setValidation] = useState({});
     
     const { data: manuscripts = [] } = useQuery({
         queryKey: ['user-manuscripts'],
@@ -19,14 +27,65 @@ export default function Synopsis() {
             return await base44.entities.Manuscript.filter({ created_by: user.email });
         }
     });
-    const [synopses, setSynopses] = useState({
-        query: '',
-        standard: '',
-        extended: ''
-    });
-    const [validation, setValidation] = useState({});
+
+    const handleFileUpload = async (e) => {
+        console.log('🚀 handleFileUpload TRIGGERED at', new Date().toISOString());
+        const file = e.target.files?.[0];
+        console.log('📁 File object:', { name: file?.name, size: file?.size, type: file?.type });
+        
+        if (!file) {
+            console.warn('❌ No file selected');
+            return;
+        }
+
+        if (file.size > 25 * 1024 * 1024) {
+            console.error('❌ File too large:', file.size);
+            toast.error('File must be under 25MB');
+            return;
+        }
+
+        console.log('✅ Starting upload flow...');
+        setGenerating(true);
+        
+        try {
+            toast.loading('Uploading manuscript...', { id: 'upload' });
+            console.log('📤 Calling base44.integrations.Core.UploadFile...');
+            
+            const uploadResult = await base44.integrations.Core.UploadFile({ file });
+            console.log('📦 UploadFile returned:', uploadResult);
+            
+            const file_url = uploadResult?.file_url;
+            if (!file_url) throw new Error('No file_url in upload response');
+            
+            toast.loading('Extracting manuscript text...', { id: 'upload' });
+            const fileResponse = await fetch(file_url);
+            const fileBuffer = await fileResponse.arrayBuffer();
+            const text = new TextDecoder().decode(fileBuffer);
+            
+            setManuscriptInfo(text);
+            toast.success('Manuscript loaded! You can now generate synopses.', { id: 'upload' });
+        } catch (error) {
+            console.error('💥 Upload error:', error);
+            toast.error(
+                <div>
+                    <div className="font-semibold">Upload failed</div>
+                    <div className="text-xs mt-1">{error.message}</div>
+                </div>,
+                { id: 'upload', duration: 5000 }
+            );
+        } finally {
+            setGenerating(false);
+            e.target.value = '';
+        }
+    };
+
+    const loadFromManuscript = (manuscript) => {
+        setManuscriptInfo(manuscript.full_text);
+        toast.success(`Loaded: ${manuscript.title}`);
+    };
 
     const generateSynopsis = async (type) => {
+        console.log('🚀 Generate synopsis triggered:', type);
         if (!manuscriptInfo.trim()) {
             toast.error('Please provide information about your manuscript');
             return;
@@ -34,29 +93,45 @@ export default function Synopsis() {
 
         setGenerating(true);
         try {
+            console.log('📤 Calling generateSynopsis...');
             const response = await base44.functions.invoke('generateSynopsis', {
                 manuscriptInfo,
                 synopsisType: type
             });
+            
+            console.log('📦 Response:', response);
+            const result = response.data || response;
 
-            if (response.data.success) {
+            if (result.success) {
                 setSynopses(prev => ({
                     ...prev,
-                    [type]: response.data.synopsis
+                    [type]: result.synopsis
                 }));
                 setValidation(prev => ({
                     ...prev,
-                    [type]: response.data.validation
+                    [type]: result.validation
                 }));
                 
                 const versionName = type === 'query' ? 'Query' : type === 'standard' ? 'Standard' : 'Extended';
-                toast.success(`${versionName} synopsis generated! (${response.data.word_count} words)`);
+                toast.success(`${versionName} synopsis generated! (${result.word_count} words)`);
             } else {
-                toast.error(response.data.error || 'Failed to generate synopsis');
+                toast.error(
+                    <div>
+                        <div className="font-semibold">Generation failed</div>
+                        <div className="text-xs mt-1">{result.error || result.details || 'Unknown error'}</div>
+                    </div>,
+                    { duration: 5000 }
+                );
             }
         } catch (error) {
-            console.error('Synopsis generation error:', error);
-            toast.error('Failed to generate synopsis');
+            console.error('💥 Synopsis generation error:', error);
+            toast.error(
+                <div>
+                    <div className="font-semibold">Generation failed</div>
+                    <div className="text-xs mt-1">{error.message}</div>
+                </div>,
+                { duration: 5000 }
+            );
         } finally {
             setGenerating(false);
         }
@@ -101,13 +176,56 @@ export default function Synopsis() {
                     <CardHeader>
                         <CardTitle>Tell Us About Your Story</CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-4">
                         <Textarea
                             placeholder="Describe your complete story including: protagonist, inciting incident, major plot points, character arcs, climax, and resolution. Include the ending—synopses must reveal how the story concludes..."
                             value={manuscriptInfo}
                             onChange={(e) => setManuscriptInfo(e.target.value)}
                             className="min-h-[250px]"
                         />
+                        
+                        <div className="flex items-center gap-4 mb-2">
+                            <div className="flex-1 border-t border-slate-300"></div>
+                            <span className="text-xs text-slate-500">OR UPLOAD FILE</span>
+                            <div className="flex-1 border-t border-slate-300"></div>
+                        </div>
+                        
+                        <input
+                            type="file"
+                            accept=".txt,.pdf,.doc,.docx"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                            id="manuscript-upload-synopsis"
+                            disabled={generating}
+                        />
+                        <label htmlFor="manuscript-upload-synopsis" className="cursor-pointer block">
+                            <Button type="button" variant="outline" className="w-full" disabled={generating}>
+                                {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                                Upload Manuscript
+                            </Button>
+                        </label>
+                        
+                        {manuscripts.length > 0 && (
+                            <>
+                                <div className="flex items-center gap-4 my-3">
+                                    <div className="flex-1 border-t border-slate-300"></div>
+                                    <span className="text-xs text-slate-500">OR LOAD FROM PREVIOUS WORKS</span>
+                                    <div className="flex-1 border-t border-slate-300"></div>
+                                </div>
+                                <div className="space-y-2 max-h-32 overflow-y-auto">
+                                    {manuscripts.map((ms) => (
+                                        <button
+                                            key={ms.id}
+                                            onClick={() => loadFromManuscript(ms)}
+                                            className="w-full p-2 rounded border border-slate-200 hover:bg-slate-50 text-left text-sm"
+                                        >
+                                            <div className="font-medium">{ms.title}</div>
+                                            <div className="text-xs text-slate-500">{ms.word_count?.toLocaleString()} words</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </CardContent>
                 </Card>
 
