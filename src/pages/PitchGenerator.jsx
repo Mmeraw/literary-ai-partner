@@ -279,30 +279,27 @@ export default function PitchGenerator() {
                                             Upload your full manuscript/screenplay to populate all fields automatically
                                         </p>
                                         <input
-                                            ref={fileInputRef}
                                             type="file"
-                                            accept=".txt,.pdf,.doc,.docx"
+                                            id="pitch-file-upload"
                                             onChange={handleFileUpload}
                                             className="hidden"
+                                            accept=".txt,.pdf,.doc,.docx"
                                         />
-                                        <Button 
-                                            variant="outline" 
-                                            type="button"
-                                            onClick={() => fileInputRef.current?.click()}
-                                            disabled={uploadingFile}
-                                        >
-                                            {uploadingFile ? (
-                                                <>
-                                                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                                    Analyzing...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Upload className="w-4 h-4 mr-2" />
-                                                    Choose File
-                                                </>
-                                            )}
-                                        </Button>
+                                        <label htmlFor="pitch-file-upload" style={{ cursor: 'pointer' }}>
+                                            <Button type="button" variant="outline" disabled={uploadingFile}>
+                                                {uploadingFile ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                                        Analyzing...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Upload className="w-4 h-4 mr-2" />
+                                                        Choose File
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </label>
                                         <p className="text-xs text-slate-500 mt-2">
                                             PDF, DOC, DOCX, or TXT • Max 25MB
                                         </p>

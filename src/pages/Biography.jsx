@@ -234,21 +234,18 @@ Generate both bios now.`,
                             </label>
                             <div className="flex items-center gap-4">
                                 <input
-                                    ref={fileInputRef}
                                     type="file"
-                                    accept=".pdf,.doc,.docx,.txt"
+                                    id="bio-file-upload"
                                     onChange={handleFileUpload}
                                     className="hidden"
+                                    accept=".pdf,.doc,.docx,.txt"
                                 />
-                                <Button 
-                                    variant="outline" 
-                                    type="button"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={uploadingFile}
-                                >
-                                    <Upload className="w-4 h-4 mr-2" />
-                                    {uploadingFile ? 'Uploading...' : 'Upload File'}
-                                </Button>
+                                <label htmlFor="bio-file-upload" style={{ cursor: 'pointer' }}>
+                                    <Button type="button" variant="outline" disabled={uploadingFile}>
+                                        <Upload className="w-4 h-4 mr-2" />
+                                        {uploadingFile ? 'Uploading...' : 'Upload File'}
+                                    </Button>
+                                </label>
                                 <span className="text-xs text-slate-500">We'll extract relevant information automatically</span>
                             </div>
                         </div>
