@@ -110,20 +110,20 @@ export default function Home() {
                     {[
                         {
                             icon: BookOpen,
-                            title: "Literary Agent Package",
-                            description: "Query, logline, and short/medium/long synopsis drafted from your manuscript and calibrated to professional submission standards. You review and edit every line before sending.",
+                            title: "Agent Package",
+                            description: "Query, logline, and short/medium/long synopsis drafted from your manuscript or screenplay and calibrated to professional submission standards. You review and edit every line before sending.",
                             color: "from-indigo-500 to-blue-600"
                         },
                         {
                             icon: Brain,
                             title: "Film Adaptation Package",
-                            description: "Screen-focused pitch materials delivered as text files (.txt, optional .docx): logline, one-page overview, beat-level summary, and notes on structure, tone, and audience. Optional: 1–10 readiness grade for internal benchmarking.",
+                            description: "Screen-focused pitch materials delivered as text files (.txt, optional .docx): logline, one-page overview, beat-level summary, and notes on structure, tone, and audience, plus an optional 1–10 readiness grade for internal benchmarking.",
                             color: "from-purple-500 to-pink-600"
                         },
                         {
                             icon: CheckCircle2,
                             title: "Complete Submission Package",
-                            description: "Author bio, 5–10 market comps, targeted agent list, query draft, and synopsis options—organized so you can assemble a professional submission and outreach plan. Includes your project's 1–10 grade; Storygate consideration is available for grades of 8–10.",
+                            description: "Author bio, 5–10 market comps, targeted agent list, query draft, and synopsis options—organized so you can assemble a professional submission and outreach plan. Includes your project's 1–10 grade; Storygate Studio consideration is available for grades of 8–10.",
                             color: "from-emerald-500 to-teal-600"
                         }
                     ].map((feature, idx) => (
