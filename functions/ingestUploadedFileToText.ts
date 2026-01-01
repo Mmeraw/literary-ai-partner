@@ -41,17 +41,17 @@ Deno.serve(async (req) => {
             console.log('🔧 Processing Word document...');
             fileType = fileName.endsWith('.docx') ? 'docx' : 'doc';
             
-            // Direct call since importDocx handles its own auth
+            // Fetch file directly
             const response = await fetch(file_url);
             if (!response.ok) {
                 throw new Error(`Failed to fetch DOCX: ${response.status}`);
             }
             
-            const fileBuffer = await response.arrayBuffer();
+            const arrayBuffer = await response.arrayBuffer();
             
             // Use mammoth directly
             const mammoth = await import('npm:mammoth@1.8.0');
-            const result = await mammoth.extractRawText({ arrayBuffer: fileBuffer });
+            const result = await mammoth.extractRawText({ arrayBuffer });
             extractedText = result.value;
             console.log(`✅ Word document extracted: ${extractedText.length} characters`);
         } 
