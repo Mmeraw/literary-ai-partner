@@ -9,7 +9,8 @@ import {
     CheckCircle2, 
     X, 
     Loader2,
-    AlertCircle
+    AlertCircle,
+    Upload
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
@@ -640,8 +641,8 @@ export default function StorygateStudio() {
                                                        setFormData({...formData, evaluation_file: file});
                                                    }}
                                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
-                                                   className="file:text-white"
                                                />
+                                               <Upload className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none" style={{ color: '#A98E4A' }} />
                                             </div>
                                             <p className="text-xs mt-2" style={{ color: '#7B7B7B' }}>
                                                 Equivalent professional evaluations should assess structure, readiness, clarity, and viability using a transparent, defensible methodology, and produce a clearly articulated evaluative outcome suitable for comparison.
@@ -685,8 +686,8 @@ export default function StorygateStudio() {
                                                 setFormData({...formData, presentation_package: file});
                                             }}
                                             style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
-                                            className="file:text-white"
                                         />
+                                        <Upload className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none" style={{ color: '#A98E4A' }} />
                                     </div>
                                 </div>
                             </div>
@@ -731,8 +732,8 @@ export default function StorygateStudio() {
                                             setFormData({...formData, upload_file: file});
                                         }}
                                         style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
-                                        className="file:text-white"
                                     />
+                                    <Upload className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none" style={{ color: '#A98E4A' }} />
                                 </div>
                             </div>
 
