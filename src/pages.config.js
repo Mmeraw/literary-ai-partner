@@ -56,12 +56,12 @@ import StorygateReview from './pages/StorygateReview';
 import StorygateStudio from './pages/StorygateStudio';
 import Synopsis from './pages/Synopsis';
 import Terms from './pages/Terms';
+import TestUpload from './pages/TestUpload';
 import UploadManuscript from './pages/UploadManuscript';
 import UploadWork from './pages/UploadWork';
 import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
-import TestUpload from './pages/TestUpload';
 import __Layout from './Layout.jsx';
 
 
@@ -124,12 +124,12 @@ export const PAGES = {
     "StorygateStudio": StorygateStudio,
     "Synopsis": Synopsis,
     "Terms": Terms,
+    "TestUpload": TestUpload,
     "UploadManuscript": UploadManuscript,
     "UploadWork": UploadWork,
     "ValidationReport": ValidationReport,
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
-    "TestUpload": TestUpload,
 }
 
 export const pagesConfig = {

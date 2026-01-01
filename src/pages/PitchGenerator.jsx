@@ -288,10 +288,9 @@ export default function PitchGenerator() {
                                         <Button 
                                             type="button"
                                             variant="outline"
-                                            onClick={() => {
-                                                console.log('🔴 BUTTON CLICKED at', new Date().toISOString());
-                                                console.log('🔴 fileInputRef.current:', fileInputRef.current);
-                                                console.log('🔴 uploadingFile:', uploadingFile);
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
                                                 fileInputRef.current?.click();
                                             }}
                                             disabled={uploadingFile}
