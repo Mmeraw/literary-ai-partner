@@ -47,43 +47,23 @@ export default function Biography() {
                 throw new Error('Upload failed');
             }
             
-            let extractedText = '';
-            const fileName = file.name.toLowerCase();
+            toast.loading('Extracting text from file...', { id: 'upload' });
+            console.log('📄 File selected:', file.name);
             
-            // Word documents
-            if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
-                toast.loading('Converting Word document...', { id: 'upload' });
-                const docxResult = await base44.functions.invoke('importDocx', { file_url });
-                extractedText = docxResult.data?.text || '';
-            } 
-            // Plain text
-            else if (fileName.endsWith('.txt')) {
-                toast.loading('Reading text file...', { id: 'upload' });
-                const response = await fetch(file_url);
-                extractedText = await response.text();
+            const ingestionResult = await base44.functions.invoke('ingestUploadedFileToText', { file_url });
+            console.log('📊 Ingestion result:', ingestionResult.data);
+            
+            if (!ingestionResult.data?.success) {
+                throw new Error(ingestionResult.data?.error?.message || 'File extraction failed');
             }
-            // PDF/RTF via extraction API
-            else {
-                toast.loading('Extracting text...', { id: 'upload' });
-                const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
-                    file_url,
-                    json_schema: {
-                        type: "object",
-                        properties: { text: { type: "string" } }
-                    }
-                });
-                
-                if (extracted.status === 'success') {
-                    extractedText = extracted.output?.text || '';
-                } else {
-                    throw new Error(extracted.details || 'Extraction failed');
-                }
-            }
+            
+            const extractedText = ingestionResult.data.text;
+            console.log(`✅ Extracted ${ingestionResult.data.meta.charCount} characters from ${ingestionResult.data.meta.filename}`);
 
             setInputText(extractedText);
-            toast.success('File processed successfully!', { id: 'upload' });
+            toast.success(`Extracted ${ingestionResult.data.meta.charCount.toLocaleString()} characters`, { id: 'upload' });
         } catch (error) {
-            console.error('Upload error:', error);
+            console.error('❌ Upload error:', error);
             toast.error(`Upload failed: ${error.message}`, { id: 'upload' });
             setUploadedFileName('');
         } finally {

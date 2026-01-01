@@ -61,26 +61,22 @@ export default function Synopsis() {
             }
             
             toast.loading('Extracting text...', { id: 'upload' });
+            console.log('📄 File selected:', file.name);
             
-            let text = '';
-            const fileName = file.name.toLowerCase();
+            const ingestionResult = await base44.functions.invoke('ingestUploadedFileToText', { file_url });
+            console.log('📊 Ingestion result:', ingestionResult.data);
             
-            if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
-                const docxResult = await base44.functions.invoke('importDocx', { file_url });
-                text = docxResult.data?.text || '';
-            } else if (fileName.endsWith('.txt')) {
-                const response = await fetch(file_url);
-                text = await response.text();
-            } else {
-                const response = await fetch(file_url);
-                const buffer = await response.arrayBuffer();
-                text = new TextDecoder().decode(buffer);
+            if (!ingestionResult.data?.success) {
+                throw new Error(ingestionResult.data?.error?.message || 'File extraction failed');
             }
             
+            const text = ingestionResult.data.text;
+            console.log(`✅ Extracted ${ingestionResult.data.meta.charCount} characters from ${ingestionResult.data.meta.filename}`);
+            
             setManuscriptInfo(text);
-            toast.success('Manuscript loaded successfully!', { id: 'upload' });
+            toast.success(`Loaded ${ingestionResult.data.meta.charCount.toLocaleString()} characters`, { id: 'upload' });
         } catch (error) {
-            console.error('Upload error:', error);
+            console.error('❌ Upload error:', error);
             toast.error(`Upload failed: ${error.message}`, { id: 'upload' });
             setUploadedFileName('');
         } finally {

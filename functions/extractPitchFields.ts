@@ -15,65 +15,15 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'file_url is required' }, { status: 400 });
         }
 
-        console.log('📄 Step 1: Fetching manuscript file for pitch extraction...');
-        console.log('File URL:', file_url);
+        console.log('📄 Step 1: Ingesting manuscript file...');
+        const ingestionResult = await base44.asServiceRole.functions.invoke('ingestUploadedFileToText', { file_url });
         
-        // Detect file type from URL
-        const fileName = file_url.toLowerCase();
-        const isWordDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc');
-        const isTxt = fileName.endsWith('.txt');
-        const isPdf = fileName.endsWith('.pdf');
-        const isRtf = fileName.endsWith('.rtf');
-        let fileText;
+        if (!ingestionResult.success) {
+            throw new Error(`File ingestion failed: ${ingestionResult.error?.message || 'Unknown error'}`);
+        }
         
-        // Handle Word documents (.doc, .docx)
-        if (isWordDoc) {
-            console.log('🔧 Word document detected - using importDocx function...');
-            const importResult = await base44.asServiceRole.functions.invoke('importDocx', { file_url });
-            if (!importResult.success) {
-                throw new Error(`Word document import failed: ${importResult.error || 'Unknown error'}`);
-            }
-            fileText = importResult.text;
-            console.log(`✅ Word document imported successfully: ${fileText.length} characters`);
-        } 
-        // Handle plain text files directly
-        else if (isTxt) {
-            console.log('📄 Plain text file - fetching directly...');
-            const fileResponse = await fetch(file_url);
-            console.log('File response status:', fileResponse.status);
-            
-            if (!fileResponse.ok) {
-                throw new Error(`Failed to fetch file: ${fileResponse.status} ${fileResponse.statusText}`);
-            }
-            
-            const fileBuffer = await fileResponse.arrayBuffer();
-            fileText = new TextDecoder().decode(fileBuffer);
-            console.log(`✅ Text file fetched successfully: ${fileText.length} characters`);
-        }
-        // Handle PDF and RTF via ExtractDataFromUploadedFile
-        else if (isPdf || isRtf) {
-            console.log(`📄 ${isPdf ? 'PDF' : 'RTF'} file detected - using ExtractDataFromUploadedFile...`);
-            const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
-                file_url,
-                json_schema: {
-                    type: "object",
-                    properties: {
-                        text: { type: "string" }
-                    }
-                }
-            });
-            
-            if (extracted.status === 'success') {
-                fileText = extracted.output?.text || '';
-                console.log(`✅ File extracted successfully: ${fileText.length} characters`);
-            } else {
-                throw new Error(`File extraction failed: ${extracted.details || 'Unknown error'}`);
-            }
-        }
-        // Unsupported format
-        else {
-            throw new Error(`Unsupported file format. Please upload DOC, DOCX, RTF, TXT, or PDF files.`);
-        }
+        const fileText = ingestionResult.text;
+        console.log(`✅ File ingested: ${ingestionResult.meta.charCount} characters from ${ingestionResult.meta.filename}`);
 
         // Use first 50k characters for analysis (or full text if shorter)
         const manuscriptSample = fileText.substring(0, Math.min(50000, fileText.length));
