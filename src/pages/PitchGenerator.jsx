@@ -284,8 +284,8 @@ export default function PitchGenerator() {
                                             style={{ display: 'none' }}
                                             id="pitch-file-upload"
                                         />
-                                        <label htmlFor="pitch-file-upload" style={{ cursor: 'pointer' }}>
-                                            <Button variant="outline" type="button" disabled={uploadingFile}>
+                                        <label htmlFor="pitch-file-upload" style={{ cursor: uploadingFile ? 'not-allowed' : 'pointer' }}>
+                                            <Button variant="outline" type="button">
                                                 {uploadingFile ? (
                                                     <>
                                                         <Loader2 className="w-4 h-4 animate-spin mr-2" />
