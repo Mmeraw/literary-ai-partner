@@ -291,9 +291,17 @@ export default function PitchGenerator() {
                                         <Button
                                             variant="outline"
                                             disabled={uploadingFile}
-                                            onClick={() => {
-                                                console.log('🔘 Button clicked, fileInputRef:', fileInputRef.current);
-                                                fileInputRef.current?.click();
+                                            onClick={(e) => {
+                                                console.log('🔘🔘🔘 BUTTON CLICK EVENT FIRED 🔘🔘🔘');
+                                                console.log('Event:', e);
+                                                console.log('fileInputRef:', fileInputRef);
+                                                console.log('fileInputRef.current:', fileInputRef.current);
+                                                if (fileInputRef.current) {
+                                                    console.log('⚡ Triggering input.click()');
+                                                    fileInputRef.current.click();
+                                                } else {
+                                                    console.error('❌ REF IS NULL - FILE INPUT NOT MOUNTED');
+                                                }
                                             }}
                                         >
                                             {uploadingFile ? (
