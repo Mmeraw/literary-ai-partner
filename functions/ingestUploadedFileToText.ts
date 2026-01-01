@@ -48,11 +48,11 @@ Deno.serve(async (req) => {
             }
             
             const arrayBuffer = await response.arrayBuffer();
+            const buffer = new Uint8Array(arrayBuffer);
             
-            // Use mammoth with Deno-compatible buffer
+            // Use mammoth (same pattern as importDocx)
             const mammoth = await import('npm:mammoth@1.8.0');
-            const uint8Array = new Uint8Array(arrayBuffer);
-            const result = await mammoth.extractRawText({ arrayBuffer: uint8Array.buffer });
+            const result = await mammoth.extractRawText({ buffer });
             extractedText = result.value;
             console.log(`✅ Word document extracted: ${extractedText.length} characters`);
         } 
