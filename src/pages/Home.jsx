@@ -116,19 +116,19 @@ export default function Home() {
                         {
                             icon: BookOpen,
                             title: "Literary Agent Package",
-                            description: "Queries + Synopses auto-generated. One-sentence pitch, elevator pitch, and short/medium/long synopses calibrated against professional standards.",
+                            description: "Query, logline, and short/medium/long synopsis drafted from your manuscript and calibrated to professional submission standards. You review and edit every line before sending.",
                             color: "from-indigo-500 to-blue-600"
                         },
                         {
                             icon: Brain,
-                            title: "12-Slide Producer Pitch Deck",
-                            description: "PPTX export, production-ready. Screen viability score (0-100). 5-Part mythic structure validation. Del Toro-level tone enforcement.",
+                            title: "Film Adaptation Package",
+                            description: "Screen-focused pitch materials delivered as text files (.txt, optional .docx): logline, one-page overview, beat-level summary, and notes on structure, tone, and audience. Optional: 1–10 readiness grade for internal benchmarking.",
                             color: "from-purple-500 to-pink-600"
                         },
                         {
                             icon: CheckCircle2,
                             title: "Complete Submission Package",
-                            description: "Author bio, 5-10 market comps, targeted agent list, draft query letter. Everything agents expect to see in your submission.",
+                            description: "Author bio, 5–10 market comps, targeted agent list, query draft, and synopsis options—organized so you can assemble a professional submission and outreach plan. Includes your project's 1–10 grade; Storygate consideration is available for grades of 8–10.",
                             color: "from-emerald-500 to-teal-600"
                         }
                     ].map((feature, idx) => (
