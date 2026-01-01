@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
         }
 
         console.log('📄 Step 1: Ingesting manuscript file...');
-        const ingestionResult = await base44.asServiceRole.functions.invoke('ingestUploadedFileToText', { file_url });
+        const ingestionResult = await base44.functions.invoke('ingestUploadedFileToText', { file_url });
         
         if (!ingestionResult.success) {
             throw new Error(`File ingestion failed: ${ingestionResult.error?.message || 'Unknown error'}`);
