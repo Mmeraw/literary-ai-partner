@@ -210,29 +210,6 @@ export default function PitchGenerator() {
                                         <p className="text-xs text-indigo-700 mb-3">
                                             Upload your full manuscript/screenplay to populate all fields automatically
                                         </p>
-                                        <label htmlFor="manuscript-upload" className="cursor-pointer">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                disabled={uploadingFile}
-                                                className="bg-white hover:bg-slate-50"
-                                                asChild
-                                            >
-                                                <span>
-                                                    {uploadingFile ? (
-                                                        <>
-                                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                            Analyzing...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Upload className="w-4 h-4 mr-2" />
-                                                            Choose File
-                                                        </>
-                                                    )}
-                                                </span>
-                                            </Button>
-                                        </label>
                                         <Input
                                             id="manuscript-upload"
                                             type="file"
@@ -240,6 +217,26 @@ export default function PitchGenerator() {
                                             onChange={handleFileUpload}
                                             className="hidden"
                                         />
+                                        <label htmlFor="manuscript-upload" className="cursor-pointer inline-block">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                disabled={uploadingFile}
+                                                className="bg-white hover:bg-slate-50"
+                                            >
+                                                {uploadingFile ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                        Analyzing...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Upload className="w-4 h-4 mr-2" />
+                                                        Choose File
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </label>
                                         <p className="text-xs text-slate-500 mt-2">
                                             PDF, DOC, DOCX, or TXT • Max 25MB
                                         </p>
