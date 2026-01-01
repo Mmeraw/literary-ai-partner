@@ -626,20 +626,23 @@ export default function StorygateStudio() {
                                             <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
                                                 Upload Evaluation PDF or Report (Optional but Recommended)
                                             </label>
-                                            <Input
-                                                type="file"
-                                                accept=".pdf"
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file && file.size > 10 * 1024 * 1024) {
-                                                        toast.error('File size must be less than 10MB');
-                                                        e.target.value = '';
-                                                        return;
-                                                    }
-                                                    setFormData({...formData, evaluation_file: file});
-                                                }}
-                                                style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
-                                            />
+                                            <div className="relative">
+                                               <Input
+                                                   type="file"
+                                                   accept=".pdf"
+                                                   onChange={(e) => {
+                                                       const file = e.target.files?.[0];
+                                                       if (file && file.size > 10 * 1024 * 1024) {
+                                                           toast.error('File size must be less than 10MB');
+                                                           e.target.value = '';
+                                                           return;
+                                                       }
+                                                       setFormData({...formData, evaluation_file: file});
+                                                   }}
+                                                   style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                                   className="file:text-white"
+                                               />
+                                            </div>
                                             <p className="text-xs mt-2" style={{ color: '#7B7B7B' }}>
                                                 Equivalent professional evaluations should assess structure, readiness, clarity, and viability using a transparent, defensible methodology, and produce a clearly articulated evaluative outcome suitable for comparison.
                                             </p>
@@ -668,20 +671,23 @@ export default function StorygateStudio() {
                                     <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
                                         Upload Presentation Package (PDF, Optional)
                                     </label>
-                                    <Input
-                                        type="file"
-                                        accept=".pdf"
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file && file.size > 10 * 1024 * 1024) {
-                                                toast.error('File size must be less than 10MB');
-                                                e.target.value = '';
-                                                return;
-                                            }
-                                            setFormData({...formData, presentation_package: file});
-                                        }}
-                                        style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
-                                    />
+                                    <div className="relative">
+                                        <Input
+                                            type="file"
+                                            accept=".pdf"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file && file.size > 10 * 1024 * 1024) {
+                                                    toast.error('File size must be less than 10MB');
+                                                    e.target.value = '';
+                                                    return;
+                                                }
+                                                setFormData({...formData, presentation_package: file});
+                                            }}
+                                            style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                            className="file:text-white"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -711,20 +717,23 @@ export default function StorygateStudio() {
                                 <p className="text-xs mb-2" style={{ color: '#7B7B7B' }}>
                                     Upload a writing sample, excerpt, or relevant document (PDF, DOC, DOCX - max 10MB)
                                 </p>
-                                <Input
-                                    type="file"
-                                    accept=".pdf,.doc,.docx"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file && file.size > 10 * 1024 * 1024) {
-                                            toast.error('File size must be less than 10MB');
-                                            e.target.value = '';
-                                            return;
-                                        }
-                                        setFormData({...formData, upload_file: file});
-                                    }}
-                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
-                                />
+                                <div className="relative">
+                                    <Input
+                                        type="file"
+                                        accept=".pdf,.doc,.docx"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file && file.size > 10 * 1024 * 1024) {
+                                                toast.error('File size must be less than 10MB');
+                                                e.target.value = '';
+                                                return;
+                                            }
+                                            setFormData({...formData, upload_file: file});
+                                        }}
+                                        style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                        className="file:text-white"
+                                    />
+                                </div>
                             </div>
 
                             {/* Acknowledgment & Rights */}
