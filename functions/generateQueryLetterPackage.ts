@@ -21,19 +21,27 @@ Deno.serve(async (req) => {
             genre 
         } = await req.json();
 
+        console.log('📥 Query letter generation started:', { file_url, synopsis_mode, comps_mode, genre });
+
         if (!file_url || !bio) {
             return Response.json({ error: 'file_url and bio are required' }, { status: 400 });
         }
 
         // Fetch the manuscript file
+        console.log('📄 Fetching manuscript file...');
         const fileResponse = await fetch(file_url);
+        if (!fileResponse.ok) {
+            throw new Error(`Failed to fetch file: ${fileResponse.status} ${fileResponse.statusText}`);
+        }
         const fileBuffer = await fileResponse.arrayBuffer();
         const fileText = new TextDecoder().decode(fileBuffer);
+        console.log(`✅ File fetched: ${fileText.length} characters`);
 
         // Extract first 50k characters for analysis
         const manuscriptSample = fileText.substring(0, 50000);
 
         // Step 1: Extract metadata and synopsis
+        console.log('🔍 Step 1: Extracting metadata and synopsis...');
         const metadataPrompt = `Analyze this manuscript excerpt and provide:
 1. Title (extract from document)
 2. Detected genre (if not provided: ${genre || 'detect'})
@@ -61,6 +69,7 @@ Return JSON.`;
                 }
             }
         });
+        console.log('✅ Step 1 complete:', { title: metadata.title, genre: metadata.genre });
 
         // Use user-provided values or generated ones
         const finalSynopsis = synopsis_mode === 'manual' && existing_synopsis ? existing_synopsis : metadata.synopsis;
@@ -68,6 +77,7 @@ Return JSON.`;
         const finalPitchParagraph = pitch_paragraph || metadata.pitch_paragraph;
 
         // Step 2: Generate or use provided comparable titles
+        console.log('📚 Step 2: Generating comparables...');
         let comps;
         if (comps_mode === 'manual' && manual_comps) {
             const compsLines = manual_comps.split('\n').filter(line => line.trim());
@@ -105,11 +115,13 @@ Return JSON array: [{ title, author, reason }]`;
                             }
                         }
                     }
-                }
-            });
-        }
+                    }
+                    });
+                    }
+                    console.log(`✅ Step 2 complete: ${comps.comparables?.length || 0} comparables generated`);
 
-        // Step 3: Suggest literary agents using Perplexity for real-time agent research
+                    // Step 3: Suggest literary agents using Perplexity for real-time agent research
+                    console.log('🔎 Step 3: Researching literary agents...');
         const perplexityApiKey = Deno.env.get('PERPLEXITY_API_KEY');
         
         let agentResearch = '';
@@ -167,9 +179,15 @@ Return JSON array: [{ name, agency, reason }]`;
                 }
             }
         });
+        console.log(`✅ Step 3 complete: ${agents.agents?.length || 0} agents suggested`);
 
         // Step 4: Generate query letter with primary agent
-        const primaryAgent = agents.agents[0];
+        console.log('✍️ Step 4: Generating query letter...');
+        const primaryAgent = agents.agents?.[0] || { 
+            name: 'Literary Agent', 
+            agency: 'Literary Agency',
+            reason: 'No specific agent match found'
+        };
         const queryPrompt = `Write a professional query letter for this manuscript:
 
 Title: ${metadata.title}
@@ -197,6 +215,8 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
         const queryLetter = await base44.integrations.Core.InvokeLLM({
             prompt: queryPrompt
         });
+        console.log('✅ Step 4 complete: Query letter generated');
+        console.log('🎉 All steps complete - returning results');
 
         return Response.json({
             query_letter: queryLetter,
@@ -210,10 +230,12 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
         });
 
     } catch (error) {
-        console.error('Query letter generation error:', error);
+        console.error('❌ Query letter generation error:', error);
+        console.error('Error stack:', error.stack);
         return Response.json({ 
             error: 'Failed to generate query letter', 
-            details: error.message 
+            details: error.message,
+            step: 'Check logs for detailed error location'
         }, { status: 500 });
     }
 });
