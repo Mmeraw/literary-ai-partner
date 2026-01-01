@@ -43,7 +43,7 @@ export default function Home() {
                         </div>
 
                         <p className="mt-6 text-sm text-slate-500">
-                            Free Evaluation — See Proof in Resources
+                            Free evaluation—see proof in Resources
                         </p>
                     </motion.div>
                 </div>
