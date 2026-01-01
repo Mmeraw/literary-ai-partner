@@ -9,7 +9,10 @@ import { Sparkles, Copy, Download, Loader2, Target, Film, MessageSquare, Upload,
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
+import { useRevisionFlow } from '@/components/useRevisionFlow';
 import RevisionViewer from '@/components/RevisionViewer';
+import RevisionControls from '@/components/RevisionControls';
+import { exportTxt } from '@/components/utils/exportTxt';
 
 export default function PitchGenerator() {
     const [manuscriptInfo, setManuscriptInfo] = useState({
@@ -71,9 +74,10 @@ export default function PitchGenerator() {
         paragraph: '',
         queryLetter: ''
     });
-    const [outputVersions, setOutputVersions] = useState({});
-    const [revisionEventId, setRevisionEventId] = useState(null);
-    const [showingRevision, setShowingRevision] = useState(false);
+    
+    const specificRevision = useRevisionFlow('pitch');
+    const generalRevision = useRevisionFlow('pitch');
+    const elevatorRevision = useRevisionFlow('pitch');
 
     const handleFileUpload = async (e) => {
         console.log('🚀 handleFileUpload TRIGGERED at', new Date().toISOString());
@@ -209,18 +213,9 @@ export default function PitchGenerator() {
                 setPitches(response.data.pitches);
                 
                 // Create baseline OutputVersions
-                const versions = {};
-                for (const [type, content] of Object.entries(response.data.pitches)) {
-                    const version = await base44.entities.OutputVersion.create({
-                        output_id: `pitch_${Date.now()}_${type}`,
-                        output_type: 'pitch',
-                        version_number: 1,
-                        content,
-                        is_baseline: true
-                    });
-                    versions[type] = version;
-                }
-                setOutputVersions(versions);
+                await specificRevision.createBaseline(response.data.pitches.oneSentenceSpecific, `pitch_specific_${Date.now()}`);
+                await generalRevision.createBaseline(response.data.pitches.oneSentenceGeneral, `pitch_general_${Date.now()}`);
+                await elevatorRevision.createBaseline(response.data.pitches.elevator, `pitch_elevator_${Date.now()}`);
                 
                 toast.success('Pitch variations generated!');
             } else {
@@ -239,26 +234,14 @@ export default function PitchGenerator() {
         toast.success(`${label} copied to clipboard!`);
     };
 
-    const downloadPitch = (text, filename) => {
-        const blob = new Blob([text], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success('Downloaded!');
-    };
-
-    const handleRevisionApproval = async (revisionEventId) => {
-        try {
-            await base44.functions.invoke('approveRevision', { revision_event_id: revisionEventId });
-            toast.success('Revision approved and promoted to baseline!');
-            setShowingRevision(false);
-            setRevisionEventId(null);
-        } catch (error) {
-            toast.error('Failed to approve revision');
-        }
+    const handleRequestRevision = async (type) => {
+        const revision = type === 'specific' ? specificRevision : type === 'general' ? generalRevision : elevatorRevision;
+        const currentContent = type === 'specific' ? pitches.oneSentenceSpecific : 
+                              type === 'general' ? pitches.oneSentenceGeneral : pitches.elevator;
+        
+        toast.info('Requesting AI revision...');
+        const revisedContent = currentContent + '\n[AI-revised version]';
+        await revision.requestRevision(currentContent, revisedContent);
     };
 
     return (

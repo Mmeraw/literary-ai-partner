@@ -8,7 +8,10 @@ import { Mail, Download, Sparkles, Copy, Loader2, Upload, FileText, Zap } from '
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useRevisionFlow } from '@/components/useRevisionFlow';
 import RevisionViewer from '@/components/RevisionViewer';
+import RevisionControls from '@/components/RevisionControls';
+import { exportTxt } from '@/components/utils/exportTxt';
 
 export default function QueryLetter() {
     const [mode, setMode] = useState('auto'); // 'auto' or 'manual'
@@ -38,9 +41,8 @@ export default function QueryLetter() {
     const [queryLetter, setQueryLetter] = useState('');
     const [suggestedAgents, setSuggestedAgents] = useState([]);
     const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
-    const [outputVersionId, setOutputVersionId] = useState(null);
-    const [revisionEventId, setRevisionEventId] = useState(null);
-    const [showingRevision, setShowingRevision] = useState(false);
+    
+    const revision = useRevisionFlow('query');
 
     const handleAutoGenerate = async () => {
         const hasBio = autoFormData.bioMode === 'linkedin' ? autoFormData.linkedinUrl : 
@@ -116,14 +118,7 @@ export default function QueryLetter() {
             setSuggestedAgents(response.suggested_agents || []);
 
             // Create baseline OutputVersion
-            const version = await base44.entities.OutputVersion.create({
-                output_id: `query_${Date.now()}`,
-                output_type: 'query',
-                version_number: 1,
-                content: response.query_letter,
-                is_baseline: true
-            });
-            setOutputVersionId(version.id);
+            await revision.createBaseline(response.query_letter, `query_${Date.now()}`);
 
             toast.success('Query letter generated with agent recommendations!');
         } catch (error) {
@@ -181,15 +176,10 @@ export default function QueryLetter() {
         toast.info('PDF export coming soon!');
     };
 
-    const handleRevisionApproval = async (revisionEventId) => {
-        try {
-            await base44.functions.invoke('approveRevision', { revision_event_id: revisionEventId });
-            toast.success('Revision approved and promoted to baseline!');
-            setShowingRevision(false);
-            setRevisionEventId(null);
-        } catch (error) {
-            toast.error('Failed to approve revision');
-        }
+    const handleRequestRevision = async () => {
+        toast.info('Requesting AI revision...');
+        const revisedContent = queryLetter + '\n\n[AI-generated revision would appear here]';
+        await revision.requestRevision(queryLetter, revisedContent);
     };
 
     return (
@@ -621,27 +611,37 @@ export default function QueryLetter() {
                             <CardTitle>Your Query Letter</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                                    {showingRevision && revisionEventId ? (
+                                    {revision.showViewer && revision.revisionEventId ? (
                                         <RevisionViewer
-                                            revisionEventId={revisionEventId}
-                                            onApprove={handleRevisionApproval}
+                                            revisionEventId={revision.revisionEventId}
+                                            onApprove={revision.approveRevision}
                                         />
                                     ) : (
                                         <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 whitespace-pre-wrap font-serif">
                                             {queryLetter}
                                         </div>
                                     )}
-                            <div className="flex gap-2">
-                                <Button variant="outline" onClick={copyToClipboard}>
-                                    <Copy className="w-4 h-4 mr-2" />
-                                    Copy to Clipboard
-                                </Button>
-                                <Button variant="outline" onClick={downloadPDF}>
-                                    <Download className="w-4 h-4 mr-2" />
-                                    Export as PDF
-                                </Button>
-                            </div>
-                        </CardContent>
+                                    <div className="flex gap-2 flex-wrap">
+                                        <Button variant="outline" onClick={copyToClipboard}>
+                                            <Copy className="w-4 h-4 mr-2" />
+                                            Copy to Clipboard
+                                        </Button>
+                                        <Button variant="outline" onClick={() => exportTxt(queryLetter, 'query-letter.txt')}>
+                                            <Download className="w-4 h-4 mr-2" />
+                                            Export TXT
+                                        </Button>
+                                        <RevisionControls
+                                            hasBaseline={!!revision.baselineVersionId}
+                                            hasRevision={revision.hasRevision}
+                                            showingViewer={revision.showViewer}
+                                            processing={revision.processing}
+                                            onRequestRevision={handleRequestRevision}
+                                            onShowViewer={() => revision.setShowViewer(true)}
+                                            onApprove={revision.approveRevision}
+                                            onClose={revision.closeViewer}
+                                        />
+                                    </div>
+                                </CardContent>
                     </Card>
                 )}
 

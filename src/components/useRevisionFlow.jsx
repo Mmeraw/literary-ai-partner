@@ -117,6 +117,13 @@ export function useRevisionFlow(outputType) {
     const closeViewer = () => {
         setShowViewer(false);
     };
+    
+    /**
+     * Show viewer (for external control)
+     */
+    const setShowViewerState = (value) => {
+        setShowViewer(value);
+    };
 
     return {
         baselineVersionId,
@@ -128,6 +135,7 @@ export function useRevisionFlow(outputType) {
         requestRevision,
         approveRevision,
         closeViewer,
+        setShowViewer: setShowViewerState,
         hasRevision: !!revisionEventId
     };
 }

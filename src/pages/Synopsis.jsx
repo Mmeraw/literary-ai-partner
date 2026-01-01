@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRevisionFlow } from '@/components/useRevisionFlow';
 import RevisionViewer from '@/components/RevisionViewer';
 import RevisionControls from '@/components/RevisionControls';
-import { exportTxt } from '@/utils/exportTxt';
+import { exportTxt } from '@/components/utils/exportTxt';
 
 export default function Synopsis() {
     const [manuscriptInfo, setManuscriptInfo] = useState('');
@@ -367,26 +367,43 @@ export default function Synopsis() {
 
                                 {synopses.standard && (
                                     <div className="space-y-4">
-                                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                                            <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{synopses.standard}</p>
-                                            <div className="mt-3 flex items-center justify-between text-xs">
-                                                <span className="text-slate-500">{synopses.standard.split(' ').length} words</span>
-                                                {validation.standard && validation.standard.pitfalls_detected?.length > 0 && (
-                                                    <Badge variant="outline" className="text-amber-600">
-                                                        {validation.standard.pitfalls_detected.length} issues detected
-                                                    </Badge>
-                                                )}
+                                        {standardRevision.showViewer && standardRevision.revisionEventId ? (
+                                            <RevisionViewer
+                                                revisionEventId={standardRevision.revisionEventId}
+                                                onApprove={standardRevision.approveRevision}
+                                            />
+                                        ) : (
+                                            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                                                <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{synopses.standard}</p>
+                                                <div className="mt-3 flex items-center justify-between text-xs">
+                                                    <span className="text-slate-500">{synopses.standard.split(' ').length} words</span>
+                                                    {validation.standard && validation.standard.pitfalls_detected?.length > 0 && (
+                                                        <Badge variant="outline" className="text-amber-600">
+                                                            {validation.standard.pitfalls_detected.length} issues detected
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex gap-2">
+                                        )}
+                                        <div className="flex gap-2 flex-wrap">
                                             <Button variant="outline" onClick={() => copyToClipboard(synopses.standard)}>
                                                 <Copy className="w-4 h-4 mr-2" />
                                                 Copy
                                             </Button>
-                                            <Button variant="outline" onClick={() => downloadSynopsis(synopses.standard, 'standard-synopsis.txt')}>
+                                            <Button variant="outline" onClick={() => exportTxt(synopses.standard, 'standard-synopsis.txt')}>
                                                 <Download className="w-4 h-4 mr-2" />
                                                 Download
                                             </Button>
+                                            <RevisionControls
+                                                hasBaseline={!!standardRevision.baselineVersionId}
+                                                hasRevision={standardRevision.hasRevision}
+                                                showingViewer={standardRevision.showViewer}
+                                                processing={standardRevision.processing}
+                                                onRequestRevision={() => handleRequestRevision('standard')}
+                                                onShowViewer={() => standardRevision.setShowViewer(true)}
+                                                onApprove={standardRevision.approveRevision}
+                                                onClose={standardRevision.closeViewer}
+                                            />
                                         </div>
                                     </div>
                                 )}
@@ -424,26 +441,43 @@ export default function Synopsis() {
 
                                 {synopses.extended && (
                                     <div className="space-y-4">
-                                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                                            <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{synopses.extended}</p>
-                                            <div className="mt-3 flex items-center justify-between text-xs">
-                                                <span className="text-slate-500">{synopses.extended.split(' ').length} words</span>
-                                                {validation.extended && validation.extended.pitfalls_detected?.length > 0 && (
-                                                    <Badge variant="outline" className="text-amber-600">
-                                                        {validation.extended.pitfalls_detected.length} issues detected
-                                                    </Badge>
-                                                )}
+                                        {extendedRevision.showViewer && extendedRevision.revisionEventId ? (
+                                            <RevisionViewer
+                                                revisionEventId={extendedRevision.revisionEventId}
+                                                onApprove={extendedRevision.approveRevision}
+                                            />
+                                        ) : (
+                                            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                                                <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{synopses.extended}</p>
+                                                <div className="mt-3 flex items-center justify-between text-xs">
+                                                    <span className="text-slate-500">{synopses.extended.split(' ').length} words</span>
+                                                    {validation.extended && validation.extended.pitfalls_detected?.length > 0 && (
+                                                        <Badge variant="outline" className="text-amber-600">
+                                                            {validation.extended.pitfalls_detected.length} issues detected
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex gap-2">
+                                        )}
+                                        <div className="flex gap-2 flex-wrap">
                                             <Button variant="outline" onClick={() => copyToClipboard(synopses.extended)}>
                                                 <Copy className="w-4 h-4 mr-2" />
                                                 Copy
                                             </Button>
-                                            <Button variant="outline" onClick={() => downloadSynopsis(synopses.extended, 'extended-synopsis.txt')}>
+                                            <Button variant="outline" onClick={() => exportTxt(synopses.extended, 'extended-synopsis.txt')}>
                                                 <Download className="w-4 h-4 mr-2" />
                                                 Download
                                             </Button>
+                                            <RevisionControls
+                                                hasBaseline={!!extendedRevision.baselineVersionId}
+                                                hasRevision={extendedRevision.hasRevision}
+                                                showingViewer={extendedRevision.showViewer}
+                                                processing={extendedRevision.processing}
+                                                onRequestRevision={() => handleRequestRevision('extended')}
+                                                onShowViewer={() => extendedRevision.setShowViewer(true)}
+                                                onApprove={extendedRevision.approveRevision}
+                                                onClose={extendedRevision.closeViewer}
+                                            />
                                         </div>
                                     </div>
                                 )}

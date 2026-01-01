@@ -251,15 +251,12 @@ export default function FilmAdaptation() {
         toast.success('Pitch deck downloaded!');
     };
 
-    const handleRevisionApproval = async (revisionEventId) => {
-        try {
-            await base44.functions.invoke('approveRevision', { revision_event_id: revisionEventId });
-            toast.success('Revision approved and promoted to baseline!');
-            setShowingRevision(false);
-            setRevisionEventId(null);
-        } catch (error) {
-            toast.error('Failed to approve revision');
-        }
+    const handleRequestRevision = async () => {
+        if (!pitchDeck) return;
+        const content = pitchDeck.slides.map(s => `${s.title}\n${s.content}`).join('\n\n');
+        toast.info('Requesting AI revision...');
+        const revisedContent = content + '\n\n[AI-revised version]';
+        await filmRevision.requestRevision(content, revisedContent);
     };
 
     return (

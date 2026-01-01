@@ -13,7 +13,10 @@ import { useQuery } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
 import { Link } from 'react-router-dom';
 import { StarRating, CanonAccuracyCheck } from '@/components/FeedbackWidget';
+import { useRevisionFlow } from '@/components/useRevisionFlow';
 import RevisionViewer from '@/components/RevisionViewer';
+import RevisionControls from '@/components/RevisionControls';
+import { exportTxt } from '@/components/utils/exportTxt';
 
 export default function CompletePackage() {
     const [manuscriptInfo, setManuscriptInfo] = useState({
@@ -37,9 +40,8 @@ export default function CompletePackage() {
     const [loadingManuscript, setLoadingManuscript] = useState(false);
     const [loadingBio, setLoadingBio] = useState(false);
     const [includeCreatorMark, setIncludeCreatorMark] = useState(true);
-    const [outputVersions, setOutputVersions] = useState({});
-    const [revisionEventId, setRevisionEventId] = useState(null);
-    const [showingRevision, setShowingRevision] = useState(false);
+    
+    const packageRevision = useRevisionFlow('complete_submission');
 
     // Fetch user's manuscripts
     const { data: manuscripts = [], isLoading: manuscriptsLoading } = useQuery({
@@ -176,15 +178,8 @@ export default function CompletePackage() {
 
                 setPackageData(response.data.package);
                 
-                // Create baseline OutputVersion for query letter
-                const version = await base44.entities.OutputVersion.create({
-                    output_id: `package_${Date.now()}`,
-                    output_type: 'complete_submission',
-                    version_number: 1,
-                    content: pkg.queryLetter,
-                    is_baseline: true
-                });
-                setOutputVersions({ query: version });
+                // Create baseline OutputVersion
+                await packageRevision.createBaseline(pkg.queryLetter, `package_${Date.now()}`);
 
                 // Track behavioral signal - successful generation
                 try {
@@ -317,15 +312,11 @@ ${packageData.queryLetter}
         toast.success('Complete package downloaded!');
     };
 
-    const handleRevisionApproval = async (revisionEventId) => {
-        try {
-            await base44.functions.invoke('approveRevision', { revision_event_id: revisionEventId });
-            toast.success('Revision approved and promoted to baseline!');
-            setShowingRevision(false);
-            setRevisionEventId(null);
-        } catch (error) {
-            toast.error('Failed to approve revision');
-        }
+    const handleRequestRevision = async () => {
+        if (!packageData?.queryLetter) return;
+        toast.info('Requesting AI revision...');
+        const revisedContent = packageData.queryLetter + '\n\n[AI-revised version]';
+        await packageRevision.requestRevision(packageData.queryLetter, revisedContent);
     };
 
     return (
@@ -767,9 +758,26 @@ ${packageData.queryLetter}
                                                         <Copy className="w-4 h-4" />
                                                     </Button>
                                                 </div>
-                                                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 max-h-96 overflow-y-auto">
-                                                    <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{packageData.queryLetter}</p>
-                                                </div>
+                                                {packageRevision.showViewer && packageRevision.revisionEventId ? (
+                                                    <RevisionViewer
+                                                        revisionEventId={packageRevision.revisionEventId}
+                                                        onApprove={packageRevision.approveRevision}
+                                                    />
+                                                ) : (
+                                                    <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 max-h-96 overflow-y-auto">
+                                                        <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{packageData.queryLetter}</p>
+                                                    </div>
+                                                )}
+                                                <RevisionControls
+                                                    hasBaseline={!!packageRevision.baselineVersionId}
+                                                    hasRevision={packageRevision.hasRevision}
+                                                    showingViewer={packageRevision.showViewer}
+                                                    processing={packageRevision.processing}
+                                                    onRequestRevision={handleRequestRevision}
+                                                    onShowViewer={() => packageRevision.setShowViewer(true)}
+                                                    onApprove={packageRevision.approveRevision}
+                                                    onClose={packageRevision.closeViewer}
+                                                />
                                             </div>
                                         </TabsContent>
                                         </Tabs>

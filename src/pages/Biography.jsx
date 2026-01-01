@@ -7,6 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Upload, Sparkles, Copy, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
+import { useRevisionFlow } from '@/components/useRevisionFlow';
+import RevisionViewer from '@/components/RevisionViewer';
+import RevisionControls from '@/components/RevisionControls';
+import { exportTxt } from '@/components/utils/exportTxt';
 
 export default function Biography() {
     const [inputText, setInputText] = useState('');
@@ -15,6 +19,9 @@ export default function Biography() {
         query: '',
         long: ''
     });
+    
+    const queryRevision = useRevisionFlow('biography');
+    const longRevision = useRevisionFlow('biography');
 
     const handleFileUpload = async (e) => {
         const file = e.target.files?.[0];
@@ -90,6 +97,11 @@ Generate both bios now.`,
                 query: response.query_bio,
                 long: response.long_bio
             });
+            
+            // Create baseline OutputVersions
+            await queryRevision.createBaseline(response.query_bio, `bio_query_${Date.now()}`);
+            await longRevision.createBaseline(response.long_bio, `bio_long_${Date.now()}`);
+            
             toast.success('Biographies generated!');
         } catch (error) {
             console.error('Bio generation error:', error);
@@ -115,15 +127,14 @@ Generate both bios now.`,
         toast.success('Downloaded!');
     };
 
-    const handleRevisionApproval = async (revisionEventId) => {
-        try {
-            await base44.functions.invoke('approveRevision', { revision_event_id: revisionEventId });
-            toast.success('Revision approved and promoted to baseline!');
-            setShowingRevision(false);
-            setRevisionEventId(null);
-        } catch (error) {
-            toast.error('Failed to approve revision');
-        }
+    const handleRequestRevision = async (type) => {
+        const revision = type === 'query' ? queryRevision : longRevision;
+        const currentContent = bios[type];
+        
+        toast.info('Requesting AI revision...');
+        const revisedContent = currentContent + '\n\n[AI-generated revision would appear here]';
+        
+        await revision.requestRevision(currentContent, revisedContent);
     };
 
     return (
@@ -220,21 +231,38 @@ Generate both bios now.`,
                                     <p className="text-sm text-slate-600">Perfect for query letters and agent submissions</p>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-                                    <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                                        <p className="text-slate-800 leading-relaxed">{bios.query}</p>
-                                        <div className="mt-3 text-xs text-slate-500">
-                                            {bios.query.split(' ').length} words
+                                    {queryRevision.showViewer && queryRevision.revisionEventId ? (
+                                        <RevisionViewer
+                                            revisionEventId={queryRevision.revisionEventId}
+                                            onApprove={queryRevision.approveRevision}
+                                        />
+                                    ) : (
+                                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                                            <p className="text-slate-800 leading-relaxed">{bios.query}</p>
+                                            <div className="mt-3 text-xs text-slate-500">
+                                                {bios.query.split(' ').length} words
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="flex gap-2">
+                                    )}
+                                    <div className="flex gap-2 flex-wrap">
                                         <Button variant="outline" onClick={() => copyToClipboard(bios.query)}>
                                             <Copy className="w-4 h-4 mr-2" />
                                             Copy
                                         </Button>
-                                        <Button variant="outline" onClick={() => downloadBio(bios.query, 'query-bio.txt')}>
+                                        <Button variant="outline" onClick={() => exportTxt(bios.query, 'query-bio.txt')}>
                                             <Download className="w-4 h-4 mr-2" />
                                             Download
                                         </Button>
+                                        <RevisionControls
+                                            hasBaseline={!!queryRevision.baselineVersionId}
+                                            hasRevision={queryRevision.hasRevision}
+                                            showingViewer={queryRevision.showViewer}
+                                            processing={queryRevision.processing}
+                                            onRequestRevision={() => handleRequestRevision('query')}
+                                            onShowViewer={() => queryRevision.setShowViewer(true)}
+                                            onApprove={queryRevision.approveRevision}
+                                            onClose={queryRevision.closeViewer}
+                                        />
                                     </div>
                                 </CardContent>
                             </Card>
@@ -247,21 +275,38 @@ Generate both bios now.`,
                                     <p className="text-sm text-slate-600">For author websites, book marketing, and media kits</p>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-                                    <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                                        <p className="text-slate-800 leading-relaxed">{bios.long}</p>
-                                        <div className="mt-3 text-xs text-slate-500">
-                                            {bios.long.split(' ').length} words
+                                    {longRevision.showViewer && longRevision.revisionEventId ? (
+                                        <RevisionViewer
+                                            revisionEventId={longRevision.revisionEventId}
+                                            onApprove={longRevision.approveRevision}
+                                        />
+                                    ) : (
+                                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                                            <p className="text-slate-800 leading-relaxed">{bios.long}</p>
+                                            <div className="mt-3 text-xs text-slate-500">
+                                                {bios.long.split(' ').length} words
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="flex gap-2">
+                                    )}
+                                    <div className="flex gap-2 flex-wrap">
                                         <Button variant="outline" onClick={() => copyToClipboard(bios.long)}>
                                             <Copy className="w-4 h-4 mr-2" />
                                             Copy
                                         </Button>
-                                        <Button variant="outline" onClick={() => downloadBio(bios.long, 'long-bio.txt')}>
+                                        <Button variant="outline" onClick={() => exportTxt(bios.long, 'long-bio.txt')}>
                                             <Download className="w-4 h-4 mr-2" />
                                             Download
                                         </Button>
+                                        <RevisionControls
+                                            hasBaseline={!!longRevision.baselineVersionId}
+                                            hasRevision={longRevision.hasRevision}
+                                            showingViewer={longRevision.showViewer}
+                                            processing={longRevision.processing}
+                                            onRequestRevision={() => handleRequestRevision('long')}
+                                            onShowViewer={() => longRevision.setShowViewer(true)}
+                                            onApprove={longRevision.approveRevision}
+                                            onClose={longRevision.closeViewer}
+                                        />
                                     </div>
                                 </CardContent>
                             </Card>
