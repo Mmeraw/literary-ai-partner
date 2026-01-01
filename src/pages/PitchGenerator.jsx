@@ -511,7 +511,7 @@ export default function PitchGenerator() {
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            onClick={() => downloadPitch(pitches.oneSentenceSpecific, 'pitch-specific.txt')}
+                                                            onClick={() => exportTxt(pitches.oneSentenceSpecific, 'pitch-specific.txt')}
                                                         >
                                                             <Download className="w-4 h-4" />
                                                         </Button>
@@ -561,7 +561,7 @@ export default function PitchGenerator() {
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            onClick={() => downloadPitch(pitches.oneSentenceGeneral, 'pitch-general.txt')}
+                                                            onClick={() => exportTxt(pitches.oneSentenceGeneral, 'pitch-general.txt')}
                                                         >
                                                             <Download className="w-4 h-4" />
                                                         </Button>
