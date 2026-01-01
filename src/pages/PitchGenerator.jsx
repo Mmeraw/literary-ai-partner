@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sparkles, Copy, Download, Loader2, Target, Film, MessageSquare, Upload } from 'lucide-react';
+import { Sparkles, Copy, Download, Loader2, Target, Film, MessageSquare, Upload, Search, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
+import { useQuery } from '@tanstack/react-query';
 
 export default function PitchGenerator() {
     const [manuscriptInfo, setManuscriptInfo] = useState({
@@ -23,6 +24,41 @@ export default function PitchGenerator() {
     });
 
     const [uploadingFile, setUploadingFile] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const { data: manuscripts = [] } = useQuery({
+        queryKey: ['user-manuscripts'],
+        queryFn: async () => {
+            const user = await base44.auth.me();
+            return await base44.entities.Manuscript.filter({ created_by: user.email });
+        }
+    });
+
+    const filteredManuscripts = manuscripts.filter(m => 
+        m.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const loadFromManuscript = async (manuscript) => {
+        setUploadingFile(true);
+        try {
+            toast.loading('Extracting fields from manuscript...', { id: 'load' });
+            
+            const textSample = manuscript.full_text.substring(0, 50000);
+            const response = await base44.functions.invoke('extractPitchFields', { 
+                file_url: 'data:text/plain;base64,' + btoa(textSample)
+            });
+            
+            if (response.success) {
+                setManuscriptInfo(response.fields);
+                toast.success('Fields loaded from manuscript!', { id: 'load' });
+            }
+        } catch (error) {
+            console.error('Load error:', error);
+            toast.error('Failed to load manuscript', { id: 'load' });
+        } finally {
+            setUploadingFile(false);
+        }
+    };
 
     const [generating, setGenerating] = useState(false);
     const [pitches, setPitches] = useState({
@@ -180,6 +216,49 @@ export default function PitchGenerator() {
                                         </p>
                                     </div>
                                 </div>
+
+                                <div className="text-center text-xs text-slate-500 font-medium">
+                                    OR LOAD FROM PREVIOUS WORK
+                                </div>
+
+                                {/* Previous Works Section */}
+                                {manuscripts.length > 0 && (
+                                    <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <FileText className="w-4 h-4 text-slate-600" />
+                                            <span className="text-sm font-medium text-slate-700">
+                                                Your Previous Works ({manuscripts.length})
+                                            </span>
+                                        </div>
+                                        <div className="relative mb-2">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                            <Input
+                                                placeholder="Search by title..."
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                className="pl-9 bg-white"
+                                            />
+                                        </div>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                                            {filteredManuscripts.map((manuscript) => (
+                                                <button
+                                                    key={manuscript.id}
+                                                    onClick={() => loadFromManuscript(manuscript)}
+                                                    disabled={uploadingFile}
+                                                    className="w-full p-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-indigo-300 transition-all text-left disabled:opacity-50"
+                                                >
+                                                    <div className="font-medium text-sm text-slate-900">{manuscript.title}</div>
+                                                    <div className="text-xs text-slate-500 mt-1">
+                                                        {manuscript.word_count?.toLocaleString()} words
+                                                        {manuscript.revisiongrade_overall && (
+                                                            <span className="ml-2">• Score: {manuscript.revisiongrade_overall}/10</span>
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="text-center text-xs text-slate-500 font-medium">
                                     OR FILL IN MANUALLY
