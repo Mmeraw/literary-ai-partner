@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
 const GENRES = [
+    { value: 'auto', label: '✨ Let RevisionGrade Choose (Recommended)' },
     { value: 'thriller', label: 'Thriller' },
     { value: 'mystery', label: 'Mystery' },
     { value: 'literary_fiction', label: 'Literary Fiction' },
@@ -23,7 +24,7 @@ const GENRES = [
 ];
 
 export default function Comparables() {
-    const [selectedGenre, setSelectedGenre] = useState('');
+    const [selectedGenre, setSelectedGenre] = useState('auto');
     const [generating, setGenerating] = useState(false);
 
     // Fetch user's manuscripts

@@ -229,13 +229,28 @@ export default function QueryLetter() {
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-sm font-medium text-slate-700 mb-2 block">
-                                        Genre (Optional - we'll detect if blank)
+                                        Genre (Optional)
                                     </label>
-                                    <Input
-                                        placeholder="e.g., Literary Fiction, Thriller"
-                                        value={autoFormData.genre}
-                                        onChange={(e) => setAutoFormData({...autoFormData, genre: e.target.value})}
-                                    />
+                                    <Select 
+                                        value={autoFormData.genre} 
+                                        onValueChange={(value) => setAutoFormData({...autoFormData, genre: value})}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="✨ Let RevisionGrade Choose (Recommended)" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="auto">✨ Let RevisionGrade Choose</SelectItem>
+                                            <SelectItem value="literary_fiction">Literary Fiction</SelectItem>
+                                            <SelectItem value="thriller">Thriller</SelectItem>
+                                            <SelectItem value="mystery">Mystery</SelectItem>
+                                            <SelectItem value="romance">Romance</SelectItem>
+                                            <SelectItem value="fantasy">Fantasy</SelectItem>
+                                            <SelectItem value="sci_fi">Science Fiction</SelectItem>
+                                            <SelectItem value="historical">Historical Fiction</SelectItem>
+                                            <SelectItem value="horror">Horror</SelectItem>
+                                            <SelectItem value="ya">Young Adult</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-slate-700 mb-2 block">

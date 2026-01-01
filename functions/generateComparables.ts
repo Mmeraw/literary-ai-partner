@@ -23,6 +23,24 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Manuscript not found' }, { status: 404 });
         }
 
+        // Auto-detect genre if requested
+        let finalGenre = genre;
+        if (genre === 'auto') {
+            const genreDetectionPrompt = `Based on this manuscript analysis, identify the primary genre:
+
+Title: "${manuscript.title}"
+Word Count: ${manuscript.word_count}
+Spine Evaluation: ${JSON.stringify(manuscript.spine_evaluation, null, 2)}
+
+Return only the genre name (e.g., "thriller", "literary_fiction", "romance", "mystery", "fantasy", "sci_fi", "historical", "horror", "ya").`;
+
+            const detectedGenre = await base44.integrations.Core.InvokeLLM({
+                prompt: genreDetectionPrompt
+            });
+            
+            finalGenre = detectedGenre.toLowerCase().replace(/\s+/g, '_');
+        }
+
         // Fetch chapters for detailed analysis
         const chapters = await base44.entities.Chapter.filter({ manuscript_id: manuscriptId });
 
@@ -39,7 +57,7 @@ Deno.serve(async (req) => {
         const comparablesPrompt = `You are a literary agent analyst. Analyze this manuscript against genre benchmarks.
 
 Manuscript: "${manuscript.title}"
-Genre: ${genre}
+Genre: ${finalGenre}
 Word Count: ${manuscript.word_count}
 Overall RevisionGrade Score: ${manuscript.revisiongrade_overall || manuscript.spine_score || 'N/A'}
 
@@ -118,7 +136,7 @@ Return structured JSON.`;
         const report = await base44.entities.ComparativeReport.create({
             manuscript_id: manuscriptId,
             manuscript_title: manuscript.title,
-            genre: genre,
+            genre: finalGenre,
             comparison_data: comparablesAnalysis,
             summary_bullets: [
                 `Overall RevisionGrade: ${manuscript.revisiongrade_overall || manuscript.spine_score || 'N/A'}/10`,
