@@ -15,6 +15,7 @@ import { exportTxt } from '@/components/utils/exportTxt';
 export default function Biography() {
     const [inputText, setInputText] = useState('');
     const [generating, setGenerating] = useState(false);
+    const [uploadingFile, setUploadingFile] = useState(false);
     const [bios, setBios] = useState({
         query: '',
         long: ''
@@ -27,6 +28,7 @@ export default function Biography() {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        setUploadingFile(true);
         try {
             // Upload file
             const { file_url } = await base44.integrations.Core.UploadFile({ file });
@@ -51,6 +53,8 @@ export default function Biography() {
         } catch (error) {
             console.error('File upload error:', error);
             toast.error('Failed to upload file');
+        } finally {
+            setUploadingFile(false);
         }
     };
 
@@ -184,8 +188,8 @@ Generate both bios now.`,
                                     style={{ display: 'none' }}
                                     id="bio-file-upload"
                                 />
-                                <label htmlFor="bio-file-upload" style={{ cursor: 'pointer' }}>
-                                    <Button variant="outline" type="button" disabled={uploadingFile}>
+                                <label htmlFor="bio-file-upload" style={{ cursor: uploadingFile ? 'not-allowed' : 'pointer' }}>
+                                    <Button variant="outline" type="button">
                                         <Upload className="w-4 h-4 mr-2" />
                                         {uploadingFile ? 'Uploading...' : 'Upload File'}
                                     </Button>
