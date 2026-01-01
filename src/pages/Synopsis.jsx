@@ -11,6 +11,14 @@ import { base44 } from '@/api/base44Client';
 export default function Synopsis() {
     const [manuscriptInfo, setManuscriptInfo] = useState('');
     const [generating, setGenerating] = useState(false);
+    
+    const { data: manuscripts = [] } = useQuery({
+        queryKey: ['user-manuscripts'],
+        queryFn: async () => {
+            const user = await base44.auth.me();
+            return await base44.entities.Manuscript.filter({ created_by: user.email });
+        }
+    });
     const [synopses, setSynopses] = useState({
         query: '',
         standard: '',

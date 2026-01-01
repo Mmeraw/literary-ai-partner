@@ -166,12 +166,13 @@ export default function FilmAdaptation() {
 
         setGenerating(true);
         try {
-            const response = await base44.functions.invoke('generateFilmPitchDeck', {
-                ...manuscriptData
-            });
+            console.log('📤 Calling generateFilmPitchDeck...');
+            const response = await base44.functions.invoke('generateFilmPitchDeck', manuscriptData);
+            console.log('📦 Response:', response);
+            const result = response.data || response;
 
-            if (response.data.success) {
-                setPitchDeck(response.data.pitchDeck);
+            if (result.success) {
+                setPitchDeck(result.pitchDeck);
                 toast.success('Film pitch deck generated!');
                 setShowUploadForm(false);
 
@@ -181,17 +182,29 @@ export default function FilmAdaptation() {
                         page: 'FilmAdaptation',
                         path: '/film-adaptation/generated',
                         event_type: 'pitch_deck_generated',
-                        metadata: { viability_score: response.data.pitchDeck.screenViabilityScore }
+                        metadata: { viability_score: result.pitchDeck.screenViabilityScore }
                     });
                 } catch (e) {
                     console.error('Analytics error:', e);
                 }
             } else {
-                toast.error(response.data.error || 'Failed to generate pitch deck');
+                toast.error(
+                    <div>
+                        <div className="font-semibold">Generation failed</div>
+                        <div className="text-xs mt-1">{result.error || result.details || 'Unknown error'}</div>
+                    </div>,
+                    { duration: 5000 }
+                );
             }
         } catch (error) {
-            console.error('Generation error:', error);
-            toast.error('Failed to generate pitch deck');
+            console.error('💥 Generation error:', error);
+            toast.error(
+                <div>
+                    <div className="font-semibold">Generation failed</div>
+                    <div className="text-xs mt-1">{error.message}</div>
+                </div>,
+                { duration: 5000 }
+            );
         } finally {
             setGenerating(false);
         }
