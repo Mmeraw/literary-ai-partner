@@ -279,30 +279,30 @@ export default function PitchGenerator() {
                                         <p className="text-xs text-indigo-700 mb-3">
                                             Upload your full manuscript/screenplay to populate all fields automatically
                                         </p>
-                                        <input
-                                            type="file"
-                                            accept=".pdf,.doc,.docx,.txt"
-                                            onChange={handleFileUpload}
-                                            className="hidden"
-                                            id="manuscript-upload"
+                                        <Button
+                                            variant="outline"
                                             disabled={uploadingFile}
-                                        />
-                                        <label 
-                                            htmlFor="manuscript-upload" 
-                                            className="cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 transition-colors text-sm font-medium disabled:opacity-50"
+                                            onClick={() => document.getElementById('manuscript-upload-input')?.click()}
                                         >
                                             {uploadingFile ? (
                                                 <>
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
                                                     Analyzing...
                                                 </>
                                             ) : (
                                                 <>
-                                                    <Upload className="w-4 h-4" />
+                                                    <Upload className="w-4 h-4 mr-2" />
                                                     Choose File
                                                 </>
                                             )}
-                                        </label>
+                                        </Button>
+                                        <input
+                                            type="file"
+                                            accept=".txt,.pdf,.doc,.docx"
+                                            onChange={handleFileUpload}
+                                            className="hidden"
+                                            id="manuscript-upload-input"
+                                        />
                                         <p className="text-xs text-slate-500 mt-2">
                                             PDF, DOC, DOCX, or TXT • Max 25MB
                                         </p>
