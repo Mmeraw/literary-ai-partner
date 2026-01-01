@@ -288,7 +288,12 @@ export default function PitchGenerator() {
                                         <Button 
                                             type="button"
                                             variant="outline"
-                                            onClick={() => fileInputRef.current?.click()}
+                                            onClick={() => {
+                                                console.log('🔴 BUTTON CLICKED at', new Date().toISOString());
+                                                console.log('🔴 fileInputRef.current:', fileInputRef.current);
+                                                console.log('🔴 uploadingFile:', uploadingFile);
+                                                fileInputRef.current?.click();
+                                            }}
                                             disabled={uploadingFile}
                                         >
                                             {uploadingFile ? (
