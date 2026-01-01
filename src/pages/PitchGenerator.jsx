@@ -281,7 +281,7 @@ export default function PitchGenerator() {
                                         <input
                                             ref={fileInputRef}
                                             type="file"
-                                            accept=".txt,.pdf,.doc,.docx"
+                                            accept=".txt,.pdf,.doc,.docx,.rtf"
                                             onChange={handleFileUpload}
                                             style={{ display: 'none' }}
                                         />
@@ -304,7 +304,7 @@ export default function PitchGenerator() {
                                             )}
                                         </button>
                                         <p className="text-xs text-slate-500 mt-2">
-                                            PDF, DOC, DOCX, or TXT • Max 25MB
+                                            PDF, DOC, DOCX, RTF, or TXT • Max 25MB
                                         </p>
                                     </div>
                                 </div>

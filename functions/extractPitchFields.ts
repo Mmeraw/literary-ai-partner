@@ -19,18 +19,25 @@ Deno.serve(async (req) => {
         console.log('File URL:', file_url);
         
         // Detect file type from URL
-        const isDocx = file_url.toLowerCase().endsWith('.docx') || file_url.toLowerCase().endsWith('.doc');
+        const fileName = file_url.toLowerCase();
+        const isWordDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc');
+        const isTxt = fileName.endsWith('.txt');
+        const isPdf = fileName.endsWith('.pdf');
+        const isRtf = fileName.endsWith('.rtf');
         let fileText;
         
-        if (isDocx) {
-            console.log('🔧 DOCX file detected - using import function...');
+        // Handle Word documents (.doc, .docx)
+        if (isWordDoc) {
+            console.log('🔧 Word document detected - using importDocx function...');
             const importResult = await base44.functions.invoke('importDocx', { file_url });
             if (!importResult.data.success) {
-                throw new Error(`DOCX import failed: ${importResult.data.error}`);
+                throw new Error(`Word document import failed: ${importResult.data.error}`);
             }
             fileText = importResult.data.text;
-            console.log(`✅ DOCX imported successfully: ${fileText.length} characters`);
-        } else {
+            console.log(`✅ Word document imported successfully: ${fileText.length} characters`);
+        } 
+        // Handle plain text files directly
+        else if (isTxt) {
             console.log('📄 Plain text file - fetching directly...');
             const fileResponse = await fetch(file_url);
             console.log('File response status:', fileResponse.status);
@@ -41,7 +48,31 @@ Deno.serve(async (req) => {
             
             const fileBuffer = await fileResponse.arrayBuffer();
             fileText = new TextDecoder().decode(fileBuffer);
-            console.log(`✅ File fetched successfully: ${fileText.length} characters`);
+            console.log(`✅ Text file fetched successfully: ${fileText.length} characters`);
+        }
+        // Handle PDF and RTF via ExtractDataFromUploadedFile
+        else if (isPdf || isRtf) {
+            console.log(`📄 ${isPdf ? 'PDF' : 'RTF'} file detected - using ExtractDataFromUploadedFile...`);
+            const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
+                file_url,
+                json_schema: {
+                    type: "object",
+                    properties: {
+                        text: { type: "string" }
+                    }
+                }
+            });
+            
+            if (extracted.status === 'success') {
+                fileText = extracted.output?.text || '';
+                console.log(`✅ File extracted successfully: ${fileText.length} characters`);
+            } else {
+                throw new Error(`File extraction failed: ${extracted.details || 'Unknown error'}`);
+            }
+        }
+        // Unsupported format
+        else {
+            throw new Error(`Unsupported file format. Please upload DOC, DOCX, RTF, TXT, or PDF files.`);
         }
 
         // Use first 50k characters for analysis (or full text if shorter)
