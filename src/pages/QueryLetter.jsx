@@ -76,6 +76,8 @@ export default function QueryLetter() {
             }
             
             // Generate complete query package
+            console.log('🚀 Starting query letter generation...');
+            
             const response = await base44.functions.invoke('generateQueryLetterPackage', {
                 file_url,
                 bio: bioText,
@@ -88,9 +90,12 @@ export default function QueryLetter() {
                 genre: autoFormData.genre
             });
 
-            console.log('Full response object:', response);
-            console.log('Query letter field:', response.query_letter);
-            console.log('Suggested agents field:', response.suggested_agents);
+            console.log('📦 QueryLetter raw result:', response);
+            console.log('📦 Response type:', typeof response);
+            console.log('📦 Response keys:', Object.keys(response || {}));
+            console.log('📦 Query letter field:', response?.query_letter);
+            console.log('📦 Suggested agents field:', response?.suggested_agents);
+            console.log('📦 Full JSON:', JSON.stringify(response, null, 2));
 
             // Validate response structure
             if (!response || typeof response !== 'object') {
