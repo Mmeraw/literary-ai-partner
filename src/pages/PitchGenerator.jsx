@@ -251,8 +251,12 @@ export default function PitchGenerator() {
             console.error('❌ [PitchGenerator] Exception thrown:', {
                 name: error?.name,
                 message: error?.message,
-                response: error?.response?.data
+                status: error?.response?.status,
+                statusText: error?.response?.statusText
             });
+            console.error('❌ [PitchGenerator] Server error body:', error?.response?.data);
+            console.error('❌ [PitchGenerator] Full error object:', error);
+            
             const errorMsg = error.message || error.response?.data?.error || 'Failed to generate pitches';
             toast.error(`Error: ${errorMsg}`, { id: 'generate' });
         } finally {
