@@ -23,7 +23,11 @@ export default function Dashboard() {
 
     const { data: manuscripts = [], isLoading: loadingManuscripts } = useQuery({
         queryKey: ['userManuscripts'],
-        queryFn: () => base44.entities.Manuscript.list('-created_date', 100)
+        queryFn: async () => {
+            const currentUser = await base44.auth.me();
+            return base44.entities.Manuscript.filter({ created_by: currentUser.email }, '-created_date', 100);
+        },
+        enabled: !!user
     });
 
     const { data: revisionSessions = [], isLoading: loadingSessions } = useQuery({
