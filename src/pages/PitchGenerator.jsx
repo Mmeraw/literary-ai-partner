@@ -178,25 +178,40 @@ export default function PitchGenerator() {
 
         setGenerating(true);
         try {
+            toast.loading('Generating pitch variations with Voice Gate validation...', { id: 'generate' });
+            
+            console.log('Invoking generateQueryPitches with:', { 
+                title: manuscriptInfo.title, 
+                logline: manuscriptInfo.logline?.substring(0, 50),
+                voiceIntensity 
+            });
+            
             const response = await base44.functions.invoke('generateQueryPitches', {
                 manuscriptInfo,
                 voiceIntensity
             });
 
-            if (response.data.success) {
-                setPitches(response.data.pitches);
+            console.log('Generation response:', response);
+            
+            const result = response.data || response;
+
+            if (result.success) {
+                setPitches(result.pitches);
                 
-                await specificRevision.createBaseline(response.data.pitches.oneSentenceSpecific, `pitch_specific_${Date.now()}`);
-                await generalRevision.createBaseline(response.data.pitches.oneSentenceGeneral, `pitch_general_${Date.now()}`);
-                await elevatorRevision.createBaseline(response.data.pitches.elevator, `pitch_elevator_${Date.now()}`);
+                await specificRevision.createBaseline(result.pitches.oneSentenceSpecific, `pitch_specific_${Date.now()}`);
+                await generalRevision.createBaseline(result.pitches.oneSentenceGeneral, `pitch_general_${Date.now()}`);
+                await elevatorRevision.createBaseline(result.pitches.elevator, `pitch_elevator_${Date.now()}`);
                 
-                toast.success('Pitch variations generated!');
+                toast.success('Pitch variations generated!', { id: 'generate' });
             } else {
-                toast.error(response.data.error || 'Failed to generate pitches');
+                const errorMsg = result.error || result.details || 'Failed to generate pitches';
+                console.error('Generation failed:', errorMsg, result);
+                toast.error(`Generation failed: ${errorMsg}`, { id: 'generate' });
             }
         } catch (error) {
             console.error('Pitch generation error:', error);
-            toast.error('Failed to generate pitches');
+            const errorMsg = error.message || error.response?.data?.error || 'Failed to generate pitches';
+            toast.error(`Error: ${errorMsg}`, { id: 'generate' });
         } finally {
             setGenerating(false);
         }
