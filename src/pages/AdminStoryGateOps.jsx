@@ -245,10 +245,10 @@ export default function AdminStoryGateOps() {
                     </CardContent>
                 </Card>
 
-                {/* Demand to Base44 */}
+                {/* Platform Requirements */}
                 <Card className="mt-8 border-2 border-amber-200 bg-amber-50">
                     <CardHeader>
-                        <CardTitle className="text-amber-900">What to Demand from Base44</CardTitle>
+                        <CardTitle className="text-amber-900">Platform Requirements for RevisionGrade</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4 text-sm text-slate-700">
                         <div>
