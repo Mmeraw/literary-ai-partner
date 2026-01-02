@@ -141,7 +141,7 @@ export default function PitchGenerator() {
 
         setProcessingText(true);
         try {
-            toast.loading('Analyzing pasted text...', { id: 'text' });
+            toast.loading('Extracting fields with thematic substrate (may take 10-15 seconds)...', { id: 'text' });
             
             const response = await base44.functions.invoke('extractPitchFields', {
                 raw_text: manualText,
@@ -149,16 +149,22 @@ export default function PitchGenerator() {
             });
             
             const result = response.data || response;
+            
+            console.log('Extraction result:', result);
+            
             if (result.success && result.fields) {
                 setManuscriptInfo(result.fields);
                 toast.success('Fields extracted from text!', { id: 'text' });
                 setManualText('');
             } else {
-                toast.error(result.error || 'Failed to extract fields', { id: 'text' });
+                const errorMsg = result.error || 'Failed to extract fields';
+                console.error('Extraction failed:', errorMsg, result);
+                toast.error(errorMsg, { id: 'text' });
             }
         } catch (error) {
             console.error('Text extraction error:', error);
-            toast.error('Failed to analyze text', { id: 'text' });
+            const errorMsg = error.message || error.response?.data?.error || 'Failed to analyze text';
+            toast.error(errorMsg, { id: 'text' });
         } finally {
             setProcessingText(false);
         }
