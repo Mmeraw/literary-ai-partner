@@ -30,6 +30,8 @@ export default function PitchGenerator() {
     const [uploadingFile, setUploadingFile] = useState(false);
     const [uploadedFileName, setUploadedFileName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [manualText, setManualText] = useState('');
+    const [processingText, setProcessingText] = useState(false);
 
     const { data: manuscripts = [] } = useQuery({
         queryKey: ['user-manuscripts'],
@@ -125,6 +127,36 @@ export default function PitchGenerator() {
         } finally {
             setUploadingFile(false);
             e.target.value = '';
+        }
+    };
+
+    const handleManualTextExtract = async () => {
+        if (!manualText || manualText.trim().length < 100) {
+            toast.error('Please paste at least 100 characters of text');
+            return;
+        }
+
+        setProcessingText(true);
+        try {
+            toast.loading('Analyzing pasted text...', { id: 'text' });
+            
+            const response = await base44.functions.invoke('extractPitchFields', { 
+                file_url: 'data:text/plain;base64,' + btoa(manualText)
+            });
+            
+            const result = response.data || response;
+            if (result.success && result.fields) {
+                setManuscriptInfo(result.fields);
+                toast.success('Fields extracted from text!', { id: 'text' });
+                setManualText('');
+            } else {
+                toast.error(result.error || 'Failed to extract fields', { id: 'text' });
+            }
+        } catch (error) {
+            console.error('Text extraction error:', error);
+            toast.error('Failed to analyze text', { id: 'text' });
+        } finally {
+            setProcessingText(false);
         }
     };
 
@@ -245,6 +277,40 @@ export default function PitchGenerator() {
                                             PDF, DOC, DOCX, RTF, or TXT • Max 25MB
                                         </p>
                                     </div>
+                                </div>
+
+                                <div className="text-center text-xs text-slate-500 font-medium">
+                                    OR PASTE TEXT DIRECTLY
+                                </div>
+
+                                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                        Paste Manuscript Text
+                                    </label>
+                                    <Textarea
+                                        value={manualText}
+                                        onChange={(e) => setManualText(e.target.value)}
+                                        placeholder="Paste your manuscript text here (at least 100 characters) and we'll extract the fields automatically..."
+                                        className="h-32 bg-white"
+                                    />
+                                    <Button
+                                        onClick={handleManualTextExtract}
+                                        disabled={processingText || !manualText || manualText.trim().length < 100}
+                                        className="w-full mt-2"
+                                        variant="outline"
+                                    >
+                                        {processingText ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                Analyzing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Sparkles className="w-4 h-4 mr-2" />
+                                                Extract Fields from Text
+                                            </>
+                                        )}
+                                    </Button>
                                 </div>
 
                                 <div className="text-center text-xs text-slate-500 font-medium">
