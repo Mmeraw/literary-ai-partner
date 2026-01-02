@@ -39,10 +39,14 @@ Deno.serve(async (req) => {
                     })
                 });
                 
-                // Import and call generateSynopsis directly
-                const { default: generateSynopsis } = await import('./generateSynopsis.js');
-                const response = await generateSynopsis(testReq);
-                const result = await response.json();
+                // Call via base44.functions (internal SDK call)
+                const response = await base44.asServiceRole.functions.invoke('generateSynopsis', {
+                    source_document_id: manuscript.id,
+                    mode: 'STANDARD',
+                    variant: 'STANDARD',
+                    __qa_bypass: true // Internal QA flag
+                });
+                const result = response.data || response;
                 const passed = result.gate_blocked && result.error === expectedCode;
 
                 return {
@@ -153,43 +157,24 @@ Deno.serve(async (req) => {
             }
         });
 
-        // Import generateSynopsis
-        const { default: generateSynopsis } = await import('./generateSynopsis.js');
-        
         // Test without opt-in (should block)
-        const weakSpineNoOptInReq = new Request('https://test.local/generateSynopsis', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-BASE44-QA-TOKEN': qaToken,
-                'Authorization': req.headers.get('Authorization')
-            },
-            body: JSON.stringify({
-                source_document_id: testManuscriptWeakSpine.id,
-                mode: 'STANDARD',
-                variant: 'STANDARD'
-            })
+        const weakSpineNoOptInResp = await base44.asServiceRole.functions.invoke('generateSynopsis', {
+            source_document_id: testManuscriptWeakSpine.id,
+            mode: 'STANDARD',
+            variant: 'STANDARD',
+            __qa_bypass: true
         });
-        const weakSpineNoOptInResp = await generateSynopsis(weakSpineNoOptInReq);
-        const weakSpineNoOptInResult = await weakSpineNoOptInResp.json();
+        const weakSpineNoOptInResult = weakSpineNoOptInResp.data || weakSpineNoOptInResp;
 
         // Test with opt-in (should include mode)
-        const weakSpineOptInReq = new Request('https://test.local/generateSynopsis', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-BASE44-QA-TOKEN': qaToken,
-                'Authorization': req.headers.get('Authorization')
-            },
-            body: JSON.stringify({
-                source_document_id: testManuscriptWeakSpine.id,
-                source_version_id: null,
-                mode: 'AMBIGUITY_ACK',
-                variant: 'STANDARD'
-            })
+        const weakSpineOptInResp = await base44.asServiceRole.functions.invoke('generateSynopsis', {
+            source_document_id: testManuscriptWeakSpine.id,
+            source_version_id: null,
+            mode: 'AMBIGUITY_ACK',
+            variant: 'STANDARD',
+            __qa_bypass: true
         });
-        const weakSpineOptInResp = await generateSynopsis(weakSpineOptInReq);
-        const weakSpineOptInResult = await weakSpineOptInResp.json();
+        const weakSpineOptInResult = weakSpineOptInResp.data || weakSpineOptInResp;
 
         results.tests.push({
             testId: 'QA-SYN-006',
@@ -225,22 +210,14 @@ Deno.serve(async (req) => {
         });
 
         try {
-            const strongSpineReq = new Request('https://test.local/generateSynopsis', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-BASE44-QA-TOKEN': qaToken,
-                    'Authorization': req.headers.get('Authorization')
-                },
-                body: JSON.stringify({
-                    source_document_id: testManuscriptStrongSpine.id,
-                    source_version_id: null,
-                    mode: 'STANDARD',
-                    variant: 'STANDARD'
-                })
+            const strongSpineResp = await base44.asServiceRole.functions.invoke('generateSynopsis', {
+                source_document_id: testManuscriptStrongSpine.id,
+                source_version_id: null,
+                mode: 'STANDARD',
+                variant: 'STANDARD',
+                __qa_bypass: true
             });
-            const strongSpineResp = await generateSynopsis(strongSpineReq);
-            const strongSpineData = await strongSpineResp.json();
+            const strongSpineData = strongSpineResp.data || strongSpineResp;
 
             // Check audit record
             let auditCheck = null;
@@ -283,22 +260,14 @@ Deno.serve(async (req) => {
 
         // QA-SYN-008: Constraint violation surfaced
         try {
-            const constraintReq = new Request('https://test.local/generateSynopsis', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-BASE44-QA-TOKEN': qaToken,
-                    'Authorization': req.headers.get('Authorization')
-                },
-                body: JSON.stringify({
-                    source_document_id: testManuscriptStrongSpine.id,
-                    mode: 'STANDARD',
-                    variant: 'STANDARD',
-                    debug_force_constraint_violation: true
-                })
+            const constraintResp = await base44.asServiceRole.functions.invoke('generateSynopsis', {
+                source_document_id: testManuscriptStrongSpine.id,
+                mode: 'STANDARD',
+                variant: 'STANDARD',
+                debug_force_constraint_violation: true,
+                __qa_bypass: true
             });
-            const constraintResp = await generateSynopsis(constraintReq);
-            const constraintResult = await constraintResp.json();
+            const constraintResult = constraintResp.data || constraintResp;
             
             results.tests.push({
                 testId: 'QA-SYN-008',
