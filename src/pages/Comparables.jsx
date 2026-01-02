@@ -103,6 +103,7 @@ export default function Comparables() {
 
         setGenerating(true);
         try {
+            console.log('Sending payload:', { manuscriptText: extractedText?.substring(0, 100), uploadedFilename: uploadedFile, genre: selectedGenre });
             const { data } = await base44.functions.invoke('generateComparables', {
                 manuscriptText: extractedText,
                 uploadedFilename: uploadedFile,
