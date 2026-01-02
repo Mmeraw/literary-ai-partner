@@ -48,18 +48,24 @@ Deno.serve(async (req) => {
 MANUSCRIPT TEXT:
 ${manuscriptSample}
 
+CRITICAL: NO INVENTED ENTITIES POLICY
+- For protagonist/character names: MUST be directly from the manuscript OR a generic role description
+- NEVER create character names that don't appear in the source text
+- If the protagonist is unnamed, use role descriptions like "an unnamed narrator", "a disillusioned man", "a young woman"
+- Proper nouns (names, places) must exist in the manuscript or be left generic
+
 Extract and provide:
 1. Title - Extract from the document header or opening
 2. Genre - Be specific (e.g., "Eco-horror, Dark Fantasy", "Literary Thriller", "Contemporary Romance")
 3. Word count estimate - Based on the full manuscript length (as number)
 4. Logline - A compelling 1-2 sentence pitch that captures the core story
 5. Key themes - Comma-separated list of 3-5 key themes
-6. Protagonist - Name and brief description
+6. Protagonist - ONLY use names that appear in manuscript OR generic role descriptions (e.g., "an unnamed narrator")
 7. Stakes - What's at risk? What will happen if the protagonist fails?
 8. Setting - Location, time period, and world details
 9. Unique hook - What makes this story different from everything else in the genre? The distinctive element that sets it apart.
 
-10. Named Entities - Extract all proper nouns: character names, locations, objects, organizations (array)
+10. Named Entities - Extract ONLY proper nouns that appear in the text: character names, locations, objects, organizations (array)
 
 11. Thematic Schema - Extract the story's moral architecture:
     - law: The governing rule/norm of this world
@@ -76,6 +82,7 @@ Extract and provide:
     - bannedPhraseHits: Any generic phrases found (e.g., "heart-wrenching", "gripping tale")
     - lawMentioned: Did you identify a clear governing law/rule?
     - passedVoiceGate: Does this have specific, non-generic substance?
+    - inventedNames: Array of any names you created that weren't in source (should be empty!)
 
 Return structured JSON with all fields populated. Be specific and compelling.`;
 
