@@ -41,8 +41,6 @@ Deno.serve(async (req) => {
                 });
                 
                 const result = await response.json();
-
-                const result = response.data || response;
                 const passed = result.gate_blocked && result.error === expectedCode;
 
                 return {
