@@ -1,0 +1,74 @@
+# BASE44 Governance Overview
+**Summary of Base44 Synopsis Directive, Compliance, Testing, Governance**
+
+---
+
+## What You Have — and How They Differ
+
+| Item | Purpose | Audience | Function |
+|------|---------|----------|----------|
+| **Canonical Synopsis Directive** | Defines how a synopsis must be written | Model + System | Enforces narrative rules, structure, and compliance |
+| **Synopsis Compliance Checklist** | Validates whether an output obeys the directive | QA / Automation | Pass–fail gate; no content creation |
+| **Synopsis Test Harness** | Stress-tests model behavior | Engineering / QA | Verifies enforcement under edge cases |
+| **Base44 Document Governance (Part A)** | Defines document types, states, and lifecycle | Product / Platform | Controls what exists and how it flows |
+| **Base44 Engineering & QA Spec (Part B)** | Enforces backend behavior | Engineering / QA | Enforces how the system behaves internally |
+
+---
+
+## How They Relate (But Do Not Overlap)
+
+Think of them as four layers, not duplicates:
+
+1. **Content Law (Synopsis Directive)**  
+   → What a synopsis must be.
+
+2. **Validator (Checklist + Test Harness)**  
+   → How we prove the model obeyed the law.
+
+3. **System Contract (Base44 Governance – Part A)**  
+   → What kinds of documents exist and how they move.
+
+4. **Enforcement Layer (Engineering / QA Spec)**  
+   → How the system guarantees compliance at runtime.
+
+They do not replace each other.  
+They stack cleanly and intentionally.
+
+---
+
+## Why This Matters
+
+**Without separation:**
+- The model starts interpreting rules instead of obeying them.
+- Engineers guess what "compliance" means.
+- QA has nothing deterministic to test against.
+
+**With this structure:**
+- Content correctness is enforced by the Synopsis Canon.
+- System behavior is enforced by Base44.
+- Validation is mechanical, not subjective.
+
+This is exactly how you prevent "looks right but violates spec" failures.
+
+---
+
+## Final Answer (Direct)
+
+**Yes** — all of these belong to Base44.  
+**No** — they are not the same and must not be merged.
+
+They form a layered control system:
+- **Canon** (what must be written),
+- **Validator** (how correctness is judged),
+- **Platform rules** (how documents exist and move).
+
+That separation is what makes the system **enforceable** rather than advisory.
+
+---
+
+## Next Steps
+
+You can:
+- Collapse this into a one-page architectural diagram
+- Generate a single "Base44 Governance Index" for onboarding
+- Map which team (Product / Eng / QA) owns which layer
