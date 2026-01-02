@@ -81,8 +81,8 @@ Return only the genre name (e.g., "thriller", "literary_fiction", "romance", "my
             spine_evaluation: manuscript.spine_evaluation
         } : {
             title: safeTitle,
-            word_count: manuscriptTextForAnalysis.split(/\s+/).length,
-            text_sample: manuscriptTextForAnalysis.substring(0, 5000)
+            word_count: wordCount,
+            text_sample: textSample
         };
 
         // Use Perplexity for real-time market research
