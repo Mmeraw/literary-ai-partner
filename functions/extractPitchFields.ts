@@ -142,6 +142,39 @@ Return structured JSON with all fields populated. Be specific and compelling.`;
         console.log('✅ Step 2 complete - Extraction successful');
         console.log('Extracted data:', JSON.stringify(extracted, null, 2));
 
+        // STEP 3: Validate No Invented Entities (Hard Gate)
+        console.log('🚦 Step 3: Validating No Invented Entities policy...');
+        
+        const inventedNames = extracted.meta?.inventedNames || [];
+        const hasInventedNames = inventedNames.length > 0;
+        
+        // Check if protagonist contains names not in namedEntities
+        const protagonistLower = (extracted.protagonist || '').toLowerCase();
+        const namedEntitiesLower = (extracted.namedEntities || []).map(e => e.toLowerCase());
+        
+        // Extract potential names from protagonist field (capitalized words)
+        const potentialNames = (extracted.protagonist || '').match(/\b[A-Z][a-z]+\b/g) || [];
+        const suspectNames = potentialNames.filter(name => 
+            !namedEntitiesLower.some(entity => entity.toLowerCase().includes(name.toLowerCase())) &&
+            name.length > 2 // Ignore short words like "He", "In"
+        );
+        
+        if (hasInventedNames || suspectNames.length > 0) {
+            const allInvented = [...inventedNames, ...suspectNames];
+            console.error('❌ NO INVENTED ENTITIES GATE FAILED');
+            console.error('Invented names detected:', allInvented);
+            
+            return Response.json({
+                success: false,
+                error: 'Extraction violated No Invented Entities policy',
+                details: `The extraction created character names (${allInvented.join(', ')}) that do not appear in the source manuscript. Protagonist names must either be from the text OR generic role descriptions like "an unnamed narrator" or "a disillusioned man".`,
+                inventedNames: allInvented,
+                fields: extracted // Include for debugging
+            }, { status: 422 });
+        }
+        
+        console.log('✅ No Invented Entities check passed');
+
         return Response.json({
             success: true,
             fields: extracted
