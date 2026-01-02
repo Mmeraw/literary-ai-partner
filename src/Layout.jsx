@@ -22,18 +22,10 @@ import { cn } from "@/lib/utils";
 import AnalyticsTracker from '@/components/AnalyticsTracker';
 import ScrollToTop from '@/components/ScrollToTop';
 
-// CANONICAL WORKFLOW: Dashboard → Upload → Evaluate → Revise → Convert → Output
+// CANONICAL WORKFLOW: Dashboard → Evaluate → Revise → Convert → Output
 const dashboardPages = [
     { name: 'Overview', page: 'Dashboard', icon: BarChart3 },
     { name: 'Analytics', page: 'Analytics', icon: TrendingUp },
-];
-
-const evaluatePages = [
-    { name: 'Scene(s) — partial or full', page: 'Evaluate', icon: FileText },
-    { name: 'Chapter(s) — partial or full', page: 'Evaluate', icon: FileText },
-    { name: 'Full Novel / Manuscript', page: 'UploadManuscript', icon: BookOpen },
-    { name: 'Full Screenplay', page: 'Evaluate', icon: Film },
-    { name: 'Test Upload', page: 'TestUpload', icon: Upload },
 ];
 
 const revisePages = [
@@ -195,25 +187,13 @@ export default function Layout({ children, currentPageName }) {
                                         </DropdownMenuItem>
                                     ))}
                                 </DropdownMenuContent>
-                            </DropdownMenu>
+                                </DropdownMenu>
 
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                        Evaluate <ChevronDown className="ml-1 h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="w-56">
-                                    {evaluatePages.map((item, idx) => (
-                                        <DropdownMenuItem key={idx} asChild>
-                                            <Link to={createPageUrl(item.page)} className="cursor-pointer">
-                                                <item.icon className="w-4 h-4 mr-2" />
-                                                {item.name}
-                                            </Link>
-                                        </DropdownMenuItem>
-                                    ))}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                                <Link to={createPageUrl('YourWriting')}>
+                                <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
+                                    Evaluate
+                                </Button>
+                                </Link>
 
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -414,37 +394,16 @@ export default function Layout({ children, currentPageName }) {
                                             </Button>
                                         </Link>
                                     </div>
-                                )}
-                            </div>
-
-
-
-                            {/* Evaluate Section */}
-                            <div>
-                                <Button
-                                    variant="ghost"
-                                    onClick={() => toggleMobileSection('evaluate')}
-                                    className="w-full justify-between h-12 text-slate-600"
-                                >
-                                    <span className="flex items-center">
-                                        <Sparkles className="w-5 h-5 mr-3" />
-                                        Evaluate
-                                    </span>
-                                    <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.evaluate && "rotate-180")} />
-                                </Button>
-                                {expandedMobile.evaluate && (
-                                    <div className="ml-8 space-y-1 mt-1">
-                                        {evaluatePages.map((item, idx) => (
-                                            <Link key={idx} to={createPageUrl(item.page)} onClick={() => setMobileMenuOpen(false)}>
-                                                <Button variant="ghost" className="w-full justify-start h-10 text-sm text-slate-600">
-                                                    <item.icon className="w-4 h-4 mr-2" />
-                                                    {item.name}
-                                                </Button>
-                                            </Link>
-                                        ))}
+                                    )}
                                     </div>
-                                )}
-                            </div>
+
+                                    {/* Evaluate Section */}
+                                    <Link to={createPageUrl('YourWriting')} onClick={() => setMobileMenuOpen(false)}>
+                                    <Button variant="ghost" className="w-full justify-start h-12 text-slate-600">
+                                    <Sparkles className="w-5 h-5 mr-3" />
+                                    Evaluate
+                                    </Button>
+                                    </Link>
 
                             {/* Revise Section */}
                             <div>
