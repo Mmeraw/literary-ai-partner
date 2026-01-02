@@ -19,14 +19,13 @@ export default function StoryGate() {
                         className="text-center"
                     >
                         <h1 className="text-5xl font-bold mb-4" style={{ color: '#7A1E1E' }}>
-                            StoryGate
+                            Storygate Studio™
                         </h1>
                         <p className="text-2xl mb-6 font-light" style={{ color: '#F2EFEA' }}>
-                            A secure, curated gateway to high-grade manuscripts, books, and screen projects for publishing and screen industry professionals.
+                            A secure, curated access layer for high-grade manuscripts, books, and screen projects—built for verified publishing and screen-industry professionals.
                         </p>
                         <p className="text-lg max-w-3xl mx-auto leading-relaxed mb-8" style={{ color: '#D4D4D4' }}>
-                            StoryGate provides industry professionals with controlled access to projects that meet defined quality and presentation standards.<br />
-                            Only work that meets established criteria is eligible for viewing.
+                            Verified users request access to specific projects. Creators control visibility by role, and all activity is logged.
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
                             <Link to={createPageUrl('IndustryVerification')}>
@@ -44,16 +43,14 @@ export default function StoryGate() {
                                 Sign in as Industry User
                             </Button>
                         </div>
-                        <p className="text-sm mt-6" style={{ color: '#7B7B7B' }}>
-                            Verified industry only. Access is logged. Creators control visibility.
-                        </p>
+
                     </motion.div>
                 </div>
             </div>
 
             {/* How StoryGate Works */}
             <div className="max-w-6xl mx-auto px-6 py-16">
-                <h2 className="text-3xl font-semibold mb-8" style={{ color: '#7A1E1E' }}>How StoryGate Works</h2>
+                <h2 className="text-3xl font-semibold mb-8" style={{ color: '#7A1E1E' }}>How Storygate Studio Works</h2>
                 <div className="grid md:grid-cols-2 gap-6">
                     {[
                         {
@@ -115,9 +112,7 @@ export default function StoryGate() {
                             </div>
                         ))}
                     </div>
-                    <p className="italic" style={{ color: '#7B7B7B' }}>
-                        Creators determine which materials are visible to which roles.
-                    </p>
+
                 </div>
             </div>
 
@@ -203,14 +198,14 @@ export default function StoryGate() {
             {/* Creator Responsibilities */}
             <div className="py-16" style={{ backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
                 <div className="max-w-6xl mx-auto px-6">
-                    <h2 className="text-3xl font-semibold mb-6" style={{ color: '#7A1E1E' }}>Creator Responsibilities</h2>
+                    <h2 className="text-3xl font-semibold mb-6" style={{ color: '#7A1E1E' }} id="creators">Creator Responsibilities</h2>
                     <p className="mb-4" style={{ color: '#D4D4D4' }}>Creators must:</p>
                     <ul className="space-y-3">
                         {[
                             "Provide a complete professional package (single PDF)",
                             "Confirm rights ownership or control for the submitted work",
                             "Meet the quality threshold through a RevisionGrade evaluation or an equivalent professional evaluation",
-                            "Acknowledge that StoryGate is selective and that submission does not guarantee response, review, or acceptance"
+                            "Acknowledge that Storygate Studio is selective and that submission does not guarantee response, review, or acceptance"
                         ].map((item, idx) => (
                             <li key={idx} className="flex items-start gap-3">
                                 <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#A98E4A' }} />
@@ -221,31 +216,11 @@ export default function StoryGate() {
                 </div>
             </div>
 
-            {/* Industry Verification & Access Control */}
-            <div className="max-w-6xl mx-auto px-6 py-16">
-                <h2 className="text-3xl font-semibold mb-6" style={{ color: '#7A1E1E' }}>Industry Verification & Access Control</h2>
-                <ul className="space-y-3">
-                    {[
-                        "Industry professionals apply for verification by submitting role and credentials.",
-                        "Approved users receive \"Verified Industry\" status.",
-                        "Unverified users see only minimal, non-sensitive project listings.",
-                        "Verified users may request access to specific projects.",
-                        "Creators approve or deny access requests.",
-                        "All activity is logged."
-                    ].map((item, idx) => (
-                        <li key={idx} className="flex items-start gap-3">
-                            <div className="w-2 h-2 rounded-full flex-shrink-0 mt-2" style={{ backgroundColor: '#A98E4A' }} />
-                            <span style={{ color: '#D4D4D4' }}>{item}</span>
-                        </li>
-                    ))}
-                </ul>
-            </div>
-
-            {/* Compliance, Logging & Governance */}
+            {/* Governance */}
             <div className="py-16" style={{ backgroundColor: 'rgba(169, 142, 74, 0.1)' }}>
                 <div className="max-w-6xl mx-auto px-6">
-                    <h2 className="text-3xl font-semibold mb-6" style={{ color: '#7A1E1E' }}>Compliance, Logging & Governance</h2>
-                    <p className="mb-4" style={{ color: '#D4D4D4' }}>The system records:</p>
+                    <h2 className="text-3xl font-semibold mb-6" style={{ color: '#7A1E1E' }}>Governance & Audit Trail</h2>
+                    <p className="mb-4" style={{ color: '#D4D4D4' }}>All access is logged. The system records:</p>
                     <ul className="grid md:grid-cols-2 gap-3 mb-6">
                         {[
                             "Account ID and role",
@@ -261,7 +236,7 @@ export default function StoryGate() {
                         ))}
                     </ul>
                     <p className="italic" style={{ color: '#7B7B7B' }}>
-                        StoryGate is an access layer, not a representation agreement, not a sales platform, and not a guarantee of opportunity.
+                        Storygate Studio is an access layer, not a representation agreement, not a sales platform, and not a guarantee of opportunity.
                     </p>
                 </div>
             </div>
@@ -272,7 +247,10 @@ export default function StoryGate() {
                     <div className="grid md:grid-cols-2 gap-8">
                         <Card style={{ borderWidth: '2px', borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
                             <CardContent className="p-8 text-center">
-                                <h3 className="text-xl font-semibold mb-4" style={{ color: '#7A1E1E' }}>For Industry</h3>
+                                <h3 className="text-xl font-semibold mb-4" style={{ color: '#7A1E1E' }} id="industry">For Industry</h3>
+                                <p className="text-sm mb-4" style={{ color: '#D4D4D4' }}>
+                                    Industry professionals apply for verification by submitting role and credentials. Approved users receive "Verified Industry" status and may request access to specific projects.
+                                </p>
                                 <Link to={createPageUrl('IndustryVerification')}>
                                     <Button size="lg" className="w-full hover:opacity-90 transition-opacity" style={{ backgroundColor: '#7A1E1E', color: '#F2EFEA' }}>
                                         Request Industry Access
