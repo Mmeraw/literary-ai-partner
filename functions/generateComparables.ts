@@ -170,8 +170,10 @@ All fields marked as required MUST be present.`;
                                 genre_average: { type: 'number' },
                                 above_average: { type: 'boolean' },
                                 insight: { type: 'string' }
-                            }
-                        }
+                            },
+                            required: ['criterion', 'manuscript_score', 'genre_average', 'above_average', 'insight']
+                        },
+                        minItems: 13
                     },
                     comparable_titles: {
                         type: 'array',
@@ -182,25 +184,36 @@ All fields marked as required MUST be present.`;
                                 author: { type: 'string' },
                                 year: { type: 'number' },
                                 justification: { type: 'string' }
-                            }
-                        }
+                            },
+                            required: ['title', 'author', 'justification']
+                        },
+                        minItems: 5
                     },
                     market_positioning: { type: 'string' },
                     revision_priorities: {
                         type: 'array',
-                        items: { type: 'string' }
+                        items: { type: 'string' },
+                        minItems: 3
                     }
-                }
+                },
+                required: ['criteria_scores', 'comparable_titles', 'market_positioning', 'revision_priorities']
             }
         });
 
+        console.log('LLM response received:', JSON.stringify(comparablesAnalysis).substring(0, 500));
+
         // Validate response structure
         if (!comparablesAnalysis || !comparablesAnalysis.criteria_scores || !comparablesAnalysis.comparable_titles) {
-            console.error('Invalid LLM response:', comparablesAnalysis);
+            console.error('Invalid LLM response - full output:', JSON.stringify(comparablesAnalysis, null, 2));
             return Response.json({ 
                 error: 'Failed to generate valid comparables analysis', 
-                details: 'LLM response missing required fields'
-            }, { status: 500 });
+                details: 'LLM response missing required fields',
+                debug: {
+                    has_criteria_scores: !!comparablesAnalysis?.criteria_scores,
+                    has_comparable_titles: !!comparablesAnalysis?.comparable_titles,
+                    response_keys: comparablesAnalysis ? Object.keys(comparablesAnalysis) : []
+                }
+            }, { status: 422 });
         }
 
         // Create comparative report entity
