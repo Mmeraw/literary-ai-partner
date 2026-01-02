@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FileText, Sparkles, Copy, Download, Loader2, Upload, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
@@ -238,13 +239,21 @@ export default function Synopsis() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {manuscripts.length === 0 ? (
-                            <Alert>
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertDescription>
-                                    No manuscripts found. Upload and evaluate a manuscript first.
-                                </AlertDescription>
-                            </Alert>
-                        ) : (
+                                <Alert>
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertDescription className="flex items-center justify-between">
+                                        <span>No manuscripts found. Upload and evaluate a manuscript first.</span>
+                                        <Button 
+                                            size="sm" 
+                                            onClick={() => window.location.href = createPageUrl('UploadManuscript')}
+                                            className="ml-4"
+                                        >
+                                            <Upload className="w-4 h-4 mr-2" />
+                                            Upload Manuscript
+                                        </Button>
+                                    </AlertDescription>
+                                </Alert>
+                            ) : (
                             <Select value={selectedManuscriptId || ''} onValueChange={handleManuscriptSelect}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select a manuscript..." />
