@@ -18,11 +18,43 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
 
+        // VOICE ANCHOR: Apply thematic schema before generating pitches
+        console.log('🎭 Applying Voice Anchor layer...');
+        
+        let thematicSchema = {};
+        let voiceAnchored = {};
+        
+        try {
+            const voiceAnchorResult = await base44.functions.invoke('applyVoiceAnchorAndSchemaToPitch', {
+                extractedText: manuscriptInfo.text_sample || manuscriptInfo.full_text || '',
+                formatType: 'pitch_variations',
+                projectVoiceProfile: null
+            });
+
+            const voiceData = voiceAnchorResult.data || voiceAnchorResult;
+            
+            if (voiceData.success) {
+                thematicSchema = voiceData.thematicSchema || {};
+                voiceAnchored = voiceData.pitch || {};
+                console.log('✅ Thematic schema applied:', thematicSchema);
+            } else {
+                console.warn('Voice Anchor failed, proceeding with standard generation:', voiceData.error);
+            }
+        } catch (error) {
+            console.warn('Voice Anchor service unavailable, proceeding with standard generation:', error.message);
+        }
+
         // Build comprehensive context for the LLM
         const contextPrompt = `
-You are an expert literary agent and pitch consultant. Generate multiple professional pitch variations for a manuscript based on these successful patterns:
+You are an expert literary agent and pitch consultant. Generate multiple professional pitch variations for a manuscript.
 
-MANUSCRIPT INFORMATION:
+${Object.keys(thematicSchema).length > 0 ? `THEMATIC FOUNDATION (use as backbone):
+${JSON.stringify(thematicSchema, null, 2)}
+
+VOICE-ANCHORED ELEMENTS (preserve this depth):
+${JSON.stringify(voiceAnchored, null, 2)}
+
+` : ''}MANUSCRIPT INFORMATION:
 - Title: ${manuscriptInfo.title}
 - Genre: ${manuscriptInfo.genre || 'Not specified'}
 - Word Count: ${manuscriptInfo.wordCount || 'Not specified'}

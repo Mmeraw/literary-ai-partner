@@ -17,8 +17,42 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
 
+        // VOICE ANCHOR: Apply thematic schema before generating deck
+        console.log('🎭 Applying Voice Anchor layer to film deck...');
+        
+        let thematicSchema = {};
+        let voiceAnchored = {};
+        
+        try {
+            const voiceAnchorResult = await base44.functions.invoke('applyVoiceAnchorAndSchemaToPitch', {
+                extractedText: manuscriptText.substring(0, 8000),
+                formatType: 'film_pitch_deck',
+                projectVoiceProfile: null
+            });
+
+            const voiceData = voiceAnchorResult.data || voiceAnchorResult;
+            
+            if (voiceData.success) {
+                thematicSchema = voiceData.thematicSchema || {};
+                voiceAnchored = voiceData.pitch || {};
+                console.log('✅ Thematic schema applied to deck:', thematicSchema);
+            } else {
+                console.warn('Voice Anchor failed, proceeding with standard generation:', voiceData.error);
+            }
+        } catch (error) {
+            console.warn('Voice Anchor service unavailable, proceeding with standard generation:', error.message);
+        }
+
         // Generate comprehensive film pitch deck
         const prompt = `You are a Hollywood pitch consultant. Generate a comprehensive film adaptation pitch deck for the following manuscript.
+
+${Object.keys(thematicSchema).length > 0 ? `THEMATIC FOUNDATION (use as the backbone):
+${JSON.stringify(thematicSchema, null, 2)}
+
+VOICE-ANCHORED PITCH ELEMENTS (preserve this depth):
+${JSON.stringify(voiceAnchored, null, 2)}
+
+` : ''}
 
 MANUSCRIPT TITLE: ${title}
 ${genre ? `GENRE: ${genre}` : ''}
