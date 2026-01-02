@@ -1573,6 +1573,147 @@ export default function FAQ() {
                         </CardContent>
                     </Card>
 
+                    {/* Voice & Dialogue Preservation */}
+                    <Card className="border-0 shadow-md">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <Shield className="w-5 h-5 text-indigo-600" />
+                                Voice & Dialogue Preservation
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Accordion type="single" collapsible className="w-full">
+                                <AccordionItem value="voice-philosophy">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="voice-philosophy">
+                                        How does RevisionGrade handle my voice?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p className="font-semibold text-indigo-900">
+                                                Voice is treated as intentional craft.
+                                            </p>
+                                            <p>
+                                                RevisionGrade evaluates clarity and consistency—not "correctness." Your voice, dialect, 
+                                                and stylistic choices are respected as deliberate creative decisions.
+                                            </p>
+                                            <p>
+                                                This means we don't flatten idiomatic language, regional dialects, or character-specific 
+                                                speech patterns into "standard" English. Voice is yours.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="dialogue-preservation">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="dialogue-preservation">
+                                        Is my dialogue preserved?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p className="font-semibold text-indigo-900">
+                                                Yes. Dialogue is preserved unless you explicitly request changes.
+                                            </p>
+                                            <p>
+                                                RevisionGrade does not rewrite dialogue to match a "house style" or neutralize regional, 
+                                                cultural, or character-specific speech patterns. Dialogue is character voice—we protect it.
+                                            </p>
+                                            <p>
+                                                If you want dialogue revision suggestions, you can request them. Otherwise, dialogue 
+                                                remains untouched.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="no-identity-classification">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="no-identity-classification">
+                                        Does RevisionGrade classify language by identity?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p className="font-semibold text-indigo-900">
+                                                No. No identity-based language classification is permitted.
+                                            </p>
+                                            <p>
+                                                RevisionGrade does not label language patterns as "ethnic," "racial," "gendered," or any 
+                                                other identity category. We evaluate narrative function, not the speaker's background.
+                                            </p>
+                                            <p>
+                                                Language is assessed for clarity, consistency, and dramatic purpose—not for conformity 
+                                                to a prescribed standard.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="house-voice-limits">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="house-voice-limits">
+                                        What is "House Voice" and what doesn't it touch?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                "House Voice" refers to baseline editorial preferences for clarity, pacing, and structural 
+                                                consistency across RevisionGrade's analysis.
+                                            </p>
+                                            <p className="font-semibold text-indigo-900">
+                                                House Voice does not alter dialogue.
+                                            </p>
+                                            <p>
+                                                It applies only to narrative prose—descriptions, transitions, scene-setting, and exposition. 
+                                                Character speech, internal monologue with strong voice, and stylized narration remain yours.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="voice-toggle">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="voice-toggle">
+                                        Can I control how much voice preservation I want?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                Yes. Where appropriate, RevisionGrade provides a <strong>Voice Preservation toggle</strong> 
+                                                with clear descriptors:
+                                            </p>
+                                            <ul className="list-disc ml-6 space-y-2">
+                                                <li><strong>Maximum Preservation:</strong> Minimal changes; only structural or critical clarity issues flagged. Voice, rhythm, and idiomatic language stay intact.</li>
+                                                <li><strong>Balanced:</strong> Standard editorial approach. Voice is preserved, but clarity and pacing improvements are suggested where they strengthen narrative function.</li>
+                                                <li><strong>Polish-Focused:</strong> More aggressive refinement for submission readiness. Voice is still respected, but stylistic tightening is prioritized.</li>
+                                            </ul>
+                                            <p className="mt-3 text-indigo-900 font-semibold">
+                                                You decide how much you want the system to suggest—voice remains yours.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="voice-trust">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="voice-trust">
+                                        Why does RevisionGrade prioritize voice protection?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                Because voice is the author's signature. It's what makes your work yours.
+                                            </p>
+                                            <p>
+                                                Many editorial tools flatten language into a generic "professional" standard. That might 
+                                                be efficient, but it destroys the texture, rhythm, and cultural authenticity that make 
+                                                stories resonant.
+                                            </p>
+                                            <p className="font-semibold text-indigo-900">
+                                                RevisionGrade is built on the principle that clarity and craft can coexist with voice—they 
+                                                don't have to compete.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </CardContent>
+                    </Card>
+
                     {/* Privacy & Security */}
                     <Card className="border-0 shadow-md">
                         <CardHeader>
