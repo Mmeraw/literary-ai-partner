@@ -102,6 +102,8 @@ function getSynopsisGateState(manuscript, metadata) {
 
 export default function Synopsis() {
     const [selectedManuscriptId, setSelectedManuscriptId] = useState(null);
+    const [inputMode, setInputMode] = useState('manuscript'); // 'manuscript' or 'text'
+    const [manualText, setManualText] = useState('');
     const [allowAmbiguity, setAllowAmbiguity] = useState(false);
     const [generating, setGenerating] = useState(false);
     const [synopses, setSynopses] = useState({
@@ -139,8 +141,12 @@ export default function Synopsis() {
     };
 
     const generateSynopsis = async (type) => {
-        if (!selectedManuscriptId) {
+        if (inputMode === 'manuscript' && !selectedManuscriptId) {
             toast.error('Please select a manuscript');
+            return;
+        }
+        if (inputMode === 'text' && !manualText.trim()) {
+            toast.error('Please paste your manuscript text');
             return;
         }
 
@@ -148,12 +154,21 @@ export default function Synopsis() {
         setApiError(null);
         
         try {
-            const response = await base44.functions.invoke('generateSynopsis', {
-                source_document_id: selectedManuscriptId,
-                source_version_id: null, // TODO: Add version tracking
-                mode: allowAmbiguity ? "AMBIGUITY_ACK" : "STANDARD",
-                variant: type.toUpperCase()
-            });
+            const payload = inputMode === 'manuscript' 
+                ? {
+                    source_document_id: selectedManuscriptId,
+                    source_version_id: null,
+                    mode: allowAmbiguity ? "AMBIGUITY_ACK" : "STANDARD",
+                    variant: type.toUpperCase()
+                }
+                : {
+                    manuscriptInfo: manualText,
+                    synopsisType: type,
+                    mode: "STANDARD",
+                    variant: type.toUpperCase()
+                };
+
+            const response = await base44.functions.invoke('generateSynopsis', payload);
             
             const result = response.data || response;
 
@@ -235,41 +250,62 @@ export default function Synopsis() {
 
                 <Card className="mb-8">
                     <CardHeader>
-                        <CardTitle>Select Evaluated Manuscript</CardTitle>
+                        <CardTitle>Manuscript Input</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {manuscripts.length === 0 ? (
-                                <Alert>
-                                    <AlertCircle className="h-4 w-4" />
-                                    <AlertDescription className="flex items-center justify-between">
-                                        <span>No manuscripts found. Upload and evaluate a manuscript first.</span>
-                                        <Button 
-                                            size="sm" 
-                                            onClick={() => window.location.href = createPageUrl('UploadManuscript')}
-                                            className="ml-4"
-                                        >
-                                            <Upload className="w-4 h-4 mr-2" />
-                                            Upload Manuscript
-                                        </Button>
-                                    </AlertDescription>
-                                </Alert>
-                            ) : (
-                            <Select value={selectedManuscriptId || ''} onValueChange={handleManuscriptSelect}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a manuscript..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {manuscripts.map((ms) => (
-                                        <SelectItem key={ms.id} value={ms.id}>
-                                            {ms.title} ({ms.word_count?.toLocaleString()} words)
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
+                        <Tabs value={inputMode} onValueChange={setInputMode}>
+                            <TabsList className="grid grid-cols-2 w-full">
+                                <TabsTrigger value="manuscript">Select Evaluated Manuscript</TabsTrigger>
+                                <TabsTrigger value="text">Paste Text</TabsTrigger>
+                            </TabsList>
 
-                        {/* Gate State Display */}
-                        {selectedManuscript && gateState && (
+                            <TabsContent value="manuscript" className="space-y-4 mt-4">
+                                {manuscripts.length === 0 ? (
+                                    <Alert>
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertDescription className="flex items-center justify-between">
+                                            <span>No manuscripts found. Upload and evaluate a manuscript first.</span>
+                                            <Button 
+                                                size="sm" 
+                                                onClick={() => window.location.href = createPageUrl('UploadManuscript')}
+                                                className="ml-4"
+                                            >
+                                                <Upload className="w-4 h-4 mr-2" />
+                                                Upload Manuscript
+                                            </Button>
+                                        </AlertDescription>
+                                    </Alert>
+                                ) : (
+                                    <Select value={selectedManuscriptId || ''} onValueChange={handleManuscriptSelect}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select a manuscript..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {manuscripts.map((ms) => (
+                                                <SelectItem key={ms.id} value={ms.id}>
+                                                    {ms.title} ({ms.word_count?.toLocaleString()} words)
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            </TabsContent>
+
+                            <TabsContent value="text" className="space-y-4 mt-4">
+                                <Textarea
+                                    placeholder="Paste your complete manuscript text here..."
+                                    value={manualText}
+                                    onChange={(e) => setManualText(e.target.value)}
+                                    className="min-h-[300px] font-mono text-sm"
+                                />
+                                <p className="text-xs text-slate-500">
+                                    Note: Manual text input bypasses evaluation gates. For gate-protected synopses, use an evaluated manuscript.
+                                </p>
+                            </TabsContent>
+                        </Tabs>
+
+                        {/* Gate State Display (only for manuscript mode) */}
+                        {inputMode === 'manuscript' && selectedManuscript && gateState && (
                             <Alert className={
                                 gateState.state === 'F' ? 'border-green-200 bg-green-50' :
                                 gateState.state === 'G' ? 'border-amber-200 bg-amber-50' :
@@ -345,9 +381,8 @@ export default function Synopsis() {
                                     onClick={() => generateSynopsis('query')}
                                     disabled={
                                         generating || 
-                                        !selectedManuscriptId || 
-                                        gateState.blocked || 
-                                        (gateState.state === 'G' && !allowAmbiguity)
+                                        (inputMode === 'manuscript' && (!selectedManuscriptId || gateState.blocked || (gateState.state === 'G' && !allowAmbiguity))) ||
+                                        (inputMode === 'text' && !manualText.trim())
                                     }
                                     className="w-full"
                                 >
@@ -359,7 +394,7 @@ export default function Synopsis() {
                                     ) : (
                                         <>
                                             <Sparkles className="w-4 h-4 mr-2" />
-                                            {gateState.blocked ? 'Synopsis Locked' : 'Generate Query Synopsis'}
+                                            {inputMode === 'manuscript' && gateState.blocked ? 'Synopsis Locked' : 'Generate Query Synopsis'}
                                         </>
                                     )}
                                 </Button>
@@ -423,9 +458,8 @@ export default function Synopsis() {
                                     onClick={() => generateSynopsis('standard')}
                                     disabled={
                                         generating || 
-                                        !selectedManuscriptId || 
-                                        gateState.blocked || 
-                                        (gateState.state === 'G' && !allowAmbiguity)
+                                        (inputMode === 'manuscript' && (!selectedManuscriptId || gateState.blocked || (gateState.state === 'G' && !allowAmbiguity))) ||
+                                        (inputMode === 'text' && !manualText.trim())
                                     }
                                     className="w-full"
                                 >
@@ -437,7 +471,7 @@ export default function Synopsis() {
                                     ) : (
                                         <>
                                             <Sparkles className="w-4 h-4 mr-2" />
-                                            {gateState.blocked ? 'Synopsis Locked' : 'Generate Standard Synopsis'}
+                                            {inputMode === 'manuscript' && gateState.blocked ? 'Synopsis Locked' : 'Generate Standard Synopsis'}
                                         </>
                                     )}
                                 </Button>
@@ -501,9 +535,8 @@ export default function Synopsis() {
                                     onClick={() => generateSynopsis('extended')}
                                     disabled={
                                         generating || 
-                                        !selectedManuscriptId || 
-                                        gateState.blocked || 
-                                        (gateState.state === 'G' && !allowAmbiguity)
+                                        (inputMode === 'manuscript' && (!selectedManuscriptId || gateState.blocked || (gateState.state === 'G' && !allowAmbiguity))) ||
+                                        (inputMode === 'text' && !manualText.trim())
                                     }
                                     className="w-full"
                                 >
@@ -515,7 +548,7 @@ export default function Synopsis() {
                                     ) : (
                                         <>
                                             <Sparkles className="w-4 h-4 mr-2" />
-                                            {gateState.blocked ? 'Synopsis Locked' : 'Generate Extended Synopsis'}
+                                            {inputMode === 'manuscript' && gateState.blocked ? 'Synopsis Locked' : 'Generate Extended Synopsis'}
                                         </>
                                     )}
                                 </Button>
