@@ -332,7 +332,7 @@ export default function History() {
                         </CardContent>
                     </Card>
                 ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-4" data-evaluated-list>
                         {submissions.map((submission, idx) => {
                             const statusConfig = getStatusConfig(submission.status);
                             const StatusIcon = statusConfig.icon;
