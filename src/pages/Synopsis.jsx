@@ -73,8 +73,18 @@ export default function Synopsis() {
             const text = ingestionResult.data.text;
             console.log(`✅ Extracted ${ingestionResult.data.meta.charCount} characters from ${ingestionResult.data.meta.filename}`);
             
+            // Save to Manuscript entity for persistence
+            toast.loading('Saving manuscript...', { id: 'upload' });
+            const wordCount = text.split(/\s+/).filter(w => w).length;
+            const manuscript = await base44.entities.Manuscript.create({
+                title: ingestionResult.data.meta.filename.replace(/\.[^/.]+$/, ''),
+                full_text: text,
+                word_count: wordCount,
+                status: 'uploaded'
+            });
+            
             setManuscriptInfo(text);
-            toast.success(`Loaded ${ingestionResult.data.meta.charCount.toLocaleString()} characters`, { id: 'upload' });
+            toast.success(`Saved: ${manuscript.title} (${wordCount.toLocaleString()} words)`, { id: 'upload' });
         } catch (error) {
             console.error('❌ Upload error:', error);
             toast.error(`Upload failed: ${error.message}`, { id: 'upload' });
