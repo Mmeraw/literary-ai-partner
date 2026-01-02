@@ -5,7 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { FileText, Sparkles, Copy, Download, Loader2, Upload } from 'lucide-react';
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FileText, Sparkles, Copy, Download, Loader2, Upload, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
@@ -14,11 +17,92 @@ import RevisionViewer from '@/components/RevisionViewer';
 import RevisionControls from '@/components/RevisionControls';
 import { exportTxt } from '@/components/utils/exportTxt';
 
+// Gate state calculator (single source of truth)
+function getSynopsisGateState(manuscript, metadata) {
+    if (!manuscript) {
+        return { state: 'NO_MANUSCRIPT', blocked: true, message: 'Select a manuscript first' };
+    }
+
+    // Gate 1: Metadata check
+    const requiredMetadata = ['word_count']; // POV and genre band to be added later
+    const missingMeta = requiredMetadata.filter(field => !manuscript[field]);
+    if (missingMeta.length > 0) {
+        return {
+            state: 'E',
+            blocked: true,
+            code: 'ERR_SYNOPSIS_PRECONDITION_MISSING_METADATA',
+            message: `Synopsis blocked: missing required metadata (${missingMeta.join(', ')})`,
+            cta: 'Complete Metadata',
+            ctaAction: 'metadata'
+        };
+    }
+
+    // Gate 2: Spine evaluation
+    const spineEval = manuscript.spine_evaluation;
+    if (!spineEval || spineEval.status !== 'COMPLETE' || !spineEval.story_spine) {
+        return {
+            state: 'D',
+            blocked: true,
+            code: 'ERR_SYNOPSIS_PRECONDITION_MISSING_SPINE',
+            message: 'Synopsis blocked: spine statement not found or incomplete',
+            cta: 'Run Spine Evaluation',
+            ctaAction: 'spine'
+        };
+    }
+
+    // Gate 3: 13 Criteria
+    const thirteenCriteria = manuscript.revisiongrade_breakdown?.thirteen_criteria;
+    if (!thirteenCriteria || thirteenCriteria.status !== 'COMPLETE') {
+        return {
+            state: 'B',
+            blocked: true,
+            code: 'ERR_SYNOPSIS_PRECONDITION_MISSING_13CRITERIA',
+            message: 'Synopsis blocked: 13 Story Criteria incomplete',
+            cta: 'Run 13 Story Criteria',
+            ctaAction: '13criteria'
+        };
+    }
+
+    // Gate 4: WAVE flags
+    const waveFlags = manuscript.revisiongrade_breakdown?.wave_flags;
+    if (!waveFlags || waveFlags.status !== 'COMPLETE') {
+        return {
+            state: 'C',
+            blocked: true,
+            code: 'ERR_SYNOPSIS_PRECONDITION_MISSING_WAVE',
+            message: 'Synopsis blocked: WAVE flags incomplete',
+            cta: 'Run WAVE Guide',
+            ctaAction: 'wave'
+        };
+    }
+
+    // Gate 5: Weak spine threshold
+    const SPINE_THRESHOLD = 7.0;
+    if (manuscript.spine_score < SPINE_THRESHOLD) {
+        return {
+            state: 'G',
+            blocked: false, // Can proceed with opt-in
+            code: 'ERR_SYNOPSIS_SPINE_TOO_WEAK',
+            message: `This manuscript has a weak narrative spine (score ${manuscript.spine_score}/10). Choose: (1) Strengthen spine first (recommended), or (2) Generate synopsis with ambiguity acknowledged.`,
+            spineScore: manuscript.spine_score,
+            spineFlags: spineEval.spine_flags || [],
+            spineStatement: spineEval.story_spine
+        };
+    }
+
+    // All gates passed
+    return {
+        state: 'F',
+        blocked: false,
+        message: 'Ready to generate synopsis',
+        spineScore: manuscript.spine_score
+    };
+}
+
 export default function Synopsis() {
-    const [manuscriptInfo, setManuscriptInfo] = useState('');
+    const [selectedManuscriptId, setSelectedManuscriptId] = useState(null);
+    const [allowAmbiguity, setAllowAmbiguity] = useState(false);
     const [generating, setGenerating] = useState(false);
-    const [uploadingFile, setUploadingFile] = useState(false);
-    const [uploadedFileName, setUploadedFileName] = useState('');
     const [synopses, setSynopses] = useState({
         query: '',
         standard: '',
@@ -30,6 +114,7 @@ export default function Synopsis() {
         standard: null,
         extended: null
     });
+    const [apiError, setApiError] = useState(null);
     
     const queryRevision = useRevisionFlow('synopsis');
     const standardRevision = useRevisionFlow('synopsis');
@@ -43,90 +128,29 @@ export default function Synopsis() {
         }
     });
 
-    const handleFileUpload = async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const selectedManuscript = manuscripts.find(m => m.id === selectedManuscriptId);
+    const gateState = getSynopsisGateState(selectedManuscript);
 
-        if (file.size > 25 * 1024 * 1024) {
-            toast.error('File must be under 25MB');
-            return;
-        }
-
-        setUploadingFile(true);
-        setUploadedFileName(file.name);
-        
-        try {
-            toast.loading('Uploading manuscript...', { id: 'upload' });
-            
-            const uploadResult = await base44.integrations.Core.UploadFile({ file });
-            const file_url = uploadResult?.file_url;
-            
-            if (!file_url) {
-                throw new Error('Upload failed');
-            }
-            
-            toast.loading('Extracting text...', { id: 'upload' });
-            console.log('📄 File selected:', file.name);
-            
-            const ingestionResult = await base44.functions.invoke('ingestUploadedFileToText', { file_url });
-            console.log('📊 Ingestion result:', ingestionResult.data);
-            
-            if (!ingestionResult.data?.success) {
-                throw new Error(ingestionResult.data?.error?.message || 'File extraction failed');
-            }
-            
-            const text = ingestionResult.data.text;
-            console.log(`✅ Extracted ${ingestionResult.data.meta.charCount} characters from ${ingestionResult.data.meta.filename}`);
-
-            // Save to Manuscript entity for persistence
-            toast.loading('Saving manuscript...', { id: 'upload' });
-            const wordCount = text.split(/\s+/).filter(w => w).length;
-
-            // Clean up filename: remove extension, hash prefixes, and format title
-            const cleanTitle = ingestionResult.data.meta.filename
-                .replace(/\.[^/.]+$/, '')  // Remove extension
-                .replace(/^[a-f0-9]+_/i, '')  // Remove hash prefix like "301b14ff2_"
-                .replace(/([a-z])([A-Z])/g, '$1 $2')  // Add spaces between camelCase
-                .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')  // Handle acronyms
-                .replace(/([a-zA-Z])(\d)/g, '$1 $2')  // Space between letters and numbers
-                .replace(/_/g, ' ')  // Replace underscores with spaces
-                .trim();
-
-            const manuscript = await base44.entities.Manuscript.create({
-                title: cleanTitle,
-                full_text: text,
-                word_count: wordCount,
-                status: 'uploaded'
-            });
-            
-            setManuscriptInfo(text);
-            toast.success(`Saved: ${manuscript.title} (${wordCount.toLocaleString()} words)`, { id: 'upload' });
-        } catch (error) {
-            console.error('❌ Upload error:', error);
-            toast.error(`Upload failed: ${error.message}`, { id: 'upload' });
-            setUploadedFileName('');
-        } finally {
-            setUploadingFile(false);
-            e.target.value = '';
-        }
-    };
-
-    const loadFromManuscript = (manuscript) => {
-        setManuscriptInfo(manuscript.full_text);
-        toast.success(`Loaded: ${manuscript.title}`);
+    const handleManuscriptSelect = (manuscriptId) => {
+        setSelectedManuscriptId(manuscriptId);
+        setApiError(null);
+        setAllowAmbiguity(false);
     };
 
     const generateSynopsis = async (type) => {
-        if (!manuscriptInfo.trim()) {
-            toast.error('Please provide information about your manuscript');
+        if (!selectedManuscriptId) {
+            toast.error('Please select a manuscript');
             return;
         }
 
         setGenerating(true);
+        setApiError(null);
+        
         try {
             const response = await base44.functions.invoke('generateSynopsis', {
-                manuscriptInfo,
-                synopsisType: type
+                manuscriptId: selectedManuscriptId,
+                synopsisType: type,
+                allowAmbiguity: allowAmbiguity
             });
             
             const result = response.data || response;
@@ -149,13 +173,27 @@ export default function Synopsis() {
                 await revision.createBaseline(result.synopsis, `synopsis_${type}_${Date.now()}`);
                 
                 const versionName = type === 'query' ? 'Query' : type === 'standard' ? 'Standard' : 'Extended';
-                toast.success(`${versionName} synopsis generated! Document ID: ${result.document_id.substring(0, 8)}...`);
+                toast.success(`${versionName} synopsis generated!`);
             } else {
+                // Display server error codes verbatim
+                setApiError({
+                    code: result.error || 'Unknown error',
+                    message: result.message || result.error || 'Generation failed',
+                    gate_blocked: result.gate_blocked || false,
+                    details: result
+                });
                 toast.error(result.error || 'Generation failed');
             }
         } catch (error) {
             console.error('Synopsis generation error:', error);
-            toast.error('Failed to generate synopsis');
+            const errorData = error.response?.data || error.data;
+            setApiError({
+                code: errorData?.error || 'NETWORK_ERROR',
+                message: errorData?.message || error.message || 'Failed to generate synopsis',
+                gate_blocked: errorData?.gate_blocked || false,
+                details: errorData
+            });
+            toast.error(errorData?.error || 'Failed to generate synopsis');
         } finally {
             setGenerating(false);
         }
@@ -195,80 +233,84 @@ export default function Synopsis() {
 
                 <Card className="mb-8">
                     <CardHeader>
-                        <CardTitle>Tell Us About Your Story</CardTitle>
+                        <CardTitle>Select Evaluated Manuscript</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <Textarea
-                            placeholder="Describe your complete story including: protagonist, inciting incident, major plot points, character arcs, climax, and resolution. Include the ending—synopses must reveal how the story concludes..."
-                            value={manuscriptInfo}
-                            onChange={(e) => setManuscriptInfo(e.target.value)}
-                            className="min-h-[250px]"
-                        />
-                        
-                        <div className="flex items-center gap-4 mb-2">
-                            <div className="flex-1 border-t border-slate-300"></div>
-                            <span className="text-xs text-slate-500">OR UPLOAD FILE</span>
-                            <div className="flex-1 border-t border-slate-300"></div>
-                        </div>
-                        
-                        <div className="flex flex-col gap-2">
-                            <input
-                                type="file"
-                                accept=".pdf,.doc,.docx,.rtf,.txt"
-                                onChange={handleFileUpload}
-                                className="hidden"
-                                id="synopsis-upload"
-                            />
-                            <label htmlFor="synopsis-upload">
-                                <Button 
-                                    type="button" 
-                                    variant="outline" 
-                                    className="w-full" 
-                                    disabled={uploadingFile}
-                                    asChild
-                                >
-                                    <span className="cursor-pointer">
-                                        {uploadingFile ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                Processing...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Upload className="w-4 h-4 mr-2" />
-                                                Upload File
-                                            </>
-                                        )}
-                                    </span>
-                                </Button>
-                            </label>
-                            {uploadedFileName && (
-                                <p className="text-sm text-green-600">
-                                    ✓ {uploadedFileName}
-                                </p>
-                            )}
-                        </div>
-                        
-                        {manuscripts.length > 0 && (
-                            <>
-                                <div className="flex items-center gap-4 my-3">
-                                    <div className="flex-1 border-t border-slate-300"></div>
-                                    <span className="text-xs text-slate-500">OR LOAD FROM PREVIOUS WORKS</span>
-                                    <div className="flex-1 border-t border-slate-300"></div>
-                                </div>
-                                <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {manuscripts.length === 0 ? (
+                            <Alert>
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription>
+                                    No manuscripts found. Upload and evaluate a manuscript first.
+                                </AlertDescription>
+                            </Alert>
+                        ) : (
+                            <Select value={selectedManuscriptId || ''} onValueChange={handleManuscriptSelect}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a manuscript..." />
+                                </SelectTrigger>
+                                <SelectContent>
                                     {manuscripts.map((ms) => (
-                                        <button
-                                            key={ms.id}
-                                            onClick={() => loadFromManuscript(ms)}
-                                            className="w-full p-2 rounded border border-slate-200 hover:bg-slate-50 text-left text-sm"
-                                        >
-                                            <div className="font-medium">{ms.title}</div>
-                                            <div className="text-xs text-slate-500">{ms.word_count?.toLocaleString()} words</div>
-                                        </button>
+                                        <SelectItem key={ms.id} value={ms.id}>
+                                            {ms.title} ({ms.word_count?.toLocaleString()} words)
+                                        </SelectItem>
                                     ))}
-                                </div>
-                            </>
+                                </SelectContent>
+                            </Select>
+                        )}
+
+                        {/* Gate State Display */}
+                        {selectedManuscript && gateState && (
+                            <Alert className={
+                                gateState.state === 'F' ? 'border-green-200 bg-green-50' :
+                                gateState.state === 'G' ? 'border-amber-200 bg-amber-50' :
+                                'border-red-200 bg-red-50'
+                            }>
+                                {gateState.state === 'F' ? (
+                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                ) : gateState.state === 'G' ? (
+                                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                                ) : (
+                                    <XCircle className="h-4 w-4 text-red-600" />
+                                )}
+                                <AlertDescription>
+                                    <div className="space-y-2">
+                                        {gateState.code && (
+                                            <div className="font-mono text-xs text-slate-600">{gateState.code}</div>
+                                        )}
+                                        <div>{gateState.message}</div>
+                                        {gateState.cta && (
+                                            <Button size="sm" variant="outline" className="mt-2">
+                                                {gateState.cta}
+                                            </Button>
+                                        )}
+                                        {gateState.state === 'G' && (
+                                            <div className="mt-3 flex items-start gap-2 p-3 rounded bg-white border border-amber-200">
+                                                <Checkbox
+                                                    id="allow-ambiguity"
+                                                    checked={allowAmbiguity}
+                                                    onCheckedChange={setAllowAmbiguity}
+                                                />
+                                                <label htmlFor="allow-ambiguity" className="text-sm cursor-pointer">
+                                                    Generate synopsis with ambiguity acknowledged (preserves unresolved elements)
+                                                </label>
+                                            </div>
+                                        )}
+                                    </div>
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
+                        {/* API Error Display */}
+                        {apiError && (
+                            <Alert className="border-red-200 bg-red-50">
+                                <XCircle className="h-4 w-4 text-red-600" />
+                                <AlertDescription>
+                                    <div className="space-y-1">
+                                        <div className="font-mono text-xs text-red-700">{apiError.code}</div>
+                                        <div className="text-sm">{apiError.message}</div>
+                                    </div>
+                                </AlertDescription>
+                            </Alert>
                         )}
                     </CardContent>
                 </Card>
@@ -291,7 +333,12 @@ export default function Synopsis() {
                             <CardContent className="space-y-4">
                                 <Button 
                                     onClick={() => generateSynopsis('query')}
-                                    disabled={generating || !manuscriptInfo.trim()}
+                                    disabled={
+                                        generating || 
+                                        !selectedManuscriptId || 
+                                        gateState.blocked || 
+                                        (gateState.state === 'G' && !allowAmbiguity)
+                                    }
                                     className="w-full"
                                 >
                                     {generating ? (
@@ -302,7 +349,7 @@ export default function Synopsis() {
                                     ) : (
                                         <>
                                             <Sparkles className="w-4 h-4 mr-2" />
-                                            Generate Query Synopsis
+                                            {gateState.blocked ? 'Synopsis Locked' : 'Generate Query Synopsis'}
                                         </>
                                     )}
                                 </Button>
@@ -364,7 +411,12 @@ export default function Synopsis() {
                             <CardContent className="space-y-4">
                                 <Button 
                                     onClick={() => generateSynopsis('standard')}
-                                    disabled={generating || !manuscriptInfo.trim()}
+                                    disabled={
+                                        generating || 
+                                        !selectedManuscriptId || 
+                                        gateState.blocked || 
+                                        (gateState.state === 'G' && !allowAmbiguity)
+                                    }
                                     className="w-full"
                                 >
                                     {generating ? (
@@ -375,7 +427,7 @@ export default function Synopsis() {
                                     ) : (
                                         <>
                                             <Sparkles className="w-4 h-4 mr-2" />
-                                            Generate Standard Synopsis
+                                            {gateState.blocked ? 'Synopsis Locked' : 'Generate Standard Synopsis'}
                                         </>
                                     )}
                                 </Button>
@@ -437,7 +489,12 @@ export default function Synopsis() {
                             <CardContent className="space-y-4">
                                 <Button 
                                     onClick={() => generateSynopsis('extended')}
-                                    disabled={generating || !manuscriptInfo.trim()}
+                                    disabled={
+                                        generating || 
+                                        !selectedManuscriptId || 
+                                        gateState.blocked || 
+                                        (gateState.state === 'G' && !allowAmbiguity)
+                                    }
                                     className="w-full"
                                 >
                                     {generating ? (
@@ -448,7 +505,7 @@ export default function Synopsis() {
                                     ) : (
                                         <>
                                             <Sparkles className="w-4 h-4 mr-2" />
-                                            Generate Extended Synopsis
+                                            {gateState.blocked ? 'Synopsis Locked' : 'Generate Extended Synopsis'}
                                         </>
                                     )}
                                 </Button>
