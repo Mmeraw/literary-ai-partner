@@ -283,34 +283,38 @@ export default function PitchGenerator() {
                                     OR PASTE TEXT DIRECTLY
                                 </div>
 
-                                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                <div className="p-4 rounded-lg bg-purple-50 border-2 border-dashed border-purple-300">
+                                    <label className="block text-sm font-medium text-purple-900 mb-2">
                                         Paste Manuscript Text
                                     </label>
                                     <Textarea
                                         value={manualText}
                                         onChange={(e) => setManualText(e.target.value)}
-                                        placeholder="Paste your manuscript text here (at least 100 characters) and we'll extract the fields automatically..."
-                                        className="h-32 bg-white"
+                                        placeholder="Paste your manuscript text here (at least 100 characters)..."
+                                        className="h-32 bg-white border-purple-200"
                                     />
-                                    <Button
-                                        onClick={handleManualTextExtract}
-                                        disabled={processingText || !manualText || manualText.trim().length < 100}
-                                        className="w-full mt-2"
-                                        variant="outline"
-                                    >
-                                        {processingText ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                Analyzing...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Sparkles className="w-4 h-4 mr-2" />
-                                                Extract Fields from Text
-                                            </>
-                                        )}
-                                    </Button>
+                                    <div className="flex items-center justify-between mt-2">
+                                        <span className="text-xs text-purple-700">
+                                            {manualText.length} / 100 characters minimum
+                                        </span>
+                                        <Button
+                                            onClick={handleManualTextExtract}
+                                            disabled={processingText || !manualText || manualText.trim().length < 100}
+                                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                                        >
+                                            {processingText ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                    Analyzing...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles className="w-4 h-4 mr-2" />
+                                                    Extract Fields
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
                                 </div>
 
                                 <div className="text-center text-xs text-slate-500 font-medium">
