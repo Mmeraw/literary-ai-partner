@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { manuscriptId, manuscriptText, genre } = await req.json();
+        const { manuscriptId, manuscriptText, genre, uploadedFilename, title } = await req.json();
 
         if (!genre) {
             return Response.json({ error: 'genre is required' }, { status: 400 });
@@ -17,6 +17,7 @@ Deno.serve(async (req) => {
 
         let manuscript = null;
         let manuscriptTextForAnalysis = manuscriptText;
+        let safeTitle = 'Untitled Upload';
 
         // Handle either manuscriptId OR manuscriptText (upload path)
         if (manuscriptId) {
@@ -28,8 +29,16 @@ Deno.serve(async (req) => {
             }
             
             manuscriptTextForAnalysis = manuscript.full_text;
+            safeTitle = manuscript.title || 'Untitled Manuscript';
         } else if (!manuscriptText) {
             return Response.json({ error: 'Either manuscriptId or manuscriptText is required' }, { status: 400 });
+        } else {
+            // Upload path: derive title from provided fields
+            safeTitle = title?.trim() || uploadedFilename?.replace(/\.[^/.]+$/, '')?.trim() || 'Untitled Upload';
+        }
+
+        if (!manuscriptTextForAnalysis || !manuscriptTextForAnalysis.trim()) {
+            return Response.json({ error: 'No text content found for analysis' }, { status: 400 });
         }
 
         // Auto-detect genre if requested
@@ -59,13 +68,13 @@ Return only the genre name (e.g., "thriller", "literary_fiction", "romance", "my
 
         // Build manuscript analysis summary
         const analysisSummary = manuscript ? {
-            title: manuscript.title,
+            title: safeTitle,
             word_count: manuscript.word_count,
             spine_score: manuscript.spine_score,
             revisiongrade_overall: manuscript.revisiongrade_overall,
             spine_evaluation: manuscript.spine_evaluation
         } : {
-            title: 'Uploaded Manuscript',
+            title: safeTitle,
             word_count: manuscriptTextForAnalysis.split(/\s+/).length,
             text_sample: manuscriptTextForAnalysis.substring(0, 5000)
         };
@@ -101,7 +110,7 @@ Return only the genre name (e.g., "thriller", "literary_fiction", "romance", "my
         // Generate comparables analysis
         const comparablesPrompt = `You are a literary agent analyst. Analyze this manuscript against genre benchmarks.
 
-Manuscript: "${analysisSummary.title}"
+Manuscript: "${safeTitle}"
 Genre: ${finalGenre}
 Word Count: ${analysisSummary.word_count}
 ${manuscript ? `Overall RevisionGrade Score: ${manuscript.revisiongrade_overall || manuscript.spine_score || 'N/A'}` : ''}
@@ -190,7 +199,7 @@ Return structured JSON.`;
         // Create comparative report entity
         const report = await base44.entities.ComparativeReport.create({
             manuscript_id: manuscriptId || 'uploaded',
-            manuscript_title: analysisSummary.title,
+            manuscript_title: safeTitle,
             genre: finalGenre,
             comparison_data: comparablesAnalysis,
             summary_bullets: [
