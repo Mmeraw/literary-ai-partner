@@ -134,6 +134,7 @@ export default function Comparables() {
 
         setGenerating(true);
         try {
+            console.log('Sending (previous ms):', { manuscriptId, genre: selectedGenreForPrevious });
             const { data } = await base44.functions.invoke('generateComparables', {
                 manuscriptId,
                 genre: selectedGenreForPrevious
@@ -146,8 +147,9 @@ export default function Comparables() {
                 toast.error(data.error || 'Failed to generate comparables');
             }
         } catch (error) {
-            console.error('Comparables error:', error);
-            toast.error('Failed to generate comparables report');
+            console.error('Comparables error (previous ms):', error);
+            console.error('Backend response:', error?.response?.data);
+            toast.error(error?.response?.data?.error || error?.response?.data?.message || 'Failed to generate comparables report');
         } finally {
             setGenerating(false);
         }
