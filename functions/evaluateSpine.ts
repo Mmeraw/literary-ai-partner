@@ -36,10 +36,10 @@ Deno.serve(async (req) => {
       return `Chapter ${ch.order}: ${ch.title} (${ch.word_count} words)\nExcerpt: ${excerpt}...`;
     }).join('\n\n');
 
-    // Evaluate spine
+    // Evaluate SPINE (gate artifact - NOT the 13 criteria)
     const spineResponse = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages: [{ role: "user", content: `You are a senior literary agent evaluating a full manuscript for representation.
+      messages: [{ role: "user", content: `You are a structural editor evaluating the SPINE (narrative skeleton) of a manuscript.
 
 MANUSCRIPT: ${manuscript.title}
 Total word count: ${manuscript.word_count}
@@ -47,52 +47,71 @@ Chapters: ${chapters.length}
 
 ${chapterSummaries}
 
-Evaluate this COMPLETE MANUSCRIPT against these 12 criteria (rate 1-10):
+Evaluate the NARRATIVE SPINE as a gate artifact. This is NOT the 13 criteria evaluation.
 
-1. Premise & Hook - Is the concept compelling and marketable?
-2. Plot Spine - Does the plot escalate logically with rising stakes?
-3. Character Arc - Do characters transform meaningfully?
-4. Thematic Coherence - Are themes woven naturally throughout?
-5. Tension & Pacing - Does momentum build across the full book?
-6. Climax Quality - Is the climax earned and satisfying?
-7. Resolution - Does the ending resolve key threads?
-8. Voice Consistency - Is the voice distinct and maintained?
-9. Structural Integrity - Do all parts serve the whole?
-10. Emotional Investment - Will readers care about the journey?
-11. Market Readiness - Is this ready for agent submission?
-12. Overall Strength - Holistic assessment
+Assess these SPINE-SPECIFIC elements:
 
-For each: score (1-10), strengths (array), weaknesses (array), notes (string).
-Also provide: overallScore (1-10), verdict (string), majorStrengths (array), criticalWeaknesses (array).` }],
+1. **Protagonist Objective Clarity** (1-10)
+   - Is there a single, clear driving want/need that structures the narrative?
+   - Can you state it in one sentence: "Protagonist must [X] or [Y] will happen"?
+
+2. **Antagonistic Force Strength** (1-10)
+   - Is the opposition concrete and escalating?
+   - Does it create unavoidable pressure on the protagonist?
+
+3. **Causal Chain Integrity** (1-10)
+   - Does A cause B, B cause C (because/therefore logic)?
+   - Or are events episodic (and then/and then)?
+
+4. **Stakes Escalation** (1-10)
+   - Do consequences grow more severe across the arc?
+   - Is there a clear "point of no return"?
+
+5. **Climax Mechanism** (1-10)
+   - Is there a decisive confrontation/choice that cannot be avoided?
+   - Does it force irreversible consequence?
+
+6. **Resolution Closure** (1-10)
+   - Are core narrative promises resolved or intentionally deferred?
+   - Does the ending answer the central dramatic question?
+
+For each: score (1-10), evidence (string), red_flags (array of strings).
+
+Also provide:
+- spine_statement: one-sentence summary of protagonist's core objective
+- spine_score: overall spine strength (1-10)
+- spine_flags: array of structural issues (e.g., "objective_blur", "weak_causality", "climax_lacks_trigger", "closure_deferred_unintentionally")
+- gate_status: "PASS" if spine_score >= 7, "NEEDS_WORK" if < 7
+- notes: actionable guidance for strengthening spine` }],
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "spine_analysis",
+          name: "spine_gate_analysis",
           strict: true,
           schema: {
             type: "object",
             properties: {
-              overallScore: { type: "number" },
-              verdict: { type: "string" },
-              majorStrengths: { type: "array", items: { type: "string" } },
-              criticalWeaknesses: { type: "array", items: { type: "string" } },
-              criteria: {
+              spine_statement: { type: "string" },
+              spine_score: { type: "number" },
+              spine_flags: { type: "array", items: { type: "string" } },
+              gate_status: { type: "string", enum: ["PASS", "NEEDS_WORK"] },
+              notes: { type: "string" },
+              elements: {
                 type: "array",
                 items: {
                   type: "object",
                   properties: {
                     name: { type: "string" },
                     score: { type: "number" },
-                    strengths: { type: "array", items: { type: "string" } },
-                    weaknesses: { type: "array", items: { type: "string" } },
-                    notes: { type: "string" }
+                    evidence: { type: "string" },
+                    red_flags: { type: "array", items: { type: "string" } }
                   },
-                  required: ["name", "score", "strengths", "weaknesses", "notes"],
+                  required: ["name", "score", "evidence", "red_flags"],
                   additionalProperties: false
                 }
               }
             },
-            required: ["overallScore", "verdict", "criteria"],
+            required: ["spine_statement", "spine_score", "spine_flags", "gate_status", "notes", "elements"],
             additionalProperties: false
           }
         }
@@ -100,11 +119,12 @@ Also provide: overallScore (1-10), verdict (string), majorStrengths (array), cri
     });
     const spineAnalysis = JSON.parse(spineResponse.choices[0].message.content);
 
-    // Update manuscript with spine evaluation
+    // Update manuscript with spine gate artifact
     await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
-      spine_score: spineAnalysis.overallScore,
+      spine_score: spineAnalysis.spine_score,
       spine_evaluation: spineAnalysis,
-      status: 'ready'
+      spine_completed_at: new Date().toISOString(),
+      status: spineAnalysis.gate_status === 'PASS' ? 'spine_complete' : 'spine_evaluating'
     });
 
     return Response.json({ 

@@ -47,10 +47,62 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { manuscriptInfo, synopsisType, manuscriptId, sourceDocumentId } = await req.json();
+        const { manuscriptInfo, synopsisType, manuscriptId, sourceDocumentId, allowAmbiguity } = await req.json();
 
         if (!manuscriptInfo && !manuscriptId) {
             return Response.json({ error: 'Manuscript information or ID required' }, { status: 400 });
+        }
+
+        // HARD GATE: Check if spine evaluation is complete (if manuscriptId provided)
+        if (manuscriptId) {
+            const manuscripts = await base44.asServiceRole.entities.Manuscript.filter({ id: manuscriptId });
+            const manuscript = manuscripts[0];
+
+            if (!manuscript) {
+                return Response.json({ error: 'Manuscript not found' }, { status: 404 });
+            }
+
+            // Gate checks
+            const gateFailures = [];
+
+            if (!manuscript.spine_evaluation || !manuscript.spine_evaluation.spine_statement) {
+                gateFailures.push('Spine evaluation incomplete: missing spine_statement');
+            }
+
+            if (!manuscript.spine_score) {
+                gateFailures.push('Spine evaluation incomplete: missing spine_score');
+            }
+
+            if (manuscript.status !== 'spine_complete' && manuscript.status !== 'ready') {
+                gateFailures.push(`Spine evaluation incomplete: status is "${manuscript.status}", expected "spine_complete" or "ready"`);
+            }
+
+            // Check if spine is weak and ambiguity not explicitly allowed
+            if (manuscript.spine_score && manuscript.spine_score < 7 && !allowAmbiguity) {
+                return Response.json({
+                    error: 'Spine evaluation shows structural ambiguity',
+                    gate_blocked: true,
+                    spine_score: manuscript.spine_score,
+                    spine_flags: manuscript.spine_evaluation?.spine_flags || [],
+                    message: 'This manuscript has a weak narrative spine (score < 7/10). You can either: (1) Strengthen the spine first (recommended), or (2) Generate synopsis with ambiguity acknowledged (set allowAmbiguity=true).',
+                    spine_statement: manuscript.spine_evaluation?.spine_statement || null,
+                    recommended_action: 'Revise manuscript to clarify protagonist objective, strengthen causal chains, and sharpen climax mechanism before generating synopsis.'
+                }, { status: 400 });
+            }
+
+            if (gateFailures.length > 0) {
+                return Response.json({
+                    error: 'Synopsis generation blocked: spine evaluation incomplete',
+                    gate_blocked: true,
+                    gate_failures: gateFailures,
+                    message: 'Complete spine evaluation first (run evaluateSpine function)',
+                    current_status: manuscript.status,
+                    spine_score: manuscript.spine_score || null
+                }, { status: 400 });
+            }
+
+            // If we reach here, gates passed - use manuscript data
+            manuscriptInfo = manuscriptInfo || manuscript.full_text;
         }
 
         // Get version config
@@ -228,7 +280,7 @@ Provide validation report with pass/fail status and specific flags.`;
             content_reference_type: null
         });
 
-        // Create initial version (UPLOAD kind)
+        // Create initial version (UPLOAD kind) with audit trail
         await base44.entities.DocumentVersion.create({
             document_id: document.id,
             version_number: 1,
@@ -237,9 +289,18 @@ Provide validation report with pass/fail status and specific flags.`;
             score_snapshot: null,
             evaluation_data: {
                 validation: validationResponse,
-                skeleton: skeletonResponse
+                skeleton: skeletonResponse,
+                audit_trail: {
+                    source_manuscript_id: manuscriptId || null,
+                    source_document_id: sourceDocumentId || null,
+                    spine_score: manuscriptId ? manuscript?.spine_score : null,
+                    spine_flags: manuscriptId ? manuscript?.spine_evaluation?.spine_flags : null,
+                    ambiguity_acknowledged: allowAmbiguity || false,
+                    generated_at: new Date().toISOString(),
+                    synopsis_version: versionConfig.id
+                }
             },
-            notes: `Generated ${versionConfig.name}`
+            notes: `Generated ${versionConfig.name}${allowAmbiguity ? ' (ambiguity acknowledged)' : ''}`
         });
 
         // Transition to EVALUATED state (since we have validation data)
