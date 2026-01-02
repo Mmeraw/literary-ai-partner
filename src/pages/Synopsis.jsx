@@ -150,7 +150,9 @@ export default function Synopsis() {
             const response = await base44.functions.invoke('generateSynopsis', {
                 manuscriptId: selectedManuscriptId,
                 synopsisType: type,
-                allowAmbiguity: allowAmbiguity
+                allowAmbiguity: allowAmbiguity,
+                mode: allowAmbiguity ? "AMBIGUITY_ACK" : "STANDARD",
+                variant: type.toUpperCase()
             });
             
             const result = response.data || response;
