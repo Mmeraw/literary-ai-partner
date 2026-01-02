@@ -65,6 +65,7 @@ export default function UploadManuscript() {
         word_count: wordCount,
         evaluation_mode: evaluationMode,
         language_variant: languageVariant,
+        voice_preservation_level: voicePreservation,
         status: 'splitting'
       });
 
@@ -193,6 +194,13 @@ export default function UploadManuscript() {
               <TransgressiveModeSelector 
                 value={evaluationMode}
                 onChange={setEvaluationMode}
+              />
+            </div>
+
+            <div className="p-4 sm:p-6 rounded-xl bg-white border border-slate-200">
+              <VoicePreservationToggle 
+                value={voicePreservation}
+                onChange={setVoicePreservation}
               />
             </div>
 
