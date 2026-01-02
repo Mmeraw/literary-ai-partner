@@ -452,6 +452,7 @@ export default function Layout({ children, currentPageName }) {
                                     variant="ghost"
                                     onClick={() => toggleMobileSection('revise')}
                                     className="w-full justify-between h-12 text-slate-600"
+                                    title="Create and manage revisions based on evaluated submissions"
                                 >
                                     <span className="flex items-center">
                                         <Edit3 className="w-5 h-5 mr-3" />

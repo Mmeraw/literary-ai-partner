@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { 
     FileText, Calendar, Type, TrendingUp, 
     ChevronRight, Clock, CheckCircle2, AlertCircle, Trash2, Archive, CheckSquare, Square,
-    Download, Sparkles, BarChart3
+    Download, Sparkles, BarChart3, Edit3, Info
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -17,11 +17,45 @@ import { motion } from "framer-motion";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function History() {
     const [activeTab, setActiveTab] = React.useState('active');
     const [selectedIds, setSelectedIds] = React.useState([]);
     const queryClient = useQueryClient();
+
+    const startRevisionMutation = useMutation({
+        mutationFn: async (submissionId) => {
+            const response = await base44.functions.invoke('generateRevisionSuggestions', {
+                submission_id: submissionId,
+                wave_number: 1
+            });
+            return response.data;
+        },
+        onSuccess: (data) => {
+            if (data.session_id) {
+                window.location.href = createPageUrl(`Revise?session=${data.session_id}`);
+            } else {
+                toast.error('Failed to create revision session');
+            }
+        },
+        onError: () => {
+            toast.error('Failed to start revision');
+        }
+    });
+
+    const handleStartRevision = async (e, submission) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (!submission.overall_score) {
+            toast.error('This submission must be evaluated first');
+            return;
+        }
+        
+        toast.loading('Creating revision session...', { id: 'start-revision' });
+        startRevisionMutation.mutate(submission.id);
+    };
     
     const { data: allSubmissions, isLoading } = useQuery({
         queryKey: ['submissions'],
@@ -182,6 +216,34 @@ export default function History() {
                     <p className="mt-2 text-slate-600">View and continue your manuscript evaluations</p>
                 </div>
 
+                {/* How Revisions Work - Explainer */}
+                <Card className="mb-8 border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50">
+                    <CardContent className="p-6">
+                        <h2 className="text-xl font-bold text-slate-900 mb-3">How Revisions Work</h2>
+                        <p className="text-slate-700 mb-4">
+                            Revisions in RevisionGrade are always based on an Evaluation. 
+                            First, evaluate a submission to generate a scored report. 
+                            Then start a revision from that report to track changes, preserve voice, and measure improvement over time.
+                        </p>
+                        <div className="flex gap-3">
+                            <Link to={createPageUrl('Evaluate')}>
+                                <Button className="bg-indigo-600 hover:bg-indigo-700">
+                                    <Sparkles className="w-4 h-4 mr-2" />
+                                    Evaluate a New Submission
+                                </Button>
+                            </Link>
+                            <Button 
+                                variant="outline"
+                                onClick={() => {
+                                    document.querySelector('[data-evaluated-list]')?.scrollIntoView({ behavior: 'smooth' });
+                                }}
+                            >
+                                View Evaluated Submissions Below
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 {/* Tabs */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
                     <TabsList className="grid w-full max-w-md grid-cols-2">
@@ -227,6 +289,7 @@ export default function History() {
                 )}
 
                 {/* Submissions List */}
+                <div data-evaluated-list>
                 {isLoading ? (
                     <div className="space-y-4">
                         {[1, 2, 3].map(i => (
@@ -391,30 +454,63 @@ export default function History() {
                                                         )}
 
                                                         {activeTab === 'active' && (
-                                                            <div className="mt-4 flex items-center gap-2">
+                                                            <div className="mt-4 flex items-center gap-2 flex-wrap">
+                                                                {submission.overall_score ? (
+                                                                    <TooltipProvider>
+                                                                        <Tooltip>
+                                                                            <TooltipTrigger asChild>
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                                                                                    onClick={(e) => handleStartRevision(e, submission)}
+                                                                                    disabled={startRevisionMutation.isPending}
+                                                                                >
+                                                                                    <Edit3 className="w-3 h-3 mr-1" />
+                                                                                    Start Revision
+                                                                                </Button>
+                                                                            </TooltipTrigger>
+                                                                            <TooltipContent>
+                                                                                Create a new revision session from this evaluation
+                                                                            </TooltipContent>
+                                                                        </Tooltip>
+                                                                    </TooltipProvider>
+                                                                ) : (
+                                                                    <TooltipProvider>
+                                                                        <Tooltip>
+                                                                            <TooltipTrigger asChild>
+                                                                                <div>
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        disabled
+                                                                                        className="opacity-50"
+                                                                                    >
+                                                                                        <Edit3 className="w-3 h-3 mr-1" />
+                                                                                        Start Revision
+                                                                                    </Button>
+                                                                                </div>
+                                                                            </TooltipTrigger>
+                                                                            <TooltipContent>
+                                                                                This submission must be evaluated before a revision can begin
+                                                                            </TooltipContent>
+                                                                        </Tooltip>
+                                                                    </TooltipProvider>
+                                                                )}
                                                                 <Button
                                                                     size="sm"
                                                                     variant="outline"
                                                                     onClick={(e) => {
                                                                         e.preventDefault();
                                                                         e.stopPropagation();
-                                                                        const blob = new Blob([submission.text], { type: 'text/plain' });
-                                                                        const url = URL.createObjectURL(blob);
-                                                                        const a = document.createElement('a');
-                                                                        a.href = url;
-                                                                        a.download = `${submission.title}_original.txt`;
-                                                                        a.click();
-                                                                        URL.revokeObjectURL(url);
-                                                                        toast.success('Original downloaded');
                                                                     }}
                                                                 >
-                                                                    <Download className="w-3 h-3 mr-1" />
-                                                                    Original
+                                                                    <FileText className="w-3 h-3 mr-1" />
+                                                                    View Report
                                                                 </Button>
                                                                 {submission.revised_text || submission.session_id ? (
                                                                    <Button
                                                                        size="sm"
-                                                                       className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                                       variant="outline"
+                                                                       className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
                                                                        onClick={(e) => {
                                                                            e.preventDefault();
                                                                            e.stopPropagation();
@@ -432,31 +528,10 @@ export default function History() {
                                                                            }
                                                                        }}
                                                                    >
-                                                                       <Sparkles className="w-3 h-3 mr-1" />
-                                                                       {submission.revised_text ? 'Download Revised' : 'View Revision'}
+                                                                       <Download className="w-3 h-3 mr-1" />
+                                                                       Download Revised
                                                                    </Button>
-                                                                ) : (
-                                                                   <Button
-                                                                       size="sm"
-                                                                       variant="outline"
-                                                                       disabled
-                                                                       className="opacity-50"
-                                                                   >
-                                                                       No Revision Yet
-                                                                   </Button>
-                                                                )}
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={(e) => {
-                                                                        e.preventDefault();
-                                                                        e.stopPropagation();
-                                                                    }}
-                                                                    className="ml-auto"
-                                                                >
-                                                                    <FileText className="w-3 h-3 mr-1" />
-                                                                    View Report
-                                                                </Button>
+                                                                ) : null}
                                                             </div>
                                                         )}
                                                     </div>
