@@ -127,7 +127,12 @@ Return structured JSON with all fields populated. Be specific and compelling.`;
                                 items: { type: 'string' }
                             },
                             lawMentioned: { type: 'boolean' },
-                            passedVoiceGate: { type: 'boolean' }
+                            passedVoiceGate: { type: 'boolean' },
+                            inventedNames: {
+                                type: 'array',
+                                items: { type: 'string' },
+                                description: 'Names created but not found in source text (should be empty)'
+                            }
                         }
                     }
                 }
