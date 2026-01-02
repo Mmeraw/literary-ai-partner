@@ -30,7 +30,7 @@ export default function Home() {
                         </p>
 
                         <p className="text-base sm:text-lg text-slate-700 max-w-2xl mx-auto mb-8 font-medium">
-                            See the Resources page for proof.
+                            See the <Link to={createPageUrl('FAQ')} className="font-bold text-indigo-600 hover:text-indigo-700 underline">Resources</Link> page for proof.
                         </p>
 
                         <div>
