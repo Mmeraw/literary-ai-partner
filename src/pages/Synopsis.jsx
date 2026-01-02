@@ -77,12 +77,23 @@ export default function Synopsis() {
             
             const text = ingestionResult.data.text;
             console.log(`✅ Extracted ${ingestionResult.data.meta.charCount} characters from ${ingestionResult.data.meta.filename}`);
-            
+
             // Save to Manuscript entity for persistence
             toast.loading('Saving manuscript...', { id: 'upload' });
             const wordCount = text.split(/\s+/).filter(w => w).length;
+
+            // Clean up filename: remove extension, hash prefixes, and format title
+            const cleanTitle = ingestionResult.data.meta.filename
+                .replace(/\.[^/.]+$/, '')  // Remove extension
+                .replace(/^[a-f0-9]+_/i, '')  // Remove hash prefix like "301b14ff2_"
+                .replace(/([a-z])([A-Z])/g, '$1 $2')  // Add spaces between camelCase
+                .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')  // Handle acronyms
+                .replace(/([a-zA-Z])(\d)/g, '$1 $2')  // Space between letters and numbers
+                .replace(/_/g, ' ')  // Replace underscores with spaces
+                .trim();
+
             const manuscript = await base44.entities.Manuscript.create({
-                title: ingestionResult.data.meta.filename.replace(/\.[^/.]+$/, ''),
+                title: cleanTitle,
                 full_text: text,
                 word_count: wordCount,
                 status: 'uploaded'
