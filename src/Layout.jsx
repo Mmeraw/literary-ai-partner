@@ -272,7 +272,7 @@ export default function Layout({ children, currentPageName }) {
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                            Storygate Studio <ChevronDown className="ml-1 h-4 w-4" />
+                                            Storygate Studio™ <ChevronDown className="ml-1 h-4 w-4" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="start" className="w-56">
