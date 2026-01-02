@@ -18,8 +18,9 @@ Deno.serve(async (req) => {
         async function testGateState(testId, manuscript, expectedState, expectedCode) {
             try {
                 const response = await base44.asServiceRole.functions.invoke('generateSynopsis', {
-                    manuscriptId: manuscript.id,
-                    synopsisType: 'standard'
+                    source_document_id: manuscript.id,
+                    mode: 'STANDARD',
+                    variant: 'STANDARD'
                 });
 
                 const result = response.data || response;
@@ -146,17 +147,16 @@ Deno.serve(async (req) => {
 
         // Test without opt-in (should block)
         const weakSpineNoOptIn = await base44.asServiceRole.functions.invoke('generateSynopsis', {
-            manuscriptId: testManuscriptWeakSpine.id,
-            synopsisType: 'standard',
-            allowAmbiguity: false
+            source_document_id: testManuscriptWeakSpine.id,
+            mode: 'STANDARD',
+            variant: 'STANDARD'
         });
         const weakSpineNoOptInResult = weakSpineNoOptIn.data || weakSpineNoOptIn;
 
         // Test with opt-in (should include mode)
         const weakSpineOptIn = await base44.asServiceRole.functions.invoke('generateSynopsis', {
-            manuscriptId: testManuscriptWeakSpine.id,
-            synopsisType: 'standard',
-            allowAmbiguity: true,
+            source_document_id: testManuscriptWeakSpine.id,
+            source_version_id: null,
             mode: 'AMBIGUITY_ACK',
             variant: 'STANDARD'
         });
@@ -197,8 +197,10 @@ Deno.serve(async (req) => {
 
         try {
             const strongSpineResult = await base44.asServiceRole.functions.invoke('generateSynopsis', {
-                manuscriptId: testManuscriptStrongSpine.id,
-                synopsisType: 'standard'
+                source_document_id: testManuscriptStrongSpine.id,
+                source_version_id: null,
+                mode: 'STANDARD',
+                variant: 'STANDARD'
             });
             const strongSpineData = strongSpineResult.data || strongSpineResult;
 

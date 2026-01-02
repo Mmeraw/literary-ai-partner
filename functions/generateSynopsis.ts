@@ -47,18 +47,18 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { manuscriptInfo, synopsisType, manuscriptId, sourceDocumentId, allowAmbiguity } = await req.json();
+        const { manuscriptInfo, synopsisType, source_document_id, source_version_id, mode, variant, allowAmbiguity } = await req.json();
 
-        if (!manuscriptInfo && !manuscriptId) {
+        if (!manuscriptInfo && !source_document_id) {
             return Response.json({ error: 'Manuscript information or ID required' }, { status: 400 });
         }
 
-        // HARD GATE: Check preconditions (if manuscriptId provided)
+        // HARD GATE: Check preconditions (if source_document_id provided)
         let manuscript = null;
         let evaluationSnapshot = null;
-        
-        if (manuscriptId) {
-            const manuscripts = await base44.asServiceRole.entities.Manuscript.filter({ id: manuscriptId });
+
+        if (source_document_id) {
+            const manuscripts = await base44.asServiceRole.entities.Manuscript.filter({ id: source_document_id });
             manuscript = manuscripts[0];
 
             if (!manuscript) {
@@ -311,10 +311,10 @@ Provide validation report with pass/fail status and specific flags.`;
         const documentTitle = versionConfig.name;
         const document = await base44.entities.Document.create({
             type: 'SYNOPSIS',
-            scope: synopsisType === 'extended' ? 'FULL' : synopsisType === 'standard' ? 'FULL' : 'PARTIAL',
+            scope: variant === 'EXTENDED' ? 'FULL' : variant === 'STANDARD' ? 'FULL' : 'PARTIAL',
             state: 'UPLOADED',
             title: documentTitle,
-            parent_document_id: sourceDocumentId || null,
+            parent_document_id: source_document_id || null,
             content_reference_id: null,
             content_reference_type: null
         });
@@ -346,9 +346,10 @@ Provide validation report with pass/fail status and specific flags.`;
                 validation: validationResponse,
                 skeleton: skeletonResponse,
                 audit_trail: {
-                    source_manuscript_id: manuscriptId || null,
-                    source_document_id: sourceDocumentId || null,
-                    evaluation_id: manuscriptId || null,
+                    source_manuscript_id: source_document_id || null,
+                    source_document_id: source_document_id || null,
+                    source_version_id: source_version_id || null,
+                    evaluation_id: source_document_id || null,
                     story_spine_used: evaluationSnapshot?.spine.story_spine || null,
                     spine_snapshot_hash: spineSnapshotHash,
                     criteria_snapshot_hash: criteriaSnapshotHash,
@@ -356,8 +357,8 @@ Provide validation report with pass/fail status and specific flags.`;
                     constraint_hash: constraintHash,
                     evaluation_snapshot: evaluationSnapshot,
                     prompt_template_version: "SYNOPSIS_PROMPT_v1.0",
-                    mode: allowAmbiguity ? "AMBIGUITY_ACK" : "STANDARD",
-                    variant: versionConfig.id,
+                    mode: mode || (allowAmbiguity ? "AMBIGUITY_ACK" : "STANDARD"),
+                    variant: variant || versionConfig.id.toUpperCase(),
                     ambiguity_acknowledged: allowAmbiguity || false,
                     generated_at: new Date().toISOString()
                 }

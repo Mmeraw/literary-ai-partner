@@ -148,9 +148,8 @@ export default function Synopsis() {
         
         try {
             const response = await base44.functions.invoke('generateSynopsis', {
-                manuscriptId: selectedManuscriptId,
-                synopsisType: type,
-                allowAmbiguity: allowAmbiguity,
+                source_document_id: selectedManuscriptId,
+                source_version_id: null, // TODO: Add version tracking
                 mode: allowAmbiguity ? "AMBIGUITY_ACK" : "STANDARD",
                 variant: type.toUpperCase()
             });
