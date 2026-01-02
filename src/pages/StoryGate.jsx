@@ -22,7 +22,7 @@ export default function StoryGate() {
                             Storygate Studio™
                         </h1>
                         <p className="text-2xl mb-6 font-light" style={{ color: '#F2EFEA' }}>
-                            A secure, curated access layer for high-grade manuscripts, books, and screen projects—built for verified publishing and screen-industry professionals.
+                            A secure, curated access layer for high-grade manuscripts, books, and screen projects—built for verified publishing and screen professionals.
                         </p>
                         <p className="text-lg max-w-3xl mx-auto leading-relaxed mb-8" style={{ color: '#D4D4D4' }}>
                             Verified users request access to specific projects. Creators control visibility by role, and all activity is logged.
@@ -56,17 +56,12 @@ export default function StoryGate() {
                         {
                             icon: Shield,
                             title: "Verified access only",
-                            description: "Industry professionals apply for access and are approved before viewing materials."
+                            description: "Industry professionals must be approved before viewing materials."
                         },
                         {
                             icon: Lock,
                             title: "Request → Creator approval",
                             description: "Industry users request access to specific projects; creators approve or decline on a per-project basis."
-                        },
-                        {
-                            icon: FileText,
-                            title: "Audit trail",
-                            description: "All access, unlocks, and key interactions are logged."
                         },
                         {
                             icon: CheckCircle2,
@@ -120,7 +115,7 @@ export default function StoryGate() {
             <div className="max-w-6xl mx-auto px-6 py-16">
                 <h2 className="text-3xl font-semibold mb-6" style={{ color: '#7A1E1E' }}>Eligibility & Quality Requirements</h2>
                 <p className="mb-8" style={{ color: '#D4D4D4' }}>
-                    Placement in StoryGate is conditional. Projects must satisfy both presentation and quality requirements.
+                    Placement in Storygate Studio™ is conditional. Projects must satisfy both requirements below.
                 </p>
 
                 {/* Rule 1 */}
@@ -205,7 +200,7 @@ export default function StoryGate() {
                             "Provide a complete professional package (single PDF)",
                             "Confirm rights ownership or control for the submitted work",
                             "Meet the quality threshold through a RevisionGrade evaluation or an equivalent professional evaluation",
-                            "Acknowledge that Storygate Studio is selective and that submission does not guarantee response, review, or acceptance"
+                            "Acknowledge that Storygate Studio™ is selective and that submission does not guarantee response, review, or acceptance"
                         ].map((item, idx) => (
                             <li key={idx} className="flex items-start gap-3">
                                 <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#A98E4A' }} />
@@ -236,7 +231,7 @@ export default function StoryGate() {
                         ))}
                     </ul>
                     <p className="italic" style={{ color: '#7B7B7B' }}>
-                        Storygate Studio is an access layer, not a representation agreement, not a sales platform, and not a guarantee of opportunity.
+                        Storygate Studio™ is an access layer, not a representation agreement, not a sales platform, and not a guarantee of opportunity.
                     </p>
                 </div>
             </div>
@@ -249,7 +244,7 @@ export default function StoryGate() {
                             <CardContent className="p-8 text-center">
                                 <h3 className="text-xl font-semibold mb-4" style={{ color: '#7A1E1E' }} id="industry">For Industry</h3>
                                 <p className="text-sm mb-4" style={{ color: '#D4D4D4' }}>
-                                    Industry professionals apply for verification by submitting role and credentials. Approved users receive "Verified Industry" status and may request access to specific projects.
+                                    Industry professionals may apply for verified access and request viewing permissions on a per-project basis.
                                 </p>
                                 <Link to={createPageUrl('IndustryVerification')}>
                                     <Button size="lg" className="w-full hover:opacity-90 transition-opacity" style={{ backgroundColor: '#7A1E1E', color: '#F2EFEA' }}>
