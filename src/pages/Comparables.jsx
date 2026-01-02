@@ -10,8 +10,7 @@ import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
-const GENRES = [
-    { value: 'auto', label: '✨ Let RevisionGrade Choose (Recommended)' },
+const GENRES_UPLOAD = [
     { value: 'thriller', label: 'Thriller' },
     { value: 'mystery', label: 'Mystery' },
     { value: 'literary_fiction', label: 'Literary Fiction' },
@@ -23,8 +22,14 @@ const GENRES = [
     { value: 'ya', label: 'Young Adult' },
 ];
 
+const GENRES_PREVIOUS = [
+    { value: 'auto', label: '✨ Let RevisionGrade Choose (Recommended)' },
+    ...GENRES_UPLOAD
+];
+
 export default function Comparables() {
-    const [selectedGenre, setSelectedGenre] = useState('auto');
+    const [selectedGenre, setSelectedGenre] = useState('');
+    const [selectedGenreForPrevious, setSelectedGenreForPrevious] = useState('auto');
     const [generating, setGenerating] = useState(false);
     const [uploadedFile, setUploadedFile] = useState(null);
     const [extractedText, setExtractedText] = useState('');
@@ -119,7 +124,7 @@ export default function Comparables() {
     };
 
     const handleGenerate = async (manuscriptId) => {
-        if (!selectedGenre) {
+        if (!selectedGenreForPrevious) {
             toast.error('Please select a genre first');
             return;
         }
@@ -128,7 +133,7 @@ export default function Comparables() {
         try {
             const { data } = await base44.functions.invoke('generateComparables', {
                 manuscriptId,
-                genre: selectedGenre
+                genre: selectedGenreForPrevious
             });
 
             if (data.success) {
@@ -298,7 +303,7 @@ export default function Comparables() {
                                             <SelectValue placeholder="Choose your genre..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {GENRES.map((genre) => (
+                                            {GENRES_UPLOAD.map((genre) => (
                                                 <SelectItem key={genre.value} value={genre.value}>
                                                     {genre.label}
                                                 </SelectItem>
@@ -340,12 +345,12 @@ export default function Comparables() {
                         <CardTitle>Select Genre for Analysis</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <Select value={selectedGenre} onValueChange={setSelectedGenre}>
+                        <Select value={selectedGenreForPrevious} onValueChange={setSelectedGenreForPrevious}>
                             <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Choose your genre..." />
                             </SelectTrigger>
                             <SelectContent>
-                                {GENRES.map((genre) => (
+                                {GENRES_PREVIOUS.map((genre) => (
                                     <SelectItem key={genre.value} value={genre.value}>
                                         {genre.label}
                                     </SelectItem>
@@ -395,7 +400,7 @@ export default function Comparables() {
                                         </div>
                                         <Button
                                             onClick={() => handleGenerate(ms.id)}
-                                            disabled={!selectedGenre || generating}
+                                            disabled={!selectedGenreForPrevious || generating}
                                             className="bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto"
                                         >
                                             {generating ? (
