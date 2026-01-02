@@ -347,15 +347,12 @@ export default function Home() {
             {/* Final CTA Section */}
             <div className="bg-white py-20">
                 <div className="max-w-3xl mx-auto px-6 text-center">
-                    <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
+                    <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-8">
                         Ready to Transform Your Writing?
                     </h2>
-                    <p className="text-lg sm:text-xl text-slate-700 mb-8 font-medium">
-                        30-Day Money Back Guarantee • No Credit Card Required
-                    </p>
                     <Link to={createPageUrl('UploadManuscript')}>
                         <Button size="lg" className="h-16 px-12 text-lg bg-indigo-600 hover:bg-indigo-700 shadow-lg">
-                            Upload Your Writing
+                            Start a Free Evaluation
                         </Button>
                     </Link>
                 </div>
