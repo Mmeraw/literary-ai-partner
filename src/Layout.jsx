@@ -20,6 +20,7 @@ import {
 import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
 import AnalyticsTracker from '@/components/AnalyticsTracker';
+import ScrollToTop from '@/components/ScrollToTop';
 
 // CANONICAL WORKFLOW: Dashboard → Upload → Evaluate → Revise → Convert → Output
 const dashboardPages = [
@@ -667,6 +668,7 @@ export default function Layout({ children, currentPageName }) {
 
             {/* Main Content */}
             <main>
+                <ScrollToTop />
                 <AnalyticsTracker currentPageName={currentPageName} />
                 {children}
             </main>
