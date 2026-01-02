@@ -125,7 +125,7 @@ ${manuscript ? `Spine Evaluation Summary:\n${JSON.stringify(manuscript.spine_eva
 
 ${marketContext ? `Recent Market Research:\n${marketContext}\n\n` : ''}
 
-Task: Compare this manuscript to bestselling ${genre} titles from 2020-2025 across the 13 Story Evaluation Criteria:
+Task: Compare this manuscript to bestselling ${finalGenre} titles from 2020-2025 across the 13 Story Evaluation Criteria:
 1. Voice & Style
 2. Opening Hook
 3. Character Development
@@ -151,7 +151,8 @@ Also provide:
 - Overall market positioning summary (2-3 paragraphs)
 - 3-5 strategic revision priorities for agent readiness
 
-Return structured JSON.`;
+CRITICAL: Return ONLY valid JSON matching the exact schema below. No markdown, no prose, no comments.
+All fields marked as required MUST be present.`;
 
         const comparablesAnalysis = await base44.integrations.Core.InvokeLLM({
             prompt: comparablesPrompt,
