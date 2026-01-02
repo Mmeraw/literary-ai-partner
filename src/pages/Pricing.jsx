@@ -126,25 +126,25 @@ export default function Pricing() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             {/* Header */}
-            <div className="relative overflow-hidden py-20">
+            <div className="relative overflow-hidden py-16 sm:py-20">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-100 via-transparent to-transparent opacity-60" />
-                <div className="relative max-w-4xl mx-auto px-6 text-center">
+                <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center">
                     <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <Sparkles className="w-4 h-4 mr-2" />
                         Simple, Transparent Pricing
                     </Badge>
-                    <h1 className="text-4xl sm:text-5xl font-bold text-slate-900 mb-4">
+                    <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 mb-4">
                         Choose Your Plan
                     </h1>
-                    <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+                    <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto">
                         Professional editorial judgment, repeatable over time. All plans include PhD-calibrated analysis against 13 Story Evaluation Criteria and the proprietary WAVE Revision System.
                     </p>
                 </div>
             </div>
 
             {/* Pricing Cards */}
-            <div className="max-w-7xl mx-auto px-6 pb-20">
-                <div className="grid md:grid-cols-3 gap-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-20">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
                     {tiers.map((tier, idx) => (
                         <motion.div
                             key={tier.name}

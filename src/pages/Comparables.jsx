@@ -146,17 +146,17 @@ export default function Comparables() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-            <div className="max-w-6xl mx-auto px-6 py-12">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
                 {/* Header */}
                 <div className="text-center mb-10">
                     <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <TrendingUp className="w-4 h-4 mr-2" />
                         Genre Comparables Analysis
                     </Badge>
-                    <h1 className="text-4xl font-bold text-slate-900 mb-4">
+                    <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
                         Compare Your Work to Genre Benchmarks
                     </h1>
-                    <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+                    <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto">
                         See how your manuscript stacks up against 100+ bestsellers from 2018-2025. 
                         Get Winslow-style comparative analysis across all 12 story criteria.
                     </p>
@@ -171,7 +171,7 @@ export default function Comparables() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="grid md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
                             <div className="space-y-2">
                                 <div className="font-semibold text-slate-900">1. Auto-Detect Genre</div>
                                 <p className="text-sm text-slate-600">
@@ -356,7 +356,7 @@ export default function Comparables() {
 
                 {/* Manuscripts List */}
                 <div className="space-y-4">
-                    <h2 className="text-2xl font-bold text-slate-900">Your Ready Manuscripts</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Your Ready Manuscripts</h2>
                     
                     {isLoading ? (
                         <div className="text-center py-12">
@@ -380,10 +380,10 @@ export default function Comparables() {
                         manuscripts.map((ms) => (
                             <Card key={ms.id} className="border-2 hover:border-indigo-200 transition-all">
                                 <CardContent className="py-6">
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                         <div className="flex-1">
-                                            <h3 className="text-xl font-semibold text-slate-900 mb-2">{ms.title}</h3>
-                                            <div className="flex items-center gap-4 text-sm text-slate-600">
+                                            <h3 className="text-lg sm:text-xl font-semibold text-slate-900 mb-2">{ms.title}</h3>
+                                            <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-slate-600">
                                                 <span>{ms.word_count?.toLocaleString()} words</span>
                                                 {ms.spine_score && (
                                                     <Badge variant="outline">
@@ -395,7 +395,7 @@ export default function Comparables() {
                                         <Button
                                             onClick={() => handleGenerate(ms.id)}
                                             disabled={!selectedGenre || generating}
-                                            className="bg-indigo-600 hover:bg-indigo-700"
+                                            className="bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto"
                                         >
                                             {generating ? (
                                                 <>
@@ -417,9 +417,9 @@ export default function Comparables() {
                 </div>
 
                 {/* CTA */}
-                <div className="mt-12 p-8 rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 text-center">
+                <div className="mt-12 p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 text-center">
                     <Target className="w-12 h-12 mx-auto text-indigo-600 mb-4" />
-                    <h3 className="text-2xl font-bold text-slate-900 mb-2">
+                    <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
                         Position for Agents
                     </h3>
                     <p className="text-slate-600 mb-6 max-w-2xl mx-auto">

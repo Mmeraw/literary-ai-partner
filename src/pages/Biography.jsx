@@ -145,16 +145,16 @@ Generate both bios now.`,
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-            <div className="max-w-4xl mx-auto px-6 py-12">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
                 <div className="text-center mb-10">
                     <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <User className="w-4 h-4 mr-2" />
                         Author Biography Builder
                     </Badge>
-                    <h1 className="text-4xl font-bold text-slate-900 mb-4">
+                    <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
                         Generate Your Author Bio
                     </h1>
-                    <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+                    <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto">
                         Create query-ready and long-form author biographies. Essential for query letters, agent submissions, and book marketing.
                     </p>
                 </div>

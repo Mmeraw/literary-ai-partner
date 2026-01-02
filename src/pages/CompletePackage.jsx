@@ -324,22 +324,22 @@ ${packageData.queryLetter}
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-            <div className="max-w-7xl mx-auto px-6 py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
                 {/* Header */}
                 <div className="text-center mb-10">
                     <Badge className="mb-4 px-4 py-2 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <Package className="w-4 h-4 mr-2" />
                         Complete Submission Package
                     </Badge>
-                    <h1 className="text-4xl font-bold text-slate-900 mb-4">
+                    <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
                         Generate Everything at Once
                     </h1>
-                    <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+                    <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto">
                         One form. One click. All pitches, synopses, bio, and query letter—ready in minutes.
                     </p>
                 </div>
 
-                <div className="grid lg:grid-cols-5 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 sm:gap-8">
                     {/* Input Section */}
                     <div className="lg:col-span-2 space-y-6">
                         <Card>
@@ -714,7 +714,7 @@ ${packageData.queryLetter}
                                 </CardHeader>
                                 <CardContent>
                                     <Tabs defaultValue="pitches" className="space-y-4">
-                                        <TabsList className="grid grid-cols-4 w-full">
+                                        <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full">
                                             <TabsTrigger value="pitches">Pitches</TabsTrigger>
                                             <TabsTrigger value="synopses">Synopses</TabsTrigger>
                                             <TabsTrigger value="bio">Bio</TabsTrigger>
