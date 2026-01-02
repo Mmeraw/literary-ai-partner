@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { manuscriptText, title, genre, logline } = await req.json();
+        const { manuscriptText, title, genre, logline, voiceIntensity = 'house' } = await req.json();
 
         if (!manuscriptText || !title) {
             return Response.json({ 
@@ -17,31 +17,31 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
 
-        // VOICE ANCHOR: Apply thematic schema before generating deck
+        // VOICE ANCHOR: Apply thematic schema before generating deck (MANDATORY)
         console.log('🎭 Applying Voice Anchor layer to film deck...');
         
-        let thematicSchema = {};
-        let voiceAnchored = {};
-        
-        try {
-            const voiceAnchorResult = await base44.functions.invoke('applyVoiceAnchorAndSchemaToPitch', {
-                extractedText: manuscriptText.substring(0, 8000),
-                formatType: 'film_pitch_deck',
-                projectVoiceProfile: null
-            });
+        const voiceAnchorResult = await base44.functions.invoke('applyVoiceAnchorAndSchemaToPitch', {
+            extractedText: manuscriptText.substring(0, 8000),
+            formatType: 'film_pitch_deck',
+            projectVoiceProfile: null,
+            voiceIntensity
+        });
 
-            const voiceData = voiceAnchorResult.data || voiceAnchorResult;
-            
-            if (voiceData.success) {
-                thematicSchema = voiceData.thematicSchema || {};
-                voiceAnchored = voiceData.pitch || {};
-                console.log('✅ Thematic schema applied to deck:', thematicSchema);
-            } else {
-                console.warn('Voice Anchor failed, proceeding with standard generation:', voiceData.error);
-            }
-        } catch (error) {
-            console.warn('Voice Anchor service unavailable, proceeding with standard generation:', error.message);
+        const voiceData = voiceAnchorResult.data || voiceAnchorResult;
+        
+        if (!voiceData.success || !voiceData.meta?.passedVoiceGate) {
+            const failureReason = voiceData.meta?.bannedPhraseHits?.join(', ') || 
+                                  (!voiceData.meta?.lawMentioned ? 'missing law/ritual structure' : 'missing specificity requirements');
+            return Response.json({ 
+                success: false, 
+                error: `Voice Gate failed (${voiceIntensity}): ${failureReason}. Try lowering intensity or provide more concrete source text.`,
+                meta: voiceData.meta
+            }, { status: 422 });
         }
+
+        const thematicSchema = voiceData.thematicSchema || {};
+        const voiceAnchored = voiceData.pitch || {};
+        console.log('✅ Thematic schema applied to deck:', thematicSchema);
 
         // Generate comprehensive film pitch deck
         const prompt = `You are a Hollywood pitch consultant. Generate a comprehensive film adaptation pitch deck for the following manuscript.

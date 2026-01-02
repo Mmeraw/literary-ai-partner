@@ -18,32 +18,31 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
 
-        // VOICE ANCHOR: Apply thematic schema before generating pitches
+        // VOICE ANCHOR: Apply thematic schema before generating pitches (MANDATORY)
         console.log('🎭 Applying Voice Anchor layer...');
         
-        let thematicSchema = {};
-        let voiceAnchored = {};
-        
-        try {
-            const voiceAnchorResult = await base44.functions.invoke('applyVoiceAnchorAndSchemaToPitch', {
-                extractedText: manuscriptInfo.text_sample || manuscriptInfo.full_text || '',
-                formatType: 'pitch_variations',
-                projectVoiceProfile: null,
-                voiceIntensity
-            });
+        const voiceAnchorResult = await base44.functions.invoke('applyVoiceAnchorAndSchemaToPitch', {
+            extractedText: manuscriptInfo.text_sample || manuscriptInfo.full_text || '',
+            formatType: 'pitch_variations',
+            projectVoiceProfile: null,
+            voiceIntensity
+        });
 
-            const voiceData = voiceAnchorResult.data || voiceAnchorResult;
-            
-            if (voiceData.success) {
-                thematicSchema = voiceData.thematicSchema || {};
-                voiceAnchored = voiceData.pitch || {};
-                console.log('✅ Thematic schema applied:', thematicSchema);
-            } else {
-                console.warn('Voice Anchor failed, proceeding with standard generation:', voiceData.error);
-            }
-        } catch (error) {
-            console.warn('Voice Anchor service unavailable, proceeding with standard generation:', error.message);
+        const voiceData = voiceAnchorResult.data || voiceAnchorResult;
+        
+        if (!voiceData.success || !voiceData.meta?.passedVoiceGate) {
+            const failureReason = voiceData.meta?.bannedPhraseHits?.join(', ') || 
+                                  (!voiceData.meta?.lawMentioned ? 'missing law/ritual structure' : 'missing specificity requirements');
+            return Response.json({ 
+                success: false, 
+                error: `Voice Gate failed (${voiceIntensity}): ${failureReason}. Try lowering intensity or provide more concrete source text.`,
+                meta: voiceData.meta
+            }, { status: 422 });
         }
+
+        const thematicSchema = voiceData.thematicSchema || {};
+        const voiceAnchored = voiceData.pitch || {};
+        console.log('✅ Thematic schema applied:', thematicSchema);
 
         // Build comprehensive context for the LLM
         const contextPrompt = `

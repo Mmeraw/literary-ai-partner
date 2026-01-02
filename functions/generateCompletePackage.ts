@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { manuscriptInfo } = await req.json();
+        const { manuscriptInfo, voiceIntensity = 'house' } = await req.json();
 
         if (!manuscriptInfo?.title || !manuscriptInfo?.logline) {
             return Response.json({ 
@@ -18,31 +18,31 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
 
-        // VOICE ANCHOR: Apply thematic schema before generating complete package
+        // VOICE ANCHOR: Apply thematic schema before generating complete package (MANDATORY)
         console.log('🎭 Applying Voice Anchor layer to complete package...');
         
-        let thematicSchema = {};
-        let voiceAnchored = {};
-        
-        try {
-            const voiceAnchorResult = await base44.functions.invoke('applyVoiceAnchorAndSchemaToPitch', {
-                extractedText: manuscriptInfo.text_sample || manuscriptInfo.full_text || '',
-                formatType: 'complete_package',
-                projectVoiceProfile: null
-            });
+        const voiceAnchorResult = await base44.functions.invoke('applyVoiceAnchorAndSchemaToPitch', {
+            extractedText: manuscriptInfo.text_sample || manuscriptInfo.full_text || '',
+            formatType: 'complete_package',
+            projectVoiceProfile: null,
+            voiceIntensity
+        });
 
-            const voiceData = voiceAnchorResult.data || voiceAnchorResult;
-            
-            if (voiceData.success) {
-                thematicSchema = voiceData.thematicSchema || {};
-                voiceAnchored = voiceData.pitch || {};
-                console.log('✅ Thematic schema applied to complete package:', thematicSchema);
-            } else {
-                console.warn('Voice Anchor failed, proceeding with standard generation:', voiceData.error);
-            }
-        } catch (error) {
-            console.warn('Voice Anchor service unavailable, proceeding with standard generation:', error.message);
+        const voiceData = voiceAnchorResult.data || voiceAnchorResult;
+        
+        if (!voiceData.success || !voiceData.meta?.passedVoiceGate) {
+            const failureReason = voiceData.meta?.bannedPhraseHits?.join(', ') || 
+                                  (!voiceData.meta?.lawMentioned ? 'missing law/ritual structure' : 'missing specificity requirements');
+            return Response.json({ 
+                success: false, 
+                error: `Voice Gate failed (${voiceIntensity}): ${failureReason}. Try lowering intensity or provide more concrete source text.`,
+                meta: voiceData.meta
+            }, { status: 422 });
         }
+
+        const thematicSchema = voiceData.thematicSchema || {};
+        const voiceAnchored = voiceData.pitch || {};
+        console.log('✅ Thematic schema applied to complete package:', thematicSchema);
 
         // Generate all components in parallel
         const [pitchesResult, synopsesResult, bioResult, queryResult] = await Promise.all([
