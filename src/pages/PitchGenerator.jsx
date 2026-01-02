@@ -140,18 +140,45 @@ export default function PitchGenerator() {
         try {
             toast.loading('Analyzing pasted text...', { id: 'text' });
             
-            const response = await base44.functions.invoke('extractPitchFields', { 
-                file_url: 'data:text/plain;base64,' + btoa(manualText)
+            const manuscriptSample = manualText.substring(0, Math.min(50000, manualText.length));
+            
+            const extracted = await base44.integrations.Core.InvokeLLM({
+                prompt: `Analyze this manuscript excerpt and extract all fields for pitch generation.
+
+MANUSCRIPT TEXT:
+${manuscriptSample}
+
+Extract and provide:
+1. Title - Extract from the document or infer
+2. Genre - Be specific (e.g., "Literary Fiction", "Thriller")
+3. Word count estimate - Based on the text length
+4. Logline - A compelling 1-2 sentence pitch
+5. Key themes - Comma-separated list of 3-5 themes
+6. Protagonist - Name and brief description
+7. Stakes - What's at risk?
+8. Setting - Location, time period, world details
+9. Unique hook - What makes this story different?
+
+Return structured JSON with all fields populated.`,
+                response_json_schema: {
+                    type: 'object',
+                    properties: {
+                        title: { type: 'string' },
+                        genre: { type: 'string' },
+                        wordCount: { type: 'string' },
+                        logline: { type: 'string' },
+                        keyThemes: { type: 'string' },
+                        protagonist: { type: 'string' },
+                        stakes: { type: 'string' },
+                        setting: { type: 'string' },
+                        uniqueHook: { type: 'string' }
+                    }
+                }
             });
             
-            const result = response.data || response;
-            if (result.success && result.fields) {
-                setManuscriptInfo(result.fields);
-                toast.success('Fields extracted from text!', { id: 'text' });
-                setManualText('');
-            } else {
-                toast.error(result.error || 'Failed to extract fields', { id: 'text' });
-            }
+            setManuscriptInfo(extracted);
+            toast.success('Fields extracted from text!', { id: 'text' });
+            setManualText('');
         } catch (error) {
             console.error('Text extraction error:', error);
             toast.error('Failed to analyze text', { id: 'text' });
