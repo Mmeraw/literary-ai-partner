@@ -129,9 +129,9 @@ export default function UploadManuscript() {
           <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 mb-2 sm:mb-4">
             <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Upload Your Writing</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Full Novel / Manuscript</h1>
           <p className="mt-1 sm:mt-2 text-sm sm:text-base text-slate-600">
-              Analyze a page, a chapter, or your entire manuscript
+              Upload and evaluate your complete novel or manuscript
           </p>
           <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-slate-500 max-w-2xl mx-auto">
               Scores reflect how your work aligns with agent-level criteria and WAVE standards. This is revision guidance, not a guarantee of representation or publication.
@@ -142,7 +142,7 @@ export default function UploadManuscript() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              Manuscript Details
+              Novel / Manuscript Details
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 sm:space-y-6">
