@@ -9,28 +9,38 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { file_url } = await req.json();
+        const { file_url, raw_text, voiceIntensity = 'house' } = await req.json();
 
-        if (!file_url) {
-            return Response.json({ error: 'file_url is required' }, { status: 400 });
+        if (!file_url && !raw_text) {
+            return Response.json({ error: 'Either file_url or raw_text is required' }, { status: 400 });
         }
 
-        console.log('📄 Step 1: Ingesting manuscript via central pipeline...');
-        
-        // Use central ingestion (contract requirement)
-        const ingestionResult = await base44.functions.invoke('ingestUploadedFileToText', { file_url });
-        const ingestionData = ingestionResult.data || ingestionResult;
-        
-        if (!ingestionData.success) {
-            throw new Error(`File ingestion failed: ${ingestionData.error?.message || 'Unknown error'}`);
-        }
-        
-        const fileText = ingestionData.text;
-        console.log(`✅ File ingested: ${ingestionData.meta.charCount} characters from ${ingestionData.meta.filename}`);
+        let manuscriptSample;
+        let extractedText;
 
-        // Use first 50k characters for analysis (or full text if shorter)
-        const manuscriptSample = fileText.substring(0, Math.min(50000, fileText.length));
-        console.log(`Using ${manuscriptSample.length} characters for analysis`);
+        if (raw_text) {
+            // Direct text ingestion (pasted text, imported text, cloned text)
+            console.log('📝 Step 1: Processing raw text input...');
+            extractedText = raw_text;
+            manuscriptSample = extractedText.substring(0, Math.min(50000, extractedText.length));
+            console.log(`Using ${manuscriptSample.length} characters from raw text`);
+        } else {
+            // File ingestion pathway
+            console.log('📄 Step 1: Ingesting manuscript via central pipeline...');
+            
+            const ingestionResult = await base44.functions.invoke('ingestUploadedFileToText', { file_url });
+            const ingestionData = ingestionResult.data || ingestionResult;
+            
+            if (!ingestionData.success) {
+                throw new Error(`File ingestion failed: ${ingestionData.error?.message || 'Unknown error'}`);
+            }
+            
+            extractedText = ingestionData.text;
+            console.log(`✅ File ingested: ${ingestionData.meta.charCount} characters from ${ingestionData.meta.filename}`);
+
+            manuscriptSample = extractedText.substring(0, Math.min(50000, extractedText.length));
+            console.log(`Using ${manuscriptSample.length} characters for analysis`);
+        }
 
         console.log('🔍 Step 2: Extracting all pitch fields with thematic substrate...');
         const extractionPrompt = `Analyze this manuscript/screenplay excerpt and extract all fields for pitch generation with thematic substrate.

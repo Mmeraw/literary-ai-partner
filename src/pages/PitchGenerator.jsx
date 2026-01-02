@@ -50,9 +50,9 @@ export default function PitchGenerator() {
         try {
             toast.loading('Extracting fields from manuscript...', { id: 'load' });
             
-            const textSample = manuscript.full_text.substring(0, 50000);
             const response = await base44.functions.invoke('extractPitchFields', { 
-                file_url: 'data:text/plain;base64,' + btoa(textSample)
+                raw_text: manuscript.full_text,
+                voiceIntensity
             });
             
             const result = response.data || response;
@@ -110,7 +110,10 @@ export default function PitchGenerator() {
             
             toast.loading('Analyzing manuscript and extracting fields...', { id: 'upload' });
             
-            const response = await base44.functions.invoke('extractPitchFields', { file_url });
+            const response = await base44.functions.invoke('extractPitchFields', { 
+                file_url,
+                voiceIntensity
+            });
             const result = response.data || response;
             
             if (result.success && result.fields) {
@@ -140,92 +143,19 @@ export default function PitchGenerator() {
         try {
             toast.loading('Analyzing pasted text...', { id: 'text' });
             
-            const manuscriptSample = manualText.substring(0, Math.min(50000, manualText.length));
-            
-            const extracted = await base44.integrations.Core.InvokeLLM({
-                prompt: `Analyze this manuscript excerpt and extract all fields for pitch generation with thematic substrate.
-
-MANUSCRIPT TEXT:
-${manuscriptSample}
-
-Extract and provide:
-1. Title - Extract from the document or infer
-2. Genre - Be specific (e.g., "Literary Fiction", "Thriller")
-3. Word count estimate - Based on the text length (as number)
-4. Logline - A compelling 1-2 sentence pitch
-5. Key themes - Comma-separated list of 3-5 themes
-6. Protagonist - Name and brief description
-7. Stakes - What's at risk?
-8. Setting - Location, time period, world details
-9. Unique hook - What makes this story different?
-
-10. Named Entities - Extract all proper nouns: character names, locations, objects, organizations (array)
-
-11. Thematic Schema - Extract the story's moral architecture:
-    - law: The governing rule/norm of this world
-    - taboo: What is forbidden or transgressed
-    - enforcer: Who/what upholds the law
-    - resistor: Who/what defies it
-    - costOfDefiance: What price is paid for breaking the law
-    - moralAxis: The core moral tension
-    - symbolicCenter: The central recurring symbol or motif
-
-12. Meta - Provide quality metrics:
-    - motifCount: Number of distinct recurring motifs identified
-    - namedEntityCount: Number of named entities extracted
-    - bannedPhraseHits: Any generic phrases found (e.g., "heart-wrenching", "gripping tale")
-    - lawMentioned: Did you identify a clear governing law/rule?
-    - passedVoiceGate: Does this have specific, non-generic substance?
-
-Return structured JSON with all fields populated.`,
-                response_json_schema: {
-                    type: 'object',
-                    properties: {
-                        title: { type: 'string' },
-                        genre: { type: 'string' },
-                        wordCount: { type: 'number' },
-                        logline: { type: 'string' },
-                        keyThemes: { type: 'string' },
-                        protagonist: { type: 'string' },
-                        stakes: { type: 'string' },
-                        setting: { type: 'string' },
-                        uniqueHook: { type: 'string' },
-                        namedEntities: {
-                            type: 'array',
-                            items: { type: 'string' }
-                        },
-                        thematicSchema: {
-                            type: 'object',
-                            properties: {
-                                law: { type: 'string' },
-                                taboo: { type: 'string' },
-                                enforcer: { type: 'string' },
-                                resistor: { type: 'string' },
-                                costOfDefiance: { type: 'string' },
-                                moralAxis: { type: 'string' },
-                                symbolicCenter: { type: 'string' }
-                            }
-                        },
-                        meta: {
-                            type: 'object',
-                            properties: {
-                                motifCount: { type: 'number' },
-                                namedEntityCount: { type: 'number' },
-                                bannedPhraseHits: {
-                                    type: 'array',
-                                    items: { type: 'string' }
-                                },
-                                lawMentioned: { type: 'boolean' },
-                                passedVoiceGate: { type: 'boolean' }
-                            }
-                        }
-                    }
-                }
+            const response = await base44.functions.invoke('extractPitchFields', {
+                raw_text: manualText,
+                voiceIntensity
             });
             
-            setManuscriptInfo(extracted);
-            toast.success('Fields extracted from text!', { id: 'text' });
-            setManualText('');
+            const result = response.data || response;
+            if (result.success && result.fields) {
+                setManuscriptInfo(result.fields);
+                toast.success('Fields extracted from text!', { id: 'text' });
+                setManualText('');
+            } else {
+                toast.error(result.error || 'Failed to extract fields', { id: 'text' });
+            }
         } catch (error) {
             console.error('Text extraction error:', error);
             toast.error('Failed to analyze text', { id: 'text' });

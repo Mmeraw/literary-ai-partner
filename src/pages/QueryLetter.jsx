@@ -15,6 +15,7 @@ import { exportTxt } from '@/components/utils/exportTxt';
 
 export default function QueryLetter() {
     const [mode, setMode] = useState('auto'); // 'auto' or 'manual'
+    const [voiceIntensity, setVoiceIntensity] = useState('house');
     const [formData, setFormData] = useState({
         manuscriptTitle: '',
         genre: '',
@@ -93,7 +94,8 @@ export default function QueryLetter() {
                 pitch_paragraph: autoFormData.pitchParagraph,
                 comps_mode: autoFormData.compsMode,
                 manual_comps: autoFormData.manualComps,
-                genre: autoFormData.genre
+                genre: autoFormData.genre,
+                voiceIntensity
             });
 
             console.log('📦 QueryLetter raw result:', response);
@@ -352,6 +354,48 @@ export default function QueryLetter() {
                                         className="min-h-[100px]"
                                     />
                                 )}
+                            </div>
+
+                            <div className="mb-4 p-3 rounded-lg bg-purple-50 border border-purple-200">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Zap className="w-4 h-4 text-purple-600" />
+                                    <span className="text-xs font-semibold text-purple-900">Voice Intensity</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setVoiceIntensity('neutral')}
+                                        disabled={generating}
+                                        className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-all ${
+                                            voiceIntensity === 'neutral'
+                                                ? 'bg-purple-600 text-white'
+                                                : 'bg-white text-slate-700 border border-slate-200'
+                                        } disabled:opacity-50`}
+                                    >
+                                        Neutral
+                                    </button>
+                                    <button
+                                        onClick={() => setVoiceIntensity('house')}
+                                        disabled={generating}
+                                        className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-all ${
+                                            voiceIntensity === 'house'
+                                                ? 'bg-purple-600 text-white'
+                                                : 'bg-white text-slate-700 border border-slate-200'
+                                        } disabled:opacity-50`}
+                                    >
+                                        House
+                                    </button>
+                                    <button
+                                        onClick={() => setVoiceIntensity('amped')}
+                                        disabled={generating}
+                                        className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-all ${
+                                            voiceIntensity === 'amped'
+                                                ? 'bg-purple-600 text-white'
+                                                : 'bg-white text-slate-700 border border-slate-200'
+                                        } disabled:opacity-50`}
+                                    >
+                                        Amped
+                                    </button>
+                                </div>
                             </div>
 
                             <div>

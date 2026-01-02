@@ -152,6 +152,8 @@ export default function FilmAdaptation() {
         toast.success(`Loaded ${docxPreview.wordCount.toLocaleString()} words`);
     };
 
+    const [voiceIntensity, setVoiceIntensity] = useState('house');
+
     const generatePitchDeck = async () => {
         if (!manuscriptData.title || !manuscriptData.manuscriptText) {
             toast.error('Please provide title and text');
@@ -167,7 +169,10 @@ export default function FilmAdaptation() {
         setGenerating(true);
         try {
             console.log('📤 Calling generateFilmPitchDeck...');
-            const response = await base44.functions.invoke('generateFilmPitchDeck', manuscriptData);
+            const response = await base44.functions.invoke('generateFilmPitchDeck', {
+                ...manuscriptData,
+                voiceIntensity
+            });
             console.log('📦 Response:', response);
             const result = response.data || response;
 
@@ -188,10 +193,13 @@ export default function FilmAdaptation() {
                     console.error('Analytics error:', e);
                 }
             } else {
+                const errorMsg = result.error || result.details || 'Unknown error';
                 toast.error(
                     <div>
-                        <div className="font-semibold">Generation failed</div>
-                        <div className="text-xs mt-1">{result.error || result.details || 'Unknown error'}</div>
+                        <div className="font-semibold">
+                            {errorMsg.includes('Voice Gate failed') ? '🔒 Voice Gate Failed' : 'Generation failed'}
+                        </div>
+                        <div className="text-xs mt-1">{errorMsg}</div>
                     </div>,
                     { duration: 5000 }
                 );
@@ -547,6 +555,53 @@ export default function FilmAdaptation() {
 
                                 <p className="text-xs text-slate-500 mt-3 text-center">
                                     Supports: DOC, DOCX, RTF, PDF, TXT • Word files auto-extracted + previewed
+                                </p>
+                            </div>
+
+                            <div className="mb-6 p-4 rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <Zap className="w-4 h-4 text-indigo-600" />
+                                    <span className="text-sm font-semibold text-indigo-900">Voice Intensity</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setVoiceIntensity('neutral')}
+                                        disabled={generating}
+                                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                            voiceIntensity === 'neutral'
+                                                ? 'bg-indigo-600 text-white shadow-md'
+                                                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+                                        } disabled:opacity-50`}
+                                    >
+                                        Neutral
+                                    </button>
+                                    <button
+                                        onClick={() => setVoiceIntensity('house')}
+                                        disabled={generating}
+                                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                            voiceIntensity === 'house'
+                                                ? 'bg-indigo-600 text-white shadow-md'
+                                                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+                                        } disabled:opacity-50`}
+                                    >
+                                        House
+                                    </button>
+                                    <button
+                                        onClick={() => setVoiceIntensity('amped')}
+                                        disabled={generating}
+                                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                            voiceIntensity === 'amped'
+                                                ? 'bg-indigo-600 text-white shadow-md'
+                                                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+                                        } disabled:opacity-50`}
+                                    >
+                                        Amped
+                                    </button>
+                                </div>
+                                <p className="text-xs text-slate-600 mt-3">
+                                    {voiceIntensity === 'neutral' && 'Default safe, still specific'}
+                                    {voiceIntensity === 'house' && 'RevisionGrade standard (recommended)'}
+                                    {voiceIntensity === 'amped' && 'Sharper diction, more motif pressure, less smoothing'}
                                 </p>
                             </div>
 

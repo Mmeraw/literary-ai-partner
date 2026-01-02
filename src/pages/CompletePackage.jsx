@@ -40,6 +40,7 @@ export default function CompletePackage() {
     const [loadingManuscript, setLoadingManuscript] = useState(false);
     const [loadingBio, setLoadingBio] = useState(false);
     const [includeCreatorMark, setIncludeCreatorMark] = useState(true);
+    const [voiceIntensity, setVoiceIntensity] = useState('house');
     
     const packageRevision = useRevisionFlow('complete_submission');
 
@@ -82,7 +83,8 @@ export default function CompletePackage() {
 
         try {
             const response = await base44.functions.invoke('prefillPackageFields', {
-                manuscript_id: manuscriptId
+                manuscript_id: manuscriptId,
+                voiceIntensity
             });
 
             if (response.data.success) {
@@ -164,7 +166,8 @@ export default function CompletePackage() {
         setGenerating(true);
         try {
             const response = await base44.functions.invoke('generateCompletePackage', {
-                manuscriptInfo
+                manuscriptInfo,
+                voiceIntensity
             });
 
             if (response.data.success) {
@@ -358,6 +361,47 @@ ${packageData.queryLetter}
                                         <div className="flex items-center gap-2 mb-3">
                                             <BookOpen className="w-4 h-4 text-indigo-600" />
                                             <span className="text-sm font-semibold text-slate-800">Load New or Existing Project</span>
+                                        </div>
+                                        <div className="mb-3 p-3 rounded-lg bg-purple-50 border border-purple-200">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Zap className="w-4 h-4 text-purple-600" />
+                                                <span className="text-xs font-semibold text-purple-900">Voice Intensity</span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setVoiceIntensity('neutral')}
+                                                    disabled={loadingManuscript}
+                                                    className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-all ${
+                                                        voiceIntensity === 'neutral'
+                                                            ? 'bg-purple-600 text-white'
+                                                            : 'bg-white text-slate-700 border border-slate-200'
+                                                    } disabled:opacity-50`}
+                                                >
+                                                    Neutral
+                                                </button>
+                                                <button
+                                                    onClick={() => setVoiceIntensity('house')}
+                                                    disabled={loadingManuscript}
+                                                    className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-all ${
+                                                        voiceIntensity === 'house'
+                                                            ? 'bg-purple-600 text-white'
+                                                            : 'bg-white text-slate-700 border border-slate-200'
+                                                    } disabled:opacity-50`}
+                                                >
+                                                    House
+                                                </button>
+                                                <button
+                                                    onClick={() => setVoiceIntensity('amped')}
+                                                    disabled={loadingManuscript}
+                                                    className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-all ${
+                                                        voiceIntensity === 'amped'
+                                                            ? 'bg-purple-600 text-white'
+                                                            : 'bg-white text-slate-700 border border-slate-200'
+                                                    } disabled:opacity-50`}
+                                                >
+                                                    Amped
+                                                </button>
+                                            </div>
                                         </div>
                                         <Select 
                                             value={selectedManuscriptId} 

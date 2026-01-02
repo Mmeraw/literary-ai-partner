@@ -18,66 +18,42 @@ Deno.serve(async (req) => {
             pitch_paragraph,
             comps_mode = 'auto',
             manual_comps,
-            genre 
+            genre,
+            voiceIntensity = 'house'
         } = await req.json();
 
-        console.log('📥 Query letter generation started:', { file_url, synopsis_mode, comps_mode, genre });
+        console.log('📥 Query letter generation started:', { file_url, synopsis_mode, comps_mode, genre, voiceIntensity });
 
         if (!file_url || !bio) {
             return Response.json({ error: 'file_url and bio are required' }, { status: 400 });
         }
 
-        // Fetch the manuscript file
-        console.log('📄 Fetching manuscript file...');
-        const fileResponse = await fetch(file_url);
-        if (!fileResponse.ok) {
-            throw new Error(`Failed to fetch file: ${fileResponse.status} ${fileResponse.statusText}`);
-        }
-        const fileBuffer = await fileResponse.arrayBuffer();
-        const fileText = new TextDecoder().decode(fileBuffer);
-        console.log(`✅ File fetched: ${fileText.length} characters`);
-
-        // Extract first 50k characters for analysis
-        const manuscriptSample = fileText.substring(0, 50000);
-
-        // Step 1: Extract metadata and synopsis
-        console.log('🔍 Step 1: Extracting metadata and synopsis...');
-        const metadataPrompt = `Analyze this manuscript excerpt and provide:
-1. Title (extract from document)
-2. Detected genre (if not provided: ${genre || 'detect'})
-3. Word count estimate
-${synopsis_mode === 'auto' ? '4. Brief 2-paragraph synopsis' : ''}
-${!one_line_pitch ? '5. One-line elevator pitch' : ''}
-${!pitch_paragraph ? '6. Query-letter pitch paragraph (compelling hook paragraph for agent)' : ''}
-
-Manuscript excerpt:
-${manuscriptSample}
-
-Return JSON.`;
-
-        const metadata = await base44.integrations.Core.InvokeLLM({
-            prompt: metadataPrompt,
-            response_json_schema: {
-                type: 'object',
-                properties: {
-                    title: { type: 'string' },
-                    genre: { type: 'string' },
-                    word_count: { type: 'number' },
-                    synopsis: { type: 'string' },
-                    one_line_pitch: { type: 'string' },
-                    pitch_paragraph: { type: 'string' }
-                }
-            }
+        // MANDATORY: Route through universal extraction
+        console.log('🔄 Step 1: Universal extraction via extractPitchFields...');
+        const extractionResult = await base44.functions.invoke('extractPitchFields', {
+            file_url,
+            voiceIntensity
         });
-        console.log('✅ Step 1 complete:', { title: metadata.title, genre: metadata.genre });
+        
+        const extractionData = extractionResult.data || extractionResult;
+        
+        if (!extractionData.success) {
+            return Response.json({ 
+                error: extractionData.error || 'Field extraction failed',
+                details: extractionData.details
+            }, { status: 422 });
+        }
 
-        // Use user-provided values or generated ones
-        const finalSynopsis = synopsis_mode === 'manual' && existing_synopsis ? existing_synopsis : metadata.synopsis;
-        const finalOneLinePitch = one_line_pitch || metadata.one_line_pitch;
-        const finalPitchParagraph = pitch_paragraph || metadata.pitch_paragraph;
+        const metadata = extractionData.fields;
+        console.log('✅ Step 1 complete - Universal extraction:', { title: metadata.title, genre: metadata.genre });
 
-        // Step 2: Generate or use provided comparable titles
-        console.log('📚 Step 2: Generating comparables...');
+        // Use user-provided values or extracted ones
+        const finalSynopsis = synopsis_mode === 'manual' && existing_synopsis ? existing_synopsis : metadata.logline;
+        const finalOneLinePitch = one_line_pitch || metadata.logline;
+        const finalPitchParagraph = pitch_paragraph || metadata.logline;
+
+        // Step 2: Generate or use provided comparables
+        console.log('📚 Step 2: Processing comparables...');
         let comps;
         if (comps_mode === 'manual' && manual_comps) {
             const compsLines = manual_comps.split('\n').filter(line => line.trim());
@@ -224,8 +200,10 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
             metadata: {
                 title: metadata.title,
                 genre: metadata.genre,
-                word_count: metadata.word_count,
-                comparables: comps.comparables
+                word_count: metadata.wordCount || metadata.word_count,
+                comparables: comps.comparables,
+                voiceGatePassed: metadata.meta?.passedVoiceGate,
+                thematicSchema: metadata.thematicSchema
             }
         });
 
