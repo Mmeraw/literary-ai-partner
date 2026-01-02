@@ -100,6 +100,7 @@ export default function Comparables() {
         try {
             const { data } = await base44.functions.invoke('generateComparables', {
                 manuscriptText: extractedText,
+                uploadedFilename: uploadedFile,
                 genre: selectedGenre
             });
 
