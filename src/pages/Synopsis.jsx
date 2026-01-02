@@ -633,7 +633,7 @@ export default function Synopsis() {
                         </ul>
                         <div className="mt-4 p-3 rounded-lg bg-indigo-50 border border-indigo-200">
                             <p className="text-xs text-indigo-800">
-                                <strong>Dr. Patricia Anderson Standards:</strong> Our synopsis engine is calibrated against PhD-level editorial frameworks used by professional literary consultants.
+                                <strong>Professional Standards:</strong> Our synopsis engine is calibrated against PhD-level editorial frameworks used by professional literary consultants.
                             </p>
                         </div>
                     </CardContent>
