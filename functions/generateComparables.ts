@@ -35,6 +35,10 @@ Deno.serve(async (req) => {
         // Auto-detect genre if requested
         let finalGenre = genre;
         if (genre === 'auto') {
+            if (!manuscript) {
+                return Response.json({ error: 'Auto-detect genre only works with evaluated manuscripts' }, { status: 400 });
+            }
+            
             const genreDetectionPrompt = `Based on this manuscript analysis, identify the primary genre:
 
 Title: "${manuscript.title}"
