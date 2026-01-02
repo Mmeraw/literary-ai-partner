@@ -1,272 +1,232 @@
-# Defensive Engineering Standard (Applies to All RevisionGrade & StoryGate Routes)
-
-**Status:** Mandatory — Part of Operating Model  
-**Effective:** 2026-01-01  
-**Enforcement:** Non-negotiable requirement for all releases
+# DEFENSIVE ENGINEERING STANDARD v1.0
+**RevisionGrade / Base44 Platform**  
+**Authority: Binding Technical Standard**
 
 ---
 
-## Purpose
+## PURPOSE
+This document defines mandatory defensive engineering practices for all LLM-assisted features, backend functions, and user-facing outputs within Base44/RevisionGrade.
 
-This standard extends the existing Operating Model's **Observability / No Silent Failures** principle with concrete, testable engineering requirements.
-
-**Operating Model Commitment:**  
-*"Failures must be detectable via logs or dashboards. No silent or 'invisible' failures."*
-
-**This Standard Implements:**  
-Specific code patterns and UI behaviors that make that commitment real.
+**Core Principle:** No silent failures. No hallucinations. No ambiguous states.
 
 ---
 
-## Core Requirements
+## SCOPE
+Applies to:
+- All backend functions that call external LLMs
+- All features that generate user-facing content
+- All validation and error-handling logic
+- All schema-based outputs
 
-### 1. Response Validation (Every API Call)
+---
 
-Every API/function invocation **MUST**:
+## MANDATORY GATES
 
-✅ **Validate that a response was received**
+### 1. PRE-FLIGHT VALIDATION
+Before invoking any LLM:
+- **Input Completeness Check:** Verify all required inputs exist
+- **Input Format Check:** Validate schema/structure of request
+- **Eligibility Gate:** Confirm the request qualifies for the intended output type
+
+**If any check fails:**
+- Return explicit error with missing fields listed
+- Do NOT proceed to LLM call
+- Log the failure with request metadata
+
+### 2. SCHEMA-FIRST OUTPUT
+All LLM responses that produce structured data MUST:
+- Define a strict JSON schema before generation
+- Include `required` fields (no optionals for critical data)
+- Specify `enum` values where choices are finite
+- Use `minItems` / `maxItems` for arrays
+
+**Schema Enforcement:**
 ```javascript
-if (!response || typeof response !== 'object') {
-    throw new Error('Invalid response format received');
+response_json_schema: {
+  type: 'object',
+  required: ['field1', 'field2'], // MANDATORY
+  properties: {
+    field1: { type: 'string', minLength: 10 },
+    field2: { type: 'array', minItems: 3, items: {...} }
+  },
+  additionalProperties: false // Block unspecified fields
 }
 ```
 
-✅ **Validate that required fields exist before rendering**
+### 3. POST-GENERATION VALIDATION
+After LLM returns output:
+- **Schema Conformance:** Validate against defined schema
+- **Content Integrity:** Check for required elements (not just fields)
+- **Format Compliance:** Verify no structural violations (bullets where prose required, etc.)
+- **Canon Compliance:** Check against content-specific rules (e.g., Synopsis Master Guide)
+
+**Validation Result Format:**
 ```javascript
-if (!response.letter || !response.score) {
-    console.error('Missing required fields:', response);
-    throw new Error('Required data not found in response');
+{
+  ok: boolean,
+  failures: [{
+    code: 'ERROR_CODE',
+    severity: 'BLOCKER' | 'WARN',
+    message: string,
+    evidence?: string
+  }]
 }
 ```
 
-❌ **NEVER assume fields exist without checking**
+### 4. AUTO-REGENERATION WITH CORRECTIVE INSTRUCTIONS
+If validation fails with BLOCKER severity:
+- **Attempt #2:** Call LLM again with:
+  - Original input
+  - Failed output (for reference)
+  - Explicit list of violations to fix
+  - Corrective instructions (deterministic, not "try better")
+  
+**Max regeneration attempts:** 1  
+(Total: 2 LLM calls maximum per request)
+
+### 5. HARD FAIL WITH USER-VISIBLE ERRORS
+If validation fails after regeneration:
+- **Block output completely**
+- Return structured error response:
+  ```javascript
+  {
+    success: false,
+    error: 'GENERATION_FAILED',
+    details: 'Clear user-facing message',
+    missing: ['specific', 'missing', 'elements'],
+    next_action: 'PROVIDE_MORE_INFO' | 'RETRY' | 'CONTACT_SUPPORT'
+  }
+  ```
+- **Log failure** with:
+  - Request ID
+  - Input summary
+  - Both LLM outputs
+  - Validation failures
+  - Timestamp
+
+---
+
+## ERROR HANDLING STANDARDS
+
+### NO SILENT FAILURES
+**Forbidden:**
+- Returning partial/incomplete output without warning
+- Substituting placeholder text ("More details coming...")
+- Returning success=true when validation failed
+- Catching errors without user notification
+
+**Required:**
+- Explicit error codes
+- User-actionable error messages
+- Logged error details for debugging
+- Clear next steps
+
+### ERROR RESPONSE FORMAT
+All functions must return:
 ```javascript
-// BAD - will crash silently if response.data doesn't exist
-setContent(response.data.content);
-```
-
-### 2. Error Handling (Every Try/Catch)
-
-On validation failure or exception, **MUST**:
-
-✅ **Log a structured error** with:
-- Route name
-- Function name  
-- Payload summary
-- Error message
-- Full response (if available)
-
-```javascript
-console.error('[QueryLetter] Generation failed:', {
-    function: 'generateQueryLetterPackage',
-    payload: { file_url, synopsis_mode },
-    error: error.message,
-    response: response
-});
-```
-
-✅ **Show a clear, consistent UI message**
-```javascript
-toast.error('Failed to generate query letter: ' + errorMsg, {
-    description: 'The team has been notified. Please try again or contact support if the issue persists.',
-    duration: 5000
-});
-```
-
-Template message format:
-> "We couldn't [action]. The team has been notified; please try again."
-
-### 3. Loading States (Every User Action)
-
-No primary user action (Generate, Evaluate, Upload, Promote to StoryGate) **MAY** fail silently.
-
-Every button that triggers backend processing **MUST**:
-
-✅ **Show loading state immediately**
-```jsx
-<Button disabled={generating}>
-    {generating ? (
-        <>
-            <Loader2 className="animate-spin" />
-            Generating...
-        </>
-    ) : (
-        'Generate'
-    )}
-</Button>
-```
-
-✅ **Always stop loading in finally block**
-```javascript
-try {
-    const response = await base44.functions.invoke(...);
-    // process response
-} catch (error) {
-    // handle error
-} finally {
-    setGenerating(false); // REQUIRED
+{
+  success: boolean,
+  data?: object,        // Only present if success=true
+  error?: string,       // Error code if success=false
+  details?: string,     // User-facing explanation
+  missing?: string[],   // Missing required inputs
+  debug?: object        // Internal diagnostic data (dev mode only)
 }
 ```
 
-✅ **Exit into explicit success OR failure state**
-- Success: Show visible output + success toast
-- Failure: Show error message + retry option
-- Never: Leave button spinning indefinitely
+### LOGGING REQUIREMENTS
+Every function call must log:
+- **Entry:** Function name, user ID, timestamp
+- **LLM calls:** Model, token count, latency
+- **Validation:** Pass/fail status, failure codes
+- **Exit:** Success status, error code (if any)
 
 ---
 
-## Release Acceptance Criteria
+## HALLUCINATION PREVENTION
 
-A fix or feature is **NOT accepted** unless **BOTH** conditions are met:
+### 1. NO INVENTION RULE
+LLMs must NOT:
+- Invent plot points not in source material
+- Create character names/details not provided
+- Fabricate facts, dates, or events
+- Add content to meet length requirements
 
-### ✅ Condition 1: Console/Network Logs Show Handled Error Paths
+**Enforcement:**
+- Explicitly instruct: "Do not invent. If info is missing, state what is missing and stop."
+- Include "MISSING_INFO" as a valid response type
+- Validate outputs for invented content (heuristics + manual review flags)
 
-Every error scenario produces a structured log entry with:
-- Route name
-- Function name
-- Error message
-- Timestamp
-- Full context (response, payload summary)
-
-### ✅ Condition 2: UI Displays Either a Result or an Explicit Error State
-
-Every outcome is clear to the user:
-- **Success:** Visible output + confirmation message
-- **Failure:** Error message + actionable guidance (retry, contact support)
-- **Never:** Spinning button with no feedback
-
----
-
-## Verification Checklist (Required Before Release)
-
-Test **every** primary user action:
-
-- [ ] **Happy Path:** Feature works as expected
-- [ ] **Network Failure:** Disconnect internet → user sees error message
-- [ ] **Malformed Response:** Backend returns unexpected structure → user sees error
-- [ ] **Missing Fields:** Backend omits expected field → user sees specific error
-- [ ] **Loading Interruption:** Click button multiple times → no duplicate requests
-- [ ] **Error Recovery:** After error, user can retry successfully
-- [ ] **Console Logs:** All errors logged with full context
-- [ ] **No Silent Failures:** Every scenario has visible feedback
-
-**No release proceeds until all items are checked.**
+### 2. CANON COMPLIANCE
+For domain-specific outputs (synopsis, query letter, etc.):
+- Define a canonical spec (like Synopsis Master Guide)
+- Treat spec as **binding contract**, not reference
+- Validate outputs against spec requirements
+- Block outputs that violate canon
 
 ---
 
-## Routes Requiring Implementation
+## DETERMINISTIC HELPERS
 
-This standard applies to **ALL** routes, including:
+### Pre-Processing
+Before LLM calls, use deterministic code for:
+- Format normalization (whitespace, line endings)
+- Structure detection (bullets, headers, numbering)
+- Input validation (length, completeness)
 
-### Evaluate
-- Scene/chapter evaluation
-- Full manuscript upload
-- Screenplay evaluation
-- WAVE analysis
+### Post-Processing
+After LLM calls, use deterministic code for:
+- Format scrubbing (remove bullets/headers)
+- Paragraph consolidation
+- Tense/POV checking (heuristics)
+- Schema validation
 
-### Revise
-- Revision suggestions
-- Suggestion acceptance
-- Alternatives generation
-
-### Convert
-- Screenplay formatter
-- Novel → Screenplay conversion
-
-### Output
-- Synopsis generation (Query/Standard/Extended)
-- Biography generation
-- Pitch generation
-- Query Letter generation
-- Complete Package generation
-- Comparables generation
-- Film Adaptation Package
-
-### StoryGate
-- Studio submission forms
-- Industry verification
-- Creator listing creation
-- Access request flows
-- Admin operations
+**Why:** Reduces LLM failure modes and increases reliability.
 
 ---
 
-## Implementation Pattern (Reference)
+## TESTING REQUIREMENTS
 
-```javascript
-const [generating, setGenerating] = useState(false);
+### Unit Tests Required
+For each LLM-integrated function:
+- **Pre-flight gate tests:** Missing inputs, format conflicts
+- **Schema validation tests:** Missing fields, wrong types
+- **Content validation tests:** Missing required elements
+- **Regeneration tests:** First attempt fails, second succeeds
+- **Hard fail tests:** Both attempts fail, proper error returned
 
-const handleGenerate = async () => {
-    setGenerating(true);
-    
-    try {
-        const response = await base44.functions.invoke('generateContent', payload);
-        
-        console.log('[PageName] Response received:', response);
-        
-        // VALIDATE: Response exists and is object
-        if (!response || typeof response !== 'object') {
-            throw new Error('Invalid response format received');
-        }
-        
-        // VALIDATE: Required fields exist
-        if (!response.content) {
-            console.error('[PageName] Missing content in response:', response);
-            throw new Error('Content not found in response');
-        }
-        
-        // SUCCESS PATH
-        setContent(response.content);
-        toast.success('Content generated successfully!');
-        
-    } catch (error) {
-        // ERROR LOGGING
-        console.error('[PageName] Generation failed:', {
-            function: 'generateContent',
-            payload: payload,
-            error: error.message,
-            stack: error.stack
-        });
-        
-        // USER FEEDBACK
-        const errorMsg = error.message || 'Unknown error occurred';
-        toast.error(`Failed to generate content: ${errorMsg}`, {
-            description: 'The team has been notified. Please try again or contact support.',
-            duration: 5000
-        });
-        
-    } finally {
-        // ALWAYS STOP LOADING
-        setGenerating(false);
-    }
-};
-```
+### Integration Tests Required
+- **End-to-end happy path:** Valid input → valid output
+- **Partial input path:** Missing data → proper error
+- **Malformed output path:** LLM returns bad format → regeneration or fail
+- **Adversarial input:** Edge cases, stress tests
 
 ---
 
-## Base44 Implementation Requirement
+## COMPLIANCE CHECKLIST
 
-**To Base44 Engineering:**
+Before shipping any LLM-integrated feature:
 
-Implement this Defensive Engineering Standard across **all RevisionGrade and StoryGate routes**.
-
-**Deliverable:**  
-Confirm the **first release version** where this is fully applied, so we can verify compliance.
-
-**Verification:**  
-We will test error paths on all major routes after implementation:
-- All Evaluate flows
-- All Revise flows
-- All Convert flows
-- All Output flows (7 generators)
-- All StoryGate flows (4 flows)
-
-This is **non-negotiable** per Operating Model. No exceptions without written approval.
+- [ ] Pre-flight validation implemented
+- [ ] Strict JSON schema defined for outputs
+- [ ] Post-generation validator implemented
+- [ ] Auto-regen with corrective instructions implemented
+- [ ] Hard fail with user-visible errors implemented
+- [ ] All error states return structured error responses
+- [ ] Logging covers entry/LLM calls/validation/exit
+- [ ] Unit tests cover pre-flight, validation, regen, fail paths
+- [ ] Integration tests cover happy path and failure modes
+- [ ] Documentation includes error codes and next actions
 
 ---
 
-## Questions or Escalations
+## ENFORCEMENT
+**Non-negotiable.**  
+Code reviews must verify compliance with this standard.  
+CI/CD gates should block deployment of non-compliant functions.
 
-Contact engineering lead before implementing workarounds or deviating from this standard.
+---
 
-**Rationale for denial:** This standard prevents production incidents where users lose work, receive no feedback, or encounter silent failures. Every shortcut here creates user-facing bugs.
+**Document Owner:** Michael J. Meraw / RevisionGrade Engineering  
+**Last Updated:** 2026-01-02  
+**Version:** 1.0

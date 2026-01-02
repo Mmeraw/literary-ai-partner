@@ -1,95 +1,260 @@
-# MULTI-MODEL GOVERNANCE STANDARD (CANONICAL)
-
-**Applies To:** RevisionGrade, StoryGate, and all derivative systems  
-**Status:** Enforced Canon
-
----
-
-## 1. Purpose
-
-This standard defines how multiple AI systems may be used within RevisionGrade and StoryGate while preserving deterministic behavior, auditability, and canonical consistency.
-
-It ensures that auxiliary systems enhance reliability without compromising authoritative judgment or introducing ambiguity.
+# MULTI-MODEL GOVERNANCE STANDARD v1.0
+**RevisionGrade / Base44 Platform**  
+**Authority: Binding Operational Standard**
 
 ---
 
-## 2. Authority Model
-
-### Primary System (Authoritative)
-
-The Primary System is the sole authority for:
-
-- Final scoring and evaluations
-- Readiness determinations
-- Canonical language and output
-- Pass/fail and classification decisions
-
-**No other system may override or modify these outputs.**
-
-### Advisory Systems (Non-Authoritative)
-
-Advisory systems may assist by:
-
-- Validating factual claims
-- Identifying inconsistencies or risks
-- Suggesting alternative phrasings or contextual information
-
-Advisory systems may not:
-
-- Alter scores or readiness states
-- Replace or rewrite canonical output
-- Override Primary System decisions
-
-**All advisory input is non-binding.**
+## PURPOSE
+This document defines how RevisionGrade manages multiple LLM providers, models, and evaluation contexts while maintaining output consistency and preventing silent degradation.
 
 ---
 
-## 3. Non-Negotiable Rules
+## CORE PRINCIPLES
 
-- Advisory systems must never alter authoritative outputs automatically.
-- Any disagreement or anomaly must trigger an internal review flag.
-- All user-visible outputs must be traceable to a single authoritative decision path.
-- Silent overrides are prohibited.
+### 1. PRIMARY vs ADVISORY OUTPUTS
+**Primary Outputs:**
+- Spine evaluation scores
+- WAVE craft analysis
+- Chapter-level evaluations
+- RevisionGrade™ composite scores
+
+**Primary = Authoritative.**  
+These drive user decisions and are never overridden by advisory outputs.
+
+**Advisory Outputs:**
+- Market comparables
+- Positioning guidance
+- Competitive analysis
+- Trend commentary
+
+**Advisory = Contextual.**  
+These inform but do not replace primary evaluation.
+
+### 2. MODEL SELECTION BY TASK
+Different tasks require different model characteristics:
+
+| Task | Model Type | Why |
+|------|-----------|-----|
+| Structured evaluation (Spine, WAVE) | High-reliability, schema-strict | Deterministic scoring required |
+| Synopsis generation | Instruction-following, prose quality | Canon compliance critical |
+| Market research (comparables) | Web-search enabled | Real-time data access |
+| Revision suggestions | Context-aware, nuanced | Understands author voice |
+
+**Rule:** Never use a model not optimized for the task.
+
+### 3. NEVER MIX PRIMARY AND ADVISORY
+**Forbidden:**
+- Using comparables data to adjust Spine scores
+- Letting market positioning override WAVE results
+- Averaging primary + advisory outputs
+- Presenting advisory as authoritative
+
+**Required:**
+- Clear visual separation in UI
+- Explicit labeling ("Advisory: Market Context")
+- Different data storage (entities: Manuscript vs ComparativeReport)
 
 ---
 
-## 4. Perplexity Usage Scope
+## SCHEMA-FIRST DESIGN
 
-Perplexity may be used only for:
+### Every LLM Output Must Have a Schema
+Before calling any LLM:
+1. Define the **complete** JSON schema
+2. Include all required fields
+3. Specify types, enums, min/max constraints
+4. Set `additionalProperties: false`
 
-- Agent and market research
-- Verification of factual or time-sensitive information
-- Contextual reference checks
+**Example (Comparables):**
+```json
+{
+  "type": "object",
+  "required": ["criteria_scores", "comparable_titles", "market_positioning"],
+  "properties": {
+    "criteria_scores": {
+      "type": "array",
+      "minItems": 13,
+      "items": {
+        "type": "object",
+        "required": ["criterion", "manuscript_score", "genre_average"],
+        "properties": {
+          "criterion": { "type": "string" },
+          "manuscript_score": { "type": "number", "minimum": 0, "maximum": 10 },
+          "genre_average": { "type": "number", "minimum": 0, "maximum": 10 },
+          "above_average": { "type": "boolean" },
+          "insight": { "type": "string", "minLength": 20 }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
+```
 
-Perplexity may not:
+### Schema Validation is Mandatory
+After every LLM call:
+```javascript
+const response = await llm.call(prompt, schema);
+const validation = validateAgainstSchema(response, schema);
 
-- Generate or modify final scores
-- Influence readiness labels
-- Produce user-facing determinations
+if (!validation.ok) {
+  // Trigger regeneration with corrective instructions
+  return attemptRegeneration(prompt, schema, validation.failures);
+}
+```
 
 ---
 
-## 5. Error Handling & Observability
+## REGENERATION PROTOCOL
 
-- No primary action may fail silently.
-- Failures must generate a visible error state and a structured log entry.
-- Logs must include timestamp, route, and failure category.
+### When LLM Output Fails Validation
+1. **Log the failure** with full diagnostic data
+2. **Build corrective prompt:**
+   - Include original request
+   - Show failed output
+   - List specific violations
+   - Provide explicit fix instructions (deterministic)
+3. **Call LLM again** (max 1 retry)
+4. **Validate again**
+5. **If still failing:** Hard fail with user-visible error
+
+**Corrective Prompt Template:**
+```
+Your previous response failed validation.
+
+FAILURES TO FIX:
+- Missing field: criteria_scores[].insight
+- Field manuscript_score out of range (got 12.5, max is 10)
+- Array criteria_scores has 11 items, required minimum is 13
+
+INSTRUCTIONS:
+- Ensure exactly 13 criteria scores
+- Keep all scores between 0 and 10
+- Provide insight string for each criterion (minimum 20 characters)
+
+Original input: {...}
+Failed output: {...}
+
+Generate corrected output now.
+```
 
 ---
 
-## 6. Compliance Requirement
+## TEXT LENGTH CONSTRAINTS
 
-All features and refactors must explicitly declare:
+### Prevent Truncation Issues
+LLM context windows are finite. For long inputs:
+- **Cap input text:** Use first 50,000 characters for analysis
+- **Document the cap:** Log actual length vs. capped length
+- **Warn the user:** If manuscript > 50k chars, note "analysis based on opening sections"
 
-- Which system is Primary
-- Which systems are Advisory
+**Implementation:**
+```javascript
+const MAX_INPUT_CHARS = 50000;
+const textForAnalysis = manuscriptText.substring(0, MAX_INPUT_CHARS);
 
-**Any deviation from this standard constitutes a defect.**
+if (manuscriptText.length > MAX_INPUT_CHARS) {
+  console.log(`Manuscript capped: ${manuscriptText.length} → ${MAX_INPUT_CHARS} chars`);
+  // Optional: add to response metadata
+}
+```
 
 ---
 
-## Canonical Enforcement Statement
+## ERROR CATEGORIZATION
 
-StoryGate operates under a single authoritative decision model.  
-Supporting systems may inform but never override that authority.  
-This guarantees consistency, traceability, and trust across all outputs.
+### HTTP Status Codes by Failure Type
+- **400 Bad Request:** Missing required inputs, format conflicts
+- **422 Unprocessable Entity:** LLM output failed validation after regen
+- **500 Internal Server Error:** Unexpected system failure (LLM API down, timeout)
+
+**User-Facing Error Messages:**
+- **400:** "Missing required information: {list}. Please provide {what's needed}."
+- **422:** "Unable to generate valid output. Technical details: {summary}. Please try again or contact support."
+- **500:** "System temporarily unavailable. Please try again in a moment."
+
+---
+
+## AUDIT TRAIL REQUIREMENTS
+
+### Every LLM Call Must Log:
+```javascript
+{
+  timestamp: ISO8601,
+  user_id: string,
+  function_name: string,
+  model: string,
+  task_type: 'primary_evaluation' | 'advisory_output' | 'prose_generation',
+  input_summary: { length, type, metadata },
+  schema_used: object,
+  attempt: 1 | 2,
+  output_valid: boolean,
+  validation_failures: array,
+  latency_ms: number,
+  token_count: { prompt, completion, total }
+}
+```
+
+### Why Audit Trails Matter
+- **Debugging:** Trace failures back to specific prompts/models
+- **Quality control:** Identify models with high failure rates
+- **Billing:** Track token usage per feature
+- **Compliance:** Demonstrate no silent degradation
+
+---
+
+## PROMPT VERSIONING
+
+### All System Prompts Must Be Versioned
+Store prompts in code with version tags:
+```javascript
+const SYNOPSIS_GENERATION_PROMPT_V2 = `
+You are generating a professional synopsis...
+[Full prompt text]
+`;
+
+// In function call:
+llm.call(SYNOPSIS_GENERATION_PROMPT_V2, schema);
+```
+
+**Why:**
+- Enables A/B testing
+- Tracks which prompt version caused issues
+- Facilitates rollback if new prompt degrades quality
+
+---
+
+## TESTING MATRIX
+
+### Required Tests for Each LLM Integration
+| Test Type | What It Validates | Pass Condition |
+|-----------|------------------|----------------|
+| Schema conformance | Output matches JSON schema | Validation.ok = true |
+| Required fields | All `required` fields present | No missing fields |
+| Content completeness | Required narrative elements present | All criteria met |
+| Regeneration | Corrective prompt fixes failures | 2nd attempt passes |
+| Hard fail | Final output blocked if invalid | Returns error, not bad data |
+| Adversarial input | Edge cases, malformed requests | Graceful error handling |
+
+---
+
+## GOVERNANCE CHECKLIST
+
+Before deploying any multi-model feature:
+
+- [ ] Primary vs Advisory distinction is clear and enforced
+- [ ] JSON schema defined for all outputs
+- [ ] Schema validation runs post-generation
+- [ ] Regeneration protocol implemented
+- [ ] Text length caps applied to prevent truncation
+- [ ] Error categorization uses correct HTTP status codes
+- [ ] Audit logging captures all required fields
+- [ ] System prompts are versioned
+- [ ] Test matrix covers all failure modes
+- [ ] UI clearly labels advisory outputs as non-authoritative
+
+---
+
+**Document Owner:** Michael J. Meraw / RevisionGrade Engineering  
+**Last Updated:** 2026-01-02  
+**Version:** 1.0

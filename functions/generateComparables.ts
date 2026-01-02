@@ -1,6 +1,84 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+// COMPARABLES GENERATION v2.0 - Canon-Compliant
+// Follows: COMPARABLES_CANON_SPEC.md, DEFENSIVE_ENGINEERING_STANDARD.md, MULTI_MODEL_GOVERNANCE_STANDARD.md
+
+const COMPARABLES_SCHEMA = {
+    type: 'object',
+    required: ['criteria_scores', 'comparable_titles', 'market_positioning', 'revision_priorities'],
+    additionalProperties: false,
+    properties: {
+        criteria_scores: {
+            type: 'array',
+            minItems: 13,
+            maxItems: 13,
+            items: {
+                type: 'object',
+                required: ['criterion', 'manuscript_score', 'genre_average', 'above_average', 'insight'],
+                additionalProperties: false,
+                properties: {
+                    criterion: {
+                        type: 'string',
+                        enum: [
+                            'Voice & Style',
+                            'Opening Hook',
+                            'Character Development',
+                            'Dialogue',
+                            'Pacing',
+                            'Show Don\'t Tell',
+                            'Emotional Resonance',
+                            'Plot Structure',
+                            'Theme & Depth',
+                            'Sensory Details',
+                            'Scene Craft',
+                            'Market Readiness',
+                            'Comparative Positioning'
+                        ]
+                    },
+                    manuscript_score: { type: 'number', minimum: 0, maximum: 10 },
+                    genre_average: { type: 'number', minimum: 0, maximum: 10 },
+                    above_average: { type: 'boolean' },
+                    insight: { type: 'string', minLength: 20, maxLength: 300 }
+                }
+            }
+        },
+        comparable_titles: {
+            type: 'array',
+            minItems: 5,
+            maxItems: 7,
+            items: {
+                type: 'object',
+                required: ['title', 'author', 'justification'],
+                additionalProperties: false,
+                properties: {
+                    title: { type: 'string', minLength: 1 },
+                    author: { type: 'string', minLength: 1 },
+                    year: { type: 'integer', minimum: 2018, maximum: 2026 },
+                    justification: { type: 'string', minLength: 30, maxLength: 200 }
+                }
+            }
+        },
+        market_positioning: { type: 'string', minLength: 200, maxLength: 1000 },
+        revision_priorities: {
+            type: 'array',
+            minItems: 3,
+            maxItems: 5,
+            items: { type: 'string', minLength: 20, maxLength: 200 }
+        }
+    }
+};
+
+const MAX_INPUT_CHARS = 50000;
+
 Deno.serve(async (req) => {
+    const startTime = Date.now();
+    let logData = {
+        timestamp: new Date().toISOString(),
+        function: 'generateComparables',
+        attempt: 1,
+        validation_passed: false
+    };
+
     try {
         const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
@@ -9,15 +87,37 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        logData.user_id = user.email;
+
         const { manuscriptId, manuscriptText, genre, uploadedFilename, title } = await req.json();
 
-        if (!genre) {
-            return Response.json({ error: 'genre is required' }, { status: 400 });
+        // PRE-FLIGHT VALIDATION (Defensive Engineering Standard)
+        if (!genre || genre.trim() === '') {
+            return Response.json({
+                success: false,
+                error: 'MISSING_INPUTS',
+                details: 'Genre is required for comparables generation.',
+                missing: ['genre'],
+                next_action: 'SELECT_GENRE'
+            }, { status: 400 });
+        }
+
+        // Block "auto" genre for uploads (requires evaluated manuscript)
+        if (genre === 'auto' && !manuscriptId) {
+            return Response.json({
+                success: false,
+                error: 'GENRE_REQUIRED',
+                details: 'Auto-detect genre only works with evaluated manuscripts. Please select a genre manually for uploads.',
+                next_action: 'SELECT_GENRE'
+            }, { status: 400 });
         }
 
         let manuscript = null;
         let manuscriptTextForAnalysis = manuscriptText;
         let safeTitle = 'Untitled Upload';
+
+        logData.genre = genre;
+        logData.manuscript_id = manuscriptId || 'uploaded';
 
         // Handle either manuscriptId OR manuscriptText (upload path)
         if (manuscriptId) {
@@ -38,36 +138,46 @@ Deno.serve(async (req) => {
         }
 
         if (!manuscriptTextForAnalysis || !manuscriptTextForAnalysis.trim()) {
-            return Response.json({ error: 'No text content found for analysis' }, { status: 400 });
+            return Response.json({
+                success: false,
+                error: 'MISSING_INPUTS',
+                details: 'No manuscript text found for analysis.',
+                missing: ['manuscript_text'],
+                next_action: 'PROVIDE_MORE_INFO'
+            }, { status: 400 });
         }
 
-        // Cap text to prevent truncation issues (use first 50k chars for sample)
-        const textSample = manuscriptTextForAnalysis.substring(0, 50000);
+        // Cap text to prevent truncation issues (Defensive Engineering Standard)
+        const textSample = manuscriptTextForAnalysis.substring(0, MAX_INPUT_CHARS);
         const wordCount = manuscriptTextForAnalysis.split(/\s+/).length;
+        const capped = manuscriptTextForAnalysis.length > MAX_INPUT_CHARS;
         
-        console.log(`Processing comparables: ${wordCount} words, using ${textSample.length} char sample`);
+        logData.word_count = wordCount;
+        logData.input_length_chars = manuscriptTextForAnalysis.length;
+        logData.capped = capped;
+        
+        console.log(`Processing comparables: ${wordCount} words, using ${textSample.length} char sample ${capped ? '(CAPPED)' : ''}`);
 
-        // Auto-detect genre if requested
+        // Auto-detect genre if requested (only for evaluated manuscripts)
         let finalGenre = genre;
         if (genre === 'auto') {
-            if (!manuscript) {
-                return Response.json({ error: 'Auto-detect genre only works with evaluated manuscripts' }, { status: 400 });
-            }
-            
             const genreDetectionPrompt = `Based on this manuscript analysis, identify the primary genre:
 
 Title: "${manuscript.title}"
 Word Count: ${manuscript.word_count}
 Spine Evaluation: ${JSON.stringify(manuscript.spine_evaluation, null, 2)}
 
-Return only the genre name (e.g., "thriller", "literary_fiction", "romance", "mystery", "fantasy", "sci_fi", "historical", "horror", "ya").`;
+Return only one of these genre names (exact match): thriller, literary_fiction, romance, mystery, fantasy, sci_fi, historical, horror, ya, commercial_fiction, women_fiction, contemporary`;
 
             const detectedGenre = await base44.integrations.Core.InvokeLLM({
                 prompt: genreDetectionPrompt
             });
             
-            finalGenre = detectedGenre.toLowerCase().replace(/\s+/g, '_');
+            finalGenre = detectedGenre.trim().toLowerCase().replace(/\s+/g, '_');
+            console.log(`Auto-detected genre: ${finalGenre}`);
         }
+
+        logData.final_genre = finalGenre;
 
         // Fetch chapters for detailed analysis (only if using existing manuscript)
         const chapters = manuscriptId ? await base44.entities.Chapter.filter({ manuscript_id: manuscriptId }) : [];
@@ -113,108 +223,116 @@ Return only the genre name (e.g., "thriller", "literary_fiction", "romance", "my
             }
         }
         
-        // Generate comparables analysis
-        const comparablesPrompt = `You are a literary agent analyst. Analyze this manuscript against genre benchmarks.
+        // Generate comparables analysis (Schema-First Design)
+        const comparablesPrompt = `You are a literary agent analyst conducting market comparables analysis.
 
-Manuscript: "${safeTitle}"
-Genre: ${finalGenre}
-Word Count: ${analysisSummary.word_count}
-${manuscript ? `Overall RevisionGrade Score: ${manuscript.revisiongrade_overall || manuscript.spine_score || 'N/A'}` : ''}
+        MANUSCRIPT DETAILS:
+        Title: "${safeTitle}"
+        Genre: ${finalGenre}
+        Word Count: ${analysisSummary.word_count}
+        ${manuscript ? `RevisionGrade Score: ${manuscript.revisiongrade_overall || manuscript.spine_score || 'N/A'}` : ''}
 
-${manuscript ? `Spine Evaluation Summary:\n${JSON.stringify(manuscript.spine_evaluation, null, 2)}` : `Manuscript Sample:\n${analysisSummary.text_sample}\n\n(Note: This is an uploaded manuscript without prior evaluation)`}
+        ${manuscript ? `SPINE EVALUATION:\n${JSON.stringify(manuscript.spine_evaluation, null, 2)}` : `MANUSCRIPT SAMPLE:\n${analysisSummary.text_sample}\n\n(Note: Uploaded manuscript without prior evaluation)`}
 
-${marketContext ? `Recent Market Research:\n${marketContext}\n\n` : ''}
+        ${marketContext ? `MARKET RESEARCH CONTEXT:\n${marketContext}\n\n` : ''}
 
-Task: Compare this manuscript to bestselling ${finalGenre} titles from 2020-2025 across the 13 Story Evaluation Criteria:
-1. Voice & Style
-2. Opening Hook
-3. Character Development
-4. Dialogue
-5. Pacing
-6. Show Don't Tell
-7. Emotional Resonance
-8. Plot Structure
-9. Theme & Depth
-10. Sensory Details
-11. Scene Craft
-12. Market Readiness
-13. Comparative Positioning
+        TASK: Compare this manuscript to bestselling ${finalGenre} titles (2020-2025) across the 13 Story Evaluation Criteria.
 
-For each criterion:
-- Rate the manuscript (0-10)
-- Provide genre average (0-10)
-- Note if above/below average
-- Give 1-2 sentence positioning insight
+        REQUIRED OUTPUT (JSON ONLY):
+        1. criteria_scores: EXACTLY 13 criteria (Voice & Style, Opening Hook, Character Development, Dialogue, Pacing, Show Don't Tell, Emotional Resonance, Plot Structure, Theme & Depth, Sensory Details, Scene Craft, Market Readiness, Comparative Positioning)
+        - manuscript_score: 0-10 based on analysis
+        - genre_average: 0-10 based on bestsellers
+        - above_average: true/false
+        - insight: 20-300 chars, specific positioning (no hype)
 
-Also provide:
-- 5-7 comparable bestselling titles (real titles, 2018-2025) with brief justification
-- Overall market positioning summary (2-3 paragraphs)
-- 3-5 strategic revision priorities for agent readiness
+        2. comparable_titles: 5-7 real titles (2018-2025)
+        - title: string
+        - author: string
+        - year: 2018-2026
+        - justification: 30-200 chars explaining WHY comparable
 
-CRITICAL: Return ONLY valid JSON matching the exact schema below. No markdown, no prose, no comments.
-All fields marked as required MUST be present.`;
+        3. market_positioning: 200-1000 chars
+        - 2-3 paragraphs summarizing competitive standing
+        - Specific strengths and strategic revision needs
 
-        const comparablesAnalysis = await base44.integrations.Core.InvokeLLM({
+        4. revision_priorities: 3-5 items
+        - Each 20-200 chars
+        - Specific, actionable, genre-aligned
+
+        CRITICAL RULES:
+        - Return ONLY valid JSON matching the schema
+        - Do NOT invent plot details not in source material
+        - Do NOT use placeholder text or "More details here..."
+        - All comparable titles MUST be real published books
+        - All scores MUST be 0-10 (inclusive)
+        - If required information is missing, return: {"error": "MISSING_INFO", "missing": ["field1", "field2"]}
+
+        Return compliant JSON now.`;
+
+        // Attempt #1: Generate comparables with strict schema
+        logData.model = 'InvokeLLM';
+        const llmStartTime = Date.now();
+
+        let comparablesAnalysis = await base44.integrations.Core.InvokeLLM({
             prompt: comparablesPrompt,
             add_context_from_internet: true,
-            response_json_schema: {
-                type: 'object',
-                properties: {
-                    criteria_scores: {
-                        type: 'array',
-                        items: {
-                            type: 'object',
-                            properties: {
-                                criterion: { type: 'string' },
-                                manuscript_score: { type: 'number' },
-                                genre_average: { type: 'number' },
-                                above_average: { type: 'boolean' },
-                                insight: { type: 'string' }
-                            },
-                            required: ['criterion', 'manuscript_score', 'genre_average', 'above_average', 'insight']
-                        },
-                        minItems: 13
-                    },
-                    comparable_titles: {
-                        type: 'array',
-                        items: {
-                            type: 'object',
-                            properties: {
-                                title: { type: 'string' },
-                                author: { type: 'string' },
-                                year: { type: 'number' },
-                                justification: { type: 'string' }
-                            },
-                            required: ['title', 'author', 'justification']
-                        },
-                        minItems: 5
-                    },
-                    market_positioning: { type: 'string' },
-                    revision_priorities: {
-                        type: 'array',
-                        items: { type: 'string' },
-                        minItems: 3
-                    }
-                },
-                required: ['criteria_scores', 'comparable_titles', 'market_positioning', 'revision_priorities']
-            }
+            response_json_schema: COMPARABLES_SCHEMA
         });
 
-        console.log('LLM response received:', JSON.stringify(comparablesAnalysis).substring(0, 500));
+        logData.llm_latency_ms = Date.now() - llmStartTime;
+        console.log('LLM attempt #1 response received:', JSON.stringify(comparablesAnalysis).substring(0, 500));
 
-        // Validate response structure
-        if (!comparablesAnalysis || !comparablesAnalysis.criteria_scores || !comparablesAnalysis.comparable_titles) {
-            console.error('Invalid LLM response - full output:', JSON.stringify(comparablesAnalysis, null, 2));
-            return Response.json({ 
-                error: 'Failed to generate valid comparables analysis', 
-                details: 'LLM response missing required fields',
-                debug: {
-                    has_criteria_scores: !!comparablesAnalysis?.criteria_scores,
-                    has_comparable_titles: !!comparablesAnalysis?.comparable_titles,
-                    response_keys: comparablesAnalysis ? Object.keys(comparablesAnalysis) : []
-                }
-            }, { status: 422 });
+        // POST-GENERATION VALIDATION (Defensive Engineering Standard)
+        const validation = validateComparablesOutput(comparablesAnalysis);
+
+        if (!validation.ok) {
+            console.warn('Validation failed on attempt #1:', validation.failures);
+            logData.attempt_1_failures = validation.failures;
+
+            // AUTO-REGENERATION (max 1 retry)
+            console.log('Attempting regeneration with corrective instructions...');
+            logData.attempt = 2;
+
+            const correctivePrompt = buildCorrectivePrompt(
+                comparablesPrompt,
+                comparablesAnalysis,
+                validation.failures
+            );
+
+            const regen_llmStartTime = Date.now();
+            comparablesAnalysis = await base44.integrations.Core.InvokeLLM({
+                prompt: correctivePrompt,
+                add_context_from_internet: true,
+                response_json_schema: COMPARABLES_SCHEMA
+            });
+
+            logData.regen_llm_latency_ms = Date.now() - regen_llmStartTime;
+            console.log('LLM attempt #2 response received:', JSON.stringify(comparablesAnalysis).substring(0, 500));
+
+            // Re-validate
+            const revalidation = validateComparablesOutput(comparablesAnalysis);
+
+            if (!revalidation.ok) {
+                // HARD FAIL (Multi-Model Governance Standard)
+                console.error('Validation failed after regeneration:', revalidation.failures);
+                logData.validation_passed = false;
+                logData.final_failures = revalidation.failures;
+                logData.latency_ms = Date.now() - startTime;
+                console.error('COMPARABLES GENERATION FAILED:', JSON.stringify(logData));
+
+                return Response.json({
+                    success: false,
+                    error: 'GENERATION_FAILED',
+                    details: 'Unable to generate valid comparables analysis after retry.',
+                    validation_failures: revalidation.failures.map(f => f.message),
+                    next_action: 'RETRY'
+                }, { status: 422 });
+            }
+
+            console.log('Regeneration successful, validation passed');
         }
+
+        logData.validation_passed = true;
 
         // Create comparative report entity
         const report = await base44.entities.ComparativeReport.create({
@@ -230,17 +348,171 @@ All fields marked as required MUST be present.`;
             ]
         });
 
+        logData.latency_ms = Date.now() - startTime;
+        console.log('COMPARABLES GENERATION SUCCESS:', JSON.stringify(logData));
+
         return Response.json({ 
             success: true,
             report_id: report.id,
-            analysis: comparablesAnalysis
+            analysis: comparablesAnalysis,
+            metadata: {
+                capped: capped,
+                word_count: wordCount,
+                genre: finalGenre
+            }
         });
 
-    } catch (error) {
-        console.error('Comparables generation error:', error);
-        return Response.json({ 
-            error: 'Failed to generate comparables report', 
-            details: error.message 
+        } catch (error) {
+        logData.error = error.message;
+        logData.latency_ms = Date.now() - startTime;
+        console.error('COMPARABLES GENERATION ERROR:', JSON.stringify(logData));
+
+        return Response.json({
+            success: false,
+            error: 'INTERNAL_ERROR',
+            details: 'An unexpected error occurred during comparables generation.',
+            debug: error.message
         }, { status: 500 });
-    }
-});
+        }
+        });
+
+        // VALIDATION HELPER (Defensive Engineering Standard)
+        function validateComparablesOutput(output) {
+        const failures = [];
+
+        if (!output) {
+        failures.push({ code: 'NULL_OUTPUT', message: 'LLM returned null or undefined' });
+        return { ok: false, failures };
+        }
+
+        // Check required top-level fields
+        if (!output.criteria_scores) {
+        failures.push({ code: 'MISSING_CRITERIA_SCORES', message: 'Missing criteria_scores array' });
+        }
+        if (!output.comparable_titles) {
+        failures.push({ code: 'MISSING_COMPARABLE_TITLES', message: 'Missing comparable_titles array' });
+        }
+        if (!output.market_positioning) {
+        failures.push({ code: 'MISSING_MARKET_POSITIONING', message: 'Missing market_positioning string' });
+        }
+        if (!output.revision_priorities) {
+        failures.push({ code: 'MISSING_REVISION_PRIORITIES', message: 'Missing revision_priorities array' });
+        }
+
+        // Validate criteria_scores
+        if (output.criteria_scores) {
+        if (!Array.isArray(output.criteria_scores)) {
+        failures.push({ code: 'CRITERIA_SCORES_NOT_ARRAY', message: 'criteria_scores must be an array' });
+        } else {
+        if (output.criteria_scores.length !== 13) {
+            failures.push({ 
+                code: 'CRITERIA_SCORES_COUNT', 
+                message: `Expected exactly 13 criteria scores, got ${output.criteria_scores.length}` 
+            });
+        }
+
+        output.criteria_scores.forEach((score, idx) => {
+            if (!score.criterion) failures.push({ code: 'MISSING_CRITERION_NAME', message: `criteria_scores[${idx}] missing criterion name` });
+            if (typeof score.manuscript_score !== 'number') failures.push({ code: 'INVALID_MANUSCRIPT_SCORE', message: `criteria_scores[${idx}] manuscript_score not a number` });
+            if (score.manuscript_score < 0 || score.manuscript_score > 10) failures.push({ code: 'MANUSCRIPT_SCORE_OUT_OF_RANGE', message: `criteria_scores[${idx}] manuscript_score out of range (0-10)` });
+            if (typeof score.genre_average !== 'number') failures.push({ code: 'INVALID_GENRE_AVERAGE', message: `criteria_scores[${idx}] genre_average not a number` });
+            if (score.genre_average < 0 || score.genre_average > 10) failures.push({ code: 'GENRE_AVERAGE_OUT_OF_RANGE', message: `criteria_scores[${idx}] genre_average out of range (0-10)` });
+            if (typeof score.above_average !== 'boolean') failures.push({ code: 'INVALID_ABOVE_AVERAGE', message: `criteria_scores[${idx}] above_average not a boolean` });
+            if (!score.insight || score.insight.length < 20 || score.insight.length > 300) {
+                failures.push({ code: 'INVALID_INSIGHT_LENGTH', message: `criteria_scores[${idx}] insight must be 20-300 chars, got ${score.insight?.length || 0}` });
+            }
+        });
+        }
+        }
+
+        // Validate comparable_titles
+        if (output.comparable_titles) {
+        if (!Array.isArray(output.comparable_titles)) {
+        failures.push({ code: 'COMPARABLE_TITLES_NOT_ARRAY', message: 'comparable_titles must be an array' });
+        } else {
+        if (output.comparable_titles.length < 5 || output.comparable_titles.length > 7) {
+            failures.push({ 
+                code: 'COMPARABLE_TITLES_COUNT', 
+                message: `Expected 5-7 comparable titles, got ${output.comparable_titles.length}` 
+            });
+        }
+
+        output.comparable_titles.forEach((title, idx) => {
+            if (!title.title) failures.push({ code: 'MISSING_TITLE', message: `comparable_titles[${idx}] missing title field` });
+            if (!title.author) failures.push({ code: 'MISSING_AUTHOR', message: `comparable_titles[${idx}] missing author field` });
+            if (!title.justification || title.justification.length < 30 || title.justification.length > 200) {
+                failures.push({ code: 'INVALID_JUSTIFICATION_LENGTH', message: `comparable_titles[${idx}] justification must be 30-200 chars, got ${title.justification?.length || 0}` });
+            }
+            if (title.year && (title.year < 2018 || title.year > 2026)) {
+                failures.push({ code: 'INVALID_YEAR', message: `comparable_titles[${idx}] year out of range (2018-2026)` });
+            }
+        });
+        }
+        }
+
+        // Validate market_positioning
+        if (output.market_positioning) {
+        if (typeof output.market_positioning !== 'string') {
+        failures.push({ code: 'MARKET_POSITIONING_NOT_STRING', message: 'market_positioning must be a string' });
+        } else if (output.market_positioning.length < 200 || output.market_positioning.length > 1000) {
+        failures.push({ 
+            code: 'INVALID_MARKET_POSITIONING_LENGTH', 
+            message: `market_positioning must be 200-1000 chars, got ${output.market_positioning.length}` 
+        });
+        }
+        }
+
+        // Validate revision_priorities
+        if (output.revision_priorities) {
+        if (!Array.isArray(output.revision_priorities)) {
+        failures.push({ code: 'REVISION_PRIORITIES_NOT_ARRAY', message: 'revision_priorities must be an array' });
+        } else {
+        if (output.revision_priorities.length < 3 || output.revision_priorities.length > 5) {
+            failures.push({ 
+                code: 'REVISION_PRIORITIES_COUNT', 
+                message: `Expected 3-5 revision priorities, got ${output.revision_priorities.length}` 
+            });
+        }
+
+        output.revision_priorities.forEach((priority, idx) => {
+            if (typeof priority !== 'string') {
+                failures.push({ code: 'INVALID_PRIORITY_TYPE', message: `revision_priorities[${idx}] not a string` });
+            } else if (priority.length < 20 || priority.length > 200) {
+                failures.push({ 
+                    code: 'INVALID_PRIORITY_LENGTH', 
+                    message: `revision_priorities[${idx}] must be 20-200 chars, got ${priority.length}` 
+                });
+            }
+        });
+        }
+        }
+
+        return { ok: failures.length === 0, failures };
+        }
+
+        // CORRECTIVE PROMPT BUILDER (Defensive Engineering Standard)
+        function buildCorrectivePrompt(originalPrompt, failedOutput, failures) {
+        const failureList = failures.map(f => `- ${f.code}: ${f.message}`).join('\n');
+
+        return `Your previous response failed validation. Generate a corrected version.
+
+        FAILURES TO FIX:
+        ${failureList}
+
+        INSTRUCTIONS:
+        - Ensure exactly 13 criteria scores (Voice & Style, Opening Hook, Character Development, Dialogue, Pacing, Show Don't Tell, Emotional Resonance, Plot Structure, Theme & Depth, Sensory Details, Scene Craft, Market Readiness, Comparative Positioning)
+        - Keep all scores between 0 and 10 (inclusive)
+        - Provide insight string for each criterion (20-300 characters)
+        - Provide 5-7 comparable titles with justifications (30-200 characters each)
+        - Market positioning must be 200-1000 characters
+        - Revision priorities must be 3-5 items (20-200 characters each)
+        - Do NOT invent plot details not in source material
+        - Return ONLY valid JSON matching the schema
+
+        ${originalPrompt}
+
+        FAILED OUTPUT (for reference):
+        ${JSON.stringify(failedOutput, null, 2).substring(0, 2000)}
+
+        Generate corrected output now.`;
+        }
