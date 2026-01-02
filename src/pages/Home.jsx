@@ -227,7 +227,7 @@ export default function Home() {
                         <img 
                             src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/81ce1b007_image.png"
                             alt="RevisionGrade End-to-End Author Workflow"
-                            className="w-full max-w-4xl h-auto"
+                            className="w-full max-w-5xl h-auto"
                         />
                     </div>
 
