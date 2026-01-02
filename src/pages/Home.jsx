@@ -25,11 +25,11 @@ export default function Home() {
                             RevisionGrade™ — A Professional Revision Framework
                         </h1>
 
-                        <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-3">
+                        <p className="text-lg sm:text-xl text-slate-700 max-w-2xl mx-auto mb-3 font-medium">
                             Built to meet the standards gatekeepers expect.
                         </p>
 
-                        <p className="text-base text-slate-600 max-w-2xl mx-auto mb-8">
+                        <p className="text-base sm:text-lg text-slate-700 max-w-2xl mx-auto mb-8 font-medium">
                             Proof in Resources.
                         </p>
 
@@ -79,8 +79,8 @@ export default function Home() {
             {/* Reality Check Section */}
             <div className="bg-slate-900 py-16">
                 <div className="max-w-4xl mx-auto px-6">
-                    <div className="space-y-6 text-slate-300">
-                        <h2 className="text-2xl font-bold text-white">The Agent Reality Check</h2>
+                    <div className="space-y-6 text-slate-200">
+                        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-6">The Agent Reality Check</h2>
                         <p className="leading-relaxed">
                             Despite the myths, commercial literature is highly patterned. Agents are trained to gauge—fast—whether your pages are likely to sell, not to canonize you as an artist. Their job is to find work that enough readers will buy.
                         </p>
@@ -90,9 +90,9 @@ export default function Home() {
                         <p className="leading-relaxed">
                             You may have a brilliant story, but if the pages trip over the 13 Story Evaluation Criteria that professionals use—and the scores of structural and line-level checks in the WAVE Guide—it will be rejected long before anyone sees the ending. Agents and readers evaluate in seconds what took you years to build.
                         </p>
-                        <div className="p-6 rounded-xl bg-indigo-900/50 border border-indigo-700">
-                            <p className="leading-relaxed text-white">
-                                <strong>Elevate Your Game™</strong> by running your work through the RevisionGrade framework: a PhD-calibrated scoring engine built on the 13 Story Evaluation Criteria and the proprietary WAVE Revision System. There is no other technology that combines those standards into one coherent, repeatable diagnostic pass—so you know exactly where your manuscript stands.
+                        <div className="p-6 sm:p-8 rounded-xl bg-indigo-900/60 border-2 border-indigo-600">
+                            <p className="leading-relaxed text-white text-base sm:text-lg">
+                                <strong className="text-indigo-200">Elevate Your Game™</strong> by running your work through the RevisionGrade framework: a PhD-calibrated scoring engine built on the 13 Story Evaluation Criteria and the proprietary WAVE Revision System. There is no other technology that combines those standards into one coherent, repeatable diagnostic pass—so you know exactly where your manuscript stands.
                             </p>
                         </div>
                     </div>
@@ -102,8 +102,8 @@ export default function Home() {
             {/* Features Section */}
             <div className="max-w-6xl mx-auto px-6 py-14">
                 <div className="text-center mb-16">
-                    <h2 className="text-3xl font-bold text-slate-900">End-to-End IP Standards Engine</h2>
-                    <p className="mt-3 text-slate-600">What once required months of back-and-forth, multiple tools, and subjective review is now unified into a single, standards-driven system.</p>
+                    <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">End-to-End IP Standards Engine</h2>
+                    <p className="mt-3 text-base sm:text-lg text-slate-700 max-w-3xl mx-auto font-medium">What once required months of back-and-forth, multiple tools, and subjective review is now unified into a single, standards-driven system.</p>
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-8">
@@ -141,7 +141,7 @@ export default function Home() {
                                     <feature.icon className="w-6 h-6 text-white" />
                                 </div>
                                 <h3 className="text-xl font-semibold text-slate-900 mb-3">{feature.title}</h3>
-                                <p className="text-slate-600 leading-relaxed">{feature.description}</p>
+                                <p className="text-slate-700 leading-relaxed">{feature.description}</p>
                             </div>
                         </motion.div>
                     ))}
@@ -155,10 +155,10 @@ export default function Home() {
                         <Shield className="w-4 h-4 mr-2" />
                         Dual-Layer Evaluation Engine
                     </Badge>
-                    <h2 className="text-3xl font-bold text-slate-900 mb-4">
+                    <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
                         Agent Ready™ + WAVE Canon
                     </h2>
-                    <p className="text-slate-600 max-w-2xl mx-auto">
+                    <p className="text-base sm:text-lg text-slate-700 max-w-2xl mx-auto font-medium">
                         Base44 doesn't write stories. It translates them to market reality.
                     </p>
                 </div>
@@ -227,17 +227,17 @@ export default function Home() {
                         <img 
                             src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694d42d40ffc7474cd3e624b/81ce1b007_image.png"
                             alt="RevisionGrade End-to-End Author Workflow"
-                            className="w-full max-w-5xl h-auto"
+                            className="w-full max-w-5xl h-auto rounded-xl shadow-lg"
                         />
                     </div>
 
                     {/* How WAVE Adapts */}
                     <div className="max-w-4xl mx-auto">
                         <div className="p-8 rounded-xl bg-white border border-slate-200">
-                            <h3 className="text-2xl font-bold text-slate-900 mb-4">
+                            <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
                                 How WAVE Adapts to Your Story
                             </h3>
-                            <p className="text-slate-700 mb-6">
+                            <p className="text-base sm:text-lg text-slate-700 mb-6 font-medium">
                                 Our Narrative Structure Analysis works across three major modes of storytelling:
                             </p>
                             <div className="space-y-3 mb-6">
@@ -281,10 +281,10 @@ export default function Home() {
                                 <BookOpen className="w-4 h-4 mr-2" />
                                 13 Story Evaluation Criteria
                             </Badge>
-                            <h2 className="text-3xl font-bold text-white mb-6">
+                            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
                                 Evaluated Like a Professional
                             </h2>
-                            <p className="text-slate-300 leading-relaxed mb-8">
+                            <p className="text-base sm:text-lg text-slate-200 leading-relaxed mb-8">
                                 Your work is scored on the same 13 criteria agents, editors, and script readers use 
                                 when reviewing submissions—from voice and pacing to emotional resonance 
                                 and market readiness.
@@ -303,10 +303,10 @@ export default function Home() {
                                 <Waves className="w-4 h-4 mr-2" />
                                 Wave Revision Guide
                             </Badge>
-                            <h2 className="text-3xl font-bold text-white mb-6">
+                            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
                                 Proprietary Revision Framework
                             </h2>
-                            <p className="text-slate-300 leading-relaxed mb-8">
+                            <p className="text-base sm:text-lg text-slate-200 leading-relaxed mb-8">
                                 Our proprietary Wave Revision System covers everything from 
                                 sentence-level craft to chapter-wide structure—a sequential process 
                                 ensuring no detail escapes notice.
@@ -347,10 +347,10 @@ export default function Home() {
             {/* Final CTA Section */}
             <div className="bg-white py-20">
                 <div className="max-w-3xl mx-auto px-6 text-center">
-                    <h2 className="text-4xl font-bold text-slate-900 mb-4">
+                    <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
                         Ready to Transform Your Writing?
                     </h2>
-                    <p className="text-lg text-slate-600 mb-8">
+                    <p className="text-lg sm:text-xl text-slate-700 mb-8 font-medium">
                         30-Day Money Back Guarantee • No Credit Card Required
                     </p>
                     <Link to={createPageUrl('UploadManuscript')}>
