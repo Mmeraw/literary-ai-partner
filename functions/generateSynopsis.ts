@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { manuscriptInfo, synopsisType, manuscriptId } = await req.json();
+        const { manuscriptInfo, synopsisType, manuscriptId, sourceDocumentId } = await req.json();
 
         if (!manuscriptInfo && !manuscriptId) {
             return Response.json({ error: 'Manuscript information or ID required' }, { status: 400 });
@@ -216,12 +216,49 @@ Provide validation report with pass/fail status and specific flags.`;
             }
         });
 
+        // Create Document record in UPLOADED state
+        const documentTitle = versionConfig.name;
+        const document = await base44.entities.Document.create({
+            type: 'SYNOPSIS',
+            scope: synopsisType === 'extended' ? 'FULL' : synopsisType === 'standard' ? 'FULL' : 'PARTIAL',
+            state: 'UPLOADED',
+            title: documentTitle,
+            parent_document_id: sourceDocumentId || null,
+            content_reference_id: null,
+            content_reference_type: null
+        });
+
+        // Create initial version (UPLOAD kind)
+        await base44.entities.DocumentVersion.create({
+            document_id: document.id,
+            version_number: 1,
+            state_at_time: 'UPLOADED',
+            content_snapshot: synopsisResponse.synopsis_text,
+            score_snapshot: null,
+            evaluation_data: {
+                validation: validationResponse,
+                skeleton: skeletonResponse
+            },
+            notes: `Generated ${versionConfig.name}`
+        });
+
+        // Transition to EVALUATED state (since we have validation data)
+        await base44.functions.invoke('transitionDocumentState', {
+            document_id: document.id,
+            to_state: 'EVALUATED',
+            transition_data: {
+                evaluation_score: validationResponse.validation_status === 'pass' ? 9 : 7,
+                evaluation_data: validationResponse
+            }
+        });
+
         return Response.json({
             success: true,
             synopsis: synopsisResponse.synopsis_text,
             validation: validationResponse,
             version: versionConfig.name,
-            word_count: validationResponse.word_count
+            word_count: validationResponse.word_count,
+            document_id: document.id
         });
 
     } catch (error) {

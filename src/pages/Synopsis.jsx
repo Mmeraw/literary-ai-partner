@@ -25,6 +25,11 @@ export default function Synopsis() {
         extended: ''
     });
     const [validation, setValidation] = useState({});
+    const [documentIds, setDocumentIds] = useState({
+        query: null,
+        standard: null,
+        extended: null
+    });
     
     const queryRevision = useRevisionFlow('synopsis');
     const standardRevision = useRevisionFlow('synopsis');
@@ -124,12 +129,16 @@ export default function Synopsis() {
                     ...prev,
                     [type]: result.validation
                 }));
+                setDocumentIds(prev => ({
+                    ...prev,
+                    [type]: result.document_id
+                }));
                 
                 const revision = type === 'query' ? queryRevision : type === 'standard' ? standardRevision : extendedRevision;
                 await revision.createBaseline(result.synopsis, `synopsis_${type}_${Date.now()}`);
                 
                 const versionName = type === 'query' ? 'Query' : type === 'standard' ? 'Standard' : 'Extended';
-                toast.success(`${versionName} synopsis generated! (${result.word_count} words)`);
+                toast.success(`${versionName} synopsis generated! Document ID: ${result.document_id.substring(0, 8)}...`);
             } else {
                 toast.error(result.error || 'Generation failed');
             }
