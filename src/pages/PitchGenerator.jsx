@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sparkles, Copy, Download, Loader2, Target, Film, MessageSquare, Upload, Search, FileText } from 'lucide-react';
+import { Sparkles, Copy, Download, Loader2, Target, Film, MessageSquare, Upload, Search, FileText, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
@@ -69,6 +69,7 @@ export default function PitchGenerator() {
     };
 
     const [generating, setGenerating] = useState(false);
+    const [voiceIntensity, setVoiceIntensity] = useState('house');
     const [pitches, setPitches] = useState({
         oneSentenceSpecific: '',
         oneSentenceGeneral: '',
@@ -136,7 +137,8 @@ export default function PitchGenerator() {
         setGenerating(true);
         try {
             const response = await base44.functions.invoke('generateQueryPitches', {
-                manuscriptInfo
+                manuscriptInfo,
+                voiceIntensity
             });
 
             if (response.data.success) {
@@ -421,6 +423,54 @@ export default function PitchGenerator() {
                                 <CardTitle>Generated Pitch Variations</CardTitle>
                             </CardHeader>
                             <CardContent>
+                                {/* Voice Intensity Control */}
+                                <div className="mb-6 p-4 rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Zap className="w-4 h-4 text-indigo-600" />
+                                        <span className="text-sm font-semibold text-indigo-900">Voice Intensity</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setVoiceIntensity('neutral')}
+                                            disabled={generating}
+                                            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                                voiceIntensity === 'neutral'
+                                                    ? 'bg-indigo-600 text-white shadow-md'
+                                                    : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+                                            } disabled:opacity-50`}
+                                        >
+                                            Neutral
+                                        </button>
+                                        <button
+                                            onClick={() => setVoiceIntensity('house')}
+                                            disabled={generating}
+                                            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                                voiceIntensity === 'house'
+                                                    ? 'bg-indigo-600 text-white shadow-md'
+                                                    : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+                                            } disabled:opacity-50`}
+                                        >
+                                            House
+                                        </button>
+                                        <button
+                                            onClick={() => setVoiceIntensity('amped')}
+                                            disabled={generating}
+                                            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                                voiceIntensity === 'amped'
+                                                    ? 'bg-indigo-600 text-white shadow-md'
+                                                    : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+                                            } disabled:opacity-50`}
+                                        >
+                                            Amped
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-slate-600 mt-3">
+                                        {voiceIntensity === 'neutral' && 'Default safe, still specific'}
+                                        {voiceIntensity === 'house' && 'RevisionGrade standard (recommended)'}
+                                        {voiceIntensity === 'amped' && 'Sharper diction, more motif pressure, less smoothing'}
+                                    </p>
+                                </div>
+
                                 <Tabs defaultValue="specific" className="space-y-4">
                                     <TabsList className="grid grid-cols-3 w-full">
                                         <TabsTrigger value="specific">One-Sentence</TabsTrigger>

@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { manuscriptInfo } = await req.json();
+        const { manuscriptInfo, voiceIntensity = 'house' } = await req.json();
 
         if (!manuscriptInfo?.title || !manuscriptInfo?.logline) {
             return Response.json({ 
@@ -28,7 +28,8 @@ Deno.serve(async (req) => {
             const voiceAnchorResult = await base44.functions.invoke('applyVoiceAnchorAndSchemaToPitch', {
                 extractedText: manuscriptInfo.text_sample || manuscriptInfo.full_text || '',
                 formatType: 'pitch_variations',
-                projectVoiceProfile: null
+                projectVoiceProfile: null,
+                voiceIntensity
             });
 
             const voiceData = voiceAnchorResult.data || voiceAnchorResult;

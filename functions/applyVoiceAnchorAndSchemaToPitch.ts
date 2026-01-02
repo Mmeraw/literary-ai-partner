@@ -59,8 +59,36 @@ const BANNED_PHRASES = [
     "fight for survival",
     "deadly game",
     "life or death",
-    "do whatever it takes"
+    "do whatever it takes",
+    "estranged lover",
+    "depths of addiction",
+    "storm brewing",
+    "world of drugs",
+    "chaotic",
+    "tumultuous paths",
+    "bid for liberation"
 ];
+
+const INTENSITY_CONFIG = {
+    neutral: {
+        motifMinCount: 2,
+        namedEntityMinCount: 2,
+        regenerationBudget: 1,
+        strictness: 'standard'
+    },
+    house: {
+        motifMinCount: 3,
+        namedEntityMinCount: 2,
+        regenerationBudget: 2,
+        strictness: 'high'
+    },
+    amped: {
+        motifMinCount: 5,
+        namedEntityMinCount: 3,
+        regenerationBudget: 2,
+        strictness: 'maximum'
+    }
+};
 
 Deno.serve(async (req) => {
     try {
@@ -71,13 +99,16 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { extractedText, formatType, projectVoiceProfile } = await req.json();
+        const { extractedText, formatType, projectVoiceProfile, voiceIntensity = 'house' } = await req.json();
 
         if (!extractedText) {
             return Response.json({ error: 'extractedText is required' }, { status: 400 });
         }
 
-        console.log('🎭 Step 1: Extracting thematic schema...');
+        console.log(`🎭 Step 1: Extracting thematic schema (intensity: ${voiceIntensity})...`);
+
+        const config = INTENSITY_CONFIG[voiceIntensity] || INTENSITY_CONFIG.house;
+        console.log('Intensity config:', config);
 
         // STEP 1: Extract thematic schema
         const thematicSchema = await base44.integrations.Core.InvokeLLM({
@@ -193,9 +224,11 @@ Generate tiered outputs:`;
         const namedEntityCount = thematicSchema.named_entities?.length || 0;
         const hasExplicitLaw = thematicSchema.law && thematicSchema.law.length > 20;
         const hasMoralTension = pitchOutput.moral_engine && pitchOutput.moral_engine.length > 50;
+        const motifCount = Object.keys(thematicSchema).filter(k => k !== 'named_entities' && thematicSchema[k]).length;
 
         const passedGate = bannedPhraseHits.length === 0 && 
-                          namedEntityCount >= 2 && 
+                          namedEntityCount >= config.namedEntityMinCount && 
+                          motifCount >= config.motifMinCount &&
                           hasExplicitLaw &&
                           hasMoralTension;
 
@@ -203,10 +236,13 @@ Generate tiered outputs:`;
             passed: passedGate,
             bannedPhraseHits,
             namedEntityCount,
+            motifCount,
             hasExplicitLaw,
             hasMoralTension,
+            voiceIntensity,
             minimumRequirements: {
-                namedEntities: namedEntityCount >= 2,
+                namedEntities: namedEntityCount >= config.namedEntityMinCount,
+                motifCount: motifCount >= config.motifMinCount,
                 explicitLaw: hasExplicitLaw,
                 moralTension: hasMoralTension,
                 noBoilerplate: bannedPhraseHits.length === 0
@@ -221,9 +257,10 @@ Generate tiered outputs:`;
             
             const stricterPrompt = `${VOICE_ANCHOR_SYSTEM_PROMPT}
 
-CRITICAL FAILURES DETECTED:
+CRITICAL FAILURES DETECTED (${voiceIntensity.toUpperCase()} INTENSITY):
 ${bannedPhraseHits.length > 0 ? `- Used banned phrases: ${bannedPhraseHits.join(', ')}` : ''}
-${namedEntityCount < 2 ? `- Only ${namedEntityCount} named entities (need 2+)` : ''}
+${namedEntityCount < config.namedEntityMinCount ? `- Only ${namedEntityCount} named entities (need ${config.namedEntityMinCount}+)` : ''}
+${motifCount < config.motifMinCount ? `- Only ${motifCount} motifs surfaced (need ${config.motifMinCount}+)` : ''}
 ${!hasExplicitLaw ? '- No explicit law/ritual surfaced' : ''}
 ${!hasMoralTension ? '- Insufficient moral tension' : ''}
 
