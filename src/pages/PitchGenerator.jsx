@@ -530,31 +530,12 @@ export default function PitchGenerator() {
                                         Unique Hook
                                     </label>
                                     <Textarea
-                                        value={manuscriptInfo.uniqueHook}
-                                        onChange={(e) => setManuscriptInfo({...manuscriptInfo, uniqueHook: e.target.value})}
-                                        placeholder="What makes your story different from everything else in the genre?"
-                                        className="h-24"
-                                    />
-                                </div>
-
-                                <Button
-                                    onClick={generatePitches}
-                                    disabled={generating || !manuscriptInfo.title || !manuscriptInfo.logline}
-                                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
-                                    size="lg"
-                                >
-                                    {generating ? (
-                                        <>
-                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                            Generating Pitches...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Sparkles className="w-4 h-4 mr-2" />
-                                            Generate All Pitch Variations
-                                        </>
-                                    )}
-                                </Button>
+                                            value={manuscriptInfo.uniqueHook}
+                                            onChange={(e) => setManuscriptInfo({...manuscriptInfo, uniqueHook: e.target.value})}
+                                            placeholder="What makes your story different from everything else in the genre?"
+                                            className="h-24"
+                                        />
+                                    </div>
                             </CardContent>
                         </Card>
                     </div>
@@ -611,9 +592,28 @@ export default function PitchGenerator() {
                                         {voiceIntensity === 'house' && 'RevisionGrade standard (recommended)'}
                                         {voiceIntensity === 'amped' && 'Sharper diction, more motif pressure, less smoothing'}
                                     </p>
-                                </div>
+                                    </div>
 
-                                <Tabs defaultValue="specific" className="space-y-4">
+                                    <Button
+                                    onClick={generatePitches}
+                                    disabled={generating || !manuscriptInfo.title || !manuscriptInfo.logline}
+                                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                                    size="lg"
+                                    >
+                                    {generating ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Generating Pitches...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="w-4 h-4 mr-2" />
+                                            Generate All Pitch Variations
+                                        </>
+                                    )}
+                                    </Button>
+
+                                    <Tabs defaultValue="specific" className="space-y-4">
                                     <TabsList className="grid grid-cols-3 w-full">
                                         <TabsTrigger value="specific">One-Sentence</TabsTrigger>
                                         <TabsTrigger value="elevator">Elevator</TabsTrigger>
