@@ -32,8 +32,8 @@ Deno.serve(async (req) => {
         const manuscriptSample = fileText.substring(0, Math.min(50000, fileText.length));
         console.log(`Using ${manuscriptSample.length} characters for analysis`);
 
-        console.log('🔍 Step 2: Extracting all pitch fields from manuscript...');
-        const extractionPrompt = `Analyze this manuscript/screenplay excerpt and extract all fields for pitch generation.
+        console.log('🔍 Step 2: Extracting all pitch fields with thematic substrate...');
+        const extractionPrompt = `Analyze this manuscript/screenplay excerpt and extract all fields for pitch generation with thematic substrate.
 
 MANUSCRIPT TEXT:
 ${manuscriptSample}
@@ -41,7 +41,7 @@ ${manuscriptSample}
 Extract and provide:
 1. Title - Extract from the document header or opening
 2. Genre - Be specific (e.g., "Eco-horror, Dark Fantasy", "Literary Thriller", "Contemporary Romance")
-3. Word count estimate - Based on the full manuscript length
+3. Word count estimate - Based on the full manuscript length (as number)
 4. Logline - A compelling 1-2 sentence pitch that captures the core story
 5. Key themes - Comma-separated list of 3-5 key themes
 6. Protagonist - Name and brief description
@@ -49,9 +49,27 @@ Extract and provide:
 8. Setting - Location, time period, and world details
 9. Unique hook - What makes this story different from everything else in the genre? The distinctive element that sets it apart.
 
+10. Named Entities - Extract all proper nouns: character names, locations, objects, organizations (array)
+
+11. Thematic Schema - Extract the story's moral architecture:
+    - law: The governing rule/norm of this world
+    - taboo: What is forbidden or transgressed
+    - enforcer: Who/what upholds the law
+    - resistor: Who/what defies it
+    - costOfDefiance: What price is paid for breaking the law
+    - moralAxis: The core moral tension
+    - symbolicCenter: The central recurring symbol or motif
+
+12. Meta - Provide quality metrics:
+    - motifCount: Number of distinct recurring motifs identified
+    - namedEntityCount: Number of named entities extracted
+    - bannedPhraseHits: Any generic phrases found (e.g., "heart-wrenching", "gripping tale")
+    - lawMentioned: Did you identify a clear governing law/rule?
+    - passedVoiceGate: Does this have specific, non-generic substance?
+
 Return structured JSON with all fields populated. Be specific and compelling.`;
 
-        console.log('Calling LLM for extraction...');
+        console.log('Calling LLM for Voice-Anchored extraction...');
         const extracted = await base44.integrations.Core.InvokeLLM({
             prompt: extractionPrompt,
             response_json_schema: {
@@ -59,13 +77,42 @@ Return structured JSON with all fields populated. Be specific and compelling.`;
                 properties: {
                     title: { type: 'string' },
                     genre: { type: 'string' },
-                    wordCount: { type: 'string' },
+                    wordCount: { type: 'number' },
                     logline: { type: 'string' },
                     keyThemes: { type: 'string' },
                     protagonist: { type: 'string' },
                     stakes: { type: 'string' },
                     setting: { type: 'string' },
-                    uniqueHook: { type: 'string' }
+                    uniqueHook: { type: 'string' },
+                    namedEntities: {
+                        type: 'array',
+                        items: { type: 'string' }
+                    },
+                    thematicSchema: {
+                        type: 'object',
+                        properties: {
+                            law: { type: 'string' },
+                            taboo: { type: 'string' },
+                            enforcer: { type: 'string' },
+                            resistor: { type: 'string' },
+                            costOfDefiance: { type: 'string' },
+                            moralAxis: { type: 'string' },
+                            symbolicCenter: { type: 'string' }
+                        }
+                    },
+                    meta: {
+                        type: 'object',
+                        properties: {
+                            motifCount: { type: 'number' },
+                            namedEntityCount: { type: 'number' },
+                            bannedPhraseHits: {
+                                type: 'array',
+                                items: { type: 'string' }
+                            },
+                            lawMentioned: { type: 'boolean' },
+                            passedVoiceGate: { type: 'boolean' }
+                        }
+                    }
                 }
             }
         });
