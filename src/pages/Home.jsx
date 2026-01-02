@@ -238,34 +238,34 @@ export default function Home() {
                                 How WAVE Adapts to Your Story
                             </h3>
                             <p className="text-slate-700 mb-6">
-                                Our Narrative Structure Analysis works across all genres:
+                                Our Narrative Structure Analysis works across three major modes of storytelling:
                             </p>
                             <div className="space-y-3 mb-6">
                                 <div className="flex items-start gap-3">
                                     <CheckCircle2 className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-1" />
                                     <div>
                                         <strong className="text-slate-900">Mythic & archetypal narratives</strong>
-                                        <span className="text-slate-600"> (epic, fantasy, quest-driven)</span>
+                                        <span className="text-slate-600"> (epic, fantasy, quest-driven, allegorical)</span>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3">
                                     <CheckCircle2 className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-1" />
                                     <div>
                                         <strong className="text-slate-900">Contemporary realism</strong>
-                                        <span className="text-slate-600"> (character-driven, introspective)</span>
+                                        <span className="text-slate-600"> (character-driven, introspective, voice-led)</span>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3">
                                     <CheckCircle2 className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-1" />
                                     <div>
                                         <strong className="text-slate-900">Experimental structures</strong>
-                                        <span className="text-slate-600"> (non-linear, fragmented, meta)</span>
+                                        <span className="text-slate-600"> (non-linear, fragmented, meta, hybrid forms)</span>
                                     </div>
                                 </div>
                             </div>
                             <p className="text-slate-700 leading-relaxed">
-                                The system identifies the structural patterns unique to YOUR story, 
-                                then evaluates against agent and producer standards.
+                                The system identifies the structural patterns unique to your story, 
+                                then evaluates them against current agent and producer expectations.
                             </p>
                         </div>
                     </div>
