@@ -30,7 +30,7 @@ export default function Home() {
                         </p>
 
                         <p className="text-base sm:text-lg text-slate-700 max-w-2xl mx-auto mb-8 font-medium">
-                            Proof in Resources.
+                            See the Resources page for proof.
                         </p>
 
                         <div>
