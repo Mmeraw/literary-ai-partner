@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    const { text, title, wave_number = 1, submission_id, session_id, evaluation_result, style_mode = 'neutral', manuscript_score } = await req.json();
+    const { text, title, wave_number = 1, submission_id, session_id, evaluation_result, style_mode = 'neutral', manuscript_score, voice_preservation_level = 'balanced' } = await req.json();
 
     // TRUSTED PATH THRESHOLD GATING + HARD STRUCTURAL GATE
     // Calculate zone if manuscript_score provided
@@ -185,7 +185,23 @@ CRITICAL RULES (NON-NEGOTIABLE):
    - Proper nouns, ranks, units, dates, call signs, technical specs
    - Poem line breaks and stanza structure
    - Event sequence and cause-effect chain
+   - DIALOGUE (quoted speech) - see Voice Preservation rule below
 4. PRESERVE VOICE. Respect author's authority, authenticity, and tone.
+5. VOICE PRESERVATION LEVEL: ${voice_preservation_level}
+   ${voice_preservation_level === 'maximum' ? `
+   - DIALOGUE IS UNTOUCHABLE. No grammar, diction, or style suggestions inside quoted dialogue.
+   - Character idiolects are intentional craft. Non-standard grammar, slang, dialect = authorial choice.
+   - Only flag dialogue if meaning is genuinely ambiguous (clarity notes only, no rewrites).
+   - Narration/exposition evaluated normally.
+   ` : voice_preservation_level === 'balanced' ? `
+   - DIALOGUE PRESERVED VERBATIM. No rewrite suggestions by default.
+   - Clarity or consistency issues may be flagged (notes only, no replacement text).
+   - Narration/exposition receives normal craft feedback.
+   ` : voice_preservation_level === 'polish' ? `
+   - DIALOGUE STILL PRESERVED unless user explicitly enables normalization (not available here).
+   - Narration, exposition, summaries receive stronger polish.
+   - Do not suggest dialogue rewrites without explicit user opt-in.
+   ` : ''}
 5. MODE-SPECIFIC RULES:
    ${style_mode === 'transgressive' ? `
    - TRANSGRESSIVE MODE ACTIVE: Offensive/extreme content is INTENTIONAL, not an error
@@ -279,7 +295,20 @@ CRITICAL VALIDATION RULES (NON-NEGOTIABLE):
    - Reject if touching operational authenticity (orders, briefings, radio calls)
    - Reject if changing proper nouns, ranks, units, dates, call signs
    - Reject if altering poem structure or event sequence
-3. VOICE PRESERVATION: Reject if suggestion removes author's authority or authenticity.
+   - REJECT IF TOUCHING DIALOGUE (quoted speech) unless voice_preservation_level explicitly allows it
+3. VOICE PRESERVATION (Level: ${voice_preservation_level}):
+   ${voice_preservation_level === 'maximum' ? `
+   - HARD BLOCK: Reject ALL suggestions that touch quoted dialogue
+   - Reject if suggestion removes character idiolect authenticity
+   - Reject any grammar "correction" inside dialogue
+   ` : voice_preservation_level === 'balanced' ? `
+   - Reject dialogue rewrites (clarity notes allowed, no replacement text)
+   - Preserve author's authority and character voice
+   ` : `
+   - Reject dialogue normalization unless user explicitly enabled it (not available in this flow)
+   - Preserve character voice by default
+   `}
+   - Reject if suggestion removes author's authority or authenticity.
 4. RISK ASSESSMENT: For every flagged issue, note what could be lost if changed.
 5. MODE-SPECIFIC VALIDATION:
    ${style_mode === 'transgressive' ? `

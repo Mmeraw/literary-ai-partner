@@ -43,7 +43,8 @@ export default function Revise() {
           await base44.functions.invoke('generateRevisionSuggestions', {
             session_id: sess.id,
             text: sess.original_text,
-            style_mode: sess.style_mode || 'neutral'
+            style_mode: sess.style_mode || 'neutral',
+            voice_preservation_level: sess.voice_preservation_level || 'balanced'
           });
           // Refetch to get updated suggestions
           const updated = await base44.entities.RevisionSession.filter({ id: sessionId });
