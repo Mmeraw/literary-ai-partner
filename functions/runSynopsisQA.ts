@@ -158,21 +158,20 @@ Deno.serve(async (req) => {
         });
 
         // Test without opt-in (should block)
-        const weakSpineNoOptInResp = await base44.asServiceRole.functions.invoke('generateSynopsis', {
+        const weakSpineNoOptInResp = await base44.functions.invoke('generateSynopsis', {
             source_document_id: testManuscriptWeakSpine.id,
             mode: 'STANDARD',
-            variant: 'STANDARD',
-            __qa_bypass: true
+            variant: 'STANDARD'
         });
         const weakSpineNoOptInResult = weakSpineNoOptInResp.data || weakSpineNoOptInResp;
 
         // Test with opt-in (should include mode)
-        const weakSpineOptInResp = await base44.asServiceRole.functions.invoke('generateSynopsis', {
+        const weakSpineOptInResp = await base44.functions.invoke('generateSynopsis', {
             source_document_id: testManuscriptWeakSpine.id,
             source_version_id: null,
             mode: 'AMBIGUITY_ACK',
             variant: 'STANDARD',
-            __qa_bypass: true
+            allowAmbiguity: true
         });
         const weakSpineOptInResult = weakSpineOptInResp.data || weakSpineOptInResp;
 
@@ -210,12 +209,11 @@ Deno.serve(async (req) => {
         });
 
         try {
-            const strongSpineResp = await base44.asServiceRole.functions.invoke('generateSynopsis', {
+            const strongSpineResp = await base44.functions.invoke('generateSynopsis', {
                 source_document_id: testManuscriptStrongSpine.id,
                 source_version_id: null,
                 mode: 'STANDARD',
-                variant: 'STANDARD',
-                __qa_bypass: true
+                variant: 'STANDARD'
             });
             const strongSpineData = strongSpineResp.data || strongSpineResp;
 
@@ -260,12 +258,11 @@ Deno.serve(async (req) => {
 
         // QA-SYN-008: Constraint violation surfaced
         try {
-            const constraintResp = await base44.asServiceRole.functions.invoke('generateSynopsis', {
+            const constraintResp = await base44.functions.invoke('generateSynopsis', {
                 source_document_id: testManuscriptStrongSpine.id,
                 mode: 'STANDARD',
                 variant: 'STANDARD',
-                debug_force_constraint_violation: true,
-                __qa_bypass: true
+                debug_force_constraint_violation: true
             });
             const constraintResult = constraintResp.data || constraintResp;
             
