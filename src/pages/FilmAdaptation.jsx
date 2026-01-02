@@ -273,17 +273,17 @@ export default function FilmAdaptation() {
             <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-indigo-900 py-20">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-600/20 via-transparent to-transparent" />
                 
-                <div className="relative max-w-6xl mx-auto px-6 text-center">
+                <div className="relative max-w-6xl mx-auto px-4 sm:px-6 text-center">
                     <Badge className="mb-6 px-4 py-2 bg-white/10 text-white border-white/20">
                         <Film className="w-4 h-4 mr-2" />
                         Film Adaptation Package
                     </Badge>
                     
-                    <h1 className="text-4xl sm:text-5xl font-bold text-white mb-6 leading-tight">
+                    <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 leading-tight">
                         Manuscript/Screenplay → Publishing-Ready & Hollywood-Ready
                     </h1>
                     
-                    <p className="text-lg text-indigo-200 max-w-4xl mx-auto mb-2 font-medium tracking-wide">
+                    <p className="text-base sm:text-lg text-indigo-200 max-w-4xl mx-auto mb-2 font-medium">
                         Manuscript / Screenplay → Evaluate → Revise → Polish → Package → Pitch / Query
                     </p>
                     <p className="text-sm text-indigo-300 max-w-3xl mx-auto mb-10">
@@ -298,13 +298,13 @@ export default function FilmAdaptation() {
                         </div>
                         <Button 
                             size="lg" 
-                            className="h-16 px-10 bg-white text-slate-900 hover:bg-slate-100 text-lg font-semibold w-full sm:w-auto"
+                            className="h-14 sm:h-16 px-8 sm:px-10 bg-white text-slate-900 hover:bg-slate-100 text-base sm:text-lg font-semibold w-full sm:w-auto"
                             onClick={() => setShowUploadForm(true)}
                         >
                             <Upload className="w-5 h-5 mr-2" />
                             Generate Your Film Pitch Deck
                         </Button>
-                        <div className="flex items-center gap-4 text-sm">
+                        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-sm">
                             <button 
                                 onClick={() => document.getElementById('sample-decks')?.scrollIntoView({ behavior: 'smooth' })}
                                 className="text-indigo-200 hover:text-white underline"
@@ -642,7 +642,7 @@ export default function FilmAdaptation() {
 
             {/* Results Display */}
             {pitchDeck && (
-                <div className="max-w-6xl mx-auto px-6 py-16">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
                     <Card className="mb-8">
                         <CardHeader>
                             <div className="flex flex-col gap-4">
@@ -653,20 +653,22 @@ export default function FilmAdaptation() {
                                             Screen Viability Score: {pitchDeck.screenViabilityScore}/100
                                         </p>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <Button onClick={downloadPitchDeck} variant="outline">
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button onClick={downloadPitchDeck} variant="outline" size="sm" className="sm:size-default">
                                             <Download className="w-4 h-4 mr-2" />
                                             Download
                                         </Button>
-                                    <Button onClick={() => { setPitchDeck(null); setShowUploadForm(true); }}>
+                                    <Button onClick={() => { setPitchDeck(null); setShowUploadForm(true); }} size="sm" className="sm:size-default">
                                         Generate Another
                                     </Button>
                                     <Button
                                         onClick={() => window.location.href = createPageUrl(`LogoGenerator?title=${encodeURIComponent(manuscriptData.title)}&synopsis=${encodeURIComponent(pitchDeck.slides[1]?.content || '')}&genre=${encodeURIComponent(manuscriptData.genre)}`)}
                                         className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
+                                        size="sm"
                                     >
                                         <Sparkles className="w-4 h-4 mr-2" />
-                                        Brand Your IP → Create Logo
+                                        <span className="hidden sm:inline">Brand Your IP → Create Logo</span>
+                                        <span className="sm:hidden">Create Logo</span>
                                         </Button>
                                         </div>
                                         </div>
@@ -762,12 +764,12 @@ export default function FilmAdaptation() {
             {/* Sample Pitch Decks + All Marketing Content */}
             {!pitchDeck && (
                 <>
-                <div id="sample-decks" className="max-w-6xl mx-auto px-6 py-16">
+                <div id="sample-decks" className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
                    <div className="text-center mb-12">
-                       <h2 className="text-3xl font-bold text-slate-900 mb-4">
+                       <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
                            See What's Possible
                        </h2>
-                        <p className="text-lg text-slate-600">
+                        <p className="text-base sm:text-lg text-slate-600">
                             Review actual pitch decks generated for The Lost World of Mythoamphibia
                         </p>
                     </div>
@@ -807,7 +809,7 @@ export default function FilmAdaptation() {
 
                 {/* Pipeline Visual */}
                 <div className="bg-white py-12 border-b border-slate-200">
-                    <div className="max-w-5xl mx-auto px-6">
+                    <div className="max-w-5xl mx-auto px-4 sm:px-6">
                         <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6">
                             <div className="text-center px-6 py-4 rounded-xl bg-indigo-50 border border-indigo-200">
                                 <BookOpen className="w-8 h-8 text-indigo-600 mx-auto mb-2" />
@@ -834,14 +836,14 @@ export default function FilmAdaptation() {
 
             {/* Features Section */}
             <div className="bg-white py-16">
-                <div className="max-w-6xl mx-auto px-6">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6">
                     <div className="text-center mb-12">
-                        <h2 className="text-3xl font-bold text-slate-900 mb-4">
+                        <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
                             End-to-End IP Translation Engine
                         </h2>
                     </div>
 
-                    <div className="grid md:grid-cols-5 gap-6 mb-12">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 sm:gap-6 mb-12">
                         {features.map((feature, idx) => (
                             <div key={idx} className="text-center">
                                 <div className="inline-flex p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 mb-3">
@@ -882,14 +884,14 @@ export default function FilmAdaptation() {
             </div>
 
             {/* Pricing Section */}
-            <div className="max-w-6xl mx-auto px-6 py-16">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
                 <div className="text-center mb-12">
-                    <h2 className="text-3xl font-bold text-slate-900 mb-4">
+                    <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
                         3-Tier Authority Ladder
                     </h2>
                 </div>
 
-                <div className="grid md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
                     <Card className="border-0 shadow-md">
                         <CardHeader>
                             <CardTitle>Reader</CardTitle>
@@ -956,13 +958,13 @@ export default function FilmAdaptation() {
 
             {/* Trust Section */}
             <div className="bg-slate-900 py-16">
-                <div className="max-w-4xl mx-auto px-6 text-center">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
                     <Badge className="mb-6 px-4 py-2 bg-white/10 text-white border-white/20">
                         <Zap className="w-4 h-4 mr-2" />
                         Governed by Production Canon v2.0
                     </Badge>
                     
-                    <div className="grid md:grid-cols-4 gap-6 mb-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-8">
                         {[
                             'No Hallucinations',
                             'Locked Specifications',
@@ -970,24 +972,24 @@ export default function FilmAdaptation() {
                             'Studio-Grade Outputs'
                         ].map((item, idx) => (
                             <div key={idx} className="flex items-center justify-center gap-2 text-white">
-                                <Check className="w-5 h-5 text-emerald-400" />
+                                <Check className="w-5 h-5 text-emerald-400 flex-shrink-0" />
                                 <span className="text-sm">{item}</span>
                             </div>
                         ))}
                     </div>
 
-                    <blockquote className="text-xl text-slate-300 italic mb-8">
+                    <blockquote className="text-lg sm:text-xl text-slate-300 italic mb-8">
                         "Base44 doesn't write stories. It translates them to market reality."
                     </blockquote>
 
                     <Link to={createPageUrl('Pricing')}>
                         <Button 
                             size="lg" 
-                            className="h-14 px-8 bg-white text-slate-900 hover:bg-slate-100"
+                            className="h-12 sm:h-14 px-6 sm:px-8 bg-white text-slate-900 hover:bg-slate-100 text-sm sm:text-base"
                         >
-                            <BookOpen className="w-5 h-5 mr-2" />
-                            Upload Your Screenplay → Get Hollywood-Ready Deck Today
-                            <ArrowRight className="w-5 h-5 ml-2" />
+                            <BookOpen className="w-5 h-5 mr-2 hidden sm:inline" />
+                            <span className="text-center">Upload Your Screenplay → Get Hollywood-Ready Deck Today</span>
+                            <ArrowRight className="w-5 h-5 ml-2 hidden sm:inline" />
                         </Button>
                     </Link>
 
@@ -998,17 +1000,17 @@ export default function FilmAdaptation() {
             </div>
 
             {/* How It Works */}
-            <div className="max-w-6xl mx-auto px-6 py-16">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
                 <div className="text-center mb-12">
-                    <h2 className="text-3xl font-bold text-slate-900 mb-4">
+                    <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
                         Translation Engine, Not Writing Tool
                     </h2>
-                    <p className="text-lg text-slate-600">
+                    <p className="text-base sm:text-lg text-slate-600">
                         Authority-first infrastructure for manuscript-to-screen conversion
                     </p>
                 </div>
 
-                <div className="grid md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
                     {[
                         { step: '1', title: 'Upload', desc: 'Submit your completed screenplay or manuscript' },
                         { step: '2', title: 'Generate', desc: 'AI translates to agent queries + producer pitch deck' },
@@ -1027,8 +1029,8 @@ export default function FilmAdaptation() {
 
             {/* Final CTA */}
             <div className="bg-gradient-to-r from-indigo-600 to-purple-600 py-12">
-                <div className="max-w-4xl mx-auto px-6 text-center">
-                    <h2 className="text-3xl font-bold text-white mb-6">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+                    <h2 className="text-2xl sm:text-3xl font-bold text-white mb-6">
                         Upload Manuscript → Get Complete Pitch Content
                     </h2>
                     <p className="text-lg text-indigo-100 mb-4">
@@ -1043,7 +1045,7 @@ export default function FilmAdaptation() {
                     <Link to={createPageUrl('Pricing')}>
                         <Button 
                             size="lg" 
-                            className="h-14 px-8 bg-white text-slate-900 hover:bg-slate-100"
+                            className="h-12 sm:h-14 px-6 sm:px-8 bg-white text-slate-900 hover:bg-slate-100 w-full sm:w-auto"
                         >
                             Get Started Now
                             <ArrowRight className="w-5 h-5 ml-2" />
