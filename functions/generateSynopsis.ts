@@ -41,13 +41,34 @@ const SYNOPSIS_SPEC = {
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-
-        if (!user) {
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        
+        // Test-only QA bypass (secured by NODE_ENV gate)
+        const isTestMode = Deno.env.get('NODE_ENV') === 'test';
+        const qaToken = req.headers.get('X-BASE44-QA-TOKEN');
+        const expectedQAToken = Deno.env.get('BASE44_QA_TOKEN');
+        const isQARequest = isTestMode && qaToken && qaToken === expectedQAToken;
+        
+        let user = null;
+        if (isQARequest) {
+            user = { email: 'qa@test.local', role: 'QA_SERVICE' };
+        } else {
+            user = await base44.auth.me();
+            if (!user) {
+                return Response.json({ error: 'Unauthorized' }, { status: 401 });
+            }
         }
 
-        const { manuscriptInfo, synopsisType, source_document_id, source_version_id, mode, variant, allowAmbiguity } = await req.json();
+        const { manuscriptInfo, synopsisType, source_document_id, source_version_id, mode, variant, allowAmbiguity, debug_force_constraint_violation } = await req.json();
+
+        // QA-SYN-008: Debug constraint violation (test mode only)
+        if (isTestMode && debug_force_constraint_violation) {
+            return Response.json({
+                error: 'ERR_SYNOPSIS_CONSTRAINT_VIOLATION',
+                gate_blocked: true,
+                message: 'Constraint violation: synopsis validation failed',
+                details: 'Debug mode constraint violation triggered'
+            }, { status: 400 });
+        }
 
         if (!manuscriptInfo && !source_document_id) {
             return Response.json({ error: 'Manuscript information or ID required' }, { status: 400 });

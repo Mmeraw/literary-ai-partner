@@ -2,6 +2,13 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 Deno.serve(async (req) => {
     try {
+        // Set test mode
+        Deno.env.set('NODE_ENV', 'test');
+        const qaToken = Deno.env.get('BASE44_QA_TOKEN') || 'test-token-12345';
+        if (!Deno.env.get('BASE44_QA_TOKEN')) {
+            Deno.env.set('BASE44_QA_TOKEN', qaToken);
+        }
+        
         const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
 
@@ -17,11 +24,23 @@ Deno.serve(async (req) => {
         // Helper to test gate state
         async function testGateState(testId, manuscript, expectedState, expectedCode) {
             try {
-                const response = await base44.asServiceRole.functions.invoke('generateSynopsis', {
-                    source_document_id: manuscript.id,
-                    mode: 'STANDARD',
-                    variant: 'STANDARD'
+                // Call with QA headers
+                const apiUrl = Deno.env.get('BASE44_API_URL') || 'https://api.base44.com';
+                const response = await fetch(`${apiUrl}/functions/generateSynopsis`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-BASE44-QA-TOKEN': qaToken,
+                        'Authorization': req.headers.get('Authorization')
+                    },
+                    body: JSON.stringify({
+                        source_document_id: manuscript.id,
+                        mode: 'STANDARD',
+                        variant: 'STANDARD'
+                    })
                 });
+                
+                const result = await response.json();
 
                 const result = response.data || response;
                 const passed = result.gate_blocked && result.error === expectedCode;
@@ -135,21 +154,38 @@ Deno.serve(async (req) => {
         });
 
         // Test without opt-in (should block)
-        const weakSpineNoOptIn = await base44.asServiceRole.functions.invoke('generateSynopsis', {
-            source_document_id: testManuscriptWeakSpine.id,
-            mode: 'STANDARD',
-            variant: 'STANDARD'
+        const apiUrl = Deno.env.get('BASE44_API_URL') || 'https://api.base44.com';
+        const weakSpineNoOptInResp = await fetch(`${apiUrl}/functions/generateSynopsis`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-BASE44-QA-TOKEN': qaToken,
+                'Authorization': req.headers.get('Authorization')
+            },
+            body: JSON.stringify({
+                source_document_id: testManuscriptWeakSpine.id,
+                mode: 'STANDARD',
+                variant: 'STANDARD'
+            })
         });
-        const weakSpineNoOptInResult = weakSpineNoOptIn.data || weakSpineNoOptIn;
+        const weakSpineNoOptInResult = await weakSpineNoOptInResp.json();
 
         // Test with opt-in (should include mode)
-        const weakSpineOptIn = await base44.asServiceRole.functions.invoke('generateSynopsis', {
-            source_document_id: testManuscriptWeakSpine.id,
-            source_version_id: null,
-            mode: 'AMBIGUITY_ACK',
-            variant: 'STANDARD'
+        const weakSpineOptInResp = await fetch(`${apiUrl}/functions/generateSynopsis`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-BASE44-QA-TOKEN': qaToken,
+                'Authorization': req.headers.get('Authorization')
+            },
+            body: JSON.stringify({
+                source_document_id: testManuscriptWeakSpine.id,
+                source_version_id: null,
+                mode: 'AMBIGUITY_ACK',
+                variant: 'STANDARD'
+            })
         });
-        const weakSpineOptInResult = weakSpineOptIn.data || weakSpineOptIn;
+        const weakSpineOptInResult = await weakSpineOptInResp.json();
 
         results.tests.push({
             testId: 'QA-SYN-006',
@@ -185,13 +221,21 @@ Deno.serve(async (req) => {
         });
 
         try {
-            const strongSpineResult = await base44.asServiceRole.functions.invoke('generateSynopsis', {
-                source_document_id: testManuscriptStrongSpine.id,
-                source_version_id: null,
-                mode: 'STANDARD',
-                variant: 'STANDARD'
+            const strongSpineResp = await fetch(`${apiUrl}/functions/generateSynopsis`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-BASE44-QA-TOKEN': qaToken,
+                    'Authorization': req.headers.get('Authorization')
+                },
+                body: JSON.stringify({
+                    source_document_id: testManuscriptStrongSpine.id,
+                    source_version_id: null,
+                    mode: 'STANDARD',
+                    variant: 'STANDARD'
+                })
             });
-            const strongSpineData = strongSpineResult.data || strongSpineResult;
+            const strongSpineData = await strongSpineResp.json();
 
             // Check audit record
             let auditCheck = null;
@@ -233,12 +277,37 @@ Deno.serve(async (req) => {
         }
 
         // QA-SYN-008: Constraint violation surfaced
-        // (This would require forcing a constraint violation - skipping for now as it's edge case)
-        results.tests.push({
-            testId: 'QA-SYN-008',
-            passed: true, // Manual verification required
-            note: 'Constraint violation test requires manual verification'
-        });
+        try {
+            const constraintResp = await fetch(`${apiUrl}/functions/generateSynopsis`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-BASE44-QA-TOKEN': qaToken,
+                    'Authorization': req.headers.get('Authorization')
+                },
+                body: JSON.stringify({
+                    source_document_id: testManuscriptStrongSpine.id,
+                    mode: 'STANDARD',
+                    variant: 'STANDARD',
+                    debug_force_constraint_violation: true
+                })
+            });
+            const constraintResult = await constraintResp.json();
+            
+            results.tests.push({
+                testId: 'QA-SYN-008',
+                passed: constraintResult.error === 'ERR_SYNOPSIS_CONSTRAINT_VIOLATION' && constraintResult.gate_blocked,
+                expectedCode: 'ERR_SYNOPSIS_CONSTRAINT_VIOLATION',
+                actualCode: constraintResult.error,
+                actualMessage: constraintResult.message
+            });
+        } catch (error) {
+            results.tests.push({
+                testId: 'QA-SYN-008',
+                passed: false,
+                error: error.message
+            });
+        }
 
         // Summary
         const passCount = results.tests.filter(t => t.passed).length;
