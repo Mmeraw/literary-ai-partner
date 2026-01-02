@@ -41,6 +41,12 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'No text content found for analysis' }, { status: 400 });
         }
 
+        // Cap text to prevent truncation issues (use first 50k chars for sample)
+        const textSample = manuscriptTextForAnalysis.substring(0, 50000);
+        const wordCount = manuscriptTextForAnalysis.split(/\s+/).length;
+        
+        console.log(`Processing comparables: ${wordCount} words, using ${textSample.length} char sample`);
+
         // Auto-detect genre if requested
         let finalGenre = genre;
         if (genre === 'auto') {
