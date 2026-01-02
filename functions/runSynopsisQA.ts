@@ -11,8 +11,7 @@ Deno.serve(async (req) => {
         }
         
         // Set test environment for debug constraints
-        const wasTestMode = Deno.env.get('NODE_ENV');
-        Deno.env.set('NODE_ENV', 'test');
+        const wasTestMode = Deno.env.get('NODE_ENV') || null;
 
         const qaResults = [];
 
@@ -276,12 +275,7 @@ Deno.serve(async (req) => {
             });
         }
 
-        // Restore test mode
-        if (wasTestMode) {
-            Deno.env.set('NODE_ENV', wasTestMode);
-        } else {
-            Deno.env.delete('NODE_ENV');
-        }
+
         
         return Response.json({
             test_run_id: `synopsis-qa-${Date.now()}`,
@@ -297,13 +291,6 @@ Deno.serve(async (req) => {
         
     } catch (error) {
         console.error('Synopsis QA error:', error);
-        // Restore test mode on error
-        const wasTestMode = Deno.env.get('NODE_ENV');
-        if (wasTestMode) {
-            Deno.env.set('NODE_ENV', wasTestMode);
-        } else {
-            Deno.env.delete('NODE_ENV');
-        }
         return Response.json({ 
             error: error.message,
             stack: error.stack 

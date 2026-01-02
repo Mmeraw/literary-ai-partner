@@ -50,8 +50,8 @@ Deno.serve(async (req) => {
 
         const { manuscriptInfo, synopsisType, source_document_id, source_version_id, mode, variant, allowAmbiguity, debug_force_constraint_violation } = payload;
 
-        // QA-SYN-008: Debug constraint violation (test mode only)
-        if (Deno.env.get('NODE_ENV') === 'test' && debug_force_constraint_violation) {
+        // QA-SYN-008: Debug constraint violation (admin-only debug flag)
+        if (user.role === 'admin' && debug_force_constraint_violation) {
             return Response.json({
                 error: 'ERR_SYNOPSIS_CONSTRAINT_VIOLATION',
                 gate_blocked: true,
