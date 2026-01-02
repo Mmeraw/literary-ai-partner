@@ -18,31 +18,40 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
 
-        // VOICE ANCHOR: Apply thematic schema before generating pitches (MANDATORY)
-        console.log('🎭 Applying Voice Anchor layer...');
+        // VOICE ANCHOR: Apply thematic schema if source text is available
+        let thematicSchema = {};
+        let voiceAnchored = {};
         
-        const voiceAnchorResult = await base44.functions.invoke('applyVoiceAnchorAndSchemaToPitch', {
-            extractedText: manuscriptInfo.text_sample || manuscriptInfo.full_text || '',
-            formatType: 'pitch_variations',
-            projectVoiceProfile: null,
-            voiceIntensity
-        });
+        const sourceText = manuscriptInfo.text_sample || manuscriptInfo.full_text || '';
+        
+        if (sourceText.length > 100) {
+            console.log('🎭 Applying Voice Anchor layer...');
+            
+            const voiceAnchorResult = await base44.functions.invoke('applyVoiceAnchorAndSchemaToPitch', {
+                extractedText: sourceText,
+                formatType: 'pitch_variations',
+                projectVoiceProfile: null,
+                voiceIntensity
+            });
 
-        const voiceData = voiceAnchorResult.data || voiceAnchorResult;
-        
-        if (!voiceData.success || !voiceData.meta?.passedVoiceGate) {
-            const failureReason = voiceData.meta?.bannedPhraseHits?.join(', ') || 
-                                  (!voiceData.meta?.lawMentioned ? 'missing law/ritual structure' : 'missing specificity requirements');
-            return Response.json({ 
-                success: false, 
-                error: `Voice Gate failed (${voiceIntensity}): ${failureReason}. Try lowering intensity or provide more concrete source text.`,
-                meta: voiceData.meta
-            }, { status: 422 });
+            const voiceData = voiceAnchorResult.data || voiceAnchorResult;
+            
+            if (!voiceData.success || !voiceData.meta?.passedVoiceGate) {
+                const failureReason = voiceData.meta?.bannedPhraseHits?.join(', ') || 
+                                      (!voiceData.meta?.lawMentioned ? 'missing law/ritual structure' : 'missing specificity requirements');
+                return Response.json({ 
+                    success: false, 
+                    error: `Voice Gate failed (${voiceIntensity}): ${failureReason}. Try lowering intensity or provide more concrete source text.`,
+                    meta: voiceData.meta
+                }, { status: 422 });
+            }
+
+            thematicSchema = voiceData.thematicSchema || {};
+            voiceAnchored = voiceData.pitch || {};
+            console.log('✅ Thematic schema applied:', thematicSchema);
+        } else {
+            console.log('ℹ️ No source text provided, generating from manual fields only');
         }
-
-        const thematicSchema = voiceData.thematicSchema || {};
-        const voiceAnchored = voiceData.pitch || {};
-        console.log('✅ Thematic schema applied:', thematicSchema);
 
         // Build comprehensive context for the LLM
         const contextPrompt = `
