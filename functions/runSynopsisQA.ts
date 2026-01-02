@@ -10,8 +10,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
         }
         
-        // Set test environment for debug constraints
-        const wasTestMode = Deno.env.get('NODE_ENV') || null;
+
 
         const qaResults = [];
 
