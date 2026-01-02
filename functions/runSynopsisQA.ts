@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
         const testManuscriptNoMeta = await base44.asServiceRole.entities.Manuscript.create({
             title: 'QA Test - No Metadata',
             full_text: 'Test content',
-            word_count: null, // Missing required metadata
+            // word_count intentionally omitted to test missing metadata
             status: 'uploaded',
             spine_evaluation: { status: 'COMPLETE', story_spine: 'Test spine', spine_score: 8.0 },
             spine_score: 8.0,
