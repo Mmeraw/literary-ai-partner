@@ -118,7 +118,9 @@ export default function Comparables() {
             }
         } catch (error) {
             console.error('Comparables error:', error);
-            toast.error('Failed to generate comparables report');
+            console.error('Backend response:', error?.response?.data);
+            console.error('Request payload keys:', error?.config?.data ? Object.keys(JSON.parse(error.config.data)) : 'N/A');
+            toast.error(error?.response?.data?.error || 'Failed to generate comparables report');
         } finally {
             setGenerating(false);
         }
