@@ -238,11 +238,11 @@ export default function StoryGate() {
 
             {/* Footer CTAs */}
             <div className="border-t py-16" style={{ borderColor: '#A98E4A' }}>
-                <div className="max-w-6xl mx-auto px-6">
-                    <div className="grid md:grid-cols-2 gap-8">
-                        <Card style={{ borderWidth: '2px', borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
-                            <CardContent className="p-8 text-center">
-                                <h3 className="text-xl font-semibold mb-4" style={{ color: '#7A1E1E' }} id="industry">For Industry</h3>
+                <div className="max-w-6xl mx-auto px-4 sm:px-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+                        <Card style={{ borderWidth: '2px', borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }} className="overflow-hidden">
+                            <CardContent className="p-6 sm:p-8 text-center">
+                                <h3 className="text-lg sm:text-xl font-semibold mb-4" style={{ color: '#7A1E1E' }} id="industry">For Industry</h3>
                                 <p className="text-sm mb-4" style={{ color: '#D4D4D4' }}>
                                     Industry professionals may apply for verified access and request viewing permissions on a per-project basis.
                                 </p>
@@ -253,9 +253,9 @@ export default function StoryGate() {
                                 </Link>
                             </CardContent>
                         </Card>
-                        <Card style={{ borderWidth: '2px', borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
-                            <CardContent className="p-8 text-center">
-                                <h3 className="text-xl font-semibold mb-4" style={{ color: '#7A1E1E' }}>For Creators</h3>
+                        <Card style={{ borderWidth: '2px', borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }} className="overflow-hidden">
+                            <CardContent className="p-6 sm:p-8 text-center">
+                                <h3 className="text-lg sm:text-xl font-semibold mb-4" style={{ color: '#7A1E1E' }}>For Creators</h3>
                                 <div className="space-y-3">
                                     <Link to={createPageUrl('UploadManuscript')}>
                                         <Button size="lg" variant="outline" className="w-full" style={{ borderColor: '#A98E4A', color: '#F2EFEA', backgroundColor: 'transparent' }}>
