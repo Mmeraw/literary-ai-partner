@@ -180,36 +180,51 @@ export default function PitchGenerator() {
         try {
             toast.loading('Generating pitch variations with Voice Gate validation...', { id: 'generate' });
             
-            console.log('Invoking generateQueryPitches with:', { 
-                title: manuscriptInfo.title, 
-                logline: manuscriptInfo.logline?.substring(0, 50),
-                voiceIntensity 
-            });
+            console.log('=== PITCH GENERATION DEBUG ===');
+            console.log('Full manuscriptInfo:', JSON.stringify(manuscriptInfo, null, 2));
+            console.log('Voice Intensity:', voiceIntensity);
             
             const response = await base44.functions.invoke('generateQueryPitches', {
                 manuscriptInfo,
                 voiceIntensity
             });
 
-            console.log('Generation response:', response);
+            console.log('=== GENERATION RESPONSE ===');
+            console.log('Raw response:', response);
+            console.log('Response.data:', response.data);
             
             const result = response.data || response;
+            console.log('Parsed result:', result);
+            console.log('Result.success:', result.success);
+            console.log('Result.pitches:', result.pitches);
 
-            if (result.success) {
+            if (result.success && result.pitches) {
+                console.log('✅ Generation successful, setting pitches...');
                 setPitches(result.pitches);
                 
-                await specificRevision.createBaseline(result.pitches.oneSentenceSpecific, `pitch_specific_${Date.now()}`);
-                await generalRevision.createBaseline(result.pitches.oneSentenceGeneral, `pitch_general_${Date.now()}`);
-                await elevatorRevision.createBaseline(result.pitches.elevator, `pitch_elevator_${Date.now()}`);
+                if (result.pitches.oneSentenceSpecific) {
+                    await specificRevision.createBaseline(result.pitches.oneSentenceSpecific, `pitch_specific_${Date.now()}`);
+                }
+                if (result.pitches.oneSentenceGeneral) {
+                    await generalRevision.createBaseline(result.pitches.oneSentenceGeneral, `pitch_general_${Date.now()}`);
+                }
+                if (result.pitches.elevator) {
+                    await elevatorRevision.createBaseline(result.pitches.elevator, `pitch_elevator_${Date.now()}`);
+                }
                 
                 toast.success('Pitch variations generated!', { id: 'generate' });
             } else {
                 const errorMsg = result.error || result.details || 'Failed to generate pitches';
-                console.error('Generation failed:', errorMsg, result);
+                console.error('❌ Generation failed:', errorMsg, result);
                 toast.error(`Generation failed: ${errorMsg}`, { id: 'generate' });
             }
         } catch (error) {
-            console.error('Pitch generation error:', error);
+            console.error('❌ Pitch generation error:', error);
+            console.error('Error details:', {
+                message: error.message,
+                response: error.response,
+                stack: error.stack
+            });
             const errorMsg = error.message || error.response?.data?.error || 'Failed to generate pitches';
             toast.error(`Error: ${errorMsg}`, { id: 'generate' });
         } finally {
