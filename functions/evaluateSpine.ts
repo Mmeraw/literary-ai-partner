@@ -119,10 +119,23 @@ Also provide:
     });
     const spineAnalysis = JSON.parse(spineResponse.choices[0].message.content);
 
+    // Build spine record with status
+    const spineRecord = {
+      status: "COMPLETE",
+      story_spine: spineAnalysis.spine_statement,
+      spine_score: spineAnalysis.spine_score,
+      spine_flags: spineAnalysis.spine_flags,
+      spine_notes: spineAnalysis.notes,
+      generated_at: new Date().toISOString(),
+      rubric_version: "SPINE_v1.0",
+      gate_status: spineAnalysis.gate_status,
+      elements: spineAnalysis.elements
+    };
+
     // Update manuscript with spine gate artifact
     await base44.asServiceRole.entities.Manuscript.update(manuscript_id, {
       spine_score: spineAnalysis.spine_score,
-      spine_evaluation: spineAnalysis,
+      spine_evaluation: spineRecord,
       spine_completed_at: new Date().toISOString(),
       status: spineAnalysis.gate_status === 'PASS' ? 'spine_complete' : 'spine_evaluating'
     });

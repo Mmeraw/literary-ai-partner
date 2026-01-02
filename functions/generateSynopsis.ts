@@ -53,55 +53,94 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Manuscript information or ID required' }, { status: 400 });
         }
 
-        // HARD GATE: Check if spine evaluation is complete (if manuscriptId provided)
+        // HARD GATE: Check preconditions (if manuscriptId provided)
+        let manuscript = null;
+        let evaluationSnapshot = null;
+        
         if (manuscriptId) {
             const manuscripts = await base44.asServiceRole.entities.Manuscript.filter({ id: manuscriptId });
-            const manuscript = manuscripts[0];
+            manuscript = manuscripts[0];
 
             if (!manuscript) {
-                return Response.json({ error: 'Manuscript not found' }, { status: 404 });
+                return Response.json({ 
+                    error: 'ERR_SOURCE_NOT_FOUND',
+                    message: 'Manuscript not found'
+                }, { status: 404 });
             }
 
-            // Gate checks
-            const gateFailures = [];
-
-            if (!manuscript.spine_evaluation || !manuscript.spine_evaluation.spine_statement) {
-                gateFailures.push('Spine evaluation incomplete: missing spine_statement');
-            }
-
-            if (!manuscript.spine_score) {
-                gateFailures.push('Spine evaluation incomplete: missing spine_score');
-            }
-
-            if (manuscript.status !== 'spine_complete' && manuscript.status !== 'ready') {
-                gateFailures.push(`Spine evaluation incomplete: status is "${manuscript.status}", expected "spine_complete" or "ready"`);
-            }
-
-            // Check if spine is weak and ambiguity not explicitly allowed
-            if (manuscript.spine_score && manuscript.spine_score < 7 && !allowAmbiguity) {
+            // Gate 1: Required metadata
+            const requiredMetadata = ['language_variant', 'word_count'];
+            const missingMeta = requiredMetadata.filter(field => !manuscript[field]);
+            if (missingMeta.length > 0) {
                 return Response.json({
-                    error: 'Spine evaluation shows structural ambiguity',
+                    error: 'ERR_SYNOPSIS_PRECONDITION_MISSING_METADATA',
+                    gate_blocked: true,
+                    message: 'Synopsis blocked: missing required metadata (POV, word count, genre band)',
+                    missing_fields: missingMeta
+                }, { status: 400 });
+            }
+
+            // Gate 2: Spine evaluation complete
+            const spineEval = manuscript.spine_evaluation;
+            if (!spineEval || spineEval.status !== 'COMPLETE' || !spineEval.story_spine) {
+                return Response.json({
+                    error: 'ERR_SYNOPSIS_PRECONDITION_MISSING_SPINE',
+                    gate_blocked: true,
+                    message: 'Synopsis blocked: spine statement not found or incomplete',
+                    current_status: spineEval?.status || 'NOT_STARTED'
+                }, { status: 400 });
+            }
+
+            // Gate 3: 13 Criteria complete
+            const thirteenCriteria = manuscript.revisiongrade_breakdown?.thirteen_criteria;
+            if (!thirteenCriteria || thirteenCriteria.status !== 'COMPLETE') {
+                return Response.json({
+                    error: 'ERR_SYNOPSIS_PRECONDITION_MISSING_13CRITERIA',
+                    gate_blocked: true,
+                    message: 'Synopsis blocked: 13 Story Criteria incomplete',
+                    current_status: thirteenCriteria?.status || 'NOT_STARTED'
+                }, { status: 400 });
+            }
+
+            // Gate 4: WAVE flags complete
+            const waveFlags = manuscript.revisiongrade_breakdown?.wave_flags;
+            if (!waveFlags || waveFlags.status !== 'COMPLETE') {
+                return Response.json({
+                    error: 'ERR_SYNOPSIS_PRECONDITION_MISSING_WAVE',
+                    gate_blocked: true,
+                    message: 'Synopsis blocked: WAVE flags incomplete',
+                    current_status: waveFlags?.status || 'NOT_STARTED'
+                }, { status: 400 });
+            }
+
+            // Gate 5: Weak spine requires explicit opt-in
+            const SPINE_THRESHOLD = 7.0;
+            if (manuscript.spine_score < SPINE_THRESHOLD && !allowAmbiguity) {
+                return Response.json({
+                    error: 'ERR_SYNOPSIS_SPINE_TOO_WEAK',
                     gate_blocked: true,
                     spine_score: manuscript.spine_score,
-                    spine_flags: manuscript.spine_evaluation?.spine_flags || [],
-                    message: 'This manuscript has a weak narrative spine (score < 7/10). You can either: (1) Strengthen the spine first (recommended), or (2) Generate synopsis with ambiguity acknowledged (set allowAmbiguity=true).',
-                    spine_statement: manuscript.spine_evaluation?.spine_statement || null,
-                    recommended_action: 'Revise manuscript to clarify protagonist objective, strengthen causal chains, and sharpen climax mechanism before generating synopsis.'
+                    spine_flags: spineEval.spine_flags || [],
+                    message: 'This manuscript has a weak narrative spine (score < 7/10). Choose: (1) Strengthen spine first (recommended), or (2) Generate synopsis with ambiguity acknowledged.',
+                    spine_statement: spineEval.story_spine,
+                    recommended_action: 'Revise manuscript to clarify protagonist objective, strengthen causal chains, and sharpen climax mechanism.'
                 }, { status: 400 });
             }
 
-            if (gateFailures.length > 0) {
-                return Response.json({
-                    error: 'Synopsis generation blocked: spine evaluation incomplete',
-                    gate_blocked: true,
-                    gate_failures: gateFailures,
-                    message: 'Complete spine evaluation first (run evaluateSpine function)',
-                    current_status: manuscript.status,
-                    spine_score: manuscript.spine_score || null
-                }, { status: 400 });
-            }
+            // All gates passed - capture evaluation snapshot
+            evaluationSnapshot = {
+                spine: spineEval,
+                thirteen_criteria: thirteenCriteria,
+                wave_flags: waveFlags,
+                metadata: {
+                    title: manuscript.title,
+                    pov: manuscript.language_variant, // TODO: Add proper POV field
+                    word_count: manuscript.word_count,
+                    language_variant: manuscript.language_variant
+                }
+            };
 
-            // If we reach here, gates passed - use manuscript data
+            // Use manuscript data
             manuscriptInfo = manuscriptInfo || manuscript.full_text;
         }
 
@@ -280,7 +319,17 @@ Provide validation report with pass/fail status and specific flags.`;
             content_reference_type: null
         });
 
-        // Create initial version (UPLOAD kind) with audit trail
+        // Compute constraint hash for audit trail
+        const constraintHash = evaluationSnapshot ? 
+            JSON.stringify({
+                spine_statement: evaluationSnapshot.spine.story_spine,
+                spine_score: evaluationSnapshot.spine.spine_score,
+                criteria_scores: evaluationSnapshot.thirteen_criteria.scores,
+                wave_flags: evaluationSnapshot.wave_flags.flags,
+                metadata: evaluationSnapshot.metadata
+            }) : null;
+
+        // Create initial version (UPLOAD kind) with full audit trail
         await base44.entities.DocumentVersion.create({
             document_id: document.id,
             version_number: 1,
@@ -293,11 +342,13 @@ Provide validation report with pass/fail status and specific flags.`;
                 audit_trail: {
                     source_manuscript_id: manuscriptId || null,
                     source_document_id: sourceDocumentId || null,
-                    spine_score: manuscriptId ? manuscript?.spine_score : null,
-                    spine_flags: manuscriptId ? manuscript?.spine_evaluation?.spine_flags : null,
+                    evaluation_snapshot: evaluationSnapshot,
+                    constraint_hash: constraintHash,
+                    prompt_template_version: "SYNOPSIS_PROMPT_v1.0",
+                    mode: allowAmbiguity ? "AMBIGUITY_ACK" : "STANDARD",
+                    variant: versionConfig.id,
                     ambiguity_acknowledged: allowAmbiguity || false,
-                    generated_at: new Date().toISOString(),
-                    synopsis_version: versionConfig.id
+                    generated_at: new Date().toISOString()
                 }
             },
             notes: `Generated ${versionConfig.name}${allowAmbiguity ? ' (ambiguity acknowledged)' : ''}`
