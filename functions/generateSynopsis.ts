@@ -319,7 +319,13 @@ Provide validation report with pass/fail status and specific flags.`;
             content_reference_type: null
         });
 
-        // Compute constraint hash for audit trail
+        // Compute separate snapshot hashes for audit trail
+        const spineSnapshotHash = evaluationSnapshot ? 
+            JSON.stringify(evaluationSnapshot.spine).substring(0, 64) : null;
+        const criteriaSnapshotHash = evaluationSnapshot ? 
+            JSON.stringify(evaluationSnapshot.thirteen_criteria).substring(0, 64) : null;
+        const waveSnapshotHash = evaluationSnapshot ? 
+            JSON.stringify(evaluationSnapshot.wave_flags).substring(0, 64) : null;
         const constraintHash = evaluationSnapshot ? 
             JSON.stringify({
                 spine_statement: evaluationSnapshot.spine.story_spine,
@@ -342,8 +348,13 @@ Provide validation report with pass/fail status and specific flags.`;
                 audit_trail: {
                     source_manuscript_id: manuscriptId || null,
                     source_document_id: sourceDocumentId || null,
-                    evaluation_snapshot: evaluationSnapshot,
+                    evaluation_id: manuscriptId || null,
+                    story_spine_used: evaluationSnapshot?.spine.story_spine || null,
+                    spine_snapshot_hash: spineSnapshotHash,
+                    criteria_snapshot_hash: criteriaSnapshotHash,
+                    wave_snapshot_hash: waveSnapshotHash,
                     constraint_hash: constraintHash,
+                    evaluation_snapshot: evaluationSnapshot,
                     prompt_template_version: "SYNOPSIS_PROMPT_v1.0",
                     mode: allowAmbiguity ? "AMBIGUITY_ACK" : "STANDARD",
                     variant: versionConfig.id,
