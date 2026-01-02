@@ -24,9 +24,8 @@ Deno.serve(async (req) => {
         // Helper to test gate state
         async function testGateState(testId, manuscript, expectedState, expectedCode) {
             try {
-                // Call with QA headers
-                const apiUrl = Deno.env.get('BASE44_API_URL') || 'https://api.base44.com';
-                const response = await fetch(`${apiUrl}/functions/generateSynopsis`, {
+                // Call generateSynopsis directly via SDK with QA bypass header
+                const testReq = new Request('https://test.local/generateSynopsis', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -40,6 +39,9 @@ Deno.serve(async (req) => {
                     })
                 });
                 
+                // Import and call generateSynopsis directly
+                const { default: generateSynopsis } = await import('./generateSynopsis.js');
+                const response = await generateSynopsis(testReq);
                 const result = await response.json();
                 const passed = result.gate_blocked && result.error === expectedCode;
 
@@ -151,9 +153,11 @@ Deno.serve(async (req) => {
             }
         });
 
+        // Import generateSynopsis
+        const { default: generateSynopsis } = await import('./generateSynopsis.js');
+        
         // Test without opt-in (should block)
-        const apiUrl = Deno.env.get('BASE44_API_URL') || 'https://api.base44.com';
-        const weakSpineNoOptInResp = await fetch(`${apiUrl}/functions/generateSynopsis`, {
+        const weakSpineNoOptInReq = new Request('https://test.local/generateSynopsis', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -166,10 +170,11 @@ Deno.serve(async (req) => {
                 variant: 'STANDARD'
             })
         });
+        const weakSpineNoOptInResp = await generateSynopsis(weakSpineNoOptInReq);
         const weakSpineNoOptInResult = await weakSpineNoOptInResp.json();
 
         // Test with opt-in (should include mode)
-        const weakSpineOptInResp = await fetch(`${apiUrl}/functions/generateSynopsis`, {
+        const weakSpineOptInReq = new Request('https://test.local/generateSynopsis', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -183,6 +188,7 @@ Deno.serve(async (req) => {
                 variant: 'STANDARD'
             })
         });
+        const weakSpineOptInResp = await generateSynopsis(weakSpineOptInReq);
         const weakSpineOptInResult = await weakSpineOptInResp.json();
 
         results.tests.push({
@@ -219,7 +225,7 @@ Deno.serve(async (req) => {
         });
 
         try {
-            const strongSpineResp = await fetch(`${apiUrl}/functions/generateSynopsis`, {
+            const strongSpineReq = new Request('https://test.local/generateSynopsis', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -233,6 +239,7 @@ Deno.serve(async (req) => {
                     variant: 'STANDARD'
                 })
             });
+            const strongSpineResp = await generateSynopsis(strongSpineReq);
             const strongSpineData = await strongSpineResp.json();
 
             // Check audit record
@@ -276,7 +283,7 @@ Deno.serve(async (req) => {
 
         // QA-SYN-008: Constraint violation surfaced
         try {
-            const constraintResp = await fetch(`${apiUrl}/functions/generateSynopsis`, {
+            const constraintReq = new Request('https://test.local/generateSynopsis', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -290,6 +297,7 @@ Deno.serve(async (req) => {
                     debug_force_constraint_violation: true
                 })
             });
+            const constraintResp = await generateSynopsis(constraintReq);
             const constraintResult = await constraintResp.json();
             
             results.tests.push({
