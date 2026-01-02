@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'file_url and bio are required' }, { status: 400 });
         }
 
-        // MANDATORY: Route through universal extraction
+        // MANDATORY: Route through universal extraction.
         console.log('🔄 Step 1: Universal extraction via extractPitchFields...');
         const extractionResult = await base44.functions.invoke('extractPitchFields', {
             file_url,
