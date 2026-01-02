@@ -142,35 +142,134 @@ Return structured JSON with all fields populated. Be specific and compelling.`;
         console.log('✅ Step 2 complete - Extraction successful');
         console.log('Extracted data:', JSON.stringify(extracted, null, 2));
 
-        // STEP 3: Validate No Invented Entities (Hard Gate)
+        // STEP 3: Validate No Invented Entities (Hard Gate with Regeneration)
         console.log('🚦 Step 3: Validating No Invented Entities policy...');
         
-        const inventedNames = extracted.meta?.inventedNames || [];
-        const hasInventedNames = inventedNames.length > 0;
+        const validateExtraction = (extractionResult) => {
+            const inventedNames = extractionResult.meta?.inventedNames || [];
+            const namedEntitiesLower = (extractionResult.namedEntities || []).map(e => e.toLowerCase());
+            
+            // Extract potential names from protagonist field (capitalized words)
+            const potentialNames = (extractionResult.protagonist || '').match(/\b[A-Z][a-z]+\b/g) || [];
+            const suspectNames = potentialNames.filter(name => 
+                !namedEntitiesLower.some(entity => entity.toLowerCase().includes(name.toLowerCase())) &&
+                name.length > 2 && // Ignore short words like "He", "In"
+                !/^(The|A|An|In|On|At|To|For|Of|With|By|From)$/.test(name) // Common false positives
+            );
+            
+            const allInvented = [...inventedNames, ...suspectNames];
+            return {
+                passed: allInvented.length === 0,
+                inventedNames: allInvented
+            };
+        };
         
-        // Check if protagonist contains names not in namedEntities
-        const protagonistLower = (extracted.protagonist || '').toLowerCase();
-        const namedEntitiesLower = (extracted.namedEntities || []).map(e => e.toLowerCase());
+        const validation = validateExtraction(extracted);
         
-        // Extract potential names from protagonist field (capitalized words)
-        const potentialNames = (extracted.protagonist || '').match(/\b[A-Z][a-z]+\b/g) || [];
-        const suspectNames = potentialNames.filter(name => 
-            !namedEntitiesLower.some(entity => entity.toLowerCase().includes(name.toLowerCase())) &&
-            name.length > 2 // Ignore short words like "He", "In"
+        if (!validation.passed) {
+            console.error('❌ NO INVENTED ENTITIES GATE FAILED (Attempt 1)');
+            console.error('Invented names detected:', validation.inventedNames);
+            console.log('🔄 Attempting regeneration with stricter constraints...');
+            
+            // REGENERATION ATTEMPT with explicit constraints
+            const strictPrompt = `CRITICAL FAILURE: You created character names that don't exist in the source text.
+
+INVENTED NAMES DETECTED: ${validation.inventedNames.join(', ')}
+
+MANUSCRIPT TEXT (same as before):
+${manuscriptSample}
+
+RE-EXTRACT with ABSOLUTE ENFORCEMENT:
+- For protagonist: ONLY use names that appear in the manuscript text above
+- If no name is mentioned, use a ROLE DESCRIPTION like "a recently divorced man" or "an unnamed narrator"
+- DO NOT CREATE ANY NAMES
+- Proper nouns MUST be directly quoted from the text
+
+Return the same JSON structure, but with NO invented entities.`;
+
+            const reextracted = await base44.integrations.Core.InvokeLLM({
+                prompt: strictPrompt,
+                response_json_schema: {
+                    type: 'object',
+                    properties: {
+                        title: { type: 'string' },
+                        genre: { type: 'string' },
+                        wordCount: { type: 'number' },
+                        logline: { type: 'string' },
+                        keyThemes: { type: 'string' },
+                        protagonist: { type: 'string' },
+                        stakes: { type: 'string' },
+                        setting: { type: 'string' },
+                        uniqueHook: { type: 'string' },
+                        namedEntities: {
+                            type: 'array',
+                            items: { type: 'string' }
+                        },
+                        thematicSchema: {
+                            type: 'object',
+                            properties: {
+                                law: { type: 'string' },
+                                taboo: { type: 'string' },
+                                enforcer: { type: 'string' },
+                                resistor: { type: 'string' },
+                                costOfDefiance: { type: 'string' },
+                                moralAxis: { type: 'string' },
+                                symbolicCenter: { type: 'string' }
+                            }
+                        },
+                        meta: {
+                            type: 'object',
+                            properties: {
+                                motifCount: { type: 'number' },
+                                namedEntityCount: { type: 'number' },
+                                bannedPhraseHits: {
+                                    type: 'array',
+                                    items: { type: 'string' }
+                                },
+                                lawMentioned: { type: 'boolean' },
+                                passedVoiceGate: { type: 'boolean' },
+                                inventedNames: {
+                                    type: 'array',
+                                    items: { type: 'string' }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            const revalidation = validateExtraction(reextracted);
+            
+            if (!revalidation.passed) {
+                console.error('❌ NO INVENTED ENTITIES GATE FAILED (Attempt 2 - HARD FAIL)');
+                console.error('Still invented:', revalidation.inventedNames);
+                
+                return Response.json({
+                    success: false,
+                    error: 'NO_INVENTED_ENTITIES_POLICY_VIOLATION',
+                    details: `Extraction failed after regeneration. The system created character names (${revalidation.inventedNames.join(', ')}) that do not appear in the source manuscript. This violates the No Invented Entities policy.`,
+                    inventedNames: revalidation.inventedNames,
+                    requiresManualIntervention: true
+                }, { status: 422 });
+            }
+            
+            console.log('✅ Regeneration successful - No Invented Entities check passed');
+            extracted = reextracted;
+            extracted.meta.regenerationAttempts = 1;
+        }
+        
+        // Add meta flags for role descriptions vs named protagonists
+        const isRoleDescription = !extracted.namedEntities.some(entity => 
+            extracted.protagonist.toLowerCase().includes(entity.toLowerCase())
         );
         
-        if (hasInventedNames || suspectNames.length > 0) {
-            const allInvented = [...inventedNames, ...suspectNames];
-            console.error('❌ NO INVENTED ENTITIES GATE FAILED');
-            console.error('Invented names detected:', allInvented);
-            
-            return Response.json({
-                success: false,
-                error: 'Extraction violated No Invented Entities policy',
-                details: `The extraction created character names (${allInvented.join(', ')}) that do not appear in the source manuscript. Protagonist names must either be from the text OR generic role descriptions like "an unnamed narrator" or "a disillusioned man".`,
-                inventedNames: allInvented,
-                fields: extracted // Include for debugging
-            }, { status: 422 });
+        if (isRoleDescription) {
+            extracted.meta.UNSPECIFIED_NAME = true;
+            extracted.meta.protagonistType = 'ROLE_DESCRIPTION';
+            console.log('📝 Protagonist is a role description (no specific name in text)');
+        } else {
+            extracted.meta.protagonistType = 'NAMED';
+            console.log('📝 Protagonist is named from manuscript');
         }
         
         console.log('✅ No Invented Entities check passed');
