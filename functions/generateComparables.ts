@@ -178,6 +178,15 @@ Return structured JSON.`;
             }
         });
 
+        // Validate response structure
+        if (!comparablesAnalysis || !comparablesAnalysis.criteria_scores || !comparablesAnalysis.comparable_titles) {
+            console.error('Invalid LLM response:', comparablesAnalysis);
+            return Response.json({ 
+                error: 'Failed to generate valid comparables analysis', 
+                details: 'LLM response missing required fields'
+            }, { status: 500 });
+        }
+
         // Create comparative report entity
         const report = await base44.entities.ComparativeReport.create({
             manuscript_id: manuscriptId || 'uploaded',
