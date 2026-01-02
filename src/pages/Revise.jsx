@@ -14,6 +14,7 @@ import OverallFeedbackModal from '@/components/revision/OverallFeedbackModal';
 import SmartFeaturesBanner from '@/components/revision/SmartFeaturesBanner';
 import RevisionInsights from '@/components/revision/RevisionInsights';
 import DownloadOptions from '@/components/revision/DownloadOptions';
+import VoicePreservationToggle from '@/components/VoicePreservationToggle';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
@@ -451,6 +452,27 @@ export default function Revise() {
 
           {/* Smart Features Banner */}
           <SmartFeaturesBanner trustedPathZone={trustedPathZone} />
+
+          {/* Voice Preservation Display (Read-Only with Optional Override) */}
+          <Card className="border border-slate-200 bg-slate-50 mt-4">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge className="bg-indigo-100 text-indigo-700 border-0 text-xs">
+                      Voice Settings (Read-Only)
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-slate-600">
+                    Voice preservation level inherited from manuscript upload: <strong>{session.voice_preservation_level || 'balanced'}</strong>
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    To change voice settings, start a new evaluation from Upload.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* HARD STRUCTURAL GATE BANNER */}
           {sessionScore && sessionScore < 8.0 && (

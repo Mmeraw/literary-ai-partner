@@ -16,6 +16,7 @@ import FinalOutput from '@/components/evaluation/FinalOutput';
 import StyleModeSelector from '@/components/evaluation/StyleModeSelector';
 import TransgressiveModeSelector from '@/components/evaluation/TransgressiveModeSelector';
 import ThoughtTagCard from '@/components/evaluation/ThoughtTagCard';
+import VoicePreservationToggle from '@/components/VoicePreservationToggle';
 
 // 13 Story Evaluation Criteria (Agent/Editor Standards)
 // Reference: functions/13_STORY_CRITERIA.md
@@ -133,6 +134,7 @@ export default function Evaluate() {
     const [text, setText] = useState('');
     const [styleMode, setStyleMode] = useState('neutral');
     const [evaluationMode, setEvaluationMode] = useState('standard');
+    const [voicePreservation, setVoicePreservation] = useState('balanced');
     
     // Load screenplay from session storage if available
     React.useEffect(() => {
@@ -189,7 +191,8 @@ export default function Evaluate() {
                 title,
                 text,
                 styleMode,
-                evaluationMode
+                evaluationMode,
+                voicePreservation
             });
 
             if (!response.data.success) {
@@ -290,6 +293,13 @@ export default function Evaluate() {
                                     <TransgressiveModeSelector 
                                         value={evaluationMode}
                                         onChange={setEvaluationMode}
+                                    />
+                                </div>
+
+                                <div className="p-6 rounded-xl bg-white border border-slate-200">
+                                    <VoicePreservationToggle 
+                                        value={voicePreservation}
+                                        onChange={setVoicePreservation}
                                     />
                                 </div>
 

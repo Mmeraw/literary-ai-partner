@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { createPageUrl } from '@/utils';
 import TransgressiveModeSelector from '@/components/evaluation/TransgressiveModeSelector';
 import LanguageVariantSelector from '@/components/evaluation/LanguageVariantSelector';
+import VoicePreservationToggle from '@/components/VoicePreservationToggle';
 import RichTextEditor from '@/components/RichTextEditor';
 
 export default function UploadManuscript() {
@@ -15,6 +16,7 @@ export default function UploadManuscript() {
   const [text, setText] = useState(sessionStorage.getItem('uploadedText') || '');
   const [evaluationMode, setEvaluationMode] = useState('standard');
   const [languageVariant, setLanguageVariant] = useState('en-US');
+  const [voicePreservation, setVoicePreservation] = useState('balanced');
   const [isUploading, setIsUploading] = useState(false);
 
   // Clear sessionStorage after loading
