@@ -250,10 +250,10 @@ export default function Evaluate() {
                         Dual-Layer Professional Evaluation
                     </Badge>
                     <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">
-                        Free Evaluation Preview
+                        Scene(s) / Chapter(s) / Screenplay
                     </h1>
                     <p className="mt-3 text-slate-600 max-w-xl mx-auto">
-                        Analyze up to 3,000 words to experience how RevisionGrade evaluates structure, pacing, and craft.
+                        Evaluate scenes, chapters, or screenplay segments — partial or full (up to 3,000 words)
                     </p>
                     <p className="mt-3 text-sm text-slate-500 max-w-2xl mx-auto">
                         Scores reflect how your work aligns with agent-level criteria and WAVE standards. This is revision guidance, not a guarantee of representation or publication.
