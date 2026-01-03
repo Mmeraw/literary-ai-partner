@@ -349,17 +349,17 @@ export default function Layout({ children, currentPageName }) {
                             )}
 
                             {/* Mobile menu button */}
-                            <Button
-                                variant="ghost"
-                                className="md:hidden h-16 w-16 p-4"
+                            <button
+                                className="md:hidden p-6 -mr-4 active:bg-slate-100 rounded-lg transition-colors"
                                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                                aria-label="Menu"
                             >
                                 {mobileMenuOpen ? (
-                                    <X className="w-10 h-10" />
+                                    <X className="w-8 h-8" />
                                 ) : (
-                                    <Menu className="w-10 h-10" />
+                                    <Menu className="w-8 h-8" />
                                 )}
-                            </Button>
+                            </button>
                         </div>
                     </div>
                 </div>
