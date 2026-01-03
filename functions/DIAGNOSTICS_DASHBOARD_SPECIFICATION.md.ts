@@ -1,0 +1,539 @@
+# Diagnostics Dashboard Specification
+## Implementation Contract for Base44 Engineering
+
+**Status:** Implementation-Ready (Non-Governance, Product Parity)  
+**Effective Date:** 2026-01-03  
+**Purpose:** Surface existing WAVE validators and audit data as a read-only diagnostics dashboard to achieve competitive parity with AutoCrit/ProWritingAid while maintaining RevisionGrade differentiators.
+
+---
+
+## 1. Purpose & Scope
+
+### What Diagnostics Dashboard IS:
+- **Read-only** metrics surface (no generative AI, no rewriting)
+- **Evidence layer** that makes WAVE validators visible to users
+- **Gating mechanism** that enforces "Diagnostics → then Revise" workflow
+- **Parity feature** that matches AutoCrit/ProWritingAid report expectations
+
+### What Diagnostics Dashboard IS NOT:
+- Not a rewriting tool
+- Not a suggestion engine
+- Not a generative AI interface
+- Not a replacement for Evaluate or Revise modes
+
+### Core Principle:
+> "Diagnostics proves what needs revision. Revise proposes how. User approves what ships."
+
+---
+
+## 2. Data Sources (Existing Infrastructure)
+
+**No new backend invention required.** All metrics derive from:
+
+| Data Source | What It Provides | Already Exists? |
+|-------------|------------------|-----------------|
+| EvaluationAuditEvent | Validator outcomes, timestamps, request_id | ✅ Yes |
+| WAVE validators | 60+ rules across 13 criteria | ✅ Yes |
+| Manuscript entity | Word count, chapter count, metadata | ✅ Yes |
+| Chapter entity | Per-chapter metrics, summaries | ✅ Yes |
+| OutputVersion | Version history, baseline tracking | ✅ Yes |
+| RevisionEvent | Revision history, approval status | ✅ Yes |
+
+**Implementation Note:** Dashboard queries these existing stores; no new data collection needed.
+
+---
+
+## 3. Page Structure (Top-to-Bottom)
+
+### 3.1 Header Bar
+**Elements:**
+- Manuscript title + version badge (e.g., "Draft 3 · Baseline v1.4")
+- Current mode indicator: `Evaluate → Diagnostics` (stepper UI)
+- Last evaluated timestamp (from `EvaluationAuditEvent.timestamp_utc`)
+- Action buttons:
+  - **Re-run Diagnostics** (triggers WAVE re-evaluation)
+  - **View Audit Trail** (deep link to audit event list)
+
+**Data Binding:**
+```javascript
+manuscript_title: Manuscript.title
+version_badge: OutputVersion.version_number
+last_evaluated: EvaluationAuditEvent.timestamp_utc (most recent)
+```
+
+---
+
+### 3.2 Manuscript Health Strip
+
+#### 3.2.1 Overall Revision Score
+**Display:**
+- Single numeric score: 0–100 (or letter grade A–F)
+- Description: "Weighted from your 13 core criteria"
+- Tooltip: Issue breakdown (e.g., "13 critical, 42 major, 103 minor findings")
+
+**Calculation:**
+```javascript
+// Weighted aggregate from WAVE validator outcomes
+score = weighted_average(
+  validators_passed / validators_total,
+  severity_weights: { critical: 3, major: 2, minor: 1 }
+)
+```
+
+**Data Source:**
+- `EvaluationAuditEvent.validators_run` (array)
+- `EvaluationAuditEvent.validators_failed` (array)
+- `EvaluationAuditEvent.failure_codes` (array)
+
+#### 3.2.2 Revision Readiness Band
+**Display:**
+- Traffic-light status: 🔴 Red / 🟡 Amber / 🟢 Green
+- Text label: "Not Ready / Limited Ready / Ready for Revise"
+
+**Rules:**
+- **🔴 Red:** > 10 critical findings OR core criteria below 60/100
+- **🟡 Amber:** 1–10 critical findings OR core criteria 60–79/100
+- **🟢 Green:** 0 critical findings AND all core criteria ≥ 80/100
+
+**System Behavior:**
+| Status | Revise Button | Convert Button | UI Feedback |
+|--------|--------------|----------------|-------------|
+| 🔴 Red | Disabled | Disabled | Tooltip: "Resolve critical issues first" |
+| 🟡 Amber | Enabled | Disabled | Banner: "High-risk areas remain in: [categories]" |
+| 🟢 Green | Enabled | Enabled | No restrictions |
+
+---
+
+### 3.3 Category Tiles Grid (13 Criteria)
+
+**Layout:** 3-column responsive grid, grouped under:
+1. **Mechanics & Style** (4 tiles)
+2. **Structure & Narrative** (6 tiles)
+3. **Governance & Canon** (3 tiles)
+
+**Tile Structure:**
+Each tile contains:
+- **Title** (e.g., "Pacing & Momentum", "Dialogue Balance", "Canon & Continuity")
+- **Score** (0–100) with color cue (red < 60, yellow 60–79, green ≥ 80)
+- **Issue Summary** (e.g., "3 critical, 12 major, 24 minor")
+- **Primary Action:** "View Details" → scrolls to relevant Diagnostics Panel tab
+
+**Tile-to-Validator Mapping:**
+
+| Tile Name | Validator Groups | Metrics Displayed |
+|-----------|-----------------|-------------------|
+| **Clarity & Style** | Word choice, sentence structure, voice consistency | Clarity score, filter words, passive voice % |
+| **Pacing & Momentum** | Sentence length variance, scene length distribution | Avg sentence length, paragraph density |
+| **Dialogue Balance** | Dialogue/exposition ratio, dialogue tag quality | % dialogue, tag variety |
+| **Word Choice & Repetition** | Repetition checks, filler words, adverbs | Top repeated words, adverb density |
+| **Show vs Tell** | Action vs exposition, sensory detail | Show/tell ratio, sensory richness |
+| **Character Development** | Character arc, consistency | Character complexity score |
+| **Conflict & Stakes** | Tension, stakes clarity | Conflict density, stakes presence |
+| **Structure & Spine** | Story spine alignment, act breaks | Spine score, act structure |
+| **POV & Tense** | POV consistency, tense shifts | POV stability, tense violations |
+| **Opening Hook** | First page impact, inciting incident | Hook strength, incident timing |
+| **Ending Resonance** | Resolution, emotional impact | Ending score, resolution clarity |
+| **Voice Authenticity** | Voice preservation, author fingerprint | Voice drift score |
+| **Canon & Continuity** | Canon compliance, factual consistency | Canon violations, drift score |
+
+**Data Source:**
+- Each tile queries `EvaluationAuditEvent` filtered by validator group
+- Score = % of validators passed within that group
+- Issue counts = sum of `failure_codes` by severity
+
+---
+
+### 3.4 Diagnostics Panels (Tabbed Interface)
+
+**Tabs:** Core · Repeats · Structure · Canon
+
+#### Tab 1: Core
+**Focus:** High-level manuscript health
+
+**Widgets:**
+1. **Pacing Chart**
+   - X-axis: Manuscript progression (chapters or %)
+   - Y-axis: Avg paragraph length + avg sentence length
+   - Visual: Line chart with "ideal range" band
+   - Data: Chapter-level aggregates from WAVE
+
+2. **Readability Band**
+   - Flesch-Kincaid score (reference only, not a goal)
+   - Target audience overlay (e.g., "Literary Fiction: 50–70")
+   - Data: Computed from sentence/word metrics
+
+3. **Dialogue vs Exposition Ratio**
+   - Bar chart: % dialogue vs narrative per chapter
+   - Baseline: Genre-specific expected range
+   - Data: WAVE dialogue detection + paragraph classification
+
+**Interaction:**
+- Hover: Highlight problem segments
+- Click: Jump to segment, open side-panel with WAVE evidence
+
+---
+
+#### Tab 2: Repeats
+**Focus:** AutoCrit/ProWritingAid-style repetition diagnostics
+
+**Widgets:**
+1. **Top Repeated Words/Phrases**
+   - Table: `term | count | ideal range`
+   - Genre baseline comparison (if available)
+   - Data: WAVE repetition validators
+
+2. **Overused Patterns**
+   - Sentence starters (e.g., "And" used in X% of sentences)
+   - Adverb/filler/filter word density
+   - Data: WAVE pattern detectors
+
+3. **Word Frequency Heatmap**
+   - Visual: Color-coded manuscript sections by repetition density
+   - Data: WAVE word frequency analysis
+
+**Interaction:**
+- Click term → Highlighted occurrences list with line context
+- "Queue for Revision" button → Creates focused revision task (no rewrite here)
+
+---
+
+#### Tab 3: Structure
+**Focus:** Story spine, scene integrity, POV consistency
+
+**Widgets:**
+1. **Scene Length Distribution**
+   - Histogram: Scenes vs length brackets
+   - Flags extremes vs genre norms
+   - Data: Chapter.word_count aggregates
+
+2. **POV & Tense Consistency**
+   - Visual: Timeline with POV/tense shifts marked
+   - Violations highlighted
+   - Data: WAVE POV validators
+
+3. **Spine Alignment**
+   - Visual: Story spine with key beats marked
+   - Expected positions vs actual positions
+   - Data: `Manuscript.spine_evaluation`
+
+**Interaction:**
+- Click spine beat → Jump to chapter, show WAVE evidence
+
+---
+
+#### Tab 4: Canon (Phase 1: Placeholder | Phase 2: Fully Wired)
+
+**Phase 1 Implementation:**
+- **Canon Status Tile:** "Canon lock: ON/OFF" + count of constraints
+- **Drift Preview:** "Canon drift scoring coming soon; validators enforcing in background"
+
+**Phase 2 Implementation:**
+- **Canon Drift Score:** 0–100 with traffic-light color
+- **Drift Map:** Segments with highest deviation, reason tags ("voice", "factual", "style breach")
+- **Drift Timeline:** Version-over-version drift tracking
+- Data: WAVE canon validators + `OutputVersion` diff analysis
+
+---
+
+### 3.5 Evidence Badges (Critical Differentiator)
+
+**Concept:**
+Every critique must show its source validator(s), making WAVE visible and defensible.
+
+**Implementation:**
+Any issue item (e.g., "Pacing slows in Ch. 7") includes:
+- **Evidence Badge:** Small icon/label (e.g., "🔍 Evidence")
+- **Click Behavior:** Opens mini-modal with:
+  - Validator name & ID
+  - Rule description
+  - Sample excerpts (3–5 flagged segments)
+  - WAVE criteria reference
+
+**Example:**
+```
+Issue: "Pacing slows sharply in Chapter 7"
+🔍 Evidence → 
+  Validator: PACING_SENTENCE_LENGTH_VARIANCE
+  Rule: Sentence length drops below genre baseline by >30%
+  Samples: [3 highlighted paragraphs]
+  Criteria: Pacing & Momentum
+```
+
+**Data Source:**
+- `EvaluationAuditEvent.validators_failed` + `failure_codes`
+- WAVE rule definitions (stored in validator metadata)
+
+---
+
+### 3.6 Progress Over Time Strip
+
+**Purpose:** Show manuscript improvement across evaluations
+
+**Widgets:**
+1. **Overall Score Sparkline**
+   - X-axis: Evaluation timestamps
+   - Y-axis: Overall Revision Score
+   - Hover: Version label, date, summary of changes
+
+2. **Category Mini-Lines**
+   - 3–4 key categories (e.g., Pacing, Repetition, Canon)
+   - Parallel sparklines below main score
+
+**Data Source:**
+- Historical `EvaluationAuditEvent` records
+- `OutputVersion` timestamps
+- `RevisionEvent` metadata
+
+**Interaction:**
+- Click point → Deep link to that evaluation's full report
+
+---
+
+## 4. Gating & Workflow Rules
+
+### 4.1 Diagnostic Freshness Check
+**Rule:** Diagnostics must be current before Revise/Convert is enabled.
+
+**Implementation:**
+```javascript
+if (last_manuscript_change > last_diagnostics_run) {
+  show_banner("Diagnostics out of date. Re-run before revising.");
+  disable_buttons(["Revise", "Convert"]);
+}
+```
+
+**Data:**
+- `Manuscript.updated_at` vs `EvaluationAuditEvent.timestamp_utc`
+
+### 4.2 Revision Readiness Gate
+**Rule:** Revise button state depends on Readiness Band.
+
+**Implementation:**
+```javascript
+readiness_status = calculate_readiness(critical_count, score);
+
+if (readiness_status === 'red') {
+  disable_button("Revise");
+  tooltip("Resolve critical issues first");
+} else if (readiness_status === 'amber') {
+  enable_button("Revise");
+  show_banner("High-risk areas remain");
+}
+```
+
+### 4.3 Audit Trail Requirement
+**Rule:** Every diagnostics run creates an `EvaluationAuditEvent`.
+
+**Implementation:**
+- Diagnostics page queries latest event on load
+- "Re-run Diagnostics" button triggers backend function → creates new event
+- No silent updates
+
+---
+
+## 5. Phase 1 vs Phase 2 Features
+
+### Phase 1 (Parity Layer — Ship First)
+**Goal:** Match AutoCrit/ProWritingAid report expectations
+
+**Features:**
+- ✅ Overall Revision Score
+- ✅ Revision Readiness Band (with gating)
+- ✅ Category Tiles Grid (13 criteria)
+- ✅ Core, Repeats, Structure tabs
+- ✅ Evidence Badges
+- ✅ Progress Over Time strip
+- ✅ Canon tab (placeholder only)
+
+**Acceptance Criteria:**
+- Dashboard loads in < 2 seconds
+- All metrics derived from existing WAVE data
+- Revise button gated correctly
+- Evidence badges clickable and show validator details
+
+---
+
+### Phase 2 (Differentiation Layer — Ship After Parity)
+**Goal:** Add features competitors can't match
+
+**Features:**
+- ✅ Canon Drift Score (fully wired)
+- ✅ Intent Alignment scoring
+- ✅ Genre baseline comparisons (real data)
+- ✅ Revision task queue (focused rewrites)
+- ✅ Team collaboration (shared diagnostics)
+
+**Acceptance Criteria:**
+- Canon drift detects voice/factual/style deviations
+- Intent declared per segment, scored for alignment
+- Baselines sourced from real genre data (not guessed)
+
+---
+
+## 6. UI/UX Guidelines
+
+### 6.1 Color Palette (Traffic-Light System)
+- **🔴 Red:** Critical issues, blocked actions (< 60)
+- **🟡 Yellow:** Warnings, caution advised (60–79)
+- **🟢 Green:** Good, proceed safely (≥ 80)
+- **⚪ Gray:** Neutral, informational
+
+### 6.2 Loading States
+- Skeleton loaders for all tiles/panels
+- "Loading diagnostics..." message
+- Expected load time: < 2 seconds
+- Fallback: "Taking longer than usual..." if > 5 seconds
+
+### 6.3 Empty States
+- If no evaluations exist: "Run your first evaluation to see diagnostics"
+- If diagnostics stale: "Diagnostics out of date. Re-run to refresh."
+
+### 6.4 Error States
+- If WAVE fails: "Diagnostics unavailable. Contact support."
+- If data missing: "Unable to compute [metric]. Re-run diagnostics."
+- Never silent failures
+
+---
+
+## 7. Backend Requirements
+
+### 7.1 New Endpoints (If Needed)
+**GET /api/diagnostics/:manuscript_id**
+- Returns: Aggregated WAVE data, scores, issue counts
+- Query: Latest `EvaluationAuditEvent` + validator outcomes
+
+**POST /api/diagnostics/:manuscript_id/rerun**
+- Triggers: WAVE re-evaluation
+- Creates: New `EvaluationAuditEvent`
+- Returns: Job ID (async processing)
+
+### 7.2 Data Aggregation Functions
+**`calculateOverallScore(manuscript_id)`**
+- Input: `EvaluationAuditEvent` data
+- Output: 0–100 score + severity breakdown
+
+**`calculateReadinessStatus(critical_count, score)`**
+- Input: Validator failure counts
+- Output: 'red' | 'amber' | 'green'
+
+**`getCategoryScores(manuscript_id)`**
+- Input: Manuscript ID
+- Output: Array of 13 category scores + issue counts
+
+### 7.3 Performance Requirements
+- Dashboard load: < 2 seconds
+- Metrics calculation: < 500ms
+- Evidence badge modal: < 100ms
+
+---
+
+## 8. Acceptance Criteria (QA Checklist)
+
+### 8.1 Functional Requirements
+- [ ] Dashboard loads with all tiles visible
+- [ ] Overall score displays correctly (0–100)
+- [ ] Readiness band shows correct status (red/amber/green)
+- [ ] Revise button gated based on readiness
+- [ ] Category tiles show scores + issue counts
+- [ ] Evidence badges clickable and show validator details
+- [ ] Progress Over Time strip displays historical data
+- [ ] Re-run Diagnostics button triggers WAVE re-evaluation
+- [ ] Audit Trail link opens event list
+
+### 8.2 Data Integrity
+- [ ] All metrics derived from `EvaluationAuditEvent`
+- [ ] No guessed or inferred data
+- [ ] Timestamps accurate and up-to-date
+- [ ] Validator outcomes match audit records
+
+### 8.3 UX/UI
+- [ ] Loading states deterministic (no infinite spinners)
+- [ ] Empty states clear and actionable
+- [ ] Error states explicit (no silent failures)
+- [ ] Color palette consistent (red/yellow/green)
+- [ ] Mobile responsive
+
+### 8.4 Performance
+- [ ] Dashboard loads in < 2 seconds
+- [ ] No blocking queries
+- [ ] Evidence badges open in < 100ms
+
+---
+
+## 9. Marketing Copy Hooks (Use in Website)
+
+**For Hero Section:**
+> "A single diagnostics view that unifies 25+ checks into an evidence-backed manuscript health score — like a Summary Report for serious revision."
+
+**For Features Page:**
+> "Run diagnostics, see exactly what changed, and prove progress over time with a tamper-proof audit trail."
+
+**For Comparison Table:**
+> "AutoCrit-level diagnostics + ProWritingAid-level guidance + studio-grade governance."
+
+---
+
+## 10. Implementation Priority (Phased Rollout)
+
+### Sprint 1 (2 weeks)
+- Overall Revision Score
+- Revision Readiness Band + gating logic
+- Category Tiles Grid (static, no drill-down)
+
+### Sprint 2 (2 weeks)
+- Core tab (pacing, readability, dialogue ratio)
+- Repeats tab (word frequency, patterns)
+- Evidence Badges (basic modal)
+
+### Sprint 3 (2 weeks)
+- Structure tab (spine, POV, scene length)
+- Canon tab (placeholder only)
+- Progress Over Time strip
+
+### Sprint 4 (Phase 2)
+- Canon Drift Score (fully wired)
+- Intent Alignment
+- Genre baselines
+
+---
+
+## 11. Success Metrics
+
+**Quantitative:**
+- Dashboard adoption rate: >80% of users view diagnostics before revising
+- Revise gating compliance: 0 bypasses logged
+- Evidence badge clicks: >50% of users explore validator details
+
+**Qualitative:**
+- User feedback: "Diagnostics feel professional, like AutoCrit"
+- Support reduction: Fewer "Why was this flagged?" tickets
+- Positioning validation: "RevisionGrade matches the big tools but adds governance"
+
+---
+
+## 12. Related Documents
+
+- `DASHBOARD_ANALYTICS_RELIABILITY_CONTRACT.md` — Separate dashboard for analytics
+- `GOVERNANCE_EPIC_RG-EVAL-001.md` — WAVE validator definitions
+- `EVALUATE_QA_CHECKLIST.md` — QA enforcement for Evaluate mode
+
+---
+
+## 13. Review & Approval
+
+**Engineering Sign-Off Required From:**
+- Base44 Engineering Lead
+- QA Lead
+- Product Owner
+
+**Approval Criteria:**
+- All Phase 1 features implementable with existing data
+- No new governance/compliance burden
+- Performance targets achievable
+- UX mockups aligned
+
+**Once approved:** This spec becomes implementation contract.
+
+---
+
+**END OF SPECIFICATION**
