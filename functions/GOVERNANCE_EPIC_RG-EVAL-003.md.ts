@@ -4,7 +4,7 @@
 **RG-EVAL-003**
 
 ## Epic Name
-**RevisionGrade Governance & Verification — Convert Surface (ScreenplayFormatter)**
+**RevisionGrade Governance & Verification — Convert Surface (ScreenplayFormatter) — Canon Enforcement**
 
 ## Type
 Governance-Compliance Remediation (Release-Blocking, **Critical Escalation**)
@@ -23,19 +23,30 @@ This is a **hard deadline**. Failure to meet this timeline makes ScreenplayForma
 
 ## 🔴 CRITICAL ESCALATION NOTICE
 
-This Epic addresses not just governance bypass, but a **systemic routing correctness risk**.
+**This Epic enforces existing locked governance.**
+
+SCREENPLAY_FORMATTER_GOVERNANCE.md (UX/Intake Canon) already defines:
+- ✅ Single input model ("User pastes anything. System figures it out.")
+- ✅ No user-facing mode selection
+- ✅ Automatic format detection with routing table
+- ✅ Confidence-based behavior (≥95% proceed silently; <95% proceed + note)
+- ✅ Authority posture ("Sell judgment, not controls")
+
+**The gap:** This governance exists but has no enforcement layer.
 
 **ScreenplayFormatter contains implicit format detection heuristics** (line 24 in `formatScreenplay.js`) that silently route requests based on string matching (`contains('INT.') || contains('EXT.')?`), without:
 
-- ❌ Validation
-- ❌ Auditing
-- ❌ Confidence scoring
-- ❌ Fallback behavior
-- ❌ User visibility
+- ❌ Validation (governance specifies structural inspection)
+- ❌ Auditing (governance implies auditability)
+- ❌ Confidence scoring (governance requires "≥95%" logic)
+- ❌ Fallback behavior (governance specifies proceed + note)
+- ❌ Classification taxonomy (governance specifies novel_prose | hybrid_prose | rough_screenplay | formatted_screenplay)
 
 **This creates a correctness risk:** A user's prose containing the words "INT." or "EXT." in dialogue can be silently misclassified and routed to the wrong pipeline, with no audit trail and no user awareness.
 
-**Governance Response:** Implicit heuristics are forbidden. All routing decisions must be validator-based, scored, logged, and auditable.
+**Governance Response:** Implicit heuristics violate locked governance. All routing decisions must implement the governance-specified inspection logic, scored, logged, and auditable.
+
+**This is not new design. This is compliance with existing canon.**
 
 ---
 
@@ -60,14 +71,27 @@ This Epic addresses not just governance bypass, but a **systemic routing correct
 
 ## Epic Purpose (Non-Negotiable)
 
-This Epic remediates:
+**This Epic enforces existing locked governance.**
 
-1. **Governance bypass** (identified in FUNCTION TEST #3)
-2. **Silent routing heuristics** (critical correctness risk)
+SCREENPLAY_FORMATTER_GOVERNANCE.md (UX/Intake Canon) already defines:
+- ✅ Single input model ("User pastes anything. System figures it out.")
+- ✅ No user-facing mode selection  
+- ✅ Automatic format detection with routing table
+- ✅ Confidence-based behavior (≥95% proceed silently; <95% proceed + note)
+- ✅ Authority posture ("Sell judgment, not controls")
 
-The ScreenplayFormatter surface performs conversion but **bypasses the governed Evaluate chain**, violates FUNCTION_INDEX.md and Definition of VERIFIED, and **introduces undetectable misclassification risk**.
+**The gap:** This governance exists but has no enforcement layer.
 
-**This Epic exists to restore validator-based determinism and auditability.**
+FUNCTION TEST #3 revealed:
+1. **Governance bypass** — No validators execute format detection or routing
+2. **Silent routing heuristics** — Line 24 uses crude string matching, not governed inference
+3. **No audit trail** — Format detection and routing decisions are unlogged
+4. **No confidence scoring** — Binary logic with no fallback or escalation
+5. **Undetectable misclassification risk** — Prose containing "INT." or "EXT." silently misrouted
+
+**This Epic exists to wire the runtime enforcement layer (validators, audit, confidence) that makes the locked governance verifiable and auditable.**
+
+This is not new design. This is compliance with existing canon.
 
 ---
 
@@ -75,11 +99,14 @@ The ScreenplayFormatter surface performs conversion but **bypasses the governed 
 
 All work under this Epic is governed by, in order:
 
-1. **FUNCTION_INDEX.md** (Authoritative Registry)
-2. **Webpage Contract Matrix v1.0** (ScreenplayFormatter row — UNVERIFIED)
-3. **Definition of VERIFIED** (with escalated routing requirement)
-4. **SCREENPLAY_QUALITY_STANDARD_CANON.md** (mandatory WriterDuet compliance)
-5. **GOVERNANCE_EPIC_RG-EVAL-003.md** (this Epic)
+1. **SCREENPLAY_FORMATTER_GOVERNANCE.md** (Locked UX/Intake Canon — defines WHAT the system must do)
+2. **FUNCTION_INDEX.md** (Authoritative Registry)
+3. **Webpage Contract Matrix v1.0** (ScreenplayFormatter row — UNVERIFIED)
+4. **Definition of VERIFIED** (defines HOW we prove the system does it correctly)
+5. **SCREENPLAY_QUALITY_STANDARD_CANON.md** (mandatory WriterDuet compliance)
+6. **GOVERNANCE_EPIC_RG-EVAL-003.md** (this Epic — enforcement layer only)
+
+**Critical Clarification:** SCREENPLAY_FORMATTER_GOVERNANCE.md already defines the user experience and system behavior. This Epic exists solely to wire the runtime enforcement layer (validators, audit, confidence scoring) that proves compliance with that canon.
 
 If any artifact conflicts with the above, it is invalid.
 
@@ -95,9 +122,11 @@ If any artifact conflicts with the above, it is invalid.
 - ❌ No SCREENPLAY_* validator execution
 - ❌ No structured audit event (EVALUATE_REQUEST_EVENT)
 - ❌ No SLA timing metrics
-- 🔴 **[CRITICAL]** Format detection is implicit string matching (line 24), not a governed validator
+- 🔴 **[CRITICAL]** Format detection is implicit string matching (line 24), not governance-specified structural inspection
 - ❌ Format detection result not logged or audited
 - ❌ Routing decision made silently with no user visibility
+- ❌ No classification taxonomy (governance specifies novel_prose | hybrid_prose | rough_screenplay | formatted_screenplay)
+- ❌ No confidence scoring (governance requires "≥95%" logic)
 
 ---
 
@@ -105,7 +134,7 @@ If any artifact conflicts with the above, it is invalid.
 
 1. **No implementation may begin without explicit phase authorization.**
 2. **No wiring, refactoring, or runtime integration is allowed during drafting.**
-3. **[ESCALATED] Implicit heuristics are forbidden. All routing decisions must be validator-based.**
+3. **[ESCALATED] Implicit heuristics violate locked governance. All routing decisions must implement governance-specified inspection logic.**
 4. **Any unauthorized work triggers a GOVERNANCE_BYPASS incident ticket.**
 5. **Evidence is mandatory for all acceptance decisions.**
 
@@ -115,10 +144,11 @@ If any artifact conflicts with the above, it is invalid.
 
 ScreenplayFormatter may be promoted to **VERIFIED** only if all conditions below are evidenced:
 
-### ✅ Routing Correct (AND Deterministic)
-- `input_format` correctly detected (prose vs screenplay)
-- `routed_pipeline` unambiguous (convert vs cleanup vs evaluate)
-- **[ESCALATED]** Routing decision is made by validator, not heuristic
+### ✅ Routing Correct (AND Deterministic Per Governance)
+- `input_format` correctly detected using governance-specified inspection (not string matching)
+- Classification taxonomy matches governance: novel_prose | hybrid_prose | rough_screenplay | formatted_screenplay
+- `routed_pipeline` unambiguous and implements governance routing table
+- **[ESCALATED]** Routing decision is made by validator implementing governance table, not heuristic
 - Routing decision is logged with confidence score and audit trail
 
 ### ✅ Governed Entry Enforced
@@ -126,11 +156,12 @@ ScreenplayFormatter may be promoted to **VERIFIED** only if all conditions below
 - QA checklist enforced with halt-on-fail behavior
 - Canon bundle loaded and validated
 
-### ✅ Format Detection Validator Executed (MANDATORY)
+### ✅ Format Detection Validator Executed (MANDATORY — Per Governance)
 - `SCREENPLAY_FORMAT_DETECT` validator runs (replaces line 24 string matching)
-- Returns: `detected_format` + `confidence_score` (0–1)
-- Fallback behavior defined (low confidence → escalate to user)
-- **[NEW]** String matching heuristics are prohibited
+- Implements governance-specified structural inspection: ALL-CAPS names, INT./EXT. headers, indentation patterns, prose/dialogue ratios
+- Returns: `detected_format` (governance taxonomy) + `confidence_score` (0–1)
+- Fallback behavior per governance: confidence < 0.95 → proceed + append note (no blocking)
+- **[NEW]** String matching heuristics are prohibited (governance violation)
 
 ### ✅ Validators Executed
 - All SCREENPLAY_* validators load from `SCREENPLAY_RULE_VALIDATOR_SLA_MAP.md`
@@ -140,7 +171,7 @@ ScreenplayFormatter may be promoted to **VERIFIED** only if all conditions below
 - Structured EVALUATE_REQUEST_EVENT (or explicitly named, structured equivalent that contains all required fields, not free-text logs)
 - Required fields populated:
   - `event_id`, `request_id`, `timestamp_utc`
-  - `input_format` (prose | screenplay | ambiguous)
+  - `input_format` (using governance taxonomy)
   - `detected_format_confidence` (0–1 score)
   - `routed_pipeline`
   - `validators_run`, `validators_failed`, `failure_codes`
@@ -153,9 +184,10 @@ ScreenplayFormatter may be promoted to **VERIFIED** only if all conditions below
 - Output is true screenplay (not formatted prose)
 - Compliance validators pass
 
-### ✅ Negative Path Enforced
+### ✅ Negative Path Enforced (Per Governance)
 - Invalid inputs blocked with user-visible error
-- Ambiguous format detection (confidence < threshold) escalates to user, not silently routed
+- Low confidence (< 0.95) → proceed + append governance-specified note: "Format inferred automatically — review recommended."
+- Per governance: "Never block. Never interrupt. Never ask."
 
 **If any condition is missing → UNVERIFIED or FAILED.**
 
@@ -163,67 +195,83 @@ ScreenplayFormatter may be promoted to **VERIFIED** only if all conditions below
 
 ## Critical Gaps (Evidence from Walkthrough #3)
 
-| Gap | Evidence | Severity | NEW vs RG-EVAL-001/002 |
-|-----|----------|----------|------------------------|
-| **G1: Implicit routing heuristic** | Line 24: `contains('INT.')` \|\| `contains('EXT.')`? | 🔴 CRITICAL | **[ESCALATED]** Unique to ScreenplayFormatter |
-| **G2: No format detection validator** | String matching, not governed validator | 🔴 CRITICAL | **[ESCALATED]** Unique to ScreenplayFormatter |
-| G3: No `governedEvaluateEntry` call | No wrapper invoked before conversion | 🔴 CRITICAL | Same as RG-EVAL-001/002 |
-| G4: No SCREENPLAY_* validator execution | Zero references to `SCREENPLAY_RULE_VALIDATOR_SLA_MAP.md` | 🔴 CRITICAL | Same as RG-EVAL-001/002 |
-| G5: No audit event | No EVALUATE_REQUEST_EVENT record with required fields | 🔴 CRITICAL | Same as RG-EVAL-001/002 |
-| G6: No SLA metrics | No timing/performance tracking | 🟡 HIGH | Same as RG-EVAL-001/002 |
-| G7: Format detection not surfaced | Toast shows result but not structured or logged | 🟡 MEDIUM | Same as RG-EVAL-001/002 |
-| **G8: No confidence scoring** | Binary string match, no confidence metric | 🔴 CRITICAL | **[ESCALATED]** Unique to ScreenplayFormatter |
+| Gap | Evidence | Severity | Governance Violation |
+|-----|----------|----------|---------------------|
+| **G1: Implicit routing heuristic** | Line 24: `contains('INT.')` \|\| `contains('EXT.')`? | 🔴 CRITICAL | **Violates SCREENPLAY_FORMATTER_GOVERNANCE.md Step 1** (should use structural inspection) |
+| **G2: No format detection validator** | String matching, not governed structural inspector | 🔴 CRITICAL | **Violates SCREENPLAY_FORMATTER_GOVERNANCE.md Step 1** (inspection logic not implemented) |
+| **G3: No classification taxonomy** | Binary convert/cleanup, not governance taxonomy | 🔴 CRITICAL | **Violates SCREENPLAY_FORMATTER_GOVERNANCE.md Step 1** (should return novel_prose \| hybrid_prose \| rough_screenplay \| formatted_screenplay) |
+| **G4: No confidence scoring** | Binary logic, no confidence metric | 🔴 CRITICAL | **Violates SCREENPLAY_FORMATTER_GOVERNANCE.md Section 7** (confidence rule not implemented) |
+| G5: No `governedEvaluateEntry` call | No wrapper invoked before conversion | 🔴 CRITICAL | Same as RG-EVAL-001/002 |
+| G6: No SCREENPLAY_* validator execution | Zero references to `SCREENPLAY_RULE_VALIDATOR_SLA_MAP.md` | 🔴 CRITICAL | Same as RG-EVAL-001/002 |
+| G7: No audit event | No EVALUATE_REQUEST_EVENT record with required fields | 🔴 CRITICAL | Same as RG-EVAL-001/002 |
+| G8: No SLA metrics | No timing/performance tracking | 🟡 HIGH | Same as RG-EVAL-001/002 |
+| G9: Format detection not surfaced per governance | Toast shows result but no governance-specified footer note for low confidence | 🟡 MEDIUM | **Violates SCREENPLAY_FORMATTER_GOVERNANCE.md Section 7** (footer note not implemented) |
 
 ---
 
 ## Required Child Tickets (MANDATORY)
 
-### RG-EVAL-003-T1 — Replace Implicit Format Detection Heuristic
+### RG-EVAL-003-T1 — Replace Implicit Format Detection Heuristic (Canon Enforcement)
 **Priority:** P0 (Blocks Verification)  
-**Severity:** CRITICAL
+**Severity:** CRITICAL  
+**Type:** Canon Compliance
 
 **Description:**
 
-Current state (line 24 in `formatScreenplay.js`):
+**Existing Governance (SCREENPLAY_FORMATTER_GOVERNANCE.md — Step 1: Format Detection):**
 
+> "System inspects for:
+> - ALL-CAPS character names
+> - INT./EXT. scene headings
+> - Dialogue indentation patterns
+> - Paragraph density and sentence length
+> - Prose vs dialogue ratios
+> 
+> Classifications: novel_prose, hybrid_prose, rough_screenplay, formatted_screenplay"
+
+**Current Implementation Violates This:**
+
+Line 24 in `formatScreenplay.js`:
 ```javascript
 const detectedMode = mode || (processedText.includes('INT.') || processedText.includes('EXT.') ? 'cleanup' : 'convert');
 ```
 
-**Problem:**
-- Binary string matching (crude heuristic)
-- No confidence score
-- No logging
-- Silent routing decision
-- **Risk:** Prose containing "INT." or "EXT." in dialogue silently misrouted
+**Violations:**
+- ❌ Binary string matching (not "structural inspection" per governance)
+- ❌ No classification taxonomy (should return novel_prose | hybrid_prose | rough_screenplay | formatted_screenplay)
+- ❌ No confidence score (governance requires "confidence ≥95%" logic)
+- ❌ No logging (governance implies auditability: "format inferred automatically")
+- ❌ **Risk:** Prose containing "INT." or "EXT." in dialogue silently misrouted
 
-**Required:**
-- Create `SCREENPLAY_FORMAT_DETECT` validator
+**Required (Enforce Existing Governance):**
+- Create `SCREENPLAY_FORMAT_DETECT` validator implementing governance-specified inspection logic
 - **Input:** raw text
-- **Output:** `detected_format` (prose | screenplay | ambiguous) + `confidence_score` (0–1)
-- **Logic:** structured analysis, not string matching
-- **Fallback:** if confidence < 0.8, escalate to user or halt
+- **Output:** `detected_format` (novel_prose | hybrid_prose | rough_screenplay | formatted_screenplay) + `confidence_score` (0–1)
+- **Logic:** Structural analysis per governance (not string matching)
+- **Confidence Rule (from governance):** if confidence < 0.95, proceed + append note (no blocking)
 - Log detection result to audit record with confidence score
 
 **Artifact Links:**
+- **SCREENPLAY_FORMATTER_GOVERNANCE.md** (Step 1: Format Detection — authoritative spec)
 - `FUNCTION_INDEX.md` (Screenplay → SCREENPLAY_RULE_VALIDATOR_SLA_MAP.md)
 - Webpage Contract Matrix v1.0 (ScreenplayFormatter row)
-- `SCREENPLAY_QUALITY_STANDARD_CANON.md` (format detection rules)
 
-**Acceptance Criteria (Definition of VERIFIED):**
+**Acceptance Criteria (Canon Compliance):**
 - [ ] `SCREENPLAY_FORMAT_DETECT` validator exists and is called before routing
-- [ ] Returns `detected_format` + `confidence_score`
-- [ ] Confidence score logic documented (thresholds, fallback behavior)
+- [ ] Returns taxonomy from governance: novel_prose | hybrid_prose | rough_screenplay | formatted_screenplay
+- [ ] Returns `confidence_score` (0–1)
+- [ ] Implements structural inspection per governance (ALL-CAPS names, INT./EXT. headers, indentation, ratios)
 - [ ] String matching heuristic (line 24) completely removed
-- [ ] Evidence: logs show validator execution with confidence scores
-- [ ] Evidence: low-confidence inputs escalate to user or halt (not silent routing)
+- [ ] Confidence < 0.95 → proceed + append note (per governance)
+- [ ] Evidence: logs show validator execution with confidence scores and classification taxonomy
 
-**Impact:** CRITICAL — blocks promotion to VERIFIED
+**Impact:** CRITICAL — blocks canon compliance and promotion to VERIFIED
 
 ---
 
 ### RG-EVAL-003-T2 — Wire governedEvaluateEntry into ScreenplayFormatter
-**Priority:** P0 (Blocks Verification)
+**Priority:** P0 (Blocks Verification)  
+**Type:** Canon Compliance
 
 **Description:**
 
@@ -252,7 +300,8 @@ Current state: `ScreenplayFormatter.js` (lines 33-66) calls `formatScreenplay` d
 ---
 
 ### RG-EVAL-003-T3 — Implement SCREENPLAY_WORD_COUNT Validator
-**Priority:** P0 (Blocks Verification)
+**Priority:** P0 (Blocks Verification)  
+**Type:** Canon Compliance
 
 **Description:**
 
@@ -278,39 +327,57 @@ Current state: No word count validation at conversion layer.
 
 ---
 
-### RG-EVAL-003-T4 — Implement SCREENPLAY_ROUTE_DECISION Validator
-**Priority:** P0 (Blocks Verification)
+### RG-EVAL-003-T4 — Implement SCREENPLAY_ROUTE_DECISION Validator (Canon Enforcement)
+**Priority:** P0 (Blocks Verification)  
+**Type:** Canon Compliance
 
 **Description:**
 
-Current state: Routing decision made implicitly (line 24 string matching).
+**Existing Governance (SCREENPLAY_FORMATTER_GOVERNANCE.md — Step 3: Routing Table):**
 
-**Required:**
-- Create `SCREENPLAY_ROUTE_DECISION` validator
-- **Input:** `detected_format` + `detected_confidence` + `user_intent`
-- **Output:** `routed_pipeline` (convert | cleanup | evaluate) + `confidence_score`
-- **Logic:** deterministic, based on input format and confidence thresholds
-- **Fallback:** ambiguous cases escalate to user instead of silent routing
-- Log routing decision to audit record with decision logic
+| Detected Format | Detected Scope | Action |
+|----------------|----------------|--------|
+| novel_prose | chapter | Convert → screenplay scenes |
+| novel_prose | full_manuscript | Convert → full screenplay |
+| hybrid_prose | any | Normalize → screenplay |
+| rough_screenplay | any | Clean + reformat |
+| formatted_screenplay | any | Validate + standardize |
+
+> "No user confirmation required unless confidence < threshold."
+
+**Current Implementation Violates This:**
+
+Line 24 routing is implicit binary string matching, not deterministic rule application from governance table.
+
+**Required (Enforce Existing Governance):**
+- Create `SCREENPLAY_ROUTE_DECISION` validator implementing governance routing table
+- **Input:** `detected_format` (from T1) + `detected_scope` + `detected_confidence`
+- **Output:** `routed_pipeline` (convert | cleanup | validate) + routing decision factors
+- **Logic:** Apply governance routing table deterministically
+- **Confidence Rule (from governance):** confidence < 0.95 → proceed silently + append note (no user escalation)
+- Log routing decision to audit record with governance table row matched
 
 **Artifact Links:**
+- **SCREENPLAY_FORMATTER_GOVERNANCE.md** (Step 3: Routing Table — authoritative spec)
 - `FUNCTION_INDEX.md` (Screenplay → SCREENPLAY_RULE_VALIDATOR_SLA_MAP.md)
 - Webpage Contract Matrix v1.0 (ScreenplayFormatter row, Routing column)
 
-**Acceptance Criteria (Definition of VERIFIED):**
+**Acceptance Criteria (Canon Compliance):**
 - [ ] `SCREENPLAY_ROUTE_DECISION` validator exists and is called after format detection
-- [ ] Returns `routed_pipeline` + `confidence_score`
-- [ ] Routing logic is explicit and documented (no implicit heuristics)
-- [ ] Ambiguous cases (confidence < threshold) escalate to user
-- [ ] Evidence: logs show routing decision with decision factors
-- [ ] Evidence: test with ambiguous input shows escalation (not silent routing)
+- [ ] Returns `routed_pipeline` (convert | cleanup | validate)
+- [ ] Returns routing decision factors (which governance table row matched)
+- [ ] Routing logic explicitly implements governance table (no heuristics)
+- [ ] Confidence < 0.95 → proceed + note (per governance: "never block, never interrupt")
+- [ ] Evidence: logs show routing decision with governance table row matched
+- [ ] Evidence: test with low-confidence input shows silent proceed + note (not escalation)
 
-**Impact:** CRITICAL — blocks promotion to VERIFIED
+**Impact:** CRITICAL — blocks canon compliance and promotion to VERIFIED
 
 ---
 
 ### RG-EVAL-003-T5 — Implement Audit Event Creation (ScreenplayFormatter)
-**Priority:** P0 (Blocks Verification)
+**Priority:** P0 (Blocks Verification)  
+**Type:** Canon Compliance
 
 **Description:**
 
@@ -329,7 +396,8 @@ Current state: No audit record. Conversions are unlogged.
 **Acceptance Criteria (Definition of VERIFIED):**
 - [ ] `EvaluationAuditEvent` entity (created in RG-EVAL-001) is used for screenplay conversions
 - [ ] `formatScreenplay` writes audit record with `event_id`, `request_id`, `timestamp_utc`
-- [ ] Audit record includes `detected_format` + `detected_format_confidence`
+- [ ] Audit record includes `detected_format` (using governance taxonomy)
+- [ ] Audit record includes `detected_format_confidence`
 - [ ] Audit record includes `routed_pipeline` + `routing_decision_factors`
 - [ ] Audit record includes `validators_run`, `validators_failed`, `failure_codes`
 - [ ] Evidence: query `EvaluationAuditEvent` after test run shows complete record
@@ -339,7 +407,8 @@ Current state: No audit record. Conversions are unlogged.
 ---
 
 ### RG-EVAL-003-T6 — Implement SLA Timing Metrics (ScreenplayFormatter)
-**Priority:** P1 (High)
+**Priority:** P1 (High)  
+**Type:** Canon Compliance
 
 **Description:**
 
@@ -374,36 +443,53 @@ Current state: No timing metrics captured.
 
 ---
 
-### RG-EVAL-003-T7 — Surface Format Detection Result in UI
-**Priority:** P2 (Medium)
+### RG-EVAL-003-T7 — Surface Format Detection Result in UI (Canon Enforcement)
+**Priority:** P2 (Medium)  
+**Type:** Canon Compliance
 
 **Description:**
 
-Current state: Format detection shown via toast (line 51-54), not structured.
+**Existing Governance (SCREENPLAY_FORMATTER_GOVERNANCE.md — Section 7: Confidence Rule):**
 
-**Required:**
-- Display format detection result in structured UI element
-- Show confidence score if available
-- Indicate routing decision (convert vs cleanup)
-- Provide user with visibility into what happened
+> "If detection confidence < 95%:
+> - Proceed anyway
+> - Append subtle footer note: 'Format inferred automatically — review recommended.'
+> Never block. Never interrupt. Never ask."
+
+**Current Implementation:**
+
+Line 51-54 shows toast with detected format, but:
+- ❌ No confidence score shown
+- ❌ No governance-specified footer note for low confidence
+- ❌ No persistent UI element (toast disappears)
+
+**Required (Enforce Existing Governance):**
+- Display format detection result per governance specifications
+- Show confidence score if < 0.95
+- **If confidence < 0.95:** Append exact governance footer note: "Format inferred automatically — review recommended."
+- Implement as subtle footer note (not modal, not blocking)
+- Preserve existing toast for immediate feedback
 
 **Artifact Links:**
+- **SCREENPLAY_FORMATTER_GOVERNANCE.md** (Section 7: Confidence Rule — authoritative spec)
 - `pages/ScreenplayFormatter.js` (lines 51-54)
 - Webpage Contract Matrix v1.0 (ScreenplayFormatter row, User Visibility column)
 
-**Acceptance Criteria (Definition of VERIFIED):**
-- [ ] UI shows detected format (prose | screenplay | ambiguous)
-- [ ] UI shows confidence score if < 1.0
-- [ ] UI shows routing decision (convert | cleanup)
-- [ ] Toast messages supplemented with persistent UI element
-- [ ] Evidence: screenshot showing format detection UI
+**Acceptance Criteria (Canon Compliance):**
+- [ ] UI shows detected format taxonomy (novel_prose | hybrid_prose | rough_screenplay | formatted_screenplay)
+- [ ] If confidence < 0.95 → show governance-specified footer note exactly as written
+- [ ] Footer note is subtle, non-blocking, non-modal (per governance)
+- [ ] Toast remains for immediate feedback
+- [ ] Footer note appears only for low confidence (per governance)
+- [ ] Evidence: screenshot showing footer note for low-confidence input
 
-**Impact:** MEDIUM — improves user visibility
+**Impact:** MEDIUM — enforces governance visibility requirement
 
 ---
 
 ### RG-EVAL-003-T8 — Governance Dependency Check (ScreenplayFormatter)
-**Priority:** P0 (Blocks All Other Work)
+**Priority:** P0 (Blocks All Other Work)  
+**Type:** Infrastructure
 
 **Description:**
 
@@ -436,11 +522,11 @@ Before any wiring or validator implementation can begin, confirm that RG-EVAL-00
 ```
 RG-EVAL-003-T8 (Dependency Check)
   ↓
-RG-EVAL-003-T1 (Format Detection Validator) + RG-EVAL-003-T4 (Route Decision Validator)
+RG-EVAL-003-T1 (Format Detection Validator — Canon Enforcement) + RG-EVAL-003-T4 (Route Decision Validator — Canon Enforcement)
   ↓
 RG-EVAL-003-T2 (Governed Entry) + RG-EVAL-003-T3 (Word Count) + RG-EVAL-003-T5 (Audit) + RG-EVAL-003-T6 (SLA)
   ↓
-RG-EVAL-003-T7 (UI Visibility)
+RG-EVAL-003-T7 (UI Visibility — Canon Enforcement)
 ```
 
 **Critical Path:** T8 → T1/T4 (parallel) → T2/T3/T5/T6 (parallel) → T7
@@ -453,7 +539,7 @@ Any of the following must result in a governance incident ticket:
 
 - Work begins without authorization
 - Phase sequencing violated
-- Implicit heuristics introduced or retained
+- Implicit heuristics introduced or retained (governance violation)
 - Governance hooks bypassed
 - Evidence missing at review time
 
@@ -500,7 +586,7 @@ This prevents implementation during testing.
 **This Epic is governance-blocking with critical escalation.**
 
 - No code may be written, wired, or deployed until the Epic is acknowledged in Jira and Phase authorization is explicitly granted.
-- **Implicit routing heuristics are explicitly prohibited and must be replaced with validator-based deterministic routing.**
+- **Implicit heuristics violate locked governance (SCREENPLAY_FORMATTER_GOVERNANCE.md). All routing decisions must implement governance-specified inspection logic and routing tables.**
 - All acceptance decisions are evidence-based and human-authorized.
 - Any deviation from this process triggers immediate incident logging and work stoppage.
 
@@ -516,40 +602,41 @@ This prevents implementation during testing.
 - ⏳ Target completion date set
 
 ### Phase 1: Infrastructure Dependencies (T8)
-**Authorization Required Before Starting**
+**Authorization Required Before Starting**  
 **Deadline: 2026-01-13 (Monday)**
 - Verify RG-EVAL-001 completion
 - Confirm audit entity and wrapper exist
 - Test governed entry wrapper in isolation
 
-### Phase 2: Format Detection & Routing Validators (T1, T4)
-**Authorization Required Before Starting**
+### Phase 2: Format Detection & Routing Validators — Canon Enforcement (T1, T4)
+**Authorization Required Before Starting**  
 **Deadline: 2026-01-20 (Monday)**
-- Replace implicit heuristic with SCREENPLAY_FORMAT_DETECT validator
-- Implement SCREENPLAY_ROUTE_DECISION validator
+- Replace implicit heuristic with SCREENPLAY_FORMAT_DETECT validator implementing governance inspection logic
+- Implement SCREENPLAY_ROUTE_DECISION validator implementing governance routing table
 - Remove line 24 string matching completely
-- Add confidence scoring and fallback behavior
+- Add confidence scoring per governance (≥95% logic)
+- Add governance classification taxonomy (novel_prose | hybrid_prose | rough_screenplay | formatted_screenplay)
 
 ### Phase 3: Core Governance Hooks (T2, T3, T5, T6)
-**Authorization Required Before Starting**
+**Authorization Required Before Starting**  
 **Deadline: 2026-01-27 (Monday)**
 - Wire governed entry
 - Add word count validator
 - Create audit records
 - Capture SLA metrics
 
-### Phase 4: UI Visibility (T7)
-**Authorization Required Before Starting**
+### Phase 4: UI Visibility — Canon Enforcement (T7)
+**Authorization Required Before Starting**  
 **Deadline: 2026-01-31 (Friday)**
-- Surface format detection results
+- Surface format detection results using governance taxonomy
 - Show confidence scores
-- Display routing decisions
+- Display governance-specified footer note for low confidence: "Format inferred automatically — review recommended."
 
 ### Phase 5: Evidence & Promotion
-**Authorization Required Before Starting**
+**Authorization Required Before Starting**  
 **Deadline: 2026-02-03 (Tuesday)**
 - Collect all evidence
-- Human review against Definition of VERIFIED
+- Human review against Definition of VERIFIED + SCREENPLAY_FORMATTER_GOVERNANCE.md
 - Promote to VERIFIED or iterate
 
 ---
@@ -560,8 +647,9 @@ This Epic is complete when:
 
 1. All 8 tickets marked DONE with evidence links
 2. Verification Walkthrough #3 re-run shows VERIFIED status
-3. **No implicit routing heuristics remain in codebase**
-4. ScreenplayFormatter row in Webpage Contract Matrix updated to VERIFIED
-5. No open governance incidents related to this Epic
+3. **No implicit routing heuristics remain in codebase** (governance violation eliminated)
+4. **Format detection and routing implement SCREENPLAY_FORMATTER_GOVERNANCE.md specifications**
+5. ScreenplayFormatter row in Webpage Contract Matrix updated to VERIFIED
+6. No open governance incidents related to this Epic
 
 **Until then, ScreenplayFormatter remains FAILED and release-blocked.**
