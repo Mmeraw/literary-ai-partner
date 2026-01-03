@@ -1,0 +1,299 @@
+# JIRA EPIC — GOVERNANCE REMEDIATION (MANDATORY)
+
+## Epic ID
+**RG-EVAL-002**
+
+## Epic Name
+**RevisionGrade Governance & Verification — Evaluate Surface (UploadManuscript)**
+
+## Type
+Governance-Compliance Remediation (Release-Blocking)
+
+## Status
+**Planned — BLOCKED (No Implementation Authorized)**
+
+## Target Completion
+TBD — Governance-Blocking Until VERIFIED
+
+---
+
+## Epic Purpose (Non-Negotiable)
+
+This Epic remediates governance non-compliance identified during **FUNCTION TEST #2 (UploadManuscript / Evaluate Runtime Walkthrough)**.
+
+The UploadManuscript surface currently routes to the manuscript pipeline but **bypasses the governed Evaluate chain**, violating the FUNCTION_INDEX, Webpage Contract Matrix, and Definition of VERIFIED.
+
+**This Epic exists to restore enforceable governance, not to add features or refactor behavior.**
+
+---
+
+## Governing Authority (Hierarchy — Locked)
+
+All work under this Epic is governed by, in order:
+
+1. **FUNCTION_INDEX.md** (Authoritative Registry)
+2. **Webpage Contract Matrix v1.0** (UploadManuscript row — UNVERIFIED)
+3. **Definition of VERIFIED**
+4. **GOVERNANCE_EPIC_RG-EVAL-002.md** (this Epic)
+
+If any artifact conflicts with the above, it is invalid.
+
+---
+
+## Current Compliance Status
+
+**FAILED — Governance Bypass Proven**
+
+### Evidence (from Verification Walkthrough #2)
+
+- ❌ No `governedEvaluateEntry` call
+- ❌ No EVAL_* validator execution
+- ❌ No structured audit event (EVALUATE_REQUEST_EVENT)
+- ❌ No SLA timing metrics
+- ❌ No governance canon bundle loading
+- ⚠️ File format validation incomplete
+
+---
+
+## Explicit Constraints (Must Be Restated in Jira)
+
+1. **No implementation may begin without explicit phase authorization.**
+2. **No wiring, refactoring, or runtime integration is allowed during drafting.**
+3. **Any unauthorized work triggers a GOVERNANCE_BYPASS incident ticket.**
+4. **Evidence is mandatory for all acceptance decisions.**
+
+---
+
+## Definition of VERIFIED (Acceptance Gate)
+
+UploadManuscript may be promoted to **VERIFIED** only if all conditions below are evidenced:
+
+### ✅ Routing Correct
+- `detected_format = manuscript`
+- `routed_pipeline = manuscript`
+
+### ✅ Governed Entry Enforced
+- `governedEvaluateEntry` executes before any manuscript processing
+- QA checklist enforced with halt-on-fail behavior
+
+### ✅ Validators Executed
+- All EVAL_* validators load from `EVALUATE_RULE_VALIDATOR_SLA_MAP.md`
+- Results logged (pass / soft / hard)
+
+### ✅ Audit Record Written
+- Structured EVALUATE_REQUEST_EVENT (or explicitly named, structured equivalent that contains all required fields, not free-text logs)
+- Required fields populated
+
+### ✅ SLA Timing Captured
+- `start_ms`, `end_ms`, `elapsed_ms` minimum
+- Written to audit record
+
+### ✅ Negative Path Enforced
+- Invalid uploads blocked with user-visible error
+- Validator failure evidenced
+
+**If any condition is missing → UNVERIFIED or FAILED.**
+
+---
+
+## Required Child Tickets (MANDATORY)
+
+### RG-EVAL-002-T1 — Validator Execution Hooks
+**Priority:** P0 (Blocks Verification)
+
+Implement execution of all EVAL_* validators for UploadManuscript via `evaluateFullManuscript`.
+
+**Acceptance Evidence:**
+- Logs showing validator execution with timestamps
+- Audit record includes `validators_run` / `validators_failed`
+
+---
+
+### RG-EVAL-002-T2 — Audit Event Creation
+**Priority:** P0
+
+Write structured EVALUATE_REQUEST_EVENT at evaluation start and completion.
+
+**Acceptance Evidence:**
+- Queryable audit record with required fields
+- No free-text substitution allowed
+
+---
+
+### RG-EVAL-002-T3 — SLA Timing Metrics
+**Priority:** P1
+
+Capture timing for all major evaluation operations and write to audit record.
+
+**Acceptance Evidence:**
+- `sla_metrics` object in audit record
+- `start_ms`, `end_ms`, `elapsed_ms`, `operations` array populated
+
+---
+
+### RG-EVAL-002-T4 — Governed Entry Enforcement
+**Priority:** P0
+
+Wire `governedEvaluateEntry` into UploadManuscript before any split or evaluation.
+
+**Acceptance Evidence:**
+- Logs show governed entry executes first
+- Invalid input halts flow
+- QA checklist results in audit record
+
+---
+
+### RG-EVAL-002-T5 — File Format Detection & Validation
+**Priority:** P1
+
+Validate file type, extract text, detect format, reject unsupported inputs.
+
+**Acceptance Evidence:**
+- `detected_format` field populated correctly
+- Unsupported file types rejected with clear error
+- UI shows format detection result
+
+---
+
+### RG-EVAL-002-T6 — Governance Dependency Check
+**Priority:** P0
+
+Confirm RG-EVAL-001 infrastructure dependencies (audit entity, wrapper) are complete before wiring.
+
+**Acceptance Evidence:**
+- `entities/EvaluationAuditEvent.json` exists
+- `functions/governedEvaluateEntry.js` exists and tested
+- No wiring begins until dependency confirmation
+
+---
+
+### RG-EVAL-002-T7 — Parameter Logging
+**Priority:** P2
+
+Ensure `evaluationMode`, `languageVariant`, `voicePreservation` are logged and surfaced.
+
+**Acceptance Evidence:**
+- All parameters captured in audit record
+- Parameters visible in UI feedback/confirmation
+
+---
+
+## Ticket Dependencies
+
+```
+RG-EVAL-002-T6 (Dependency Check)
+  ↓
+RG-EVAL-002-T4 (Governed Entry)
+  ↓
+RG-EVAL-002-T1 (Validators) + RG-EVAL-002-T2 (Audit) + RG-EVAL-002-T3 (SLA)
+  ↓
+RG-EVAL-002-T5 (Format Detection) + RG-EVAL-002-T7 (Parameters)
+```
+
+**Critical Path:** T6 → T4 → T1/T2/T3 (parallel) → T5/T7 (parallel)
+
+---
+
+## Incident Handling (Mandatory)
+
+Any of the following must result in a governance incident ticket:
+
+- Work begins without authorization
+- Phase sequencing violated
+- Governance hooks bypassed
+- Evidence missing at review time
+
+**Incident Type:** GOVERNANCE_BYPASS
+
+**Required Fields:**
+- Epic
+- Phase
+- Files Touched
+- Deployment Status
+- Remediation Decision
+
+**Work must pause until incident resolution.**
+
+---
+
+## Reporting Requirement (DevOps / AI Assistant)
+
+**Base44 AI Assistant must:**
+- Track this Epic in the Governance Catalogue
+- Report weekly status
+- Flag out-of-sequence or unauthorized work
+- Attach evidence links only (no judgments)
+
+**It must not:**
+- Advance phases
+- Close tickets
+- Mark VERIFIED
+
+---
+
+## Observational Testing Constraint
+
+**All verification walkthroughs must include:**
+
+> **Constraint:** Do not introduce, modify, or wire any new code while running this test. This walkthrough is strictly observational against the current runtime behavior.
+
+This prevents implementation during testing.
+
+---
+
+## Final Instruction to DevOps / Engineering
+
+**This Epic is governance-blocking.**
+
+- No code may be written, wired, or deployed until the Epic is acknowledged in Jira and Phase authorization is explicitly granted.
+- All acceptance decisions are evidence-based and human-authorized.
+- Any deviation from this process triggers immediate incident logging and work stoppage.
+
+---
+
+## Phase Execution Plan (To Be Authorized)
+
+### Phase 0: Epic Acknowledgment (Current)
+- ✅ Epic drafted
+- ⏳ Epic acknowledged in Jira
+- ⏳ All 7 tickets created with Epic link
+- ⏳ Dependencies configured
+- ⏳ Target completion date set
+
+### Phase 1: Infrastructure Dependencies (T6)
+**Authorization Required Before Starting**
+- Verify RG-EVAL-001 completion
+- Confirm audit entity and wrapper exist
+- Test governed entry wrapper in isolation
+
+### Phase 2: Core Governance Hooks (T4, T1, T2, T3)
+**Authorization Required Before Starting**
+- Wire governed entry
+- Add validator execution
+- Create audit records
+- Capture SLA metrics
+
+### Phase 3: Enhancement & Verification (T5, T7)
+**Authorization Required Before Starting**
+- Complete format detection
+- Add parameter logging
+- Run final verification walkthrough
+
+### Phase 4: Evidence & Promotion
+**Authorization Required Before Starting**
+- Collect all evidence
+- Human review against Definition of VERIFIED
+- Promote to VERIFIED or iterate
+
+---
+
+## Success Criteria
+
+This Epic is complete when:
+
+1. All 7 tickets marked DONE with evidence links
+2. Verification Walkthrough #2 re-run shows VERIFIED status
+3. UploadManuscript row in Webpage Contract Matrix updated to VERIFIED
+4. No open governance incidents related to this Epic
+
+**Until then, UploadManuscript remains FAILED and release-blocked.**
