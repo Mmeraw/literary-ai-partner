@@ -283,7 +283,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="vs-human">
+                                <AccordionItem value="vs-human" className={filteredMatches && !filteredMatches.includes('vs-human') ? 'hidden' : ''}>
                                     <AccordionTrigger>
                                         Does RevisionGrade replace human editors?
                                     </AccordionTrigger>
@@ -310,7 +310,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="write-rewrite">
+                                <AccordionItem value="write-rewrite" className={filteredMatches && !filteredMatches.includes('write-rewrite') ? 'hidden' : ''}>
                                     <AccordionTrigger>
                                         Does RevisionGrade write or rewrite my book?
                                     </AccordionTrigger>
@@ -335,7 +335,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="what-it-does">
+                                <AccordionItem value="what-it-does" className={filteredMatches && !filteredMatches.includes('what-it-does') ? 'hidden' : ''}>
                                     <AccordionTrigger>
                                         What RevisionGrade™ does — and does not — do
                                     </AccordionTrigger>
@@ -367,7 +367,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="editorial-memory">
+                                <AccordionItem value="editorial-memory" className={filteredMatches && !filteredMatches.includes('editorial-memory') ? 'hidden' : ''}>
                                     <AccordionTrigger>
                                         What is Editorial Growth Tracking? (Why this is a game-changer)
                                     </AccordionTrigger>
@@ -402,7 +402,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="vs-other-ai">
+                                <AccordionItem value="vs-other-ai" className={filteredMatches && !filteredMatches.includes('vs-other-ai') ? 'hidden' : ''}>
                                     <AccordionTrigger>
                                         How is this different from ChatGPT or other AI writing tools?
                                     </AccordionTrigger>
@@ -426,7 +426,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="few-ai-systems">
+                                <AccordionItem value="few-ai-systems" className={filteredMatches && !filteredMatches.includes('few-ai-systems') ? 'hidden' : ''}>
                                     <AccordionTrigger>
                                         Why does RevisionGrade use only a few AI systems?
                                     </AccordionTrigger>
@@ -447,7 +447,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="comparison-methodology">
+                                <AccordionItem value="comparison-methodology" className={filteredMatches && !filteredMatches.includes('comparison-methodology') ? 'hidden' : ''}>
                                     <AccordionTrigger>
                                         How does RevisionGrade evaluate my manuscript against published novels if it hasn't read every book?
                                     </AccordionTrigger>
@@ -485,7 +485,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="accuracy">
+                                <AccordionItem value="accuracy" className={filteredMatches && !filteredMatches.includes('accuracy') ? 'hidden' : ''}>
                                     <AccordionTrigger>
                                         How accurate are the evaluations?
                                     </AccordionTrigger>
@@ -524,8 +524,8 @@ export default function FAQ() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Accordion type="single" collapsible className="w-full">
-                                <AccordionItem value="automated-system">
+                            <Accordion type="single" collapsible className="w-full" value={defaultOpen}>
+                                <AccordionItem value="automated-system" className={filteredMatches && !filteredMatches.includes('automated-system') ? 'hidden' : ''}>
                                     <AccordionTrigger data-faq-trigger data-faq-value="automated-system">
                                         Is RevisionGrade fully automated?
                                     </AccordionTrigger>
@@ -548,7 +548,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="who-sees-work">
+                                <AccordionItem value="who-sees-work" className={filteredMatches && !filteredMatches.includes('who-sees-work') ? 'hidden' : ''}>
                                     <AccordionTrigger data-faq-trigger data-faq-value="who-sees-work">
                                         Who sees my work?
                                     </AccordionTrigger>
@@ -572,7 +572,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="storygate-exception">
+                                <AccordionItem value="storygate-exception" className={filteredMatches && !filteredMatches.includes('storygate-exception') ? 'hidden' : ''}>
                                     <AccordionTrigger data-faq-trigger data-faq-value="storygate-exception">
                                         What about Storygate Studio?
                                     </AccordionTrigger>
@@ -605,8 +605,8 @@ export default function FAQ() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Accordion type="single" collapsible className="w-full">
-                                <AccordionItem value="content-privacy">
+                            <Accordion type="single" collapsible className="w-full" value={defaultOpen}>
+                                <AccordionItem value="content-privacy" className={filteredMatches && !filteredMatches.includes('content-privacy') ? 'hidden' : ''}>
                                     <AccordionTrigger data-faq-trigger data-faq-value="content-privacy">
                                         Can staff access my manuscripts?
                                     </AccordionTrigger>
@@ -627,7 +627,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="data-usage">
+                                <AccordionItem value="data-usage" className={filteredMatches && !filteredMatches.includes('data-usage') ? 'hidden' : ''}>
                                     <AccordionTrigger data-faq-trigger data-faq-value="data-usage">
                                         How is my data used?
                                     </AccordionTrigger>
@@ -648,7 +648,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="why-automated">
+                                <AccordionItem value="why-automated" className={filteredMatches && !filteredMatches.includes('why-automated') ? 'hidden' : ''}>
                                     <AccordionTrigger data-faq-trigger data-faq-value="why-automated">
                                         Why is automation important?
                                     </AccordionTrigger>
