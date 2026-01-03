@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import TransgressiveModeSelector from '@/components/evaluation/TransgressiveModeSelector';
+import VoicePreservationToggle from '@/components/VoicePreservationToggle';
 import RichTextEditor from '@/components/RichTextEditor';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -16,6 +17,7 @@ export default function ScreenplayFormatter() {
     const [inputText, setInputText] = useState(sessionStorage.getItem('uploadedText') || '');
     const [formattedText, setFormattedText] = useState('');
     const [evaluationMode, setEvaluationMode] = useState('standard');
+    const [voicePreservation, setVoicePreservation] = useState('balanced');
     const [isFormatting, setIsFormatting] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -129,11 +131,19 @@ export default function ScreenplayFormatter() {
                                             <ChevronDown className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
                                         </Button>
                                     </CollapsibleTrigger>
-                                    <CollapsibleContent className="mt-3 p-4 rounded-xl bg-white border border-slate-200">
-                                        <TransgressiveModeSelector 
-                                            value={evaluationMode}
-                                            onChange={setEvaluationMode}
-                                        />
+                                    <CollapsibleContent className="mt-3 space-y-4">
+                                        <div className="p-4 rounded-xl bg-white border border-slate-200">
+                                            <TransgressiveModeSelector 
+                                                value={evaluationMode}
+                                                onChange={setEvaluationMode}
+                                            />
+                                        </div>
+                                        <div className="p-4 rounded-xl bg-white border border-slate-200">
+                                            <VoicePreservationToggle 
+                                                value={voicePreservation}
+                                                onChange={setVoicePreservation}
+                                            />
+                                        </div>
                                     </CollapsibleContent>
                                 </Collapsible>
                             </div>
