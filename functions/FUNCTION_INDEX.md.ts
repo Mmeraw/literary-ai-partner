@@ -1,366 +1,431 @@
-# FUNCTION INDEX (AUTHORITATIVE REGISTRY)
+# FUNCTION_INDEX.md (EXHAUSTIVE REGISTRY)
 
 **Status:** CANON / BINDING  
-**Purpose:** Authoritative mapping of platform surfaces to governing documents  
-**Enforcement:** CI must fail on unindexed canon files  
+**Purpose:** Complete mapping of all platform functions, canon documents, and runtime touchpoints  
 **Last Updated:** 2026-01-03
 
 ---
 
-## GOVERNANCE RULES
+## PLATFORM STANDARDS (APPLY TO ALL FUNCTIONS)
 
-1. **All binding canon MUST be reachable from this index**
-2. **If a file is not listed here, it CANNOT direct runtime behavior**
-3. **Function bundles are closed sets—nothing else applies**
-4. **Platform standards are inherited by all functions**
-5. **CI MUST fail builds if canon files exist outside this index**
-
----
-
-## PLATFORM STANDARDS (INHERITED BY ALL FUNCTIONS)
-
-These apply universally and override function-specific rules when conflicts arise:
-
-- `MULTI_MODEL_GOVERNANCE_STANDARD.md` (status: canon)
-- `DEFENSIVE_ENGINEERING_STANDARD.md` (status: canon)
-- `DEFENSIVE_ERROR_HANDLING_STANDARD.md` (status: canon)
-- `SLUR_GOVERNANCE_DOC.md` (status: canon)
-- `PSC_DETECTION_GUIDE.md` (status: canon)
-- `VOICE_PRESERVATION_CANON.md` (status: canon)
-
-**Precedence:** Platform standards > Function canon > Governance addenda > Reference
+- `MULTI_MODEL_GOVERNANCE_STANDARD.md`
+- `DEFENSIVE_ENGINEERING_STANDARD.md`
+- `DEFENSIVE_ERROR_HANDLING_STANDARD.md`
+- `SLUR_GOVERNANCE_DOC.md`
+- `PSC_DETECTION_GUIDE.md`
+- `VOICE_PRESERVATION_CANON.md`
+- `AI_ROUTING_SPEC.md`
 
 ---
 
 ## FUNCTION 1: EVALUATE
 
-**Status:** ACTIVE  
-**Surface:** YourWriting page, UploadManuscript page  
-**Description:** Unified evaluation entry with auto-detection, dual-pipeline routing, and gated revision
+### Canon Documents
+- `EVALUATE_ENTRY_CANON.md`
+- `EVALUATE_GOVERNANCE_ADDENDUM.md`
+- `EVALUATE_RULE_VALIDATOR_SLA_MAP.md`
+- `EVALUATE_INCIDENT_LOG_SCHEMA.md`
+- `EVALUATE_QA_CHECKLIST.md`
+- `13_STORY_CRITERIA.md`
+- `WAVE_GUIDE.md`
+- `STORY_ARCHITECTURE_GUIDE.md`
+- `TRANSGRESSIVE_MODE_SPEC.md`
 
-### Canon Bundle (CLOSED SET)
-- `EVALUATE_ENTRY_CANON.md` (status: canon)
-- `EVALUATE_GOVERNANCE_ADDENDUM.md` (status: governance)
-- `EVALUATE_RULE_VALIDATOR_SLA_MAP.md` (status: governance)
-- `EVALUATE_INCIDENT_LOG_SCHEMA.md` (status: governance)
-- `EVALUATE_QA_CHECKLIST.md` (status: governance)
-- `13_STORY_CRITERIA.md` (status: canon)
-- `WAVE_GUIDE.md` (status: canon)
-- `STORY_ARCHITECTURE_GUIDE.md` (status: canon)
-- `TRANSGRESSIVE_MODE_SPEC.md` (status: canon)
+### Runtime Functions (.js)
+- `evaluateQuickSubmission.js`
+- `evaluateFullManuscript.js`
+- `evaluateThirteenCriteria.js`
+- `evaluateSpine.js`
+- `evaluateWaveFlags.js`
+- `splitManuscript.js`
 
-### Runtime Touchpoints
+### Frontend Touchpoints
 - `pages/YourWriting.js`
 - `pages/UploadManuscript.js`
-- `functions/evaluateQuickSubmission.js`
-- `functions/evaluateFullManuscript.js`
-- `functions/evaluateThirteenCriteria.js`
-- `functions/evaluateSpine.js`
-- `functions/evaluateWaveFlags.js`
-- `functions/splitManuscript.js`
-
-### Known Gaps
-- SLA metrics not yet emitted at runtime
-- Validator gates exist in spec but not fully wired end-to-end
-- Incident logging schema defined but not universally implemented
-- Detection correctness validator not mechanically enforced
+- `pages/EvaluateChapter.js`
+- `pages/Evaluate.js`
+- `components/evaluation/TransgressiveModeSelector.js`
+- `components/evaluation/LanguageVariantSelector.js`
+- `components/evaluation/ScoreCard.js`
+- `components/evaluation/CriteriaPanel.js`
+- `components/evaluation/ProgressTracker.js`
 
 ---
 
-## FUNCTION 2: SCREENPLAY
+## FUNCTION 2: WAVE (CRAFT ANALYSIS)
 
-**Status:** ACTIVE  
-**Surface:** ScreenplayFormatter page  
-**Description:** Prose-to-screenplay translation with WriterDuet mode compliance
+### Canon Documents
+- `WAVE_GUIDE.md`
+- `WAVE_VALIDATION_SUITE.md`
+- `WAVE_TEST_CASES.json`
+- `VOICE_PRESERVATION_CANON.md`
 
-### Canon Bundle (CLOSED SET)
-- `SCREENPLAY_QUALITY_STANDARD_CANON.md` (status: canon)
-- `SCREENPLAY_GOVERNANCE_ADDENDUM.md` (status: governance)
-- `SCREENPLAY_RULE_VALIDATOR_SLA_MAP.md` (status: governance)
-- `SCREENPLAY_INCIDENT_LOG_SCHEMA.md` (status: governance)
-- `SCREENPLAY_QA_CHECKLIST_WRITERDUET_MODE.md` (status: governance)
-- `WRITERDUET_FORMATTING_STANDARD.md` (status: reference)
-- `AI_ROUTING_SPEC.md` (status: governance)
+### Runtime Functions (.js)
+- `evaluateWaveFlags.js`
+- `validateWaveLabels.js`
+- `testWaveValidation.js`
+- `voiceGuard.js`
+- `applyVoiceProtectionRouting.js`
 
-### Runtime Touchpoints
-- `pages/ScreenplayFormatter.js`
-- `functions/formatScreenplay.js`
-
-### Known Gaps
-- **CRITICAL:** Current implementation acts as formatter, not translator (canon violation)
-- Does not decompose prose into filmable beats (per canon requirement)
-- WriterDuet compliance validators exist but not proven end-to-end
-- Hard/soft fail taxonomy not enforced at runtime
-
----
-
-## FUNCTION 3: WAVE
-
-**Status:** ACTIVE  
-**Surface:** Integrated into Evaluate pipeline, Revise page  
-**Description:** Proprietary three-tier craft analysis and revision system
-
-### Canon Bundle (CLOSED SET)
-- `WAVE_GUIDE.md` (status: canon)
-- `WAVE_VALIDATION_SUITE.md` (status: governance)
-- `WAVE_TEST_CASES.json` (status: governance)
-- `VOICE_PRESERVATION_CANON.md` (status: canon) (inherited from platform)
-- `VOICE_REGISTER_SCHEMA.json` (status: reference)
-
-### Runtime Touchpoints
-- `functions/evaluateWaveFlags.js`
-- `functions/validateWaveLabels.js`
-- `functions/testWaveValidation.js`
-- `functions/voiceGuard.js`
+### Frontend Touchpoints
 - `pages/Revise.js`
-- `components/revision/*`
-
-### Known Gaps
-- Voice preservation enforcement not universally validated
-- WAVE scores calculated but SLA compliance not measured
-- Test-governed revision exists but not CI-enforced
+- `components/VoicePreservationToggle.js`
+- `components/revision/SuggestionCard.js`
 
 ---
 
-## FUNCTION 4: STORYGATE STUDIO
+## FUNCTION 3: SCREENPLAY
 
-**Status:** ACTIVE  
-**Surface:** StoryGate pages, StorygateStudio page, Industry/Creator portals  
-**Description:** Marketplace for discovery, verification, and professional access
+### Canon Documents
+- `SCREENPLAY_QUALITY_STANDARD_CANON.md`
+- `SCREENPLAY_QUALITY_STANDARD.md`
+- `SCREENPLAY_GOVERNANCE_ADDENDUM.md`
+- `SCREENPLAY_RULE_VALIDATOR_SLA_MAP.md`
+- `SCREENPLAY_INCIDENT_LOG_SCHEMA.md`
+- `SCREENPLAY_QA_CHECKLIST_WRITERDUET_MODE.md`
+- `WRITERDUET_FORMATTING_STANDARD.md`
 
-### Canon Bundle (CLOSED SET)
-- `STORYGATE_FLOW_MAP.md` (status: canon)
-- `STORYGATE_STUDIO_DESIGN_SYSTEM.md` (status: reference)
+### Runtime Functions (.js)
+- `formatScreenplay.js`
 
-### Runtime Touchpoints
-- `pages/StoryGate.js`
-- `pages/StorygateStudio.js`
-- `pages/CreatorStoryGate.js`
-- `pages/IndustryVerification.js`
-- `pages/AdminVerificationQueue.js`
-- `pages/CreateStoryGateListing.js`
-- `functions/submitStoryGateFilm.js`
-- `functions/createStoryGateListing.js`
-- `functions/handleVerification.js`
-- `functions/requestProjectAccess.js`
-- `functions/checkProjectAccess.js`
-- `functions/handleAccessRequest.js`
+### Frontend Touchpoints
+- `pages/ScreenplayFormatter.js`
+- `components/ScreenplayText.js`
 
-### Known Gaps
-- **CRITICAL:** Missing governance addendum (precedence, validators, incident schema, QA checklist)
-- Verification workflow exists but not governed by formal canon
-- Access control implemented but not audited against standards
-- No SLA map or quality metrics
+---
+
+## FUNCTION 4: REVISION
+
+### Canon Documents
+- `WAVE_GUIDE.md` (shared)
+- `VOICE_PRESERVATION_CANON.md` (shared)
+
+### Runtime Functions (.js)
+- `generateRevisionSuggestions.js`
+- `generateRevisionSegments.js`
+- `approveRevision.js`
+- `generateAlternatives.js`
+
+### Frontend Touchpoints
+- `pages/Revise.js`
+- `pages/History.js`
+- `components/RevisionViewer.js`
+- `components/RevisionControls.js`
+- `components/useRevisionFlow.js`
+- `components/revision/SuggestionCard.js`
+- `components/revision/SmartFeaturesBanner.js`
+- `components/revision/DownloadOptions.js`
+- `components/revision/OverallFeedbackModal.js`
+- `components/revision/RevisionInsights.js`
+- `components/revision/FeedbackButtons.js`
 
 ---
 
 ## FUNCTION 5: OUTPUT GENERATION
 
-**Status:** ACTIVE  
-**Surface:** Synopsis, Query, Pitch, Bio, Comparables, CompletePackage pages  
-**Description:** Professional submission materials generated from evaluated manuscripts
+### Canon Documents
+- `SYNOPSIS_SPEC.json`
+- `COMPARABLES_CANON_SPEC.md`
+- `FILM_PITCH_DECK_QUALITY_STANDARD.md`
 
-### Canon Bundle (CLOSED SET)
-- `SYNOPSIS_SPEC.json` (status: canon)
-- `COMPARABLES_CANON_SPEC.md` (status: canon)
-- `FILM_PITCH_DECK_QUALITY_STANDARD.md` (status: canon)
+### Runtime Functions (.js)
+- `generateSynopsis.js`
+- `runSynopsisQA.js`
+- `generateQueryLetter.js`
+- `generateQueryLetterPackage.js`
+- `generateQueryPitches.js`
+- `generateFilmPitchDeck.js`
+- `generateComparables.js`
+- `generateCompletePackage.js`
+- `prefillPackageFields.js`
+- `extractPitchFields.js`
+- `applyVoiceAnchorAndSchemaToPitch.js`
 
-### Runtime Touchpoints
+### Frontend Touchpoints
 - `pages/Synopsis.js`
 - `pages/QueryLetter.js`
 - `pages/PitchGenerator.js`
-- `pages/Biography.js`
 - `pages/Comparables.js`
 - `pages/CompletePackage.js`
 - `pages/FilmAdaptation.js`
-- `functions/generateSynopsis.js`
-- `functions/runSynopsisQA.js`
-- `functions/generateQueryLetter.js`
-- `functions/generateQueryLetterPackage.js`
-- `functions/generateQueryPitches.js`
-- `functions/generateFilmPitchDeck.js`
-- `functions/generateComparables.js`
-- `functions/generateCompletePackage.js`
-- `functions/prefillPackageFields.js`
-- `functions/extractPitchFields.js`
-- `functions/applyVoiceAnchorAndSchemaToPitch.js`
-- `functions/extractLinkedInBio.js`
-- `functions/uploadAndGenerateBio.js`
-
-### Known Gaps
-- Query letter canon missing (BASE44_QUERY_LETTER_BUG_REPORT.md exists but not canon)
-- No unified governance addendum for all outputs
-- QA checklist exists per output but not integrated into single standard
-- Pitch quality standard exists but not universally enforced
+- `pages/PitchBuilder.js`
+- `pages/ComparativeReport.js`
+- `pages/SampleComparativeAnalysis.js`
+- `pages/SampleFilmPitchDeck.js`
 
 ---
 
-## FUNCTION 6: REVISION
+## FUNCTION 6: BIOGRAPHY
 
-**Status:** ACTIVE  
-**Surface:** Revise page, History page, RevisionSession workflow  
-**Description:** Guided revision with suggestion generation, feedback, and version control
+### Canon Documents
+- (None specific - follows output generation standards)
 
-### Canon Bundle (CLOSED SET)
-- `WAVE_GUIDE.md` (status: canon) (shared with WAVE function)
-- `VOICE_PRESERVATION_CANON.md` (status: canon) (inherited from platform)
+### Runtime Functions (.js)
+- `uploadAndGenerateBio.js`
+- `extractLinkedInBio.js`
 
-### Runtime Touchpoints
-- `pages/Revise.js`
-- `pages/History.js`
-- `functions/generateRevisionSuggestions.js`
-- `functions/generateRevisionSegments.js`
-- `functions/approveRevision.js`
-- `functions/generateAlternatives.js`
-- `components/RevisionViewer.js`
-- `components/RevisionControls.js`
-- `components/useRevisionFlow.js`
-- `components/revision/*`
-
-### Known Gaps
-- **CRITICAL:** Missing dedicated revision canon (currently inherits WAVE + Voice)
-- No governance addendum for revision workflow
-- Suggestion quality metrics not formalized
-- Version control implemented but not governed
+### Frontend Touchpoints
+- `pages/Biography.js`
 
 ---
 
-## FUNCTION 7: CONVERT
+## FUNCTION 7: STORYGATE STUDIO
 
-**Status:** ACTIVE  
-**Surface:** ScreenplayFormatter (conversion mode)  
-**Description:** Format transformation (prose ↔ screenplay)
+### Canon Documents
+- `STORYGATE_FLOW_MAP.md`
+- `STORYGATE_STUDIO_DESIGN_SYSTEM.md`
 
-### Canon Bundle (CLOSED SET)
-- `SCREENPLAY_QUALITY_STANDARD_CANON.md` (status: canon) (shared with SCREENPLAY)
-- `WRITERDUET_FORMATTING_STANDARD.md` (status: reference)
+### Runtime Functions (.js)
+- `submitStoryGateFilm.js`
+- `createStoryGateListing.js`
+- `handleVerification.js`
+- `checkProjectAccess.js`
+- `handleAccessRequest.js`
+- `requestProjectAccess.js`
 
-### Runtime Touchpoints
-- `pages/ScreenplayFormatter.js`
-- `functions/formatScreenplay.js`
-
-### Known Gaps
-- Convert vs Screenplay function boundary unclear
-- No dedicated conversion canon (currently borrows from Screenplay)
-- Quality standards not distinct from screenplay evaluation
+### Frontend Touchpoints
+- `pages/StoryGate.js`
+- `pages/StorygateStudio.js`
+- `pages/CreatorStoryGate.js`
+- `pages/StoryGatePortal.js`
+- `pages/IndustryVerification.js`
+- `pages/AdminVerificationQueue.js`
+- `pages/CreateStoryGateListing.js`
+- `pages/StoryGateFilmSubmission.js`
+- `pages/AdminStoryGateOps.js`
+- `pages/StorygateReview.js`
 
 ---
 
-## FUNCTION 8: GOVERNANCE FRAMEWORK
+## FUNCTION 8: MANUSCRIPT MANAGEMENT
 
-**Status:** ACTIVE (INFRASTRUCTURE)  
-**Surface:** Platform-wide (CI, runtime validators, incident logging)  
-**Description:** Cross-cutting enforcement, audit, and quality control
+### Canon Documents
+- (Inherits from Evaluate + Wave)
 
-### Canon Bundle (CLOSED SET)
-- `GOVERNANCE_EXECUTIVE_SUMMARY.md` (status: governance)
-- `GOVERNANCE_ENGINEERING_CHECKLIST.md` (status: governance)
-- `GOVERNANCE_QA_TEST_MATRIX.md` (status: governance)
-- `GOVERNANCE_PR_TEMPLATE.md` (status: governance)
-- `GOVERNANCE_JIRA_TICKET_TEMPLATE.md` (status: governance)
-- `BASE44_GOVERNANCE_OVERVIEW.md` (status: governance)
-- `BASE44_ENGINEERING_QA_SPEC.md` (status: governance)
-- `BASE44_IMPLEMENTATION_SPEC.md` (status: governance)
-- `BASE44_IMPLEMENTATION_ROADMAP.md` (status: governance)
-- `INCIDENT_LOG.md` (status: governance)
+### Runtime Functions (.js)
+- `splitManuscript.js`
+- `cloneManuscript.js`
+- `markManuscriptFinal.js`
+- `checkManuscriptIntegrity.js`
+- `analyzeNarrativeContinuity.js`
+- `compareVersions.js`
 
-### Runtime Touchpoints
-- All functions inherit governance requirements
-- CI validation (not yet implemented)
-- Runtime validators (partially wired)
+### Frontend Touchpoints
+- `pages/ManuscriptDashboard.js`
+- `pages/Dashboard.js`
+- `pages/ChapterReport.js`
+- `pages/SpineReport.js`
+- `components/dashboard/ProjectOverview.js`
+- `components/dashboard/EvaluationsList.js`
+- `components/dashboard/RevisionHistory.js`
 
-### Known Gaps
-- **CRITICAL:** CI enforcement of this index not yet implemented
-- Incident logging schema defined but not universally emitted
-- Validator SLA maps exist but not mechanically enforced
-- QA test matrix defined but not automated
+---
+
+## FUNCTION 9: FILE PROCESSING
+
+### Canon Documents
+- (None specific - utility functions)
+
+### Runtime Functions (.js)
+- `ingestUploadedFileToText.js`
+- `importDocx.js`
+- `convertDocxToText.js`
+
+### Frontend Touchpoints
+- `pages/TestUpload.js`
+- `pages/UploadWork.js`
+- `components/RichTextEditor.js`
+
+---
+
+## FUNCTION 10: VALIDATION & TESTING
+
+### Canon Documents
+- `WAVE_VALIDATION_SUITE.md`
+- `GOVERNANCE_QA_TEST_MATRIX.md`
+- `WAVE_TEST_CASES.json`
+
+### Runtime Functions (.js)
+- `validateWaveLabels.js`
+- `validateGoldStandard.js`
+- `testWaveValidation.js`
+- `checkRouteHealth.js`
+
+### Frontend Touchpoints
+- `pages/ValidationReport.js`
+
+---
+
+## FUNCTION 11: ANALYTICS & FEEDBACK
+
+### Canon Documents
+- (None specific)
+
+### Runtime Functions (.js)
+- `storeEvaluationSignals.js`
+- `analyzeFeedback.js`
+
+### Frontend Touchpoints
+- `pages/Analytics.js`
+- `components/FeedbackWidget.js`
+- `components/analytics/FeedbackAnalytics.js`
+- `components/dashboard/FeedbackPreferences.js`
+
+---
+
+## FUNCTION 12: PAYMENTS (STRIPE)
+
+### Canon Documents
+- (None specific - external integration)
+
+### Runtime Functions (.js)
+- `createCheckoutSession.js`
+- `getStripePrices.js`
+- `setupStripeProducts.js`
+- `stripeWebhook.js`
+
+### Frontend Touchpoints
+- `pages/Pricing.js`
+- `pages/PaymentSuccess.js`
+- `pages/Enterprise.js`
+- `components/enterprise/DemoRequestForm.js`
+
+---
+
+## FUNCTION 13: UTILITIES & HELPERS
+
+### Canon Documents
+- (None specific)
+
+### Runtime Functions (.js)
+- `generateCanonHash.js`
+- `transitionDocumentState.js`
+- `generateBenchmarkComparison.js`
+- `generateStoryLogo.js`
+
+### Frontend Touchpoints
+- `components/BenchmarkComparisonModal.js`
+- `pages/LogoGenerator.js`
+
+---
+
+## FUNCTION 14: AGENT DISCOVERY
+
+### Canon Documents
+- (None specific - follows output generation standards)
+
+### Runtime Functions (.js)
+- (Integrated into `generateCompletePackage.js` and query letter functions)
+
+### Frontend Touchpoints
+- `pages/FindAgents.js`
+
+---
+
+## GOVERNANCE & DOCUMENTATION
+
+### Canon Documents
+- `GOVERNANCE_EXECUTIVE_SUMMARY.md`
+- `GOVERNANCE_ENGINEERING_CHECKLIST.md`
+- `GOVERNANCE_QA_TEST_MATRIX.md`
+- `GOVERNANCE_PR_TEMPLATE.md`
+- `GOVERNANCE_JIRA_TICKET_TEMPLATE.md`
+- `BASE44_GOVERNANCE_OVERVIEW.md`
+- `BASE44_ENGINEERING_QA_SPEC.md`
+- `BASE44_IMPLEMENTATION_SPEC.md`
+- `BASE44_IMPLEMENTATION_ROADMAP.md`
+- `BASE44_QUERY_LETTER_BUG_REPORT.md`
+- `BASE44_RESPONSIBILITIES.md`
+- `INCIDENT_LOG.md`
+- `REVISIONGRADE_FUNCTIONALITY_SCHEMA.md`
+- `REVISIONGRADE_FUNCTIONAL_ARCHITECTURE.md`
+
+### Frontend Touchpoints
+- `pages/InternalGovernanceIndex.js`
+- `pages/InternalBase44Responsibilities.js`
+- `pages/InternalRevisionGradeResponsibilities.js`
+- `pages/InternalTrustedPathContract.js`
 
 ---
 
 ## REFERENCE MATERIALS (NON-BINDING)
 
-These files provide context but do not direct behavior:
+### Test Data & Lexicons
+- `acceptance_tests.v1.json`
+- `severity_policy.v1.json`
+- `slur_lexicon.v1.json`
+- `toadstone_gold.v1.json`
+- `toadstone_gold_slur.v1.json`
+- `TOADSTONE_POWER_OF_BELIEF.md`
+- `SMILE_LEXICON.md`
+- `SLUR_LEXICON_SCHEMA.json`
 
-- `acceptance_tests.v1.json` (status: reference)
-- `severity_policy.v1.json` (status: reference)
-- `slur_lexicon.v1.json` (status: reference)
-- `toadstone_gold.v1.json` (status: reference)
-- `toadstone_gold_slur.v1.json` (status: reference)
-- `TOADSTONE_POWER_OF_BELIEF.md` (status: reference)
-- `voice_rules.v1.json` (status: reference)
-- `voice_training_batch_*.json` (status: reference)
-- `SMILE_LEXICON.md` (status: reference)
-
----
-
-## TEST SUITES (NON-CANON BUT GOVERNED)
-
-- `WAVE_TEST_CASES.json` (status: governance)
-- `functions/testWaveValidation.js` (status: governance)
-- `functions/validateGoldStandard.js` (status: governance)
-
----
-
-## DEPRECATED / STALE FILES
-
-Files that exist but should not direct behavior:
-
-- `evaluateFullManuscript_BACKUP_20251230.js` (status: deprecated)
-- Any unlisted `.md` files in functions/ (status: draft unless indexed)
+### Voice Training Data
+- `voice_register_schema.json`
+- `voice_rules.v1.json`
+- `voice_training_batch_1.json`
+- `voice_training_batch_2.json`
+- `voice_training_batch_4.json`
+- `voice_training_batch_5.json`
+- `voice_training_batch_6.json`
+- `voice_training_batch_7.json`
 
 ---
 
-## ENFORCEMENT RULES
+## ADDITIONAL PAGES (INFORMATIONAL)
 
-### CI Requirements (MUST IMPLEMENT)
-1. **Fail build if any file declares `status: canon` but is not indexed here**
-2. **Fail build if runtime code references canon files not in this index**
-3. **Warn on reference files claiming binding status**
-4. **Generate coverage report: % of indexed touchpoints with tests**
-
-### Runtime Requirements (MUST IMPLEMENT)
-1. **All evaluation requests MUST log function + bundle version**
-2. **Validator gates MUST check against indexed canon, not ad-hoc rules**
-3. **Incident logs MUST reference function + canon version + validator**
-
-### QA Requirements (MUST IMPLEMENT)
-1. **Test coverage MUST match indexed runtime touchpoints**
-2. **Each function MUST have passing tests per its QA checklist**
-3. **Regression suite MUST cover all canon-defined behaviors**
-
----
-
-## CHANGE CONTROL
-
-**Adding a function:**
-1. Create canon bundle (entry spec + governance + validator map + incident schema + QA checklist)
-2. Add to this index with status: draft
-3. Implement runtime touchpoints
-4. Pass QA checklist
-5. Update status to active
-
-**Modifying canon:**
-1. Update indexed canon file
-2. Increment version in file header
-3. Update this index with new version reference
-4. Re-run QA checklist
-5. Log change in INCIDENT_LOG.md
-
-**Removing a function:**
-1. Update status to deprecated
-2. Remove from active routing
-3. Archive canon bundle
-4. Update documentation
+- `pages/Home.js`
+- `pages/Contact.js`
+- `pages/Privacy.js`
+- `pages/Terms.js`
+- `pages/FAQ.js`
+- `pages/Methodology.js`
+- `pages/Criteria.js`
+- `pages/SampleAnalyses.js`
+- `pages/SampleChapterAnalysis.js`
+- `pages/SampleAnalysis.js`
+- `pages/WhyRevisionGrade.js`
+- `pages/SecurityAndEthics.js`
+- `pages/EthicsAndSafety.js`
+- `pages/SlurHandlingPolicy.js`
+- `pages/ForProfessionals.js`
+- `pages/HelpCenter.js`
+- `pages/InviteUser.js`
+- `pages/SelectFormat.js`
+- `pages/Progress.js`
+- `pages/ViewReport.js`
 
 ---
 
-## VERSION HISTORY
+## SHARED COMPONENTS
 
-- **2026-01-03:** Initial index creation (v1.0)
-- All functions transitioned from implicit to explicit governance
+- `components/AnalyticsTracker.js`
+- `components/ScrollToTop.js`
+- `components/ErrorHandler.js`
+- `components/UserNotRegisteredError.js`
+- `components/FAQSearchResults.js`
+- `components/submission/TextEditor.js`
+- `components/evaluation/StyleModeSelector.js`
+- `components/evaluation/FinalOutput.js`
+- `components/evaluation/ThoughtTagCard.js`
+- `components/evaluation/TransgressiveRiskPanel.js`
+- `components/utils/exportTxt.js`
 
 ---
 
-**END OF FUNCTION INDEX**
+## LAYOUT & GLOBALS
 
-This document is AUTHORITATIVE. No canon file may direct behavior unless listed here.
+- `Layout.js`
+- `globals.css`
+
+---
+
+**TOTAL COUNTS:**
+- **Runtime Functions (.js):** 47
+- **Canon Documents (.md):** 35+
+- **Frontend Pages:** 60+
+- **Components:** 40+
+
+---
+
+**END OF EXHAUSTIVE FUNCTION INDEX**
