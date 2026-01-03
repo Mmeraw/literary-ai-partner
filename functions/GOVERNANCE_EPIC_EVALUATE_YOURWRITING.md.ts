@@ -4,7 +4,8 @@
 **Epic Name:** RevisionGrade Governance & Verification – Evaluate Surface (YourWriting)  
 **Type:** Governance-Compliance Remediation  
 **Status:** Not Started  
-**Created:** 2026-01-03
+**Created:** 2026-01-03  
+**Target Completion:** 2026-01-20 (Governance-Blocking Release Gate)
 
 ---
 
@@ -314,6 +315,23 @@ Required:
 
 ---
 
+## Ticket Dependencies (Jira Blockers)
+
+**Infrastructure Prerequisites (Must Complete First):**
+- T2 (Audit Event Entity) BLOCKS → T1, T3, T4, T5, T7
+- T6 (Governed Entry Wrapper) BLOCKS → T1, T4, T5
+
+**Normalization Prerequisites:**
+- T4 (Refactor evaluateQuickSubmission) BLOCKS → T1, T3
+- T5 (Refactor evaluateFullManuscript) BLOCKS → T1, T3
+
+**Dependency Rationale:**
+- Audit event entity must exist before validators/SLA can write to it
+- Governed entry wrapper must exist before functions can call it
+- Refactored functions must exist before instrumentation hooks can be added
+
+---
+
 ## Implementation Sequence (Post-Ticket Agreement)
 
 **Phase 1: Infrastructure** (Tickets T2, T6)
@@ -340,18 +358,28 @@ Required:
 
 Epic is COMPLETE when:
 - [ ] All 7 child tickets are DONE
-- [ ] Verification Walkthrough #1 rerun shows VERIFIED status
-- [ ] Webpage Contract Matrix updated: YourWriting row = VERIFIED
-- [ ] Evidence artifacts committed to repository
+- [ ] All verification evidence (logs, audit records, screenshots) retained and linked in relevant Jira tickets and/or committed to repository
+- [ ] Verification Walkthrough #1 rerun executed with evidence collected
+- [ ] Verification Walkthrough #1 shows VERIFIED status (not PARTIALLY VERIFIED or FAILED)
+- [ ] Webpage Contract Matrix updated: YourWriting row = VERIFIED with evidence links attached
+- [ ] **Phase-4 Gate:** Evidence package includes:
+  - UI screenshots (before submit + results page)
+  - Logs/traces showing function chain (evaluateQuickSubmission or evaluateFullManuscript → evaluateThirteenCriteria + evaluateSpine + evaluateWaveFlags)
+  - Validator execution evidence (EVAL_* validators run with pass/soft/hard + timing)
+  - EVALUATE_REQUEST_EVENT audit record with all required fields
+  - SLA metrics captured and logged
 
 **No implementation begins until:**
 - [ ] All 7 tickets exist in Jira with Epic link
 - [ ] All tickets reference Definition of VERIFIED in acceptance criteria
 - [ ] All tickets link to FUNCTION_INDEX.md and Webpage Contract Matrix v1.0
+- [ ] Ticket dependencies configured in Jira (T2/T6 block T1/T3/T4/T5)
+- [ ] Target completion date (2026-01-20) set and acknowledged as governance-blocking
 
 ---
 
 **Epic Owner:** Base44 Platform Team  
 **Reviewers:** Michael J. Meraw, ChatGPT, Perplexity  
 **Type:** Governance-Compliance Remediation (NOT feature development)  
-**Timeline:** TBD (blocked on ticket approval)
+**Timeline:** Target 2026-01-20 (Governance-Blocking Release Gate)  
+**Status:** Awaiting Jira configuration confirmation before implementation begins
