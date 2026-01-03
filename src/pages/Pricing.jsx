@@ -10,70 +10,56 @@ import { createPageUrl } from '@/utils';
 
 const tiers = [
     {
-        name: "Starter",
-        price: 25,
-        priceId: "price_starter_monthly",
+        name: "Basic",
+        price: 19,
+        priceId: "price_basic_monthly",
         icon: Zap,
         color: "from-blue-500 to-cyan-600",
         features: [
-            "Quick scene/chapter evaluation only",
-            "25,000 words/month included",
-            "13 Story Evaluation Criteria",
-            "Wave Revision System",
-            "Email support"
+            "Up to ~40,000–50,000 words/month",
+            "Unlimited uploads and evaluation runs within allowance",
+            "Core structural feedback",
+            "High-level craft signals",
+            "Excerpt- and section-level use",
+            "No longitudinal tracking",
+            "No comparative analysis"
         ],
-        limitations: [
-            "No full manuscript analysis",
-            "No screenplay evaluation",
-            "No progress dashboard",
-            "Standard processing speed"
-        ]
+        microcopy: "Designed for testing RevisionGrade on real material without committing to full‑manuscript work.",
+        limitations: []
     },
     {
-        name: "Professional",
+        name: "Pro",
         price: 99,
-        priceId: "price_professional_monthly",
+        priceId: "price_pro_monthly",
         icon: Sparkles,
         color: "from-indigo-500 to-purple-600",
         popular: true,
         features: [
-            "Complete agent-ready pipeline: Grade → Pitch → Synopsis → Bio → Comps → Agents → Query",
-            "Unlimited evaluation runs¹",
-            "500,000 words/month included",
-            "Full manuscript & screenplay evaluation",
-            "Editorial Growth Tracking — persistent skill tracking across submissions",
-            "Revision Effectiveness Analysis — see if your changes actually improved the work",
-            "Recurring pattern detection — identify what you keep getting wrong",
-            "AI-generated submission assets (pitches, synopses, bio, comparables)",
-            "Agent discovery & query letter builder",
-            "Clean revised downloads",
-            "Editorial reports (PDF)",
-            "Priority processing",
-            "Priority email support"
+            "Up to ~200,000–250,000 words/month",
+            "Unlimited uploads, evaluations, and revisions within allowance",
+            "Full-manuscript coverage with WAVE (13 criteria)",
+            "Pattern detection across drafts and progress tracking",
+            "Editorial summaries, diagnostics, and clean revision exports",
+            "Work‑tied outputs: synopsis, query letter, pitches, market comparables, author biography, agent package, film adaptation package"
         ],
+        microcopy: "Enough capacity for multiple full passes on a novel in active revision.",
         limitations: []
     },
     {
-        name: "Enterprise",
-        price: "Custom",
-        priceId: "price_enterprise_monthly",
+        name: "Professional",
+        price: 149,
+        priceId: "price_professional_monthly",
         icon: Crown,
         color: "from-purple-500 to-pink-600",
-        enterprise: true,
         features: [
-            "Everything in Professional, plus:",
-            "Team dashboard — view all evaluations across organization",
-            "10-50 user seats included",
-            "Custom criteria weighting per organization",
-            "Bulk manuscript processing & API access",
-            "White-label options for agencies",
-            "User permission levels (admin, evaluator, viewer)",
-            "Dedicated account manager",
-            "Custom integrations & workflow automation",
-            "24/7 priority support",
-            "Onboarding & training for teams"
+            "Everything in Pro/Core",
+            "Same or higher word allowance",
+            "Comparative Analysis Report",
+            "Genre-context diagnostics",
+            "Optional comparative snapshot against published norms",
+            "One primary manuscript per period positioned for high‑stakes review (querying, submission, or adaptation)"
         ],
-        description: "For literary agencies, editing teams, publishing houses, MFA programs, and content studios",
+        microcopy: "For writers preparing to query, submit, or professionally position their work.",
         limitations: []
     }
 ];
@@ -137,7 +123,7 @@ export default function Pricing() {
                         Choose Your Plan
                     </h1>
                     <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto">
-                        Professional editorial judgment, repeatable over time. All plans include PhD-calibrated analysis against 13 Story Evaluation Criteria and the proprietary WAVE Revision System.
+                        All RevisionGrade plans include unlimited projects and evaluation runs, metered only by total words analyzed per month. There are no limits on uploads, revisions, diagnostics, or outputs within your monthly word allowance. When you reach your limit, new analyses pause until your next reset or plan upgrade. Past results remain fully accessible.
                     </p>
                 </div>
             </div>
@@ -187,8 +173,8 @@ export default function Pricing() {
                                             </>
                                         )}
                                     </div>
-                                    {tier.description && (
-                                        <p className="text-sm text-slate-600 mt-2">{tier.description}</p>
+                                    {tier.microcopy && (
+                                       <p className="text-sm text-slate-600 mt-2 italic">{tier.microcopy}</p>
                                     )}
                                 </CardHeader>
 
@@ -228,10 +214,8 @@ export default function Pricing() {
                                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                                 Processing...
                                             </>
-                                        ) : tier.enterprise ? (
-                                            'Contact Sales'
                                         ) : (
-                                            `Subscribe to ${tier.name}`
+                                            `Get Started`
                                         )}
                                     </Button>
                                 </CardContent>
@@ -240,19 +224,110 @@ export default function Pricing() {
                     ))}
                 </div>
 
-                {/* Transparent Usage & Fair Access */}
-                <div className="mt-16 max-w-3xl mx-auto">
+                {/* FAQ: What happens at the limit */}
+                <div className="mt-16 max-w-4xl mx-auto">
                     <div className="mb-8 p-6 rounded-xl bg-gradient-to-br from-slate-50 to-indigo-50 border border-slate-200">
-                        <h3 className="font-semibold text-slate-900 mb-3">Transparent Usage & Fair Access</h3>
-                        <p className="text-sm text-slate-700 mb-3">
-                            RevisionGrade uses industry-standard AI models to deliver deep, professional analysis. 
-                            Each plan includes a defined monthly usage allowance designed to ensure fair access and consistent performance for all users.
-                        </p>
+                        <h3 className="font-semibold text-slate-900 mb-3">What happens at the limit?</h3>
                         <p className="text-sm text-slate-700">
-                            We do not throttle quality, hide costs, or degrade results. 
-                            Usage limits exist solely to ensure system stability and sustainable pricing.
+                            When you reach your monthly word allowance, new analyses pause. You can still view, export, and work with all previous results. Analysis resumes automatically at your next monthly reset or when you upgrade.
                         </p>
                     </div>
+
+                {/* Comparison Tables */}
+                <div className="mb-12 space-y-12">
+                    {/* Table 1: Writing & Revision Tools */}
+                    <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+                        <div className="px-6 py-4 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-slate-200">
+                            <h3 className="font-semibold text-slate-900">RevisionGrade vs Other Writing Tools*</h3>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b border-slate-200">
+                                        <th className="px-6 py-3 text-left font-semibold text-slate-900">Capability</th>
+                                        <th className="px-6 py-3 text-center font-semibold text-slate-700">AutoCrit</th>
+                                        <th className="px-6 py-3 text-center font-semibold text-slate-700">ProWritingAid</th>
+                                        <th className="px-6 py-3 text-center font-semibold text-slate-700">Grammarly</th>
+                                        <th className="px-6 py-3 text-center font-semibold text-indigo-700">RevisionGrade*</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    <tr><td className="px-6 py-3 text-slate-700">Manuscript diagnostics</td><td className="px-6 py-3 text-center">✅</td><td className="px-6 py-3 text-center">✅</td><td className="px-6 py-3 text-center">⚠️</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr className="bg-slate-50"><td className="px-6 py-3 text-slate-700">Evidence-backed critiques</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr><td className="px-6 py-3 text-slate-700">Canon drift protection</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr className="bg-slate-50"><td className="px-6 py-3 text-slate-700">Chapter → Scene conversion</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr><td className="px-6 py-3 text-slate-700">Novel → Screenplay conversion</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr className="bg-slate-50"><td className="px-6 py-3 text-slate-700">Work‑tied synopsis generation</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr><td className="px-6 py-3 text-slate-700">Work‑tied query letter generation</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr className="bg-slate-50"><td className="px-6 py-3 text-slate-700">Work‑tied pitches</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr><td className="px-6 py-3 text-slate-700">Work‑tied market comparables</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr className="bg-slate-50"><td className="px-6 py-3 text-slate-700">Work‑tied author biography</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr><td className="px-6 py-3 text-slate-700">Work‑tied agent package</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr className="bg-slate-50"><td className="px-6 py-3 text-slate-700">Work‑tied film adaptation package</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center">❌</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-600">
+                            *See Storygate Studio™ below for professional access and submission governance.
+                        </div>
+                    </div>
+
+                    {/* Transitional Line */}
+                    <div className="text-center py-6">
+                        <p className="text-lg font-semibold text-slate-900">
+                            RevisionGrade creates and evaluates professional materials.<br />
+                            Storygate Studio™ governs who can access them.
+                        </p>
+                    </div>
+
+                    {/* Table 2: Storygate Studio */}
+                    <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+                        <div className="px-6 py-4 bg-gradient-to-r from-red-50 to-pink-50 border-b border-slate-200">
+                            <h3 className="font-semibold text-slate-900">Professional Access & Governance (Storygate Studio™)</h3>
+                            <p className="text-sm text-slate-600 mt-1">Not a writing tool — a secure, curated access layer</p>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b border-slate-200">
+                                        <th className="px-6 py-3 text-left font-semibold text-slate-900">Storygate Studio™ Capability</th>
+                                        <th className="px-6 py-3 text-center font-semibold text-slate-700">Included</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    <tr><td className="px-6 py-3 text-slate-700">Verified industry users only</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr className="bg-slate-50"><td className="px-6 py-3 text-slate-700">Request → creator approval per project</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr><td className="px-6 py-3 text-slate-700">Creator‑controlled visibility by role</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr className="bg-slate-50"><td className="px-6 py-3 text-slate-700">Secure access to professional packages</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr><td className="px-6 py-3 text-slate-700">Eligibility thresholds (quality + presentation)</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr className="bg-slate-50"><td className="px-6 py-3 text-slate-700">Optional evaluation summary visibility</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr><td className="px-6 py-3 text-slate-700">Canon‑locked materials</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr className="bg-slate-50"><td className="px-6 py-3 text-slate-700">Submission workflows (queues, status, provenance)</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr><td className="px-6 py-3 text-slate-700">Full access audit trail (view, request, unlock, revoke)</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                    <tr className="bg-slate-50"><td className="px-6 py-3 text-slate-700">Curated, selective exposure</td><td className="px-6 py-3 text-center text-indigo-700 font-semibold">✅</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-600">
+                            Storygate Studio™ is an access and governance layer. It is not representation, a sales platform, or a guarantee of opportunity.
+                        </div>
+                    </div>
+
+                    {/* Studio Access & Pricing */}
+                    <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+                        <h3 className="font-semibold text-slate-900 mb-3">Is Storygate Studio™ free?</h3>
+                        <p className="text-sm text-slate-700 mb-4">
+                            Yes. Storygate Studio™ does not charge creators just to list or post their work. Projects must meet two professional standards:
+                        </p>
+                        <ol className="list-decimal list-inside text-sm text-slate-700 space-y-2 mb-4">
+                            <li>A single, professionally formatted presentation package (pitch/logline, synopsis, key materials) as a PDF, created with RevisionGrade or independently.</li>
+                            <li>A minimum quality threshold, such as a qualifying RevisionGrade evaluation or an equivalent professional assessment.</li>
+                        </ol>
+                        <p className="text-sm text-slate-600 italic">
+                            Storygate Studio™ is free for eligible projects. It is a secure access and governance layer—not a marketplace and not representation—and access does not guarantee opportunities.
+                        </p>
+                    </div>
+                </div>
 
                     {/* Usage & Billing Notes */}
                     <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-50 to-white">
