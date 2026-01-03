@@ -1,0 +1,149 @@
+# SCREENPLAY QA CHECKLIST (WRITERDUET MODE)
+
+**Status:** OPERATIONAL ACCEPTANCE CRITERIA
+
+**Purpose:** Day-to-day operational test that QA actually runs. Bridges spec → validators → human review.
+
+Use this checklist whenever Base44 generates screenplay pages or excerpts.
+
+---
+
+## 1. MODE & INTENT
+
+- [ ] Task is clearly flagged as `mode: "screenplay"`, not prose
+- [ ] Output is intended for WriterDuet / industry script use, not narrative summary
+- [ ] User request context supports screenplay formatting
+
+---
+
+## 2. SLUGLINES
+
+- [ ] All scene headings are in the form: `INT./EXT. LOCATION – TIME`
+- [ ] `LOCATION` and `TIME` are in ALL CAPS
+- [ ] The separator is a true en dash `–`, not a hyphen `-`
+- [ ] `CONTINUOUS` is used only when the action truly continues from the previous scene
+- [ ] One blank line before and after each slugline
+
+---
+
+## 3. CHARACTER INTRODUCTIONS
+
+- [ ] First appearance of each trackable character is capped in action: `MIKE (60s)...`
+- [ ] Age or type is given where relevant
+- [ ] One-off background extras without dialogue are not capped
+- [ ] If a background character speaks, they are capped on first action mention
+
+---
+
+## 4. ACTION BLOCKS
+
+- [ ] All action is in present tense and visually filmable
+- [ ] Action paragraphs are short (generally 3–5 lines max)
+- [ ] Rhythm fragments are anchored to physical behavior
+- [ ] No long interior monologues without physical correlate
+- [ ] No "unfilmables" as the only signal
+
+---
+
+## 5. EM DASHES & PUNCTUATION
+
+- [ ] Em dashes inside action are true em dashes `—` with no spaces
+- [ ] No hyphen used where em dash is intended
+- [ ] No stray special punctuation that could break export
+- [ ] Spaced em dashes only used for label separators (e.g., `GLYPH: ● — description`)
+
+---
+
+## 6. SOUND CUES
+
+- [ ] A single, consistent sound convention is used throughout (e.g., `SFX:`)
+- [ ] Sound words are in ALL CAPS
+- [ ] No mixing of styles (`BANG!` vs `SFX: BANG!` inconsistency)
+
+---
+
+## 7. DIALOGUE FORMATTING
+
+- [ ] Character names in ALL CAPS
+- [ ] Character names centered (~3.5" from left margin)
+- [ ] No blank line between character and dialogue
+- [ ] `(O.S.)` and `(V.O.)` used correctly
+- [ ] Parentheticals are brief and essential
+- [ ] Dialogue indented properly (~2.5" from left margin)
+
+---
+
+## 8. HYPHENS & PORTABILITY
+
+- [ ] Only standard hyphens `-` used in compounds
+- [ ] No non-breaking or unusual hyphens
+- [ ] No Unicode characters that could break .txt import
+
+---
+
+## 9. TITLE PAGE & START
+
+- [ ] Title page is not embedded in the script body
+- [ ] Script begins with `FADE IN:` or first slugline
+- [ ] No title block before scene content
+
+---
+
+## 10. TAGGING DRIFT
+
+If any violations are found, tag with the appropriate incident code:
+
+- [ ] `#slugline-format` — Wrong pattern (missing INT./EXT., wrong dash, not all caps)
+- [ ] `#char-intro-missed` — First appearance not capped or missing age/type
+- [ ] `#action-bloat` — Action paragraphs exceed 5 lines or include unfilmable interiority
+- [ ] `#emdash-wrong` — Spaces around em dash or using hyphen instead of em dash in action
+- [ ] `#sound-inconsistent` — Multiple sound styles (BANG! vs SFX:) within same script
+- [ ] `#dialogue-spacing` — Extra blank lines; parentheticals misused or overused
+- [ ] `#hyphen-glitch` — Nonstandard hyphens that break in export
+- [ ] `#titlepage-embedded` — Title page embedded in script body
+- [ ] `#mode-mismatch` — Prose formatting in screenplay mode
+
+---
+
+## PASS/FAIL CRITERIA
+
+### PASS
+- All HARD_FAIL checks pass (sluglines, character intros, dialogue spacing, sound consistency, mode routing, title page placement)
+- Any SOFT_WARN violations are logged in incident log
+- Output is WriterDuet-import safe
+
+### FAIL (BLOCK DELIVERY)
+- Any HARD_FAIL violation detected
+- Multiple SOFT_WARN violations (3+) of the same type
+- Output would break WriterDuet import
+- Mode mismatch detected
+
+---
+
+## QA WORKFLOW
+
+1. **Pre-generation check:** Verify mode is set to "screenplay"
+2. **Post-generation check:** Run through all 10 checklist items
+3. **Tag violations:** Use incident codes for any issues found
+4. **Log incidents:** Record in incident log with severity
+5. **Block or warn:** Apply SLA rules (HARD_FAIL blocks, SOFT_WARN logs)
+6. **Feedback loop:** Report patterns to engineering for validator improvements
+
+---
+
+## INTEGRATION WITH ENFORCEMENT BUNDLE
+
+This checklist operationalizes:
+
+- **SCREENPLAY_QUALITY_STANDARD_CANON** (what "correct" is)
+- **SCREENPLAY_GOVERNANCE_ADDENDUM** (authority to block)
+- **SCREENPLAY_RULE_VALIDATOR_SLA_MAP** (validator → severity mapping)
+- **SCREENPLAY_INCIDENT_LOG_SCHEMA** (how to log violations)
+
+**Without this checklist, enforcement collapses back into interpretation.**
+
+---
+
+**Version:** 1.0  
+**Status:** BINDING OPERATIONAL STANDARD  
+**Authority:** QA must execute; violations must be logged and resolved per SLA
