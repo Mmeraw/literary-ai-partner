@@ -24,29 +24,68 @@ import { Button } from "@/components/ui/button";
 
 export default function FAQ() {
     const [searchQuery, setSearchQuery] = useState('');
+    const [defaultOpen, setDefaultOpen] = useState('');
 
-    const clearSearch = () => setSearchQuery('');
+    const clearSearch = () => {
+        setSearchQuery('');
+        setDefaultOpen('');
+    };
+
+    // Define all FAQ items with searchable content
+    const faqData = useMemo(() => ({
+        pricing: [
+            { value: 'price-comparison', text: 'How does RevisionGrade compare to hiring a professional editor?' },
+            { value: 'what-you-get', text: 'What do I actually get for $99/month?' },
+            { value: 'free-trial', text: 'Is there a free trial?' }
+        ],
+        quality: [
+            { value: 'phd-calibrated', text: 'What does PhD-calibrated mean?' },
+            { value: 'vs-human', text: 'Does RevisionGrade replace human editors?' },
+            { value: 'write-rewrite', text: 'Does RevisionGrade write or rewrite my book?' },
+            { value: 'what-it-does', text: 'What RevisionGrade does and does not do' },
+            { value: 'editorial-memory', text: 'What is Editorial Growth Tracking?' },
+            { value: 'vs-other-ai', text: 'How is this different from ChatGPT or other AI writing tools?' },
+            { value: 'few-ai-systems', text: 'Why does RevisionGrade use only a few AI systems?' },
+            { value: 'comparison-methodology', text: 'How does RevisionGrade evaluate my manuscript against published novels?' },
+            { value: 'accuracy', text: 'How accurate are the evaluations?' }
+        ],
+        humanAccess: [
+            { value: 'automated-system', text: 'Is RevisionGrade fully automated?' },
+            { value: 'who-sees-work', text: 'Who sees my work?' },
+            { value: 'storygate-exception', text: 'What about Storygate Studio?' }
+        ],
+        privacy: [
+            { value: 'content-privacy', text: 'Can staff access my manuscripts?' },
+            { value: 'data-usage', text: 'How is my data used?' },
+            { value: 'why-automated', text: 'Why is automation important?' }
+        ]
+    }), []);
 
     // Filter FAQ sections based on search query
-    const filteredSections = useMemo(() => {
-        if (!searchQuery.trim()) return null; // Show all when no search
-
+    const filteredMatches = useMemo(() => {
+        if (!searchQuery.trim()) return null;
         const query = searchQuery.toLowerCase();
-        
-        // Search through all accordion triggers and content
-        const triggers = document.querySelectorAll('[data-faq-trigger]');
         const matches = [];
         
-        triggers.forEach(trigger => {
-            const text = trigger.textContent?.toLowerCase() || '';
-            const value = trigger.getAttribute('data-faq-value') || '';
-            if (text.includes(query) || value.includes(query)) {
-                matches.push(value);
-            }
+        Object.entries(faqData).forEach(([section, items]) => {
+            items.forEach(item => {
+                if (item.text.toLowerCase().includes(query) || item.value.includes(query)) {
+                    matches.push(item.value);
+                }
+            });
         });
         
         return matches;
-    }, [searchQuery]);
+    }, [searchQuery, faqData]);
+
+    // Auto-open first match when searching
+    React.useEffect(() => {
+        if (filteredMatches && filteredMatches.length > 0) {
+            setDefaultOpen(filteredMatches[0]);
+        } else if (!searchQuery) {
+            setDefaultOpen('');
+        }
+    }, [filteredMatches, searchQuery]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
@@ -120,8 +159,8 @@ export default function FAQ() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Accordion type="single" collapsible className="w-full">
-                                <AccordionItem value="price-comparison">
+                            <Accordion type="single" collapsible className="w-full" value={defaultOpen}>
+                                <AccordionItem value="price-comparison" className={filteredMatches && !filteredMatches.includes('price-comparison') ? 'hidden' : ''}>
                                     <AccordionTrigger data-faq-trigger data-faq-value="price-comparison">
                                         How does RevisionGrade compare to hiring a professional editor?
                                     </AccordionTrigger>
@@ -161,7 +200,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="what-you-get">
+                                <AccordionItem value="what-you-get" className={filteredMatches && !filteredMatches.includes('what-you-get') ? 'hidden' : ''}>
                                     <AccordionTrigger data-faq-trigger data-faq-value="what-you-get">
                                         What do I actually get for $99/month?
                                     </AccordionTrigger>
@@ -190,7 +229,7 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
 
-                                <AccordionItem value="free-trial">
+                                <AccordionItem value="free-trial" className={filteredMatches && !filteredMatches.includes('free-trial') ? 'hidden' : ''}>
                                     <AccordionTrigger data-faq-trigger data-faq-value="free-trial">
                                         Is there a free trial?
                                     </AccordionTrigger>
@@ -221,8 +260,8 @@ export default function FAQ() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Accordion type="single" collapsible className="w-full">
-                                <AccordionItem value="phd-calibrated">
+                            <Accordion type="single" collapsible className="w-full" value={defaultOpen}>
+                                <AccordionItem value="phd-calibrated" className={filteredMatches && !filteredMatches.includes('phd-calibrated') ? 'hidden' : ''}>
                                     <AccordionTrigger data-faq-trigger data-faq-value="phd-calibrated">
                                         What does "PhD-calibrated" mean?
                                     </AccordionTrigger>
