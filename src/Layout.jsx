@@ -103,12 +103,12 @@ export default function Layout({ children, currentPageName }) {
             }
         }
 
-        // NUCLEAR FONT ENFORCEMENT - Force Arial on every element
+        // NUCLEAR FONT ENFORCEMENT - Force Verdana on every element
         function enforceFonts(root) {
             const elements = root.querySelectorAll ? root.querySelectorAll('*') : [root];
             elements.forEach(el => {
                 if (el.style) {
-                    el.style.setProperty('font-family', 'Arial, "Helvetica Neue", Helvetica, sans-serif', 'important');
+                    el.style.setProperty('font-family', 'Verdana, Geneva, Tahoma, sans-serif', 'important');
                     el.style.setProperty('font-feature-settings', '"kern" 0, "liga" 0, "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0, "salt" 0', 'important');
                 }
             });
