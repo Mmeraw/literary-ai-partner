@@ -180,7 +180,7 @@ export default function YourWriting() {
             Your Writing
           </h1>
           <p className="mt-3 text-slate-600 max-w-2xl mx-auto">
-            Upload or paste your writing below. Formatting is preserved. We'll automatically determine whether it's a scene, chapter, screenplay, or full manuscript and evaluate it accordingly.
+            Upload or paste your writing below. Formatting is preserved. We'll automatically determine what you've submitted and evaluate it accordingly.
           </p>
           <p className="mt-3 text-sm text-slate-500 max-w-2xl mx-auto">
             Scores reflect how your work aligns with agent-level criteria and WAVE standards. This is revision guidance, not a guarantee of representation or publication.
@@ -240,6 +240,9 @@ export default function YourWriting() {
                 </div>
 
                 <div className="p-6 rounded-xl bg-white border border-slate-200">
+                  <p className="text-sm text-slate-600 mb-4 pb-4 border-b border-slate-200">
+                    You don't need to choose a format. Evaluation Mode affects how your writing is analyzed—not what it's categorized as.
+                  </p>
                   <TransgressiveModeSelector 
                     value={evaluationMode}
                     onChange={setEvaluationMode}
@@ -279,7 +282,7 @@ export default function YourWriting() {
           {/* Sidebar */}
           <div className="space-y-6">
             <div className="p-6 rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100">
-              <h3 className="font-semibold text-slate-800 mb-4">How Evaluation Works</h3>
+              <h3 className="font-bold text-slate-900 mb-4 text-base">How Evaluation Works</h3>
               <div className="space-y-3 text-sm text-slate-600">
                 <p>
                   You don't need to choose a format.
