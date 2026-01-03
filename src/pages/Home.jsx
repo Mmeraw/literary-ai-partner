@@ -14,7 +14,7 @@ export default function Home() {
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
             {/* Hero Section - Clean & Focused */}
             <div className="bg-white">
-                <div className="max-w-5xl mx-auto px-6 pt-8 pb-8 sm:pt-10 sm:pb-8">
+                <div className="max-w-5xl mx-auto px-6 pt-4 pb-4 sm:pt-6 sm:pb-6">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -45,7 +45,7 @@ export default function Home() {
             </div>
 
             {/* WAVE IP Callout */}
-            <div className="max-w-4xl mx-auto px-6 py-6">
+            <div className="max-w-4xl mx-auto px-6 py-4 sm:py-5">
                 <div className="p-8 rounded-2xl bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 border-2 border-indigo-200 shadow-lg">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="p-2 rounded-lg bg-indigo-600">
@@ -77,7 +77,7 @@ export default function Home() {
             </div>
 
             {/* Reality Check Section */}
-            <div className="bg-slate-900 py-16">
+            <div className="bg-slate-900 py-8 sm:py-10 lg:py-12">
                 <div className="max-w-4xl mx-auto px-6">
                     <div className="space-y-6 text-slate-200">
                         <h2 className="text-2xl sm:text-3xl font-bold text-white mb-6">The Agent Reality Check</h2>
@@ -100,7 +100,7 @@ export default function Home() {
             </div>
 
             {/* Features Section */}
-            <div className="max-w-6xl mx-auto px-6 py-14">
+            <div className="max-w-6xl mx-auto px-6 py-8 sm:py-10 lg:py-12">
                 <div className="text-center mb-16">
                     <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">End-to-End IP Standards Engine</h2>
                     <p className="mt-3 text-base sm:text-lg text-slate-700 max-w-3xl mx-auto font-medium">What once required months of back-and-forth, multiple tools, and subjective review is now unified into a single, standards-driven system.</p>
@@ -157,7 +157,7 @@ export default function Home() {
             </div>
 
             {/* Dual-Layer Evaluation Engine */}
-            <div className="max-w-6xl mx-auto px-6 py-14">
+            <div className="max-w-6xl mx-auto px-6 py-8 sm:py-10 lg:py-12">
                 <div className="text-center mb-12">
                     <Badge className="mb-4 bg-indigo-100 text-indigo-700 border-indigo-200">
                         <Shield className="w-4 h-4 mr-2" />
@@ -229,7 +229,7 @@ export default function Home() {
             </div>
 
             {/* How It Works - Workflow Diagram */}
-            <div className="bg-slate-50 py-20">
+            <div className="bg-slate-50 py-8 sm:py-10 lg:py-12">
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="flex justify-center mb-16">
                         <img 
@@ -281,7 +281,7 @@ export default function Home() {
             </div>
 
             {/* Criteria Preview */}
-            <div className="bg-gradient-to-br from-slate-900 to-indigo-900 py-20">
+            <div className="bg-gradient-to-br from-slate-900 to-indigo-900 py-8 sm:py-10 lg:py-12">
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="grid lg:grid-cols-2 gap-12 items-center">
                         <div>
@@ -332,7 +332,7 @@ export default function Home() {
             </div>
 
             {/* Creator Attribution */}
-            <div className="max-w-4xl mx-auto px-6 py-8">
+            <div className="max-w-4xl mx-auto px-6 py-4 sm:py-6">
                 <div className="p-6 rounded-xl bg-slate-50 border border-slate-200">
                     <h3 className="text-lg font-semibold text-slate-900 mb-3">About RevisionGrade™</h3>
                     <p className="text-sm text-slate-700 leading-relaxed">
@@ -353,7 +353,7 @@ export default function Home() {
             </div>
 
             {/* Final CTA Section */}
-            <div className="bg-white py-20">
+            <div className="bg-white py-8 sm:py-10 lg:py-12">
                 <div className="max-w-3xl mx-auto px-6 text-center">
                     <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-8">
                         Ready to Transform Your Writing?
