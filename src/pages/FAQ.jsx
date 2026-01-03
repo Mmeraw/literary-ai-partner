@@ -223,15 +223,24 @@ export default function FAQ() {
                         <CardContent>
                             <Accordion type="single" collapsible className="w-full">
                                 <AccordionItem value="phd-calibrated">
-                                    <AccordionTrigger>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="phd-calibrated">
                                         What does "PhD-calibrated" mean?
                                     </AccordionTrigger>
                                     <AccordionContent>
-                                        <p className="text-slate-700">
-                                            "PhD-calibrated" means the evaluation framework was tuned against professional editorial assessments 
-                                            and acquisition outcomes, so scores reflect submission-level standards rather than generic writing feedback. 
-                                            No human editor reviews individual submissions unless explicitly stated.
-                                        </p>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                "PhD-calibrated" means the evaluation framework was tuned against professional editorial assessments, 
+                                                acquisition criteria, and real submission outcomes, so scores reflect submission-level standards rather 
+                                                than generic writing feedback.
+                                            </p>
+                                            <p className="font-semibold text-indigo-900">
+                                                All evaluations are generated automatically by RevisionGrade's systems; there is no manual tweaking of individual scores.
+                                            </p>
+                                            <p className="font-semibold text-slate-900">
+                                                No human editor reviews, reads, or evaluates individual submissions unless the user explicitly connects 
+                                                with industry professionals through Storygate Studio.
+                                            </p>
+                                        </div>
                                     </AccordionContent>
                                 </AccordionItem>
 
@@ -459,6 +468,169 @@ export default function FAQ() {
                                             <p className="text-sm italic text-slate-600">
                                                 Short excerpts are useful for quick feedback, but full scenes or chapters produce 
                                                 the most reliable evaluations.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </CardContent>
+                    </Card>
+
+                    {/* Human Access & Review */}
+                    <Card className="border-0 shadow-md">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <Shield className="w-5 h-5 text-indigo-600" />
+                                Human Access & Review
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Accordion type="single" collapsible className="w-full">
+                                <AccordionItem value="automated-system">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="automated-system">
+                                        Is RevisionGrade fully automated?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p className="font-semibold text-indigo-900">
+                                                Yes. RevisionGrade operates as a fully automated system by default.
+                                            </p>
+                                            <p>
+                                                Submissions are processed exclusively by RevisionGrade's servers using calibrated evaluation frameworks.
+                                            </p>
+                                            <p className="font-semibold text-slate-900">
+                                                No human editors, manual reviewers, or internal staff read or evaluate your work in the default workflow.
+                                            </p>
+                                            <p>
+                                                Human review only occurs if you intentionally connect with industry professionals via Storygate Studio, 
+                                                which is clearly labeled and requires explicit consent.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="who-sees-work">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="who-sees-work">
+                                        Who sees my work?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p className="font-semibold text-indigo-900">
+                                                By default: no one.
+                                            </p>
+                                            <p>
+                                                Your content is analyzed only by automated systems. Staff cannot browse, read, or "peek" at submissions, 
+                                                and there is no internal review queue.
+                                            </p>
+                                            <p className="font-semibold text-slate-900">
+                                                In short: no one sees your work by default—not editors, not staff, not reviewers—only the system.
+                                            </p>
+                                            <p className="mt-3">
+                                                Human review only occurs if you choose to connect with industry professionals via Storygate Studio, 
+                                                which requires your explicit consent and is clearly labeled.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="storygate-exception">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="storygate-exception">
+                                        What about Storygate Studio?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                Storygate Studio is a separate, opt-in service where you can <strong>choose</strong> to share your 
+                                                work with verified industry professionals (agents, producers, executives).
+                                            </p>
+                                            <p className="font-semibold text-slate-900">
+                                                This is the only scenario where humans see your work—and only when you explicitly grant access.
+                                            </p>
+                                            <p>
+                                                RevisionGrade's automated evaluation system operates independently from Storygate Studio. They are 
+                                                separate workflows with different purposes.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </CardContent>
+                    </Card>
+
+                    {/* Privacy & Data Visibility */}
+                    <Card className="border-0 shadow-md">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <Shield className="w-5 h-5 text-indigo-600" />
+                                Privacy & Data Visibility
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Accordion type="single" collapsible className="w-full">
+                                <AccordionItem value="content-privacy">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="content-privacy">
+                                        Can staff access my manuscripts?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p className="font-semibold text-indigo-900">
+                                                No. Staff cannot browse, read, or access your submissions.
+                                            </p>
+                                            <p>
+                                                Your content is analyzed only by automated systems. There is no internal review queue, no manual 
+                                                screening process, and no human oversight of individual submissions.
+                                            </p>
+                                            <p className="font-semibold text-slate-900">
+                                                Your manuscripts and materials are not shared with third parties for training, marketplace exposure, 
+                                                or crowdsourced review.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="data-usage">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="data-usage">
+                                        How is my data used?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                Your submissions are used exclusively for providing you with automated evaluation and revision services.
+                                            </p>
+                                            <p className="font-semibold text-slate-900">
+                                                Your work is never used to train third-party AI models, shared for marketing purposes, or exposed 
+                                                to crowdsourced review systems.
+                                            </p>
+                                            <p>
+                                                RevisionGrade is designed to protect author confidentiality, reduce subjective drift, and provide 
+                                                consistent, standards-based analysis at scale.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="why-automated">
+                                    <AccordionTrigger data-faq-trigger data-faq-value="why-automated">
+                                        Why is automation important?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p className="font-semibold text-indigo-900">
+                                                RevisionGrade is an automated evaluation and transformation system, not a marketplace, crowdsourced 
+                                                platform, or default editorial service.
+                                            </p>
+                                            <p>
+                                                The design is meant to:
+                                            </p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Protect author confidentiality</li>
+                                                <li>Reduce subjective drift and bias</li>
+                                                <li>Provide consistent, standards-based analysis at scale</li>
+                                                <li>Ensure privacy and data security</li>
+                                            </ul>
+                                            <p className="mt-3 font-semibold text-slate-900">
+                                                One-line summary: RevisionGrade is fully automated by default. Human review only occurs if you choose 
+                                                to connect with industry professionals via Storygate Studio.
                                             </p>
                                         </div>
                                     </AccordionContent>
