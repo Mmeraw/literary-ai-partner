@@ -98,7 +98,7 @@ OVERALL SCORE: ${Math.round((evaluationResult.overallScore || submission.overall
 VERDICT: ${evaluationResult.agentVerdict || 'No verdict available'}
 
 ======================
-12 LITERARY AGENT CRITERIA
+13 STORY EVALUATION CRITERIA
 ======================
 
 ${evaluationResult.criteria?.map(c => `
@@ -304,8 +304,8 @@ ${submission.text || 'No text available'}
                     {/* Criteria Scores */}
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-slate-800">12 Literary Agent Criteria</h3>
-                            <Badge>{evaluationResult.criteria?.length || 0}/12</Badge>
+                            <h3 className="text-lg font-semibold text-slate-800">13 Story Evaluation Criteria</h3>
+                            <Badge>{evaluationResult.criteria?.length || 0}/13</Badge>
                         </div>
                         {evaluationResult.criteria?.map((criterion, idx) => (
                             <div key={idx} className="p-5 rounded-xl bg-white border border-slate-200 hover:border-indigo-200 transition-all">

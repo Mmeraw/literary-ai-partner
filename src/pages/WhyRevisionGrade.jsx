@@ -94,7 +94,7 @@ export default function WhyRevisionGrade() {
                         <ul className="space-y-3">
                             {[
                                 'Complete agent-ready pipeline: Grade → Pitch → Synopsis → Bio → Comps → Agents → Query',
-                                '12 Story Evaluation Criteria + 60 WAVE diagnostics',
+                                '13 Story Evaluation Criteria + 60 WAVE diagnostics',
                                 'AI-generated submission assets (pitches, synopses, bio, comparables)',
                                 'Agent discovery & query letter builder',
                                 'Tells you what to fix first, why it matters, and what to ignore',
@@ -169,7 +169,7 @@ export default function WhyRevisionGrade() {
                         {
                             icon: Target,
                             title: "Professional Standards",
-                            description: "We evaluate manuscripts against the 12 Story Evaluation Criteria that agents, editors, and script readers actually use when deciding what to request—focusing on craft and marketability, not just grammar.",
+                            description: "We evaluate manuscripts against the 13 Story Evaluation Criteria that agents, editors, and script readers actually use when deciding what to request—focusing on craft and marketability, not just grammar.",
                             color: "from-emerald-500 to-teal-600"
                         }
                     ].map((pillar, idx) => (
