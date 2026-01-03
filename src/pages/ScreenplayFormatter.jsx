@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import TransgressiveModeSelector from '@/components/evaluation/TransgressiveModeSelector';
+import LanguageVariantSelector from '@/components/evaluation/LanguageVariantSelector';
 import VoicePreservationToggle from '@/components/VoicePreservationToggle';
 import RichTextEditor from '@/components/RichTextEditor';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -17,9 +18,10 @@ export default function ScreenplayFormatter() {
     const [inputText, setInputText] = useState(sessionStorage.getItem('uploadedText') || '');
     const [formattedText, setFormattedText] = useState('');
     const [evaluationMode, setEvaluationMode] = useState('standard');
+    const [languageVariant, setLanguageVariant] = useState('en-US');
     const [voicePreservation, setVoicePreservation] = useState('balanced');
     const [isFormatting, setIsFormatting] = useState(false);
-    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [showAdvanced, setShowAdvanced] = useState(true);
 
     // Clear sessionStorage after loading
     React.useEffect(() => {
@@ -133,6 +135,12 @@ export default function ScreenplayFormatter() {
                                         </Button>
                                     </CollapsibleTrigger>
                                     <CollapsibleContent className="mt-3 space-y-4">
+                                        <div className="p-4 rounded-xl bg-white border border-slate-200">
+                                            <LanguageVariantSelector 
+                                                value={languageVariant}
+                                                onChange={setLanguageVariant}
+                                            />
+                                        </div>
                                         <div className="p-4 rounded-xl bg-white border border-slate-200">
                                             <TransgressiveModeSelector 
                                                 value={evaluationMode}
