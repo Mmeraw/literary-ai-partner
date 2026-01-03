@@ -253,7 +253,7 @@ export default function Layout({ children, currentPageName }) {
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="ghost" className="h-9 px-3 text-sm text-slate-600 hover:text-slate-900">
-                                            Storygate Studio™ <ChevronDown className="ml-1 h-4 w-4" />
+                                            <span className="text-red-600 font-semibold">Storygate Studio™</span> <ChevronDown className="ml-1 h-4 w-4" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="start" className="w-56">
@@ -497,7 +497,7 @@ export default function Layout({ children, currentPageName }) {
                                     >
                                         <span className="flex items-center">
                                             <Crown className="w-5 h-5 mr-3" />
-                                            Storygate Studio
+                                            <span className="text-red-600 font-semibold">Storygate Studio™</span>
                                         </span>
                                         <ChevronDown className={cn("w-5 h-5 transition-transform", expandedMobile.storygate && "rotate-180")} />
                                     </Button>
