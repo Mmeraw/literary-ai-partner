@@ -103,8 +103,22 @@ export default function Layout({ children, currentPageName }) {
             }
         }
 
-        // Initial sanitization
-        if (document.body) sanitizeText(document.body);
+        // NUCLEAR FONT ENFORCEMENT - Force Arial on every element
+        function enforceFonts(root) {
+            const elements = root.querySelectorAll ? root.querySelectorAll('*') : [root];
+            elements.forEach(el => {
+                if (el.style) {
+                    el.style.setProperty('font-family', 'Arial, "Helvetica Neue", Helvetica, sans-serif', 'important');
+                    el.style.setProperty('font-feature-settings', '"kern" 0, "liga" 0, "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0, "salt" 0', 'important');
+                }
+            });
+        }
+
+        // Initial sanitization and font enforcement
+        if (document.body) {
+            sanitizeText(document.body);
+            enforceFonts(document.body);
+        }
 
         // Watch for React re-renders and new content
         const observer = new MutationObserver((mutations) => {
@@ -114,7 +128,10 @@ export default function Layout({ children, currentPageName }) {
                 } else if (m.addedNodes?.length) {
                     m.addedNodes.forEach(node => {
                         if (node.nodeType === 3) sanitizeText(node.parentNode || document.body);
-                        else if (node.nodeType === 1) sanitizeText(node);
+                        else if (node.nodeType === 1) {
+                            sanitizeText(node);
+                            enforceFonts(node);
+                        }
                     });
                 }
             }
@@ -123,10 +140,23 @@ export default function Layout({ children, currentPageName }) {
         observer.observe(document.documentElement, {
             subtree: true,
             childList: true,
-            characterData: true
+            characterData: true,
+            attributes: true,
+            attributeFilter: ['style', 'class']
         });
 
-        return () => observer.disconnect();
+        // Nuclear option: re-enforce fonts every 100ms for the first 2 seconds
+        let count = 0;
+        const interval = setInterval(() => {
+            if (document.body) enforceFonts(document.body);
+            count++;
+            if (count >= 20) clearInterval(interval);
+        }, 100);
+
+        return () => {
+            observer.disconnect();
+            clearInterval(interval);
+        };
     }, []);
 
     React.useEffect(() => {
