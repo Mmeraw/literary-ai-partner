@@ -1,24 +1,58 @@
 css
-/* NUCLEAR FONT BLOCKING - NO WEB FONTS EVER */
+/* THERMONUCLEAR FONT BLOCKING - NO WEB FONTS EVER */
 @font-face {
   font-family: 'Inter';
-  src: local('Arial');
+  src: local('Arial') !important;
+  font-display: block !important;
 }
 
 @font-face {
   font-family: 'Geist';
-  src: local('Arial');
+  src: local('Arial') !important;
+  font-display: block !important;
+}
+
+@font-face {
+  font-family: 'Geist Sans';
+  src: local('Arial') !important;
+  font-display: block !important;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: local('Courier New') !important;
+  font-display: block !important;
 }
 
 @font-face {
   font-family: 'Courier';
-  src: local('Courier New');
+  src: local('Courier New') !important;
+  font-display: block !important;
 }
 
-/* Block all other @font-face declarations */
+@font-face {
+  font-family: 'system-ui';
+  src: local('Arial') !important;
+  font-display: block !important;
+}
+
+@font-face {
+  font-family: '-apple-system';
+  src: local('Arial') !important;
+  font-display: block !important;
+}
+
+@font-face {
+  font-family: 'BlinkMacSystemFont';
+  src: local('Arial') !important;
+  font-display: block !important;
+}
+
+/* Nuclear wildcard - block ANY @font-face */
 @font-face {
   font-family: '*';
-  src: local('Arial');
+  src: local('Arial') !important;
+  font-display: block !important;
 }
 
 html {

@@ -145,13 +145,18 @@ export default function Layout({ children, currentPageName }) {
             attributeFilter: ['style', 'class']
         });
 
-        // Nuclear option: re-enforce fonts every 100ms for the first 2 seconds
+        // THERMONUCLEAR option: re-enforce fonts every 50ms continuously
         let count = 0;
         const interval = setInterval(() => {
             if (document.body) enforceFonts(document.body);
             count++;
-            if (count >= 20) clearInterval(interval);
-        }, 100);
+            if (count >= 40) clearInterval(interval); // Run for 2 seconds at 50ms intervals
+        }, 50);
+        
+        // Additional check: run immediately
+        setTimeout(() => {
+            if (document.body) enforceFonts(document.body);
+        }, 0);
 
         return () => {
             observer.disconnect();
