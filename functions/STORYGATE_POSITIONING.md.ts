@@ -1,0 +1,311 @@
+# Storygate & Storygate Studio — Strategic Positioning
+## From Editing Tool to Industry Infrastructure
+
+**Purpose:** Define how Storygate differentiates RevisionGrade from all competitors  
+**Last Updated:** 2026-01-03  
+**Status:** Strategic Canon
+
+---
+
+## 1. The Core Insight
+
+### What Competitors Answer
+**AutoCrit, ProWritingAid, Grammarly:**  
+*"Is the writing better?"*
+
+### What Storygate Answers
+**RevisionGrade + Storygate:**  
+*"Is this manuscript ready to leave the author's hands and enter the professional world?"*
+
+**This is an entirely different class of problem.**
+
+---
+
+## 2. What Competitors Cannot Do
+
+❌ **They do not certify readiness**  
+They provide diagnostics and suggestions, but no definitive "ready/not ready" status.
+
+❌ **They do not enforce submission standards**  
+There's no gate between "edited" and "submitted."
+
+❌ **They do not create controlled handoff from revision → market**  
+No workflow for moving from draft to listing to professional review.
+
+❌ **They do not support listings, queues, or verification workflows**  
+No infrastructure for agents, publishers, or studios to discover and verify work.
+
+**Storygate moves RevisionGrade from editing software into industry infrastructure.**
+
+---
+
+## 3. Canonical Workflow (Strict Separation)
+
+```
+Evaluate → Diagnostics → Revise → Storygate → Storygate Studio
+   ↓           ↓            ↓          ↓              ↓
+Evidence   Readiness    Controlled  Certification  Professional
+           Gating       Change                     Submission
+```
+
+### Why This Order Matters
+
+**Storygate is NOT part of Diagnostics or Revise.**
+
+It is a **post-revision gate** that certifies professional readiness.
+
+This preserves:
+- Hard separation principle
+- Governance integrity
+- Market trust
+
+**Critical Rule:** No manuscript enters Storygate Studio without passing Storygate certification.
+
+---
+
+## 4. Storygate (Certification Layer)
+
+### Purpose
+Answer yes/no questions about professional readiness:
+
+✓ Has this manuscript passed all required diagnostics?  
+✓ Are canon drift warnings resolved or accepted?  
+✓ Does it meet defined structural, clarity, and intent thresholds?  
+✓ Is there a clean, auditable revision lineage?
+
+### Output
+**Storygate Status Badge:**
+- 🔴 **Not Ready** — Critical issues unresolved
+- 🟡 **Conditionally Ready** — Warnings logged, user acknowledged
+- 🟢 **Verified Ready** — All gates passed, audit trail complete
+
+### What Gets Checked
+
+**Diagnostics Completion:**
+- All required metrics computed
+- Evidence linkage complete
+- No stale diagnostics (must be current)
+
+**Canon Integrity:**
+- Canon drift below threshold OR explicitly accepted
+- No untracked deviations
+- Locked baseline exists
+
+**Structural Thresholds:**
+- Minimum word count (if defined)
+- Required story beats present (if spine evaluation enabled)
+- Intent alignment acceptable (Phase 2)
+
+**Revision Lineage:**
+- All changes logged in audit trail
+- No orphaned edits
+- Baseline → revision chain intact
+
+### Implementation Rules
+
+**Hard Gates (Cannot Override):**
+- Diagnostics must exist and be current
+- Audit trail must be complete
+- No silent failures
+
+**Soft Gates (Can Override with Logging):**
+- Canon drift warnings
+- Structural thresholds
+- Intent alignment scores
+
+**All overrides logged in EvaluationAuditEvent.**
+
+---
+
+## 5. Storygate Studio (Market Interface Layer)
+
+### Purpose
+Submission governance infrastructure for the professional market.
+
+### Capabilities
+
+#### For Creators
+- **Create Verified Listings:**  
+  Only Storygate-certified manuscripts can be listed
+  
+- **Attach Diagnostics Summaries:**  
+  Share readiness status, not raw drafts
+  
+- **Manage Submission States:**  
+  Track "Submitted / Under Review / Accepted / Declined"
+  
+- **Enforce Version Locking:**  
+  Manuscripts under review cannot be edited
+
+- **Maintain Provenance:**  
+  Audit-safe record of what was submitted, when, and to whom
+
+#### For Industry Professionals (Agents, Publishers, Studios)
+- **Verification Queue:**  
+  Review verified submissions with confidence
+  
+- **Access Control:**  
+  Creators approve who sees what
+  
+- **Diagnostics Transparency:**  
+  See readiness status, not just subjective pitches
+  
+- **Audit Trail Access:**  
+  Verify revision history and canon compliance
+
+#### For Studios (Multi-Project)
+- **Portfolio Management:**  
+  Manage multiple manuscripts across franchises
+  
+- **Canon Enforcement:**  
+  Shared canon rules across series/universes
+  
+- **Drift Detection:**  
+  Track canon compliance across entire IP line
+  
+- **Team Collaboration:**  
+  Shared listings, approval workflows, handoff tracking
+
+---
+
+## 6. Competitive Positioning (Updated)
+
+### New Comparison Section: Professional Readiness & Submission
+
+| Capability | AutoCrit | ProWritingAid | Grammarly | RevisionGrade + Storygate |
+|------------|----------|---------------|-----------|---------------------------|
+| Readiness certification | ❌ | ❌ | ❌ | ✅ |
+| Canon-locked submission versions | ❌ | ❌ | ❌ | ✅ |
+| Audit-backed readiness status | ❌ | ❌ | ❌ | ✅ |
+| Submission / listing workflows | ❌ | ❌ | ❌ | ✅ |
+| Studio / agent verification queue | ❌ | ❌ | ❌ | ✅ |
+| Multi-project canon governance | ❌ | ❌ | ❌ | ✅ |
+
+---
+
+## 7. Marketing Language (Approved)
+
+### Positioning Statement (Full)
+> "RevisionGrade delivers AutoCrit-level diagnostics and ProWritingAid-level guidance, with studio-grade governance. Storygate certifies when a manuscript is truly ready—and Storygate Studio manages its professional release."
+
+### Hero Section
+> "From first draft to professional submission: Evaluate, diagnose, revise, certify, and submit—all with audit-backed governance and canon control."
+
+### Value Propositions
+
+**For Authors:**
+> "Don't just revise—certify. Storygate proves your manuscript is ready before you submit."
+
+**For Agents/Publishers:**
+> "Stop sorting through unready submissions. Storygate-verified manuscripts meet baseline professional standards."
+
+**For Studios:**
+> "Manage IP at scale. Storygate Studio enforces canon across franchises and maintains audit trails for every release."
+
+---
+
+## 8. What Makes Storygate Strategically Powerful
+
+### 1. Creates Switching Costs
+Once a manuscript is Storygate-certified, authors won't go backward to tools without certification.
+
+### 2. Introduces Network Effects
+As agents, publishers, and studios learn to trust the gate, Storygate becomes a market standard.
+
+### 3. Moves You Up-Market
+From "tool authors buy" → "infrastructure the industry relies on."
+
+### 4. Defensible Moat
+Competitors can add diagnostics. They cannot easily add:
+- Certification workflows
+- Submission infrastructure
+- Verification queues
+- Multi-party trust systems
+
+**This is how platforms win.**
+
+---
+
+## 9. What NOT to Do (Critical Constraints)
+
+### ❌ Do Not Market Storygate as "Feedback"
+Storygate is certification, not critique.
+
+### ❌ Do Not Blur It Into Diagnostics or Revise
+Storygate is a separate, post-revision gate.
+
+### ❌ Do Not Allow Uncertified Drafts Into Storygate Studio
+The gate is real, not performative.
+
+### ❌ Do Not Let Marketing Outrun Enforcement
+Storygate only works if it is hard, boring, and trustworthy.
+
+**Storygate is infrastructure, not convenience.**
+
+---
+
+## 10. Immediate Implementation Priorities
+
+### Phase 1: Certification Gate (Sprint 1-2)
+- [ ] Storygate Status Badge (Ready / Not Ready / Conditionally Ready)
+- [ ] Gating logic tied to Diagnostics + Canon Drift
+- [ ] Override workflows with logging
+- [ ] Audit trail linkage
+
+### Phase 2: Basic Listing (Sprint 3)
+- [ ] Create listing from certified manuscript
+- [ ] Attach diagnostics summary
+- [ ] Visibility controls (private / discoverable)
+- [ ] Access request workflows
+
+### Phase 3: Verification Queue (Sprint 4)
+- [ ] Industry user verification
+- [ ] Manual approval queue (admin-facing)
+- [ ] Access logging and audit trail
+
+### Phase 4: Studio Features (Sprint 5+)
+- [ ] Multi-project portfolio view
+- [ ] Shared canon rules across projects
+- [ ] Drift detection across series
+- [ ] Team collaboration workflows
+
+---
+
+## 11. Success Metrics
+
+### Adoption Metrics
+- % of manuscripts that attempt Storygate certification
+- % that pass on first attempt
+- Time from "Not Ready" → "Verified Ready"
+
+### Trust Metrics
+- Industry user verification rate
+- Listing view/access request ratio
+- Repeat submissions from certified authors
+
+### Platform Metrics
+- Switching cost indicator: % of users who return after certification
+- Network effect indicator: % of listings accessed by verified industry users
+- Up-market indicator: % of Studio-tier subscriptions
+
+---
+
+## 12. Related Documents
+
+- `COMPETITIVE_COMPARISON_TABLE.md` — Full competitive positioning
+- `WHY_GOVERNANCE_MATTERS_COPY.md` — Trust narrative
+- `DIAGNOSTICS_DASHBOARD_SPECIFICATION.md` — Pre-requisite for Storygate
+- `STORYGATE_FLOW_MAP.md` — Existing workflow documentation
+
+---
+
+## 13. Final Positioning Truth
+
+**Competitors help you write.**  
+**RevisionGrade helps you publish.**
+
+That is the strategic moat.
+
+---
+
+**END OF POSITIONING**
