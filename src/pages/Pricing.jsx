@@ -24,7 +24,7 @@ const tiers = [
             "No longitudinal tracking",
             "No comparative analysis"
         ],
-        microcopy: "Designed for testing RevisionGrade on real material without committing to full‑manuscript work.",
+        microcopy: "Best for early chapters, samples, and short projects. Designed for testing RevisionGrade on real material without committing to full‑manuscript work.",
         limitations: []
     },
     {
@@ -38,26 +38,27 @@ const tiers = [
             "Up to ~200,000–250,000 words/month",
             "Unlimited uploads, evaluations, and revisions within allowance",
             "Full-manuscript coverage with WAVE (13 criteria)",
+            "Longitudinal tracking: persistent skill tracking across submissions",
             "Pattern detection across drafts and progress tracking",
             "Editorial summaries, diagnostics, and clean revision exports",
             "Work‑tied outputs: synopsis, query letter, pitches, market comparables, author biography, agent package, film adaptation package"
         ],
-        microcopy: "Enough capacity for multiple full passes on a novel in active revision.",
+        microcopy: "Enough capacity for multiple full passes on a novel in active revision. A typical 80,000-word novel fits comfortably within this allowance.",
         limitations: []
     },
     {
-        name: "Professional",
+        name: "Professional (Comparative)",
         price: 149,
         priceId: "price_professional_monthly",
         icon: Crown,
         color: "from-purple-500 to-pink-600",
         features: [
-            "Everything in Pro/Core",
+            "Everything in Pro",
             "Same or higher word allowance",
             "Comparative Analysis Report",
             "Genre-context diagnostics",
             "Optional comparative snapshot against published norms",
-            "One primary manuscript per period positioned for high‑stakes review (querying, submission, or adaptation)"
+            "Comparative positioning optimized for one designated primary manuscript per month (querying, submission, or adaptation)"
         ],
         microcopy: "For writers preparing to query, submit, or professionally position their work.",
         limitations: []
@@ -123,7 +124,7 @@ export default function Pricing() {
                         Choose Your Plan
                     </h1>
                     <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto">
-                        All RevisionGrade plans include unlimited projects and evaluation runs, metered only by total words analyzed per month. There are no limits on uploads, revisions, diagnostics, or outputs within your monthly word allowance. When you reach your limit, new analyses pause until your next reset or plan upgrade. Past results remain fully accessible.
+                        All RevisionGrade plans include unlimited projects and evaluation runs, metered only by total words analyzed per month. There are no limits on uploads, revisions, diagnostics, or outputs within your monthly word allowance. When you reach your limit, new analyses pause until your next monthly reset or plan upgrade. Past results remain fully accessible.
                     </p>
                 </div>
             </div>
@@ -229,7 +230,7 @@ export default function Pricing() {
                     <div className="mb-8 p-6 rounded-xl bg-gradient-to-br from-slate-50 to-indigo-50 border border-slate-200">
                         <h3 className="font-semibold text-slate-900 mb-3">What happens at the limit?</h3>
                         <p className="text-sm text-slate-700">
-                            When you reach your monthly word allowance, new analyses pause. You can still view, export, and work with all previous results. Analysis resumes automatically at your next monthly reset or when you upgrade.
+                            When you reach your monthly word allowance, new analyses pause. You can still view, export, and work with all previous results. Analysis resumes automatically on your next billing date or when you upgrade.
                         </p>
                     </div>
 
@@ -268,7 +269,8 @@ export default function Pricing() {
                             </table>
                         </div>
                         <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-600">
-                            *See Storygate Studio™ below for professional access and submission governance.
+                            *See Storygate Studio™ below for professional access and submission governance.<br />
+                            Competitive feature comparison reflects publicly available product capabilities as of January 2026.
                         </div>
                     </div>
 
@@ -336,18 +338,20 @@ export default function Pricing() {
                         </CardHeader>
                         <CardContent className="space-y-4 text-sm text-slate-600">
                             <div>
-                                <strong className="text-slate-900">¹ Unlimited Evaluation Runs:</strong> Refers to the number of analysis runs. Monthly usage is subject to the included word allowance, whichever comes first.
+                                <strong className="text-slate-900">Unlimited Evaluation Runs:</strong> Run as many analyses as you want. Monthly usage is limited only by your included word allowance.
                             </div>
                             <div>
-                                <strong className="text-slate-900">Editorial Growth Tracking (Professional only):</strong> RevisionGrade remembers you. 
-                                Track your development as a writer over time with persistent skill tracking, trend-based scoring, and revision effectiveness analysis. 
+                                <strong className="text-slate-900">Typical Manuscript Size:</strong> A typical 80,000-word novel fits comfortably within the Pro allowance for multiple full passes.
+                            </div>
+                            <div>
+                                <strong className="text-slate-900">Longitudinal Tracking (Pro and Professional):</strong> RevisionGrade can track your development over time with persistent skill tracking, trend-based scoring, and revision effectiveness analysis. 
                                 Competitors reset to zero on every document—RevisionGrade builds a longitudinal record of your craft evolution.
                             </div>
                             <div>
                                 <strong className="text-slate-900">Free Starter Evaluation:</strong> New users receive 1-2 free evaluations (~2,000 words total) to experience the system. Account required after first evaluation.
                             </div>
                             <div>
-                                <strong className="text-slate-900">Monthly Reset:</strong> Evaluation counts and word limits reset on the 1st of each month.
+                                <strong className="text-slate-900">Monthly Reset:</strong> Word allowance resets on your monthly billing date.
                             </div>
                             <div>
                                 <strong className="text-slate-900">Cancellation:</strong> Cancel anytime. Access continues until the end of your billing period.
