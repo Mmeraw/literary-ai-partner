@@ -463,12 +463,12 @@ ${submission.text || 'No text available'}
                                             <Progress value={revisionProgress} className="h-3" />
                                         </div>
                                         <div className="p-3 rounded-lg bg-white/60 border border-amber-200 mb-4">
-                                            <p className="text-xs text-amber-800 mb-2">
-                                                <strong>Story Foundation:</strong> {Math.round((evaluationResult.overallScore || submission.overall_score) * 10)}/100
-                                            </p>
-                                            <p className="text-xs text-amber-700">
-                                                Complete revisions to see your improved quality score (12 criteria + 60+ WAVE checks combined).
-                                            </p>
+                                           <p className="text-xs text-amber-800 mb-2">
+                                               <strong>Story Foundation:</strong> {Math.round((evaluationResult.overallScore || submission.overall_score) * 10)}/100
+                                           </p>
+                                           <p className="text-xs text-amber-700">
+                                               Complete revisions to see your improved quality score (13 criteria + 60+ WAVE checks combined).
+                                           </p>
                                         </div>
                                         {activeSession && (
                                             <Link to={createPageUrl(`Revise?sessionId=${activeSession.id}`)}>
