@@ -1,0 +1,127 @@
+# BASE44 CONTRACT ADDENDUM
+## Governance, Verification & Release Enforcement
+
+**Applies To:** Base44 Engineering, QA, DevOps, AI Systems  
+**Effective Date:** Immediate  
+**Status:** Contractual Addendum — Release-Blocking  
+**Supersedes:** Any informal or undocumented practices
+
+---
+
+## 1. Purpose (Binding)
+
+This addendum formally binds Base44 to the **RevisionGrade / Storygate Platform Governance Doctrine**, including enforcement, QA evidence, auditability, and release gating.
+
+**Base44 acknowledges that functional behavior alone is insufficient; compliance is determined solely by objective governance evidence.**
+
+---
+
+## 2. Scope of Obligation
+
+This addendum applies to all Base44-implemented or Base44-operated surfaces, including but not limited to:
+
+- **YourWriting / Quick Evaluate**
+- **UploadManuscript**
+- **ScreenplayFormatter / Convert**
+- **Revise**
+- **Outputs**
+- **Storygate Marketplace**
+- **Storygate Studio**
+- **CreatorStoryGate**
+- **Industry Verification**
+
+**If a surface:**
+- Accepts input
+- Changes system state
+- Controls access
+- Displays trust or verification
+
+**…it is in scope.**
+
+---
+
+## 3. Definition of VERIFIED (Contractual)
+
+**Base44 agrees that a surface is VERIFIED only when all of the following are evidenced:**
+
+### 3.1 Governed Entry
+- Governed entry point executes before processing
+- QA checklist enforced
+- Halt-on-fail behavior implemented
+
+### 3.2 Validators
+- Required validators executed
+- Outcomes recorded (pass / soft / hard)
+- No silent routing or inference
+
+### 3.3 Audit Record (Mandatory)
+
+**For every state-changing action, Base44 must emit a structured audit event (not logs).**
+
+**Minimum required fields:**
+- `event_id`
+- `request_id`
+- `timestamp_utc`
+- `action_type`
+- `detected_format` / `routed_pipeline` (if applicable)
+- `validators_run` / `validators_failed`
+- `failure_codes`
+- `canon_hash` / version
+- **Actor context** (`creator_id`, `requester_id`, `admin_id`, etc.)
+
+**Free-text logs do not satisfy this requirement.**
+
+### 3.4 SLA Timing
+- `start_ms`
+- `end_ms`
+- `elapsed_ms`
+- `operations` array (where applicable)
+
+### 3.5 Negative Path Enforcement
+- Invalid input blocked
+- User-visible error
+- Failure auditable
+
+**If any element is missing → UNVERIFIED or FAILED.**
+
+---
+
+## 4. Phase-Gated Execution (No Implied Permission)
+
+**Timelines do not authorize work.**
+
+Base44 must not begin work on any phase without **explicit written authorization** for that phase.
+
+**Unauthorized work constitutes a governance breach.**
+
+---
+
+## 5. Incident Handling (Mandatory)
+
+**Any of the following triggers an incident:**
+
+- Governance hooks bypassed
+- Validators skipped
+- Audit record missing
+- Unauthorized implementation
+- Phase sequencing violated
+
+**Incident Type:** GOVERNANCE_BYPASS
+
+**Work must stop until incident resolution.**
+
+---
+
+## 6. Release Gate (Hard Stop)
+
+**Base44 acknowledges:**
+
+- No surface may ship unless VERIFIED
+- Missed VERIFIED deadlines are release-blocking
+- QA evidence, not intent, determines readiness
+
+---
+
+## 7. Acceptance
+
+**By continuing work on RevisionGrade / Storygate, Base44 agrees to this addendum in full.**

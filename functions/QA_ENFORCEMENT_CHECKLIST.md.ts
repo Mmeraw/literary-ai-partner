@@ -1,0 +1,109 @@
+# QA ENFORCEMENT CHECKLIST
+## Governance & VERIFIED Determination
+
+**Applies To:** QA Leads, QA Engineers, DevOps  
+**Status:** Mandatory — Evidence-Driven  
+**Usage:** Per surface, per release
+
+---
+
+## A. Pre-Test Conditions
+
+- [ ] No code changes during walkthrough
+- [ ] Observational runtime behavior only
+- [ ] Test inputs documented
+- [ ] Expected behavior defined
+
+---
+
+## B. Governed Entry
+
+- [ ] Governed entry executed first
+- [ ] QA checklist enforced
+- [ ] Invalid inputs halt flow
+
+**If any unchecked → FAILED**
+
+---
+
+## C. Validators
+
+- [ ] Required validators executed
+- [ ] Validator names recorded
+- [ ] Outcomes recorded (pass / soft / hard)
+
+**If validators missing → UNVERIFIED**
+
+---
+
+## D. Routing & Detection
+
+- [ ] `detected_format` populated
+- [ ] `routed_pipeline` explicit
+- [ ] No silent heuristics
+
+**If routing implicit → FAILED**
+
+---
+
+## E. Audit Record (Mandatory)
+
+- [ ] Structured audit event exists
+- [ ] `event_id` present
+- [ ] `request_id` present
+- [ ] `timestamp_utc` present
+- [ ] `action_type` correct
+- [ ] Actor context correct
+- [ ] `validators_run` populated
+- [ ] `failure_codes` populated (if applicable)
+
+**If audit missing → FAILED**
+
+---
+
+## F. SLA Timing
+
+- [ ] `start_ms` present
+- [ ] `end_ms` present
+- [ ] `elapsed_ms` present
+
+**If missing → PARTIALLY VERIFIED**
+
+---
+
+## G. Negative Path Testing
+
+- [ ] Invalid input blocked
+- [ ] Error user-visible
+- [ ] Failure auditable
+
+**If silent failure → FAILED**
+
+---
+
+## H. Storygate-Specific (If Applicable)
+
+- [ ] Listing persistence verified
+- [ ] Access control enforced
+- [ ] Private listings not discoverable
+- [ ] Access requests gated
+- [ ] Verification state enforced
+- [ ] Verification badge reflects real state
+
+**If access or verification bypassed → FAILED (Security Risk)**
+
+---
+
+## I. Final Determination
+
+- [ ] **VERIFIED**
+- [ ] **PARTIALLY VERIFIED**
+- [ ] **FAILED**
+
+**Decision must cite evidence artifacts, not opinion.**
+
+---
+
+## QA Rule (Non-Negotiable)
+
+**If you cannot point to evidence, the surface is not VERIFIED.**
