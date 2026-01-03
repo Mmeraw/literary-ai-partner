@@ -11,7 +11,7 @@ export default function StoryGate() {
         <div className="min-h-screen" style={{ backgroundColor: '#0E0E0E' }}>
             {/* Above-the-Fold */}
             <div className="border-b" style={{ borderColor: '#A98E4A' }}>
-                <div className="max-w-6xl mx-auto px-6 py-20">
+                <div className="max-w-6xl mx-auto px-6 py-10 sm:py-16 lg:py-20">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
