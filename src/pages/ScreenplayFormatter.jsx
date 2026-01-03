@@ -4,20 +4,20 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Film, Loader2, Download, Sparkles, ArrowRight, Copy } from 'lucide-react';
+import { Film, Loader2, Download, Sparkles, ArrowRight, Copy, ChevronDown } from 'lucide-react';
 import { toast } from "sonner";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import TransgressiveModeSelector from '@/components/evaluation/TransgressiveModeSelector';
 import RichTextEditor from '@/components/RichTextEditor';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export default function ScreenplayFormatter() {
     const [inputText, setInputText] = useState(sessionStorage.getItem('uploadedText') || '');
     const [formattedText, setFormattedText] = useState('');
     const [evaluationMode, setEvaluationMode] = useState('standard');
     const [isFormatting, setIsFormatting] = useState(false);
-    const [mode, setMode] = useState('auto');
+    const [showAdvanced, setShowAdvanced] = useState(false);
 
     // Clear sessionStorage after loading
     React.useEffect(() => {
@@ -37,11 +37,21 @@ export default function ScreenplayFormatter() {
         try {
             const { data } = await base44.functions.invoke('formatScreenplay', {
                 text: inputText,
-                mode: mode === 'auto' ? null : mode
+                mode: null // Always auto-detect
             });
 
             setFormattedText(data.formatted_text);
-            toast.success(`Formatted as ${data.mode === 'convert' ? 'screenplay from prose' : 'cleaned screenplay'}`);
+            
+            // Show what was detected
+            const detectionMsg = data.detected_format 
+                ? `Detected ${data.detected_format} — converted to screenplay format`
+                : 'Converted to screenplay format';
+            toast.success(detectionMsg);
+            
+            // Show confidence note if low
+            if (data.confidence && data.confidence < 0.95) {
+                toast.info('Format inferred automatically — review recommended', { duration: 5000 });
+            }
         } catch (error) {
             console.error('Format error:', error);
             toast.error('Failed to format. Please try again.');
@@ -85,23 +95,12 @@ export default function ScreenplayFormatter() {
                         <Film className="w-8 h-8 text-white" />
                     </div>
                     <h1 className="text-3xl font-bold text-slate-900">Screenplay Formatter</h1>
-                    <p className="mt-2 text-slate-600 max-w-xl mx-auto">
-                        Convert novel scenes to screenplay format OR clean up crude screenplay drafts
+                    <p className="mt-2 text-slate-600 max-w-2xl mx-auto">
+                        Convert any narrative text into industry-standard screenplay format. No setup required.
                     </p>
                     <Badge className="mt-3 bg-purple-100 text-purple-700 border-purple-200">
                         WriterDuet Industry Standards
                     </Badge>
-                </div>
-
-                {/* Mode Selector */}
-                <div className="max-w-2xl mx-auto mb-6">
-                    <Tabs value={mode} onValueChange={setMode} className="w-full">
-                        <TabsList className="grid w-full grid-cols-3">
-                            <TabsTrigger value="auto">Auto-Detect</TabsTrigger>
-                            <TabsTrigger value="convert">Novel → Screenplay</TabsTrigger>
-                            <TabsTrigger value="cleanup">Clean Up Draft</TabsTrigger>
-                        </TabsList>
-                    </Tabs>
                 </div>
 
                 <div className="grid lg:grid-cols-2 gap-6">
@@ -117,33 +116,43 @@ export default function ScreenplayFormatter() {
                             <RichTextEditor
                                 value={inputText}
                                 onChange={setInputText}
-                                placeholder={mode === 'convert' 
-                                    ? "Paste novel prose here... (formatting like italics and bold preserved)\n\nExample:\nThe store smells like rotted sawdust. Brutus steps inside. The man behind the counter grins through gold teeth..."
-                                    : "Paste crude screenplay here... (formatting preserved)\n\nExample:\nLocation: Store\nBrutus steps inside.\nThe man grins.\n\"Welcome,\" he says..."
-                                }
+                                placeholder="Paste any narrative text — novel chapters, scenes, or rough screenplay drafts.&#10;We'll detect the format and convert it automatically."
                                 minHeight="500px"
-                                />
-                                <div className="mt-4 p-4 rounded-xl bg-white border border-slate-200">
-                                <TransgressiveModeSelector 
-                                   value={evaluationMode}
-                                   onChange={setEvaluationMode}
-                                />
-                                </div>
-                                <div className="mt-4 flex gap-3">
+                            />
+                            
+                            {/* Advanced Options (Collapsed) */}
+                            <div className="mt-4">
+                                <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+                                    <CollapsibleTrigger asChild>
+                                        <Button variant="ghost" className="w-full justify-between text-sm text-slate-600">
+                                            Advanced options
+                                            <ChevronDown className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+                                        </Button>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="mt-3 p-4 rounded-xl bg-white border border-slate-200">
+                                        <TransgressiveModeSelector 
+                                            value={evaluationMode}
+                                            onChange={setEvaluationMode}
+                                        />
+                                    </CollapsibleContent>
+                                </Collapsible>
+                            </div>
+
+                            <div className="mt-4">
                                 <Button
                                     onClick={handleFormat}
                                     disabled={isFormatting || !inputText.trim()}
-                                    className="flex-1 h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                                    className="w-full h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                                 >
                                     {isFormatting ? (
                                         <>
                                             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                            Formatting...
+                                            Converting...
                                         </>
                                     ) : (
                                         <>
                                             <Film className="w-5 h-5 mr-2" />
-                                            Format to Screenplay
+                                            Convert to Scenes or Screenplay
                                         </>
                                     )}
                                 </Button>
@@ -197,7 +206,7 @@ export default function ScreenplayFormatter() {
                                 <div className="min-h-[500px] flex items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 rounded-lg">
                                     <div className="text-center">
                                         <Film className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                                        <p>Formatted screenplay will appear here</p>
+                                        <p>Your formatted screenplay will appear here</p>
                                     </div>
                                 </div>
                             )}
@@ -205,29 +214,18 @@ export default function ScreenplayFormatter() {
                     </Card>
                 </div>
 
-                {/* Info Cards */}
-                <div className="grid md:grid-cols-2 gap-6 mt-8">
+                {/* Info Card */}
+                <div className="max-w-4xl mx-auto mt-8">
                     <Card className="border-l-4 border-l-purple-500">
                         <CardHeader>
-                            <CardTitle className="text-lg">Novel → Screenplay</CardTitle>
+                            <CardTitle className="text-lg">What Happens Automatically</CardTitle>
                         </CardHeader>
                         <CardContent className="text-sm text-slate-600 space-y-2">
-                            <p>• Converts prose narrative to visual action lines</p>
-                            <p>• Removes internal thoughts and unfilmable descriptions</p>
-                            <p>• Creates proper sluglines and dialogue formatting</p>
-                            <p>• Applies WriterDuet industry standards</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-l-4 border-l-pink-500">
-                        <CardHeader>
-                            <CardTitle className="text-lg">Clean Up Draft</CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-sm text-slate-600 space-y-2">
-                            <p>• Fixes slugline formatting (INT./EXT.)</p>
-                            <p>• Removes prose labels and section headers</p>
-                            <p>• Corrects dialogue indentation and character names</p>
-                            <p>• Eliminates philosophical statements</p>
+                            <p>• System detects whether you've pasted prose, rough screenplay, or formatted script</p>
+                            <p>• Converts prose narrative to visual action lines and proper screenplay format</p>
+                            <p>• Cleans up rough drafts: fixes sluglines (INT./EXT.), dialogue formatting, character names</p>
+                            <p>• Removes internal thoughts, prose labels, and unfilmable descriptions</p>
+                            <p>• Applies WriterDuet industry standards across all conversions</p>
                         </CardContent>
                     </Card>
                 </div>
