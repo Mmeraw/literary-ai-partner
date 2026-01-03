@@ -140,7 +140,7 @@ export default function FAQ() {
                             <strong>Built to evaluate stories the way agents and editors actually read</strong>—balancing craft, clarity, and real-world market readiness.
                         </p>
                         <p>
-                            This evaluation system was designed to reflect how professional agents, editors, and script readers actually assess work—not just craft in isolation, but readiness for the market. The 12 Story Evaluation Criteria measure narrative strength, clarity, and execution, while an internal meta-layer captures the quieter factors that influence real acquisition decisions, such as conceptual clarity, reader load, originality, and professional polish.
+                            This evaluation system was designed to reflect how professional agents, editors, and script readers actually assess work—not just craft in isolation, but readiness for the market. The 13 Story Evaluation Criteria measure narrative strength, clarity, and execution, while an internal meta-layer captures the quieter factors that influence real acquisition decisions, such as conceptual clarity, reader load, originality, and professional polish.
                         </p>
                         <p>
                             Together, they allow us to assess not only how well a story is written, but whether it functions as a viable, compelling piece of work in today's publishing and screen markets—without overburdening creators with opaque or subjective judgment.
