@@ -134,7 +134,7 @@ export default function ScreenplayFormatter() {
                                             <ChevronDown className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
                                         </Button>
                                     </CollapsibleTrigger>
-                                    <CollapsibleContent className="mt-3 space-y-4">
+                                    <CollapsibleContent className="mt-3 space-y-6">
                                         <div className="p-4 rounded-xl bg-white border border-slate-200">
                                             <LanguageVariantSelector 
                                                 value={languageVariant}
@@ -157,7 +157,7 @@ export default function ScreenplayFormatter() {
                                 </Collapsible>
                             </div>
 
-                            <div className="mt-4">
+                            <div className="mt-6">
                                 <Button
                                     onClick={handleFormat}
                                     disabled={isFormatting || !inputText.trim()}
