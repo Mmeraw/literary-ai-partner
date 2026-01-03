@@ -123,7 +123,7 @@ export default function Home() {
                         {
                             icon: CheckCircle2,
                             title: "Complete Submission Package",
-                            description: "Author bio, 5–10 market comps, targeted agent list, query draft, and synopsis options—organized so you can assemble a professional submission and outreach plan. Includes your project's 1–10 grade; Storygate Studio consideration is available for grades of 8–10.",
+                            description: "Author bio, 5–10 market comps, targeted agent list, query draft, and synopsis options—organized so you can assemble a professional submission and outreach plan. Includes your project's 1–10 grade; Storygate Studio™ consideration is available for grades of 8–10.",
                             color: "from-emerald-500 to-teal-600"
                         }
                     ].map((feature, idx) => (
