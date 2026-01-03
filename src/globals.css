@@ -103,6 +103,14 @@ h1, h2, h3, h4, h5, h6, .font-bold, .font-semibold, [class*="font-"] {
   font-variant-ligatures: none !important;
 }
 
+/* Hard override utility for components that fight back */
+.rg-plain-text,
+.rg-plain-text * {
+  font-family: var(--rg-font-sans) !important;
+  font-feature-settings: normal !important;
+  font-variant-alternates: normal !important;
+}
+
 /* Custom scrollbar styling */
 ::-webkit-scrollbar {
   width: 16px;
@@ -126,46 +134,4 @@ h1, h2, h3, h4, h5, h6, .font-bold, .font-semibold, [class*="font-"] {
 * {
   scrollbar-width: auto;
   scrollbar-color: #94a3b8 #f1f5f9;
-}
-
-/* Nuclear override every text element */
-div, span, p, h1, h2, h3, h4, h5, h6, a, button, input, textarea, select, label, li, td, th, nav, header, footer, section, article, aside, main, figure, figcaption, time, mark, strong, em, b, i, u, small, abbr, cite, code, pre, kbd, samp, var, sub, sup, svg text, tspan {
-  font-family: Verdana, Geneva, Tahoma, sans-serif !important;
-  font-feature-settings: "kern" 0, "liga" 0, "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0, "ss04" 0, "ss05" 0, "salt" 0 !important;
-  font-variant-ligatures: none !important;
-  font-variant-alternates: normal !important;
-  -webkit-font-feature-settings: "kern" 0, "liga" 0, "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0, "salt" 0 !important;
-  -moz-font-feature-settings: "kern" 0, "liga" 0, "calt" 0, "ss01" 0, "ss02" 0, "salt" 0 !important;
-}
-
-/* Destroy all font classes */
-[class*="font"], [class*="text"], [class*="heading"], [class*="body"], [class*="title"], [class*="label"] {
-  font-family: Verdana, Geneva, Tahoma, sans-serif !important;
-  font-feature-settings: "kern" 0, "liga" 0, "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0, "salt" 0 !important;
-}
-
-/* Tailwind overrides */
-.font-sans, .font-serif, .font-mono, .font-bold, .font-semibold, .font-medium, .font-light {
-  font-family: Verdana, Geneva, Tahoma, sans-serif !important;
-  font-feature-settings: "kern" 0, "liga" 0, "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0, "salt" 0 !important;
-}
-
-/* Block gradient text from using web fonts */
-.bg-clip-text, .text-transparent, [class*="gradient"], [style*="gradient"] {
-  font-family: Verdana, Geneva, Tahoma, sans-serif !important;
-  font-feature-settings: "kern" 0, "liga" 0, "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0, "salt" 0 !important;
-}
-
-/* Force Verdana everywhere - ultimate override */
-body * {
-  font-family: Verdana, Geneva, Tahoma, sans-serif !important;
-}
-
-#root, #root * {
-  font-family: Verdana, Geneva, Tahoma, sans-serif !important;
-}
-
-/* Block any React inline styles trying to set fonts */
-[style*="font-family"] {
-  font-family: Verdana, Geneva, Tahoma, sans-serif !important;
 }
