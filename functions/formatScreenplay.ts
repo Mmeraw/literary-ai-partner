@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { text, mode } = await req.json();
+        const { text, mode, voicePreservation } = await req.json();
 
         if (!text) {
             return Response.json({ error: 'Text required' }, { status: 400 });
@@ -23,11 +23,20 @@ Deno.serve(async (req) => {
         // Auto-detect mode if not specified
         const detectedMode = mode || (processedText.includes('INT.') || processedText.includes('EXT.') ? 'cleanup' : 'convert');
 
+        // Voice preservation instruction
+        const voiceInstruction = voicePreservation === 'maximum'
+            ? 'VOICE PRESERVATION: MAXIMUM. Preserve all distinctive phrasing, rhythm, and stylistic choices. Only change formatting, not language.'
+            : voicePreservation === 'polish'
+            ? 'VOICE PRESERVATION: POLISH. Prioritize professional clarity over voice preservation where they conflict.'
+            : 'VOICE PRESERVATION: BALANCED. Maintain distinctive voice while ensuring professional readability.';
+
         let prompt = '';
 
         if (detectedMode === 'convert') {
             // Novel/prose → screenplay conversion
             prompt = `Convert this prose narrative into a properly formatted screenplay following the RevisionGrade Screenplay Formatting Standard (WriterDuet v1.0 compatible).
+
+${voiceInstruction}
 
 CRITICAL FORMATTING RULES (RevisionGrade Standard v1.0):
 
@@ -90,6 +99,8 @@ Output ONLY the formatted screenplay text. Strip all HTML tags. No explanations,
         } else {
             // Cleanup crude screenplay
             prompt = `Clean up this crude screenplay draft to the RevisionGrade Screenplay Formatting Standard (WriterDuet v1.0 compatible).
+
+${voiceInstruction}
 
 FIX THESE ISSUES (RevisionGrade Standard v1.0):
 

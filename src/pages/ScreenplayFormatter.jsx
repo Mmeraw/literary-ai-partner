@@ -39,7 +39,8 @@ export default function ScreenplayFormatter() {
         try {
             const { data } = await base44.functions.invoke('formatScreenplay', {
                 text: inputText,
-                mode: null // Always auto-detect
+                mode: null, // Always auto-detect
+                voicePreservation: voicePreservation
             });
 
             setFormattedText(data.formatted_text);
