@@ -284,7 +284,7 @@ export default function Pricing() {
 
                     {/* Table 2: Storygate Studio */}
                     <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-                        <div className="px-6 py-4 bg-gradient-to-r from-red-50 to-pink-50 border-b border-slate-200">
+                        <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-slate-200">
                             <h3 className="font-semibold text-slate-900">Professional Access & Governance (Storygate Studio™)</h3>
                             <p className="text-sm text-slate-600 mt-1">Not a writing tool — a secure, curated access layer</p>
                         </div>
