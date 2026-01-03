@@ -1,0 +1,194 @@
+# REVISIONGRADE™ EVALUATION ENTRY — CANON SPECIFICATION (LOCKED)
+
+**Status:** CANON  
+**Applies to:** Product, Engineering, QA, UX, Documentation  
+**Principle:** One user entry. Smart detection. Invisible routing.
+
+---
+
+## 1. CORE PRODUCT DECISION (LOCKED)
+
+RevisionGrade™ uses **one unified evaluation entry point** for all writing.
+
+Users **do not select format** in advance.
+
+The system automatically determines whether the submission is:
+- a scene
+- a chapter
+- a full manuscript
+- a full screenplay
+
+and routes it to the correct evaluation pipeline **invisibly**.
+
+---
+
+## 2. TOP-LEVEL NAVIGATION (FINAL)
+
+**Navigation label:** Evaluate  
+*(No sub-menu items.)*
+
+**Tooltip (optional but recommended):**  
+"Upload your writing for professional evaluation. Format is detected automatically."
+
+---
+
+## 3. EVALUATE LANDING PAGE — UI COPY (SHIP THIS)
+
+**Page Header:** Your Writing
+
+**Subhead:**  
+"Upload or paste your writing below. Formatting is preserved. We'll automatically determine whether it's a scene, chapter, screenplay, or full manuscript and evaluate it accordingly."
+
+**Disclaimer (keep your existing one, unchanged):**  
+"Scores reflect how your work aligns with agent-level criteria and WAVE standards. This is revision guidance, not a guarantee of representation or publication."
+
+---
+
+## 4. MAIN INPUT AREA (UNCHANGED STRUCTURE, NEW FRAMING)
+
+**Section Title:** Writing Details
+
+**Field: Project Title (optional)**  
+Helper text: "Helps you organize your submissions."
+
+**Field: Writing Input**  
+Helper text: "Paste a paragraph, scene, chapter, screenplay, or full manuscript here. Formatting (italics, bold, spacing) is preserved."
+
+---
+
+## 5. RIGHT-HAND SIDEBAR (IMPORTANT REASSURANCE)
+
+**Sidebar Header:** How Evaluation Works
+
+**Body copy (verbatim):**
+
+"You don't need to choose a format.
+
+RevisionGrade automatically analyzes structure, formatting, and length to determine whether your submission is a scene, chapter, screenplay, or full manuscript.
+
+Shorter submissions are evaluated directly. Full manuscripts are processed in chapters with progress tracking."
+
+**Optional final line (smaller text):**  
+"This ensures accurate scoring and consistent revision guidance."
+
+---
+
+## 6. FORMAT DETECTION — CANON LOGIC (ENGINEERING)
+
+**Detection inputs (non-exhaustive):**
+- Word count thresholds
+- Presence of screenplay formatting (INT./EXT., dialogue blocks, slug lines)
+- Chapter headings / numbering
+- Scene breaks
+- Manuscript-scale length + structure density
+
+**Routing rules (LOCKED):**
+
+```
+IF full manuscript detected:
+    route → Full Manuscript Pipeline
+    (chapter splitting, async processing, progress UI)
+
+ELSE:
+    route → Quick Evaluation Pipeline
+    (scene / chapter / screenplay segments, immediate results)
+```
+
+User **never sees this decision**.
+
+---
+
+## 7. PIPELINES (DO NOT MERGE)
+
+### Pipeline A — Quick Evaluation
+
+**Used for:**
+- scenes
+- partial or full chapters
+- screenplay excerpts
+- full screenplays (non-episodic)
+
+**Behavior:**
+- synchronous
+- immediate scoring
+- line-level + structural feedback
+
+### Pipeline B — Full Manuscript
+
+**Used for:**
+- complete novels
+- long-form manuscripts
+
+**Behavior:**
+- async
+- chapter splitting
+- progress tracking
+- aggregate scoring
+
+---
+
+## 8. REVISION GOVERNANCE (INHERITS AUTOMATICALLY)
+
+- Voice Preservation setting applies identically regardless of detected format
+- House Voice applies to narration only
+- Revision is only enabled **after evaluation** (existing rule stands)
+
+No format choice affects governance rules.
+
+---
+
+## 9. WHAT USERS NEVER SEE (BY DESIGN)
+
+- No format dropdown
+- No "scene vs chapter vs novel" decision
+- No routing explanation
+- No menu proliferation
+
+This is **intentional**.
+
+---
+
+## 10. QA ACCEPTANCE CRITERIA (RELEASE-BLOCKING)
+
+### UX / Product
+- Only one Evaluate entry point exists
+- No format selection is required from the user
+- Sidebar reassurance text is visible before submission
+
+### Logic
+- Submissions are correctly routed to one of two pipelines
+- No submission fails due to missing format selection
+- Full manuscripts reliably enter async flow
+
+### Regression
+- Existing Evaluate and Full Manuscript functionality remains intact
+- No bypass path allows revision without evaluation
+
+---
+
+## 11. BASE44 — ONE-LINE INSTRUCTION (PIN THIS)
+
+**"Evaluation has one user entry point; format detection and pipeline routing are automatic and invisible to the user."**
+
+---
+
+## 12. WHY THIS IS CANON (NON-MARKETING)
+
+This approach:
+- reduces cognitive load
+- avoids false precision
+- scales to new formats without redesign
+- matches professional editorial workflows
+- preserves technical separation without UX fragmentation
+
+---
+
+## FINAL STATUS
+
+**You have:**
+- One Evaluate button
+- One "Your Writing" page
+- Smart detection
+- Two invisible pipelines
+- Zero user confusion
+- Zero future menu debt

@@ -1,0 +1,159 @@
+# REVISIONGRADE™ — EVALUATE QA CHECKLIST (RELEASE-BLOCKING)
+
+**Status:** CANON / BINDING  
+**Applies to:** Quality Assurance, Engineering, Product  
+**Purpose:** Release acceptance criteria for EVALUATE process
+
+---
+
+## UX / PRODUCT
+
+### Navigation & Entry Point
+- [ ] Exactly one "Evaluate" entry exists in top-level navigation
+- [ ] No sub-menu items under "Evaluate"
+- [ ] No alternate evaluation entry points exist elsewhere
+- [ ] Tooltip text matches canon specification
+
+### Page Structure
+- [ ] Page title is "Your Writing"
+- [ ] Subhead text matches canon specification
+- [ ] Disclaimer text is present and unchanged
+- [ ] No format selection UI is present
+
+### Sidebar Reassurance
+- [ ] Sidebar header reads "How Evaluation Works"
+- [ ] Sidebar body copy matches canon specification verbatim
+- [ ] Sidebar is visible before submission
+- [ ] Optional final line present (smaller text)
+
+### Input Area
+- [ ] Section titled "Writing Details"
+- [ ] Project title field labeled correctly with helper text
+- [ ] Writing input field accepts all formats
+- [ ] Helper text matches canon specification
+- [ ] File upload accepts .docx, .pdf, .txt
+
+---
+
+## LOGIC / ROUTING
+
+### Format Detection
+- [ ] Detection runs automatically on every submission
+- [ ] Detection never returns "unknown"
+- [ ] Detection analyzes word count, formatting, structure
+- [ ] Detection confidence is logged
+
+### Pipeline Routing
+- [ ] Submissions <10k words route to Quick Evaluation
+- [ ] Submissions >10k words route to Full Manuscript pipeline
+- [ ] No manual routing override available to users
+- [ ] Routing decision is logged with detection signals
+
+### Processing Behavior
+- [ ] Quick Evaluation: synchronous, immediate results
+- [ ] Full Manuscript: async, chapter splitting, progress tracking
+- [ ] No submission fails due to format ambiguity
+- [ ] No fallback/default routing observed
+
+---
+
+## GOVERNANCE
+
+### Revision Gating
+- [ ] Revision actions disabled until evaluation complete
+- [ ] No bypass path exists
+- [ ] Revision gate validated on every request
+
+### Voice Preservation
+- [ ] Voice Preservation setting applies uniformly across formats
+- [ ] House Voice applies to narration only
+- [ ] No format-specific voice overrides
+
+---
+
+## LOGGING / AUDIT
+
+### Event Logging
+- [ ] All required event fields present (see EVALUATE_INCIDENT_LOG_SCHEMA)
+- [ ] Detection result logged on every request
+- [ ] Routing decision logged on every request
+- [ ] Validator status logged on every request
+
+### Failure Codes
+- [ ] Failure codes emitted correctly on violations
+- [ ] HARD_FAIL blocks evaluation execution
+- [ ] SOFT_FAIL logs and alerts without blocking
+- [ ] All failure codes match canonical schema
+
+### Incident Management
+- [ ] HARD_FAIL auto-files incident
+- [ ] SLA breach auto-files incident
+- [ ] Validator skip auto-files incident
+- [ ] Detection fallback auto-files incident
+
+---
+
+## REGRESSION
+
+### UI Stability
+- [ ] UI snapshot test passes
+- [ ] No visual regressions in Evaluate page
+- [ ] No format selection controls introduced
+
+### CI Enforcement
+- [ ] CI fails on multiple Evaluate entries
+- [ ] CI fails on format selection reintroduction
+- [ ] CI fails on detection bypass
+- [ ] CI fails on routing mismatch
+- [ ] CI fails on revision gate bypass
+
+### Existing Functionality
+- [ ] Quick Evaluation pipeline functions correctly
+- [ ] Full Manuscript pipeline functions correctly
+- [ ] Chapter splitting works as expected
+- [ ] Progress tracking displays correctly
+- [ ] Evaluation results display correctly
+
+---
+
+## ACCEPTANCE CRITERIA
+
+**Any unchecked box = release blocked**
+
+**Sign-off required from:**
+- [ ] QA Lead
+- [ ] Engineering Lead
+- [ ] Product Owner
+
+---
+
+## QUALITY ASSURANCE COMPLIANCE CERTIFICATION
+
+**Purpose:** This form certifies that the EVALUATE process complies with canonical requirements and is safe to release.
+
+**QA Representative Name:** ______________________  
+**Role:** ______________________  
+**Date:** ______________________  
+
+**By signing, I certify that all above items have been tested and meet canonical requirements.**
+
+**Signature:** ______________________
+
+---
+
+## RELEASE DECISION
+
+- [ ] **APPROVED FOR RELEASE** — All checklist items passed
+- [ ] **BLOCKED FROM RELEASE** — Checklist items failed (list below)
+
+**Failed items:**
+_______________________________________________________
+_______________________________________________________
+_______________________________________________________
+
+**Remediation plan:**
+_______________________________________________________
+_______________________________________________________
+_______________________________________________________
+
+**Expected resolution date:** ______________________
