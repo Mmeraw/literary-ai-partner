@@ -1,21 +1,45 @@
 css
-/* BLOCK ALL WEB FONTS - USE SYSTEM ONLY */
+/* NUCLEAR FONT BLOCKING - NO WEB FONTS EVER */
 @font-face {
   font-family: 'Inter';
-  src: local('BlinkMacSystemFont'), local('system-ui');
+  src: local('Arial');
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: local('Arial');
+}
+
+@font-face {
+  font-family: 'Courier';
+  src: local('Courier New');
+}
+
+/* Block all other @font-face declarations */
+@font-face {
+  font-family: '*';
+  src: local('Arial');
 }
 
 html {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
-  font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0 !important;
+  font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0, "salt" 0 !important;
+  font-variant: normal !important;
+  font-variant-ligatures: none !important;
+  font-variant-caps: normal !important;
+  font-variant-numeric: normal !important;
+  text-rendering: optimizeLegibility !important;
 }
 
 * {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
-  font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0 !important;
+  font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0, "salt" 0 !important;
   font-variant-ligatures: none !important;
-  -webkit-font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0 !important;
-  -moz-font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0 !important;
+  font-variant: normal !important;
+  -webkit-font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0, "salt" 0 !important;
+  -moz-font-feature-settings: "kern" 0, "liga" 0, "clig" 0, "dlig" 0, "hlig" 0, "calt" 0, "ss01" 0, "ss02" 0, "ss03" 0, "salt" 0 !important;
+  -webkit-font-variant-ligatures: none !important;
+  -moz-font-variant-ligatures: none !important;
 }
 
 *::before, *::after {
