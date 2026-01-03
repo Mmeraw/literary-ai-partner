@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Sparkles, ArrowRight, BookOpen, FileText } from 'lucide-react';
+import { Loader2, Sparkles, ArrowRight, BookOpen, FileText, Upload } from 'lucide-react';
 import { toast } from "sonner";
 import { createPageUrl } from '@/utils';
 import RichTextEditor from '@/components/RichTextEditor';
@@ -19,6 +19,7 @@ export default function YourWriting() {
   const [languageVariant, setLanguageVariant] = useState('en-US');
   const [voicePreservation, setVoicePreservation] = useState('balanced');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Clear sessionStorage after loading
   React.useEffect(() => {
@@ -37,6 +38,50 @@ export default function YourWriting() {
       sessionStorage.removeItem('uploadedText');
     }
   }, []);
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'application/pdf',
+      'text/plain'
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Please upload a .docx, .doc, .pdf, or .txt file');
+      return;
+    }
+
+    setIsUploading(true);
+    toast.info('Extracting text from file...');
+
+    try {
+      const { data: uploadResult } = await base44.integrations.Core.UploadFile({ file });
+      
+      const { data: extractResult } = await base44.functions.invoke('ingestUploadedFileToText', {
+        file_url: uploadResult.file_url
+      });
+
+      if (extractResult.text) {
+        setText(extractResult.text);
+        if (!title) {
+          setTitle(file.name.replace(/\.[^/.]+$/, ''));
+        }
+        toast.success('File uploaded successfully');
+      } else {
+        throw new Error('No text extracted from file');
+      }
+    } catch (error) {
+      console.error('File upload error:', error);
+      toast.error('Failed to extract text from file');
+    } finally {
+      setIsUploading(false);
+      event.target.value = '';
+    }
+  };
 
   const handleEvaluate = async () => {
     if (!text.trim()) {
@@ -211,9 +256,43 @@ export default function YourWriting() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Paste a paragraph, scene, chapter, screenplay, or full manuscript here
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-slate-700">
+                      Paste a paragraph, scene, chapter, screenplay, or full manuscript here
+                    </label>
+                    <div>
+                      <input
+                        type="file"
+                        id="file-upload"
+                        className="hidden"
+                        accept=".docx,.doc,.pdf,.txt"
+                        onChange={handleFileUpload}
+                        disabled={isUploading}
+                      />
+                      <label htmlFor="file-upload">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isUploading}
+                          onClick={() => document.getElementById('file-upload').click()}
+                          className="cursor-pointer"
+                        >
+                          {isUploading ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-4 h-4 mr-2" />
+                              Upload File
+                            </>
+                          )}
+                        </Button>
+                      </label>
+                    </div>
+                  </div>
                   <RichTextEditor
                     value={text}
                     onChange={setText}
@@ -230,6 +309,9 @@ export default function YourWriting() {
                       </p>
                     )}
                   </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Upload .docx, .pdf, or .txt files, or paste directly
+                  </p>
                 </div>
 
                 <div className="p-6 rounded-xl bg-white border border-slate-200">
