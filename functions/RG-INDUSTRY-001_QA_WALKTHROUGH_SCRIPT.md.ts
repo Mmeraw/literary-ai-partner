@@ -1,0 +1,532 @@
+# RG-INDUSTRY-001 — QA WALKTHROUGH SCRIPT (FUNCTION TEST #8)
+
+**Epic:** RG-INDUSTRY-001  
+**Purpose:** Determine VERIFIED / PARTIALLY VERIFIED / FAILED status for Industry/Verification surfaces  
+**Execution Date:** [To be scheduled after Phase 4 complete, targeting 2026-02-14]  
+**QA Lead:** [Name]  
+**Witnesses:** [Names]
+
+---
+
+## Pre-Test Conditions (MANDATORY)
+
+**Before any test execution:**
+
+- [ ] **No code changes during walkthrough** — This is observational runtime behavior only
+- [ ] All Phase 4 tickets marked DONE
+- [ ] Test environment matches production configuration
+- [ ] Three test accounts prepared:
+  - Creator account (non-admin)
+  - Industry account (initially unverified)
+  - Admin account (admin role)
+- [ ] Test inputs documented
+- [ ] Expected behavior defined
+- [ ] Evidence capture tools ready (screenshots, logs, audit queries)
+
+**If any pre-condition fails → halt test, remediate, reschedule**
+
+---
+
+## Test Inputs
+
+### Input H1 — Verification Workflow (Grant & Display)
+- Industry user requests verification
+- Admin grants verification (`verified: true`)
+- Verified badge appears on listings/profile
+- **Verify:** Verification state enforcement, badge integrity, audit trail
+
+### Input H2 — Verification Revocation
+- Admin revokes verification (`verification_state: revoked`)
+- Verified badge removed from all surfaces
+- **Verify:** State change enforcement, badge removal, audit trail
+
+### Input H3 — Access Control Based on Verification (Positive Path)
+- Verified industry user accesses verified-only feature
+- **Verify:** Access granted, governed entry, validators, audit
+
+### Input H4 — Spoofed Credentials / False Trust Signal (Negative Path)
+- Unverified user attempts to access verified-only feature
+- Attempt to display verified badge without verification state
+- **Verify:** Blocks with validator failure, audit event, user-visible error
+
+---
+
+## Evidence Requirements (MUST CAPTURE FOR EACH INPUT)
+
+For **EACH test input**, QA must collect:
+
+### 1. UI Screenshots
+- [ ] Before action (initial state)
+- [ ] During action (processing/loading state)
+- [ ] After action (badge displayed or error shown)
+- [ ] Badge display on listings/profiles
+
+### 2. Function Traces (With Timestamps)
+- [ ] Which functions executed
+- [ ] Execution order
+- [ ] Timestamps (start, end)
+- [ ] Parameters passed
+- [ ] Return values
+
+### 3. Validator Evidence
+- [ ] Which validators ran
+- [ ] Validator outcomes (pass / soft / hard)
+- [ ] Failure codes (if any)
+- [ ] Validator execution logged in audit
+
+### 4. Audit Records (Structured)
+- [ ] Query audit entity after each action
+- [ ] Verify structured event exists (not free-text logs)
+- [ ] All required fields populated
+- [ ] `request_id` correlates related events
+
+### 5. SLA Timing Metrics
+- [ ] `start_ms`, `end_ms`, `elapsed_ms` present
+- [ ] Operations array populated (where applicable)
+- [ ] Timing written to audit record (not console logs)
+
+---
+
+## Test Execution — Input H1 (Verification Workflow)
+
+### Step H1-1: Industry User Requests Verification
+
+**Action:**
+1. Sign in as Industry account (unverified)
+2. Navigate to IndustryVerification page (or equivalent)
+3. Submit verification request with:
+   - Full name, company, role type
+   - LinkedIn URL
+   - Bio
+4. Submit request
+
+**Expected Behavior:**
+- ✅ Verification request created (IndustryUser entity, verification_status=pending)
+- ✅ Admin notified (email or dashboard alert)
+- ✅ **Governed entry executed**
+- ✅ **Validators executed** (INDUSTRY_VERIFICATION_STATE: validates required fields)
+- ✅ **Audit event created** (action_type=request_verification)
+- ✅ **SLA timing captured**
+
+**Evidence to Capture:**
+- [ ] Screenshot: verification request form (before submit)
+- [ ] Screenshot: request confirmation
+- [ ] Function trace: verification request function executed
+- [ ] Function trace: `governedEvaluateEntry` called FIRST
+- [ ] Validator log: INDUSTRY_VERIFICATION_STATE = pass (required fields present)
+- [ ] Audit record: action_type=request_verification, industry_user_id=[ID], validators_run=[list]
+- [ ] SLA metrics: start_ms, end_ms, elapsed_ms
+
+**PASS Criteria:**
+- Request created AND governed entry + validators + audit + SLA all present
+
+**FAIL Criteria:**
+- Missing governance hooks
+
+---
+
+### Step H1-2: Admin Grants Verification
+
+**Action:**
+1. Sign in as Admin account
+2. Navigate to AdminVerificationQueue page
+3. Locate pending verification request
+4. Click "Approve"
+
+**Expected Behavior:**
+- ✅ IndustryUser.verification_status updated (pending → verified)
+- ✅ Verification timestamp recorded
+- ✅ Verifying admin recorded (`verified_by`)
+- ✅ Industry user notified (email)
+- ✅ **Admin auth enforced** (non-admin blocked)
+- ✅ **Governed entry executed**
+- ✅ **Validators executed** (INDUSTRY_VERIFICATION_STATE: validates admin auth)
+- ✅ **Audit event created** (action_type=verify_industry_user)
+- ✅ **SLA timing captured**
+
+**Evidence to Capture:**
+- [ ] Screenshot: admin approval action (before click)
+- [ ] Screenshot: approval confirmation
+- [ ] Screenshot: updated IndustryUser record (verification_status=verified)
+- [ ] Function trace: `handleVerification` executed (action=approve)
+- [ ] Function trace: `governedEvaluateEntry` called FIRST
+- [ ] Validator log: INDUSTRY_VERIFICATION_STATE = pass (admin auth confirmed)
+- [ ] Audit record: action_type=verify_industry_user, verification_state=verified, admin_id=[ID], validators_run=[list]
+- [ ] SLA metrics: start_ms, end_ms, elapsed_ms
+
+**PASS Criteria:**
+- Verification granted AND admin-only AND governed entry + validators + audit + SLA all present
+
+**FAIL Criteria:**
+- Missing governance hooks OR non-admin can verify → **FAILED (Security Risk)**
+
+---
+
+### Step H1-3: Verified Badge Displayed
+
+**Action:**
+1. Navigate to listing or profile page where verified badge should appear
+2. Verify badge is visible and reflects server state
+
+**Expected Behavior:**
+- ✅ Verified badge visible
+- ✅ Badge reflects real `verification_state = verified` (server-side, not client-only)
+- ✅ **Governed entry executed** (before badge display)
+- ✅ **Validators executed** (INDUSTRY_TRUST_SIGNAL_INTEGRITY: validates badge matches server state)
+- ✅ **Audit event created** (action_type=display_verification_badge)
+
+**Evidence to Capture:**
+- [ ] Screenshot: verified badge on listing/profile
+- [ ] Query: IndustryUser.verification_status = verified (server confirmation)
+- [ ] Function trace: badge display logic executed
+- [ ] Function trace: `governedEvaluateEntry` called before rendering badge
+- [ ] Validator log: INDUSTRY_TRUST_SIGNAL_INTEGRITY = pass (badge matches server state)
+- [ ] Audit record: action_type=display_verification_badge, verification_state=verified
+
+**PASS Criteria:**
+- Badge visible AND reflects server state AND governed entry + validators + audit present
+
+**FAIL Criteria:**
+- Badge visible but verification_status ≠ verified → **FAILED (False Trust Signal)**
+
+---
+
+## Test Execution — Input H2 (Verification Revocation)
+
+### Step H2-1: Admin Revokes Verification
+
+**Action:**
+1. Sign in as Admin account
+2. Navigate to AdminVerificationQueue page
+3. Locate verified industry user
+4. Click "Revoke Verification"
+5. Confirm revocation
+
+**Expected Behavior:**
+- ✅ IndustryUser.verification_status updated (verified → revoked)
+- ✅ Revocation timestamp recorded
+- ✅ Revoking admin recorded
+- ✅ Industry user notified (email)
+- ✅ **Admin auth enforced**
+- ✅ **Governed entry executed**
+- ✅ **Validators executed** (INDUSTRY_VERIFICATION_STATE)
+- ✅ **Audit event created** (action_type=revoke_verification)
+- ✅ **SLA timing captured**
+
+**Evidence to Capture:**
+- [ ] Screenshot: revocation action
+- [ ] Screenshot: updated IndustryUser record (verification_status=revoked)
+- [ ] Function trace: revocation function executed
+- [ ] Function trace: `governedEvaluateEntry` called FIRST
+- [ ] Validator log: INDUSTRY_VERIFICATION_STATE = pass (admin auth confirmed)
+- [ ] Audit record: action_type=revoke_verification, verification_state=revoked, admin_id=[ID]
+- [ ] SLA metrics: present
+
+**PASS Criteria:**
+- Verification revoked AND governed entry + validators + audit + SLA present
+
+**FAIL Criteria:**
+- Missing governance hooks OR non-admin can revoke
+
+---
+
+### Step H2-2: Verified Badge Removed
+
+**Action:**
+1. Navigate to listing/profile page where badge was previously visible
+2. Verify badge is NO LONGER visible
+
+**Expected Behavior:**
+- ✅ Verified badge REMOVED
+- ✅ Badge removal reflects real `verification_state = revoked` (server-side)
+- ✅ **Validators confirm** badge matches server state (INDUSTRY_TRUST_SIGNAL_INTEGRITY)
+
+**Evidence to Capture:**
+- [ ] Screenshot: listing/profile WITHOUT verified badge
+- [ ] Query: IndustryUser.verification_status = revoked (server confirmation)
+- [ ] Validator log: INDUSTRY_TRUST_SIGNAL_INTEGRITY = pass (badge removed, matches state)
+
+**PASS Criteria:**
+- Badge removed AND reflects server state
+
+**FAIL Criteria:**
+- Badge still visible after revocation → **FAILED (False Trust Signal)**
+
+---
+
+## Test Execution — Input H3 (Access Control Based on Verification)
+
+### Step H3-1: Verified User Accesses Verified-Only Feature
+
+**Action:**
+1. Sign in as Industry account (verified)
+2. Attempt to access feature requiring verification (e.g., request project access, view verified-only listings)
+
+**Expected Behavior:**
+- ✅ Access granted
+- ✅ **Governed entry executed**
+- ✅ **Validators executed** (INDUSTRY_ACCESS_CONTROL: validates verification state)
+- ✅ **Audit event created** (action_type=access_decision, access_granted=true)
+- ✅ **SLA timing captured**
+
+**Evidence to Capture:**
+- [ ] Screenshot: feature access granted
+- [ ] Function trace: access control function executed
+- [ ] Function trace: `governedEvaluateEntry` called
+- [ ] Validator log: INDUSTRY_ACCESS_CONTROL = pass (verified user)
+- [ ] Audit record: action_type=access_decision, verification_state=verified, access_granted=true
+- [ ] SLA metrics: present
+
+**PASS Criteria:**
+- Access granted AND governed entry + validators + audit + SLA present
+
+**FAIL Criteria:**
+- Missing governance evidence
+
+---
+
+## Test Execution — Input H4 (Spoofed Credentials — Negative Path)
+
+### Step H4-1: Unverified User Attempts Verified-Only Access
+
+**Action:**
+1. Sign in as Industry account (unverified or revoked)
+2. Attempt to access verified-only feature
+
+**Expected Behavior:**
+- ❌ Access BLOCKED (403 Forbidden)
+- ✅ User-visible error: "Verification required"
+- ✅ **Governed entry executed**
+- ✅ **Validators fail** (INDUSTRY_ACCESS_CONTROL: verification check fails)
+- ✅ **Audit event created** (action_type=access_denied, failure_codes=[VERIFICATION_REQUIRED])
+- ✅ **SLA timing captured**
+
+**Evidence to Capture:**
+- [ ] Screenshot: error state (access denied)
+- [ ] Function trace: access control returns 403
+- [ ] Function trace: `governedEvaluateEntry` validates verification
+- [ ] Validator log: INDUSTRY_ACCESS_CONTROL = fail, failure_code=VERIFICATION_REQUIRED
+- [ ] Audit record: action_type=access_denied, verification_state=unverified, access_granted=false, failure_codes=[VERIFICATION_REQUIRED]
+- [ ] SLA metrics: present
+
+**PASS Criteria:**
+- Access blocked AND error visible AND validator failure + audit event present
+
+**FAIL Criteria:**
+- Unverified user gains access → **FAILED (Security Risk)**
+
+---
+
+### Step H4-2: Attempt to Display Verified Badge Without Verification State
+
+**Action:**
+1. Inspect badge display logic (or attempt client-side manipulation)
+2. Test if badge can appear without `verification_state = verified`
+
+**Expected Behavior:**
+- ❌ Badge display BLOCKED or overridden by server state
+- ✅ **Validators fail** if badge rendering attempted without server-side verification (INDUSTRY_TRUST_SIGNAL_INTEGRITY)
+- ✅ **Audit event created** if spoofing attempt detected
+
+**Evidence to Capture:**
+- [ ] Screenshot: badge NOT visible (or server-override visible)
+- [ ] Function trace: badge display logic checks server state
+- [ ] Validator log: INDUSTRY_TRUST_SIGNAL_INTEGRITY = fail if mismatch detected
+- [ ] Audit record: spoofing attempt logged (if applicable)
+
+**PASS Criteria:**
+- Badge cannot be spoofed; server state enforced
+
+**FAIL Criteria:**
+- Badge displays without verification state → **FAILED (False Trust Signal, Legal Risk)**
+
+---
+
+## Governance Evidence Checklist (MANDATORY FOR VERIFIED)
+
+### A. Governed Entry
+- [ ] Governed entry executed FIRST for all verification actions
+- [ ] Governed entry executed FIRST for all badge display logic
+- [ ] Governed entry executed FIRST for all access control checks
+- [ ] QA checklist enforced
+- [ ] Halt-on-fail behavior demonstrated
+
+**If unchecked → FAILED**
+
+### B. Validators
+- [ ] INDUSTRY_ACCESS_CONTROL validator executed
+- [ ] INDUSTRY_VERIFICATION_STATE validator executed
+- [ ] INDUSTRY_TRUST_SIGNAL_INTEGRITY validator executed
+- [ ] INDUSTRY_VISIBILITY_RULES validator executed (if applicable)
+- [ ] Validator outcomes recorded (pass / soft / hard)
+- [ ] Failure codes populated when validators fail
+
+**If any validator missing → UNVERIFIED**
+
+### C. Routing & Detection
+- [ ] `action_type` explicit for all events (verify_industry_user | revoke_verification | display_badge | access_decision)
+- [ ] `verification_state` explicit (verified | unverified | revoked)
+- [ ] No silent heuristics or inference
+
+**If routing implicit → FAILED**
+
+### D. Audit Record (Mandatory)
+- [ ] Structured audit event exists for ALL verification actions (not logs)
+- [ ] Structured audit event exists for ALL badge displays
+- [ ] Structured audit event exists for ALL access decisions based on verification
+- [ ] `event_id` present
+- [ ] `request_id` present
+- [ ] `timestamp_utc` present
+- [ ] `action_type` correct
+- [ ] `industry_user_id` present
+- [ ] `verification_state` present
+- [ ] `trust_signal_type` present (where applicable)
+- [ ] `validators_run` populated
+- [ ] `failure_codes` populated (if applicable)
+- [ ] `admin_id` present (for admin actions)
+
+**If audit missing or incomplete → FAILED**
+
+### E. SLA Timing
+- [ ] `start_ms` present
+- [ ] `end_ms` present
+- [ ] `elapsed_ms` present
+- [ ] Operations array populated (verification check, badge display, access validation)
+
+**If missing → PARTIALLY VERIFIED**
+
+### F. Trust Signal Integrity
+- [ ] Verified badge displays only when `verification_state = verified`
+- [ ] Badge removal immediate when `verification_state = revoked`
+- [ ] Badge display logged with audit event
+- [ ] Verification state changes logged with audit event
+- [ ] No client-side spoofing possible
+
+**If trust signal unverifiable → FAILED (Legal + Reputational Risk)**
+
+### G. Negative Path Testing
+- [ ] Unverified user blocked from verified-only access (H4-1)
+- [ ] Badge cannot be spoofed (H4-2)
+- [ ] Errors user-visible
+- [ ] Failures auditable (validator evidence + audit event)
+
+**If silent failure or bypass → FAILED**
+
+---
+
+## Promotion Decision Rubric (Mechanical)
+
+### VERIFIED
+**All must be present:**
+- Verification workflow operational
+- Badge display integrity enforced
+- Access control based on verification works
+- Governed entry + validators + audit + SLA all present
+- Trust signals auditable and truthful
+- Negative paths blocked with evidence
+- All checkboxes above = ✅
+
+**Action:** Update Webpage Contract Matrix: Industry = VERIFIED
+
+---
+
+### PARTIALLY VERIFIED
+**Functionality correct, but any of:**
+- SLA missing
+- Audit present but incomplete fields
+- Validators not consistently executed
+- Trust signal integrity unverified
+
+**Action:** Update Webpage Contract Matrix: Industry = PARTIALLY VERIFIED  
+**Note:** Remaining gaps listed in follow-up ticket
+
+---
+
+### FAILED
+**Any of:**
+- Unverified user gains verified-only access
+- Badge displays without verification state (spoofing)
+- Verification state change not auditable
+- Governance bypass (no validators/audit)
+- Governed entry absent
+- Negative paths not blocked
+
+**Action:** Update Webpage Contract Matrix: Industry = FAILED  
+**Impact:** Release-blocking  
+**Escalation:** GOVERNANCE_BYPASS incident created  
+**Legal Review:** May be required for false trust signal risk
+
+---
+
+## Evidence Packet Submission Format
+
+**QA Lead must compile and attach:**
+
+1. **Evidence Summary Document** (markdown or PDF):
+   - Test execution date/time
+   - Accounts used (creator, industry, admin)
+   - Pass/fail decision for each input
+   - Links to all screenshots, logs, audit queries
+   - Promotion decision (VERIFIED / PARTIALLY VERIFIED / FAILED)
+
+2. **Screenshots Folder** (organized by test input):
+   - H1_verification_workflow/
+   - H2_verification_revocation/
+   - H3_verified_access/
+   - H4_spoofed_credentials/
+
+3. **Function Traces** (text file or log export):
+   - Timestamps for all function executions
+   - Parameters passed
+   - Return values
+
+4. **Validator Results** (CSV or table):
+   - Validator name | Outcome | Failure codes | Action
+
+5. **Audit Record Queries** (JSON export):
+   - All audit events created during test
+   - Confirm all required fields present
+
+6. **SLA Metrics** (table or JSON):
+   - Action | start_ms | end_ms | elapsed_ms
+
+---
+
+## Final Instruction to QA
+
+**This is not a functional test.**  
+**This is a trust integrity audit.**
+
+Your job is to:
+1. Execute the test inputs exactly as written
+2. Capture ALL evidence (screenshots, traces, validators, audit, SLA, trust signal state)
+3. Apply the promotion rubric mechanically (no judgment calls)
+4. Submit evidence packet with clear VERIFIED / PARTIALLY VERIFIED / FAILED decision
+
+**If trust signals cannot be proven truthful, the surface is FAILED.**
+
+---
+
+## Post-Test Actions
+
+### If VERIFIED:
+- [ ] Update Webpage Contract Matrix: Industry = VERIFIED
+- [ ] Close RG-INDUSTRY-001 Epic
+- [ ] Archive evidence packet
+- [ ] Confirm platform-wide governance coverage complete
+
+### If PARTIALLY VERIFIED:
+- [ ] Update Webpage Contract Matrix: Industry = PARTIALLY VERIFIED
+- [ ] Document remaining gaps
+- [ ] Create follow-up tickets (if needed)
+- [ ] Escalate to stakeholders
+
+### If FAILED:
+- [ ] Update Webpage Contract Matrix: Industry = FAILED
+- [ ] Create GOVERNANCE_BYPASS incident
+- [ ] Escalate to engineering lead
+- [ ] **Legal review required for false trust signal risk**
+- [ ] Block release until remediated
+
+**QA authority is mechanical, not negotiable.**  
+**Trust signal integrity is a legal and reputational gate.**
