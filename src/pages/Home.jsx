@@ -141,7 +141,15 @@ export default function Home() {
                                     <feature.icon className="w-6 h-6 text-white" />
                                 </div>
                                 <h3 className="text-xl font-semibold text-slate-900 mb-3">{feature.title}</h3>
-                                <p className="text-slate-700 leading-relaxed">{feature.description}</p>
+                                <p className="text-slate-700 leading-relaxed">
+                                    {feature.title === "Complete Submission Package" ? (
+                                        <>
+                                            Author bio, 5–10 market comps, targeted agent list, query draft, and synopsis options—organized so you can assemble a professional submission and outreach plan. Includes your project's 1–10 grade; <span className="font-bold text-red-600">Storygate Studio™</span> consideration is available for grades of 8–10.
+                                        </>
+                                    ) : (
+                                        feature.description
+                                    )}
+                                </p>
                             </div>
                         </motion.div>
                     ))}
