@@ -18,7 +18,7 @@ export default function StoryGate() {
                         transition={{ duration: 0.6 }}
                         className="text-center"
                     >
-                        <h1 className="text-5xl font-bold mb-4" style={{ color: '#7A1E1E' }}>
+                        <h1 className="text-5xl font-bold mb-4" style={{ color: '#DC2626' }}>
                             Storygate Studio™
                         </h1>
                         <p className="text-2xl mb-6 font-light" style={{ color: '#F2EFEA' }}>
@@ -50,7 +50,7 @@ export default function StoryGate() {
 
             {/* How StoryGate Works */}
             <div className="max-w-6xl mx-auto px-6 py-16">
-                <h2 className="text-3xl font-semibold mb-8" style={{ color: '#7A1E1E' }}>How Storygate Studio Works</h2>
+                <h2 className="text-3xl font-semibold mb-8" style={{ color: '#1F2937' }}>How Storygate Studio Works</h2>
                 <div className="grid md:grid-cols-2 gap-6">
                     {[
                         {
@@ -89,7 +89,7 @@ export default function StoryGate() {
             {/* What You'll See Inside */}
             <div className="py-16" style={{ backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
                 <div className="max-w-6xl mx-auto px-6">
-                    <h2 className="text-3xl font-semibold mb-6" style={{ color: '#7A1E1E' }}>What You'll See Inside</h2>
+                    <h2 className="text-3xl font-semibold mb-6" style={{ color: '#1F2937' }}>What You'll See Inside</h2>
                     <p className="mb-6" style={{ color: '#D4D4D4' }}>
                         Depending on creator permissions, verified industry users may view:
                     </p>
@@ -113,7 +113,7 @@ export default function StoryGate() {
 
             {/* Eligibility & Quality Requirements */}
             <div className="max-w-6xl mx-auto px-6 py-16">
-                <h2 className="text-3xl font-semibold mb-6" style={{ color: '#7A1E1E' }}>Eligibility & Quality Requirements</h2>
+                <h2 className="text-3xl font-semibold mb-6" style={{ color: '#1F2937' }}>Eligibility & Quality Requirements</h2>
                 <p className="mb-8" style={{ color: '#D4D4D4' }}>
                     Placement in Storygate Studio™ is conditional. Projects must satisfy both requirements below.
                 </p>
@@ -121,7 +121,7 @@ export default function StoryGate() {
                 {/* Rule 1 */}
                 <Card className="mb-6" style={{ borderWidth: '2px', borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
                     <CardContent className="p-8">
-                        <h3 className="text-2xl font-semibold mb-4" style={{ color: '#7A1E1E' }}>
+                        <h3 className="text-2xl font-semibold mb-4" style={{ color: '#1F2937' }}>
                             Rule 1 — Professional Presentation Package (Required)
                         </h3>
                         <p className="mb-4" style={{ color: '#D4D4D4' }}>
@@ -151,7 +151,7 @@ export default function StoryGate() {
                 {/* Rule 2 */}
                 <Card style={{ borderWidth: '2px', borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
                     <CardContent className="p-8">
-                        <h3 className="text-2xl font-semibold mb-4" style={{ color: '#7A1E1E' }}>
+                        <h3 className="text-2xl font-semibold mb-4" style={{ color: '#1F2937' }}>
                             Rule 2 — Minimum Quality Threshold (Required)
                         </h3>
                         <p className="mb-4" style={{ color: '#D4D4D4' }}>
@@ -193,7 +193,7 @@ export default function StoryGate() {
             {/* Creator Responsibilities */}
             <div className="py-16" style={{ backgroundColor: 'rgba(14, 14, 14, 0.8)' }}>
                 <div className="max-w-6xl mx-auto px-6">
-                    <h2 className="text-3xl font-semibold mb-6" style={{ color: '#7A1E1E' }} id="creators">Creator Responsibilities</h2>
+                    <h2 className="text-3xl font-semibold mb-6" style={{ color: '#1F2937' }} id="creators">Creator Responsibilities</h2>
                     <p className="mb-4" style={{ color: '#D4D4D4' }}>Creators must:</p>
                     <ul className="space-y-3">
                         {[
@@ -214,7 +214,7 @@ export default function StoryGate() {
             {/* Governance */}
             <div className="py-16" style={{ backgroundColor: 'rgba(169, 142, 74, 0.1)' }}>
                 <div className="max-w-6xl mx-auto px-6">
-                    <h2 className="text-3xl font-semibold mb-6" style={{ color: '#7A1E1E' }}>Governance & Audit Trail</h2>
+                    <h2 className="text-3xl font-semibold mb-6" style={{ color: '#1F2937' }}>Governance & Audit Trail</h2>
                     <p className="mb-4" style={{ color: '#D4D4D4' }}>All access is logged. The system records:</p>
                     <ul className="grid md:grid-cols-2 gap-3 mb-6">
                         {[
@@ -242,7 +242,7 @@ export default function StoryGate() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
                         <Card style={{ borderWidth: '2px', borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }} className="overflow-hidden">
                             <CardContent className="p-6 sm:p-8 text-center">
-                                <h3 className="text-lg sm:text-xl font-semibold mb-4" style={{ color: '#7A1E1E' }} id="industry">For Industry</h3>
+                                <h3 className="text-lg sm:text-xl font-semibold mb-4" style={{ color: '#1F2937' }} id="industry">For Industry</h3>
                                 <p className="text-sm mb-4" style={{ color: '#D4D4D4' }}>
                                     Industry professionals may apply for verified access and request viewing permissions on a per-project basis.
                                 </p>
@@ -255,7 +255,7 @@ export default function StoryGate() {
                         </Card>
                         <Card style={{ borderWidth: '2px', borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)' }} className="overflow-hidden">
                             <CardContent className="p-6 sm:p-8 text-center">
-                                <h3 className="text-lg sm:text-xl font-semibold mb-4" style={{ color: '#7A1E1E' }}>For Creators</h3>
+                                <h3 className="text-lg sm:text-xl font-semibold mb-4" style={{ color: '#1F2937' }}>For Creators</h3>
                                 <div className="space-y-3">
                                     <Link to={createPageUrl('UploadManuscript')}>
                                         <Button size="lg" variant="outline" className="w-full" style={{ borderColor: '#A98E4A', color: '#F2EFEA', backgroundColor: 'transparent' }}>
