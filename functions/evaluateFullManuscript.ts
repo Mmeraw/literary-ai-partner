@@ -1,4 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { captureError, captureCritical } from './utils/errorTracking.js';
+import { withTimeoutAndRetry } from './utils/retryLogic.js';
 import OpenAI from 'npm:openai@4.76.1';
 
 const openai = new OpenAI({

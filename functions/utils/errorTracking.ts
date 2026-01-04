@@ -33,6 +33,15 @@ export async function captureError(error, context = {}, severity = 'error') {
     await initSentry();
 
     try {
+        // Parse DSN components
+        const dsnMatch = SENTRY_DSN.match(/https:\/\/([^@]+)@([^\/]+)\/(\d+)/);
+        if (!dsnMatch) {
+            console.error('Invalid Sentry DSN format');
+            return;
+        }
+
+        const [, publicKey, host, projectId] = dsnMatch;
+
         // Send to Sentry via HTTP API
         const event = {
             message: error.message,
@@ -48,14 +57,18 @@ export async function captureError(error, context = {}, severity = 'error') {
             },
             extra: context,
             timestamp: new Date().toISOString(),
-            environment: Deno.env.get('BASE44_ENV') || 'production'
+            environment: Deno.env.get('BASE44_ENV') || 'production',
+            platform: 'node'
         };
 
-        await fetch(`https://sentry.io/api/0/projects/${extractProjectFromDSN()}/store/`, {
+        const sentryUrl = `https://${host}/api/${projectId}/store/`;
+        const authHeader = `Sentry sentry_version=7, sentry_key=${publicKey}, sentry_client=custom/1.0.0`;
+
+        await fetch(sentryUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-Sentry-Auth': `Sentry sentry_key=${extractKeyFromDSN()}, sentry_version=7`
+                'X-Sentry-Auth': authHeader
             },
             body: JSON.stringify(event)
         });
@@ -97,18 +110,6 @@ export function withErrorTracking(fn, context = {}) {
 }
 
 // Helper functions
-function extractProjectFromDSN() {
-    if (!SENTRY_DSN) return '';
-    const match = SENTRY_DSN.match(/sentry\.io\/(\d+)/);
-    return match ? match[1] : '';
-}
-
-function extractKeyFromDSN() {
-    if (!SENTRY_DSN) return '';
-    const match = SENTRY_DSN.match(/\/\/([^@]+)@/);
-    return match ? match[1] : '';
-}
-
 function parseStackTrace(stack) {
     if (!stack) return [];
     
