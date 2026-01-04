@@ -1,130 +1,157 @@
+CONFIDENTIALITY & INTELLECTUAL PROPERTY NOTICE
+This document contains proprietary methodology, evaluative logic, and workflow design constituting the WAVE Revision System ("WAVE").
+WAVE is protected intellectual property.
+This material is provided solely for review, evaluation, and discussion. No license is granted to reproduce, implement, train systems on, distribute, commercialize, or derive works from this framework, in whole or in part, without prior written authorization.
+Unauthorized use constitutes a violation of intellectual property rights.
+
 # THE WAVE REVISION SYSTEM
 ## A Professional Framework for Turning Working Drafts into Publishable Manuscripts
 
 ---
 
-## INTRODUCTION
-
+FOREWORD
+What the WAVE Revision System Is — and Why It Exists
 This guide is not about learning how to write.
-
-It is about learning how to **revise**—specifically, how to take a manuscript that already works at the level of story, character, and intent, and transform it into something that reads as professional, controlled, and submission-ready.
-
-Most writers never learn this stage.
-
-They are taught how to generate pages. They are taught how to workshop. They are taught how to talk about writing.
-
-They are **rarely taught how to systematically remove weakness.**
-
-The WAVE Revision System exists to address that gap.
+It is about learning how to revise—how to take a manuscript that already works at the level of story, character, and intent and turn it into work that reads as professional, controlled, and submission-ready.
+Most writers are taught how to generate pages, workshop drafts, and discuss craft. Very few are taught how to systematically remove weakness. Revision is treated as instinct, taste, or accumulation of feedback rather than as a disciplined process with order, limits, and proof.
+The WAVE Revision System exists to close that gap.
 
 ---
 
-## PART I — WHY REVISION FAILS
+WAVE CANON, AUTHORITY, AND IMPLEMENTATION
+Where WAVE Canon Lives
+The WAVE Revision Guide is the sole canonical authority for how the WAVE system interprets narrative, structure, revision order, and derived outputs.
+All rules governing:
+protagonist and antagonist designation,
+POV supremacy,
+interpretive boundaries,
+example usage,
+and revision eligibility
+are defined here, in this Guide.
+If a rule is not written in the WAVE Revision Guide, it is not canon.
 
-Revision fails not because writers lack talent, but because they **revise without order**.
+Relationship Between WAVE and Platforms (Including Base44)
+Platforms such as Base44, RevisionGrade, or any future implementation do not define WAVE canon.
+They implement it.
+Their role is to:
+enforce the rules defined in this Guide,
+translate canon into validators, checks, and workflows,
+and surface violations for human review.
+Platform behavior must conform to WAVE canon — not the reverse.
+If a platform's output conflicts with the WAVE Revision Guide, the platform is wrong.
 
+Canon vs. Implementation (Non-Negotiable)
+WAVE Canon lives in the WAVE Revision Guide.
+Implementation logic lives in software.
+Validators and tests are enforcement mechanisms, not sources of authority.
+This separation ensures that:
+WAVE remains portable across tools,
+editorial intent remains stable over time,
+and no platform-specific behavior silently rewrites the system.
+
+Practical Implication
+When questions arise such as:
+"Who is the protagonist?"
+"Is an antagonist required?"
+"Can a thematic commentator be treated as a central character?"
+"Is this synopsis WAVE-compliant?"
+The answer is determined by WAVE canon as written here, not by:
+model inference,
+prompt defaults,
+platform heuristics,
+or template expectations.
+Platforms must be able to point to a specific WAVE canon rule when justifying behavior.
+
+Summary Statement
+The WAVE Revision Guide is the constitution of the WAVE system.
+All platforms, tools, and human reviewers operate downstream of it.
+
+---
+
+Why Revision Usually Fails
+Revision fails less from lack of talent than from lack of structure.
 Common failure patterns include:
-
-- Polishing sentences before structural problems are resolved
-- Treating revision as stylistic improvement rather than diagnostic correction
-- Confusing feedback volume with revision rigor
-- Fixing what is visible instead of what is consequential
-
-Workshops often reinforce these failures. Discussion replaces discipline. Language replaces decision. Writers learn to defend pages rather than interrogate them.
-
-**Agents and editors do not read this way.**
-
-They read for:
-- **Authority**
-- **Control**
-- **Consequence**
-- **Discipline**
-
+Polishing sentences before structural problems are resolved
+Treating revision as stylistic enhancement instead of diagnostic correction
+Confusing volume of feedback with rigor
+Fixing what is visible rather than what is consequential
+Workshops often reinforce these habits. Discussion replaces discipline. Language replaces decision. Writers learn to defend pages instead of interrogating them.
+Agents and editors do not read this way. They read for:
+Authority
+Control
+Consequence
+Discipline
 A manuscript can be "well written" and still fail all four.
-
-**The purpose of revision is not improvement. It is elimination.**
-
-The WAVE System exists to make that elimination deliberate, testable, and repeatable.
+The true purpose of revision is not general improvement. It is elimination—of weakness, redundancy, confusion, and indulgence. WAVE exists to make that elimination deliberate, testable, and repeatable.
 
 ---
 
-## PART II — WHAT THE WAVE SYSTEM IS (AND IS NOT)
-
-### What WAVE Is
-
-The WAVE Revision System is a late-stage, professional revision framework designed for manuscripts that already function at the story and emotional level but require disciplined refinement to reach publishable quality.
-
-It is:
-- **Checklist-driven**
-- **Multi-pass**
-- **Diagnostic**
-- **Aligned with how agents and editors actually read**
-
-Each WAVE isolates one specific failure mode, explains why it weakens the manuscript, and provides a concrete method for correction.
-
-### What WAVE Is Not
-
+What WAVE Is (and Is Not)
+The WAVE Revision System is a late-stage professional framework for manuscripts that already function emotionally and structurally but require disciplined refinement to reach publishable quality.
+WAVE is:
+Checklist-driven
+Multi-pass
+Diagnostic
+Aligned with how agents and editors actually evaluate manuscripts
+Each WAVE isolates a specific failure mode, explains why it damages the work, and provides a concrete method for correction.
 WAVE is not:
-- A first-draft tool
-- An idea generator
-- A style guide
-- A voice-flattening system
-- A replacement for judgment
+A first-draft tool
+An idea generator
+A style guide
+A voice-flattening system
+A replacement for judgment
+WAVE does not tell writers how to write. It tells them where the writing fails. Rules may be broken—but only after the writer understands what the rule prevents, why it exists, and what risk is incurred by breaking it.
 
-**WAVE does not tell you how to write. It tells you where writing fails.**
-
-Rules may be broken—but only once the writer understands:
-- What the rule prevents
-- Why the rule exists
-- What risk is incurred by breaking it
+Origin of the System
+The WAVE Guide emerged from sustained, high-intensity revision practice.
+Mike Meraw built the system by cataloging recurring failures in his own drafts, tracking those failures across revisions, and translating them into a repeatable correction framework. Instead of relying on taste or intuition, the system formalizes patterns observed in professional-grade revision and organizes them into staged, testable craft passes.
+WAVE is not theoretical.
+It is empirical.
 
 ---
 
-## PART III — THE WAVE STACK (REVISION IN THE CORRECT ORDER)
+The WAVE Stack: Revision in the Correct Order
+Revision must occur in sequence. Polish applied out of order is wasted.
+WAVE is organized into three tiers, each with a distinct function:
+Early WAVES — Structural Truth
+Purpose: Determine whether the manuscript actually works.
+These passes test POV integrity, causality, scene goals, outcomes, and emotional coherence.
+If these fail, no line-level revision is permitted.
+Core question:
+Does the story function without explanation or apology?
+Mid WAVES — Momentum & Meaning
+Purpose: Determine whether the manuscript earns its space.
+These passes address redundancy, action–reaction logic, abstraction versus specificity, motif discipline, and compression.
+Core question:
+Does the manuscript move with pressure and intent?
+Late WAVES — Authority & Polish
+Purpose: Determine whether the manuscript reads as professional.
+These passes target body-part clichés, POV mind-reading, filter verbs, on-the-nose thematics, and over-explanation.
+Core question:
+Does this read like work that understands restraint?
 
-Revision must occur in sequence. Polish applied out of order is wasted effort.
+The Waves Themselves
+The system consists of 60+ distinct WAVES. Each WAVE is defined by:
+The specific problem it targets
+Why that problem weakens the manuscript
+A fast diagnostic test
+A correction strategy
+Conditions under which the rule may be broken
+WAVES are failure detectors, not stylistic preferences. The full list appears later in this guide and is referenced throughout applied sections.
 
-WAVE is organized into three tiers, each with a distinct purpose.
-
-### EARLY WAVES — STRUCTURAL TRUTH
-
-**Purpose:** Determine whether the manuscript actually works.
-
-These waves test:
-- POV integrity
-- Cause-and-effect logic
-- Scene goals and outcomes
-- Emotional coherence
-
-**If these waves fail, no line editing is allowed.**
-
-These passes answer one question: **Does the story function without explanation or apology?**
-
-### MID WAVES — MOMENTUM & MEANING
-
-**Purpose:** Determine whether the manuscript earns its space.
-
-These waves address:
-- Redundancy and echo
-- Action–reaction chains
-- Abstraction vs. specificity
-- Motif discipline
-- Scene compression
-
-These passes answer one question: **Does the manuscript move with pressure and intent?**
-
-### LATE WAVES — AUTHORITY & POLISH
-
-**Purpose:** Determine whether the manuscript reads as professional.
-
-These waves target:
-- Body-part clichés
-- POV mind-reading
-- Filter verbs
-- On-the-nose thematics
-- Hand-holding
-
-These passes answer one question: **Does this read like work that understands restraint?**
+The Human–AI Revision Pipeline
+WAVE is paired with AI as a precision instrument, not a replacement for editorial judgment.
+The workflow is:
+Draft and self-revise until the work functions emotionally and structurally.
+Submit sections to AI with a constrained brief:
+Apply relevant WAVE passes only
+Identify weakness and cut opportunities
+No praise, no voice rewriting
+Implement selective, surgical revisions.
+Re-test to confirm nothing essential was lost.
+AI functions as a consistent pattern-spotter and stress tester. All creative decisions remain human-controlled.
+Using multiple AI systems is amplification, not redundancy.
+Overlap confirms true issues. Divergence flags areas requiring judgment.
 
 ---
 
@@ -444,234 +471,6 @@ If WAVE classifies a flagged phrase as serving **embodiment / intimacy / agency 
 
 ---
 
-## WAVE-SYN — SYNOPSIS INTERPRETATION CANON
-
-### Purpose
-These rules establish canonical interpretation law for synopsis generation across all RevisionGrade outputs (synopsis, pitch, agent package, comps, query support). They prevent mechanical compliance while conceptual drift—ensuring LLMs cannot "technically comply" while misclassifying narrative structure.
-
-### Core Problem These Rules Address
-LLMs are prone to:
-- Overweighting abstract reflection over concrete action
-- Confusing thematic articulation with narrative agency
-- Treating "realization" language as protagonist signaling
-- Elevating named thinkers in end-notes over lived, on-page action
-
-Without explicit canon, validation can pass while interpretation fails.
-
----
-
-### WAVE-SYN-01: POV Supremacy (First-Person Narratives)
-
-**Rule:** In first-person narratives, the POV narrator **must** be treated as the primary protagonist unless the text **explicitly** declares a different focal character.
-
-**Why This Exists:**
-- First-person = voice authority
-- POV is structural commitment, not stylistic choice
-- Later reflection/commentary cannot override narrated experience
-
-**Validator Requirement:**
-- If manuscript is first-person POV → protagonist MUST be "POV narrator"
-- Override ONLY if text explicitly centers another character as focal agent
-
-**Fail Condition:**
-- Synopsis labels a non-POV character as protagonist without textual proof of focal shift
-
----
-
-### WAVE-SYN-02: Character Elevation Threshold
-
-**Rule:** A character may be labeled protagonist/antagonist **only** if they meet **all** of the following:
-
-1. **Appear in the main event narrative** (not just titles, notes, or reflections)
-2. **Act on-page** (in-scene with observable behavior)
-3. **Materially influence event sequence or outcomes**
-
-**Why This Exists:**
-- Abstract commentary ≠ narrative agency
-- Title attribution ≠ story participation
-- Philosophical summary ≠ dramatic action
-
-**Page-Time Threshold:**
-- **Major character** (>50% page time): Can be protagonist/antagonist
-- **Significant character** (25-50% page time): Can be protagonist/antagonist if central to conflict
-- **Minor character** (<25% page time): **Cannot** be protagonist/antagonist
-
-**Validator Requirement:**
-- Extract page-time estimate for each named character
-- FAIL if minor character (<25%) elevated to protagonist/antagonist
-
-**Fail Condition:**
-- Character appears only in end-notes, titles, or reflective commentary
-- Character mentioned but never acts on-page
-- Character's "importance" based on thematic resonance rather than event participation
-
----
-
-### WAVE-SYN-03: Antagonist Optionality (Memoir / Essay / Observational)
-
-**Rule:** For memoir, personal essay, and observational nonfiction, a **human antagonist is not required**. Opposition may be:
-- Internal (self-doubt, trauma, identity conflict)
-- Situational (poverty, displacement, systemic barriers)
-- Environmental (weather, geography, isolation)
-- Ethical (moral dilemma, value conflict)
-- Systemic (institutions, cultural norms, legal structures)
-
-**Why This Exists:**
-- Not all narratives have villains
-- Memoir often explores navigating systems, not defeating people
-- Forcing human antagonist invents conflict that doesn't exist
-
-**Validator Requirement:**
-- For memoir/essay/observational: `antagonist.type` may be "internal", "situational", "environmental", "ethical", "systemic", or "none"
-- FAIL if human antagonist invented where none exists in text
-
-**Fail Condition:**
-- Synopsis creates a human antagonist not present in manuscript
-- Minor encounter character elevated to "villain" role
-- Thematic opposition personified as character conflict
-
----
-
-### WAVE-SYN-04: Meta-Layer Containment
-
-**Rule:** Figures appearing primarily as **later interpretive lenses, thematic commentators, or framing voices** must be classified as **contextual contributors**, not protagonists or antagonists, unless they **materially participate in the narrative events**.
-
-**Why This Exists:**
-- Reflection ≠ action
-- Naming an idea-source ≠ story agency
-- Title contributors are not characters unless they act on-page
-
-**Examples of Meta-Layer Figures:**
-- Person named in title who doesn't appear in events
-- Philosopher/theorist cited in end-notes
-- Friend who "helped realize" theme but wasn't present in scenes
-- Voice that appears only in abstract reflection sections
-
-**Validator Requirement:**
-- If character appears **only** in:
-  - Title metadata
-  - End-notes
-  - Thematic reflection blocks
-  - Abstract commentary sections
-- → They **cannot** be protagonist/antagonist/central character
-
-**Fail Condition:**
-- Utku-style elevation: appears in title/reflection but not in narrative action
-- Thematic lens treated as story participant
-- Idea attribution confused with dramatic agency
-
----
-
-### WAVE-SYN-05: Reflection Cannot Override Events
-
-**Rule:** End-notes, thematic bullet lists, and abstract commentary **cannot override the concrete event sequence** in determining:
-- Story focus
-- Protagonist identification
-- Antagonistic force
-- Central conflict
-
-**Why This Exists:**
-- Synopsis describes **what happened**, not **what it meant**
-- Thematic realization is secondary to narrative action
-- Later interpretation doesn't change event structure
-
-**Event Primacy Principle:**
-- If events show A, but reflection suggests B → **events win**
-- If character X acts throughout, but end-note credits Y with insight → **X is protagonist**
-- If concrete conflict is internal, but reflection names external figure → **internal conflict is antagonist**
-
-**Validator Requirement:**
-- Synopsis must derive structure from:
-  1. **Event sequence** (what happened, in order)
-  2. **On-page action** (who did what, when)
-  3. **Causal chains** (action → consequence)
-- NOT from:
-  1. Reflection sections
-  2. Thematic summary
-  3. Meta-commentary
-  4. Title implications
-
-**Fail Condition:**
-- Synopsis structure contradicts event timeline
-- Protagonist identified by reflection rather than action
-- Conflict named in end-notes overrides on-page opposition
-
----
-
-### WAVE-SYN-TITLE: Title Canon Enforcement
-
-**Rule:** Synopsis **must** use the **exact manuscript title** provided. No changes, no elaboration, no shortening, no interpretation.
-
-**Why This Exists:**
-- Title is author's choice, not LLM's judgment
-- Title changes signal lack of control
-- Professional synopsis respects source material
-
-**Validator Requirement:**
-- Extract manuscript title at function entry
-- Pass to skeleton prompt with explicit "USE EXACTLY AS SHOWN" instruction
-- Validate synopsis output: `title_matches` must be `true`
-
-**Fail Condition:**
-- Title modified, shortened, or elaborated
-- Subtitle added without author instruction
-- Working title replaced with "better" title
-
----
-
-## Regression Test Fixture: "Culture" Story
-
-**Expected Metadata:**
-- **Title:** "Culture" (or "Letting Others In" if that version used)
-- **Protagonist:** POV narrator (first-person)
-- **Antagonist:** "Situational risk / ethical boundary violation / internal safety conflict" OR "none (environmental threat)"
-- **Utku:** "Thematic lens only" — appears in reflection/realization but **not** protagonist/antagonist
-
-**Fail Conditions:**
-- Utku labeled protagonist/antagonist/central character
-- Human antagonist invented (Tim is encounter, not villain)
-- Focus drifts away from POV narrator
-- Title changed to "The Other Side" or other variant without instruction
-
----
-
-## Implementation Requirements
-
-### Validators (Hard Fail / Block)
-- **VAL-SYN-TITLE-CANON:** Title must equal input title (no invention)
-- **VAL-SYN-POV-PROT:** If first-person → protagonist must be "POV narrator" or explicit override
-- **VAL-SYN-CHAR-PAGETIME:** Any protagonist/antagonist must exceed minimum page-time threshold + have on-page action
-- **VAL-SYN-NO-META-PROMOTION:** Name appearing only in title/end-notes/reflection cannot be ranked central
-- **VAL-SYN-ANTAG-OPTIONAL:** Memoir/essay must allow "no human antagonist" + block invented villains
-
-### Response Schema Requirements
-All synopsis generation must return validation object with:
-```json
-{
-  "wave_syn_01_pov_supremacy": boolean,
-  "wave_syn_02_character_threshold": boolean,
-  "wave_syn_03_antagonist_optional": boolean,
-  "wave_syn_04_meta_containment": boolean,
-  "wave_syn_05_events_primacy": boolean,
-  "title_matches": boolean,
-  "wave_violations": ["specific rule violation text"]
-}
-```
-
-### Hard Fail Condition
-If `wave_violations.length > 0` → Return HTTP 400 with:
-```json
-{
-  "error": "ERR_SYNOPSIS_WAVE_VIOLATION",
-  "gate_blocked": true,
-  "message": "Synopsis failed WAVE canon validation",
-  "wave_violations": [...],
-  "synopsis_draft": "..."
-}
-```
-
----
-
 ## APPENDICES
 
 ### Appendix A: Vehicle & Territory Specificity
@@ -701,30 +500,18 @@ STOP using default smells/tastes related to metal, copper, iron UNLESS the perso
 
 ---
 
-## FINAL MASTER CHECKLIST (USE BEFORE YOU STOP)
+In Short
+The WAVE Revision System is a professional, late-stage framework for transforming strong drafts into submission-ready manuscripts. It is:
+Systematic without rigidity
+Precise without flattening voice
+Analytical without intuition
+Paired with disciplined human judgment and constrained AI assistance, WAVE enables faster, deeper, and more reliable refinement—without surrendering authorship, risk, or originality.
+This is not about writing more.
+It is about writing cleaner, sharper, and with authority.
 
-- ✅ Stamina marks addressed (no spiral edits)
-- ✅ Micro-locations obey 1 body + 1 system
-- ✅ Abstract stacks trimmed unless intentional
-- ✅ Motif spotlight used once per section
-- ✅ Negation intentional (absence = action)
-- ✅ No duplicate brilliance or echoed aphorisms
-- ✅ Dialogue is lean; tags minimal; stress roughens speech
-- ✅ Orientation/stakes clarified once where needed
-- ✅ Endings = proof line + blade line (no summary voice)
-- ✅ Find pass completed for accidental repeats
+Binding Note
+Rules governing examples, interpretive authority, and diagnostic intent are defined in the MASTER WAVE GUIDE — PREAMBLE and are binding across all WAVES.
 
 ---
 
 **END OF WAVE GUIDE**
-
-This is a professional, late-stage craft framework designed to transform strong drafts into submission-ready manuscripts.
-
-It is:
-- Systematic without being rigid
-- Precise without flattening voice
-- Analytical without replacing intuition
-
-**This is not about writing more. It's about writing cleaner, sharper, and with authority.**
-
-You will end with fewer excuses.
