@@ -1027,6 +1027,10 @@ SCORING GUIDELINES:
         
         // Capture to Sentry with full context
         Sentry.captureException(error, {
+            tags: {
+                pipeline: 'full_manuscript',
+                feature: 'evaluate'
+            },
             extra: {
                 manuscriptId,
                 function: 'evaluateFullManuscript',
