@@ -1,4 +1,11 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import * as Sentry from 'npm:@sentry/deno@8.43.0';
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN'),
+  environment: Deno.env.get('BASE44_ENV') ?? 'production',
+  tracesSampleRate: 1.0,
+});
 
 Deno.serve(async (req) => {
     try {
@@ -210,6 +217,36 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
     } catch (error) {
         console.error('❌ Query letter generation error:', error);
         console.error('Error stack:', error.stack);
+        
+        // Capture to Sentry with detailed step-by-step context
+        Sentry.captureException(error, {
+            extra: {
+                function: 'generateQueryLetterPackage',
+                operation: 'query_letter_package_generation',
+                file_url: file_url,
+                synopsis_mode: synopsis_mode,
+                comps_mode: comps_mode,
+                genre: genre,
+                voiceIntensity: voiceIntensity,
+                has_existing_synopsis: !!existing_synopsis,
+                has_one_line_pitch: !!one_line_pitch,
+                has_pitch_paragraph: !!pitch_paragraph,
+                has_manual_comps: !!manual_comps,
+                has_bio: !!bio,
+                manuscript_title: metadata?.title,
+                extracted_genre: metadata?.genre,
+                extracted_word_count: metadata?.word_count,
+                extraction_success: extractionData?.success,
+                agents_count: agents?.agents?.length,
+                comps_count: comps?.comparables?.length,
+                user_email: user?.email,
+                error_message: error.message,
+                error_stack: error.stack,
+                timestamp: new Date().toISOString()
+            }
+        });
+        await Sentry.flush(2000);
+        
         return Response.json({ 
             error: 'Failed to generate query letter', 
             details: error.message,

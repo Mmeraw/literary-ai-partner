@@ -1,4 +1,11 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import * as Sentry from 'npm:@sentry/deno@8.43.0';
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN'),
+  environment: Deno.env.get('BASE44_ENV') ?? 'production',
+  tracesSampleRate: 1.0,
+});
 
 Deno.serve(async (req) => {
     try {
@@ -34,6 +41,25 @@ Follow industry standards: personalized opening, compelling hook, brief synopsis
 
     } catch (error) {
         console.error('Query letter generation error:', error);
+        
+        // Capture to Sentry with context
+        Sentry.captureException(error, {
+            extra: {
+                function: 'generateQueryLetter',
+                operation: 'query_letter_generation',
+                manuscript_title: manuscriptTitle,
+                genre: genre,
+                word_count: wordCount,
+                has_synopsis: !!synopsis,
+                has_bio: !!bio,
+                agent_name: agentName,
+                user_email: user?.email,
+                error_message: error.message,
+                timestamp: new Date().toISOString()
+            }
+        });
+        await Sentry.flush(2000);
+        
         return Response.json({ 
             error: 'Failed to generate query letter', 
             details: error.message 
