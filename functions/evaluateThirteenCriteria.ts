@@ -1,5 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import OpenAI from 'npm:openai@4.76.1';
+import * as Sentry from 'npm:@sentry/deno@8.43.0';
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN'),
+  environment: Deno.env.get('BASE44_ENV') ?? 'production',
+  tracesSampleRate: 1.0,
+});
 
 const openai = new OpenAI({
     apiKey: Deno.env.get("OPENAI_API_KEY"),
@@ -167,6 +174,24 @@ Also provide a summary assessment of overall manuscript quality.` }],
 
   } catch (error) {
     console.error('13 Criteria evaluation error:', error);
+    
+    // Capture to Sentry with context
+    Sentry.captureException(error, {
+      extra: {
+        function: 'evaluateThirteenCriteria',
+        operation: 'thirteen_criteria_evaluation',
+        manuscript_id,
+        manuscript_title: manuscript?.title,
+        chapters_count: chapters?.length,
+        word_count: manuscript?.word_count,
+        user_email: user?.email,
+        rubric_version: RUBRIC_VERSION,
+        error_message: error.message,
+        timestamp: new Date().toISOString()
+      }
+    });
+    await Sentry.flush(2000);
+    
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
