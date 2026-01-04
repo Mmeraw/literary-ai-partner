@@ -159,8 +159,20 @@ Deno.serve(async (req) => {
         const versionConfig = SYNOPSIS_SPEC.outputs.versions.find(v => v.id === synopsisType) || 
                               SYNOPSIS_SPEC.outputs.versions.find(v => v.id === 'standard');
 
+        // Extract title from manuscript or use provided title
+        const manuscriptTitle = manuscript?.title || (typeof manuscriptInfo === 'object' ? manuscriptInfo.title : null);
+        
+        if (!manuscriptTitle) {
+            return Response.json({ 
+                error: 'ERR_SYNOPSIS_MISSING_TITLE',
+                message: 'Manuscript title is required for synopsis generation'
+            }, { status: 400 });
+        }
+
         // Step 1: Build Story Skeleton
         const skeletonPrompt = `You are analyzing a manuscript to extract structural elements for a professional synopsis.
+
+MANUSCRIPT TITLE: ${manuscriptTitle}
 
 MANUSCRIPT INFORMATION:
 ${manuscriptInfo}
@@ -178,6 +190,7 @@ Extract the following story elements in a structured format:
 9. 2-3 comparable titles with brief differentiation
 10. Closing resonant line
 
+CRITICAL: Use the exact manuscript title provided above. Do not modify or create a new title.
 Be precise and factual. This is for professional agent submission.`;
 
         const skeletonResponse = await base44.integrations.Core.InvokeLLM({
@@ -211,13 +224,15 @@ Be precise and factual. This is for professional agent submission.`;
 
 Generate a ${versionConfig.name.toUpperCase()} (${versionConfig.min_words}-${versionConfig.max_words} words).
 
+MANUSCRIPT TITLE (USE EXACTLY AS SHOWN): ${manuscriptTitle}
+
 STORY SKELETON:
 ${JSON.stringify(skeletonResponse, null, 2)}
 
 MANDATORY STRUCTURE - USE THESE EXACT 9 HEADERS:
 
 1. Basic Metadata
-[Title — Genre — Word Count — POV — Author Name]
+[Use this exact title: ${manuscriptTitle} — Genre — Word Count — POV — Author Name]
 [One-sentence logline: premise + stakes + hook]
 
 2. Premise / Setup
