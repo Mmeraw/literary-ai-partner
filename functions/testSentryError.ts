@@ -6,7 +6,7 @@ Deno.serve(async (req) => {
         const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
 
-        // Intentionally throw a test error
+        // Intentionally throw a test error for Sentry verification
         const testError = new Error('TEST ERROR: Sentry integration verification - this is intentional');
         
         await captureCritical(testError, {
