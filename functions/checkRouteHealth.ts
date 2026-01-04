@@ -26,21 +26,27 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
         }
 
-        // TEMPORARY: Test Sentry
-        const payload = await req.json().catch(() => ({}));
-        if (payload.testSentry) {
-            const testError = new Error('Sentry health check test from checkRouteHealth');
-            await captureCritical(testError, {
-                test_type: 'sentry_health_check',
-                user_email: user?.email,
-                function: 'checkRouteHealth',
-                timestamp: new Date().toISOString()
-            });
-            return Response.json({
-                success: true,
-                message: 'Sentry test error captured',
-                sentry_configured: !!Deno.env.get('SENTRY_DSN')
-            });
+        // TEMPORARY: Test Sentry (check for POST with testSentry payload)
+        if (req.method === 'POST') {
+            try {
+                const payload = await req.json();
+                if (payload.testSentry) {
+                    const testError = new Error('Sentry health check test from checkRouteHealth');
+                    await captureCritical(testError, {
+                        test_type: 'sentry_health_check',
+                        user_email: user?.email,
+                        function: 'checkRouteHealth',
+                        timestamp: new Date().toISOString()
+                    });
+                    return Response.json({
+                        success: true,
+                        message: 'Sentry test error captured',
+                        sentry_configured: !!Deno.env.get('SENTRY_DSN')
+                    });
+                }
+            } catch (e) {
+                // Not JSON or no testSentry, continue with normal flow
+            }
         }
 
         const results = [];
