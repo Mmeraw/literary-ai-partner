@@ -128,7 +128,7 @@ These passes answer one question: **Does this read like work that understands re
 
 ---
 
-## THE 61+ WAVE SYSTEM
+## THE 63 WAVE SYSTEM
 
 ### WAVE 1 — Body-Part Clichés (jaw / chest / eyes / breath)
 **Draft Stage:** Mid/Late
@@ -305,67 +305,6 @@ These passes answer one question: **Does this read like work that understands re
 
 ---
 
-### WAVE 62 — Physical State Continuity (PSC)
-**Draft Stage:** Story Architecture / Late
-**Layer:** Narrative Continuity (feeds Criterion 12)
-
-#### Core Principle
-Objects, environments, and physical conditions cannot exist in mutually exclusive states simultaneously unless the text provides transition language or causal explanation.
-
-#### Why It Fails
-Physical contradictions break reader trust at a subconscious level. Even if readers can't articulate the problem, they feel something "off" about the world's coherence. This is distinct from stylistic preference—it's a physics-of-the-world violation.
-
-#### Mutually Exclusive State Pairs
-- **wet ↔ dry**
-- **fresh ↔ long-aged**
-- **clean ↔ grimy/dirty**
-- **intact ↔ broken/damaged**
-- **warm ↔ cold**
-- **recently disturbed ↔ long-abandoned**
-- **bright/vivid ↔ sun-bleached/faded**
-- **sharp/crisp ↔ blurred/smudged** (unless actively transitioning)
-
-#### Detection Pattern
-Flag when:
-1. Same object receives contradictory physical descriptors within close proximity (same paragraph or adjacent paragraphs)
-2. No transition language exists ("after the rain," "someone had recently...")
-3. The contradiction is not clearly intentional (surrealism, magic, etc.)
-
-#### Canonical Example (from PV 115, Chapter 1)
-❌ **Error:**
-> "The notice curled at the corners, a film of dust over the paper. Blue Sharpie smeared like it was still wet where someone had dragged their thumb across it."
-
-**Why it fails:** Curling + dust = age/neglect. Wet smear = fresh disturbance. These cannot coexist without explanation.
-
-✅ **Fix Options:**
-1. Keep aged state: "The notice curled at the corners, a film of dust over the paper, the blue Sharpie long since blurred by rain and fingers."
-2. Keep fresh state: "The notice's corner had just begun to curl, dust not yet settled, blue Sharpie still wet where someone had dragged a thumb through it."
-3. Explain contradiction: "The notice curled at the corners, dust caught along the edge, but a fresh streak of blue showed where someone had recently tried to rub the name away."
-
-#### What This Rule Does NOT Do
-- Does not block intentional surrealism or magical realism
-- Does not enforce realism over symbolism
-- Does not flag metaphor or deliberate juxtaposition
-- Does not rewrite voice
-
-#### Output Format
-When detected, flag as:
-```
-Flag Type: Physical State Continuity Violation
-Location: [Chapter X, paragraph Y]
-Object: [description]
-Conflict: [aged/weathered state] + [fresh/wet state] without transition
-Impact: Reader trust + immersion
-Suggested Action: Choose one state or add causal explanation
-```
-
-#### Integration Points
-- **Story Architecture Layer:** Primary detection
-- **Criterion 12 (Narrative Closure & Promises Kept):** Scoring impact
-- **WAVE Guide:** Cross-reference only (flags surface here but detection happens in Story Architecture)
-
----
-
 ### WAVE 61 — Reflexive Pronouns & Redundancy Rule
 **Draft Stage:** Late
 
@@ -445,6 +384,39 @@ Agents and editors spot them immediately.
 
 ---
 
+### WAVE 62 — Continuity of Time & Physical State
+**Draft Stage:** Late
+
+**Why it fails:** Manuscripts that lose track of physical continuity or time erode reader trust. Injuries vanish, clothing changes without explanation, time skips occur without acknowledgment.
+
+**Quick Test:** Track physical state markers (wounds, exhaustion, clothing) and time markers (sunrise, hours passing) across scenes. If something disappears or resets without cause, flag it.
+
+**One-Line Rule:** The world must obey itself—time passes, injuries persist, objects stay where placed.
+
+---
+
+### WAVE 63 — Narrative Closure & Promises Kept
+**Draft Stage:** Late
+
+**Why it fails:** Narrative elements introduced by the text create implicit reader contracts. Abandoned arcs, unfulfilled promises, and unresolved character threads undermine reader trust and signal lack of authorial control.
+
+**Quick Test:** List every character introduced, every conflict seeded, every question raised, every promise made. Ask: Did this resolve, stay intentionally open with acknowledgment, or vanish without trace?
+
+**One-Line Rule:** Readers forgive open endings—they don't forgive forgotten ones.
+
+**Evaluation Criteria:**
+- Character arcs introduced must conclude or be acknowledged as ongoing
+- Narrative promises (setups, foreshadowing, mysteries) must resolve or be intentionally deferred
+- Causal chains must complete—actions must have consequences
+- Relationships introduced must reach resolution, stasis, or acknowledged continuation
+- Objects/symbols given significance must serve their narrative purpose
+
+**Authorization Rule:**
+- **Keep open** when: Intentional ambiguity serves theme, sequels planned, literary tradition supports open endings
+- **Flag as abandoned** when: Reader expects closure but receives silence, setup has no payoff, character disappears without narrative reason
+
+---
+
 ## IMPLEMENTATION GATE (ENGINEERING)
 
 ### Two-Stage Pipeline Required
@@ -469,6 +441,234 @@ If WAVE classifies a flagged phrase as serving **embodiment / intimacy / agency 
 ✅ Generic "remove reflexive" suggestions → ONLY when WAVE classifies as redundant/weakening
 
 **Treat scanner output as candidates, not decisions. WAVE must authorize all rewrites.**
+
+---
+
+## WAVE-SYN — SYNOPSIS INTERPRETATION CANON
+
+### Purpose
+These rules establish canonical interpretation law for synopsis generation across all RevisionGrade outputs (synopsis, pitch, agent package, comps, query support). They prevent mechanical compliance while conceptual drift—ensuring LLMs cannot "technically comply" while misclassifying narrative structure.
+
+### Core Problem These Rules Address
+LLMs are prone to:
+- Overweighting abstract reflection over concrete action
+- Confusing thematic articulation with narrative agency
+- Treating "realization" language as protagonist signaling
+- Elevating named thinkers in end-notes over lived, on-page action
+
+Without explicit canon, validation can pass while interpretation fails.
+
+---
+
+### WAVE-SYN-01: POV Supremacy (First-Person Narratives)
+
+**Rule:** In first-person narratives, the POV narrator **must** be treated as the primary protagonist unless the text **explicitly** declares a different focal character.
+
+**Why This Exists:**
+- First-person = voice authority
+- POV is structural commitment, not stylistic choice
+- Later reflection/commentary cannot override narrated experience
+
+**Validator Requirement:**
+- If manuscript is first-person POV → protagonist MUST be "POV narrator"
+- Override ONLY if text explicitly centers another character as focal agent
+
+**Fail Condition:**
+- Synopsis labels a non-POV character as protagonist without textual proof of focal shift
+
+---
+
+### WAVE-SYN-02: Character Elevation Threshold
+
+**Rule:** A character may be labeled protagonist/antagonist **only** if they meet **all** of the following:
+
+1. **Appear in the main event narrative** (not just titles, notes, or reflections)
+2. **Act on-page** (in-scene with observable behavior)
+3. **Materially influence event sequence or outcomes**
+
+**Why This Exists:**
+- Abstract commentary ≠ narrative agency
+- Title attribution ≠ story participation
+- Philosophical summary ≠ dramatic action
+
+**Page-Time Threshold:**
+- **Major character** (>50% page time): Can be protagonist/antagonist
+- **Significant character** (25-50% page time): Can be protagonist/antagonist if central to conflict
+- **Minor character** (<25% page time): **Cannot** be protagonist/antagonist
+
+**Validator Requirement:**
+- Extract page-time estimate for each named character
+- FAIL if minor character (<25%) elevated to protagonist/antagonist
+
+**Fail Condition:**
+- Character appears only in end-notes, titles, or reflective commentary
+- Character mentioned but never acts on-page
+- Character's "importance" based on thematic resonance rather than event participation
+
+---
+
+### WAVE-SYN-03: Antagonist Optionality (Memoir / Essay / Observational)
+
+**Rule:** For memoir, personal essay, and observational nonfiction, a **human antagonist is not required**. Opposition may be:
+- Internal (self-doubt, trauma, identity conflict)
+- Situational (poverty, displacement, systemic barriers)
+- Environmental (weather, geography, isolation)
+- Ethical (moral dilemma, value conflict)
+- Systemic (institutions, cultural norms, legal structures)
+
+**Why This Exists:**
+- Not all narratives have villains
+- Memoir often explores navigating systems, not defeating people
+- Forcing human antagonist invents conflict that doesn't exist
+
+**Validator Requirement:**
+- For memoir/essay/observational: `antagonist.type` may be "internal", "situational", "environmental", "ethical", "systemic", or "none"
+- FAIL if human antagonist invented where none exists in text
+
+**Fail Condition:**
+- Synopsis creates a human antagonist not present in manuscript
+- Minor encounter character elevated to "villain" role
+- Thematic opposition personified as character conflict
+
+---
+
+### WAVE-SYN-04: Meta-Layer Containment
+
+**Rule:** Figures appearing primarily as **later interpretive lenses, thematic commentators, or framing voices** must be classified as **contextual contributors**, not protagonists or antagonists, unless they **materially participate in the narrative events**.
+
+**Why This Exists:**
+- Reflection ≠ action
+- Naming an idea-source ≠ story agency
+- Title contributors are not characters unless they act on-page
+
+**Examples of Meta-Layer Figures:**
+- Person named in title who doesn't appear in events
+- Philosopher/theorist cited in end-notes
+- Friend who "helped realize" theme but wasn't present in scenes
+- Voice that appears only in abstract reflection sections
+
+**Validator Requirement:**
+- If character appears **only** in:
+  - Title metadata
+  - End-notes
+  - Thematic reflection blocks
+  - Abstract commentary sections
+- → They **cannot** be protagonist/antagonist/central character
+
+**Fail Condition:**
+- Utku-style elevation: appears in title/reflection but not in narrative action
+- Thematic lens treated as story participant
+- Idea attribution confused with dramatic agency
+
+---
+
+### WAVE-SYN-05: Reflection Cannot Override Events
+
+**Rule:** End-notes, thematic bullet lists, and abstract commentary **cannot override the concrete event sequence** in determining:
+- Story focus
+- Protagonist identification
+- Antagonistic force
+- Central conflict
+
+**Why This Exists:**
+- Synopsis describes **what happened**, not **what it meant**
+- Thematic realization is secondary to narrative action
+- Later interpretation doesn't change event structure
+
+**Event Primacy Principle:**
+- If events show A, but reflection suggests B → **events win**
+- If character X acts throughout, but end-note credits Y with insight → **X is protagonist**
+- If concrete conflict is internal, but reflection names external figure → **internal conflict is antagonist**
+
+**Validator Requirement:**
+- Synopsis must derive structure from:
+  1. **Event sequence** (what happened, in order)
+  2. **On-page action** (who did what, when)
+  3. **Causal chains** (action → consequence)
+- NOT from:
+  1. Reflection sections
+  2. Thematic summary
+  3. Meta-commentary
+  4. Title implications
+
+**Fail Condition:**
+- Synopsis structure contradicts event timeline
+- Protagonist identified by reflection rather than action
+- Conflict named in end-notes overrides on-page opposition
+
+---
+
+### WAVE-SYN-TITLE: Title Canon Enforcement
+
+**Rule:** Synopsis **must** use the **exact manuscript title** provided. No changes, no elaboration, no shortening, no interpretation.
+
+**Why This Exists:**
+- Title is author's choice, not LLM's judgment
+- Title changes signal lack of control
+- Professional synopsis respects source material
+
+**Validator Requirement:**
+- Extract manuscript title at function entry
+- Pass to skeleton prompt with explicit "USE EXACTLY AS SHOWN" instruction
+- Validate synopsis output: `title_matches` must be `true`
+
+**Fail Condition:**
+- Title modified, shortened, or elaborated
+- Subtitle added without author instruction
+- Working title replaced with "better" title
+
+---
+
+## Regression Test Fixture: "Culture" Story
+
+**Expected Metadata:**
+- **Title:** "Culture" (or "Letting Others In" if that version used)
+- **Protagonist:** POV narrator (first-person)
+- **Antagonist:** "Situational risk / ethical boundary violation / internal safety conflict" OR "none (environmental threat)"
+- **Utku:** "Thematic lens only" — appears in reflection/realization but **not** protagonist/antagonist
+
+**Fail Conditions:**
+- Utku labeled protagonist/antagonist/central character
+- Human antagonist invented (Tim is encounter, not villain)
+- Focus drifts away from POV narrator
+- Title changed to "The Other Side" or other variant without instruction
+
+---
+
+## Implementation Requirements
+
+### Validators (Hard Fail / Block)
+- **VAL-SYN-TITLE-CANON:** Title must equal input title (no invention)
+- **VAL-SYN-POV-PROT:** If first-person → protagonist must be "POV narrator" or explicit override
+- **VAL-SYN-CHAR-PAGETIME:** Any protagonist/antagonist must exceed minimum page-time threshold + have on-page action
+- **VAL-SYN-NO-META-PROMOTION:** Name appearing only in title/end-notes/reflection cannot be ranked central
+- **VAL-SYN-ANTAG-OPTIONAL:** Memoir/essay must allow "no human antagonist" + block invented villains
+
+### Response Schema Requirements
+All synopsis generation must return validation object with:
+```json
+{
+  "wave_syn_01_pov_supremacy": boolean,
+  "wave_syn_02_character_threshold": boolean,
+  "wave_syn_03_antagonist_optional": boolean,
+  "wave_syn_04_meta_containment": boolean,
+  "wave_syn_05_events_primacy": boolean,
+  "title_matches": boolean,
+  "wave_violations": ["specific rule violation text"]
+}
+```
+
+### Hard Fail Condition
+If `wave_violations.length > 0` → Return HTTP 400 with:
+```json
+{
+  "error": "ERR_SYNOPSIS_WAVE_VIOLATION",
+  "gate_blocked": true,
+  "message": "Synopsis failed WAVE canon validation",
+  "wave_violations": [...],
+  "synopsis_draft": "..."
+}
+```
 
 ---
 
