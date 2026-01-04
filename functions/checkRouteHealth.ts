@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { captureCritical } from './utils/errorTracking.js';
 
 const ROUTES_TO_CHECK = [
     {
@@ -23,6 +24,23 @@ Deno.serve(async (req) => {
         // Admin only
         if (user?.role !== 'admin') {
             return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
+        }
+
+        // TEMPORARY: Test Sentry
+        const payload = await req.json().catch(() => ({}));
+        if (payload.testSentry) {
+            const testError = new Error('Sentry health check test from checkRouteHealth');
+            await captureCritical(testError, {
+                test_type: 'sentry_health_check',
+                user_email: user?.email,
+                function: 'checkRouteHealth',
+                timestamp: new Date().toISOString()
+            });
+            return Response.json({
+                success: true,
+                message: 'Sentry test error captured',
+                sentry_configured: !!Deno.env.get('SENTRY_DSN')
+            });
         }
 
         const results = [];
