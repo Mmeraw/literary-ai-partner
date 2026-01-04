@@ -1,4 +1,11 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import * as Sentry from 'npm:@sentry/deno@8.43.0';
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN'),
+  environment: Deno.env.get('BASE44_ENV') ?? 'production',
+  tracesSampleRate: 1.0,
+});
 
 // Load the Synopsis Master Spec
 const SYNOPSIS_SPEC = {
@@ -480,6 +487,28 @@ Provide validation report with WAVE rule compliance.`;
 
     } catch (error) {
         console.error('Synopsis generation error:', error);
+        
+        // Capture to Sentry with full context
+        Sentry.captureException(error, {
+            extra: {
+                function: 'generateSynopsis',
+                operation: 'output_generation',
+                manuscript_id: source_document_id,
+                manuscript_title: manuscript?.title,
+                synopsis_type: synopsisType,
+                version_config: versionConfig?.name,
+                user_email: user?.email,
+                spine_score: manuscript?.spine_score,
+                spine_complete: !!manuscript?.spine_evaluation,
+                thirteen_criteria_complete: manuscript?.revisiongrade_breakdown?.thirteen_criteria?.status === 'COMPLETE',
+                wave_flags_complete: manuscript?.revisiongrade_breakdown?.wave_flags?.status === 'COMPLETE',
+                allow_ambiguity: allowAmbiguity,
+                error_message: error.message,
+                timestamp: new Date().toISOString()
+            }
+        });
+        await Sentry.flush(2000);
+        
         return Response.json({ 
             success: false,
             error: error.message || 'Failed to generate synopsis'
