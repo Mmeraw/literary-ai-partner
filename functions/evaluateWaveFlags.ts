@@ -159,6 +159,10 @@ Also provide brief notes on flagged items.` }],
     
     // Capture to Sentry with context
     Sentry.captureException(error, {
+      tags: {
+        pipeline: 'wave_flags',
+        feature: 'evaluate'
+      },
       extra: {
         function: 'evaluateWaveFlags',
         operation: 'wave_flags_evaluation',

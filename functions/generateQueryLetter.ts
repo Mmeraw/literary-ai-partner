@@ -44,6 +44,10 @@ Follow industry standards: personalized opening, compelling hook, brief synopsis
         
         // Capture to Sentry with context
         Sentry.captureException(error, {
+            tags: {
+                pipeline: 'query_letter',
+                feature: 'output_generation'
+            },
             extra: {
                 function: 'generateQueryLetter',
                 operation: 'query_letter_generation',

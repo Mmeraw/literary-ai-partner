@@ -490,6 +490,10 @@ Provide validation report with WAVE rule compliance.`;
         
         // Capture to Sentry with full context
         Sentry.captureException(error, {
+            tags: {
+                pipeline: 'synopsis',
+                feature: 'output_generation'
+            },
             extra: {
                 function: 'generateSynopsis',
                 operation: 'output_generation',

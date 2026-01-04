@@ -220,6 +220,10 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
         
         // Capture to Sentry with detailed step-by-step context
         Sentry.captureException(error, {
+            tags: {
+                pipeline: 'query_letter_package',
+                feature: 'output_generation'
+            },
             extra: {
                 function: 'generateQueryLetterPackage',
                 operation: 'query_letter_package_generation',

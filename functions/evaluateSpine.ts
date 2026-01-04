@@ -157,6 +157,10 @@ Also provide:
     
     // Capture to Sentry with context
     Sentry.captureException(error, {
+      tags: {
+        pipeline: 'spine_evaluation',
+        feature: 'evaluate'
+      },
       extra: {
         function: 'evaluateSpine',
         operation: 'spine_evaluation',

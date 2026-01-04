@@ -177,6 +177,10 @@ Also provide a summary assessment of overall manuscript quality.` }],
     
     // Capture to Sentry with context
     Sentry.captureException(error, {
+      tags: {
+        pipeline: 'thirteen_criteria',
+        feature: 'evaluate'
+      },
       extra: {
         function: 'evaluateThirteenCriteria',
         operation: 'thirteen_criteria_evaluation',
