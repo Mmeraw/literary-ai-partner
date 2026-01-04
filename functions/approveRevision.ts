@@ -1,4 +1,11 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import * as Sentry from 'npm:@sentry/deno@8.43.0';
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN'),
+  environment: Deno.env.get('BASE44_ENV') ?? 'production',
+  tracesSampleRate: 1.0,
+});
 
 Deno.serve(async (req) => {
     try {
@@ -66,6 +73,20 @@ Deno.serve(async (req) => {
 
     } catch (error) {
         console.error('Revision approval error:', error);
+        
+        // Capture to Sentry with context
+        Sentry.captureException(error, {
+            extra: {
+                function: 'approveRevision',
+                operation: 'revision_approval',
+                revision_event_id,
+                user_email: user?.email,
+                error_message: error.message,
+                timestamp: new Date().toISOString()
+            }
+        });
+        await Sentry.flush(2000);
+        
         return Response.json({ 
             error: 'Failed to approve revision',
             details: error.message 

@@ -1,5 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import mammoth from 'npm:mammoth@1.8.0';
+import * as Sentry from 'npm:@sentry/deno@8.43.0';
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN'),
+  environment: Deno.env.get('BASE44_ENV') ?? 'production',
+  tracesSampleRate: 1.0,
+});
 
 Deno.serve(async (req) => {
     const corsHeaders = {
@@ -157,6 +164,22 @@ Deno.serve(async (req) => {
             errorMessage += 'Complex document structure (tracked changes, comments, or formatting). Paste text for instant results.';
         }
 
+        // Capture to Sentry with context
+        Sentry.captureException(error, {
+            extra: {
+                function: 'convertDocxToText',
+                operation: 'docx_conversion',
+                file_name: file?.name,
+                file_size: file?.size,
+                error_type: errorType,
+                is_timeout: error.message === 'TIMEOUT',
+                user_email: user?.email,
+                error_message: error.message,
+                timestamp: new Date().toISOString()
+            }
+        });
+        await Sentry.flush(2000);
+        
         return Response.json({ 
             success: false,
             error: errorMessage,
