@@ -1,0 +1,288 @@
+# CONTROL TOWER SPECIFICATION
+**Operational Truth, Not Vanity Analytics**
+
+**Status:** Approved  
+**Version:** 1.0  
+**Date:** 2026-01-04  
+**Authority:** RevisionGrade Governance Model
+
+---
+
+## Purpose
+
+The Control Tower answers one question:
+
+**Is RevisionGrade behaving as designed, right now, and over time?**
+
+It is for governance, not marketing.
+
+---
+
+## A. Control Tower Views (4 Dashboards)
+
+### 1. Operational Health Dashboard
+
+**Audience:** Internal Ops / Base44
+
+**Purpose:** Tracks system stability
+
+**Metrics:**
+- Evaluation throughput (evaluations/hour)
+- Queue latency (p50, p95, p99)
+- Error rates by layer (ingestion, evaluation, confidence, gate)
+- Failed release gate count
+
+**Alerts:**
+- Latency spikes (>2x baseline)
+- Gate enforcement failures (any occurrence)
+- Error rate > 5% sustained for 10 minutes
+
+**Refresh Rate:** Real-time (<60 seconds)
+
+---
+
+### 2. Quality & Confidence Dashboard
+
+**Audience:** Governance / Product
+
+**Purpose:** Tracks correctness and trust
+
+**Metrics:**
+- Average confidence by claim type
+- Confidence band distribution (High/Medium/Low %)
+- Below-threshold output rate
+- Confidence drift over time (rolling 7-day window)
+
+**Key Signal:**
+Rising confidence without corresponding evidence = **RED FLAG**
+
+**Alerts:**
+- Confidence drift >5% in 7 days
+- High-confidence outputs failing validation >2%
+- Below-threshold acceptance rate >20%
+
+**Refresh Rate:** Hourly aggregation
+
+---
+
+### 3. Incident & Learning Dashboard
+
+**Audience:** Governance / Engineering
+
+**Purpose:** Tracks failure and recovery
+
+**Metrics:**
+- Incidents by class (hallucination, ambiguity miss, gate bypass, etc.)
+- Mean Time To Detect (MTTD)
+- Mean Time To Resolve (MTTR)
+- Repeat incident rate (same error class)
+
+**Required Views:**
+- Open incidents
+- Closed with RCA
+- Prevented recurrences (error classes that no longer occur)
+
+**Alerts:**
+- Any Severity-1 incident
+- MTTR >24 hours
+- Repeat incident (3rd occurrence)
+
+**Refresh Rate:** Real-time for incidents, daily for trends
+
+---
+
+### 4. Strategic / Investor Dashboard
+
+**Audience:** Investors / Advisors
+
+**Purpose:** High-level trust indicators
+
+**Metrics:**
+- Accuracy trend (validated samples)
+- Hallucination rate (per 1000 evaluations)
+- Confidence calibration curve (predicted vs actual)
+- Learning velocity (error reduction month-over-month)
+
+**No raw data. No noise. Just signal.**
+
+**Refresh Rate:** Weekly summary
+
+---
+
+## B. Metric Governance Rules
+
+### 1. Metrics are immutable once recorded
+No post-facto adjustment.
+
+### 2. No manual adjustment
+All metrics computed from system events.
+
+### 3. No suppression of bad news
+Negative metrics visible immediately.
+
+### 4. Every metric has an owner
+RevisionGrade or Base44 explicitly assigned.
+
+### 5. Every alert has an escalation path
+Defined response, never ignored.
+
+---
+
+## C. Thresholds & Actions
+
+| Condition | Action |
+|-----------|--------|
+| Confidence drift >5% | Freeze releases |
+| Repeat error class (3×) | Mandatory RCA |
+| MTTR >24h | Governance review |
+| Gate bypass attempt | Severity-1 incident |
+| Hallucination rate >1% | Evaluation freeze |
+
+---
+
+## D. Metric Definitions
+
+### Evaluation Accuracy
+```
+accuracy = (correct_claims / total_claims) * 100
+```
+Where "correct" is validated against gold-standard truth sets.
+
+**Target:** ≥92%
+
+---
+
+### Confidence Coverage
+```
+coverage = (claims_with_confidence / total_claims) * 100
+```
+
+**Target:** 100%
+
+---
+
+### Hallucination Rate
+```
+hallucination_rate = (hallucinated_claims / total_claims) * 1000
+```
+Where "hallucinated" = claim with no textual support.
+
+**Target:** <1 per 1000
+
+---
+
+### Confidence Drift
+```
+drift = |avg_confidence_today - avg_confidence_7days_ago|
+```
+
+**Threshold:** 5%
+
+---
+
+### Mean Time To Detect (MTTD)
+```
+MTTD = avg(incident_detection_time - incident_occurrence_time)
+```
+
+**Target (SEV-1):** ≤2 hours
+
+---
+
+### Mean Time To Resolve (MTTR)
+```
+MTTR = avg(incident_resolution_time - incident_detection_time)
+```
+
+**Target (SEV-1):** ≤24 hours
+
+---
+
+### Learning Velocity
+```
+learning_velocity = (errors_last_month - errors_this_month) / errors_last_month
+```
+
+**Target:** Positive (decreasing errors)
+
+---
+
+## E. Dashboard Architecture
+
+### Data Sources
+- `Analytics` entity (existing)
+- `EvaluationAuditEvent` entity (existing)
+- `EvaluationIncident` entity (new)
+- `ConfidenceResult` entity (new)
+- Sentry integration (errors, performance)
+
+### Aggregation
+- Backend functions run hourly/daily rollups
+- Store in `MetricSnapshot` entity
+- Dashboard queries pre-aggregated data
+
+### Access Control
+- Operational Health: Base44 team
+- Quality & Confidence: Joint (Base44 + RevisionGrade)
+- Incident & Learning: Joint
+- Strategic/Investor: Read-only, RevisionGrade authorized viewers
+
+---
+
+## F. Implementation Priorities
+
+### Phase 1 (Weeks 7-8)
+- Operational Health Dashboard
+- Basic metric collection infrastructure
+
+### Phase 2 (Week 9)
+- Quality & Confidence Dashboard
+- Confidence drift detection
+
+### Phase 3 (Week 10)
+- Incident & Learning Dashboard
+- MTTD/MTTR tracking
+
+### Phase 4 (Week 11)
+- Strategic/Investor Dashboard
+- Aggregated reporting
+
+---
+
+## G. Test Requirements
+
+### Dashboard Functional Tests
+1. **Near-Real-Time Test**
+   - Log event → appears on dashboard within 60 seconds
+   - Evidence: Timestamp comparison
+
+2. **No Suppression Test**
+   - Generate error → appears immediately (no filtering)
+   - Evidence: Error visible in UI
+
+3. **Drill-Down Test**
+   - Click metric → view underlying events
+   - Evidence: Navigation functional
+
+4. **Alert Trigger Test**
+   - Simulate threshold breach → alert fires
+   - Evidence: Alert log entry
+
+---
+
+## H. Governance Commitment
+
+**No metric suppression.**  
+**No vanity metrics.**  
+**No silent failures.**
+
+If a metric looks bad, it stays bad until the system improves.
+
+This is how trust is built.
+
+---
+
+**Authority:** RevisionGrade Governance Model  
+**Binding Status:** Release-Blocking (Phase 3)  
+**Implementation Owner:** Base44  
+**Metric Definition Owner:** RevisionGrade

@@ -1,0 +1,329 @@
+# SLA → WORKFLOW STATE MAPPING
+**Release-Binding · Non-Bypassable**
+
+**Status:** Approved  
+**Version:** 1.0  
+**Date:** 2026-01-04  
+**Authority:** RevisionGrade Execution Framework
+
+---
+
+## 1. CORE WORKFLOW PRINCIPLE
+
+**A ticket's workflow state determines what the system is allowed to do.**
+
+SLAs are enforced by state transitions, not reminders.
+
+- **No state** = no action
+- **Wrong state** = blocked
+
+---
+
+## 2. BASE44 REQUIRED WORKFLOW STATES
+
+### STATE 0 — INTAKE (UNTRIAGED)
+
+**Purpose:** Ticket exists but has no authority
+
+**Allowed:**
+- Creation
+- Clarification
+
+**Blocked:**
+- Development
+- Assignment
+- Sprint inclusion
+
+**Exit Criteria:**
+- Severity assigned
+- Epic assigned
+- SLA clock starts
+
+---
+
+### STATE 1 — TRIAGED (SLA CLOCK ACTIVE)
+
+**Purpose:** Ticket is classified and governed
+
+**Required Fields:**
+- Severity (SEV-1 / SEV-2 / SEV-3)
+- Impacted Layer(s)
+- SLA timers initialized
+- Release impact (Yes/No)
+
+**SLA Enforcement:**
+- SEV-1 → Detection ≤2h
+- SEV-2 → Detection ≤24h
+- SEV-3 → Detection ≤72h
+
+**Blocked:**
+- Code merge
+- Release actions (if SEV-1)
+
+---
+
+### STATE 2 — IN PROGRESS
+
+**Purpose:** Active work under SLA
+
+**Allowed:**
+- Development
+- Test creation
+- Documentation
+
+**Hard Rules:**
+- SLA timers continue running
+- Any scope change requires re-triage
+
+**Automatic Escalation:**
+- SLA breach → auto-transition to **ESCALATED**
+
+---
+
+### STATE 3 — READY FOR VALIDATION
+
+**Purpose:** Work complete, evidence required
+
+**Required Evidence (Mandatory):**
+- Automated test results
+- Confidence/gate test outputs (if applicable)
+- Screenshots / logs (UI or metrics)
+- Gold-suite regression link (if required)
+
+**Blocked:**
+- Merge
+- Release
+- Closure
+
+**Exit Criteria:**
+- All evidence attached
+- Validator assigned
+
+---
+
+### STATE 4 — VALIDATION (GOVERNANCE CHECK)
+
+**Purpose:** Independent verification
+
+**Validator:**
+- Must not be the implementer
+
+**Checks:**
+- SLA met?
+- Acceptance criteria met?
+- Gates preserved?
+- Metrics instrumented?
+
+**Outcomes:**
+- **Pass** → move to APPROVED
+- **Fail** → return to IN PROGRESS (SLA resumes)
+
+---
+
+### STATE 5 — APPROVED
+
+**Purpose:** Authorized for merge / deployment
+
+**Allowed:**
+- Merge
+- Deploy to next environment (staging/prod per policy)
+
+**Special Rule (SEV-1):**
+If SEV-1, approval must include:
+- RCA (root-cause analysis)
+- Mitigation confirmation
+
+---
+
+### STATE 6 — RELEASED
+
+**Purpose:** Change is live
+
+**Required:**
+- Timestamped release record
+- Linked metrics visible in Control Tower
+
+**Automatic Monitoring:**
+- Post-release metrics observed
+- Regression watch active
+
+---
+
+### STATE 7 — CLOSED
+
+**Purpose:** Administrative closure
+
+**Required for Closure:**
+- SLA compliance recorded
+- RCA attached (if SEV-1 or repeated SEV-2)
+- Learning loop updated (if applicable)
+
+---
+
+### STATE X — ESCALATED (OVERRIDE STATE)
+
+**Triggered When:**
+- SLA breach
+- Gate bypass attempt
+- Metric suppression
+- Repeat incident
+
+**Effects:**
+- Automatic **RELEASE FREEZE**
+- Governance review required
+- No state transitions without approval
+
+---
+
+## 3. SLA → STATE BEHAVIOR MATRIX
+
+| Severity | Workflow Impact | Release Impact |
+|----------|-----------------|----------------|
+| SEV-1 | Escalates if SLA breached | Immediate freeze |
+| SEV-2 | Escalates on repeat | Conditional |
+| SEV-3 | Normal flow | None |
+
+---
+
+## 4. AUTOMATIONS BASE44 MUST ENABLE
+
+### A. SLA Timers
+
+- Start at **TRIAGED**
+- Pause only in **VALIDATION**
+- Visible countdown in ticket
+
+---
+
+### B. Automatic Transitions
+
+- SLA breach → **ESCALATED**
+- Missing evidence → block **READY FOR VALIDATION**
+- Failed validation → back to **IN PROGRESS**
+
+---
+
+### C. Release Gate Integration
+
+- Any open SEV-1 ticket → **block release pipeline**
+- Any unresolved gold-suite failure → **block merge**
+
+---
+
+## 5. CONTROL TOWER FEEDS (FROM WORKFLOW)
+
+The following workflow events **must** emit metrics:
+
+- Time in state (per ticket)
+- SLA breaches
+- Escalation count
+- Time under release freeze
+- Repeat incident detection
+
+**These feed directly into:**
+- Operational dashboard
+- Quality dashboard
+- Investor summary
+
+---
+
+## 6. GOVERNANCE RULE (DO NOT NEGOTIATE)
+
+**No ticket may bypass states.**  
+**No SLA may be "handled manually."**  
+**No release may ignore workflow reality.**
+
+If the workflow says "blocked," the system is blocked.
+
+---
+
+## 7. STATE TRANSITION DIAGRAM
+
+```
+INTAKE → TRIAGED → IN PROGRESS → READY FOR VALIDATION → VALIDATION → APPROVED → RELEASED → CLOSED
+                        ↓                                      ↓
+                   ESCALATED ←────────────────────────────────┘
+                        ↓
+                   (RELEASE FREEZE)
+```
+
+---
+
+## 8. WORKFLOW ENFORCEMENT CHECKLIST
+
+### Base44 Must Implement:
+
+- [ ] All 8 states defined in ticket system
+- [ ] SLA timers start automatically at TRIAGED
+- [ ] Evidence fields required before READY FOR VALIDATION
+- [ ] Validator assignment required for VALIDATION state
+- [ ] Auto-escalation on SLA breach
+- [ ] Release pipeline checks for open SEV-1 tickets
+- [ ] Metrics emission on state transitions
+- [ ] No manual override paths
+
+---
+
+## 9. EXAMPLE: SEV-1 TICKET LIFECYCLE
+
+### T+0: Ticket Created
+- State: **INTAKE**
+- SLA: Not started
+
+### T+1h: Triaged
+- State: **TRIAGED**
+- SLA clock: Started (Detection ≤2h)
+- Release: Blocked if not yet resolved
+
+### T+4h: In Progress
+- State: **IN PROGRESS**
+- SLA: Running (Resolution ≤24h total)
+
+### T+20h: Ready for Validation
+- State: **READY FOR VALIDATION**
+- Evidence: Test results attached
+- SLA: Paused
+
+### T+22h: Validation
+- State: **VALIDATION**
+- Validator: Assigned
+- Outcome: Pass
+
+### T+23h: Approved
+- State: **APPROVED**
+- RCA: Attached
+- Release: Unblocked (conditional on other tickets)
+
+### T+24h: Released
+- State: **RELEASED**
+- Metrics: Monitoring active
+
+### T+48h: Closed
+- State: **CLOSED**
+- SLA: Met (24h resolution)
+- Learning: Captured
+
+---
+
+## 10. ESCALATION SCENARIO
+
+### T+25h: SLA Breach Detected
+- State: **ESCALATED** (auto-transition)
+- Effect: **RELEASE FREEZE** activated
+- Notification: Governance team alerted
+
+### T+26h: Governance Review
+- Decision: Prioritize resolution
+- Action: Additional resources assigned
+
+### T+30h: Issue Resolved
+- State: Return to **IN PROGRESS** → **READY FOR VALIDATION**
+- Freeze: Lifted after validation
+
+---
+
+**Authority:** RevisionGrade Execution Framework  
+**Binding Status:** Contract-Level  
+**Implementation Owner:** Base44  
+**Enforcement Owner:** Joint (Base44 + RevisionGrade)  
+**Audit Frequency:** Weekly sprint reviews

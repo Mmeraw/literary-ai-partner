@@ -1,0 +1,619 @@
+# TICKET SET MASTER
+**RevisionGrade Implementation Tickets**
+
+**Status:** Approved  
+**Version:** 1.0  
+**Date:** 2026-01-04  
+**Authority:** RevisionGrade Execution Framework
+
+---
+
+## EPIC STRUCTURE
+
+- **RG-E1:** Confidence & Readiness Governance (v1)
+- **RG-E2:** Gold-Standard Calibration & Regression Control
+- **RG-E3:** Control Tower & Metrics
+- **RG-E4:** Incident, Learning & Audit
+- **RG-E5:** Operational Stability & Versioning
+
+---
+
+## EPIC RG-E1: Confidence & Readiness Governance (v1)
+
+**Objective:**  
+Implement deterministic confidence scoring, author acceptance, and hard release gating consistent with RevisionGrade governance.
+
+**Release Rule:**  
+This epic must be 100% complete before any "Ready" outputs are exposed to users.
+
+---
+
+### TICKET RG-E1-01: Implement Confidence Scoring Engine (Heuristic v1)
+
+**Severity:** SEV-1  
+**Epic:** RG-E1  
+**Impacted Layers:** Confidence & Uncertainty Layer
+
+**Description:**  
+Implement the deterministic Confidence Scoring Heuristic v1 for all evaluative claims, exactly as specified in `CONFIDENCE_SCORING_HEURISTIC_v1.md`.
+
+**Scope (Must Do):**
+- Compute per-claim confidence using:
+  - Evidence Presence (E)
+  - Evidence Consistency (C)
+  - Structural Alignment (S)
+  - Ambiguity Penalty (A)
+  - Inference Penalty (I)
+- Produce normalized confidence score (0–100%)
+- Assign confidence band (HIGH / MEDIUM / LOW)
+- Generate human-readable reasons per dimension
+
+**Must Not Do:**
+- No ML-based confidence in v1
+- No probabilistic randomness
+- No silent defaults
+
+**Acceptance Criteria:**
+- ✅ Same input → identical confidence output (determinism)
+- ✅ Every claim includes confidence metadata
+- ✅ All five dimensions present in output
+- ✅ Unit tests pass (see `ACCEPTANCE_TEST_SUITE.md`)
+
+**Release-Blocking Tests:**
+- Test A1: Determinism (10 repeated runs)
+- Test E1: Known numeric outcome
+- Test B1: Missing evidence produces low confidence
+
+**Artifacts:**
+- `ConfidenceResult` entity definition
+- `computeConfidence()` function implementation
+- Unit test suite (automated)
+
+**SLA:**
+- Detection: ≤2 hours
+- Resolution: ≤24 hours
+- RCA: Required
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 2
+
+---
+
+### TICKET RG-E1-02: Author Acceptance & Decision Logging
+
+**Severity:** SEV-1  
+**Epic:** RG-E1  
+**Impacted Layers:** Author Decision & Acceptance Interface
+
+**Description:**  
+Implement explicit author acceptance for below-threshold outputs with immutable decision logging.
+
+**Scope (Must Do):**
+- Create `AcceptanceDecision` entity
+- Require explicit opt-in for any claim <95%
+- Persist decision immutably (audit-safe)
+- Link acceptance to specific claim + evaluation run
+
+**Must Not Do:**
+- No implicit acceptance
+- No global "accept all" without review
+
+**Acceptance Criteria:**
+- ✅ Below-threshold claims cannot proceed without acceptance
+- ✅ Acceptance decision visible in audit logs
+- ✅ Acceptance tied to versioned input
+
+**Release-Blocking Tests:**
+- Test F2: Below-threshold blocks release without acceptance
+- Test F3: Acceptance allows conditional release
+- Immutability test (acceptance cannot be modified)
+
+**Artifacts:**
+- `AcceptanceDecision` entity
+- Acceptance UI modal
+- Backend validation function
+
+**SLA:**
+- Detection: ≤2 hours
+- Resolution: ≤24 hours
+- RCA: Required
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 2
+
+---
+
+### TICKET RG-E1-03: Release Gate Enforcement
+
+**Severity:** SEV-1  
+**Epic:** RG-E1  
+**Impacted Layers:** Release Gate & Output Control
+
+**Description:**  
+Implement hard release gates for readiness states with no bypass mechanisms.
+
+**Scope (Must Do):**
+- Enforce readiness states:
+  - Not Ready
+  - Conditionally Ready
+  - Ready
+- Block export if:
+  - Any readiness-critical claim <95% without acceptance
+  - Any claim missing confidence metadata
+
+**Must Not Do:**
+- No admin bypass
+- No debug override
+- No silent downgrade
+
+**Acceptance Criteria:**
+- ✅ Gate blocks under all failure conditions
+- ✅ Conditional release explicitly labeled
+- ✅ Gate applies in all environments
+
+**Release-Blocking Tests:**
+- Test F1: Missing confidence → blocked
+- Test F2: Below-threshold → blocked
+- Test F4: No admin bypass
+- Test F5: Direct API call blocked
+
+**Artifacts:**
+- `releaseGate()` backend function
+- Export API gate checks
+- Readiness state labels in UI
+
+**SLA:**
+- Detection: ≤2 hours
+- Resolution: ≤24 hours
+- RCA: Required
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 2
+
+---
+
+## EPIC RG-E2: Gold-Standard Calibration & Regression Control
+
+**Objective:**  
+Establish calibrated accuracy through gold-standard manuscripts and enforce regression control.
+
+---
+
+### TICKET RG-E2-01: Gold-Standard Manuscript Suite Infrastructure
+
+**Severity:** SEV-2  
+**Epic:** RG-E2  
+**Impacted Layers:** Operational Stability & Versioning
+
+**Description:**  
+Stand up infrastructure to support gold-standard manuscripts for calibration and regression.
+
+**Scope (Must Do):**
+- Support immutable manuscript snapshots
+- Support truth-set attachment
+- Version gold set manifest
+
+**Artifacts:**
+- `GOLD_SET_MANIFEST.json`
+- Snapshot storage system
+- CI hook placeholder
+
+**Acceptance Criteria:**
+- ✅ Gold set versioned independently of code
+- ✅ Manuscripts immutable once added
+
+**SLA:**
+- Acknowledgment: ≤24 hours
+- Resolution: ≤72 hours
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 4
+
+---
+
+### TICKET RG-E2-02: Calibration & Validation Pipeline (v1)
+
+**Severity:** SEV-2  
+**Epic:** RG-E2  
+**Impacted Layers:** Evaluation & Analysis Engine
+
+**Description:**  
+Implement calibration run pipeline comparing system outputs to gold truth sets.
+
+**Scope (Must Do):**
+- Compute accuracy vs truth set
+- Track false certainty rate (≥95% but wrong)
+- Produce calibration report
+
+**Must Not Do:**
+- No threshold auto-adjustment
+- No silent suppression of failures
+
+**Acceptance Criteria:**
+- ✅ Calibration report generated per run
+- ✅ Metrics persisted for Control Tower
+
+**Artifacts:**
+- `calibrate()` backend function
+- Calibration report template
+- Metrics integration
+
+**SLA:**
+- Acknowledgment: ≤24 hours
+- Resolution: ≤72 hours
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 4
+
+---
+
+### TICKET RG-E2-03: Regression Gate (Release Blocking)
+
+**Severity:** SEV-1  
+**Epic:** RG-E2  
+**Impacted Layers:** Operational Stability & Versioning
+
+**Description:**  
+Block release if gold-standard regression fails.
+
+**Scope (Must Do):**
+- CI job runs gold set on each build
+- Define tolerance bands (e.g., ±5%)
+- Block release on:
+  - Confidence drift
+  - Increased false certainty
+  - Broken determinism
+
+**Acceptance Criteria:**
+- ✅ Failing gold run blocks merge/release
+- ✅ Failure reason surfaced clearly
+
+**Artifacts:**
+- CI job: `run_gold_suite`
+- Release pipeline integration
+- Failure notifications
+
+**SLA:**
+- Detection: ≤2 hours
+- Resolution: ≤24 hours
+- RCA: Required
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 4
+
+---
+
+## EPIC RG-E3: Control Tower & Metrics
+
+**Objective:**  
+Provide real-time operational visibility through 4 dashboard views.
+
+---
+
+### TICKET RG-E3-01: Control Tower — Operational Health Dashboard
+
+**Severity:** SEV-2  
+**Epic:** RG-E3  
+**Impacted Layers:** Reporting, Dashboards & Monitoring
+
+**Description:**  
+Implement Operational Health Dashboard for system stability tracking.
+
+**Metrics:**
+- Evaluation throughput
+- Queue latency (p50, p95, p99)
+- Error rate by layer
+- Failed gate count
+
+**Acceptance Criteria:**
+- ✅ Metrics update in near-real time (<60 sec)
+- ✅ Alert triggers on threshold breach
+
+**Artifacts:**
+- Dashboard React component
+- Metrics aggregation function
+- Alert configuration
+
+**SLA:**
+- Acknowledgment: ≤24 hours
+- Resolution: ≤72 hours
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 3
+
+---
+
+### TICKET RG-E3-02: Control Tower — Quality & Confidence Dashboard
+
+**Severity:** SEV-2  
+**Epic:** RG-E3  
+**Impacted Layers:** Reporting, Dashboards & Monitoring
+
+**Description:**  
+Implement Quality & Confidence Dashboard for trust tracking.
+
+**Metrics:**
+- Confidence band distribution
+- Average confidence by claim type
+- Below-threshold output rate
+- Confidence drift over time
+
+**Acceptance Criteria:**
+- ✅ Confidence drift visible
+- ✅ No metric suppression
+
+**Artifacts:**
+- Dashboard React component
+- Drift detection algorithm
+- Alert configuration
+
+**SLA:**
+- Acknowledgment: ≤24 hours
+- Resolution: ≤72 hours
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 3
+
+---
+
+### TICKET RG-E3-03: Control Tower — Incident & Learning Dashboard
+
+**Severity:** SEV-2  
+**Epic:** RG-E3  
+**Impacted Layers:** Reporting, Dashboards & Monitoring
+
+**Description:**  
+Implement Incident & Learning Dashboard for failure/recovery tracking.
+
+**Metrics:**
+- Incidents by class
+- MTTD / MTTR
+- Repeat incident rate
+
+**Acceptance Criteria:**
+- ✅ Every incident linked to RCA
+- ✅ Repeat incidents flagged
+
+**Artifacts:**
+- Dashboard React component
+- Incident classification logic
+- RCA workflow integration
+
+**SLA:**
+- Acknowledgment: ≤24 hours
+- Resolution: ≤72 hours
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 3
+
+---
+
+### TICKET RG-E3-04: Control Tower — Investor Summary View
+
+**Severity:** SEV-3  
+**Epic:** RG-E3  
+**Impacted Layers:** Reporting, Dashboards & Monitoring
+
+**Description:**  
+Implement high-level Strategic/Investor Dashboard.
+
+**Metrics:**
+- Accuracy trend
+- Hallucination rate
+- Learning velocity
+
+**Acceptance Criteria:**
+- ✅ Aggregated, non-PII
+- ✅ Read-only
+- ✅ Consistent with internal metrics
+
+**Artifacts:**
+- Dashboard React component (simplified view)
+- Weekly aggregation function
+
+**SLA:**
+- Acknowledgment: ≤72 hours
+- Resolution: Next sprint
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 3
+
+---
+
+## EPIC RG-E4: Incident, Learning & Audit
+
+**Objective:**  
+Capture, classify, and learn from all evaluation failures and anomalies.
+
+---
+
+### TICKET RG-E4-01: Incident Entity & RCA Workflow
+
+**Severity:** SEV-1  
+**Epic:** RG-E4  
+**Impacted Layers:** Incident, Learning & Feedback Loop
+
+**Description:**  
+Implement incident logging and RCA (root-cause analysis) workflow.
+
+**Scope:**
+- Create `EvaluationIncident` entity
+- Classify incidents by type and severity
+- Require RCA for Severity-1
+
+**Acceptance Criteria:**
+- ✅ Incident cannot be closed without RCA
+- ✅ Incident metrics feed Control Tower
+
+**Artifacts:**
+- `EvaluationIncident` entity
+- RCA workflow UI
+- Incident classification logic
+
+**SLA:**
+- Detection: ≤2 hours
+- Resolution: ≤24 hours
+- RCA: Required
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 4
+
+---
+
+### TICKET RG-E4-02: Audit & Immutability Enforcement
+
+**Severity:** SEV-1  
+**Epic:** RG-E4  
+**Impacted Layers:** All (cross-cutting)
+
+**Description:**  
+Ensure immutable audit logs for all governance actions.
+
+**Scope:**
+- Immutable logs for:
+  - Evaluations
+  - Confidence scores
+  - Author acceptance
+  - Releases
+
+**Acceptance Criteria:**
+- ✅ Logs tamper-resistant
+- ✅ Full trace per output
+
+**Artifacts:**
+- Audit log entity design
+- Immutability enforcement logic
+- Export functionality
+
+**SLA:**
+- Detection: ≤2 hours
+- Resolution: ≤24 hours
+- RCA: Required
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 4
+
+---
+
+## EPIC RG-E5: Operational Stability & Versioning
+
+**Objective:**  
+Maintain stable behavior under load and prevent regression through versioning.
+
+---
+
+### TICKET RG-E5-01: Evaluation Logic Versioning
+
+**Severity:** SEV-2  
+**Epic:** RG-E5  
+**Impacted Layers:** Operational Stability & Versioning
+
+**Description:**  
+Version all evaluation logic, criteria, and thresholds.
+
+**Scope:**
+- Version format: `evaluation_logic_v1.2.0`
+- Store version with every evaluation
+- Enable historical comparisons
+
+**Acceptance Criteria:**
+- ✅ Manuscript entity includes evaluation version
+- ✅ Historical evaluations retrievable with version tag
+
+**Artifacts:**
+- Version manifest
+- Manuscript version field
+- Version comparison utility
+
+**SLA:**
+- Acknowledgment: ≤24 hours
+- Resolution: ≤72 hours
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 4
+
+---
+
+### TICKET RG-E5-02: Regression Test Suite Integration
+
+**Severity:** SEV-1  
+**Epic:** RG-E5  
+**Impacted Layers:** Operational Stability & Versioning
+
+**Description:**  
+Integrate regression test suite into deployment pipeline.
+
+**Scope:**
+- Automated test execution before deploy
+- Block deployment on test failures
+- Alert on score degradation
+
+**Acceptance Criteria:**
+- ✅ Regression tests run automatically
+- ✅ Failed tests block deployment
+- ✅ Test results visible in CI logs
+
+**Artifacts:**
+- CI pipeline configuration
+- Test execution script
+- Deployment gate logic
+
+**SLA:**
+- Detection: ≤2 hours
+- Resolution: ≤24 hours
+- RCA: Required
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 4
+
+---
+
+### TICKET RG-E5-03: Rollback Mechanism
+
+**Severity:** SEV-1  
+**Epic:** RG-E5  
+**Impacted Layers:** Operational Stability & Versioning
+
+**Description:**  
+Implement fast rollback capability for failed deployments.
+
+**Scope:**
+- One-click rollback to previous version
+- Metrics confirm stability restored
+- Rollback time <5 minutes
+
+**Acceptance Criteria:**
+- ✅ Rollback demo successful
+- ✅ Metrics return to baseline post-rollback
+
+**Artifacts:**
+- Rollback script/function
+- Version history tracking
+- Rollback test documentation
+
+**SLA:**
+- Detection: ≤2 hours
+- Resolution: ≤8 hours (rollback execution)
+- RCA: Required
+
+**Assigned To:** [Base44 Engineering]  
+**Sprint:** Phase 4
+
+---
+
+## EXECUTION RULE (CRITICAL)
+
+**No epic may be marked "Done" unless:**
+1. All release-blocking tests pass
+2. Evidence is demonstrated in staging
+3. Governance review completed (for SEV-1 tickets)
+
+**No exceptions.**
+
+---
+
+**Authority:** RevisionGrade Execution Framework  
+**Binding Status:** Release-Blocking  
+**Implementation Owner:** Base44  
+**Governance Owner:** RevisionGrade  
+**Review Cycle:** Weekly sprint reviews
