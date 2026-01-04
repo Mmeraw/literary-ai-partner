@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
         await captureCritical(testError, {
             userId: user?.email || 'anonymous',
             function: 'testSentryError',
-            environment: Deno.env.get('BASE44_ENV') || 'production',
+            environment: 'production',
             testId: `test-${Date.now()}`,
             message: 'Verification test for Sentry error tracking and alerting'
         });
