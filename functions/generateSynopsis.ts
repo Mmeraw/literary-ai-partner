@@ -179,29 +179,45 @@ ${manuscriptInfo}
 
 Extract the following story elements in a structured format:
 
-1. Protagonists (names and roles - max 5-7 characters)
-2. Inciting incident (the event that starts the story)
-3. Core conflict (who wants what, why now, what stands in the way)
-4. 3-5 major turning points that escalate stakes
-5. Climax (decisive confrontation/choice)
-6. Resolution (outcome, new normal, protagonist change)
-7. 2-3 core themes (concrete, not abstract)
-8. Tone and style (one sentence)
-9. 2-3 comparable titles with brief differentiation
-10. Closing resonant line
+1. MANUSCRIPT TITLE: Return the exact title "${manuscriptTitle}" - do not change, shorten, or elaborate
+2. Protagonists (names and roles - ONLY characters with major page time)
+   - Include page_time estimate: major (>50% of text), significant (25-50%), minor (<25%)
+   - DO NOT elevate minor characters to protagonist status
+   - If character appears <25% of text, they are NOT a protagonist
+3. Antagonist: Identify what/who opposes the protagonist
+   - Type: person, system, internal conflict, nature, society, or none
+   - Description: Be specific (not "society" but "homophobia in 1980s Atlanta")
+4. Inciting incident (the event that starts the story)
+5. Core conflict (who wants what, why now, what stands in the way)
+6. 3-5 major turning points that escalate stakes
+7. Climax (decisive confrontation/choice)
+8. Resolution (outcome, new normal, protagonist change)
+9. 2-3 core themes (concrete, not abstract)
+10. Tone and style (one sentence)
+11. 2-3 comparable titles with brief differentiation
+12. Closing resonant line
 
-CRITICAL: Use the exact manuscript title provided above. Do not modify or create a new title.
-Be precise and factual. This is for professional agent submission.`;
+CRITICAL RULES:
+- Use EXACT manuscript title: "${manuscriptTitle}"
+- Only list characters as protagonists if they appear in >25% of the manuscript
+- Be precise about antagonist - avoid generic labels
+- This is for professional agent submission - accuracy is essential`;
 
         const skeletonResponse = await base44.integrations.Core.InvokeLLM({
             prompt: skeletonPrompt,
             response_json_schema: {
                 type: "object",
                 properties: {
+                    manuscript_title: { type: "string", description: "Exact title as provided - do not modify" },
                     protagonists: { type: "array", items: { type: "object", properties: {
                         name: { type: "string" },
-                        role: { type: "string" }
+                        role: { type: "string" },
+                        page_time: { type: "string", description: "Estimate of how much of the manuscript this character appears in: major (>50%), significant (25-50%), minor (<25%)" }
                     }}},
+                    antagonist: { type: "object", properties: {
+                        type: { type: "string", description: "person, system, internal, nature, society, or none" },
+                        description: { type: "string", description: "What opposes the protagonist - be specific, not generic" }
+                    }},
                     inciting_incident: { type: "string" },
                     core_conflict: { type: "string" },
                     turning_points: { type: "array", items: { type: "string" } },
@@ -215,7 +231,7 @@ Be precise and factual. This is for professional agent submission.`;
                     }}},
                     closing_line: { type: "string" }
                 },
-                required: ["protagonists", "inciting_incident", "core_conflict", "turning_points", "climax", "resolution", "themes", "tone_style", "comparables", "closing_line"]
+                required: ["manuscript_title", "protagonists", "antagonist", "inciting_incident", "core_conflict", "turning_points", "climax", "resolution", "themes", "tone_style", "comparables", "closing_line"]
             }
         });
 
@@ -236,7 +252,8 @@ MANDATORY STRUCTURE - USE THESE EXACT 9 HEADERS:
 [One-sentence logline: premise + stakes + hook]
 
 2. Premise / Setup
-[Protagonists by name and role]
+[Protagonists by name and role - ONLY major/significant characters from skeleton]
+[Antagonist: ${skeletonResponse.antagonist.type} - ${skeletonResponse.antagonist.description}]
 [Inciting incident]
 [Core conflict: who wants what, why now, obstacle]
 [Time period / setting cue]
