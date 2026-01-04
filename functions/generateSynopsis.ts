@@ -310,13 +310,50 @@ Word target: ${versionConfig.min_words}-${versionConfig.max_words} words`;
             }
         });
 
-        // Step 4-6: Validation & Quality Check
-        const validationPrompt = `Validate this synopsis against professional standards:
+        // WAVE-SYN VALIDATORS: POV Supremacy & Character Elevation Rules
+        const waveValidationPrompt = `WAVE SYNOPSIS CANON VALIDATION
 
-SYNOPSIS:
-${synopsisResponse.synopsis_text}
+ORIGINAL MANUSCRIPT TITLE: ${manuscriptTitle}
+STORY SKELETON: ${JSON.stringify(skeletonResponse, null, 2)}
+GENERATED SYNOPSIS: ${synopsisResponse.synopsis_text}
 
-Check for these PITFALLS (flag if present):
+ENFORCE WAVE-SYN RULES (FAIL if violated):
+
+WAVE-SYN-01: POV Supremacy (First-Person)
+- If manuscript is first-person, POV narrator MUST be the protagonist
+- No other character can be elevated unless text explicitly centers them
+
+WAVE-SYN-02: Character Elevation Threshold
+- Any protagonist/antagonist MUST:
+  * Appear in main event narrative (not just titles/notes)
+  * Act on-page (in-scene)
+  * Materially influence outcomes
+- Check skeleton page_time: major (>50%), significant (25-50%), minor (<25%)
+- FAIL if minor character (<25% page time) is labeled protagonist/antagonist
+
+WAVE-SYN-03: Antagonist Optionality
+- For memoir/essay/observational work: human antagonist NOT required
+- Opposition may be internal, situational, environmental, ethical, systemic
+- FAIL if human antagonist invented where none exists
+
+WAVE-SYN-04: Meta-Layer Containment
+- Title contributors, thematic lenses, end-note voices CANNOT be protagonist/antagonist
+- They must appear as "contextual contributors" only
+- FAIL if meta-commentary figure elevated to central character
+
+WAVE-SYN-05: Reflection Cannot Override Events
+- End-notes, thematic bullets, abstract commentary cannot override concrete events
+- Story focus determined by action sequence, not later reflection
+
+TITLE CANON:
+- Title in synopsis MUST exactly match: ${manuscriptTitle}
+- FAIL if title changed, shortened, or elaborated
+
+QUALITY CHECKS:
+- All 9 headers present with exact labels
+- Word count in range (${versionConfig.min_words}-${versionConfig.max_words})
+- Ending clearly revealed
+- Present tense, third person maintained
 - Too many characters or subplots
 - Theme instead of story (plot must drive)
 - Teaser ending or rhetorical questions
@@ -324,20 +361,21 @@ Check for these PITFALLS (flag if present):
 - Adjectival padding or vague stakes
 - Missing emotional arc
 
-Also verify:
-- All 9 headers present with exact labels
-- Word count in range (${versionConfig.min_words}-${versionConfig.max_words})
-- Ending clearly revealed
-- Present tense, third person maintained
-
-Provide validation report with pass/fail status and specific flags.`;
+Provide validation report with WAVE rule compliance.`;
 
         const validationResponse = await base44.integrations.Core.InvokeLLM({
-            prompt: validationPrompt,
+            prompt: waveValidationPrompt,
             response_json_schema: {
                 type: "object",
                 properties: {
-                    validation_status: { type: "string", enum: ["pass", "needs_revision"] },
+                    validation_status: { type: "string", enum: ["pass", "needs_revision", "wave_violation"] },
+                    title_matches: { type: "boolean", description: "Title exactly matches input" },
+                    wave_syn_01_pov_supremacy: { type: "boolean", description: "POV narrator is protagonist (first-person)" },
+                    wave_syn_02_character_threshold: { type: "boolean", description: "No minor characters elevated" },
+                    wave_syn_03_antagonist_optional: { type: "boolean", description: "Human antagonist not invented" },
+                    wave_syn_04_meta_containment: { type: "boolean", description: "Meta-commentary figures not elevated" },
+                    wave_syn_05_events_primacy: { type: "boolean", description: "Events override reflection" },
+                    wave_violations: { type: "array", items: { type: "string" }, description: "Specific WAVE rule violations" },
                     headers_present: { type: "boolean" },
                     word_count: { type: "number" },
                     word_count_in_range: { type: "boolean" },
@@ -346,9 +384,21 @@ Provide validation report with pass/fail status and specific flags.`;
                     pitfalls_detected: { type: "array", items: { type: "string" } },
                     quality_notes: { type: "string" }
                 },
-                required: ["validation_status", "word_count", "pitfalls_detected"]
+                required: ["validation_status", "title_matches", "wave_syn_01_pov_supremacy", "wave_syn_02_character_threshold", "wave_syn_03_antagonist_optional", "wave_syn_04_meta_containment", "wave_syn_05_events_primacy", "wave_violations", "word_count", "pitfalls_detected"]
             }
         });
+
+        // HARD FAIL on WAVE violations
+        if (validationResponse.validation_status === 'wave_violation' || validationResponse.wave_violations?.length > 0) {
+            return Response.json({
+                error: 'ERR_SYNOPSIS_WAVE_VIOLATION',
+                gate_blocked: true,
+                message: 'Synopsis failed WAVE canon validation',
+                wave_violations: validationResponse.wave_violations,
+                validation_details: validationResponse,
+                synopsis_draft: synopsisResponse.synopsis_text
+            }, { status: 400 });
+        }
 
         // Create Document record in UPLOADED state
         const documentTitle = versionConfig.name;
