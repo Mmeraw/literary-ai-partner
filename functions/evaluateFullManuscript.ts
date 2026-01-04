@@ -2,6 +2,13 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import { captureError, captureCritical } from './utils/errorTracking.js';
 import { withTimeoutAndRetry } from './utils/retryLogic.js';
 import OpenAI from 'npm:openai@4.76.1';
+import * as Sentry from 'npm:@sentry/deno@8.43.0';
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN'),
+  environment: Deno.env.get('BASE44_ENV') ?? 'production',
+  tracesSampleRate: 1.0,
+});
 
 const openai = new OpenAI({
     apiKey: Deno.env.get("OPENAI_API_KEY"),
@@ -1017,6 +1024,24 @@ SCORING GUIDELINES:
 
     } catch (error) {
         console.error('❌ Evaluation error for manuscript', manuscriptId, ':', error);
+        
+        // Capture to Sentry with full context
+        Sentry.captureException(error, {
+            extra: {
+                manuscriptId,
+                function: 'evaluateFullManuscript',
+                operation: 'manuscript_evaluation',
+                manuscript_title: manuscript?.title,
+                word_count: manuscript?.word_count,
+                chapters_count: chapters?.length,
+                evaluation_mode: manuscript?.evaluation_mode,
+                spine_score: manuscript?.spine_score,
+                status: manuscript?.status,
+                error_message: error.message,
+                timestamp: new Date().toISOString()
+            }
+        });
+        await Sentry.flush(2000);
         
         // Update manuscript status to show error
         try {

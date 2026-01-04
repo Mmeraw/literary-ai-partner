@@ -1,4 +1,11 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import * as Sentry from 'npm:@sentry/deno@8.43.0';
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN'),
+  environment: Deno.env.get('BASE44_ENV') ?? 'production',
+  tracesSampleRate: 1.0,
+});
 
 Deno.serve(async (req) => {
   try {
@@ -89,6 +96,23 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('Split error:', error);
+    
+    // Capture to Sentry with context
+    Sentry.captureException(error, {
+      extra: {
+        function: 'splitManuscript',
+        operation: 'text_parsing',
+        manuscript_id,
+        manuscript_title: manuscript?.title,
+        word_count: manuscript?.word_count,
+        chapter_count: chapters?.length,
+        user_email: user?.email,
+        error_message: error.message,
+        timestamp: new Date().toISOString()
+      }
+    });
+    await Sentry.flush(2000);
+    
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

@@ -1,5 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import OpenAI from 'npm:openai@4.76.1';
+import * as Sentry from 'npm:@sentry/deno@8.43.0';
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN'),
+  environment: Deno.env.get('BASE44_ENV') ?? 'production',
+  tracesSampleRate: 1.0,
+});
 
 const openai = new OpenAI({
     apiKey: Deno.env.get("OPENAI_API_KEY"),
@@ -702,6 +709,27 @@ Return JSON with validated results.`;
 
   } catch (error) {
     console.error('Revision generation error:', error);
+    
+    // Capture to Sentry with context
+    Sentry.captureException(error, {
+      extra: {
+        function: 'generateRevisionSuggestions',
+        operation: 'wave_revision',
+        wave_number,
+        wave_name: WAVES[wave_number]?.name,
+        submission_id,
+        session_id,
+        style_mode,
+        voice_preservation_level,
+        manuscript_score,
+        trusted_path_zone: trustedPathZone,
+        word_count: text?.split(/\s+/).length,
+        error_message: error.message,
+        timestamp: new Date().toISOString()
+      }
+    });
+    await Sentry.flush(2000);
+    
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
