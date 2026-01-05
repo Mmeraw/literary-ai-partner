@@ -7,39 +7,19 @@ Sentry.init({
   tracesSampleRate: 1.0,
 });
 
-// Load master data
+// Load master data from local file
 let cachedMasterData = null;
 async function loadMasterData() {
     if (cachedMasterData) return cachedMasterData;
     
-    const masterDataUrl = 'https://raw.githubusercontent.com/yourusername/yourrepo/main/functions/masterdata/work_type_criteria_applicability.v1.json';
-    
-    // Try loading from GitHub first, fallback to inline
     try {
-        const response = await fetch(masterDataUrl);
-        if (response.ok) {
-            cachedMasterData = await response.json();
-            return cachedMasterData;
-        }
+        const fileContent = await Deno.readTextFile('./functions/masterdata/work_type_criteria_applicability.v1.json');
+        cachedMasterData = JSON.parse(fileContent);
+        return cachedMasterData;
     } catch (error) {
-        console.warn('Could not load master data from URL, using inline fallback');
+        console.error('Failed to load master data:', error);
+        throw new Error('Master data file not found - evaluation blocked');
     }
-    
-    // Inline fallback with minimal structure
-    cachedMasterData = {
-        matrixVersion: 'v1.0.0',
-        workTypes: {
-            personalEssayReflection: { label: 'Personal Essay / Reflection', family: 'Prose Nonfiction' },
-            featureScreenplay: { label: 'Feature Screenplay', family: 'Script/Screenplay' },
-            novelChapter: { label: 'Novel Chapter', family: 'Prose Fiction' },
-            shortStory: { label: 'Short Story', family: 'Prose Fiction' },
-            memoirVignette: { label: 'Memoir Vignette', family: 'Prose Nonfiction' },
-            scriptSceneFilmTv: { label: 'Script Scene (Film/TV)', family: 'Script/Screenplay' },
-            otherUserDefined: { label: 'Other (User-Defined)', family: 'Other' }
-        }
-    };
-    
-    return cachedMasterData;
 }
 
 // Structural detection heuristics (non-ML, pattern-based)
