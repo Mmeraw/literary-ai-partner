@@ -3,7 +3,18 @@
 
 Date: 2026-01-05  
 Spec Version: 1.0.0  
-Status: **EVIDENCE REQUIRED - NON-NEGOTIABLE**
+Status: **EVIDENCE REQUIRED - NON-NEGOTIABLE**  
+**Incident:** This evidence is required to close Incident ID **SG-2024-ROUTE-01** and mark Phase 1 matrixPreflight control as operational.
+
+---
+
+## Global Constants (Frozen per Spec v1.0.0)
+
+```
+MIN_WORDS_QUICK = 50
+MAX_WORDS_QUICK = 3000
+GOVERNANCE_VERSION = "1.0.0"
+```
 
 ---
 
@@ -41,12 +52,16 @@ export const GOVERNANCE_VERSION = "1.0.0";
 // In audit event creation:
 governance_version: GOVERNANCE_VERSION,
 canon_hash: CANON_HASHES.EVALUATE_ENTRY_CANON,
-function_id: 'evaluateQuickSubmission'
+function_id: 'evaluateQuickSubmission',
+release_id: RELEASE_ID,
+commit_sha: COMMIT_SHA,
+environment: ENVIRONMENT
 ```
 
 **Acceptance Criteria:**
 - [ ] Diff shows `governance_version` constant added
 - [ ] Diff shows `governance_version` emitted in audit events
+- [ ] Diff shows `release_id`, `commit_sha`, `environment` emitted in audit events
 - [ ] Diff shows standardized refusal response builder
 - [ ] Diff shows word threshold enforcement (50-3,000 hard cap)
 - [ ] Diff is linked to a specific commit SHA or build version
@@ -55,14 +70,14 @@ function_id: 'evaluateQuickSubmission'
 
 ---
 
-### 2. PRODUCTION LOG SAMPLES (Raw JSON)
+### 2. RUNTIME EVIDENCE (Logs + API Responses)
 
-**Requirement:** Provide raw JSON audit event logs from production (or staging) for three specific scenarios.
+**Requirement:** Provide raw JSON audit event logs AND raw API response payloads from production (or staging) for four specific scenarios.
 
 #### Sample A: Preflight Block
-**Scenario:** Quick evaluation submission with <50 words (below minimum)
+**Scenario:** Quick evaluation submission with <MIN_WORDS_QUICK words (below minimum: <50 words)
 
-**Required fields in log:**
+**Required audit log:**
 ```json
 {
   "event_id": "evt_...",
@@ -70,6 +85,10 @@ function_id: 'evaluateQuickSubmission'
   "function_id": "evaluateQuickSubmission",
   "canon_hash": "EVALUATE_ENTRY_CANON_v1.2",
   "governance_version": "1.0.0",
+  "release_id": "v2026.01.05-001",
+  "commit_sha": "abc123def456...",
+  "environment": "production",
+  "service": "revisiongrade",
   "request_id": "blocked_...",
   "user_email": "test@example.com",
   "detected_format": "scene",
@@ -86,18 +105,34 @@ function_id: 'evaluateQuickSubmission'
 }
 ```
 
+**Required API response payload:**
+```json
+{
+  "status": "blocked",
+  "code": "INSUFFICIENT_INPUT",
+  "user_message": "❌ INSUFFICIENT INPUT: Too short (42 words). Minimum 50 words required",
+  "developer_message": null,
+  "refusal_reason": "SCOPE_INSUFFICIENT",
+  "next_action": "upload_more"
+}
+```
+
 **Acceptance Criteria:**
 - [ ] Log shows `governance_version: "1.0.0"`
 - [ ] Log shows `llm_invoked: false`
 - [ ] Log shows `matrix_preflight_allowed: false`
+- [ ] Log includes `release_id` AND `commit_sha`
+- [ ] Log includes `environment` field
+- [ ] API response includes standardized refusal schema fields
+- [ ] `llm_invoked: false` matches both response and audit
 - [ ] Log includes all required audit fields from spec
 
 ---
 
 #### Sample B: Quick Eval Allowed
-**Scenario:** Quick evaluation submission with 500 words (within range)
+**Scenario:** Quick evaluation submission with 500 words (within range: 50-3,000 words)
 
-**Required fields in log:**
+**Required audit log:**
 ```json
 {
   "event_id": "evt_...",
@@ -105,6 +140,10 @@ function_id: 'evaluateQuickSubmission'
   "function_id": "evaluateQuickSubmission",
   "canon_hash": "EVALUATE_ENTRY_CANON_v1.2",
   "governance_version": "1.0.0",
+  "release_id": "v2026.01.05-001",
+  "commit_sha": "abc123def456...",
+  "environment": "production",
+  "service": "revisiongrade",
   "request_id": "req_...",
   "user_email": "test@example.com",
   "detected_format": "scene",
@@ -130,6 +169,8 @@ function_id: 'evaluateQuickSubmission'
 - [ ] Log shows `llm_invoked: true`
 - [ ] Log shows `matrix_preflight_allowed: true`
 - [ ] Log shows confidence cap applied (max 65 for scene)
+- [ ] Log includes `release_id` AND `commit_sha`
+- [ ] Log includes `environment` field
 - [ ] Log includes work type routing fields
 
 ---
@@ -137,7 +178,7 @@ function_id: 'evaluateQuickSubmission'
 #### Sample C: NA Gating Case
 **Scenario:** Quick evaluation for a work type with NA criteria (e.g., birthday essay with dialogue=NA)
 
-**Required fields in log:**
+**Required audit log:**
 ```json
 {
   "event_id": "evt_...",
@@ -145,6 +186,10 @@ function_id: 'evaluateQuickSubmission'
   "function_id": "evaluateQuickSubmission",
   "canon_hash": "EVALUATE_ENTRY_CANON_v1.2",
   "governance_version": "1.0.0",
+  "release_id": "v2026.01.05-001",
+  "commit_sha": "abc123def456...",
+  "environment": "production",
+  "service": "revisiongrade",
   "request_id": "req_...",
   "user_email": "test@example.com",
   "detected_format": "scene",
@@ -162,16 +207,98 @@ function_id: 'evaluateQuickSubmission'
 }
 ```
 
-**Plus corresponding evaluation result showing:**
-- `agentSnapshot: null` (or with note: "Agent snapshot disabled for this Work Type under NA governance")
-- NA criteria NOT present in `criteria` array
-- Revision requests NOT referencing NA criteria
+**Required API response payload (evaluation output):**
+```json
+{
+  "success": true,
+  "evaluation": {
+    "overallScore": 7.5,
+    "agentSnapshot": null,
+    "criteria": [
+      { "criterion_id": "voice", "score": 8, ... },
+      { "criterion_id": "linePolish", "score": 7, ... }
+    ],
+    "revisionRequests": [
+      { "criterion_id": "voice", "priority": "Medium", ... }
+    ],
+    "work_type_routing": {
+      "final_work_type_used": "birthday_essay",
+      "na_criteria": ["dialogue", "conflict", "worldbuilding"],
+      "na_output_gate": {
+        "enforcement_active": true,
+        "agentSnapshot_disabled": true,
+        "agentSnapshot_disabled_reason": "Agent snapshot disabled: core narrative drivers (conflict, dialogue, worldbuilding) are NA for birthday_essay"
+      }
+    }
+  }
+}
+```
 
 **Acceptance Criteria:**
 - [ ] Log shows `governance_version: "1.0.0"`
+- [ ] Log shows `release_id` AND `commit_sha`
+- [ ] Log shows `environment` field
 - [ ] Log shows NA criteria in `criteria_plan`
-- [ ] Evaluation result shows `agentSnapshot` disabled or null
-- [ ] Evaluation result shows NA criteria blocked from output
+- [ ] API response shows `agentSnapshot: null`
+- [ ] API response shows NA criteria absent from `criteria` array
+- [ ] API response shows no revision requests referencing NA criteria
+- [ ] API response text does not reference NA criteria (dialogue, conflict, worldbuilding)
+
+---
+
+#### Sample D: Unsupported File Type (Silent Ingestion Prohibited)
+**Scenario:** User uploads unsupported file type (.png, .zip, .exe, etc.)
+
+**Required audit log:**
+```json
+{
+  "event_id": "evt_...",
+  "timestamp_utc": "2026-01-05T...",
+  "function_id": "evaluateQuickSubmission",
+  "canon_hash": "EVALUATE_ENTRY_CANON_v1.2",
+  "governance_version": "1.0.0",
+  "release_id": "v2026.01.05-001",
+  "commit_sha": "abc123def456...",
+  "environment": "production",
+  "service": "revisiongrade",
+  "request_id": "blocked_...",
+  "user_email": "test@example.com",
+  "detected_format": "unknown",
+  "routed_pipeline": "quick",
+  "validators_run": ["file_type_validator"],
+  "validators_failed": ["file_type_validator"],
+  "failure_codes": ["INVALID_FILE_TYPE"],
+  "matrix_preflight_allowed": false,
+  "matrix_compliance": false,
+  "llm_invoked": false,
+  "file_type": ".png",
+  "supported_types": [".docx", ".txt", ".pdf"]
+}
+```
+
+**Required API response payload:**
+```json
+{
+  "status": "blocked",
+  "code": "INVALID_FILE_TYPE",
+  "user_message": "File type .png is not supported. Supported formats: .docx, .txt, .pdf",
+  "refusal_reason": "INVALID_FILE_TYPE",
+  "next_action": "upload_supported_format"
+}
+```
+
+**Required UI evidence:**
+- Screenshot or HTML snippet showing user-visible error message
+- Error MUST be visible to user (not silent fail)
+
+**Acceptance Criteria:**
+- [ ] Log shows `governance_version: "1.0.0"`
+- [ ] Log shows `llm_invoked: false`
+- [ ] Log shows `validators_failed: ["file_type_validator"]`
+- [ ] Log includes `release_id` AND `commit_sha`
+- [ ] Log includes `environment` field
+- [ ] API response includes standardized refusal schema
+- [ ] UI screenshot shows user-visible error (no silent ingestion)
 
 ---
 
@@ -188,6 +315,7 @@ function_id: 'evaluateQuickSubmission'
 ```
 Release: v2024.01.05-001
 Commit: abc123def456789...
+Environment: production
 Deployed to: production
 Deployed at: 2026-01-05T14:30:00Z
 ```
@@ -206,17 +334,20 @@ Base44 MUST provide ALL of the following to demonstrate compliance:
 ### Code Evidence
 - [ ] Diff/PR link showing governance version constant added
 - [ ] Diff/PR link showing governance version emitted in audit events
+- [ ] Diff/PR link showing `release_id`, `commit_sha`, `environment` fields added
 - [ ] Diff/PR link showing standardized refusal responses
 - [ ] Diff/PR link showing word threshold enforcement (50-3,000)
 - [ ] Code changes linked to specific commit SHA
 
 ### Log Evidence
-- [ ] Sample A: Preflight block log (raw JSON)
+- [ ] Sample A: Preflight block log + API response (raw JSON)
 - [ ] Sample B: Quick eval allowed log (raw JSON)
-- [ ] Sample C: NA gating log (raw JSON)
+- [ ] Sample C: NA gating log + API response (raw JSON)
+- [ ] Sample D: Unsupported file type log + API response + UI screenshot (raw JSON)
 - [ ] All logs include `governance_version: "1.0.0"`
+- [ ] All logs include `release_id` AND `commit_sha` fields
+- [ ] All logs include `environment` field
 - [ ] All logs include required audit fields per spec
-- [ ] All logs include release identifier field
 
 ### Deployment Evidence
 - [ ] Release identifier provided (commit SHA or build version)
@@ -228,14 +359,23 @@ Base44 MUST provide ALL of the following to demonstrate compliance:
 
 ## SUBMISSION INSTRUCTIONS
 
-**Deadline:** 2026-01-08 (3 days from spec freeze)
+**Requested By:** 2026-01-08 (non-binding; used for prioritization and incident closure)
+
+**Environment:** Production preferred; staging acceptable if production cannot safely exercise these scenarios, **provided staging logs include identical field structure**.
+
+**PII Redaction Policy:**
+- PII may be redacted **ONLY in values, not keys/fields**
+- All required field names **MUST remain present**
+- Example: `"user_email": "redacted@example.com"` is acceptable
+- Example: removing the `user_email` field entirely is **NOT acceptable**
 
 **Delivery Method:**
 1. Create a new file: `functions/GOVERNANCE_COMPLIANCE_EVIDENCE_v1.0.0.md`
 2. Include all three evidence categories above
-3. For log samples: paste raw JSON (redact PII if needed, but preserve structure)
-4. For code changes: provide GitHub/GitLab PR link or inline diff
-5. For release ID: provide commit SHA and deployment timestamp
+3. For log samples: paste raw JSON with values redacted if needed
+4. For API responses: paste raw response payloads
+5. For code changes: provide GitHub/GitLab PR link or inline diff
+6. For release ID: provide commit SHA and deployment timestamp
 
 **File structure:**
 ```markdown
@@ -244,19 +384,39 @@ Base44 MUST provide ALL of the following to demonstrate compliance:
 ## 1. Code Changes
 [Diff/PR link or inline diff]
 
-## 2. Production Logs
+## 2. Runtime Evidence
 ### Sample A: Preflight Block
+**Audit Log:**
+[Raw JSON]
+
+**API Response:**
 [Raw JSON]
 
 ### Sample B: Quick Eval Allowed
+**Audit Log:**
 [Raw JSON]
 
 ### Sample C: NA Gating
+**Audit Log:**
 [Raw JSON]
+
+**API Response (evaluation output):**
+[Raw JSON]
+
+### Sample D: Unsupported File Type
+**Audit Log:**
+[Raw JSON]
+
+**API Response:**
+[Raw JSON]
+
+**UI Screenshot:**
+[Screenshot or HTML snippet showing user-visible error]
 
 ## 3. Release Identifier
 Commit: [SHA]
 Release: [version]
+Environment: [production/staging]
 Deployed: [timestamp]
 ```
 
@@ -267,10 +427,15 @@ Deployed: [timestamp]
 If any of the following are missing, compliance is **FAILED**:
 
 ❌ **No `governance_version` field in logs** → Cannot prove which spec was in force  
-❌ **No release identifier** → Cannot tie evidence to deployed code  
+❌ **No `release_id` or `commit_sha` in logs** → Cannot tie evidence to deployed code  
+❌ **No `environment` field in logs** → Cannot verify production/staging provenance  
 ❌ **No code diff** → Cannot verify implementation matches spec  
 ❌ **Logs missing required fields** → Spec not fully implemented  
 ❌ **Evidence not from production/staging** → Theoretical compliance only  
+❌ **Log samples showing HTTP 404/500** → Treated as runtime non-compliance with spec, not as missing evidence  
+❌ **API responses missing from Sample A/C/D** → Cannot prove refusal/scrubbing behavior  
+❌ **No UI screenshot for Sample D** → Cannot prove "no silent ingestion"  
+❌ **PII redaction removes field names** → Evidence structure destroyed  
 
 **Without evidence, there is no compliance—only narration.**
 
