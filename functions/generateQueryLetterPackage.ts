@@ -98,10 +98,10 @@ Return JSON array: [{ title, author, reason }]`;
                             }
                         }
                     }
-                    }
-                    });
-                    }
-                    console.log(`✅ Step 2 complete: ${comps.comparables?.length || 0} comparables generated`);
+                }
+            });
+        }
+        console.log(`✅ Step 2 complete: ${comps.comparables?.length || 0} comparables generated`);
 
                     // Step 3: Suggest literary agents using Perplexity for real-time agent research
                     console.log('🔎 Step 3: Researching literary agents...');
