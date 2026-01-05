@@ -432,7 +432,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             })
             .filter(c => c !== null);
         
-        // Build comprehensive NA term dictionary for scrubbing
+        // Build comprehensive NA term dictionary for deterministic scrubbing
         const naTermsDictionary = new Set();
 
         // Add criterion IDs
@@ -440,16 +440,16 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
 
         // Add common references for each NA criterion
         if (naCriteriaSet.has('dialogue')) {
-            ['dialogue', 'conversation', 'speaking', 'said', 'talk', 'exchange', 'verbal'];
+            ['dialogue', 'conversation', 'speaking', 'said', 'talk', 'exchange', 'verbal', 'speaking', 'discussion'].forEach(t => naTermsDictionary.add(t));
         }
         if (naCriteriaSet.has('conflict')) {
-            ['conflict', 'tension', 'confrontation', 'clash', 'struggle', 'opposition', 'plot', 'event', 'interaction'];
+            ['conflict', 'tension', 'confrontation', 'clash', 'struggle', 'opposition', 'plot', 'event', 'interaction', 'character interaction', 'pivotal moment', 'complicat'].forEach(t => naTermsDictionary.add(t));
         }
         if (naCriteriaSet.has('worldbuilding')) {
-            ['worldbuilding', 'world-building', 'setting detail', 'world detail'];
+            ['worldbuilding', 'world-building', 'world building', 'setting detail', 'world detail'].forEach(t => naTermsDictionary.add(t));
         }
 
-        // Scrub function for text fields
+        // NA Output Gate: deterministic scrubbing function
         function containsNAReference(text) {
             if (!text) return false;
             const lowerText = text.toLowerCase();
@@ -463,6 +463,14 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
 
             return false;
         }
+
+        // Safe replacement text for NA-contaminated fields
+        const NA_SAFE_REPLACEMENTS = {
+            biggest_risk_essay: "The introspective tone may not sustain reader engagement throughout the full piece.",
+            biggest_risk_memoir: "The reflective structure may need stronger narrative anchors to maintain momentum.",
+            most_leverage_fix_essay: "Strengthen the specificity of sensory details and deepen the thematic resonance.",
+            most_leverage_fix_memoir: "Add more concrete sensory moments to ground the reflection in lived experience."
+        };
 
         // Scrub revision requests
         const filteredRevisionRequests = (agentAnalysis.revisionRequests || []).filter(req => {
@@ -484,15 +492,21 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             return true;
         });
 
-        // Scrub agentSnapshot (comprehensive)
+        // Scrub agentSnapshot with comprehensive NA Output Gate
         const scrubbedAgentSnapshot = agentSnapshot ? {
             keep_reading: agentSnapshot.keep_reading,
             biggest_risk: containsNAReference(agentSnapshot.biggest_risk) 
-                ? "The narrative introspection may not sustain reader engagement without additional structural support." 
+                ? (criteriaPlan.family === 'Prose Nonfiction' 
+                    ? NA_SAFE_REPLACEMENTS.biggest_risk_essay 
+                    : NA_SAFE_REPLACEMENTS.biggest_risk_memoir)
                 : agentSnapshot.biggest_risk,
-            biggest_strength: agentSnapshot.biggest_strength,
+            biggest_strength: containsNAReference(agentSnapshot.biggest_strength)
+                ? "The voice and reflective tone create genuine emotional resonance."
+                : agentSnapshot.biggest_strength,
             most_leverage_fix: containsNAReference(agentSnapshot.most_leverage_fix)
-                ? "Deepen the reflective moments with more specific sensory or emotional detail."
+                ? (criteriaPlan.family === 'Prose Nonfiction'
+                    ? NA_SAFE_REPLACEMENTS.most_leverage_fix_essay
+                    : NA_SAFE_REPLACEMENTS.most_leverage_fix_memoir)
                 : agentSnapshot.most_leverage_fix
         } : agentSnapshot;
 
