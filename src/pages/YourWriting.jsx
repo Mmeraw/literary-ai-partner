@@ -20,6 +20,9 @@ export default function YourWriting() {
   const [voicePreservation, setVoicePreservation] = useState('balanced');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [workTypeDetection, setWorkTypeDetection] = useState(null);
+  const [showWorkTypeConfirm, setShowWorkTypeConfirm] = useState(false);
+  const [isDetecting, setIsDetecting] = useState(false);
 
   // Clear sessionStorage after loading
   React.useEffect(() => {
@@ -83,12 +86,41 @@ export default function YourWriting() {
     }
   };
 
-  const handleEvaluate = async () => {
+  const handleDetectWorkType = async () => {
     if (!text.trim()) {
       toast.error('Please provide text to evaluate');
       return;
     }
 
+    setIsDetecting(true);
+    try {
+      const response = await base44.functions.invoke('detectWorkType', {
+        text,
+        title: title || 'Untitled'
+      });
+
+      setWorkTypeDetection(response.data);
+      setShowWorkTypeConfirm(true);
+    } catch (error) {
+      console.error('Work Type detection error:', error);
+      toast.error('Failed to detect Work Type. Please try again.');
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  const handleConfirmWorkType = (finalWorkType, userAction, userProvidedWorkType = null) => {
+    setWorkTypeDetection({
+      ...workTypeDetection,
+      final_work_type_used: finalWorkType,
+      user_action: userAction,
+      user_provided_work_type: userProvidedWorkType
+    });
+    setShowWorkTypeConfirm(false);
+    proceedWithEvaluation(finalWorkType, userAction, userProvidedWorkType);
+  };
+
+  const proceedWithEvaluation = async (finalWorkType, userAction, userProvidedWorkType) => {
     const plainText = text.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ');
     const wordCount = plainText.split(/\s+/).filter(w => w).length;
 
@@ -184,7 +216,12 @@ export default function YourWriting() {
           text,
           styleMode: 'neutral',
           evaluationMode,
-          voicePreservation
+          voicePreservation,
+          final_work_type_used: finalWorkType,
+          detected_work_type: workTypeDetection?.detected_work_type,
+          detection_confidence: workTypeDetection?.detection_confidence,
+          user_action: userAction,
+          user_provided_work_type: userProvidedWorkType
         });
 
         if (!response.data.success) {
@@ -205,6 +242,16 @@ export default function YourWriting() {
       toast.error(errorMsg, { duration: 6000 });
       setIsProcessing(false);
     }
+  };
+
+  const handleEvaluate = async () => {
+    if (!text.trim()) {
+      toast.error('Please provide text to evaluate');
+      return;
+    }
+
+    // First, detect Work Type
+    await handleDetectWorkType();
   };
 
   const wordCount = text.split(/\s+/).filter(w => w).length;
@@ -340,11 +387,16 @@ export default function YourWriting() {
 
                 <Button
                   onClick={handleEvaluate}
-                  disabled={isProcessing || !text.trim() || wordCount > 250000}
+                  disabled={isProcessing || isDetecting || !text.trim() || wordCount > 250000}
                   className="w-full h-12 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                   size="lg"
                 >
-                  {isProcessing ? (
+                  {isDetecting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Detecting Work Type...
+                    </>
+                  ) : isProcessing ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                       Processing...
@@ -357,6 +409,60 @@ export default function YourWriting() {
                     </>
                   )}
                 </Button>
+
+                {/* Work Type Confirmation Dialog */}
+                {showWorkTypeConfirm && workTypeDetection && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8">
+                      <h3 className="text-2xl font-bold text-slate-900 mb-4">Confirm Work Type</h3>
+                      <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200 mb-6">
+                        <p className="text-sm text-slate-700 mb-2">
+                          <strong>Detected:</strong> {workTypeDetection.work_type_label}
+                        </p>
+                        <p className="text-sm text-slate-600">
+                          <strong>Confidence:</strong> {workTypeDetection.detection_confidence}
+                        </p>
+                      </div>
+                      <p className="text-sm text-slate-600 mb-4">
+                        Work Type determines which evaluation criteria apply to your writing. Some criteria may not be applicable (N/A) based on your format.
+                      </p>
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={() => handleConfirmWorkType(workTypeDetection.detected_work_type, 'confirm')}
+                          className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          onClick={() => setShowWorkTypeConfirm(false)}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          Choose Different Type
+                        </Button>
+                      </div>
+                      {workTypeDetection.all_work_types && (
+                        <details className="mt-4">
+                          <summary className="text-sm text-slate-600 cursor-pointer hover:text-slate-900">
+                            View all Work Types
+                          </summary>
+                          <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+                            {workTypeDetection.all_work_types.map((wt) => (
+                              <button
+                                key={wt.id}
+                                onClick={() => handleConfirmWorkType(wt.id, 'override', wt.id)}
+                                className="w-full text-left p-3 rounded-lg hover:bg-slate-100 border border-slate-200"
+                              >
+                                <p className="text-sm font-medium text-slate-900">{wt.label}</p>
+                                <p className="text-xs text-slate-600">{wt.family}</p>
+                              </button>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

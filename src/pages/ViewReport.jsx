@@ -182,16 +182,29 @@ ${submission.text || 'No text available'}
                     <div className="flex items-start justify-between">
                         <div>
                             <h1 className="text-3xl font-bold text-slate-900 mb-2">{submission.title}</h1>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <p className="text-slate-600">
                                     Evaluated on {new Date(submission.created_date).toLocaleDateString()}
                                 </p>
+                                {evaluationResult.work_type_routing && (
+                                    <Badge className="bg-indigo-100 text-indigo-700">
+                                        {evaluationResult.work_type_routing.work_type_label}
+                                    </Badge>
+                                )}
                                 {submission.revised_text && (
                                     <Badge className="bg-emerald-100 text-emerald-700">
                                         Revised Version Available
                                     </Badge>
                                 )}
                             </div>
+                            {evaluationResult.work_type_routing?.na_criteria?.length > 0 && (
+                                <div className="mt-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                                    <p className="text-xs text-slate-600">
+                                        <strong>Note:</strong> Some criteria are Not Applicable (N/A) for {evaluationResult.work_type_routing.work_type_label}. 
+                                        These criteria are not scored and don't affect your grade.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {submission.revised_text && (
@@ -308,15 +321,29 @@ ${submission.text || 'No text available'}
                             <Badge>{evaluationResult.criteria?.length || 0}/13</Badge>
                         </div>
                         {evaluationResult.criteria?.map((criterion, idx) => (
-                            <div key={idx} className="p-5 rounded-xl bg-white border border-slate-200 hover:border-indigo-200 transition-all">
+                            <div key={idx} className={`p-5 rounded-xl border transition-all ${
+                                criterion.status === 'NA' 
+                                    ? 'bg-slate-50 border-slate-300 opacity-60' 
+                                    : 'bg-white border-slate-200 hover:border-indigo-200'
+                            }`}>
                                 <div className="flex items-start justify-between mb-3">
-                                    <h4 className="font-semibold text-slate-800">{criterion.name}</h4>
-                                    <span className={`font-bold text-lg ${
-                                        criterion.score >= 9 ? 'text-emerald-600' :
-                                        criterion.score >= 7 ? 'text-amber-600' : 'text-rose-600'
-                                    }`}>
-                                        {criterion.score}/10
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="font-semibold text-slate-800">{criterion.name}</h4>
+                                        {criterion.status === 'NA' && (
+                                            <Badge variant="outline" className="text-xs">N/A</Badge>
+                                        )}
+                                    </div>
+                                    {criterion.status !== 'NA' && (
+                                        <span className={`font-bold text-lg ${
+                                            criterion.score >= 9 ? 'text-emerald-600' :
+                                            criterion.score >= 7 ? 'text-amber-600' : 'text-rose-600'
+                                        }`}>
+                                            {criterion.score}/10
+                                        </span>
+                                    )}
+                                    {criterion.status === 'NA' && (
+                                        <span className="text-sm text-slate-500 italic">Not Applicable</span>
+                                    )}
                                 </div>
                                 <div className="space-y-3 text-sm">
                                     {criterion.strengths?.length > 0 && (
