@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
             // File ingestion pathway
             console.log('📄 Step 1: Ingesting manuscript via central pipeline...');
             
-            const ingestionResult = await base44.functions.invoke('ingestUploadedFileToText', { file_url });
+            const ingestionResult = await base44.asServiceRole.functions.invoke('ingestUploadedFileToText', { file_url });
             const ingestionData = ingestionResult.data || ingestionResult;
             
             if (!ingestionData.success) {
