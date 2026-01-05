@@ -10,10 +10,12 @@ import { captureWarning } from './errorTracking.js';
  * @param {Function} fn - Async function to execute
  * @param {number} timeoutMs - Timeout in milliseconds (default 30s)
  * @returns {Promise} Result or throws TimeoutError
+ * 
+ * Note: Promise.race timeout does not abort underlying I/O; prefer AbortController where supported.
  */
 export async function withTimeout(fn, timeoutMs = 30000) {
     const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs);
+        setTimeout(() => reject(new Error(`Timeout: operation exceeded ${timeoutMs}ms`)), timeoutMs);
     });
 
     return Promise.race([fn(), timeoutPromise]);
@@ -83,13 +85,7 @@ export async function withTimeoutAndRetry(fn, options = {}) {
         {
             maxRetries,
             context,
-            shouldRetry: (error) => {
-                // Retry on timeout or network errors, not on validation errors
-                return error.message.includes('timeout') || 
-                       error.message.includes('ECONNREFUSED') ||
-                       error.message.includes('ENOTFOUND') ||
-                       error.code === 'ETIMEDOUT';
-            }
+            shouldRetry: (error) => isRetryableError(error)
         }
     );
 }
