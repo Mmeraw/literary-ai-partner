@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
         // Agent Decision Snapshot: DISABLED for NA-locked Work Types (governance enforcement)
         // When core narrative drivers (conflict, dialogue, worldbuilding) are NA, 
         // agentSnapshot cannot be trusted to stay within bounds - fail closed instead
-        const coreDriversNA = ['conflict', 'dialogue', 'worldbuilding'].some(id => naCriteriaSet.has(id));
+        const coreDriversNA = ['conflict', 'dialogue', 'worldbuilding'].some(id => naCriteria.includes(id));
 
         let agentSnapshot = null;
         let agentSnapshotDisabledReason = null;
