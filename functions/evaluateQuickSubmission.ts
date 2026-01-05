@@ -67,12 +67,71 @@ Deno.serve(async (req) => {
             hybrid: "Balanced approach allowing controlled style variation within structural standards."
         };
 
+        // Build criteria filtering based on plan (MDM Rule M4: NA hard prohibition)
+        const applicableCriteria = [];
+        const naCriteria = [];
+        const optionalCriteria = [];
+        const requiredCriteria = [];
+        
+        for (const [criterionId, criterionMeta] of Object.entries(criteriaPlan.criteria)) {
+            if (criterionMeta.status === 'NA') {
+                naCriteria.push(criterionId);
+            } else if (criterionMeta.status === 'O') {
+                optionalCriteria.push(criterionId);
+                applicableCriteria.push(criterionId);
+            } else if (criterionMeta.status === 'R') {
+                requiredCriteria.push(criterionId);
+                applicableCriteria.push(criterionId);
+            } else if (criterionMeta.status === 'C') {
+                applicableCriteria.push(criterionId);
+            }
+        }
+        
+        console.log('[MDM Enforcement]', {
+            work_type: final_work_type_used,
+            matrix_version: criteriaPlan.matrixVersion,
+            required_count: requiredCriteria.length,
+            optional_count: optionalCriteria.length,
+            na_count: naCriteria.length,
+            na_criteria: naCriteria
+        });
+        
+        // Map criterion IDs to labels for LLM prompt
+        const criteriaLabels = {
+            hook: 'The Hook - First pages pull reader in with intrigue, tension, unique voice',
+            voice: 'Voice & Narrative Style - Distinct, engaging voice matching tone with fresh prose',
+            character: 'Characters & Introductions - Visceral character feel showing personality and motivations',
+            conflict: 'Conflict & Tension - Strong driving tension with escalating conflicts',
+            theme: 'Thematic Resonance - Deep themes woven naturally without being preachy',
+            pacing: 'Pacing & Structural Flow - Momentum in every chapter, tight purposeful scenes',
+            dialogue: 'Dialogue & Subtext - Authentic dialogue revealing more than stated',
+            worldbuilding: 'Worldbuilding & Immersion - World revealed organically with sensory details',
+            stakes: 'Stakes & Emotional Investment - Clear stakes with reader emotional connection',
+            linePolish: 'Line-Level Polish - Tight evocative prose with proper rhythm',
+            marketFit: 'Marketability & Genre Fit - Fresh, original, fits genre, marketable',
+            keepGoing: 'Would Agent Keep Reading - High tension/intrigue making agent request full manuscript',
+            technical: 'Technical / Formatting Correctness - Proper format, structure, technical standards'
+        };
+        
+        // Build applicable criteria list for LLM
+        const applicableCriteriaText = applicableCriteria
+            .map((id, idx) => `${idx + 1}. ${criteriaLabels[id]}`)
+            .join('\n');
+        
+        const naNotice = naCriteria.length > 0 
+            ? `\n\nCRITICAL: The following criteria are NOT APPLICABLE (N/A) for this Work Type (${criteriaPlan.workTypeLabel}) and MUST NOT be evaluated, scored, or mentioned:\n${naCriteria.map(id => `- ${criteriaLabels[id]}`).join('\n')}\n\nDo NOT provide scores, comments, or suggestions for N/A criteria.`
+            : '';
+        
         // Story Evaluation (Agents, Editors, Script Readers)
         const agentAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are a professional evaluator (agent, editor, or script reader) assessing a manuscript. 
 
+WORK TYPE: ${criteriaPlan.workTypeLabel} (${criteriaPlan.family})
+MATRIX VERSION: ${criteriaPlan.matrixVersion}
+
 STYLE MODE: ${styleMode.toUpperCase()}
 ${styleModeContext[styleMode]}
+${naNotice}
 
 CRITICAL FRAMING RULE:
 Distinguish between three manuscript tiers when scoring and commenting:
@@ -84,20 +143,11 @@ When scoring 8-10, your commentary MUST acknowledge this is professional-level w
 Weaknesses at this tier = "opportunities to sharpen" NOT "failures to fix."
 Example: "Voice is distinctive and confident (9/10). The restraint here is intentional—consider whether opening paragraph needs one additional destabilizing beat to immediately signal stakes."
 
-Analyze this text against exactly these 12 criteria, rating each 1-10:
+Analyze this text against ONLY the following APPLICABLE criteria (based on Work Type routing):
 
-1. The Hook - First pages pull reader in with intrigue, tension, unique voice
-2. Voice & Narrative Style - Distinct, engaging voice matching tone with fresh prose  
-3. Characters & Introductions - Visceral character feel showing personality and motivations
-4. Conflict & Tension - Strong driving tension with escalating conflicts
-5. Thematic Resonance - Deep themes woven naturally without being preachy
-6. Pacing & Structural Flow - Momentum in every chapter, tight purposeful scenes
-7. Dialogue & Subtext - Authentic dialogue revealing more than stated
-8. Worldbuilding & Immersion - World revealed organically with sensory details
-9. Stakes & Emotional Investment - Clear stakes with reader emotional connection
-10. Line-Level Polish - Tight evocative prose with proper rhythm
-11. Marketability & Genre Fit - Fresh, original, fits genre, marketable
-12. Would Agent Keep Reading - High tension/intrigue making agent request full manuscript
+${applicableCriteriaText}
+
+DO NOT evaluate or mention any criteria not listed above.
 
 TITLE: ${title}
 
@@ -354,18 +404,68 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             return severityOrder[a.severity] - severityOrder[b.severity];
         });
 
+        // Post-process criteria: enforce NA = null score (MDM Rule M4)
+        const processedCriteria = (agentAnalysis.criteria || []).map(criterion => {
+            // Find criterion ID from name (fuzzy match)
+            const criterionId = Object.keys(criteriaLabels).find(id => 
+                criterion.name.toLowerCase().includes(id.toLowerCase()) ||
+                criteriaLabels[id].toLowerCase().includes(criterion.name.toLowerCase())
+            );
+            
+            if (criterionId && criteriaPlan.criteria[criterionId]) {
+                const status = criteriaPlan.criteria[criterionId].status;
+                
+                // MDM RULE M4: NA hard prohibition
+                if (status === 'NA') {
+                    return {
+                        ...criterion,
+                        score: null,
+                        status: 'NA',
+                        na_reason: 'Not applicable for this Work Type',
+                        strengths: [],
+                        weaknesses: [],
+                        agentNotes: 'N/A for this Work Type'
+                    };
+                }
+                
+                return {
+                    ...criterion,
+                    status,
+                    blocking_enabled: criteriaPlan.criteria[criterionId].blockingEnabled
+                };
+            }
+            
+            return criterion;
+        });
+        
+        // Filter out NA criteria from revision requests
+        const filteredRevisionRequests = (agentAnalysis.revisionRequests || []).filter(req => {
+            const matchesNACriterion = naCriteria.some(naId => 
+                req.instruction.toLowerCase().includes(naId.toLowerCase())
+            );
+            return !matchesNACriterion;
+        });
+        
         const evaluationResult = {
             overallScore: agentAnalysis.overallScore || 5,
             agentVerdict: agentAnalysis.agentVerdict || "Evaluation complete",
             manuscriptTier: manuscriptTier,
             agentSnapshot: agentSnapshot,
-            criteria: agentAnalysis.criteria || [],
-            revisionRequests: agentAnalysis.revisionRequests || [],
+            criteria: processedCriteria,
+            revisionRequests: filteredRevisionRequests,
             waveHits: sortedWaveHits,
             waveGuidance: waveAnalysis.waveGuidance || { priorityWaves: [], nextActions: [] },
             styleMode: styleMode,
             thoughtTagSuggestions: thoughtTagSuggestions,
-            overusedWordHits: overusedWordHits
+            overusedWordHits: overusedWordHits,
+            work_type_routing: {
+                final_work_type_used: final_work_type_used,
+                work_type_label: criteriaPlan.workTypeLabel,
+                family: criteriaPlan.family,
+                matrix_version: criteriaPlan.matrixVersion,
+                na_criteria: naCriteria,
+                required_criteria: requiredCriteria
+            }
         };
 
         // Save to database with Work Type audit trail
