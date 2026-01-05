@@ -14,13 +14,100 @@ let validationCache = null;
 async function loadMasterData() {
     if (masterData) return masterData;
     
-    try {
-        const response = await fetch(new URL('./masterdata/work_type_criteria_applicability.v1.json', import.meta.url));
-        masterData = await response.json();
-        return masterData;
-    } catch (error) {
-        throw new Error(`Failed to load master data: ${error.message}`);
-    }
+    // Embedded master data (MDM Canon v1.0.0)
+    masterData = {
+        "matrixVersion": "v1.0.0",
+        "criteriaCatalog": [
+            {"id": "hook"}, {"id": "voice"}, {"id": "character"}, {"id": "conflict"},
+            {"id": "theme"}, {"id": "pacing"}, {"id": "dialogue"}, {"id": "worldbuilding"},
+            {"id": "stakes"}, {"id": "linePolish"}, {"id": "marketFit"}, {"id": "keepGoing"}, {"id": "technical"}
+        ],
+        "workTypes": {
+            "personalEssayReflection": {
+                "label": "Personal Essay / Reflection",
+                "family": "Prose Nonfiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "O", "conflict": "NA", "theme": "R",
+                    "pacing": "O", "dialogue": "NA", "worldbuilding": "NA", "stakes": "O",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "memoirVignette": {
+                "label": "Memoir Vignette",
+                "family": "Prose Nonfiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "O", "conflict": "O", "theme": "R",
+                    "pacing": "R", "dialogue": "NA", "worldbuilding": "O", "stakes": "R",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "novelChapter": {
+                "label": "Novel Chapter",
+                "family": "Prose Fiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "R", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "R", "stakes": "R",
+                    "linePolish": "R", "marketFit": "R", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "shortStory": {
+                "label": "Short Story",
+                "family": "Prose Fiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "R", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "R", "stakes": "R",
+                    "linePolish": "R", "marketFit": "R", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "featureScreenplay": {
+                "label": "Feature Screenplay",
+                "family": "Script/Screenplay",
+                "criteria": {
+                    "hook": "R", "voice": "O", "character": "R", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "R", "stakes": "R",
+                    "linePolish": "O", "marketFit": "R", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "scriptSceneFilmTv": {
+                "label": "Script Scene (Film/TV)",
+                "family": "Script/Screenplay",
+                "criteria": {
+                    "hook": "R", "voice": "O", "character": "R", "conflict": "R", "theme": "O",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "O", "stakes": "R",
+                    "linePolish": "O", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "flashFictionMicro": {
+                "label": "Flash Fiction / Micro",
+                "family": "Prose Fiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "O", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "O", "worldbuilding": "O", "stakes": "R",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "proseScene": {
+                "label": "Prose Scene",
+                "family": "Prose Fiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "R", "conflict": "R", "theme": "O",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "O", "stakes": "R",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "otherUserDefined": {
+                "label": "Other (User-Defined)",
+                "family": "Other",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "O", "conflict": "O", "theme": "O",
+                    "pacing": "R", "dialogue": "O", "worldbuilding": "O", "stakes": "O",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            }
+        }
+    };
+    
+    return masterData;
 }
 
 // MDM RULE M3: Full Coverage Validation (Fail Fast)
