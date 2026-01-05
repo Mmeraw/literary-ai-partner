@@ -2,6 +2,12 @@
  * MATRIX PREFLIGHT VALIDATION
  * Phase 1 Foundation: Truth at Runtime
  * Version: 1.0.0
+ * 
+ * GOVERNANCE: This module implements the fail-closed guard for input-scope validation.
+ * See: functions/PHASE_1_GOVERNANCE_EVIDENCE.md for control documentation.
+ * CRITICAL: matrixPreflight() MUST execute before ANY LLM evaluation call.
+ * 
+ * Control Objective: Prevent LLM evaluation claims that exceed evidentiary scope of input.
  */
 
 const REQUEST_TYPE = {
