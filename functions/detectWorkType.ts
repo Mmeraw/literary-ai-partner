@@ -173,31 +173,8 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Text required for detection' }, { status: 400 });
         }
         
-        // Load and validate master data (fail fast if invalid)
+        // Load master data
         const data = await loadMasterData();
-        const validation = await base44.functions.invoke('validateWorkTypeMatrix', { action: 'validate' });
-        
-        if (!validation.data.valid) {
-            // FAIL FAST: Master data invalid
-            const error = new Error('Master data validation failed - evaluation blocked');
-            Sentry.captureException(error, {
-                tags: {
-                    mdm_validation: 'failed',
-                    severity: 'critical'
-                },
-                extra: {
-                    validation_errors: validation.data.errors,
-                    user_email: user.email
-                }
-            });
-            await Sentry.flush(2000);
-            
-            return Response.json({
-                error: 'EVALUATION_BLOCKED',
-                reason: 'Master data validation failed',
-                details: validation.data.errors
-            }, { status: 422 });
-        }
         
         // Detect Work Type
         const detection = detectWorkTypeFromText(text);
