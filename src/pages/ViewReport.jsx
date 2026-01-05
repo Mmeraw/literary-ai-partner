@@ -187,8 +187,8 @@ ${submission.text || 'No text available'}
                                     Evaluated on {new Date(submission.created_date).toLocaleDateString()}
                                 </p>
                                 {evaluationResult.work_type_routing && (
-                                    <Badge className="bg-indigo-100 text-indigo-700">
-                                        {evaluationResult.work_type_routing.work_type_label}
+                                    <Badge className="bg-indigo-100 text-indigo-700 text-sm">
+                                        Work Type: {evaluationResult.work_type_routing.work_type_label}
                                     </Badge>
                                 )}
                                 {submission.revised_text && (
@@ -198,9 +198,19 @@ ${submission.text || 'No text available'}
                                 )}
                             </div>
                             {evaluationResult.work_type_routing?.na_criteria?.length > 0 && (
-                                <div className="mt-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
-                                    <p className="text-xs text-slate-600">
-                                        <strong>Note:</strong> Some criteria are Not Applicable (N/A) for {evaluationResult.work_type_routing.work_type_label}. 
+                                <div className="mt-3 p-4 rounded-lg bg-amber-50 border border-amber-300">
+                                    <p className="text-sm font-semibold text-amber-900 mb-1">
+                                        Work Type: {evaluationResult.work_type_routing.work_type_label}
+                                    </p>
+                                    <p className="text-xs text-amber-800">
+                                        Some criteria are Not Applicable (N/A) for this format:
+                                    </p>
+                                    <ul className="mt-2 text-xs text-amber-700 space-y-1">
+                                        {evaluationResult.work_type_routing.na_criteria.map((criteriaId, idx) => (
+                                            <li key={idx}>• {criteriaId}</li>
+                                        ))}
+                                    </ul>
+                                    <p className="text-xs text-amber-700 mt-2">
                                         These criteria are not scored and don't affect your grade.
                                     </p>
                                 </div>
