@@ -2,6 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import { captureError, captureCritical } from './utils/errorTracking.js';
 import { withTimeoutAndRetry } from './utils/retryLogic.js';
 import { matrixPreflight, REQUEST_TYPE } from './utils/matrixPreflight.js';
+import { GOVERNANCE_VERSION, CANON_HASHES, buildRefusalResponse, buildAuditBase } from './utils/governanceVersion.js';
 import * as Sentry from 'npm:@sentry/deno@8.43.0';
 
 Sentry.init({
@@ -36,13 +37,18 @@ Deno.serve(async (req) => {
         if (!preflight.allowed) {
             // Create audit log for blocked request
             try {
+                const auditBase = buildAuditBase({
+                    eventName: 'EVAL_QUICK_BLOCKED',
+                    functionId: 'evaluateQuickSubmission',
+                    canonHash: CANON_HASHES.EVALUATE_ENTRY_CANON,
+                    userEmail: user.email,
+                    requestId: `blocked_${Date.now()}`
+                });
+                
                 await base44.asServiceRole.entities.EvaluationAuditEvent.create({
-                    event_id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                    request_id: `blocked_${Date.now()}`,
-                    timestamp_utc: new Date().toISOString(),
+                    ...auditBase,
                     detected_format: 'scene',
                     routed_pipeline: 'quick',
-                    user_email: user.email,
                     evaluation_mode: 'standard',
                     validators_run: ['matrix_preflight'],
                     validators_failed: ['matrix_preflight'],
@@ -63,14 +69,25 @@ Deno.serve(async (req) => {
                     wordCount: preflight.wordCount,
                     inputScale: preflight.inputScale,
                     blockReason: preflight.blockReason,
-                    userEmail: user.email
+                    userEmail: user.email,
+                    governanceVersion: GOVERNANCE_VERSION
                 }
             });
             
-            return Response.json({ 
-                error: preflight.userFacingCode,
-                ...preflight.refusalMessage
-            }, { status: 422 });
+            // Return standardized refusal response
+            const refusal = buildRefusalResponse({
+                status: "blocked",
+                code: preflight.userFacingCode,
+                userMessage: preflight.refusalMessage?.currentInput 
+                    ? `${preflight.refusalMessage.title}: ${preflight.refusalMessage.currentInput}. ${preflight.refusalMessage.minimumRequired}`
+                    : "Input does not meet minimum requirements for evaluation.",
+                refusalReason: preflight.blockReason,
+                nextAction: preflight.refusalMessage?.minimumRequired?.includes("40,000") 
+                    ? "switch_to_full_manuscript" 
+                    : "upload_more"
+            });
+            
+            return Response.json(refusal, { status: 422 });
         }
         
         console.log('[Phase 1 Preflight]', {
@@ -82,12 +99,14 @@ Deno.serve(async (req) => {
         
         // MDM GATE: Work Type routing required (MDM Canon v1)
         if (!final_work_type_used) {
-            return Response.json({ 
-                error: 'EVALUATION_BLOCKED',
-                gate_blocked: true,
-                message: 'Work Type not confirmed. Please confirm or correct the detected Work Type before evaluation.',
-                required_field: 'final_work_type_used'
-            }, { status: 400 });
+            const refusal = buildRefusalResponse({
+                status: "blocked",
+                code: "EVALUATION_BLOCKED",
+                userMessage: "Work Type not confirmed. Please confirm or correct the detected Work Type before evaluation.",
+                refusalReason: "MATRIX_VIOLATION",
+                nextAction: "confirm_work_type"
+            });
+            return Response.json(refusal, { status: 400 });
         }
         
         // Load criteria plan from master data
@@ -672,13 +691,18 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             submissionId = newSubmission.id;
             
             // Create audit event (MDM Canon v1 + Phase 1 compliance)
+            const auditBase = buildAuditBase({
+                eventName: 'EVAL_QUICK_RUN',
+                functionId: 'evaluateQuickSubmission',
+                canonHash: CANON_HASHES.EVALUATE_ENTRY_CANON,
+                userEmail: user.email,
+                requestId: submissionId
+            });
+            
             await base44.asServiceRole.entities.EvaluationAuditEvent.create({
-                event_id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                request_id: submissionId,
-                timestamp_utc: new Date().toISOString(),
+                ...auditBase,
                 detected_format: 'scene',
                 routed_pipeline: 'quick',
-                user_email: user.email,
                 evaluation_mode: 'standard',
                 validators_run: ['matrix_preflight', 'work_type_detection', 'criteria_plan_builder'],
                 validators_failed: [],
