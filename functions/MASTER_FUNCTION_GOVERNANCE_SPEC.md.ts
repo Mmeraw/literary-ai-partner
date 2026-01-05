@@ -21,14 +21,101 @@ Each function specifies:
 
 ---
 
+# GLOBAL REFUSAL/VALIDATION RESPONSE SCHEMA
+
+**CRITICAL: All validation failures and refusals MUST return this standardized structure.**
+
+```json
+{
+  "status": "blocked" | "warn" | "ok",
+  "code": "MACHINE_READABLE_CODE",
+  "user_message": "Clear, actionable message shown to user",
+  "developer_message": "Optional technical details for debugging",
+  "refusal_reason": "SCOPE_INSUFFICIENT" | "MATRIX_VIOLATION" | "STRUCTURE_INCOMPLETE" | "HALLUCINATION_RISK" | "VOICE_INSUFFICIENT" | "NARRATIVE_INCOMPLETE" | "FILE_EXTRACTION_FAILED" | "AUTHENTICATION_REQUIRED" | "AUTHORIZATION_FAILED" | "INVALID_INPUT" | "REDIRECT_REQUIRED" | "INVALID_FILE_TYPE",
+  "next_action": "upload_more" | "switch_to_full_manuscript" | "confirm_work_type" | "contact_support" | "retry" | "none"
+}
+```
+
+**Examples:**
+
+Preflight block (insufficient input):
+```json
+{
+  "status": "blocked",
+  "code": "INSUFFICIENT_INPUT",
+  "user_message": "This excerpt is too short for a query letter. Query letters require a full manuscript (40,000+ words).",
+  "refusal_reason": "SCOPE_INSUFFICIENT",
+  "next_action": "upload_more"
+}
+```
+
+Work type gate:
+```json
+{
+  "status": "blocked",
+  "code": "EVALUATION_BLOCKED",
+  "user_message": "Please confirm or correct the detected work type before evaluation.",
+  "refusal_reason": "MATRIX_VIOLATION",
+  "next_action": "confirm_work_type"
+}
+```
+
+**Enforcement Rule:**
+- NO unstructured error strings may be returned to frontend
+- NO "apology blobs" or conversational error messages
+- All refusals must be machine-testable via `code` and `refusal_reason` fields
+- `user_message` must be clear, specific, and actionable (no generic "something went wrong")
+
+---
+
+# GLOBAL AUDIT NORMALIZATION
+
+**CRITICAL: All audit events across all functions MUST conform to this standard.**
+
+## Required Audit Fields (Universal)
+All audit events MUST include:
+- `event_id` (unique identifier, format: `evt_<timestamp>_<random>`)
+- `timestamp_utc` (ISO 8601 format)
+- `function_id` (exact function name from this spec)
+- `canon_hash` (SHA-256 hash of governing canon document)
+- `governance_version` (version of this spec, e.g., "1.0.0")
+- `request_id` (ties multiple events together)
+- `user_email` (where applicable; if privacy-blocked, use stable `user_id_hash`)
+
+## Event Emission Rules
+- All audit events MUST be emitted even on block/fail
+- Blocked requests MUST log: `block_reason`, `user_facing_code`, `refusal_message`
+- Failed requests MUST log: `error_code`, `error_message`, `stack_trace` (sanitized)
+- All LLM calls MUST log: `llm_invoked` (true/false), `llm_invocation_reason`
+
+## Audit Entity Types
+While events may land in different database tables, they MUST all include the universal fields above:
+- `EvaluationAuditEvent` (primary evaluation events)
+- `RevisionSession` (revision tracking)
+- `Analytics` (page visit telemetry)
+- `AccessLog` (Storygate access events)
+- Custom event types (must extend universal schema)
+
+## Privacy-Safe Logging
+- If `user_email` cannot be logged (privacy/GDPR): log stable `user_id_hash` instead
+- NEVER log raw manuscript text in audit events (log word count, hash, or reference ID only)
+- NEVER log API keys, secrets, or tokens in audit events
+
+---
+
 # FUNCTION 1: EVALUATE
 
 ## FLOW 1.1: YourWriting → Quick Evaluation (Scene/Paragraph)
 
+**Scope:** Single scene or chapter-length input only. NOT for full manuscripts (use Flow 1.2).
+
 ### INPUTS
 - **Accepted Formats**: .docx, .txt, pasted text
-- **Word Range**: 50-5,000 words
-- **Size Limits**: 3,000 word hard cap for quick eval
+- **Word Range**: 50-3,000 words (hard cap)
+- **Enforcement**: 
+  - <50 words → block with `INSUFFICIENT_INPUT`
+  - 3,001-5,000 words → soft fail with warning banner: "Consider full manuscript evaluation for better analysis"
+  - >5,000 words → hard block, redirect to full manuscript upload
 - **Visible Ingestion**: YES - user sees text area or upload button
 - **Silent Parsing**: PROHIBITED
 - **User-Provided Metadata**:
@@ -39,21 +126,22 @@ Each function specifies:
 
 ### ROUTING
 - **Entry Point**: `pages/YourWriting.js`
-- **Detection**: `detectWorkType.js` → work type confirmation dialog
-- **Preflight**: `matrixPreflight()` → MUST execute before LLM
-- **Runtime Function**: `evaluateQuickSubmission.js`
+- **Detection**: `functions/detectWorkType.js` → work type confirmation dialog
+- **Preflight**: `functions/utils/matrixPreflight.js` → MUST execute before LLM
+- **Runtime Function**: `functions/evaluateQuickSubmission.js`
 - **Model Class**: Quick evaluation / governance-enforced
-- **Criteria Routing**: `validateWorkTypeMatrix.js` → builds criteria plan
+- **Criteria Routing**: `functions/validateWorkTypeMatrix.js` → builds criteria plan
 
 ### VALIDATION
 
 **Hard Fails (Block execution):**
-- <50 words → `INSUFFICIENT_INPUT` with refusal message
-- >5,000 words → redirect to full manuscript upload
-- Work type not confirmed → `EVALUATION_BLOCKED` gate
-- Unsupported file type → error banner
+- <50 words → `INSUFFICIENT_INPUT` with standardized refusal response
+- >5,000 words → hard block with `REDIRECT_REQUIRED`, force redirect to full manuscript upload
+- Work type not confirmed → `EVALUATION_BLOCKED` gate with standardized response
+- Unsupported file type → `INVALID_FILE_TYPE` with error banner
 
 **Soft Fails (Warn but allow):**
+- 3,001-5,000 words → warning banner: "Longer works benefit from full manuscript evaluation"
 - Mixed language detected → warning banner
 - Transgressive/trauma memoir mode → confirmation dialog required
 
@@ -95,6 +183,7 @@ Each function specifies:
 - **Entity**: `EvaluationAuditEvent`
 - **Function ID**: `evaluateQuickSubmission`
 - **Canon Hash**: `EVALUATE_ENTRY_CANON_v1.2`
+- **Governance Version**: `1.0.0` (this document version, REQUIRED)
 - **Required Fields**:
   - `event_id`, `request_id`, `timestamp_utc`
   - `detected_format`, `routed_pipeline` (quick)
@@ -114,10 +203,14 @@ Each function specifies:
 
 ## FLOW 1.2: YourWriting → Full Manuscript Evaluation
 
+**Scope:** Complete novel or screenplay manuscripts only. NOT for scenes or chapters (use Flow 1.1).
+
 ### INPUTS
 - **Accepted Formats**: .docx, .pdf, .txt, .rtf
-- **Word Range**: 40,000+ words (full manuscript)
-- **Size Limits**: No upper limit (handles novels)
+- **Word Range**: 40,000+ words (full manuscript hard minimum)
+- **Enforcement**:
+  - <40,000 words → hard block with `INSUFFICIENT_INPUT`, redirect to quick eval
+  - No upper limit (handles novels)
 - **Visible Ingestion**: YES - upload button, file name displayed
 - **Silent Parsing**: PROHIBITED
 - **User-Provided Metadata**: Same as quick eval
@@ -125,13 +218,13 @@ Each function specifies:
 ### ROUTING
 - **Entry Point**: `pages/YourWriting.js`
 - **Detection**: Word count check → route to full pipeline
-- **Upload**: `ingestUploadedFileToText.js` → text extraction
-- **Splitting**: `splitManuscript.js` → chapter segmentation
+- **Upload**: `functions/ingestUploadedFileToText.js` → text extraction
+- **Splitting**: `functions/splitManuscript.js` → chapter segmentation
 - **Runtime Functions**:
-  1. `evaluateFullManuscript.js` (orchestrator)
-  2. `evaluateSpine.js` (narrative backbone)
-  3. `evaluateThirteenCriteria.js` (per chapter)
-  4. `evaluateWaveFlags.js` (per chapter)
+  1. `functions/evaluateFullManuscript.js` (orchestrator)
+  2. `functions/evaluateSpine.js` (narrative backbone)
+  3. `functions/evaluateThirteenCriteria.js` (per chapter)
+  4. `functions/evaluateWaveFlags.js` (per chapter)
 - **Model Class**: Full evaluation / multi-phase
 
 ### VALIDATION
@@ -167,6 +260,7 @@ Each function specifies:
 - **Entity**: `EvaluationAuditEvent`
 - **Function ID**: `evaluateFullManuscript`
 - **Canon Hash**: `EVALUATE_ENTRY_CANON_v1.2`
+- **Governance Version**: `1.0.0` (this document version, REQUIRED)
 - **Required Fields**: Same as quick eval + `manuscript_id`
 
 ---
@@ -174,6 +268,8 @@ Each function specifies:
 # FUNCTION 2: WAVE (Craft Analysis)
 
 ## FLOW 2.1: Revise → WAVE Revision Session
+
+**Scope:** Operates on already-evaluated submissions only. NOT for raw text input.
 
 ### INPUTS
 - **Accepted**: Existing submission (from history)
@@ -184,8 +280,8 @@ Each function specifies:
 
 ### ROUTING
 - **Entry Point**: `pages/History.js` → "Start Revising" button
-- **Runtime Function**: `generateRevisionSuggestions.js`
-- **Voice Guard**: `voiceGuard.js` → applies preservation rules
+- **Runtime Function**: `functions/generateRevisionSuggestions.js`
+- **Voice Guard**: `functions/voiceGuard.js` → applies preservation rules
 - **Model Class**: Revision / voice-protected
 
 ### VALIDATION
@@ -219,9 +315,10 @@ Each function specifies:
 
 ### AUDIT
 - **Event Name**: `WAVE_REVISION_START`
-- **Entity**: RevisionSession
+- **Entity**: `RevisionSession`
 - **Function ID**: `generateRevisionSuggestions`
 - **Canon Hash**: `WAVE_GUIDE_v2.1`
+- **Governance Version**: `1.0.0`
 - **Required Fields**: `submission_id`, `voice_mode`, `wave_count`
 
 ---
@@ -230,15 +327,18 @@ Each function specifies:
 
 ## FLOW 3.1: ScreenplayFormatter → Novel to Screenplay
 
+**Scope:** Chapter or scene-length narrative prose conversion only. NOT for non-narrative text.
+
 ### INPUTS
 - **Accepted**: Pasted text, .docx
 - **Word Range**: 2,000+ words (chapter minimum)
+- **Enforcement**: <2,000 words → hard block with `INSUFFICIENT_INPUT`
 - **Visible Ingestion**: YES - text area or upload
 - **Silent Parsing**: PROHIBITED
 
 ### ROUTING
 - **Entry Point**: `pages/ScreenplayFormatter.js`
-- **Runtime Function**: `formatScreenplay.js`
+- **Runtime Function**: `functions/formatScreenplay.js`
 - **Model Class**: Screenplay conversion
 
 ### VALIDATION
@@ -274,7 +374,7 @@ Each function specifies:
 ### ROUTING
 - **Entry Point**: `pages/Revise.js`
 - **Runtime Functions**: 
-  - `generateAlternatives.js` (if alternatives requested)
+  - `functions/generateAlternatives.js` (if alternatives requested)
   - Session update (Base44 SDK)
 
 ### VALIDATION
@@ -299,16 +399,19 @@ Each function specifies:
 
 ## FLOW 5.1: Synopsis → Generate Synopsis
 
+**Scope:** Full manuscript synopsis generation only. NOT for scene or chapter summaries.
+
 ### INPUTS
 - **Accepted**: Existing manuscript (40k+ words)
-- **Word Range**: Full manuscript required
+- **Word Range**: Full manuscript required (40,000+ words hard minimum)
+- **Enforcement**: <40,000 words → hard block with `INSUFFICIENT_INPUT`
 - **Visible Ingestion**: User selects from manuscript list
 - **Silent Parsing**: PROHIBITED
 
 ### ROUTING
 - **Entry Point**: `pages/Synopsis.js`
-- **Preflight**: `matrixPreflight()` → checks manuscript word count
-- **Runtime Function**: `generateSynopsis.js`
+- **Preflight**: `functions/utils/matrixPreflight.js` → checks manuscript word count
+- **Runtime Function**: `functions/generateSynopsis.js`
 - **Model Class**: Synopsis generation
 
 ### VALIDATION
@@ -329,22 +432,26 @@ Each function specifies:
 - **Event Name**: `SYNOPSIS_GENERATED`
 - **Function ID**: `generateSynopsis`
 - **Canon Hash**: `SYNOPSIS_SPEC_v1.0`
+- **Governance Version**: `1.0.0`
 - **Required Fields**: `manuscript_id`, `synopsis_length`
 
 ---
 
 ## FLOW 5.2: QueryLetter → Generate Query Letter
 
+**Scope:** Full manuscript query letter only. NOT for partial works or synopses.
+
 ### INPUTS
 - **Accepted**: Manuscript file URL (.docx, .pdf, .txt, .rtf)
-- **Word Range**: 40,000+ words
+- **Word Range**: 40,000+ words (hard minimum)
+- **Enforcement**: <40,000 words → hard block with `INSUFFICIENT_INPUT`
 - **Visible Ingestion**: YES - file upload
 - **Silent Parsing**: PROHIBITED
 
 ### ROUTING
 - **Entry Point**: `pages/QueryLetter.js`
-- **Preflight**: `matrixPreflight()` → validates full manuscript
-- **Runtime Function**: `generateQueryLetterPackage.js`
+- **Preflight**: `functions/utils/matrixPreflight.js` → validates full manuscript
+- **Runtime Function**: `functions/generateQueryLetterPackage.js`
 - **Model Class**: Query package generation
 
 ### VALIDATION
@@ -373,21 +480,25 @@ Each function specifies:
 - **Event Name**: `QUERY_LETTER_GENERATED`
 - **Function ID**: `generateQueryLetterPackage`
 - **Canon Hash**: `QUERY_LETTER_SPEC_v1.0`
+- **Governance Version**: `1.0.0`
 - **Required Fields**: `manuscript_file_url`, `word_count`, `preflight_allowed`
 
 ---
 
 ## FLOW 5.3: PitchGenerator → Generate Pitch Deck
 
+**Scope:** Full manuscript pitch deck generation only. NOT for partial works.
+
 ### INPUTS
 - **Accepted**: Manuscript ID or text
-- **Word Range**: 40,000+ words
+- **Word Range**: 40,000+ words (hard minimum)
+- **Enforcement**: <40,000 words → hard block with `INSUFFICIENT_INPUT`
 - **Visible Ingestion**: User selects manuscript
 - **Silent Parsing**: PROHIBITED
 
 ### ROUTING
 - **Entry Point**: `pages/PitchGenerator.js`
-- **Runtime Function**: `generateQueryPitches.js`
+- **Runtime Function**: `functions/generateQueryPitches.js`
 - **Model Class**: Pitch generation
 
 ### VALIDATION
@@ -419,7 +530,7 @@ Each function specifies:
 
 ### ROUTING
 - **Entry Point**: `pages/Comparables.js`
-- **Runtime Function**: `generateComparables.js`
+- **Runtime Function**: `functions/generateComparables.js`
 - **Model Class**: Market analysis
 
 ### VALIDATION
@@ -444,16 +555,19 @@ Each function specifies:
 
 ## FLOW 5.5: CompletePackage → Generate Agent Package
 
+**Scope:** Complete agent submission package only. Requires full manuscript.
+
 ### INPUTS
 - **Accepted**: Manuscript file URL
-- **Word Range**: 40,000+ words
+- **Word Range**: 40,000+ words (hard minimum)
+- **Enforcement**: <40,000 words → hard block with `INSUFFICIENT_INPUT`
 - **Visible Ingestion**: File upload
 - **Silent Parsing**: PROHIBITED
 
 ### ROUTING
 - **Entry Point**: `pages/CompletePackage.js`
-- **Preflight**: `matrixPreflight()` → full manuscript required
-- **Runtime Function**: `generateCompletePackage.js`
+- **Preflight**: `functions/utils/matrixPreflight.js` → full manuscript required
+- **Runtime Function**: `functions/generateCompletePackage.js`
 - **Model Class**: Complete package generation
 
 ### VALIDATION
@@ -481,6 +595,7 @@ Each function specifies:
 - **Event Name**: `AGENT_PACKAGE_GENERATED`
 - **Function ID**: `generateCompletePackage`
 - **Canon Hash**: `AGENT_PACKAGE_SPEC_v1.0`
+- **Governance Version**: `1.0.0`
 
 ---
 
@@ -497,8 +612,8 @@ Each function specifies:
 ### ROUTING
 - **Entry Point**: `pages/Biography.js`
 - **Runtime Functions**:
-  - `extractLinkedInBio.js` (if URL provided)
-  - `uploadAndGenerateBio.js` (if manual text)
+  - `functions/extractLinkedInBio.js` (if URL provided)
+  - `functions/uploadAndGenerateBio.js` (if manual text)
 - **Model Class**: Bio generation
 
 ### VALIDATION
@@ -532,8 +647,8 @@ Each function specifies:
 - **Silent Parsing**: PROHIBITED
 
 ### ROUTING
-- **Entry Point**: `pages/StorygateStudio.js`
-- **Runtime Function**: `submitStoryGateFilm.js`
+- **Entry Point**: `pages/StoryGate.js`
+- **Runtime Function**: `functions/submitStoryGateFilm.js`
 - **Model Class**: Submission intake
 
 ### VALIDATION
@@ -565,7 +680,7 @@ Each function specifies:
 
 ### ROUTING
 - **Entry Point**: `pages/CreateStoryGateListing.js`
-- **Runtime Function**: `createStoryGateListing.js`
+- **Runtime Function**: `functions/createStoryGateListing.js`
 - **Model Class**: Listing creation
 
 ### VALIDATION
@@ -596,7 +711,7 @@ Each function specifies:
 
 ### ROUTING
 - **Entry Point**: `pages/AdminVerificationQueue.js`
-- **Runtime Function**: `handleVerification.js`
+- **Runtime Function**: `functions/handleVerification.js`
 - **Model Class**: Admin action
 
 ### VALIDATION
@@ -631,8 +746,8 @@ Each function specifies:
 ### ROUTING
 - **Entry Point**: `pages/UploadWork.js`
 - **Runtime Functions**:
-  - `ingestUploadedFileToText.js` → text extraction
-  - `splitManuscript.js` → chapter segmentation
+  - `functions/ingestUploadedFileToText.js` → text extraction
+  - `functions/splitManuscript.js` → chapter segmentation
 - **Model Class**: File processing
 
 ### VALIDATION
@@ -693,7 +808,7 @@ Each function specifies:
 
 ### ROUTING
 - **Entry Point**: `pages/ManuscriptDashboard.js`
-- **Runtime Function**: `cloneManuscript.js`
+- **Runtime Function**: `functions/cloneManuscript.js`
 
 ### VALIDATION
 
@@ -722,7 +837,7 @@ Each function specifies:
 
 ### ROUTING
 - **Entry Point**: `pages/ManuscriptDashboard.js`
-- **Runtime Function**: `markManuscriptFinal.js`
+- **Runtime Function**: `functions/markManuscriptFinal.js`
 
 ### VALIDATION
 
@@ -756,8 +871,8 @@ Each function specifies:
 ### ROUTING
 - **Entry Point**: Multiple pages (YourWriting, UploadWork)
 - **Runtime Functions**:
-  - `ingestUploadedFileToText.js` → orchestrator
-  - `convertDocxToText.js` → DOCX parsing
+  - `functions/ingestUploadedFileToText.js` → orchestrator
+  - `functions/convertDocxToText.js` → DOCX parsing
 - **Model Class**: File processing
 
 ### VALIDATION
@@ -791,7 +906,7 @@ Each function specifies:
 
 ### ROUTING
 - **Entry Point**: `pages/ValidationReport.js`
-- **Runtime Function**: `testWaveValidation.js`
+- **Runtime Function**: `functions/testWaveValidation.js`
 
 ### VALIDATION
 
@@ -816,14 +931,17 @@ Each function specifies:
 
 ## FLOW 11.1: Analytics → Track Page Visit
 
+**Scope:** Non-content telemetry only (page/path/device). NOT for manuscript text, extraction, or evaluation.
+
 ### INPUTS
 - **Accepted**: Page visit event
 - **Visible Ingestion**: Automatic (user navigates)
 - **Silent Parsing**: ALLOWED (analytics tracking)
+- **Silent Parsing Boundary**: ONLY for non-content telemetry (page/path/device). Silent behavior PROHIBITED for manuscript text, file extraction, or evaluation data.
 
 ### ROUTING
 - **Entry Point**: `components/AnalyticsTracker.js` (runs on every page)
-- **Runtime Function**: `storeEvaluationSignals.js` (disabled)
+- **Runtime Function**: `functions/storeEvaluationSignals.js` (disabled)
 
 ### VALIDATION
 
@@ -851,7 +969,7 @@ Each function specifies:
 
 ### ROUTING
 - **Entry Point**: `components/FeedbackWidget.js`
-- **Runtime Function**: `analyzeFeedback.js`
+- **Runtime Function**: `functions/analyzeFeedback.js`
 
 ### VALIDATION
 
@@ -882,7 +1000,7 @@ Each function specifies:
 
 ### ROUTING
 - **Entry Point**: `pages/Pricing.js`
-- **Runtime Function**: `createCheckoutSession.js`
+- **Runtime Function**: `functions/createCheckoutSession.js`
 
 ### VALIDATION
 
@@ -912,7 +1030,7 @@ Each function specifies:
 
 ### ROUTING
 - **Entry Point**: Stripe webhook URL
-- **Runtime Function**: `stripeWebhook.js`
+- **Runtime Function**: `functions/stripeWebhook.js`
 
 ### VALIDATION
 
@@ -943,7 +1061,7 @@ Each function specifies:
 - **Visible Ingestion**: NO - internal utility
 
 ### ROUTING
-- **Runtime Function**: `generateCanonHash.js`
+- **Runtime Function**: `functions/generateCanonHash.js`
 
 ### VALIDATION
 
@@ -971,7 +1089,7 @@ Each function specifies:
 - **Visible Ingestion**: NO - internal utility
 
 ### ROUTING
-- **Runtime Function**: `transitionDocumentState.js`
+- **Runtime Function**: `functions/transitionDocumentState.js`
 
 ### VALIDATION
 
@@ -989,6 +1107,90 @@ Each function specifies:
 - **Event Name**: `DOCUMENT_STATE_TRANSITION`
 - **Function ID**: `transitionDocumentState`
 - **Required Fields**: `document_id`, `from_state`, `to_state`, `transitioned_by`
+
+---
+
+# FUNCTION 13.3: Detect Work Type
+
+### INPUTS
+- **Accepted**: Text content
+- **Visible Ingestion**: Automatic after text input/upload
+
+### ROUTING
+- **Runtime Function**: `functions/detectWorkType.js`
+
+### VALIDATION
+
+**Hard Fails:**
+- Text too short for detection → return "unknown"
+
+**Soft Fails:**
+- Low confidence detection → user confirmation required
+
+### OUTPUTS
+- **Artifact**: Work type classification
+- **Format**: `{ work_type_id, label, confidence }`
+
+### AUDIT
+- **Event Name**: `WORK_TYPE_DETECTED`
+- **Function ID**: `detectWorkType`
+- **Required Fields**: `detected_work_type`, `detection_confidence`, `user_action`
+
+---
+
+## FLOW 13.4: Validate Work Type Matrix
+
+### INPUTS
+- **Accepted**: Work type ID
+- **Visible Ingestion**: NO - internal validation
+
+### ROUTING
+- **Runtime Function**: `functions/validateWorkTypeMatrix.js`
+
+### VALIDATION
+
+**Hard Fails:**
+- Invalid work type ID → error
+
+**Soft Fails:**
+- None
+
+### OUTPUTS
+- **Artifact**: Criteria plan
+- **Format**: `{ criteria: {criterion_id: {status, blockingEnabled}} }`
+
+### AUDIT
+- **Event Name**: `CRITERIA_PLAN_BUILT`
+- **Function ID**: `validateWorkTypeMatrix`
+- **Required Fields**: `work_type_id`, `matrix_version`
+
+---
+
+## FLOW 13.5: Matrix Preflight
+
+### INPUTS
+- **Accepted**: Text content or manuscript ID
+- **Visible Ingestion**: NO - internal validation
+
+### ROUTING
+- **Runtime Function**: `functions/utils/matrixPreflight.js`
+
+### VALIDATION
+
+**Hard Fails:**
+- Insufficient input → block with refusal
+
+**Soft Fails:**
+- None
+
+### OUTPUTS
+- **Artifact**: Preflight result
+- **Format**: `{ allowed, wordCount, inputScale, maxConfidence, refusalMessage }`
+
+### AUDIT
+- **Event Name**: `MATRIX_PREFLIGHT_RUN`
+- **Function ID**: `matrixPreflight`
+- **Required Fields**: `allowed`, `input_scale`, `max_confidence_allowed`
 
 ---
 
@@ -1041,9 +1243,15 @@ Each function specifies:
 
 # PHASE 1 COMPLIANCE CHECKLIST
 
+## Backend Function Health (CRITICAL)
+- [ ] ALL backend functions MUST return 200/4xx status codes (success or validation error)
+- [ ] NO backend functions may return 404 (function not found) for flows covered by this spec
+- [ ] NO backend functions may return 500 (internal error) without logging to Sentry and returning standardized error response
+- [ ] All validation failures MUST use the Global Refusal/Validation Response Schema
+
 ## Preflight Enforcement (CRITICAL)
 - [ ] matrixPreflight() executes before ALL LLM evaluation calls
-- [ ] matrixPreflight() blocks insufficient input with user-facing refusal
+- [ ] matrixPreflight() blocks insufficient input with standardized refusal response (see Global Schema)
 - [ ] Confidence caps enforced per input scale
 - [ ] Audit logs include preflight fields: `matrix_preflight_allowed`, `matrix_compliance`, `llm_invoked`
 
@@ -1055,15 +1263,16 @@ Each function specifies:
 
 ## Audit Trail Completeness
 - [ ] All function calls emit audit events to EvaluationAuditEvent
-- [ ] All audit events include: function_id, canon_hash, timestamp_utc, user_email
+- [ ] All audit events include: function_id, canon_hash, governance_version, timestamp_utc, user_email
 - [ ] All preflight blocks logged with block_reason and refusal_message
 - [ ] All LLM calls logged with llm_invocation_reason
 
 ## User-Visible Validation
-- [ ] All hard fails display clear error messages
+- [ ] All hard fails display standardized error messages (see Global Refusal/Validation Response Schema)
 - [ ] All soft fails display warning banners
 - [ ] All file uploads show progress indicators
 - [ ] All processing states show real-time progress
+- [ ] All refusals include `code`, `user_message`, `refusal_reason`, `next_action` fields
 
 ## No Silent Behavior
 - [ ] No file parsing without explicit user upload action
@@ -1079,8 +1288,31 @@ Each function specifies:
 **Date**: 2026-01-05  
 **Status**: CANONICAL - LOCKED
 
+## Canon Hash Generation Rule
+- **What is hashed**: Entire content of governing canon document (e.g., `EVALUATE_ENTRY_CANON.md`)
+- **Algorithm**: SHA-256
+- **Format**: Lowercase hexadecimal string (64 characters)
+- **Storage**: Every runtime function response MUST include `canon_hash` field matching the governing spec section
+- **Generation**: Use `functions/generateCanonHash.js` utility
+- **Verification**: Canon hash mismatch indicates spec drift—function MUST be updated to match latest canon
+
+## Routing Determinism
+- All routing decisions (quick vs full, pipeline selection) MUST be deterministic given inputs and metadata
+- Same inputs + same metadata → MUST produce same routing decision
+- All routing decisions MUST be logged in audit events with: `routed_pipeline`, `routing_reason`, `detected_format`
+- Routing logic MUST be explicitly documented in this spec (no "AI decides" routing)
+
 ## Change History
-- 2026-01-05: Initial creation - comprehensive five-field contracts for all 13 functions
+- 2026-01-05 v1.0.0: Initial creation - comprehensive five-field contracts for all 13 functions
+  - Added Global Refusal/Validation Response Schema
+  - Fixed word range conflicts (quick eval: 50-3,000 hard cap with soft fail warning for 3,001-5,000)
+  - Added scope statements to all flows
+  - Normalized audit schema across all events
+  - Added governance_version field to critical flows
+  - Added backend function health requirements to Phase 1 checklist
+  - Tightened analytics silent parsing boundary
+  - Added canon hash generation rule and routing determinism requirements
+  - Added utility functions (detectWorkType, validateWorkTypeMatrix, matrixPreflight) to Function 13
 
 ## Freeze Notice
 This document defines the authoritative truth contract for RevisionGrade. Changes require:
