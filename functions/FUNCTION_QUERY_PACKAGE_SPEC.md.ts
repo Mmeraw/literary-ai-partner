@@ -1,0 +1,201 @@
+# Function Spec: generateQueryLetterPackage
+**5-Field Contract** | **Phase:** 0 Complete | **Version:** 1.0.0
+
+---
+
+## 1. INPUTS
+
+**Accepted Types:**
+- `manuscriptId`: string (required, reference to Manuscript entity)
+- `synopsisLength`: enum (short | medium | long) - default: medium
+- `includeComparables`: boolean - default: true
+- `agentPreferences`: object (optional)
+  - `name`: string
+  - `agency`: string
+  - `genres`: array of strings
+
+**Size Limits:**
+- Input manuscript: minimum 40,000 words (full manuscript required)
+- Package artifacts:
+  - Query letter: 350-450 words
+  - Synopsis: varies by synopsisLength (500-2000 words)
+  - Comparables: 3-5 titles with analysis
+
+**Visible Ingestion:**
+- CompletePackage page shows manuscript selection
+- Options for synopsis length and comparables toggle
+- Agent preferences form (optional)
+- Multi-step progress bar during generation
+
+**Validation at Entry:**
+- matrixPreflight validates manuscript >= 40,000 words
+- Manuscript MUST have spine_evaluation completed
+- All package components validated before generation starts
+
+---
+
+## 2. ROUTING
+
+**Pipeline Selection:**
+- Multi-artifact orchestration: Query + Synopsis + Comparables + Agent List
+- Each component validated independently before package assembly
+
+**Routing Logic:**
+```
+IF manuscript.wordCount < 40000 THEN BLOCK (full manuscript required)
+IF manuscript.spine_evaluation is NULL THEN BLOCK (evaluation required)
+ELSE:
+  1. Generate Query Letter (via generateQueryLetter)
+  2. Generate Synopsis (via generateSynopsis)
+  3. Generate Comparables (via generateComparables if enabled)
+  4. Suggest Agents (via LLM based on genre/metadata)
+  5. Assemble package with all artifacts
+```
+
+---
+
+## 3. VALIDATION
+
+**Hard Fails (Block Execution):**
+- Manuscript < 40,000 words
+- Manuscript not evaluated (no spine)
+- Any component generation fails critically
+- User not authenticated
+
+**Soft Fails (Warn but Proceed):**
+- Comparables disabled by user (package incomplete but deliverable)
+- No author bio available (generic bio used)
+- Agent preferences missing (generic agent list)
+
+**Validation Sequence:**
+1. Auth check (401 if fails)
+2. Manuscript validation (404 if not found, 422 if < 40k)
+3. Spine check (422 if missing)
+4. Component-wise validation (each artifact validated independently)
+5. Package assembly validation (all required pieces present)
+
+**Visibility:**
+- Progress shown for each component generation
+- Failures show which component failed + reason
+- User can retry failed components individually
+
+---
+
+## 4. OUTPUTS
+
+**Artifact Type:** QueryPackage (multi-artifact bundle)
+
+**Required Fields:**
+```json
+{
+  "package_id": "string (UUID)",
+  "manuscriptId": "string",
+  "components": {
+    "queryLetter": {
+      "text": "string",
+      "wordCount": "number",
+      "generated_at": "ISO 8601"
+    },
+    "synopsis": {
+      "text": "string",
+      "length": "enum",
+      "wordCount": "number",
+      "generated_at": "ISO 8601"
+    },
+    "comparables": {
+      "titles": "array of objects",
+      "count": "number",
+      "generated_at": "ISO 8601"
+    },
+    "suggestedAgents": {
+      "agents": "array of objects",
+      "count": "number",
+      "generated_at": "ISO 8601"
+    }
+  },
+  "metadata": {
+    "manuscriptTitle": "string",
+    "genre": "string",
+    "wordCount": "number",
+    "package_created_at": "ISO 8601"
+  }
+}
+```
+
+**Format:**
+- JSON response with `{ success: true, package: {...} }`
+- Success: 200 OK
+- Partial success: 206 Partial Content (some components failed)
+- Validation block: 422 Unprocessable Entity
+
+**Gating:**
+- Query letter MUST be present (hard requirement)
+- Synopsis MUST be present (hard requirement)
+- Comparables optional but recommended
+- Agent list optional but recommended
+- If < 3 components present: return partial package with warnings
+
+**Storage:**
+- Saved as complete package in user's dashboard
+- Individual components also accessible separately
+- Versioned (user can regenerate package)
+
+---
+
+## 5. AUDIT
+
+**Required Events:**
+- Event: QUERY_PACKAGE_GENERATED (success) or QUERY_PACKAGE_PARTIAL (partial) or QUERY_PACKAGE_BLOCKED (blocked)
+- Entity: EvaluationAuditEvent
+
+**Required Fields:**
+```json
+{
+  "event_id": "evt_{timestamp}_{random}",
+  "request_id": "{manuscript_id}_package",
+  "timestamp_utc": "ISO 8601",
+  "function_id": "generateQueryLetterPackage",
+  "canon_hash": "AGENT_PACKAGE_SPEC_v1.0",
+  "governance_version": "1.0.0",
+  "user_email": "user@example.com",
+  "manuscript_id": "{id}",
+  "manuscript_word_count": "{number}",
+  "components_requested": ["query", "synopsis", "comparables", "agents"],
+  "components_generated": ["query", "synopsis"],
+  "components_failed": ["comparables"],
+  "package_complete": false,
+  "matrix_preflight_allowed": true,
+  "llm_invoked": true
+}
+```
+
+**Component-Level Audit:**
+- Each component logs its own audit event
+- Package-level event aggregates all component results
+
+**Sentry Integration:**
+- Errors captured per component with context
+- Package-level failures tracked separately
+
+---
+
+## Canon Reference
+
+- Governed by: `AGENT_PACKAGE_SPEC.md` v1.0
+- Component specs: QUERY_LETTER_SPEC, SYNOPSIS_SPEC, COMPARABLES_CANON_SPEC
+- Input validation: `PHASE_1_GOVERNANCE_EVIDENCE.md`
+
+---
+
+## Test Coverage
+
+- Manual QA: Generate full package for various genres
+- Partial failure scenarios tested
+
+**Acceptance Criteria:**
+✅ Blocks manuscript < 40,000 words  
+✅ Requires evaluated manuscript  
+✅ All components generated successfully  
+✅ Partial package returned if components fail  
+✅ Package audit logs all component status  
+✅ User can retry failed components

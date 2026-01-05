@@ -1,0 +1,195 @@
+# Function Spec: evaluateFullManuscript
+**5-Field Contract** | **Phase:** 0 Complete | **Version:** 1.0.0
+
+---
+
+## 1. INPUTS
+
+**Accepted Types:**
+- `manuscriptId`: string (required, reference to Manuscript entity)
+- `evaluation_mode`: enum (standard | transgressive | trauma_memoir) - default: standard
+- `language_variant`: enum (en-US | en-UK | en-CA | en-AU) - default: en-US
+- `voice_preservation`: enum (maximum | balanced | polish) - default: balanced
+- `market_path`: enum (mainstream_agent_ready | transgressive_niche | literary_extreme)
+- `final_work_type_used`: string (required, Work Type ID from MDM)
+
+**Size Limits:**
+- Minimum: 40,000 words (enforced by matrixPreflight)
+- Maximum: 200,000 words (soft limit, warn if exceeded)
+- Input scale: full_manuscript
+
+**Visible Ingestion:**
+- UploadManuscript page shows upload progress
+- Word count calculated server-side after upload
+- Splitting progress visible (chapters detected)
+- Evaluation progress tracked in real-time via `evaluation_progress` field
+
+**Validation at Entry:**
+- matrixPreflight validates wordCount >= 40,000
+- Work Type routing required before evaluation starts
+- Manuscript must have status="uploaded" or "spine_complete"
+- File format validation (DOCX/DOC/PDF/TXT only)
+
+---
+
+## 2. ROUTING
+
+**Pipeline Selection:**
+- 40,000+ words → `evaluateFullManuscript` (this function)
+- < 40,000 words → blocked or routed to quick evaluation
+
+**Work Type Routing:**
+- Same as quick evaluation: detectWorkType → user confirm → validateWorkTypeMatrix
+- Criteria plan built before Spine evaluation starts
+
+**Evaluation Flow:**
+1. **Phase 1: Summarize** - Each chapter summarized
+2. **Phase 2: Spine** - Overall structure/arc evaluated
+3. **Phase 3: WAVE** - Per-chapter craft analysis
+4. **Phase 4: Finalize** - Compile results, calculate composite score
+
+**Routing Logic:**
+```
+IF wordCount < 40000 THEN BLOCK (INSUFFICIENT_INPUT)
+IF manuscript.status NOT IN [uploaded, spine_complete] THEN BLOCK (invalid_state)
+IF final_work_type_used is NULL THEN BLOCK (confirm_work_type)
+ELSE proceed to full evaluation pipeline
+```
+
+---
+
+## 3. VALIDATION
+
+**Hard Fails (Block Execution):**
+- Manuscript word count < 40,000
+- Manuscript not found
+- Work Type not confirmed
+- Invalid manuscript state (e.g., already evaluating)
+- User not authenticated
+
+**Soft Fails (Warn but Proceed):**
+- Word count > 150,000 (warn: "very long manuscript, may take extended time")
+- Detection confidence = "low" for Work Type
+
+**Validation Sequence:**
+1. Auth check (401 if fails)
+2. Manuscript retrieval (404 if not found)
+3. State validation (409 if invalid state)
+4. matrixPreflight (422 if < 40k words)
+5. Work Type confirmation (400 if missing)
+6. Chapter splitting validation (500 if splitting fails)
+
+**Visibility:**
+- All validation failures return standardized refusal response
+- Real-time progress updates via `evaluation_progress` field
+- Error states visible in ManuscriptDashboard
+- If Phase 3 trigger fails: `wave_trigger_failed` status with retry mechanism
+
+---
+
+## 4. OUTPUTS
+
+**Artifact Type:** Manuscript (entity updated with evaluation results)
+
+**Required Fields:**
+- `spine_score`: number (0-10)
+- `spine_evaluation`: object (full spine analysis)
+- `revisiongrade_overall`: number (composite: spine + WAVE)
+- `revisiongrade_breakdown`: object (score breakdown)
+- `continuity_report`: object (Story Architecture Layer results)
+- `status`: enum (ready | ready_with_errors | failed)
+- `evaluation_progress`: object (real-time tracking)
+
+**Associated Entities:**
+- Chapters: array of Chapter entities with individual WAVE scores
+- EvaluationAuditEvent: audit log entry
+
+**Format:**
+- Manuscript entity updated in-place
+- Success: 200 OK with `{ success: true, manuscript: {...} }`
+- Validation block: 422 Unprocessable Entity
+- Timeout: 408 Request Timeout
+
+**Gating:**
+- NA criteria filtered at Spine and WAVE evaluation stages
+- Confidence capping: full manuscripts get max 95% confidence
+- Phase 3 retry mechanism: max 3 retries if trigger fails
+- If all phases complete: status="ready", else status="ready_with_errors"
+
+**Storage:**
+- Manuscript entity updated with all evaluation results
+- Audit event created per phase (EVAL_SPINE, EVAL_WAVE, EVAL_FINALIZE)
+- Chapter entities created with individual scores
+
+---
+
+## 5. AUDIT
+
+**Required Events:**
+- Event: EVAL_FULL_RUN (success) or EVAL_FULL_BLOCKED (blocked)
+- Entity: EvaluationAuditEvent
+
+**Required Fields:**
+```json
+{
+  "event_id": "evt_{timestamp}_{random}",
+  "request_id": "{manuscript_id}",
+  "timestamp_utc": "ISO 8601",
+  "function_id": "evaluateFullManuscript",
+  "canon_hash": "EVALUATE_ENTRY_CANON_v1.2",
+  "governance_version": "1.0.0",
+  "user_email": "user@example.com",
+  "detected_format": "manuscript",
+  "routed_pipeline": "manuscript",
+  "evaluation_mode": "standard | transgressive | trauma_memoir",
+  "language_variant": "en-US | en-UK | en-CA | en-AU",
+  "voice_preservation": "maximum | balanced | polish",
+  "validators_run": ["matrix_preflight", "work_type_detection", "state_validation"],
+  "validators_failed": [],
+  "failure_codes": [],
+  "manuscript_id": "{id}",
+  "detected_work_type": "{Work Type ID}",
+  "final_work_type_used": "{Work Type ID}",
+  "matrix_version": "v1",
+  "criteria_plan": {...},
+  "matrix_preflight_allowed": true,
+  "matrix_compliance": true,
+  "llm_invoked": true,
+  "phase_started": "spine | wave | finalize",
+  "phase_completed": true | false
+}
+```
+
+**Multi-Phase Audit:**
+- Separate audit events for each phase (Spine, WAVE trigger, Finalize)
+- If Phase 3 fails: `wave_trigger_failed` status + retry audit events
+
+**Sentry Integration:**
+- Errors captured per phase with context
+- Long-running operations monitored for timeouts
+
+---
+
+## Canon Reference
+
+- Governed by: `EVALUATE_ENTRY_CANON.md` v1.2
+- Phase 1 validation: `PHASE_1_GOVERNANCE_EVIDENCE.md` v1.0
+- WAVE system: `WAVE_GUIDE.md` v2.1
+- Story Architecture: `STORY_ARCHITECTURE_GUIDE.md`
+
+---
+
+## Test Coverage
+
+- See: `testMatrixPreflight.js` (input validation)
+- See: `testWorkTypeRouting.js` (MDM routing)
+- Manual QA: Full manuscript upload → complete evaluation flow
+
+**Acceptance Criteria:**
+✅ Blocks manuscript < 40,000 words  
+✅ Work Type confirmed before evaluation  
+✅ All phases complete successfully  
+✅ NA criteria filtered at all stages  
+✅ Confidence capped at 95%  
+✅ Real-time progress tracking works  
+✅ Audit events logged per phase
