@@ -121,6 +121,8 @@ export default function YourWriting() {
   };
 
   const proceedWithEvaluation = async (finalWorkType, userAction, userProvidedWorkType) => {
+    setIsProcessing(true);
+    
     const plainText = text.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ');
     const wordCount = plainText.split(/\s+/).filter(w => w).length;
 
