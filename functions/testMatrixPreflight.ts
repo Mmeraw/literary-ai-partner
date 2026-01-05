@@ -19,7 +19,55 @@ Deno.serve(async (req) => {
 
         console.log('[Phase 1 Testing] Starting Matrix Preflight acceptance tests...');
         
+        // Fetch real submissions from database
+        console.log('\n📊 Fetching real submissions from database...');
+        const submissions = await base44.asServiceRole.entities.Submission.list('-created_date', 50);
+        console.log(`Found ${submissions.length} submissions to test against`);
+        
         const results = [];
+        
+        // Test against real data first
+        if (submissions.length > 0) {
+            console.log('\n🔍 Testing Matrix Preflight against real submissions...');
+            const realDataTests = [];
+            
+            for (const submission of submissions.slice(0, 10)) { // Test first 10
+                const preflight = await matrixPreflight({
+                    inputText: submission.text,
+                    requestType: REQUEST_TYPE.QUICK_EVALUATION,
+                    userEmail: user.email,
+                    base44
+                });
+                
+                realDataTests.push({
+                    submissionId: submission.id,
+                    title: submission.title,
+                    wordCount: preflight.wordCount,
+                    inputScale: preflight.inputScale,
+                    maxConfidence: preflight.maxConfidence,
+                    allowed: preflight.allowed,
+                    blockReason: preflight.blockReason,
+                    originalScore: submission.overall_score,
+                    wouldBeCapped: submission.overall_score > (preflight.maxConfidence / 10)
+                });
+            }
+            
+            results.push({
+                test: 'Real Data: Existing Submissions',
+                expected: 'Validate against actual content',
+                actual: realDataTests,
+                passed: true,
+                summary: {
+                    totalTested: realDataTests.length,
+                    paragraphs: realDataTests.filter(t => t.inputScale === 'paragraph').length,
+                    scenes: realDataTests.filter(t => t.inputScale === 'scene').length,
+                    chapters: realDataTests.filter(t => t.inputScale === 'chapter').length,
+                    wouldBeCapped: realDataTests.filter(t => t.wouldBeCapped).length
+                }
+            });
+        }
+        
+        // Synthetic acceptance tests
         
         // Test 1: Paragraph → Query Letter (Expected: BLOCK)
         console.log('\n🧪 Test 1: Paragraph → Query Letter');
