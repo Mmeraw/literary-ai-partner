@@ -15,17 +15,24 @@ This matrix enforces the **"dirty data is impossible"** doctrine by explicitly d
 
 **Rule:** If an input does not support a claim, the system MUST NOT make that claim — regardless of user request.
 
+**Critical Implementation Rule:** Scope validation MUST execute **before any LLM call**. This prevents hallucinated intermediate reasoning, avoids post-hoc filtering, and keeps audit logs clean.
+
+**Governance Note:** Word count bands are **governance thresholds**, not UX hints. These are hard enforcement boundaries that cannot be treated as soft guidance.
+
 ---
 
 ## MATRIX
 
 | Input Size | Word Count Range | Allowed Outputs | Max Confidence | Must Refuse | Enforcement Trigger |
 |-----------|------------------|-----------------|----------------|-------------|---------------------|
-| **Paragraph** | 50–250 words | • Topic identification<br>• Surface-level notes<br>• Genre hint (low confidence)<br>• Single-moment analysis | **Low** (≤40%) | • Synopsis<br>• Pitch/logline<br>• Full arc claims<br>• Character development assessment<br>• Structural analysis<br>• Market positioning | Input length < 250 words AND request includes prohibited output |
-| **Scene** | 250–2,000 words | • Scene-level analysis<br>• Immediate tension assessment<br>• Moment-specific critique<br>• Limited character observation<br>• Voice sample notes | **Medium** (≤65%) | • Full synopsis<br>• Complete character arcs<br>• Manuscript-level structural claims<br>• Thematic coherence (unless explicit)<br>• Market comps | Input length < 2,000 words AND request requires narrative completeness |
+| **Paragraph** | 50–250 words | • Topic identification<br>• Surface-level notes<br>• Genre hint (low confidence, surface signals only)<br>• Single-moment analysis | **Low** (≤40%) | • Synopsis<br>• Pitch/logline<br>• Full arc claims<br>• Character development assessment<br>• Structural analysis<br>• Market positioning | Input length < 250 words AND request includes prohibited output |
+| **Scene** | 250–2,000 words | • Scene-level analysis<br>• Immediate tension assessment<br>• Moment-specific critique<br>• Limited character observation (behavioral only, no arc inference)<br>• Voice sample notes | **Medium** (≤65%) | • Full synopsis<br>• Complete character arcs<br>• Manuscript-level structural claims<br>• Thematic coherence (unless explicit)<br>• Market comps | Input length < 2,000 words AND request requires narrative completeness |
 | **Chapter** | 2,000–8,000 words | • Chapter structural signals<br>• Pacing within chapter<br>• Character presence in segment<br>• Partial arc hints<br>• WAVE flags (segment-specific) | **Medium-High** (≤75%) | • Full manuscript synopsis<br>• Complete thematic assessment<br>• Definitive market positioning<br>• Full character arc claims<br>• Ending resolution analysis | Input is single chapter AND request assumes full manuscript context |
 | **Multi-Chapter / Novella** | 8,000–40,000 words | • Partial manuscript analysis<br>• Emerging patterns<br>• Structural tendencies<br>• Provisional thematic notes<br>• Conservative market hints | **High** (≤85%) | • Definitive ending assessment<br>• Complete narrative judgment<br>• Full competitive positioning<br>• High-confidence agent pitches | Input < 40,000 words AND request assumes completeness |
-| **Full Manuscript** | 40,000+ words | • All evaluation outputs<br>• Synopsis (all lengths)<br>• Pitch/logline<br>• Query letter<br>• Agent package<br>• Market positioning<br>• Full structural analysis | **High** (≤95%) | • Claims beyond manuscript scope<br>• Invented biographical details<br>• Market guarantees<br>• Sales predictions | Only when input justifies claim AND confidence threshold met |
+
+**Rationale for 85% cap:** Confidence remains capped below full-manuscript levels because narrative closure, thematic resolution, and market positioning cannot be confirmed without an ending.
+
+| **Full Manuscript** | 40,000+ words | • All evaluation outputs<br>• Synopsis (all lengths)<br>• Pitch/logline<br>• Query letter (**requires Full Manuscript**)<br>• Agent package (**requires Full Manuscript**)<br>• Market positioning<br>• Full structural analysis | **High** (≤95%) | • Claims beyond manuscript scope<br>• Invented biographical details<br>• Market guarantees<br>• Sales predictions | Only when input justifies claim AND confidence threshold met |
 
 ---
 
@@ -81,7 +88,7 @@ Minimum required: Full chapter or manuscript (2,000+ words)
 
 **What we can provide:**
 • Topic identification
-• Genre hint
+• Genre hint (surface signals only)
 • Surface-level notes
 
 **What we cannot provide:**
@@ -164,7 +171,7 @@ For Phase 1 to pass, the following MUST be true:
 - [ ] `evaluateQuickSubmission.js` — add scope checks before LLM call
 - [ ] `evaluateFullManuscript.js` — enforce caps even for complete works
 - [ ] `generateSynopsis.js` — block if input < 2,000 words
-- [ ] `generateQueryLetterPackage.js` — require full manuscript
+- [ ] `generateQueryLetterPackage.js` — **requires Full Manuscript (40,000+ words)** — any attempt with smaller input = matrix violation
 - [ ] `generateQueryPitches.js` — block if input insufficient
 
 **Schema Changes:**
@@ -196,7 +203,7 @@ Minimum required: Full manuscript (40,000+ words)
 
 **What we can provide:**
 • Opening hook assessment
-• Genre identification (low confidence)
+• Genre identification (low confidence, surface signals only)
 • Voice sample notes
 
 **To get synopsis/pitch:** Please upload the full manuscript.
@@ -251,7 +258,7 @@ Confidence: 89% ← [Justified by complete input]
 If a violation of this matrix occurs in production:
 1. **Log to Sentry** with tag: `matrix_violation`
 2. **Capture evidence:** input size, request type, output generated
-3. **Block future runs** until fix is deployed
+3. **Block affected request type** until fix is deployed
 4. **Audit trail** must include `matrix_compliance` field
 
 ---
