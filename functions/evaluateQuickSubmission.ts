@@ -115,57 +115,68 @@ Deno.serve(async (req) => {
             technical: 'Technical / Formatting Correctness - Proper format, structure, technical standards'
         };
         
-        // Build applicable criteria list for LLM (schema-level suppression)
-        const applicableCriteriaText = applicableCriteria
-            .map((id, idx) => `${idx + 1}. ${criteriaLabels[id]}`)
+        // Build applicable criteria for LLM with criterion IDs (not labels)
+        const applicableCriteriaForPrompt = applicableCriteria.map(id => ({
+            id,
+            label: criteriaLabels[id],
+            status: criteriaPlan.criteria[id].status
+        }));
+
+        const applicableCriteriaText = applicableCriteriaForPrompt
+            .map((c, idx) => `${idx + 1}. [${c.id}] ${c.label}`)
             .join('\n');
-        
-        // Schema-level: only request applicable criteria in JSON schema
+
+        // Schema: request criterion_id (not label) for governance enforcement
         const criteriaSchemaItems = {
             type: "object",
             properties: {
-                name: { type: "string", enum: applicableCriteria.map(id => criteriaLabels[id]) },
+                criterion_id: { 
+                    type: "string", 
+                    enum: applicableCriteria,
+                    description: "Canonical criterion ID from the provided list"
+                },
                 score: { type: "number", description: "1-10" },
                 strengths: { type: "array", items: { type: "string" } },
                 weaknesses: { type: "array", items: { type: "string" } },
                 agentNotes: { type: "string" }
             },
-            required: ["name", "score", "strengths", "weaknesses", "agentNotes"]
+            required: ["criterion_id", "score", "strengths", "weaknesses", "agentNotes"]
         };
         
-        // Story Evaluation (Agents, Editors, Script Readers)
+        // Story Evaluation with NA-aware prompting (criterion IDs only)
         const agentAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are a professional evaluator (agent, editor, or script reader) assessing a manuscript. 
 
-WORK TYPE: ${criteriaPlan.workTypeLabel} (${criteriaPlan.family})
-MATRIX VERSION: ${criteriaPlan.matrixVersion}
+        WORK TYPE: ${criteriaPlan.workTypeLabel} (${criteriaPlan.family})
+        MATRIX VERSION: ${criteriaPlan.matrixVersion}
 
-STYLE MODE: ${styleMode.toUpperCase()}
-${styleModeContext[styleMode]}
+        APPLICABLE CRITERIA (${applicableCriteria.length} total):
+        ${applicableCriteriaText}
 
-CRITICAL FRAMING RULE:
-Distinguish between three manuscript tiers when scoring and commenting:
-- DEVELOPMENTAL (scores 1-5): Structural issues, unclear voice, weak craft fundamentals
-- REFINEMENT (scores 6-7): Solid foundation, identifiable style, needs targeted polish
-- PROFESSIONAL (scores 8-10): Strong voice, confident execution, minor edge-sharpening only
+        EXCLUDED CRITERIA (Not Applicable for this Work Type - DO NOT evaluate or reference):
+        ${naCriteria.length > 0 ? naCriteria.map(id => `- ${criteriaLabels[id]}`).join('\n') : 'None'}
 
-When scoring 8-10, your commentary MUST acknowledge this is professional-level work.
-Weaknesses at this tier = "opportunities to sharpen" NOT "failures to fix."
-Example: "Voice is distinctive and confident (9/10). The restraint here is intentional—consider whether opening paragraph needs one additional destabilizing beat to immediately signal stakes."
+        STYLE MODE: ${styleMode.toUpperCase()}
+        ${styleModeContext[styleMode]}
 
-Analyze this text against ONLY the following ${applicableCriteria.length} criteria (all others excluded by Work Type):
+        CRITICAL FRAMING RULE:
+        Distinguish between three manuscript tiers:
+        - DEVELOPMENTAL (1-5): Structural issues, unclear voice, weak fundamentals
+        - REFINEMENT (6-7): Solid foundation, needs targeted polish
+        - PROFESSIONAL (8-10): Strong voice, confident execution, minor edge-sharpening only
 
-${applicableCriteriaText}
+        GOVERNANCE REQUIREMENT:
+        - Output criterion_id (e.g., "hook", "voice", "linePolish") NOT labels
+        - Evaluate ONLY applicable criteria
+        - Do NOT reference, score, or suggest improvements based on excluded criteria
 
-CRITICAL: Evaluate ONLY the criteria listed above. Do not reference, score, or comment on any other criteria.
+        TITLE: ${title}
 
-TITLE: ${title}
+        TEXT:
+        ${text}
 
-TEXT:
-${text}
-
-For each criterion provide: score (1-10), strengths (array), weaknesses (array), agentNotes (detailed commentary).
-Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revision/needs significant work), and prioritized revision requests.`,
+        For each applicable criterion: criterion_id, score (1-10), strengths, weaknesses, agentNotes.
+        Revision requests must be based ONLY on applicable criteria.`,
                 response_json_schema: {
                     type: "object",
                     properties: {
@@ -180,10 +191,15 @@ Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revi
                             items: {
                                 type: "object",
                                 properties: {
+                                    criterion_id: {
+                                        type: "string",
+                                        enum: applicableCriteria,
+                                        description: "Which criterion this request addresses"
+                                    },
                                     priority: { type: "string", enum: ["High", "Medium", "Low"] },
                                     instruction: { type: "string" }
                                 },
-                                required: ["priority", "instruction"]
+                                required: ["criterion_id", "priority", "instruction"]
                             }
                         }
                     },
@@ -191,18 +207,25 @@ Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revi
                 }
             });
 
-        // Agent Decision Snapshot
+        // Agent Decision Snapshot (NA-aware)
         const agentSnapshot = await base44.asServiceRole.integrations.Core.InvokeLLM({
-                prompt: `You are a literary agent making a keep-reading decision. Analyze this manuscript excerpt and provide a decisive snapshot.
+                prompt: `You are a literary agent making a keep-reading decision on a ${criteriaPlan.workTypeLabel}.
 
-TEXT:
-${text}
+        WORK TYPE CONTEXT: ${criteriaPlan.workTypeLabel} (${criteriaPlan.family})
 
-Provide:
-1. Keep-reading likelihood (High/Medium/Low)
-2. Biggest risk (one sentence - what would make you reject this)
-3. Biggest strength (one sentence - what makes you keep reading)
-4. Most leverage fix (one sentence - single change with highest impact)`,
+        EXCLUDED EVALUATION AREAS (Not Applicable for this type - do NOT suggest improvements in these areas):
+        ${naCriteria.map(id => `- ${criteriaLabels[id]}`).join('\n')}
+
+        TEXT:
+        ${text}
+
+        Provide a decisive snapshot based ONLY on applicable criteria:
+        1. Keep-reading likelihood (High/Medium/Low)
+        2. Biggest risk - what would make you reject (based on applicable criteria only)
+        3. Biggest strength - what makes you keep reading
+        4. Most leverage fix - single highest-impact change (must use ONLY applicable criteria)
+
+        Do NOT suggest adding elements from excluded criteria.`,
                 response_json_schema: {
                     type: "object",
                     properties: {
@@ -400,127 +423,125 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
 
 
 
-        // DETERMINISTIC POST-PROCESSING SCRUB: Remove NA leakage (MDM Rule M4)
+        // NA OUTPUT GATE: Deterministic criterion-ID-based enforcement (MDM Rule M4)
+        const naOutputGate = {
+            blocked_criteria: [],
+            blocked_revision_requests: [],
+            blocked_wave_hits: [],
+            agentSnapshot_scrubbed: false
+        };
+
+        // Process criteria with criterion_id enforcement
         const processedCriteria = (agentAnalysis.criteria || [])
             .map(criterion => {
-                // Find criterion ID from name (exact enum match)
-                const criterionId = applicableCriteria.find(id => 
-                    criteriaLabels[id] === criterion.name
-                ) || Object.keys(criteriaLabels).find(id => 
-                    criterion.name.toLowerCase().includes(id.toLowerCase())
-                );
-                
-                if (criterionId && criteriaPlan.criteria[criterionId]) {
-                    const status = criteriaPlan.criteria[criterionId].status;
-                    
-                    // MDM RULE M4: NA criteria should never reach here due to schema suppression
-                    // But if they do, return null to filter them out
-                    if (status === 'NA') {
-                        return null;
-                    }
-                    
-                    return {
-                        ...criterion,
-                        status,
-                        blocking_enabled: criteriaPlan.criteria[criterionId].blockingEnabled,
-                        criterion_id: criterionId
-                    };
+                const criterionId = criterion.criterion_id;
+
+                if (!criterionId || !criteriaPlan.criteria[criterionId]) {
+                    console.log('[NA Gate] Unknown criterion_id:', criterionId);
+                    return null;
                 }
-                
-                // Unknown criterion - filter out
-                return null;
+
+                const status = criteriaPlan.criteria[criterionId].status;
+
+                // MDM RULE M4: Hard NA prohibition
+                if (status === 'NA') {
+                    naOutputGate.blocked_criteria.push(criterionId);
+                    console.log('[NA Gate] BLOCKED criterion:', criterionId);
+                    return null;
+                }
+
+                return {
+                    name: criteriaLabels[criterionId], // Add label for UI
+                    criterion_id: criterionId,
+                    score: criterion.score,
+                    strengths: criterion.strengths,
+                    weaknesses: criterion.weaknesses,
+                    agentNotes: criterion.agentNotes,
+                    status,
+                    blocking_enabled: criteriaPlan.criteria[criterionId].blockingEnabled
+                };
             })
             .filter(c => c !== null);
         
-        // Build comprehensive NA term dictionary for deterministic scrubbing
-        const naTermsDictionary = new Set();
+        // Revision requests: criterion-ID gate
+        const filteredRevisionRequests = (agentAnalysis.revisionRequests || [])
+            .filter(req => {
+                if (!req.criterion_id) {
+                    console.log('[NA Gate] Revision request missing criterion_id, dropping');
+                    return false;
+                }
 
-        // Add criterion IDs
+                if (naCriteriaSet.has(req.criterion_id)) {
+                    naOutputGate.blocked_revision_requests.push(req.criterion_id);
+                    console.log('[NA Gate] BLOCKED revision request for NA criterion:', req.criterion_id);
+                    return false;
+                }
+
+                return true;
+            })
+            .map(req => ({
+                ...req,
+                criterion_label: criteriaLabels[req.criterion_id] // Add label for UI
+            }));
+        
+        // Build NA term dictionary for text-based scrubbing (backup layer)
+        const naTermsDictionary = new Set();
         naCriteria.forEach(id => naTermsDictionary.add(id.toLowerCase()));
 
-        // Add common references for each NA criterion
         if (naCriteriaSet.has('dialogue')) {
-            ['dialogue', 'conversation', 'speaking', 'said', 'talk', 'exchange', 'verbal', 'speaking', 'discussion'].forEach(t => naTermsDictionary.add(t));
+            ['dialogue', 'conversation', 'speaking', 'said', 'talk', 'exchange', 'verbal', 'discussion'].forEach(t => naTermsDictionary.add(t));
         }
         if (naCriteriaSet.has('conflict')) {
-            ['conflict', 'tension', 'confrontation', 'clash', 'struggle', 'opposition', 'plot', 'event', 'interaction', 'character interaction', 'pivotal moment', 'complicat'].forEach(t => naTermsDictionary.add(t));
+            ['conflict', 'tension', 'confrontation', 'clash', 'struggle', 'opposition', 'plot', 'event', 'interaction', 'character interaction', 'pivotal moment', 'dramatic'].forEach(t => naTermsDictionary.add(t));
         }
         if (naCriteriaSet.has('worldbuilding')) {
-            ['worldbuilding', 'world-building', 'world building', 'setting detail', 'world detail'].forEach(t => naTermsDictionary.add(t));
+            ['worldbuilding', 'world-building', 'world building', 'setting detail'].forEach(t => naTermsDictionary.add(t));
         }
 
-        // NA Output Gate: deterministic scrubbing function
         function containsNAReference(text) {
             if (!text) return false;
             const lowerText = text.toLowerCase();
-
-            // Check each NA term
             for (const term of naTermsDictionary) {
-                if (lowerText.includes(term)) {
-                    return true;
-                }
+                if (lowerText.includes(term)) return true;
             }
-
             return false;
         }
 
-        // Safe replacement text for NA-contaminated fields
-        const NA_SAFE_REPLACEMENTS = {
-            biggest_risk_essay: "The introspective tone may not sustain reader engagement throughout the full piece.",
-            biggest_risk_memoir: "The reflective structure may need stronger narrative anchors to maintain momentum.",
-            most_leverage_fix_essay: "Strengthen the specificity of sensory details and deepen the thematic resonance.",
-            most_leverage_fix_memoir: "Add more concrete sensory moments to ground the reflection in lived experience."
-        };
-
-        // Scrub revision requests
-        const filteredRevisionRequests = (agentAnalysis.revisionRequests || []).filter(req => {
-            if (containsNAReference(req.instruction)) {
-                console.log(`[NA Scrub] Filtered revision request:`, req.instruction.substring(0, 100));
-                return false;
-            }
-            return true;
-        });
-        
-        // Scrub WAVE hits
+        // WAVE hits: text-based scrubbing (no criterion IDs available)
         const scrubbedWaveHits = (waveAnalysis.waveHits || []).filter(hit => {
             if (containsNAReference(hit.wave_item) || 
                 containsNAReference(hit.evidence_quote) || 
                 containsNAReference(hit.fix)) {
-                console.log(`[NA Scrub] Filtered WAVE hit:`, hit.wave_item);
+                naOutputGate.blocked_wave_hits.push(hit.wave_item);
+                console.log('[NA Gate] BLOCKED WAVE hit:', hit.wave_item);
                 return false;
             }
             return true;
         });
 
-        // Scrub agentSnapshot with comprehensive NA Output Gate
+        // agentSnapshot: text-based scrubbing with hard replacements
+        const NA_SAFE_REPLACEMENTS = {
+            biggest_risk: "The introspective approach may benefit from additional structural anchoring.",
+            most_leverage_fix: "Strengthen sensory specificity and thematic depth in key reflective moments."
+        };
+
+        let agentSnapshotScrubbed = false;
         const scrubbedAgentSnapshot = agentSnapshot ? {
             keep_reading: agentSnapshot.keep_reading,
             biggest_risk: containsNAReference(agentSnapshot.biggest_risk) 
-                ? (criteriaPlan.family === 'Prose Nonfiction' 
-                    ? NA_SAFE_REPLACEMENTS.biggest_risk_essay 
-                    : NA_SAFE_REPLACEMENTS.biggest_risk_memoir)
+                ? (agentSnapshotScrubbed = true, NA_SAFE_REPLACEMENTS.biggest_risk)
                 : agentSnapshot.biggest_risk,
-            biggest_strength: containsNAReference(agentSnapshot.biggest_strength)
-                ? "The voice and reflective tone create genuine emotional resonance."
-                : agentSnapshot.biggest_strength,
+            biggest_strength: agentSnapshot.biggest_strength,
             most_leverage_fix: containsNAReference(agentSnapshot.most_leverage_fix)
-                ? (criteriaPlan.family === 'Prose Nonfiction'
-                    ? NA_SAFE_REPLACEMENTS.most_leverage_fix_essay
-                    : NA_SAFE_REPLACEMENTS.most_leverage_fix_memoir)
+                ? (agentSnapshotScrubbed = true, NA_SAFE_REPLACEMENTS.most_leverage_fix)
                 : agentSnapshot.most_leverage_fix
         } : agentSnapshot;
 
-        // Log NA scrub summary
-        const naScrubbedCount = {
-            revisionRequests: (agentAnalysis.revisionRequests?.length || 0) - filteredRevisionRequests.length,
-            waveHits: (waveAnalysis.waveHits?.length || 0) - scrubbedWaveHits.length,
-            agentSnapshot: (agentSnapshot?.biggest_risk !== scrubbedAgentSnapshot?.biggest_risk ? 1 : 0) +
-                           (agentSnapshot?.most_leverage_fix !== scrubbedAgentSnapshot?.most_leverage_fix ? 1 : 0)
-        };
+        naOutputGate.agentSnapshot_scrubbed = agentSnapshotScrubbed;
 
         console.log('[MDM NA Output Gate]', {
             na_criteria: naCriteria,
-            scrubbed_counts: naScrubbedCount,
+            gate_actions: naOutputGate,
             work_type: final_work_type_used
         });
         
@@ -544,8 +565,15 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 na_criteria: naCriteria,
                 required_criteria: requiredCriteria,
                 na_output_gate: {
-                    scrubbed_counts: naScrubbedCount,
-                    enforcement_active: true
+                    enforcement_active: true,
+                    gate_type: "criterion_id_based",
+                    blocked_counts: {
+                        criteria: naOutputGate.blocked_criteria.length,
+                        revision_requests: naOutputGate.blocked_revision_requests.length,
+                        wave_hits: naOutputGate.blocked_wave_hits.length
+                    },
+                    agentSnapshot_scrubbed: naOutputGate.agentSnapshot_scrubbed,
+                    details: naOutputGate
                 }
             }
         };
