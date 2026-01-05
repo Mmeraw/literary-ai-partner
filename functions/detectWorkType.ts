@@ -178,7 +178,10 @@ Deno.serve(async (req) => {
         
         // Detect Work Type
         const detection = detectWorkTypeFromText(text);
-        const workType = data.workTypes[detection.workTypeId];
+        const workType = data.workTypes[detection.workTypeId] || { 
+            label: 'Unknown Work Type', 
+            family: 'Other' 
+        };
         
         return Response.json({
             detected_work_type: detection.workTypeId,
