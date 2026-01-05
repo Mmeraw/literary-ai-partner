@@ -18,11 +18,36 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { title, text, styleMode } = await req.json();
+        const { title, text, styleMode, final_work_type_used, detected_work_type, detection_confidence, user_action, user_provided_work_type } = await req.json();
 
         if (!title || !text) {
             return Response.json({ error: 'Title and text required' }, { status: 400 });
         }
+        
+        // MDM GATE: Work Type routing required (MDM Canon v1)
+        if (!final_work_type_used) {
+            return Response.json({ 
+                error: 'EVALUATION_BLOCKED',
+                gate_blocked: true,
+                message: 'Work Type not confirmed. Please confirm or correct the detected Work Type before evaluation.',
+                required_field: 'final_work_type_used'
+            }, { status: 400 });
+        }
+        
+        // Load criteria plan from master data
+        const criteriaPlanResult = await base44.functions.invoke('validateWorkTypeMatrix', {
+            action: 'buildPlan',
+            workTypeId: final_work_type_used
+        });
+        
+        if (!criteriaPlanResult.data.success) {
+            return Response.json({
+                error: 'Failed to build criteria plan',
+                details: criteriaPlanResult.data
+            }, { status: 422 });
+        }
+        
+        const criteriaPlan = criteriaPlanResult.data.criteriaPlan;
 
         const wordCount = text.split(/\s+/).filter(w => w).length;
         
@@ -343,7 +368,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             overusedWordHits: overusedWordHits
         };
 
-        // Save to database
+        // Save to database with Work Type audit trail
         let submissionId = null;
         try {
             const newSubmission = await base44.asServiceRole.entities.Submission.create({
@@ -354,6 +379,28 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 status: 'reviewed'
             });
             submissionId = newSubmission.id;
+            
+            // Create audit event (MDM Canon v1 compliance)
+            await base44.asServiceRole.entities.EvaluationAuditEvent.create({
+                event_id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                request_id: submissionId,
+                timestamp_utc: new Date().toISOString(),
+                detected_format: 'scene',
+                routed_pipeline: 'quick',
+                user_email: user.email,
+                evaluation_mode: 'standard',
+                validators_run: ['work_type_detection', 'criteria_plan_builder'],
+                validators_failed: [],
+                failure_codes: [],
+                submission_id: submissionId,
+                detected_work_type: detected_work_type || final_work_type_used,
+                detection_confidence: detection_confidence || 'unknown',
+                user_action: user_action || 'confirm',
+                user_provided_work_type: user_provided_work_type || null,
+                final_work_type_used: final_work_type_used,
+                matrix_version: criteriaPlan.matrixVersion,
+                criteria_plan: criteriaPlan.criteria
+            });
         } catch (saveError) {
             console.error('Save error (non-critical):', saveError);
         }

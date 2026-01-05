@@ -88,6 +88,18 @@ export async function governedEvaluateEntry(req, params) {
     
     console.log('[governedEvaluateEntry] Loading governance bundle...');
     
+    // MDM GATE: Work Type routing required (MDM Canon v1)
+    if (!params.final_work_type_used) {
+        console.error('[governedEvaluateEntry] BLOCKED: final_work_type_used missing');
+        return {
+            passed: false,
+            error: 'EVALUATION_BLOCKED: Work Type not confirmed. User must confirm or override detected Work Type before evaluation.',
+            gate_blocked: true,
+            required_field: 'final_work_type_used',
+            elapsed_ms: Date.now() - startTime
+        };
+    }
+    
     // Load canon documents (non-blocking - log warnings but don't fail)
     const [entryCanon, governanceAddendum, qaChecklist] = await Promise.all([
         loadCanonDocument('EVALUATE_ENTRY_CANON.md'),
