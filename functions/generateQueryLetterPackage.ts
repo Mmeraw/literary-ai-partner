@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { matrixPreflight, REQUEST_TYPE } from './utils/matrixPreflight.js';
 import * as Sentry from 'npm:@sentry/deno@8.43.0';
 
 Sentry.init({
@@ -34,23 +35,18 @@ Deno.serve(async (req) => {
         if (!file_url || !bio) {
             return Response.json({ error: 'file_url and bio are required' }, { status: 400 });
         }
-
-        // MANDATORY: Route through universal extraction
-        // Instead of calling extractPitchFields as a separate function, we inline the logic
-        // to avoid nested function call auth issues
-        console.log('🔄 Step 1: Ingesting file and extracting pitch fields...');
         
-        // Fetch and process file directly
+        // PHASE 1: Fetch manuscript text for preflight validation
+        console.log('🔍 Fetching manuscript for preflight check...');
         const fileName = file_url.toLowerCase();
         const isWordDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc');
         const isTxt = fileName.endsWith('.txt');
         const isPdf = fileName.endsWith('.pdf');
         const isRtf = fileName.endsWith('.rtf');
         
-        let extractedText = '';
+        let manuscriptText = '';
         
         if (isWordDoc) {
-            console.log('🔧 Processing Word document...');
             const response = await fetch(file_url);
             if (!response.ok) {
                 throw new Error(`Failed to fetch DOCX: ${response.status}`);
@@ -59,23 +55,21 @@ Deno.serve(async (req) => {
             const buffer = new Uint8Array(arrayBuffer);
             const mammoth = await import('npm:mammoth@1.8.0');
             const result = await mammoth.extractRawText({ buffer });
-            extractedText = result.value;
+            manuscriptText = result.value;
         } else if (isTxt) {
-            console.log('📄 Processing plain text file...');
             const response = await fetch(file_url);
             if (!response.ok) {
                 throw new Error(`Failed to fetch file: ${response.status}`);
             }
             const buffer = await response.arrayBuffer();
-            extractedText = new TextDecoder().decode(buffer);
+            manuscriptText = new TextDecoder().decode(buffer);
         } else if (isPdf || isRtf) {
-            console.log(`📄 Processing ${isPdf ? 'PDF' : 'RTF'} file...`);
             const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
                 file_url,
                 json_schema: { type: "object", properties: { text: { type: "string" } } }
             });
             if (extracted.status === 'success') {
-                extractedText = extracted.output?.text || '';
+                manuscriptText = extracted.output?.text || '';
             } else {
                 throw new Error(`Extraction failed: ${extracted.details || 'Unknown error'}`);
             }
@@ -85,7 +79,64 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
         
-        const manuscriptSample = extractedText.substring(0, Math.min(50000, extractedText.length));
+        // PHASE 1: Matrix Preflight Validation (MUST execute before LLM)
+        const preflight = await matrixPreflight({
+            inputText: manuscriptText,
+            requestType: REQUEST_TYPE.QUERY_PACKAGE,
+            userEmail: user.email,
+            base44
+        });
+        
+        if (!preflight.allowed) {
+            // Create audit log for blocked request
+            try {
+                await base44.asServiceRole.entities.EvaluationAuditEvent.create({
+                    event_id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    request_id: `blocked_query_${Date.now()}`,
+                    timestamp_utc: new Date().toISOString(),
+                    detected_format: 'manuscript',
+                    routed_pipeline: 'query_package',
+                    user_email: user.email,
+                    evaluation_mode: 'standard',
+                    validators_run: ['matrix_preflight'],
+                    validators_failed: ['matrix_preflight'],
+                    failure_codes: [preflight.blockReason],
+                    ...preflight.audit,
+                    matrix_compliance: false,
+                    llm_invoked: false
+                });
+            } catch (auditError) {
+                console.error('[Phase 1] Audit log failed (non-critical):', auditError);
+            }
+            
+            // Log to Sentry
+            Sentry.captureMessage('Matrix Preflight Blocked Query Package Request', {
+                level: 'warning',
+                tags: { matrix_violation: true, request_type: 'query_package' },
+                extra: {
+                    wordCount: preflight.wordCount,
+                    inputScale: preflight.inputScale,
+                    blockReason: preflight.blockReason,
+                    userEmail: user.email
+                }
+            });
+            
+            return Response.json({ 
+                error: preflight.userFacingCode,
+                ...preflight.refusalMessage
+            }, { status: 422 });
+        }
+        
+        console.log('[Phase 1 Preflight]', {
+            allowed: true,
+            wordCount: preflight.wordCount,
+            inputScale: preflight.inputScale,
+            maxConfidence: preflight.maxConfidence
+        });
+
+        // Step 1: Extract pitch fields (file already fetched for preflight)
+        console.log('🔄 Step 1: Extracting pitch fields...');
+        const manuscriptSample = manuscriptText.substring(0, Math.min(50000, manuscriptText.length));
         console.log(`✅ File processed: ${manuscriptSample.length} characters`);
         
         // Extract pitch fields with LLM
@@ -266,6 +317,29 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
         });
         console.log('✅ Step 4 complete: Query letter generated');
         console.log('🎉 All steps complete - returning results');
+        
+        // Create audit log for successful query package generation
+        try {
+            await base44.asServiceRole.entities.EvaluationAuditEvent.create({
+                event_id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                request_id: `query_success_${Date.now()}`,
+                timestamp_utc: new Date().toISOString(),
+                detected_format: 'manuscript',
+                routed_pipeline: 'query_package',
+                user_email: user.email,
+                evaluation_mode: 'standard',
+                validators_run: ['matrix_preflight'],
+                validators_failed: [],
+                failure_codes: [],
+                ...preflight.audit,
+                matrix_preflight_allowed: true,
+                matrix_compliance: true,
+                llm_invoked: true,
+                llm_invocation_reason: 'preflight_passed'
+            });
+        } catch (auditError) {
+            console.error('[Phase 1] Audit log failed (non-critical):', auditError);
+        }
 
         return Response.json({
             query_letter: queryLetter,
@@ -276,7 +350,12 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
                 word_count: metadata.wordCount || metadata.word_count,
                 comparables: comps.comparables,
                 voiceGatePassed: metadata.meta?.passedVoiceGate,
-                thematicSchema: metadata.thematicSchema
+                thematicSchema: metadata.thematicSchema,
+                matrix_preflight: {
+                    wordCount: preflight.wordCount,
+                    inputScale: preflight.inputScale,
+                    maxConfidenceAllowed: preflight.maxConfidence
+                }
             }
         });
 

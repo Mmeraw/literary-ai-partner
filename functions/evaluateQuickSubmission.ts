@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import { captureError, captureCritical } from './utils/errorTracking.js';
 import { withTimeoutAndRetry } from './utils/retryLogic.js';
+import { matrixPreflight, REQUEST_TYPE } from './utils/matrixPreflight.js';
 import * as Sentry from 'npm:@sentry/deno@8.43.0';
 
 Sentry.init({
@@ -23,6 +24,61 @@ Deno.serve(async (req) => {
         if (!title || !text) {
             return Response.json({ error: 'Title and text required' }, { status: 400 });
         }
+        
+        // PHASE 1: Matrix Preflight Validation (MUST execute before LLM)
+        const preflight = await matrixPreflight({
+            inputText: text,
+            requestType: REQUEST_TYPE.QUICK_EVALUATION,
+            userEmail: user.email,
+            base44
+        });
+        
+        if (!preflight.allowed) {
+            // Create audit log for blocked request
+            try {
+                await base44.asServiceRole.entities.EvaluationAuditEvent.create({
+                    event_id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    request_id: `blocked_${Date.now()}`,
+                    timestamp_utc: new Date().toISOString(),
+                    detected_format: 'scene',
+                    routed_pipeline: 'quick',
+                    user_email: user.email,
+                    evaluation_mode: 'standard',
+                    validators_run: ['matrix_preflight'],
+                    validators_failed: ['matrix_preflight'],
+                    failure_codes: [preflight.blockReason],
+                    ...preflight.audit,
+                    matrix_compliance: false,
+                    llm_invoked: false
+                });
+            } catch (auditError) {
+                console.error('[Phase 1] Audit log failed (non-critical):', auditError);
+            }
+            
+            // Log to Sentry
+            Sentry.captureMessage('Matrix Preflight Blocked Request', {
+                level: 'warning',
+                tags: { matrix_violation: true },
+                extra: {
+                    wordCount: preflight.wordCount,
+                    inputScale: preflight.inputScale,
+                    blockReason: preflight.blockReason,
+                    userEmail: user.email
+                }
+            });
+            
+            return Response.json({ 
+                error: preflight.userFacingCode,
+                ...preflight.refusalMessage
+            }, { status: 422 });
+        }
+        
+        console.log('[Phase 1 Preflight]', {
+            allowed: true,
+            wordCount: preflight.wordCount,
+            inputScale: preflight.inputScale,
+            maxConfidence: preflight.maxConfidence
+        });
         
         // MDM GATE: Work Type routing required (MDM Canon v1)
         if (!final_work_type_used) {
@@ -557,8 +613,14 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             agentSnapshot_status: agentSnapshotDisabledReason || 'generated'
         });
         
+        // Apply confidence cap from preflight (Phase 1)
+        const cappedOverallScore = Math.min(
+            agentAnalysis.overallScore || 5,
+            preflight.maxConfidence / 10 // Convert 0-100 to 0-10
+        );
+        
         const evaluationResult = {
-            overallScore: agentAnalysis.overallScore || 5,
+            overallScore: cappedOverallScore,
             agentVerdict: agentAnalysis.agentVerdict || "Evaluation complete",
             manuscriptTier: manuscriptTier,
             agentSnapshot: scrubbedAgentSnapshot,
@@ -569,6 +631,12 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             styleMode: styleMode,
             thoughtTagSuggestions: thoughtTagSuggestions,
             overusedWordHits: overusedWordHits,
+            matrix_preflight: {
+                wordCount: preflight.wordCount,
+                inputScale: preflight.inputScale,
+                maxConfidenceAllowed: preflight.maxConfidence,
+                confidenceCapped: (agentAnalysis.overallScore || 5) > (preflight.maxConfidence / 10)
+            },
             work_type_routing: {
                 final_work_type_used: final_work_type_used,
                 work_type_label: criteriaPlan.workTypeLabel,
@@ -603,7 +671,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             });
             submissionId = newSubmission.id;
             
-            // Create audit event (MDM Canon v1 compliance)
+            // Create audit event (MDM Canon v1 + Phase 1 compliance)
             await base44.asServiceRole.entities.EvaluationAuditEvent.create({
                 event_id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 request_id: submissionId,
@@ -612,7 +680,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 routed_pipeline: 'quick',
                 user_email: user.email,
                 evaluation_mode: 'standard',
-                validators_run: ['work_type_detection', 'criteria_plan_builder'],
+                validators_run: ['matrix_preflight', 'work_type_detection', 'criteria_plan_builder'],
                 validators_failed: [],
                 failure_codes: [],
                 submission_id: submissionId,
@@ -622,7 +690,13 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 user_provided_work_type: user_provided_work_type || null,
                 final_work_type_used: final_work_type_used,
                 matrix_version: criteriaPlan.matrixVersion,
-                criteria_plan: criteriaPlan.criteria
+                criteria_plan: criteriaPlan.criteria,
+                // Phase 1 audit fields
+                ...preflight.audit,
+                matrix_preflight_allowed: true,
+                matrix_compliance: true,
+                llm_invoked: true,
+                llm_invocation_reason: 'preflight_passed'
             });
         } catch (saveError) {
             console.error('Save error (non-critical):', saveError);
