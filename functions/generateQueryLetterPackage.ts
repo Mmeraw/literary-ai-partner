@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
 
         // MANDATORY: Route through universal extraction
         console.log('🔄 Step 1: Universal extraction via extractPitchFields...');
-        const extractionResult = await base44.functions.invoke('extractPitchFields', {
+        const extractionResult = await base44.asServiceRole.functions.invoke('extractPitchFields', {
             file_url,
             voiceIntensity
         });
