@@ -70,12 +70,14 @@ Deno.serve(async (req) => {
         // Build criteria filtering based on plan (MDM Rule M4: NA hard prohibition)
         const applicableCriteria = [];
         const naCriteria = [];
+        const naCriteriaSet = new Set();
         const optionalCriteria = [];
         const requiredCriteria = [];
         
         for (const [criterionId, criterionMeta] of Object.entries(criteriaPlan.criteria)) {
             if (criterionMeta.status === 'NA') {
                 naCriteria.push(criterionId);
+                naCriteriaSet.add(criterionId.toLowerCase());
             } else if (criterionMeta.status === 'O') {
                 optionalCriteria.push(criterionId);
                 applicableCriteria.push(criterionId);
@@ -113,14 +115,23 @@ Deno.serve(async (req) => {
             technical: 'Technical / Formatting Correctness - Proper format, structure, technical standards'
         };
         
-        // Build applicable criteria list for LLM
+        // Build applicable criteria list for LLM (schema-level suppression)
         const applicableCriteriaText = applicableCriteria
             .map((id, idx) => `${idx + 1}. ${criteriaLabels[id]}`)
             .join('\n');
         
-        const naNotice = naCriteria.length > 0 
-            ? `\n\nCRITICAL: The following criteria are NOT APPLICABLE (N/A) for this Work Type (${criteriaPlan.workTypeLabel}) and MUST NOT be evaluated, scored, or mentioned:\n${naCriteria.map(id => `- ${criteriaLabels[id]}`).join('\n')}\n\nDo NOT provide scores, comments, or suggestions for N/A criteria.`
-            : '';
+        // Schema-level: only request applicable criteria in JSON schema
+        const criteriaSchemaItems = {
+            type: "object",
+            properties: {
+                name: { type: "string", enum: applicableCriteria.map(id => criteriaLabels[id]) },
+                score: { type: "number", description: "1-10" },
+                strengths: { type: "array", items: { type: "string" } },
+                weaknesses: { type: "array", items: { type: "string" } },
+                agentNotes: { type: "string" }
+            },
+            required: ["name", "score", "strengths", "weaknesses", "agentNotes"]
+        };
         
         // Story Evaluation (Agents, Editors, Script Readers)
         const agentAnalysis = await base44.asServiceRole.integrations.Core.InvokeLLM({
@@ -131,7 +142,6 @@ MATRIX VERSION: ${criteriaPlan.matrixVersion}
 
 STYLE MODE: ${styleMode.toUpperCase()}
 ${styleModeContext[styleMode]}
-${naNotice}
 
 CRITICAL FRAMING RULE:
 Distinguish between three manuscript tiers when scoring and commenting:
@@ -143,11 +153,11 @@ When scoring 8-10, your commentary MUST acknowledge this is professional-level w
 Weaknesses at this tier = "opportunities to sharpen" NOT "failures to fix."
 Example: "Voice is distinctive and confident (9/10). The restraint here is intentional—consider whether opening paragraph needs one additional destabilizing beat to immediately signal stakes."
 
-Analyze this text against ONLY the following APPLICABLE criteria (based on Work Type routing):
+Analyze this text against ONLY the following ${applicableCriteria.length} criteria (all others excluded by Work Type):
 
 ${applicableCriteriaText}
 
-DO NOT evaluate or mention any criteria not listed above.
+CRITICAL: Evaluate ONLY the criteria listed above. Do not reference, score, or comment on any other criteria.
 
 TITLE: ${title}
 
@@ -163,17 +173,7 @@ Provide overall score (1-10), agentVerdict (agent-ready/promising but needs revi
                         agentVerdict: { type: "string" },
                         criteria: {
                             type: "array",
-                            items: {
-                                type: "object",
-                                properties: {
-                                    name: { type: "string" },
-                                    score: { type: "number", description: "1-10" },
-                                    strengths: { type: "array", items: { type: "string" } },
-                                    weaknesses: { type: "array", items: { type: "string" } },
-                                    agentNotes: { type: "string" }
-                                },
-                                required: ["name", "score", "strengths", "weaknesses", "agentNotes"]
-                            }
+                            items: criteriaSchemaItems
                         },
                         revisionRequests: {
                             type: "array",
@@ -398,52 +398,97 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
 
         const manuscriptTier = avgScore >= 8 ? 'professional' : avgScore >= 6 ? 'refinement' : 'developmental';
 
-        // Sort wave hits by severity
-        const sortedWaveHits = (waveAnalysis.waveHits || []).sort((a, b) => {
+        // Sort scrubbed wave hits by severity
+        const sortedWaveHits = scrubbedWaveHits.sort((a, b) => {
             const severityOrder = { High: 0, Medium: 1, Low: 2 };
             return severityOrder[a.severity] - severityOrder[b.severity];
         });
 
-        // Post-process criteria: enforce NA = null score (MDM Rule M4)
-        const processedCriteria = (agentAnalysis.criteria || []).map(criterion => {
-            // Find criterion ID from name (fuzzy match)
-            const criterionId = Object.keys(criteriaLabels).find(id => 
-                criterion.name.toLowerCase().includes(id.toLowerCase()) ||
-                criteriaLabels[id].toLowerCase().includes(criterion.name.toLowerCase())
-            );
-            
-            if (criterionId && criteriaPlan.criteria[criterionId]) {
-                const status = criteriaPlan.criteria[criterionId].status;
+        // DETERMINISTIC POST-PROCESSING SCRUB: Remove NA leakage (MDM Rule M4)
+        const processedCriteria = (agentAnalysis.criteria || [])
+            .map(criterion => {
+                // Find criterion ID from name (exact enum match)
+                const criterionId = applicableCriteria.find(id => 
+                    criteriaLabels[id] === criterion.name
+                ) || Object.keys(criteriaLabels).find(id => 
+                    criterion.name.toLowerCase().includes(id.toLowerCase())
+                );
                 
-                // MDM RULE M4: NA hard prohibition
-                if (status === 'NA') {
+                if (criterionId && criteriaPlan.criteria[criterionId]) {
+                    const status = criteriaPlan.criteria[criterionId].status;
+                    
+                    // MDM RULE M4: NA criteria should never reach here due to schema suppression
+                    // But if they do, return null to filter them out
+                    if (status === 'NA') {
+                        return null;
+                    }
+                    
                     return {
                         ...criterion,
-                        score: null,
-                        status: 'NA',
-                        na_reason: 'Not applicable for this Work Type',
-                        strengths: [],
-                        weaknesses: [],
-                        agentNotes: 'N/A for this Work Type'
+                        status,
+                        blocking_enabled: criteriaPlan.criteria[criterionId].blockingEnabled,
+                        criterion_id: criterionId
                     };
                 }
                 
-                return {
-                    ...criterion,
-                    status,
-                    blocking_enabled: criteriaPlan.criteria[criterionId].blockingEnabled
-                };
+                // Unknown criterion - filter out
+                return null;
+            })
+            .filter(c => c !== null);
+        
+        // Scrub revision requests: Remove any that reference NA criteria
+        const filteredRevisionRequests = (agentAnalysis.revisionRequests || []).filter(req => {
+            const instruction = req.instruction.toLowerCase();
+            
+            // Check if instruction references any NA criterion by ID or label
+            for (const naId of naCriteria) {
+                if (instruction.includes(naId.toLowerCase())) {
+                    console.log(`[NA Scrub] Filtered revision request (matched ${naId}):`, req.instruction);
+                    return false;
+                }
+                const label = criteriaLabels[naId];
+                if (label && instruction.includes(label.toLowerCase())) {
+                    console.log(`[NA Scrub] Filtered revision request (matched label ${label}):`, req.instruction);
+                    return false;
+                }
             }
             
-            return criterion;
+            // Check for common NA-related terms
+            const naTerms = ['dialogue', 'conflict', 'conversation', 'tension', 'stakes', 'worldbuilding', 'world-building'];
+            for (const naTerm of naTerms) {
+                if (naCriteriaSet.has(naTerm) && instruction.includes(naTerm)) {
+                    console.log(`[NA Scrub] Filtered revision request (matched term ${naTerm}):`, req.instruction);
+                    return false;
+                }
+            }
+            
+            return true;
         });
         
-        // Filter out NA criteria from revision requests
-        const filteredRevisionRequests = (agentAnalysis.revisionRequests || []).filter(req => {
-            const matchesNACriterion = naCriteria.some(naId => 
-                req.instruction.toLowerCase().includes(naId.toLowerCase())
-            );
-            return !matchesNACriterion;
+        // Scrub WAVE hits: Remove any that are solely based on NA criteria
+        const scrubbedWaveHits = (waveAnalysis.waveHits || []).filter(hit => {
+            const waveItem = hit.wave_item?.toLowerCase() || '';
+            const evidence = hit.evidence_quote?.toLowerCase() || '';
+            const fix = hit.fix?.toLowerCase() || '';
+            
+            // Check if this wave hit is about an NA criterion
+            for (const naId of naCriteria) {
+                const naIdLower = naId.toLowerCase();
+                if (waveItem.includes(naIdLower) || evidence.includes(naIdLower) || fix.includes(naIdLower)) {
+                    console.log(`[NA Scrub] Filtered WAVE hit (matched ${naId}):`, hit.wave_item);
+                    return false;
+                }
+            }
+            
+            // Check for dialogue-related WAVE items if dialogue is NA
+            if (naCriteriaSet.has('dialogue')) {
+                if (waveItem.includes('dialogue') || waveItem.includes('said') || fix.includes('dialogue tag')) {
+                    console.log('[NA Scrub] Filtered dialogue-related WAVE hit:', hit.wave_item);
+                    return false;
+                }
+            }
+            
+            return true;
         });
         
         const evaluationResult = {
