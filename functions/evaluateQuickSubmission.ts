@@ -398,11 +398,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
 
         const manuscriptTier = avgScore >= 8 ? 'professional' : avgScore >= 6 ? 'refinement' : 'developmental';
 
-        // Sort scrubbed wave hits by severity
-        const sortedWaveHits = scrubbedWaveHits.sort((a, b) => {
-            const severityOrder = { High: 0, Medium: 1, Low: 2 };
-            return severityOrder[a.severity] - severityOrder[b.severity];
-        });
+
 
         // DETERMINISTIC POST-PROCESSING SCRUB: Remove NA leakage (MDM Rule M4)
         const processedCriteria = (agentAnalysis.criteria || [])
@@ -436,69 +432,92 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             })
             .filter(c => c !== null);
         
-        // Scrub revision requests: Remove any that reference NA criteria
+        // Build comprehensive NA term dictionary for scrubbing
+        const naTermsDictionary = new Set();
+
+        // Add criterion IDs
+        naCriteria.forEach(id => naTermsDictionary.add(id.toLowerCase()));
+
+        // Add common references for each NA criterion
+        if (naCriteriaSet.has('dialogue')) {
+            ['dialogue', 'conversation', 'speaking', 'said', 'talk', 'exchange', 'verbal'];
+        }
+        if (naCriteriaSet.has('conflict')) {
+            ['conflict', 'tension', 'confrontation', 'clash', 'struggle', 'opposition', 'plot', 'event', 'interaction'];
+        }
+        if (naCriteriaSet.has('worldbuilding')) {
+            ['worldbuilding', 'world-building', 'setting detail', 'world detail'];
+        }
+
+        // Scrub function for text fields
+        function containsNAReference(text) {
+            if (!text) return false;
+            const lowerText = text.toLowerCase();
+
+            // Check each NA term
+            for (const term of naTermsDictionary) {
+                if (lowerText.includes(term)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Scrub revision requests
         const filteredRevisionRequests = (agentAnalysis.revisionRequests || []).filter(req => {
-            const instruction = req.instruction.toLowerCase();
-            
-            // Check if instruction references any NA criterion by ID or label
-            for (const naId of naCriteria) {
-                if (instruction.includes(naId.toLowerCase())) {
-                    console.log(`[NA Scrub] Filtered revision request (matched ${naId}):`, req.instruction);
-                    return false;
-                }
-                const label = criteriaLabels[naId];
-                if (label && instruction.includes(label.toLowerCase())) {
-                    console.log(`[NA Scrub] Filtered revision request (matched label ${label}):`, req.instruction);
-                    return false;
-                }
+            if (containsNAReference(req.instruction)) {
+                console.log(`[NA Scrub] Filtered revision request:`, req.instruction.substring(0, 100));
+                return false;
             }
-            
-            // Check for common NA-related terms
-            const naTerms = ['dialogue', 'conflict', 'conversation', 'tension', 'stakes', 'worldbuilding', 'world-building'];
-            for (const naTerm of naTerms) {
-                if (naCriteriaSet.has(naTerm) && instruction.includes(naTerm)) {
-                    console.log(`[NA Scrub] Filtered revision request (matched term ${naTerm}):`, req.instruction);
-                    return false;
-                }
-            }
-            
             return true;
         });
         
-        // Scrub WAVE hits: Remove any that are solely based on NA criteria
+        // Scrub WAVE hits
         const scrubbedWaveHits = (waveAnalysis.waveHits || []).filter(hit => {
-            const waveItem = hit.wave_item?.toLowerCase() || '';
-            const evidence = hit.evidence_quote?.toLowerCase() || '';
-            const fix = hit.fix?.toLowerCase() || '';
-            
-            // Check if this wave hit is about an NA criterion
-            for (const naId of naCriteria) {
-                const naIdLower = naId.toLowerCase();
-                if (waveItem.includes(naIdLower) || evidence.includes(naIdLower) || fix.includes(naIdLower)) {
-                    console.log(`[NA Scrub] Filtered WAVE hit (matched ${naId}):`, hit.wave_item);
-                    return false;
-                }
+            if (containsNAReference(hit.wave_item) || 
+                containsNAReference(hit.evidence_quote) || 
+                containsNAReference(hit.fix)) {
+                console.log(`[NA Scrub] Filtered WAVE hit:`, hit.wave_item);
+                return false;
             }
-            
-            // Check for dialogue-related WAVE items if dialogue is NA
-            if (naCriteriaSet.has('dialogue')) {
-                if (waveItem.includes('dialogue') || waveItem.includes('said') || fix.includes('dialogue tag')) {
-                    console.log('[NA Scrub] Filtered dialogue-related WAVE hit:', hit.wave_item);
-                    return false;
-                }
-            }
-            
             return true;
+        });
+
+        // Scrub agentSnapshot (comprehensive)
+        const scrubbedAgentSnapshot = agentSnapshot ? {
+            keep_reading: agentSnapshot.keep_reading,
+            biggest_risk: containsNAReference(agentSnapshot.biggest_risk) 
+                ? "The narrative introspection may not sustain reader engagement without additional structural support." 
+                : agentSnapshot.biggest_risk,
+            biggest_strength: agentSnapshot.biggest_strength,
+            most_leverage_fix: containsNAReference(agentSnapshot.most_leverage_fix)
+                ? "Deepen the reflective moments with more specific sensory or emotional detail."
+                : agentSnapshot.most_leverage_fix
+        } : agentSnapshot;
+
+        // Log NA scrub summary
+        const naScrubbedCount = {
+            revisionRequests: (agentAnalysis.revisionRequests?.length || 0) - filteredRevisionRequests.length,
+            waveHits: (waveAnalysis.waveHits?.length || 0) - scrubbedWaveHits.length,
+            agentSnapshot: (agentSnapshot?.biggest_risk !== scrubbedAgentSnapshot?.biggest_risk ? 1 : 0) +
+                           (agentSnapshot?.most_leverage_fix !== scrubbedAgentSnapshot?.most_leverage_fix ? 1 : 0)
+        };
+
+        console.log('[MDM NA Output Gate]', {
+            na_criteria: naCriteria,
+            scrubbed_counts: naScrubbedCount,
+            work_type: final_work_type_used
         });
         
         const evaluationResult = {
             overallScore: agentAnalysis.overallScore || 5,
             agentVerdict: agentAnalysis.agentVerdict || "Evaluation complete",
             manuscriptTier: manuscriptTier,
-            agentSnapshot: agentSnapshot,
+            agentSnapshot: scrubbedAgentSnapshot,
             criteria: processedCriteria,
             revisionRequests: filteredRevisionRequests,
-            waveHits: sortedWaveHits,
+            waveHits: scrubbedWaveHits,
             waveGuidance: waveAnalysis.waveGuidance || { priorityWaves: [], nextActions: [] },
             styleMode: styleMode,
             thoughtTagSuggestions: thoughtTagSuggestions,
@@ -509,7 +528,11 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 family: criteriaPlan.family,
                 matrix_version: criteriaPlan.matrixVersion,
                 na_criteria: naCriteria,
-                required_criteria: requiredCriteria
+                required_criteria: requiredCriteria,
+                na_output_gate: {
+                    scrubbed_counts: naScrubbedCount,
+                    enforcement_active: true
+                }
             }
         };
 
