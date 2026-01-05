@@ -7,19 +7,100 @@ Sentry.init({
   tracesSampleRate: 1.0,
 });
 
-// Load master data from local file
+// Load master data - inline for deployment reliability
 let cachedMasterData = null;
 async function loadMasterData() {
     if (cachedMasterData) return cachedMasterData;
     
-    try {
-        const fileContent = await Deno.readTextFile('./functions/masterdata/work_type_criteria_applicability.v1.json');
-        cachedMasterData = JSON.parse(fileContent);
-        return cachedMasterData;
-    } catch (error) {
-        console.error('Failed to load master data:', error);
-        throw new Error('Master data file not found - evaluation blocked');
-    }
+    // Embedded master data (MDM Canon v1.0.0)
+    cachedMasterData = {
+        "matrixVersion": "v1.0.0",
+        "workTypes": {
+            "personalEssayReflection": {
+                "label": "Personal Essay / Reflection",
+                "family": "Prose Nonfiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "O", "conflict": "NA", "theme": "R",
+                    "pacing": "O", "dialogue": "NA", "worldbuilding": "NA", "stakes": "O",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "memoirVignette": {
+                "label": "Memoir Vignette",
+                "family": "Prose Nonfiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "O", "conflict": "O", "theme": "R",
+                    "pacing": "R", "dialogue": "NA", "worldbuilding": "O", "stakes": "R",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "novelChapter": {
+                "label": "Novel Chapter",
+                "family": "Prose Fiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "R", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "R", "stakes": "R",
+                    "linePolish": "R", "marketFit": "R", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "shortStory": {
+                "label": "Short Story",
+                "family": "Prose Fiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "R", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "R", "stakes": "R",
+                    "linePolish": "R", "marketFit": "R", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "featureScreenplay": {
+                "label": "Feature Screenplay",
+                "family": "Script/Screenplay",
+                "criteria": {
+                    "hook": "R", "voice": "O", "character": "R", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "R", "stakes": "R",
+                    "linePolish": "O", "marketFit": "R", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "scriptSceneFilmTv": {
+                "label": "Script Scene (Film/TV)",
+                "family": "Script/Screenplay",
+                "criteria": {
+                    "hook": "R", "voice": "O", "character": "R", "conflict": "R", "theme": "O",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "O", "stakes": "R",
+                    "linePolish": "O", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "flashFictionMicro": {
+                "label": "Flash Fiction / Micro",
+                "family": "Prose Fiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "O", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "O", "worldbuilding": "O", "stakes": "R",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "proseScene": {
+                "label": "Prose Scene",
+                "family": "Prose Fiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "R", "conflict": "R", "theme": "O",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "O", "stakes": "R",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "otherUserDefined": {
+                "label": "Other (User-Defined)",
+                "family": "Other",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "O", "conflict": "O", "theme": "O",
+                    "pacing": "R", "dialogue": "O", "worldbuilding": "O", "stakes": "O",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            }
+        }
+    };
+    
+    return cachedMasterData;
 }
 
 // Structural detection heuristics (non-ML, pattern-based)
