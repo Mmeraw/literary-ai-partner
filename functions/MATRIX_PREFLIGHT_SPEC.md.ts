@@ -1,0 +1,301 @@
+# MATRIX PREFLIGHT SPEC
+**Implementation Anchor & QA Oracle**  
+**Version:** 1.0.0  
+**Status:** BINDING  
+**Last Updated:** 2026-01-05
+
+---
+
+## PURPOSE
+
+Defines the **scope validation preflight check** that executes before every LLM call to enforce the Minimum Input → Allowed Claims Matrix.
+
+---
+
+## FUNCTION SIGNATURE
+
+```javascript
+function matrixPreflight({
+    inputText: string,
+    requestType: string,
+    manuscriptId?: string,
+    userEmail: string
+}): PreflightResult
+```
+
+---
+
+## INPUTS
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `inputText` | string | ✅ | The text content to be evaluated |
+| `requestType` | enum | ✅ | Type of output requested (see REQUEST_TYPE enum) |
+| `manuscriptId` | string | ❌ | Reference ID if part of larger manuscript |
+| `userEmail` | string | ✅ | For audit trail |
+
+### REQUEST_TYPE Enum
+```javascript
+REQUEST_TYPE = {
+    QUICK_EVALUATION: "quick_evaluation",
+    FULL_MANUSCRIPT_EVALUATION: "full_manuscript_evaluation",
+    SYNOPSIS: "synopsis",
+    QUERY_LETTER: "query_letter",
+    QUERY_PACKAGE: "query_package",
+    PITCH: "pitch",
+    AGENT_PACKAGE: "agent_package",
+    FILM_ADAPTATION: "film_adaptation",
+    BIOGRAPHY: "biography",
+    COMPARABLES: "comparables"
+}
+```
+
+---
+
+## OUTPUTS
+
+```javascript
+interface PreflightResult {
+    allowed: boolean;
+    wordCount: number;
+    inputScale: InputScale;
+    maxConfidence: number;
+    blockReason?: BlockReason;
+    refusalMessage?: RefusalMessage;
+    audit: AuditFields;
+}
+
+enum InputScale {
+    PARAGRAPH = "paragraph",      // 50-250 words
+    SCENE = "scene",               // 250-2,000 words
+    CHAPTER = "chapter",           // 2,000-8,000 words
+    MULTI_CHAPTER = "multi_chapter", // 8,000-40,000 words
+    FULL_MANUSCRIPT = "full_manuscript" // 40,000+ words
+}
+
+interface RefusalMessage {
+    title: string;
+    currentInput: string;
+    minimumRequired: string;
+    allowedOutputs: string[];
+    blockedOutputs: BlockedOutput[];
+}
+
+interface BlockedOutput {
+    name: string;
+    reason: string;
+}
+```
+
+---
+
+## BLOCK_REASON Enum
+
+```javascript
+enum BlockReason {
+    SCOPE_INSUFFICIENT = "SCOPE_INSUFFICIENT",
+    STRUCTURE_INCOMPLETE = "STRUCTURE_INCOMPLETE",
+    HALLUCINATION_RISK = "HALLUCINATION_RISK",
+    VOICE_INSUFFICIENT = "VOICE_INSUFFICIENT",
+    NARRATIVE_INCOMPLETE = "NARRATIVE_INCOMPLETE",
+    MATRIX_VIOLATION = "MATRIX_VIOLATION"
+}
+```
+
+---
+
+## REQUIRED AUDIT FIELDS
+
+Every preflight check MUST emit:
+
+```javascript
+interface AuditFields {
+    timestamp: string;           // ISO 8601 UTC
+    userEmail: string;
+    requestType: string;
+    inputWordCount: number;
+    inputScale: InputScale;
+    allowed: boolean;
+    blockReason?: BlockReason;
+    maxConfidenceAllowed: number;
+    matrixVersion: string;       // "1.0.0"
+    preflightExecutedBeforeLLM: boolean; // MUST be true
+}
+```
+
+**Audit Destination:** EvaluationAuditEvent entity
+
+---
+
+## REFUSAL TEMPLATE KEYS
+
+When `allowed = false`, system MUST populate:
+
+```javascript
+{
+    title: "❌ INSUFFICIENT INPUT",
+    currentInput: `${inputScale} (${wordCount} words)`,
+    minimumRequired: string,  // e.g., "Full manuscript (40,000+ words)"
+    allowedOutputs: string[], // What CAN be done
+    blockedOutputs: [
+        {
+            name: string,     // e.g., "Synopsis"
+            reason: string    // e.g., "requires plot structure"
+        }
+    ]
+}
+```
+
+---
+
+## ENFORCEMENT RULES
+
+### Rule 1: Pre-LLM Execution (Non-Negotiable)
+```javascript
+// ❌ WRONG
+const llmResult = await invokeLLM(prompt);
+if (!matrixPreflight(input)) { return error; }
+
+// ✅ CORRECT
+const preflight = matrixPreflight(input);
+if (!preflight.allowed) {
+    return Response.json({
+        error: "MATRIX_VIOLATION",
+        ...preflight.refusalMessage
+    }, { status: 422 });
+}
+const llmResult = await invokeLLM(prompt);
+```
+
+### Rule 2: Confidence Cap Override
+Even if LLM returns high confidence, cap to `preflight.maxConfidence`:
+```javascript
+const finalConfidence = Math.min(
+    llmConfidence,
+    preflight.maxConfidence
+);
+```
+
+### Rule 3: Audit Trail
+```javascript
+await base44.asServiceRole.entities.EvaluationAuditEvent.create({
+    ...preflight.audit,
+    submission_id: submissionId,
+    matrix_compliance: preflight.allowed
+});
+```
+
+---
+
+## REQUIRED INVOCATION POINTS
+
+This preflight check MUST execute in:
+
+| Function | Request Type | Block If |
+|----------|--------------|----------|
+| `evaluateQuickSubmission` | `QUICK_EVALUATION` | < 250 words for synopsis-level claims |
+| `evaluateFullManuscript` | `FULL_MANUSCRIPT_EVALUATION` | < 40,000 words (should never happen) |
+| `generateSynopsis` | `SYNOPSIS` | < 2,000 words |
+| `generateQueryLetter` | `QUERY_LETTER` | < 40,000 words |
+| `generateQueryLetterPackage` | `QUERY_PACKAGE` | < 40,000 words |
+| `generateQueryPitches` | `PITCH` | < 40,000 words |
+| `generateCompletePackage` | `AGENT_PACKAGE` | < 40,000 words |
+| `generateFilmPitchDeck` | `FILM_ADAPTATION` | < 40,000 words |
+| `uploadAndGenerateBio` | `BIOGRAPHY` | N/A (different validation) |
+| `generateComparables` | `COMPARABLES` | < 40,000 words |
+
+---
+
+## DECISION MATRIX (Quick Reference)
+
+| Input Scale | Max Confidence | Query Letter? | Synopsis? | Pitch? |
+|-------------|----------------|---------------|-----------|--------|
+| Paragraph (50-250) | 40% | ❌ | ❌ | ❌ |
+| Scene (250-2k) | 65% | ❌ | ❌ | ❌ |
+| Chapter (2k-8k) | 75% | ❌ | ⚠️ Limited | ❌ |
+| Multi-Chapter (8k-40k) | 85% | ❌ | ✅ | ⚠️ Provisional |
+| Full Manuscript (40k+) | 95% | ✅ | ✅ | ✅ |
+
+---
+
+## QA ACCEPTANCE TESTS
+
+### Test 1: Paragraph → Query Letter (Expected: BLOCK)
+```javascript
+const result = matrixPreflight({
+    inputText: "200-word paragraph",
+    requestType: "query_letter",
+    userEmail: "test@example.com"
+});
+
+assert(result.allowed === false);
+assert(result.blockReason === "SCOPE_INSUFFICIENT");
+assert(result.refusalMessage.minimumRequired === "Full manuscript (40,000+ words)");
+```
+
+### Test 2: Scene → Synopsis (Expected: BLOCK)
+```javascript
+const result = matrixPreflight({
+    inputText: "1500-word scene",
+    requestType: "synopsis",
+    userEmail: "test@example.com"
+});
+
+assert(result.allowed === false);
+assert(result.wordCount === 1500);
+assert(result.inputScale === "scene");
+```
+
+### Test 3: Full Manuscript → Query Package (Expected: ALLOW)
+```javascript
+const result = matrixPreflight({
+    inputText: "85000-word manuscript",
+    requestType: "query_package",
+    userEmail: "test@example.com"
+});
+
+assert(result.allowed === true);
+assert(result.maxConfidence === 95);
+assert(result.audit.preflightExecutedBeforeLLM === true);
+```
+
+### Test 4: Brilliant Scene Confidence Cap (Expected: CAP at 65%)
+```javascript
+const preflight = matrixPreflight({
+    inputText: "800-word brilliant scene",
+    requestType: "quick_evaluation",
+    userEmail: "test@example.com"
+});
+
+const llmConfidence = 92; // LLM thinks it's amazing
+const finalConfidence = Math.min(llmConfidence, preflight.maxConfidence);
+
+assert(finalConfidence === 65); // Capped despite quality
+```
+
+---
+
+## VIOLATION RESPONSE
+
+If preflight check is bypassed or fails:
+
+1. **Sentry Alert:** Tag `matrix_violation`, capture stack trace
+2. **Block Request:** Return 422 Unprocessable Entity
+3. **Audit Log:** Record violation with full context
+4. **User Message:** Show refusal template (never expose technical error)
+
+---
+
+## IMPLEMENTATION PRIORITY
+
+**Phase 1 Critical Path:**
+1. Create `matrixPreflight()` helper function
+2. Add to `evaluateQuickSubmission` (highest traffic)
+3. Add to `generateQueryLetterPackage` (current regression)
+4. Add to remaining functions per table above
+5. Wire audit trail to EvaluationAuditEvent
+6. Deploy + verify Test 1-4 pass in staging
+
+---
+
+**End of Preflight Spec v1.0.0**
