@@ -208,27 +208,38 @@ Deno.serve(async (req) => {
             });
 
         // Agent Decision Snapshot: DISABLED for NA-locked Work Types (governance enforcement)
-        // When core narrative drivers (conflict, dialogue, worldbuilding) are NA, 
+        // When ALL core narrative drivers (conflict, dialogue, worldbuilding) are NA, 
         // agentSnapshot cannot be trusted to stay within bounds - fail closed instead
         
-        console.log('[NA Governance Check] naCriteria:', naCriteria);
-        console.log('[NA Governance Check] Checking for core drivers:', ['conflict', 'dialogue', 'worldbuilding']);
+        const coreDriversNA = 
+            naCriteria.includes('conflict') &&
+            naCriteria.includes('dialogue') &&
+            naCriteria.includes('worldbuilding');
         
-        const coreDriversNA = ['conflict', 'dialogue', 'worldbuilding'].some(id => naCriteria.includes(id));
-        
-        console.log('[NA Governance Check] coreDriversNA:', coreDriversNA);
+        console.log('[NA_GOV]', { 
+            coreDriversNA, 
+            naCriteria, 
+            final_work_type_used,
+            workTypeLabel: criteriaPlan.workTypeLabel 
+        });
 
         let agentSnapshot = null;
         let agentSnapshotDisabledReason = null;
 
         if (coreDriversNA) {
-            agentSnapshotDisabledReason = `agentSnapshot disabled: core narrative drivers (${naCriteria.filter(id => ['conflict', 'dialogue', 'worldbuilding'].includes(id)).join(', ')}) are NA for ${criteriaPlan.workTypeLabel}`;
-            console.log('[NA Governance] SKIPPING agentSnapshot generation -', agentSnapshotDisabledReason);
+            // FAIL CLOSED: Do not call LLM for agentSnapshot
+            agentSnapshotDisabledReason = `Agent snapshot disabled: core narrative drivers (conflict, dialogue, worldbuilding) are NA for ${criteriaPlan.workTypeLabel}`;
+            console.log('[NA_GOV] BLOCKING agentSnapshot generation -', agentSnapshotDisabledReason);
+            
             // Set deterministic placeholder
-            agentSnapshot = "Snapshot disabled for this Work Type under NA governance.";
+            agentSnapshot = {
+                biggest_risk: null,
+                most_leverage_fix: null,
+                note: 'Agent snapshot disabled for this Work Type under NA governance.'
+            };
         } else {
-            console.log('[NA Governance] Generating agentSnapshot (no core drivers are NA)');
-            // Only generate agentSnapshot if no core drivers are NA
+            // Safe to generate agentSnapshot - core drivers are applicable
+            console.log('[NA_GOV] Generating agentSnapshot (core drivers are applicable)');
             agentSnapshot = await base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are a literary agent making a keep-reading decision on a ${criteriaPlan.workTypeLabel}.
 
