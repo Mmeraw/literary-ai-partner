@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
         }
         
         // Load criteria plan from master data
-        const criteriaPlanResult = await base44.functions.invoke('validateWorkTypeMatrix', {
+        const criteriaPlanResult = await base44.asServiceRole.functions.invoke('validateWorkTypeMatrix', {
             action: 'buildPlan',
             workTypeId: final_work_type_used
         });
@@ -550,19 +550,19 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             console.error('Save error (non-critical):', saveError);
         }
 
-        // Store evaluation signals for progress tracking
-        if (submissionId) {
-            try {
-                await base44.asServiceRole.functions.invoke('storeEvaluationSignals', {
-                    submissionId: submissionId,
-                    evaluationResult,
-                    contentType: 'scene',
-                    isRevision: false
-                });
-            } catch (signalError) {
-                console.error('Failed to store evaluation signals (non-critical):', signalError);
-            }
-        }
+        // Store evaluation signals for progress tracking (disabled - requires admin auth)
+        // if (submissionId) {
+        //     try {
+        //         await base44.asServiceRole.functions.invoke('storeEvaluationSignals', {
+        //             submissionId: submissionId,
+        //             evaluationResult,
+        //             contentType: 'scene',
+        //             isRevision: false
+        //         });
+        //     } catch (signalError) {
+        //         console.error('Failed to store evaluation signals (non-critical):', signalError);
+        //     }
+        // }
 
         return Response.json({
             success: true,
