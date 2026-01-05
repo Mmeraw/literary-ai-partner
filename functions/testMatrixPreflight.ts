@@ -8,6 +8,8 @@ Sentry.init({
   tracesSampleRate: 1.0,
 });
 
+// Phase 1 Matrix Preflight Test Suite
+
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
