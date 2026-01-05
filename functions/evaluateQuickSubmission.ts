@@ -207,25 +207,30 @@ Deno.serve(async (req) => {
                 }
             });
 
-        // Agent Decision Snapshot (NA-aware)
-        const agentSnapshot = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        // Agent Decision Snapshot: DISABLED for NA-locked Work Types (governance enforcement)
+        // When core narrative drivers (conflict, dialogue, worldbuilding) are NA, 
+        // agentSnapshot cannot be trusted to stay within bounds - fail closed instead
+        const coreDriversNA = ['conflict', 'dialogue', 'worldbuilding'].some(id => naCriteriaSet.has(id));
+
+        let agentSnapshot = null;
+        let agentSnapshotDisabledReason = null;
+
+        if (coreDriversNA) {
+            agentSnapshotDisabledReason = `agentSnapshot disabled: core narrative drivers (${naCriteria.join(', ')}) are NA for ${criteriaPlan.workTypeLabel}`;
+            console.log('[NA Governance]', agentSnapshotDisabledReason);
+        } else {
+            // Only generate agentSnapshot if no core drivers are NA
+            agentSnapshot = await base44.asServiceRole.integrations.Core.InvokeLLM({
                 prompt: `You are a literary agent making a keep-reading decision on a ${criteriaPlan.workTypeLabel}.
-
-        WORK TYPE CONTEXT: ${criteriaPlan.workTypeLabel} (${criteriaPlan.family})
-
-        EXCLUDED EVALUATION AREAS (Not Applicable for this type - do NOT suggest improvements in these areas):
-        ${naCriteria.map(id => `- ${criteriaLabels[id]}`).join('\n')}
 
         TEXT:
         ${text}
 
-        Provide a decisive snapshot based ONLY on applicable criteria:
+        Provide a decisive snapshot:
         1. Keep-reading likelihood (High/Medium/Low)
-        2. Biggest risk - what would make you reject (based on applicable criteria only)
+        2. Biggest risk - what would make you reject
         3. Biggest strength - what makes you keep reading
-        4. Most leverage fix - single highest-impact change (must use ONLY applicable criteria)
-
-        Do NOT suggest adding elements from excluded criteria.`,
+        4. Most leverage fix - single highest-impact change`,
                 response_json_schema: {
                     type: "object",
                     properties: {
@@ -237,6 +242,7 @@ Deno.serve(async (req) => {
                     required: ["keep_reading", "biggest_risk", "biggest_strength", "most_leverage_fix"]
                 }
             });
+        }
 
         // Thought-tag detection (WAVE 1)
         const thoughtTagPattern = /,\s*(he|she|i)\s+(thought|wondered|realized|knew|noticed|felt)\b|\b(he|she|i)\s+(thought|wondered|realized|knew|noticed|felt)\s*(?:to\s+(?:himself|herself|myself))?\b/gi;
@@ -484,7 +490,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 criterion_label: criteriaLabels[req.criterion_id] // Add label for UI
             }));
         
-        // Build NA term dictionary for text-based scrubbing (backup layer)
+        // Build NA term dictionary for text-based scrubbing (WAVE hits only)
         const naTermsDictionary = new Set();
         naCriteria.forEach(id => naTermsDictionary.add(id.toLowerCase()));
 
@@ -519,30 +525,16 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             return true;
         });
 
-        // agentSnapshot: text-based scrubbing with hard replacements
-        const NA_SAFE_REPLACEMENTS = {
-            biggest_risk: "The introspective approach may benefit from additional structural anchoring.",
-            most_leverage_fix: "Strengthen sensory specificity and thematic depth in key reflective moments."
-        };
-
-        let agentSnapshotScrubbed = false;
-        const scrubbedAgentSnapshot = agentSnapshot ? {
-            keep_reading: agentSnapshot.keep_reading,
-            biggest_risk: containsNAReference(agentSnapshot.biggest_risk) 
-                ? (agentSnapshotScrubbed = true, NA_SAFE_REPLACEMENTS.biggest_risk)
-                : agentSnapshot.biggest_risk,
-            biggest_strength: agentSnapshot.biggest_strength,
-            most_leverage_fix: containsNAReference(agentSnapshot.most_leverage_fix)
-                ? (agentSnapshotScrubbed = true, NA_SAFE_REPLACEMENTS.most_leverage_fix)
-                : agentSnapshot.most_leverage_fix
-        } : agentSnapshot;
-
-        naOutputGate.agentSnapshot_scrubbed = agentSnapshotScrubbed;
+        // agentSnapshot: Already suppressed for NA-locked Work Types (no scrubbing needed)
+        const scrubbedAgentSnapshot = agentSnapshot; // null if disabled, or clean if generated
+        naOutputGate.agentSnapshot_disabled = agentSnapshotDisabledReason !== null;
+        naOutputGate.agentSnapshot_disabled_reason = agentSnapshotDisabledReason;
 
         console.log('[MDM NA Output Gate]', {
             na_criteria: naCriteria,
             gate_actions: naOutputGate,
-            work_type: final_work_type_used
+            work_type: final_work_type_used,
+            agentSnapshot_status: agentSnapshotDisabledReason || 'generated'
         });
         
         const evaluationResult = {
@@ -566,13 +558,14 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 required_criteria: requiredCriteria,
                 na_output_gate: {
                     enforcement_active: true,
-                    gate_type: "criterion_id_based",
+                    gate_type: "criterion_id_based + agentSnapshot_disabled",
                     blocked_counts: {
                         criteria: naOutputGate.blocked_criteria.length,
                         revision_requests: naOutputGate.blocked_revision_requests.length,
                         wave_hits: naOutputGate.blocked_wave_hits.length
                     },
-                    agentSnapshot_scrubbed: naOutputGate.agentSnapshot_scrubbed,
+                    agentSnapshot_disabled: naOutputGate.agentSnapshot_disabled,
+                    agentSnapshot_disabled_reason: naOutputGate.agentSnapshot_disabled_reason,
                     details: naOutputGate
                 }
             }
