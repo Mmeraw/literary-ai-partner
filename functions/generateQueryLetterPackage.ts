@@ -36,23 +36,89 @@ Deno.serve(async (req) => {
         }
 
         // MANDATORY: Route through universal extraction
-        console.log('🔄 Step 1: Universal extraction via extractPitchFields...');
-        const extractionResult = await base44.asServiceRole.functions.invoke('extractPitchFields', {
-            file_url,
-            voiceIntensity
-        });
+        // Instead of calling extractPitchFields as a separate function, we inline the logic
+        // to avoid nested function call auth issues
+        console.log('🔄 Step 1: Ingesting file and extracting pitch fields...');
         
-        const extractionData = extractionResult.data || extractionResult;
+        // Fetch and process file directly
+        const fileName = file_url.toLowerCase();
+        const isWordDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc');
+        const isTxt = fileName.endsWith('.txt');
+        const isPdf = fileName.endsWith('.pdf');
+        const isRtf = fileName.endsWith('.rtf');
         
-        if (!extractionData.success) {
+        let extractedText = '';
+        
+        if (isWordDoc) {
+            console.log('🔧 Processing Word document...');
+            const response = await fetch(file_url);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch DOCX: ${response.status}`);
+            }
+            const arrayBuffer = await response.arrayBuffer();
+            const buffer = new Uint8Array(arrayBuffer);
+            const mammoth = await import('npm:mammoth@1.8.0');
+            const result = await mammoth.extractRawText({ buffer });
+            extractedText = result.value;
+        } else if (isTxt) {
+            console.log('📄 Processing plain text file...');
+            const response = await fetch(file_url);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch file: ${response.status}`);
+            }
+            const buffer = await response.arrayBuffer();
+            extractedText = new TextDecoder().decode(buffer);
+        } else if (isPdf || isRtf) {
+            console.log(`📄 Processing ${isPdf ? 'PDF' : 'RTF'} file...`);
+            const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
+                file_url,
+                json_schema: { type: "object", properties: { text: { type: "string" } } }
+            });
+            if (extracted.status === 'success') {
+                extractedText = extracted.output?.text || '';
+            } else {
+                throw new Error(`Extraction failed: ${extracted.details || 'Unknown error'}`);
+            }
+        } else {
             return Response.json({ 
-                error: extractionData.error || 'Field extraction failed',
-                details: extractionData.details
-            }, { status: 422 });
+                error: 'Unsupported file format. Please upload DOC, DOCX, TXT, PDF, or RTF files.' 
+            }, { status: 400 });
         }
+        
+        const manuscriptSample = extractedText.substring(0, Math.min(50000, extractedText.length));
+        console.log(`✅ File processed: ${manuscriptSample.length} characters`);
+        
+        // Extract pitch fields with LLM
+        console.log('🔍 Extracting pitch fields...');
+        const extractionPrompt = `Analyze this manuscript excerpt and extract pitch fields:
 
-        const metadata = extractionData.fields;
-        console.log('✅ Step 1 complete - Universal extraction:', { title: metadata.title, genre: metadata.genre });
+MANUSCRIPT TEXT:
+${manuscriptSample}
+
+Extract: title, genre (specific), wordCount (number), logline (1-2 sentences), keyThemes, protagonist, stakes, setting, uniqueHook.
+
+Return structured JSON.`;
+
+        const extracted = await base44.integrations.Core.InvokeLLM({
+            prompt: extractionPrompt,
+            response_json_schema: {
+                type: 'object',
+                properties: {
+                    title: { type: 'string' },
+                    genre: { type: 'string' },
+                    wordCount: { type: 'number' },
+                    logline: { type: 'string' },
+                    keyThemes: { type: 'string' },
+                    protagonist: { type: 'string' },
+                    stakes: { type: 'string' },
+                    setting: { type: 'string' },
+                    uniqueHook: { type: 'string' }
+                }
+            }
+        });
+
+        const metadata = extracted;
+        console.log('✅ Step 1 complete - Pitch fields extracted:', { title: metadata.title, genre: metadata.genre });
 
         // Use user-provided values or extracted ones
         const finalSynopsis = synopsis_mode === 'manual' && existing_synopsis ? existing_synopsis : metadata.logline;
