@@ -15,6 +15,7 @@ import SmartFeaturesBanner from '@/components/revision/SmartFeaturesBanner';
 import RevisionInsights from '@/components/revision/RevisionInsights';
 import DownloadOptions from '@/components/revision/DownloadOptions';
 import VoicePreservationToggle from '@/components/VoicePreservationToggle';
+import VersionHistory from '@/components/revision/VersionHistory';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
@@ -181,12 +182,81 @@ export default function Revise() {
   };
 
   const handleSaveAndExit = async () => {
+    // Create version snapshot before exiting
+    await createVersionSnapshot('revision_commit', 'Manual Save');
+    
     await updateSessionMutation.mutateAsync({
       sessionId: session.id,
       data: { status: 'paused' }
     });
     toast.success('Progress saved');
     window.location.href = createPageUrl('History');
+  };
+
+  const createVersionSnapshot = async (trigger, label) => {
+    if (!session) return;
+
+    const versionId = `v_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const timestamp = new Date().toISOString();
+    
+    const newVersion = {
+      version_id: versionId,
+      timestamp,
+      trigger,
+      snapshot_text: session.current_text,
+      accepted_count: session.suggestions.filter(s => s.status === 'accepted').length,
+      rejected_count: session.suggestions.filter(s => s.status === 'rejected').length,
+      label
+    };
+
+    const updatedHistory = [newVersion, ...(session.version_history || [])];
+
+    await updateSessionMutation.mutateAsync({
+      sessionId: session.id,
+      data: { version_history: updatedHistory }
+    });
+  };
+
+  const handleRestoreVersion = async (version) => {
+    if (!version || version.isCurrent) return;
+
+    toast.loading('Restoring version...', { id: 'restore' });
+
+    try {
+      // Save current state to history FIRST
+      await createVersionSnapshot('revision_commit', 'Before Restore');
+
+      // Create new version from restored snapshot
+      const versionId = `v_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const restoredVersion = {
+        version_id: versionId,
+        timestamp: new Date().toISOString(),
+        trigger: 'restore',
+        snapshot_text: version.snapshot_text,
+        accepted_count: 0, // Reset counts for new working version
+        rejected_count: 0,
+        label: `Restored from ${format(new Date(version.timestamp), 'MMM d, h:mm a')}`
+      };
+
+      // Reset suggestions to pending state for new working version
+      const resetSuggestions = session.suggestions.map(s => ({ ...s, status: 'pending' }));
+
+      await updateSessionMutation.mutateAsync({
+        sessionId: session.id,
+        data: {
+          current_text: version.snapshot_text,
+          suggestions: resetSuggestions,
+          current_position: 0,
+          version_history: [restoredVersion, ...(session.version_history || [])]
+        }
+      });
+
+      toast.success('Version restored as new working version', { id: 'restore' });
+      queryClient.invalidateQueries({ queryKey: ['revisionSession', sessionId] });
+    } catch (error) {
+      console.error('Restore error:', error);
+      toast.error('Failed to restore version', { id: 'restore' });
+    }
   };
 
   const handleComplete = async () => {
@@ -266,6 +336,9 @@ export default function Revise() {
       return;
     }
 
+    // Create version snapshot BEFORE applying Trusted Path
+    await createVersionSnapshot('revision_commit', 'Before Trusted Path');
+
     toast.loading('Applying Trusted Path revisions...', { id: 'trusted-path' });
 
     // Start with original text to avoid compounding errors
@@ -306,6 +379,9 @@ export default function Revise() {
         current_position: Math.min(session.current_position + 1, session.suggestions.length - 1)
       }
     });
+
+    // Create version snapshot AFTER Trusted Path
+    await createVersionSnapshot('trusted_path', `Trusted Path Applied (${pendingSuggestions.length} changes)`);
 
     setShowBeforeAfter(true);
     toast.success(`Applied ${pendingSuggestions.length} High/Medium priority changes`, { id: 'trusted-path' });
@@ -433,6 +509,7 @@ export default function Revise() {
               </p>
             </div>
             <div className="flex gap-2">
+              <VersionHistory session={session} onRestore={handleRestoreVersion} />
               <DownloadOptions session={session} />
               <Button variant="outline" onClick={handleSaveAndExit}>
                 <Save className="w-4 h-4 mr-2" />
