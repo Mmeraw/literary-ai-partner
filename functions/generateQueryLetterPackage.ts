@@ -16,6 +16,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const payload = await req.json();
         const { 
             file_url, 
             bio, 
@@ -27,7 +28,9 @@ Deno.serve(async (req) => {
             manual_comps,
             genre,
             voiceIntensity = 'house'
-        } = await req.json();
+        } = payload;
+        
+        console.log('📦 Received payload:', JSON.stringify(payload, null, 2));
 
         console.log('📥 Query letter generation started:', { file_url, synopsis_mode, comps_mode, genre, voiceIntensity });
 
