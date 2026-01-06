@@ -72,6 +72,16 @@ Deno.serve(async (req) => {
             }, { status: 400 });
         }
         
+        // Reject test/invalid URLs
+        if (file_url.includes('example.com') || file_url.includes('test.txt')) {
+            console.error('❌ Test or invalid URL rejected:', file_url);
+            return Response.json({ 
+                error: 'Invalid file URL',
+                details: 'Test URLs and example.com domains are not allowed. Please upload a real manuscript file.',
+                received_url: file_url
+            }, { status: 400 });
+        }
+        
         // PHASE 1: Fetch manuscript text for preflight validation
         console.log('🔍 Starting manuscript fetch for preflight check...');
         console.log('🔍 file_url:', file_url);
