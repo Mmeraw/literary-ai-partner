@@ -8,6 +8,9 @@ Sentry.init({
 });
 
 Deno.serve(async (req) => {
+    let payload = null;
+    let file_url = null;
+    
     try {
         const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
@@ -16,9 +19,11 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const payload = await req.json();
+        payload = await req.json();
+        console.log('📦 RAW PAYLOAD RECEIVED:', JSON.stringify(payload, null, 2));
+        
         const { 
-            file_url, 
+            file_url: extracted_file_url, 
             bio, 
             synopsis_mode = 'auto',
             existing_synopsis, 
@@ -30,7 +35,7 @@ Deno.serve(async (req) => {
             voiceIntensity = 'house'
         } = payload;
         
-        console.log('📦 Received payload:', JSON.stringify(payload, null, 2));
+        file_url = extracted_file_url;
 
         console.log('📥 Query letter generation started:', { 
             file_url, 
