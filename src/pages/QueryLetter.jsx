@@ -46,11 +46,9 @@ export default function QueryLetter() {
     const revision = useRevisionFlow('query');
 
     const handleAutoGenerate = async () => {
-        const hasBio = autoFormData.bioMode === 'linkedin' ? autoFormData.linkedinUrl : 
-                       autoFormData.bioMode === 'upload' ? autoFormData.bioFile : autoFormData.bioText;
-        
-        if (!autoFormData.manuscriptFile || !hasBio) {
-            toast.error('Please upload your manuscript and provide your bio source');
+        // Removed validation - allow generation without files (AUTO mode)
+        if (!autoFormData.manuscriptFile) {
+            toast.error('Please upload your manuscript');
             return;
         }
 
