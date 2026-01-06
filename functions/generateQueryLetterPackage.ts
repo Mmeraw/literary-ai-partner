@@ -111,6 +111,14 @@ Deno.serve(async (req) => {
             const fileType = isWordDoc ? 'DOCX/DOC' : isPdf ? 'PDF' : isRtf ? 'RTF' : 'TXT';
             console.log('🔍 Extracting', fileType, 'from:', file_url);
             
+            if (!isWordDoc && !isTxt && !isPdf && !isRtf) {
+                return Response.json({ 
+                    error: 'Unsupported file format',
+                    details: 'Please upload DOC, DOCX, TXT, PDF, or RTF files.',
+                    received_filename: fileName
+                }, { status: 400 });
+            }
+            
             try {
                 const extracted = await base44.integrations.Core.InvokeLLM({
                     prompt: "Extract all text from this document. Return ONLY the complete raw text, no markdown formatting, no explanations. Just the text exactly as it appears.",
@@ -132,12 +140,6 @@ Deno.serve(async (req) => {
             } catch (extractError) {
                 console.error('❌ InvokeLLM extraction failed:', extractError);
                 throw new Error(`Failed to extract text from ${fileType} file: ${extractError.message}. The file may be corrupted or the URL may be invalid.`);
-            } else {
-                return Response.json({ 
-                    error: 'Unsupported file format',
-                    details: 'Please upload DOC, DOCX, TXT, PDF, or RTF files.',
-                    received_filename: fileName
-                }, { status: 400 });
             }
             
         } catch (fetchError) {
