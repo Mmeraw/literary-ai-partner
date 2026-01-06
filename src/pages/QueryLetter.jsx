@@ -75,10 +75,51 @@ export default function QueryLetter() {
             if (autoFormData.bioMode === 'upload' && autoFormData.bioFile) {
                 toast.loading('Extracting bio from CV...', { id: 'cv' });
                 const { file_url: bio_url } = await base44.integrations.Core.UploadFile({ file: autoFormData.bioFile });
-                const { data: extractedBio } = await base44.functions.invoke('uploadAndGenerateBio', {
-                    file_url: bio_url
+                
+                // Extract CV data
+                const extractedData = await base44.integrations.Core.ExtractDataFromUploadedFile({
+                    file_url: bio_url,
+                    json_schema: {
+                        type: "object",
+                        properties: {
+                            name: { type: "string" },
+                            education: { type: "array", items: { type: "string" } },
+                            work_experience: { type: "array", items: { type: "string" } },
+                            publications: { type: "array", items: { type: "string" } },
+                            awards: { type: "array", items: { type: "string" } },
+                            skills: { type: "array", items: { type: "string" } }
+                        }
+                    }
                 });
-                bioText = extractedBio.bio;
+                
+                if (extractedData.status !== 'success') {
+                    throw new Error('Failed to extract CV data');
+                }
+                
+                const cvData = extractedData.output;
+                
+                // Generate bio from extracted CV data
+                const bio = await base44.integrations.Core.InvokeLLM({
+                    prompt: `Generate a professional author bio (150-200 words) for literary agent submissions based on this CV/resume data:
+
+Name: ${cvData.name || 'Author'}
+Education: ${cvData.education?.join(', ') || 'N/A'}
+Work Experience: ${cvData.work_experience?.join(', ') || 'N/A'}
+Publications: ${cvData.publications?.join(', ') || 'None listed'}
+Awards: ${cvData.awards?.join(', ') || 'None listed'}
+Skills: ${cvData.skills?.join(', ') || 'N/A'}
+
+Create a concise, agent-ready bio that:
+- Highlights relevant credentials (degrees, professional experience, writing awards)
+- Mentions any published work or writing credentials
+- Focuses on elements that establish writing authority
+- Is written in third person
+- Is professional but engaging
+
+Return only the bio text, no additional commentary.`
+                });
+                
+                bioText = bio;
                 toast.success('Bio extracted from CV', { id: 'cv' });
             }
             
