@@ -107,42 +107,17 @@ Deno.serve(async (req) => {
             
             console.log('🔍 File type detected:', { isWordDoc, isTxt, isPdf, isRtf });
             
-            if (isTxt) {
-                console.log('🔍 Fetching TXT from:', file_url);
-                
-                const fetchResponse = await fetch(file_url, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'text/plain, text/*, */*'
-                    }
-                });
-                
-                console.log('🔍 Fetch response status:', fetchResponse.status);
-                console.log('🔍 Fetch response headers:', Object.fromEntries(fetchResponse.headers.entries()));
-                
-                if (!fetchResponse.ok) {
-                    const errorBody = await fetchResponse.text().catch(() => 'Unable to read error body');
-                    console.error('❌ Fetch failed with body:', errorBody);
-                    throw new Error(`Failed to fetch TXT: ${fetchResponse.status} ${fetchResponse.statusText} - ${errorBody}`);
-                }
-                
-                const buffer = await fetchResponse.arrayBuffer();
-                manuscriptText = new TextDecoder().decode(buffer);
-                console.log('✅ TXT loaded:', manuscriptText.length, 'characters');
-                
-            } else if (isPdf || isRtf || isWordDoc) {
-                const fileType = isWordDoc ? 'DOCX/DOC' : isPdf ? 'PDF' : 'RTF';
-                console.log('🔍 Extracting', fileType, 'from:', file_url);
-                
-                // Use InvokeLLM with file attachment - most robust approach for all formats
-                const extracted = await base44.integrations.Core.InvokeLLM({
-                    prompt: "Extract all text from this document. Return ONLY the complete raw text, no markdown formatting, no explanations. Just the text exactly as it appears.",
-                    file_urls: [file_url]
-                });
-                
-                manuscriptText = extracted.trim();
-                console.log('✅ File extracted:', manuscriptText.length, 'characters');
-            } else {
+            // Use InvokeLLM with file attachment for ALL formats - bypasses CORS
+            const fileType = isWordDoc ? 'DOCX/DOC' : isPdf ? 'PDF' : isRtf ? 'RTF' : 'TXT';
+            console.log('🔍 Extracting', fileType, 'from:', file_url);
+            
+            const extracted = await base44.integrations.Core.InvokeLLM({
+                prompt: "Extract all text from this document. Return ONLY the complete raw text, no markdown formatting, no explanations. Just the text exactly as it appears.",
+                file_urls: [file_url]
+            });
+            
+            manuscriptText = extracted.trim();
+            console.log('✅ File extracted:', manuscriptText.length, 'characters'); else {
                 return Response.json({ 
                     error: 'Unsupported file format',
                     details: 'Please upload DOC, DOCX, TXT, PDF, or RTF files.',
