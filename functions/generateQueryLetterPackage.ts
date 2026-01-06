@@ -111,13 +111,28 @@ Deno.serve(async (req) => {
             const fileType = isWordDoc ? 'DOCX/DOC' : isPdf ? 'PDF' : isRtf ? 'RTF' : 'TXT';
             console.log('🔍 Extracting', fileType, 'from:', file_url);
             
-            const extracted = await base44.integrations.Core.InvokeLLM({
-                prompt: "Extract all text from this document. Return ONLY the complete raw text, no markdown formatting, no explanations. Just the text exactly as it appears.",
-                file_urls: [file_url]
-            });
-            
-            manuscriptText = extracted.trim();
-            console.log('✅ File extracted:', manuscriptText.length, 'characters'); else {
+            try {
+                const extracted = await base44.integrations.Core.InvokeLLM({
+                    prompt: "Extract all text from this document. Return ONLY the complete raw text, no markdown formatting, no explanations. Just the text exactly as it appears.",
+                    file_urls: [file_url]
+                });
+                
+                manuscriptText = extracted.trim();
+                
+                // Check if we got HTML error page instead of file content
+                if (manuscriptText.toLowerCase().includes('<!doctype') || 
+                    manuscriptText.toLowerCase().includes('<html') ||
+                    manuscriptText.length < 100) {
+                    console.error('❌ Received HTML or invalid content instead of file');
+                    console.error('Content preview:', manuscriptText.substring(0, 500));
+                    throw new Error('File URL returned HTML error page instead of file content. The file may not be publicly accessible.');
+                }
+                
+                console.log('✅ File extracted:', manuscriptText.length, 'characters');
+            } catch (extractError) {
+                console.error('❌ InvokeLLM extraction failed:', extractError);
+                throw new Error(`Failed to extract text from ${fileType} file: ${extractError.message}. The file may be corrupted or the URL may be invalid.`);
+            } else {
                 return Response.json({ 
                     error: 'Unsupported file format',
                     details: 'Please upload DOC, DOCX, TXT, PDF, or RTF files.',
