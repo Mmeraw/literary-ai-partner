@@ -89,8 +89,11 @@ Deno.serve(async (req) => {
         let manuscriptText = '';
         
         try {
-            const fileName = file_url.toLowerCase();
+            // Extract filename from URL (handle query params and paths)
+            const urlPath = file_url.split('?')[0]; // Remove query params
+            const fileName = urlPath.split('/').pop().toLowerCase(); // Get last segment
             console.log('🔍 fileName:', fileName);
+            console.log('🔍 full URL:', file_url);
             
             const isWordDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc');
             const isTxt = fileName.endsWith('.txt');
