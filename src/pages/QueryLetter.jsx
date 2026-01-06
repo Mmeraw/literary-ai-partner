@@ -76,38 +76,45 @@ export default function QueryLetter() {
                 toast.loading('Extracting bio from CV...', { id: 'cv' });
                 const { file_url: bio_url } = await base44.integrations.Core.UploadFile({ file: autoFormData.bioFile });
                 
-                // Extract CV data
-                const extractedData = await base44.integrations.Core.ExtractDataFromUploadedFile({
-                    file_url: bio_url,
-                    json_schema: {
-                        type: "object",
-                        properties: {
-                            name: { type: "string" },
-                            education: { type: "array", items: { type: "string" } },
-                            work_experience: { type: "array", items: { type: "string" } },
-                            publications: { type: "array", items: { type: "string" } },
-                            awards: { type: "array", items: { type: "string" } },
-                            skills: { type: "array", items: { type: "string" } }
-                        }
-                    }
-                });
+                const fileName = autoFormData.bioFile.name.toLowerCase();
+                const isWordDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc');
+                const isPdf = fileName.endsWith('.pdf');
                 
-                if (extractedData.status !== 'success') {
-                    throw new Error('Failed to extract CV data');
+                let cvText = '';
+                
+                if (isWordDoc) {
+                    const response = await fetch(bio_url);
+                    if (!response.ok) throw new Error('Failed to fetch CV file');
+                    
+                    const arrayBuffer = await response.arrayBuffer();
+                    const buffer = new Uint8Array(arrayBuffer);
+                    
+                    const mammoth = await import('mammoth');
+                    const result = await mammoth.extractRawText({ buffer });
+                    cvText = result.value;
+                } else if (isPdf) {
+                    const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
+                        file_url: bio_url,
+                        json_schema: { type: "object", properties: { text: { type: "string" } } }
+                    });
+                    
+                    if (extracted.status !== 'success') {
+                        throw new Error('Failed to extract PDF text');
+                    }
+                    cvText = extracted.output?.text || '';
+                } else {
+                    throw new Error('Unsupported CV file type. Please upload DOC, DOCX, or PDF.');
                 }
                 
-                const cvData = extractedData.output;
+                if (!cvText || cvText.length < 50) {
+                    throw new Error('CV text too short or empty');
+                }
                 
-                // Generate bio from extracted CV data
+                // Generate bio from CV text
                 const bio = await base44.integrations.Core.InvokeLLM({
-                    prompt: `Generate a professional author bio (150-200 words) for literary agent submissions based on this CV/resume data:
+                    prompt: `Generate a professional author bio (150-200 words) for literary agent submissions based on this CV/resume:
 
-Name: ${cvData.name || 'Author'}
-Education: ${cvData.education?.join(', ') || 'N/A'}
-Work Experience: ${cvData.work_experience?.join(', ') || 'N/A'}
-Publications: ${cvData.publications?.join(', ') || 'None listed'}
-Awards: ${cvData.awards?.join(', ') || 'None listed'}
-Skills: ${cvData.skills?.join(', ') || 'N/A'}
+${cvText}
 
 Create a concise, agent-ready bio that:
 - Highlights relevant credentials (degrees, professional experience, writing awards)
