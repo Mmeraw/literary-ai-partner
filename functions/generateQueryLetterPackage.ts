@@ -109,14 +109,24 @@ Deno.serve(async (req) => {
             
             if (isTxt) {
                 console.log('🔍 Fetching TXT from:', file_url);
-                const response = await fetch(file_url);
-                console.log('🔍 Fetch response status:', response.status);
                 
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch TXT: ${response.status} ${response.statusText}`);
+                const fetchResponse = await fetch(file_url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'text/plain, text/*, */*'
+                    }
+                });
+                
+                console.log('🔍 Fetch response status:', fetchResponse.status);
+                console.log('🔍 Fetch response headers:', Object.fromEntries(fetchResponse.headers.entries()));
+                
+                if (!fetchResponse.ok) {
+                    const errorBody = await fetchResponse.text().catch(() => 'Unable to read error body');
+                    console.error('❌ Fetch failed with body:', errorBody);
+                    throw new Error(`Failed to fetch TXT: ${fetchResponse.status} ${fetchResponse.statusText} - ${errorBody}`);
                 }
                 
-                const buffer = await response.arrayBuffer();
+                const buffer = await fetchResponse.arrayBuffer();
                 manuscriptText = new TextDecoder().decode(buffer);
                 console.log('✅ TXT loaded:', manuscriptText.length, 'characters');
                 
