@@ -1,5 +1,4 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
-import { matrixPreflight, REQUEST_TYPE } from './utils/matrixPreflight.js';
 import * as Sentry from 'npm:@sentry/deno@8.43.0';
 
 Sentry.init({
@@ -80,12 +79,12 @@ Deno.serve(async (req) => {
         }
         
         // PHASE 1: Matrix Preflight Validation (MUST execute before LLM)
-        const preflight = await matrixPreflight({
+        const preflightResponse = await base44.asServiceRole.functions.invoke('matrixPreflight', {
             inputText: manuscriptText,
-            requestType: REQUEST_TYPE.QUERY_PACKAGE,
-            userEmail: user.email,
-            base44
+            requestType: 'query_package',
+            userEmail: user.email
         });
+        const preflight = preflightResponse.data;
         
         if (!preflight.allowed) {
             // Create audit log for blocked request

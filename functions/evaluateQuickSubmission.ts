@@ -1,8 +1,4 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
-import { captureError, captureCritical } from './utils/errorTracking.js';
-import { withTimeoutAndRetry } from './utils/retryLogic.js';
-import { matrixPreflight, REQUEST_TYPE } from './utils/matrixPreflight.js';
-import { GOVERNANCE_VERSION, CANON_HASHES, buildRefusalResponse, buildAuditBase } from './utils/governanceVersion.js';
 import * as Sentry from 'npm:@sentry/deno@8.43.0';
 
 Sentry.init({
@@ -27,24 +23,26 @@ Deno.serve(async (req) => {
         }
         
         // PHASE 1: Matrix Preflight Validation (MUST execute before LLM)
-        const preflight = await matrixPreflight({
+        const preflightResponse = await base44.asServiceRole.functions.invoke('matrixPreflight', {
             inputText: text,
-            requestType: REQUEST_TYPE.QUICK_EVALUATION,
-            userEmail: user.email,
-            base44
+            requestType: 'quick_evaluation',
+            userEmail: user.email
         });
+        const preflight = preflightResponse.data;
         
         if (!preflight.allowed) {
             // Create audit log for blocked request
             try {
-                const auditBase = buildAuditBase({
+                const auditBaseResponse = await base44.asServiceRole.functions.invoke('governanceVersion', {
+                    action: 'buildAuditBase',
                     eventName: 'EVAL_QUICK_BLOCKED',
                     functionId: 'evaluateQuickSubmission',
-                    canonHash: CANON_HASHES.EVALUATE_ENTRY_CANON,
+                    canonHash: 'EVALUATE_ENTRY_CANON_v1.2',
                     userEmail: user.email,
                     requestId: `blocked_${Date.now()}`
                 });
-                
+                const auditBase = auditBaseResponse.data;
+
                 await base44.asServiceRole.entities.EvaluationAuditEvent.create({
                     ...auditBase,
                     detected_format: 'scene',
@@ -73,9 +71,10 @@ Deno.serve(async (req) => {
                     governanceVersion: GOVERNANCE_VERSION
                 }
             });
-            
+
             // Return standardized refusal response
-            const refusal = buildRefusalResponse({
+            const refusalResponse = await base44.asServiceRole.functions.invoke('governanceVersion', {
+                action: 'buildRefusalResponse',
                 status: "blocked",
                 code: preflight.userFacingCode,
                 userMessage: preflight.refusalMessage?.currentInput 
@@ -86,7 +85,8 @@ Deno.serve(async (req) => {
                     ? "switch_to_full_manuscript" 
                     : "upload_more"
             });
-            
+            const refusal = refusalResponse.data;
+
             return Response.json(refusal, { status: 422 });
         }
         
@@ -99,13 +99,15 @@ Deno.serve(async (req) => {
         
         // MDM GATE: Work Type routing required (MDM Canon v1)
         if (!final_work_type_used) {
-            const refusal = buildRefusalResponse({
+            const refusalResponse = await base44.asServiceRole.functions.invoke('governanceVersion', {
+                action: 'buildRefusalResponse',
                 status: "blocked",
                 code: "EVALUATION_BLOCKED",
                 userMessage: "Work Type not confirmed. Please confirm or correct the detected Work Type before evaluation.",
                 refusalReason: "MATRIX_VIOLATION",
                 nextAction: "confirm_work_type"
             });
+            const refusal = refusalResponse.data;
             return Response.json(refusal, { status: 400 });
         }
         
@@ -689,16 +691,18 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 status: 'reviewed'
             });
             submissionId = newSubmission.id;
-            
+
             // Create audit event (MDM Canon v1 + Phase 1 compliance)
-            const auditBase = buildAuditBase({
+            const auditBaseResponse = await base44.asServiceRole.functions.invoke('governanceVersion', {
+                action: 'buildAuditBase',
                 eventName: 'EVAL_QUICK_RUN',
                 functionId: 'evaluateQuickSubmission',
-                canonHash: CANON_HASHES.EVALUATE_ENTRY_CANON,
+                canonHash: 'EVALUATE_ENTRY_CANON_v1.2',
                 userEmail: user.email,
                 requestId: submissionId
             });
-            
+            const auditBase = auditBaseResponse.data;
+
             await base44.asServiceRole.entities.EvaluationAuditEvent.create({
                 ...auditBase,
                 detected_format: 'scene',
