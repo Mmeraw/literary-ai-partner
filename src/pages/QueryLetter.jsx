@@ -168,23 +168,28 @@ Return only the bio text, no additional commentary.`
             console.log('📦 QueryLetter raw result:', response);
             console.log('📦 Response type:', typeof response);
             console.log('📦 Response keys:', Object.keys(response || {}));
-            console.log('📦 Query letter field:', response?.query_letter);
-            console.log('📦 Suggested agents field:', response?.suggested_agents);
             console.log('📦 Full JSON:', JSON.stringify(response, null, 2));
 
+            // Extract data from response (handle both data.data and direct data structure)
+            const data = response.data || response;
+            
+            console.log('📦 Extracted data:', data);
+            console.log('📦 Query letter field:', data?.query_letter);
+            console.log('📦 Suggested agents field:', data?.suggested_agents);
+
             // Validate response structure
-            if (!response || typeof response !== 'object') {
+            if (!data || typeof data !== 'object') {
                 throw new Error('Invalid response format received');
             }
 
-            if (!response.query_letter) {
+            if (!data.query_letter) {
                 console.error('Missing query_letter in response. Full response:', response);
                 throw new Error('Query letter not found in response');
             }
 
-            // base44.functions.invoke returns data directly
-            setQueryLetter(response.query_letter);
-            setSuggestedAgents(response.suggested_agents || []);
+            // base44.functions.invoke may wrap data in response.data
+            setQueryLetter(data.query_letter);
+            setSuggestedAgents(data.suggested_agents || []);
 
             // Create baseline OutputVersion
             await revision.createBaseline(response.query_letter, `query_${Date.now()}`);
