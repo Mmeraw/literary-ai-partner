@@ -1,9 +1,8 @@
 /**
  * GOVERNANCE VERSION SERVICE
  * Standalone function that provides governance constants
+ * Internal service - no auth required
  */
-
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 const GOVERNANCE_VERSION = "1.0.0";
 

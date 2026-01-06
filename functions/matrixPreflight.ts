@@ -1,6 +1,7 @@
 /**
  * MATRIX PREFLIGHT VALIDATION SERVICE
  * Standalone function for Phase 1 input-scope validation
+ * Internal service - uses asServiceRole for manuscript retrieval if needed
  */
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
