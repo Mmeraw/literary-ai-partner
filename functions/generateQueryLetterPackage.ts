@@ -118,17 +118,15 @@ Deno.serve(async (req) => {
             } else if (isPdf || isRtf || isWordDoc) {
                 const fileType = isWordDoc ? 'DOCX/DOC' : isPdf ? 'PDF' : 'RTF';
                 console.log('🔍 Extracting', fileType, 'from:', file_url);
-                const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
-                    file_url,
-                    json_schema: { type: "object", properties: { text: { type: "string" } } }
+                
+                // Use InvokeLLM with file attachment - most robust approach for all formats
+                const extracted = await base44.integrations.Core.InvokeLLM({
+                    prompt: "Extract all text from this document. Return ONLY the complete raw text, no markdown formatting, no explanations. Just the text exactly as it appears.",
+                    file_urls: [file_url]
                 });
                 
-                if (extracted.status === 'success') {
-                    manuscriptText = extracted.output?.text || '';
-                    console.log('✅ File extracted:', manuscriptText.length, 'characters');
-                } else {
-                    throw new Error(`Extraction failed: ${extracted.details || 'Unknown error'}`);
-                }
+                manuscriptText = extracted.trim();
+                console.log('✅ File extracted:', manuscriptText.length, 'characters');
             } else {
                 return Response.json({ 
                     error: 'Unsupported file format',
