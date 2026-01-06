@@ -190,7 +190,7 @@ Return only the bio text, no additional commentary.`
             setSuggestedAgents(data.suggested_agents || []);
 
             // Create baseline OutputVersion
-            await revision.createBaseline(response.query_letter, `query_${Date.now()}`);
+            await revision.createBaseline(data.query_letter, `query_${Date.now()}`);
 
             toast.success('Query letter generated with agent recommendations!');
         } catch (error) {
