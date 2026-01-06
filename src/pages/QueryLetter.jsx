@@ -176,25 +176,51 @@ Return only the bio text, no additional commentary.`
             
             console.log('📦 Extracted data:', data);
             console.log('📦 Query letter field:', data?.query_letter);
+            console.log('📦 Query letter type:', typeof data?.query_letter);
+            console.log('📦 Query letter length:', data?.query_letter?.length);
             console.log('📦 Suggested agents field:', data?.suggested_agents);
 
             // Validate response structure
             if (!data || typeof data !== 'object') {
-                throw new Error('Invalid response format received');
+                console.error('❌ Invalid response format:', { data, response });
+                toast.error('Invalid response format received from server');
+                return;
             }
 
             if (!data.query_letter) {
-                console.error('Missing query_letter in response. Full response:', response);
-                throw new Error('Query letter not found in response');
+                console.error('❌ Missing query_letter in response. Full response:', {
+                    response,
+                    data,
+                    keys: Object.keys(data || {}),
+                    hasError: !!data.error,
+                    errorMessage: data.error
+                });
+                
+                if (data.error) {
+                    toast.error(`Server error: ${data.error}`, {
+                        description: data.details || 'Check console for details'
+                    });
+                } else {
+                    toast.error('Query letter not found in server response', {
+                        description: 'The server responded but did not include the query letter. Check console for details.'
+                    });
+                }
+                return;
             }
 
+            console.log('✅ Setting query letter state:', data.query_letter.substring(0, 100) + '...');
+            
             // base44.functions.invoke may wrap data in response.data
             setQueryLetter(data.query_letter);
             setSuggestedAgents(data.suggested_agents || []);
 
+            console.log('✅ State updated, creating baseline...');
+            
             // Create baseline OutputVersion
             await revision.createBaseline(data.query_letter, `query_${Date.now()}`);
 
+            console.log('✅ Baseline created!');
+            
             toast.success('Query letter generated with agent recommendations!');
         } catch (error) {
             console.error('Query letter generation error:', error);
