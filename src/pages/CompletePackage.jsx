@@ -121,41 +121,53 @@ export default function CompletePackage() {
 
         setLoadingBio(true);
         try {
-            // Upload file first
             const { file_url } = await base44.integrations.Core.UploadFile({ file });
             
-            // Extract CV data
-            const extractedData = await base44.integrations.Core.ExtractDataFromUploadedFile({
-                file_url,
-                json_schema: {
-                    type: "object",
-                    properties: {
-                        name: { type: "string" },
-                        education: { type: "array", items: { type: "string" } },
-                        work_experience: { type: "array", items: { type: "string" } },
-                        publications: { type: "array", items: { type: "string" } },
-                        awards: { type: "array", items: { type: "string" } },
-                        skills: { type: "array", items: { type: "string" } }
-                    }
-                }
-            });
+            const fileName = file.name.toLowerCase();
+            const isWordDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc');
+            const isPdf = fileName.endsWith('.pdf');
+            const isRtf = fileName.endsWith('.rtf');
+            const isTxt = fileName.endsWith('.txt');
             
-            if (extractedData.status !== 'success') {
-                throw new Error('Failed to extract CV data');
+            let cvText = '';
+            
+            if (isWordDoc) {
+                const response = await fetch(file_url);
+                if (!response.ok) throw new Error('Failed to fetch CV file');
+                
+                const arrayBuffer = await response.arrayBuffer();
+                const buffer = new Uint8Array(arrayBuffer);
+                
+                const mammoth = await import('mammoth');
+                const result = await mammoth.extractRawText({ buffer });
+                cvText = result.value;
+            } else if (isTxt) {
+                const response = await fetch(file_url);
+                if (!response.ok) throw new Error('Failed to fetch TXT file');
+                cvText = await response.text();
+            } else if (isPdf || isRtf) {
+                const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
+                    file_url,
+                    json_schema: { type: "object", properties: { text: { type: "string" } } }
+                });
+                
+                if (extracted.status !== 'success') {
+                    throw new Error(`Failed to extract ${isPdf ? 'PDF' : 'RTF'} text`);
+                }
+                cvText = extracted.output?.text || '';
+            } else {
+                throw new Error('Unsupported file type. Please upload DOC, DOCX, PDF, RTF, or TXT.');
             }
             
-            const cvData = extractedData.output;
+            if (!cvText || cvText.length < 50) {
+                throw new Error('CV text too short or empty');
+            }
             
-            // Generate bio from extracted CV data
+            // Generate bio from CV text
             const bio = await base44.integrations.Core.InvokeLLM({
-                prompt: `Generate a professional author bio (150-200 words) for literary agent submissions based on this CV/resume data:
+                prompt: `Generate a professional author bio (150-200 words) for literary agent submissions based on this CV/resume:
 
-Name: ${cvData.name || 'Author'}
-Education: ${cvData.education?.join(', ') || 'N/A'}
-Work Experience: ${cvData.work_experience?.join(', ') || 'N/A'}
-Publications: ${cvData.publications?.join(', ') || 'None listed'}
-Awards: ${cvData.awards?.join(', ') || 'None listed'}
-Skills: ${cvData.skills?.join(', ') || 'N/A'}
+${cvText}
 
 Create a concise, agent-ready bio that:
 - Highlights relevant credentials (degrees, professional experience, writing awards)
@@ -169,13 +181,12 @@ Return only the bio text, no additional commentary.`
 
             setManuscriptInfo(prev => ({ 
                 ...prev, 
-                authorBio: bio,
-                authorName: cvData.name || prev.authorName
+                authorBio: bio
             }));
             toast.success('Bio generated from CV!');
         } catch (error) {
             console.error('CV upload error:', error);
-            toast.error('Failed to process CV');
+            toast.error(error.message || 'Failed to process CV');
         } finally {
             setLoadingBio(false);
             e.target.value = '';

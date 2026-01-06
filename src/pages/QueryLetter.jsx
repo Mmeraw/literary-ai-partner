@@ -79,6 +79,8 @@ export default function QueryLetter() {
                 const fileName = autoFormData.bioFile.name.toLowerCase();
                 const isWordDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc');
                 const isPdf = fileName.endsWith('.pdf');
+                const isRtf = fileName.endsWith('.rtf');
+                const isTxt = fileName.endsWith('.txt');
                 
                 let cvText = '';
                 
@@ -92,18 +94,22 @@ export default function QueryLetter() {
                     const mammoth = await import('mammoth');
                     const result = await mammoth.extractRawText({ buffer });
                     cvText = result.value;
-                } else if (isPdf) {
+                } else if (isTxt) {
+                    const response = await fetch(bio_url);
+                    if (!response.ok) throw new Error('Failed to fetch TXT file');
+                    cvText = await response.text();
+                } else if (isPdf || isRtf) {
                     const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
                         file_url: bio_url,
                         json_schema: { type: "object", properties: { text: { type: "string" } } }
                     });
                     
                     if (extracted.status !== 'success') {
-                        throw new Error('Failed to extract PDF text');
+                        throw new Error(`Failed to extract ${isPdf ? 'PDF' : 'RTF'} text`);
                     }
                     cvText = extracted.output?.text || '';
                 } else {
-                    throw new Error('Unsupported CV file type. Please upload DOC, DOCX, or PDF.');
+                    throw new Error('Unsupported file type. Please upload DOC, DOCX, PDF, RTF, or TXT.');
                 }
                 
                 if (!cvText || cvText.length < 50) {
