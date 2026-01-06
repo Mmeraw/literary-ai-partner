@@ -89,10 +89,9 @@ export default function QueryLetter() {
                     if (!response.ok) throw new Error('Failed to fetch CV file');
                     
                     const arrayBuffer = await response.arrayBuffer();
-                    const buffer = new Uint8Array(arrayBuffer);
                     
                     const mammoth = await import('mammoth');
-                    const result = await mammoth.extractRawText({ buffer });
+                    const result = await mammoth.extractRawText({ arrayBuffer });
                     cvText = result.value;
                 } else if (isTxt) {
                     const response = await fetch(bio_url);
