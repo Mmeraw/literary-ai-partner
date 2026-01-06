@@ -67,52 +67,88 @@ Deno.serve(async (req) => {
         }
         
         // PHASE 1: Fetch manuscript text for preflight validation
-        console.log('🔍 Fetching manuscript for preflight check...');
-        console.log('🔍 file_url value:', file_url, 'type:', typeof file_url);
-        
-        if (!file_url) {
-            throw new Error('file_url is missing or undefined');
-        }
-        
-        const fileName = file_url.toLowerCase();
-        const isWordDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc');
-        const isTxt = fileName.endsWith('.txt');
-        const isPdf = fileName.endsWith('.pdf');
-        const isRtf = fileName.endsWith('.rtf');
+        console.log('🔍 Starting manuscript fetch for preflight check...');
+        console.log('🔍 file_url:', file_url);
         
         let manuscriptText = '';
         
-        if (isWordDoc) {
-            const response = await fetch(file_url);
-            if (!response.ok) {
-                throw new Error(`Failed to fetch DOCX: ${response.status}`);
-            }
-            const arrayBuffer = await response.arrayBuffer();
-            const buffer = new Uint8Array(arrayBuffer);
-            const mammoth = await import('npm:mammoth@1.8.0');
-            const result = await mammoth.extractRawText({ buffer });
-            manuscriptText = result.value;
-        } else if (isTxt) {
-            const response = await fetch(file_url);
-            if (!response.ok) {
-                throw new Error(`Failed to fetch file: ${response.status}`);
-            }
-            const buffer = await response.arrayBuffer();
-            manuscriptText = new TextDecoder().decode(buffer);
-        } else if (isPdf || isRtf) {
-            const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
-                file_url,
-                json_schema: { type: "object", properties: { text: { type: "string" } } }
-            });
-            if (extracted.status === 'success') {
-                manuscriptText = extracted.output?.text || '';
+        try {
+            const fileName = file_url.toLowerCase();
+            console.log('🔍 fileName:', fileName);
+            
+            const isWordDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc');
+            const isTxt = fileName.endsWith('.txt');
+            const isPdf = fileName.endsWith('.pdf');
+            const isRtf = fileName.endsWith('.rtf');
+            
+            console.log('🔍 File type detected:', { isWordDoc, isTxt, isPdf, isRtf });
+            
+            if (isWordDoc) {
+                console.log('🔍 Fetching DOCX from:', file_url);
+                const response = await fetch(file_url);
+                console.log('🔍 Fetch response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch DOCX: ${response.status} ${response.statusText}`);
+                }
+                
+                const arrayBuffer = await response.arrayBuffer();
+                const buffer = new Uint8Array(arrayBuffer);
+                console.log('🔍 Buffer size:', buffer.length);
+                
+                const mammoth = await import('npm:mammoth@1.8.0');
+                const result = await mammoth.extractRawText({ buffer });
+                manuscriptText = result.value;
+                console.log('✅ DOCX extracted:', manuscriptText.length, 'characters');
+                
+            } else if (isTxt) {
+                console.log('🔍 Fetching TXT from:', file_url);
+                const response = await fetch(file_url);
+                console.log('🔍 Fetch response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch TXT: ${response.status} ${response.statusText}`);
+                }
+                
+                const buffer = await response.arrayBuffer();
+                manuscriptText = new TextDecoder().decode(buffer);
+                console.log('✅ TXT loaded:', manuscriptText.length, 'characters');
+                
+            } else if (isPdf || isRtf) {
+                console.log('🔍 Extracting', isPdf ? 'PDF' : 'RTF', 'from:', file_url);
+                const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
+                    file_url,
+                    json_schema: { type: "object", properties: { text: { type: "string" } } }
+                });
+                
+                if (extracted.status === 'success') {
+                    manuscriptText = extracted.output?.text || '';
+                    console.log('✅ File extracted:', manuscriptText.length, 'characters');
+                } else {
+                    throw new Error(`Extraction failed: ${extracted.details || 'Unknown error'}`);
+                }
             } else {
-                throw new Error(`Extraction failed: ${extracted.details || 'Unknown error'}`);
+                return Response.json({ 
+                    error: 'Unsupported file format',
+                    details: 'Please upload DOC, DOCX, TXT, PDF, or RTF files.',
+                    received_filename: fileName
+                }, { status: 400 });
             }
-        } else {
-            return Response.json({ 
-                error: 'Unsupported file format. Please upload DOC, DOCX, TXT, PDF, or RTF files.' 
-            }, { status: 400 });
+            
+        } catch (fetchError) {
+            console.error('❌ File fetch/processing error:', fetchError);
+            console.error('Error details:', {
+                message: fetchError.message,
+                stack: fetchError.stack,
+                file_url
+            });
+            
+            return Response.json({
+                error: 'Failed to fetch or process manuscript file',
+                details: fetchError.message,
+                file_url,
+                step: 'file_fetch'
+            }, { status: 500 });
         }
         
         // PHASE 1: Matrix Preflight Validation (MUST execute before LLM)
