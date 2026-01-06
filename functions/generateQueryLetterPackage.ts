@@ -21,10 +21,16 @@ Deno.serve(async (req) => {
         }
 
         // CRITICAL: Parse and log payload BEFORE any external operations
-        payload = await req.json();
-        console.log('📦 RAW PAYLOAD RECEIVED:', JSON.stringify(payload, null, 2));
-        console.log('📦 Payload keys:', Object.keys(payload));
-        console.log('📦 Payload types:', Object.keys(payload).map(k => `${k}: ${typeof payload[k]}`).join(', '));
+        const rawPayload = await req.json();
+        console.log('📦 RAW PAYLOAD RECEIVED:', JSON.stringify(rawPayload, null, 2));
+        console.log('📦 Raw payload type:', typeof rawPayload);
+        console.log('📦 Raw payload keys:', Object.keys(rawPayload || {}));
+        
+        // Handle potential SDK wrapping (check if payload is wrapped in body/data/params)
+        payload = rawPayload?.body || rawPayload?.data || rawPayload?.params || rawPayload;
+        console.log('📦 UNWRAPPED PAYLOAD:', JSON.stringify(payload, null, 2));
+        console.log('📦 Payload keys:', Object.keys(payload || {}));
+        console.log('📦 Payload types:', Object.keys(payload || {}).map(k => `${k}: ${typeof payload[k]}`).join(', '));
         
         const { 
             file_url: extracted_file_url, 
@@ -37,7 +43,7 @@ Deno.serve(async (req) => {
             manual_comps,
             genre,
             voiceIntensity = 'house'
-        } = payload;
+        } = payload || {};
         
         file_url = extracted_file_url;
         bio = extracted_bio;
