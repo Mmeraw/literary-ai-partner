@@ -10,6 +10,7 @@ Sentry.init({
 Deno.serve(async (req) => {
     let payload = null;
     let file_url = null;
+    let bio = null;
     
     try {
         const base44 = createClientFromRequest(req);
@@ -19,12 +20,15 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // CRITICAL: Parse and log payload BEFORE any external operations
         payload = await req.json();
         console.log('📦 RAW PAYLOAD RECEIVED:', JSON.stringify(payload, null, 2));
+        console.log('📦 Payload keys:', Object.keys(payload));
+        console.log('📦 Payload types:', Object.keys(payload).map(k => `${k}: ${typeof payload[k]}`).join(', '));
         
         const { 
             file_url: extracted_file_url, 
-            bio, 
+            bio: extracted_bio, 
             synopsis_mode = 'auto',
             existing_synopsis, 
             one_line_pitch,
@@ -36,9 +40,12 @@ Deno.serve(async (req) => {
         } = payload;
         
         file_url = extracted_file_url;
+        bio = extracted_bio;
 
-        console.log('📥 Query letter generation started:', { 
+        console.log('📥 EXTRACTED VALUES:', { 
             file_url, 
+            file_url_type: typeof file_url,
+            file_url_value: file_url,
             synopsis_mode, 
             comps_mode, 
             genre, 
@@ -47,8 +54,16 @@ Deno.serve(async (req) => {
             bio_length: bio?.length
         });
 
+        // Validate required fields BEFORE any fetch operations
         if (!file_url || !bio) {
-            return Response.json({ error: 'file_url and bio are required' }, { status: 400 });
+            console.error('❌ Missing required fields:', { has_file_url: !!file_url, has_bio: !!bio });
+            return Response.json({ 
+                error: 'file_url and bio are required',
+                received: {
+                    file_url: file_url || 'MISSING',
+                    bio: bio ? `${bio.length} chars` : 'MISSING'
+                }
+            }, { status: 400 });
         }
         
         // PHASE 1: Fetch manuscript text for preflight validation
