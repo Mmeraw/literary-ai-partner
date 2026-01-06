@@ -116,7 +116,8 @@ Deno.serve(async (req) => {
                 console.log('✅ TXT loaded:', manuscriptText.length, 'characters');
                 
             } else if (isPdf || isRtf || isWordDoc) {
-                console.log('🔍 Extracting', isPdf ? 'PDF' : 'RTF', 'from:', file_url);
+                const fileType = isWordDoc ? 'DOCX/DOC' : isPdf ? 'PDF' : 'RTF';
+                console.log('🔍 Extracting', fileType, 'from:', file_url);
                 const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
                     file_url,
                     json_schema: { type: "object", properties: { text: { type: "string" } } }
