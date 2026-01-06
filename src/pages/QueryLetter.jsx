@@ -57,7 +57,8 @@ export default function QueryLetter() {
             // Upload manuscript file
             const { file_url } = await base44.integrations.Core.UploadFile({ file: autoFormData.manuscriptFile });
             
-            let bioText = autoFormData.bioText;
+            // Default to AUTO if no bio provided
+            let bioText = autoFormData.bioText || 'No bio provided - RevisionGrade will generate from manuscript context.';
             
             // If LinkedIn URL provided, extract bio
             if (autoFormData.bioMode === 'linkedin' && autoFormData.linkedinUrl) {
