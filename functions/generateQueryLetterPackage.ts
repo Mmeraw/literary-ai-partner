@@ -385,6 +385,8 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
         console.error('Error response:', error.response?.data);
+        console.error('Payload received:', JSON.stringify(payload, null, 2));
+        console.error('file_url extracted:', file_url);
         
         // Capture to Sentry with detailed step-by-step context
         Sentry.captureException(error, {
@@ -398,6 +400,8 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
                 error_message: error.message,
                 error_stack: error.stack,
                 error_response: error.response?.data,
+                payload_received: payload,
+                file_url_extracted: file_url,
                 timestamp: new Date().toISOString()
             }
         });
@@ -408,6 +412,8 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
             details: error.message,
             error_type: error.constructor.name,
             response_data: error.response?.data,
+            payload_received: payload,
+            file_url_extracted: file_url,
             step: 'Check logs for detailed error location'
         }, { status: 500 });
     }
