@@ -371,7 +371,9 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
 
     } catch (error) {
         console.error('❌ Query letter generation error:', error);
+        console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
+        console.error('Error response:', error.response?.data);
         
         // Capture to Sentry with detailed step-by-step context
         Sentry.captureException(error, {
@@ -384,6 +386,7 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
                 operation: 'query_letter_package_generation',
                 error_message: error.message,
                 error_stack: error.stack,
+                error_response: error.response?.data,
                 timestamp: new Date().toISOString()
             }
         });
@@ -392,6 +395,8 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
         return Response.json({ 
             error: 'Failed to generate query letter', 
             details: error.message,
+            error_type: error.constructor.name,
+            response_data: error.response?.data,
             step: 'Check logs for detailed error location'
         }, { status: 500 });
     }
