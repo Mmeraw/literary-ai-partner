@@ -146,9 +146,23 @@ Return only the bio text, no additional commentary.`
             }
             
             // Generate complete query package
-            console.log('🚀 Starting query letter generation...');
-            
-            console.log('🔍 Payload being sent:', {
+            console.log('🚀 [FRONTEND] Starting query letter generation...');
+
+            const payload = {
+                file_url,
+                bio: bioText,
+                synopsis_mode: autoFormData.synopsisMode,
+                existing_synopsis: autoFormData.existingSynopsis,
+                one_line_pitch: autoFormData.oneLinePitch,
+                pitch_paragraph: autoFormData.pitchParagraph,
+                comps_mode: autoFormData.compsMode,
+                manual_comps: autoFormData.manualComps,
+                genre: autoFormData.genre,
+                voiceIntensity
+            };
+
+            console.log('📦 [FRONTEND] Full payload:', JSON.stringify(payload, null, 2));
+            console.log('📦 [FRONTEND] Payload summary:', {
                 file_url,
                 bio_length: bioText?.length,
                 synopsis_mode: autoFormData.synopsisMode,
@@ -160,21 +174,16 @@ Return only the bio text, no additional commentary.`
                 genre: autoFormData.genre,
                 voiceIntensity
             });
-            
-            console.log('🚀 About to invoke generateQueryLetterPackage...');
-            
-            const response = await base44.functions.invoke('generateQueryLetterPackage', {
-                file_url,
-                bio: bioText,
-                synopsis_mode: autoFormData.synopsisMode,
-                existing_synopsis: autoFormData.existingSynopsis,
-                one_line_pitch: autoFormData.oneLinePitch,
-                pitch_paragraph: autoFormData.pitchParagraph,
-                comps_mode: autoFormData.compsMode,
-                manual_comps: autoFormData.manualComps,
-                genre: autoFormData.genre,
-                voiceIntensity
-            });
+
+            console.log('🚀 [FRONTEND] About to invoke generateQueryLetterPackage...');
+            console.log('⏱️ [FRONTEND] Timestamp:', new Date().toISOString());
+
+            const response = await base44.functions.invoke('generateQueryLetterPackage', payload);
+
+            console.log('✅ [FRONTEND] Function returned!');
+            console.log('📦 [FRONTEND] Raw response:', response);
+            console.log('📦 [FRONTEND] Response type:', typeof response);
+            console.log('📦 [FRONTEND] Response keys:', Object.keys(response || {}));
 
             console.log('✅ Function invoke completed');
             console.log('📦 QueryLetter raw result:', response);
