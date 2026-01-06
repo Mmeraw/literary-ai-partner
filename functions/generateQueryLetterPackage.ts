@@ -107,39 +107,46 @@ Deno.serve(async (req) => {
             
             console.log('🔍 File type detected:', { isWordDoc, isTxt, isPdf, isRtf });
             
-            // Use InvokeLLM with file attachment for ALL formats - bypasses CORS
-            const fileType = isWordDoc ? 'DOCX/DOC' : isPdf ? 'PDF' : isRtf ? 'RTF' : 'TXT';
-            console.log('🔍 Extracting', fileType, 'from:', file_url);
-            
-            if (!isWordDoc && !isTxt && !isPdf && !isRtf) {
-                return Response.json({ 
-                    error: 'Unsupported file format',
-                    details: 'Please upload DOC, DOCX, TXT, PDF, or RTF files.',
-                    received_filename: fileName
-                }, { status: 400 });
-            }
-            
-            try {
+            if (isTxt) {
+                console.log('🔍 Fetching TXT from:', file_url);
+                
+                const fetchResponse = await fetch(file_url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'text/plain, text/*, */*'
+                    }
+                });
+                
+                console.log('🔍 Fetch response status:', fetchResponse.status);
+                console.log('🔍 Fetch response headers:', Object.fromEntries(fetchResponse.headers.entries()));
+                
+                if (!fetchResponse.ok) {
+                    const errorBody = await fetchResponse.text().catch(() => 'Unable to read error body');
+                    console.error('❌ Fetch failed with body:', errorBody);
+                    throw new Error(`Failed to fetch TXT: ${fetchResponse.status} ${fetchResponse.statusText} - ${errorBody}`);
+                }
+                
+                const buffer = await fetchResponse.arrayBuffer();
+                manuscriptText = new TextDecoder().decode(buffer);
+                console.log('✅ TXT loaded:', manuscriptText.length, 'characters');
+                
+            } else if (isPdf || isRtf || isWordDoc) {
+                const fileType = isWordDoc ? 'DOCX/DOC' : isPdf ? 'PDF' : 'RTF';
+                console.log('🔍 Extracting', fileType, 'from:', file_url);
+                
+                // Use InvokeLLM with file attachment - most robust approach for all formats
                 const extracted = await base44.integrations.Core.InvokeLLM({
                     prompt: "Extract all text from this document. Return ONLY the complete raw text, no markdown formatting, no explanations. Just the text exactly as it appears.",
                     file_urls: [file_url]
                 });
                 
-                manuscriptText = extracted.trim();
-                
-                // Check if we got HTML error page instead of file content
-                if (manuscriptText.toLowerCase().includes('<!doctype') || 
-                    manuscriptText.toLowerCase().includes('<html') ||
-                    manuscriptText.length < 100) {
-                    console.error('❌ Received HTML or invalid content instead of file');
-                    console.error('Content preview:', manuscriptText.substring(0, 500));
-                    throw new Error('File URL returned HTML error page instead of file content. The file may not be publicly accessible.');
-                }
-                
-                console.log('✅ File extracted:', manuscriptText.length, 'characters');
-            } catch (extractError) {
-                console.error('❌ InvokeLLM extraction failed:', extractError);
-                throw new Error(`Failed to extract text from ${fileType} file: ${extractError.message}. The file may be corrupted or the URL may be invalid.`);
+manuscriptText = (extracted?.response || extracted || '').toString().trim();                console.log('✅ File extracted:', manuscriptText.length, 'characters');
+            } else {
+                return Response.json({ 
+                    error: 'Unsupported file format',
+                    details: 'Please upload DOC, DOCX, TXT, PDF, or RTF files.',
+                    received_filename: fileName
+                }, { status: 400 });
             }
             
         } catch (fetchError) {
