@@ -46,16 +46,27 @@ export default function QueryLetter() {
     const revision = useRevisionFlow('query');
 
     const handleAutoGenerate = async () => {
+        console.log('🚀 [FRONTEND] handleAutoGenerate called');
+        console.log('🚀 [FRONTEND] autoFormData:', autoFormData);
+        
         // Removed validation - allow generation without files (AUTO mode)
         if (!autoFormData.manuscriptFile) {
+            console.error('❌ [FRONTEND] No manuscript file');
             toast.error('Please upload your manuscript');
             return;
         }
 
         setGenerating(true);
+        console.log('🚀 [FRONTEND] Starting file upload...');
+        
         try {
             // Upload manuscript file
-            const { file_url } = await base44.integrations.Core.UploadFile({ file: autoFormData.manuscriptFile });
+            console.log('📤 [FRONTEND] Uploading file:', autoFormData.manuscriptFile.name);
+            const uploadResult = await base44.integrations.Core.UploadFile({ file: autoFormData.manuscriptFile });
+            console.log('✅ [FRONTEND] Upload result:', uploadResult);
+            
+            const { file_url } = uploadResult;
+            console.log('✅ [FRONTEND] file_url:', file_url);
             
             // Default to AUTO if no bio provided
             let bioText = autoFormData.bioText || 'No bio provided - RevisionGrade will generate from manuscript context.';
