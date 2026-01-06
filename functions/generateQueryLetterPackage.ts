@@ -32,7 +32,15 @@ Deno.serve(async (req) => {
         
         console.log('📦 Received payload:', JSON.stringify(payload, null, 2));
 
-        console.log('📥 Query letter generation started:', { file_url, synopsis_mode, comps_mode, genre, voiceIntensity });
+        console.log('📥 Query letter generation started:', { 
+            file_url, 
+            synopsis_mode, 
+            comps_mode, 
+            genre, 
+            voiceIntensity,
+            has_bio: !!bio,
+            bio_length: bio?.length
+        });
 
         if (!file_url || !bio) {
             return Response.json({ error: 'file_url and bio are required' }, { status: 400 });
