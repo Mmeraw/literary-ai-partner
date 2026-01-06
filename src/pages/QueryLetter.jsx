@@ -226,26 +226,32 @@ Return only the bio text, no additional commentary.`
 
             console.log('✅ Baseline created!');
         } catch (error) {
-            console.error('Query letter generation error:', error);
+            console.error('❌ QUERY LETTER ERROR:', error);
             console.error('Error details:', {
                 message: error.message,
                 code: error.code,
                 status: error.response?.status,
                 statusText: error.response?.statusText,
-                data: error.response?.data
+                data: error.response?.data,
+                stack: error.stack
             });
             
             // Check for server errors (500)
             if (error.response?.status === 500 || error.code === 'ERR_BAD_RESPONSE') {
-                toast.error('Server Error: Query letter generation failed', {
-                    description: '⚠️ The backend service encountered an error (Status 500). This issue has been logged. Please try again or contact support if the problem persists.',
+                toast.error('Backend Error (500)', {
+                    description: error.response?.data?.error || error.message || 'Check browser console for details',
                     duration: 10000
+                });
+            } else if (error.response?.status === 400) {
+                toast.error('Invalid Request', {
+                    description: error.response?.data?.error || error.message,
+                    duration: 8000
                 });
             } else {
                 const errorMsg = error.message || error.response?.data?.error || 'Unknown error occurred';
-                toast.error('Failed to generate query letter: ' + errorMsg, {
-                    description: 'Please try again or contact support if the issue persists.',
-                    duration: 5000
+                toast.error('Generation Failed: ' + errorMsg, {
+                    description: 'Check browser console (F12) for detailed logs',
+                    duration: 8000
                 });
             }
         } finally {
