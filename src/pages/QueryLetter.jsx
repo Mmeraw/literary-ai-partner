@@ -593,9 +593,7 @@ Return only the bio text, no additional commentary.`
 
                             <Button 
                                 onClick={handleAutoGenerate}
-                                disabled={generating || !autoFormData.manuscriptFile || 
-                                         (autoFormData.bioMode === 'linkedin' ? !autoFormData.linkedinUrl : 
-                                          autoFormData.bioMode === 'upload' ? !autoFormData.bioFile : !autoFormData.bioText)}
+                                disabled={generating || !autoFormData.manuscriptFile}
                                 className="w-full bg-indigo-600 hover:bg-indigo-700"
                             >
                                 {generating ? (
