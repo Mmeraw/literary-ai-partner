@@ -150,6 +150,8 @@ Return only the bio text, no additional commentary.`
                 voiceIntensity
             });
             
+            console.log('🚀 About to invoke generateQueryLetterPackage...');
+            
             const response = await base44.functions.invoke('generateQueryLetterPackage', {
                 file_url,
                 bio: bioText,
@@ -163,6 +165,7 @@ Return only the bio text, no additional commentary.`
                 voiceIntensity
             });
 
+            console.log('✅ Function invoke completed');
             console.log('📦 QueryLetter raw result:', response);
             console.log('📦 Response type:', typeof response);
             console.log('📦 Response keys:', Object.keys(response || {}));
