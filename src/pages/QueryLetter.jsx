@@ -213,6 +213,11 @@ Return only the bio text, no additional commentary.`
             // base44.functions.invoke may wrap data in response.data
             setQueryLetter(data.query_letter);
             setSuggestedAgents(data.suggested_agents || []);
+            
+            // VISUAL CONFIRMATION - Show the first 100 chars in a toast
+            toast.success(`Query letter generated! (${data.query_letter.length} characters)`, {
+                description: data.query_letter.substring(0, 100) + '...'
+            });
 
             console.log('✅ State updated, creating baseline...');
             
@@ -220,8 +225,6 @@ Return only the bio text, no additional commentary.`
             await revision.createBaseline(data.query_letter, `query_${Date.now()}`);
 
             console.log('✅ Baseline created!');
-            
-            toast.success('Query letter generated with agent recommendations!');
         } catch (error) {
             console.error('Query letter generation error:', error);
             console.error('Error details:', {
