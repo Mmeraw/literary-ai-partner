@@ -102,25 +102,7 @@ Deno.serve(async (req) => {
             
             console.log('🔍 File type detected:', { isWordDoc, isTxt, isPdf, isRtf });
             
-            if (isWordDoc) {
-                console.log('🔍 Fetching DOCX from:', file_url);
-                const response = await fetch(file_url);
-                console.log('🔍 Fetch response status:', response.status);
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch DOCX: ${response.status} ${response.statusText}`);
-                }
-                
-                const arrayBuffer = await response.arrayBuffer();
-                const buffer = new Uint8Array(arrayBuffer);
-                console.log('🔍 Buffer size:', buffer.length);
-                
-                const mammoth = await import('npm:mammoth@1.8.0');
-                const result = await mammoth.extractRawText({ buffer });
-                manuscriptText = result.value;
-                console.log('✅ DOCX extracted:', manuscriptText.length, 'characters');
-                
-            } else if (isTxt) {
+            if (isTxt) {
                 console.log('🔍 Fetching TXT from:', file_url);
                 const response = await fetch(file_url);
                 console.log('🔍 Fetch response status:', response.status);
