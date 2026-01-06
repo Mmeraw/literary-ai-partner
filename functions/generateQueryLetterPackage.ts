@@ -53,6 +53,12 @@ Deno.serve(async (req) => {
         
         // PHASE 1: Fetch manuscript text for preflight validation
         console.log('🔍 Fetching manuscript for preflight check...');
+        console.log('🔍 file_url value:', file_url, 'type:', typeof file_url);
+        
+        if (!file_url) {
+            throw new Error('file_url is missing or undefined');
+        }
+        
         const fileName = file_url.toLowerCase();
         const isWordDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc');
         const isTxt = fileName.endsWith('.txt');
