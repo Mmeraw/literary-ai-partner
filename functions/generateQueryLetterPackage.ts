@@ -61,15 +61,20 @@ Deno.serve(async (req) => {
         });
 
         // Validate required fields BEFORE any fetch operations
-        if (!file_url || !bio) {
-            console.error('❌ Missing required fields:', { has_file_url: !!file_url, has_bio: !!bio });
+        if (!file_url) {
+            console.error('❌ Missing file_url');
             return Response.json({ 
-                error: 'file_url and bio are required',
+                error: 'file_url is required',
                 received: {
-                    file_url: file_url || 'MISSING',
-                    bio: bio ? `${bio.length} chars` : 'MISSING'
+                    file_url: file_url || 'MISSING'
                 }
             }, { status: 400 });
+        }
+        
+        // Default bio if not provided
+        if (!bio || bio.trim().length === 0) {
+            console.log('⚠️ No bio provided, using AUTO generation');
+            bio = 'No bio provided - RevisionGrade will generate from manuscript context.';
         }
         
         // Reject test/invalid URLs
