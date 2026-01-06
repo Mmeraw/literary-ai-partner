@@ -85,6 +85,19 @@ export default function QueryLetter() {
             // Generate complete query package
             console.log('🚀 Starting query letter generation...');
             
+            console.log('🔍 Payload being sent:', {
+                file_url,
+                bio_length: bioText?.length,
+                synopsis_mode: autoFormData.synopsisMode,
+                existing_synopsis_length: autoFormData.existingSynopsis?.length,
+                one_line_pitch_length: autoFormData.oneLinePitch?.length,
+                pitch_paragraph_length: autoFormData.pitchParagraph?.length,
+                comps_mode: autoFormData.compsMode,
+                manual_comps_length: autoFormData.manualComps?.length,
+                genre: autoFormData.genre,
+                voiceIntensity
+            });
+            
             const response = await base44.functions.invoke('generateQueryLetterPackage', {
                 file_url,
                 bio: bioText,
