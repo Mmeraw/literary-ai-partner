@@ -9,11 +9,44 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { manuscriptText, title, genre, logline, voiceIntensity = 'house' } = await req.json();
+        const { manuscriptText, title, genre, logline, voiceIntensity = 'house', manuscript_id } = await req.json();
 
         if (!manuscriptText || !title) {
             return Response.json({ 
                 error: 'Missing required fields: manuscriptText and title' 
+            }, { status: 400 });
+        }
+
+        // MATRIX PREFLIGHT (Governance Layer)
+        const inputWordCount = manuscriptText.split(/\s+/).length;
+
+        let preflightResult = null;
+        try {
+            const preflightResponse = await base44.functions.invoke('matrixPreflight', {
+                operation: 'generateFilmPitchDeck',
+                inputText: manuscriptText,
+                manuscriptId: manuscript_id,
+                userIntent: { title, genre, voiceIntensity }
+            });
+            preflightResult = preflightResponse.data;
+        } catch (preflightError) {
+            console.error('matrixPreflight error:', preflightError);
+            return Response.json({
+                error: 'Preflight validation failed',
+                details: preflightError.message
+            }, { status: 500 });
+        }
+
+        // HARD GATE: Block if preflight failed
+        if (!preflightResult.allowed) {
+            return Response.json({
+                error: 'SCOPE_VIOLATION',
+                message: preflightResult.refusalMessage,
+                details: {
+                    wordCount: inputWordCount,
+                    minRequired: preflightResult.minWordsAllowed,
+                    confidence: preflightResult.confidence
+                }
             }, { status: 400 });
         }
 
@@ -114,7 +147,13 @@ Focus on SCREEN VIABILITY:
         return Response.json({
             success: true,
             pitchDeck: response,
-            wordCount: manuscriptText.split(/\s+/).length
+            wordCount: inputWordCount,
+            audit: {
+                matrixpreflightallowed: preflightResult.allowed,
+                matrixcompliance: preflightResult.matrixcompliance,
+                confidence: preflightResult.confidence,
+                llminvoked: true
+            }
         });
 
     } catch (error) {

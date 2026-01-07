@@ -16,13 +16,56 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { manuscriptInfo, voiceIntensity = 'house' } = await req.json();
+        const { manuscriptInfo, voiceIntensity = 'house', manuscript_id } = await req.json();
 
         if (!manuscriptInfo?.title || !manuscriptInfo?.logline) {
             return Response.json({ 
                 success: false, 
                 error: 'Title and logline are required' 
             }, { status: 400 });
+        }
+
+        // MATRIX PREFLIGHT (Governance Layer - Compound Artifact)
+        const sourceText = manuscriptInfo.text_sample || manuscriptInfo.full_text || '';
+        const inputWordCount = sourceText.split(/\s+/).length;
+
+        // Validate each artifact in the bundle
+        const artifacts = ['generateQueryPitches', 'generateSynopsis', 'generateQueryLetter'];
+        const preflightResults = {};
+
+        for (const artifact of artifacts) {
+            try {
+                const preflightResponse = await base44.asServiceRole.functions.invoke('matrixPreflight', {
+                    operation: artifact,
+                    inputText: sourceText,
+                    manuscriptId: manuscript_id,
+                    userIntent: { voiceIntensity, packageMode: true }
+                });
+                preflightResults[artifact] = preflightResponse.data;
+
+                // HARD GATE: Block if any artifact fails preflight
+                if (!preflightResponse.data.allowed) {
+                    return Response.json({
+                        success: false,
+                        error: 'SCOPE_VIOLATION',
+                        artifact: artifact,
+                        message: preflightResponse.data.refusalMessage,
+                        details: {
+                            wordCount: inputWordCount,
+                            minRequired: preflightResponse.data.minWordsAllowed,
+                            confidence: preflightResponse.data.confidence
+                        }
+                    }, { status: 400 });
+                }
+            } catch (preflightError) {
+                console.error(`matrixPreflight error for ${artifact}:`, preflightError);
+                return Response.json({
+                    success: false,
+                    error: 'Preflight validation failed',
+                    artifact,
+                    details: preflightError.message
+                }, { status: 500 });
+            }
         }
 
         // VOICE ANCHOR: Apply thematic schema if source text is available
@@ -247,6 +290,11 @@ Return only the query letter text.`,
                 synopses: synopsesResult,
                 authorBio: bioResult,
                 queryLetter: queryResult
+            },
+            audit: {
+                matrixpreflight_compound: preflightResults,
+                wordCount: inputWordCount,
+                llminvoked: true
             }
         });
 

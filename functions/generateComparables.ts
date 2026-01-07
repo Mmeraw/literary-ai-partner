@@ -89,7 +89,48 @@ Deno.serve(async (req) => {
 
         logData.user_id = user.email;
 
-        const { manuscriptId, manuscriptText, genre, uploadedFilename, title } = await req.json();
+        const { manuscriptId, manuscriptText, genre, uploadedFilename, title, manuscript_id } = await req.json();
+
+        // MATRIX PREFLIGHT (Governance Layer)
+        const inputTextForPreflight = manuscriptText || '';
+        const inputWordCount = inputTextForPreflight.split(/\s+/).length;
+
+        let preflightResult = null;
+        try {
+            const preflightResponse = await base44.asServiceRole.functions.invoke('matrixPreflight', {
+                operation: 'generateComparables',
+                inputText: inputTextForPreflight,
+                manuscriptId: manuscript_id || manuscriptId,
+                userIntent: { genre }
+            });
+            preflightResult = preflightResponse.data;
+        } catch (preflightError) {
+            console.error('matrixPreflight error:', preflightError);
+            logData.preflight_error = preflightError.message;
+            return Response.json({
+                success: false,
+                error: 'PREFLIGHT_FAILED',
+                details: 'Scope validation failed',
+                debug: preflightError.message
+            }, { status: 500 });
+        }
+
+        // HARD GATE: Block if preflight failed
+        if (!preflightResult.allowed) {
+            return Response.json({
+                success: false,
+                error: 'SCOPE_VIOLATION',
+                message: preflightResult.refusalMessage,
+                details: {
+                    wordCount: inputWordCount,
+                    minRequired: preflightResult.minWordsAllowed,
+                    confidence: preflightResult.confidence,
+                    matrixcompliance: preflightResult.matrixcompliance
+                }
+            }, { status: 400 });
+        }
+
+        logData.matrixpreflight_passed = true;
 
         // PRE-FLIGHT VALIDATION (Defensive Engineering Standard)
         if (!genre || genre.trim() === '') {
@@ -359,6 +400,12 @@ Return only one of these genre names (exact match): thriller, literary_fiction, 
                 capped: capped,
                 word_count: wordCount,
                 genre: finalGenre
+            },
+            audit: {
+                matrixpreflightallowed: preflightResult.allowed,
+                matrixcompliance: preflightResult.matrixcompliance,
+                confidence: preflightResult.confidence,
+                llminvoked: true
             }
         });
 

@@ -55,7 +55,45 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { manuscriptInfo, synopsisType, source_document_id, source_version_id, mode, variant, allowAmbiguity, debug_force_constraint_violation } = payload;
+        const { manuscriptInfo, synopsisType, source_document_id, source_version_id, mode, variant, allowAmbiguity, debug_force_constraint_violation, manuscript_id } = payload;
+
+        // MATRIX PREFLIGHT (Governance Layer)
+        let preflightResult = null;
+        const inputText = manuscriptInfo?.text_sample || manuscriptInfo?.full_text || manuscriptInfo || '';
+        const inputWordCount = typeof inputText === 'string' ? inputText.split(/\s+/).length : 0;
+
+        try {
+            const preflightResponse = await base44.asServiceRole.functions.invoke('matrixPreflight', {
+                operation: 'generateSynopsis',
+                inputText,
+                manuscriptId: manuscript_id || source_document_id,
+                userIntent: { synopsisType, mode, variant }
+            });
+            preflightResult = preflightResponse.data;
+        } catch (preflightError) {
+            console.error('matrixPreflight error:', preflightError);
+            return Response.json({
+                error: 'ERR_SYNOPSIS_PREFLIGHT_FAILED',
+                message: 'Scope validation failed',
+                details: preflightError.message
+            }, { status: 500 });
+        }
+
+        // HARD GATE: Block if preflight failed
+        if (!preflightResult.allowed) {
+            return Response.json({
+                error: 'ERR_SYNOPSIS_SCOPE_VIOLATION',
+                gate_blocked: true,
+                message: preflightResult.refusalMessage,
+                details: {
+                    wordCount: inputWordCount,
+                    minRequired: preflightResult.minWordsAllowed,
+                    maxAllowed: preflightResult.maxWordsAllowed,
+                    confidence: preflightResult.confidence,
+                    matrixcompliance: preflightResult.matrixcompliance
+                }
+            }, { status: 400 });
+        }
 
         // QA-SYN-008: Debug constraint violation (admin-only debug flag)
         if (user.role === 'admin' && debug_force_constraint_violation) {
@@ -445,6 +483,13 @@ Provide validation report with WAVE rule compliance.`;
             evaluation_data: {
                 validation: validationResponse,
                 skeleton: skeletonResponse,
+                matrixpreflight_audit: {
+                    matrixpreflightallowed: preflightResult.allowed,
+                    matrixcompliance: preflightResult.matrixcompliance,
+                    confidence: preflightResult.confidence,
+                    wordCount: inputWordCount,
+                    llminvoked: true
+                },
                 audit_trail: {
                     source_manuscript_id: source_document_id || null,
                     source_document_id: source_document_id || null,

@@ -9,12 +9,48 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { manuscriptInfo, voiceIntensity = 'house' } = await req.json();
+        const { manuscriptInfo, voiceIntensity = 'house', manuscript_id } = await req.json();
 
         if (!manuscriptInfo?.title || !manuscriptInfo?.logline) {
             return Response.json({ 
                 success: false, 
                 error: 'Title and logline are required' 
+            }, { status: 400 });
+        }
+
+        // MATRIX PREFLIGHT (Governance Layer)
+        const sourceText = manuscriptInfo.text_sample || manuscriptInfo.full_text || '';
+        const inputWordCount = sourceText.split(/\s+/).length;
+
+        let preflightResult = null;
+        try {
+            const preflightResponse = await base44.functions.invoke('matrixPreflight', {
+                operation: 'generateQueryPitches',
+                inputText: sourceText,
+                manuscriptId: manuscript_id,
+                userIntent: { voiceIntensity }
+            });
+            preflightResult = preflightResponse.data;
+        } catch (preflightError) {
+            console.error('matrixPreflight error:', preflightError);
+            return Response.json({
+                success: false,
+                error: 'Preflight validation failed',
+                details: preflightError.message
+            }, { status: 500 });
+        }
+
+        // HARD GATE: Block if preflight failed
+        if (!preflightResult.allowed) {
+            return Response.json({
+                success: false,
+                error: 'SCOPE_VIOLATION',
+                message: preflightResult.refusalMessage,
+                details: {
+                    wordCount: inputWordCount,
+                    minRequired: preflightResult.minWordsAllowed,
+                    confidence: preflightResult.confidence
+                }
             }, { status: 400 });
         }
 
@@ -146,7 +182,14 @@ CRITICAL GUIDELINES:
 
         return Response.json({
             success: true,
-            pitches: response
+            pitches: response,
+            audit: {
+                matrixpreflightallowed: preflightResult.allowed,
+                matrixcompliance: preflightResult.matrixcompliance,
+                confidence: preflightResult.confidence,
+                wordCount: inputWordCount,
+                llminvoked: true
+            }
         });
 
     } catch (error) {
