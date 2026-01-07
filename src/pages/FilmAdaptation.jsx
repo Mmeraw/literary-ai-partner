@@ -451,6 +451,7 @@ export default function FilmAdaptation() {
                                 >
                                     ×
                                 </button>
+                            </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <DocumentSelector
