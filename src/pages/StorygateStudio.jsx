@@ -365,8 +365,7 @@ export default function StorygateStudio() {
                     <CardContent className="space-y-4" style={{ color: '#D4D4D4' }}>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Automatic Screening</p>
-                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>All submissions are screened automatically. Submissions that meet the readiness threshold (8.0/10 or higher) enter the eligible queue; a limited number may be invited to the Storygate Review Pass.</p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>Submissions below 8.0/10 are declined automatically and are not read by a human. Auto-declined submissions may receive brief, structured feedback derived from existing evaluation data; no bespoke commentary will be provided.</p>
+                            <p className="text-sm" style={{ color: '#7B7B7B' }}>All submissions are screened automatically. Submissions that meet the readiness threshold (8.0/10 or higher) enter the eligible queue, and a limited number may be invited to the Storygate Review Pass. Submissions below this threshold are declined without human review; some may receive brief, structured feedback derived from existing evaluation data, but no bespoke commentary will be provided.</p>
                         </div>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Storygate Review Pass</p>
