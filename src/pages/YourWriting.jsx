@@ -11,6 +11,7 @@ import RichTextEditor from '@/components/RichTextEditor';
 import TransgressiveModeSelector from '@/components/evaluation/TransgressiveModeSelector';
 import LanguageVariantSelector from '@/components/evaluation/LanguageVariantSelector';
 import VoicePreservationToggle from '@/components/VoicePreservationToggle';
+import DocumentSelector from '@/components/DocumentSelector';
 
 export default function YourWriting() {
   const [title, setTitle] = useState('');
@@ -23,6 +24,7 @@ export default function YourWriting() {
   const [workTypeDetection, setWorkTypeDetection] = useState(null);
   const [showWorkTypeConfirm, setShowWorkTypeConfirm] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [selectedDocumentId, setSelectedDocumentId] = useState(null);
 
   // Clear sessionStorage after loading
   React.useEffect(() => {
@@ -41,6 +43,24 @@ export default function YourWriting() {
       sessionStorage.removeItem('uploadedText');
     }
   }, []);
+
+  const handleDocumentSelect = async (docId) => {
+    setSelectedDocumentId(docId);
+    try {
+      const doc = await base44.entities.Document.get(docId);
+      if (doc.content_reference_id) {
+        const manuscript = await base44.entities.Manuscript.get(doc.content_reference_id);
+        setText(manuscript.full_text || '');
+        setTitle(manuscript.title || doc.title || '');
+        setEvaluationMode(manuscript.evaluation_mode || 'standard');
+        setLanguageVariant(manuscript.language_variant || 'en-US');
+        toast.success('Document loaded from Dashboard');
+      }
+    } catch (error) {
+      console.error('Error loading document:', error);
+      toast.error('Failed to load document');
+    }
+  };
 
   const handleFileUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -292,6 +312,25 @@ export default function YourWriting() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
+                <div className="p-6 rounded-xl bg-indigo-50 border border-indigo-200">
+                  <DocumentSelector
+                    value={selectedDocumentId}
+                    onChange={handleDocumentSelect}
+                    filterType="MANUSCRIPT"
+                    title="Select from Dashboard"
+                    description="Choose a document you've already uploaded"
+                  />
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-slate-500">Or upload/paste new text</span>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Project Title (optional)
