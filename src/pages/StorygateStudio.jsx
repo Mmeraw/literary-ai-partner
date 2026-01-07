@@ -22,6 +22,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import DocumentSelector from '@/components/DocumentSelector';
+import StorygateStudioFAQ from '@/components/storygate/StorygateStudioFAQ';
 
 export default function StorygateStudio() {
     const [selectedDocumentId, setSelectedDocumentId] = useState(null);
@@ -1078,6 +1079,11 @@ export default function StorygateStudio() {
                         </form>
                     </CardContent>
                 </Card>
+
+                {/* FAQ Section */}
+                <div className="mt-8">
+                    <StorygateStudioFAQ />
+                </div>
             </div>
         </div>
     );
