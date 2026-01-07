@@ -259,13 +259,15 @@ export default function StorygateStudio() {
                             </CardContent>
                         </Card>
                     ) : (
-                        <div className="text-center">
-                            <p className="text-lg mb-8" style={{ color: '#F2EFEA' }}>
-                                Your project has been submitted to Storygate Studio. If your work aligns with our 
-                                current focus, you may be contacted for next steps.
+                        <div className="text-center space-y-4">
+                            <p className="text-lg" style={{ color: '#F2EFEA' }}>
+                                Your submission has been received and is eligible for internal consideration.
                             </p>
                             <p className="text-sm" style={{ color: '#7B7B7B' }}>
-                                Due to volume, we cannot respond to all submissions.
+                                Storygate Studio cannot respond to all eligible submissions. Internal review and follow-up communication are not guaranteed.
+                            </p>
+                            <p className="text-sm" style={{ color: '#7B7B7B' }}>
+                                Your submission status is independent of your subscription. Downgrading or canceling your RevisionGrade subscription does not affect your Storygate Studio submission.
                             </p>
                         </div>
                     )}
@@ -326,10 +328,13 @@ export default function StorygateStudio() {
                     </CardHeader>
                     <CardContent className="space-y-4" style={{ color: '#D4D4D4' }}>
                         <p>
-                            Submissions are screened automatically. Only eligible submissions are reviewed internally.
+                            All submissions are screened automatically based on evaluation data provided at submission.
                         </p>
                         <p>
-                            A small number may be invited into further consideration.
+                            Only projects that meet the readiness threshold (8.0/10 or higher) are eligible for internal consideration.
+                        </p>
+                        <p>
+                            A small number of eligible projects may be invited into further review or development pathways.
                         </p>
                     </CardContent>
                 </Card>
@@ -359,8 +364,8 @@ export default function StorygateStudio() {
                         </CardHeader>
                         <CardContent className="space-y-2" style={{ color: '#D4D4D4' }}>
                             <p>• A general editing or critique service</p>
-                            <p>• A guarantee of representation or publication</p>
-                            <p>• A paid shortcut to access</p>
+                            <p>• A guarantee of representation, publication, or production</p>
+                            <p>• A paid shortcut to access or visibility</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -372,16 +377,20 @@ export default function StorygateStudio() {
                     </CardHeader>
                     <CardContent className="space-y-4" style={{ color: '#D4D4D4' }}>
                         <div>
-                            <p className="font-semibold" style={{ color: '#D4D4D4' }}>Initial Submission</p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>All submissions are screened automatically. Only submissions that meet the readiness threshold are reviewed internally.</p>
+                            <p className="font-semibold" style={{ color: '#D4D4D4' }}>Initial Screening</p>
+                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>All submissions are screened automatically.</p>
+                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>Submissions below the readiness threshold are declined automatically and are not read by a human.</p>
+                            <p className="text-sm" style={{ color: '#7B7B7B' }}>Only submissions that meet the readiness threshold are eligible for internal consideration.</p>
                         </div>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Storygate Review Pass</p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>Select projects may be invited into a structured review phase.</p>
+                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>A limited number of eligible projects may be invited into a structured internal review phase.</p>
+                            <p className="text-sm" style={{ color: '#7B7B7B' }}>Internal review and follow-up communication are not guaranteed.</p>
                         </div>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Development Track</p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>A limited number of projects may be invited into deeper collaboration.</p>
+                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>A very small number of projects may be invited into deeper collaboration or development.</p>
+                            <p className="text-sm" style={{ color: '#7B7B7B' }}>Participation in this phase is by invitation only.</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -396,23 +405,29 @@ export default function StorygateStudio() {
                             <strong style={{ color: '#D4D4D4' }}>Submission to Storygate Studio is free.</strong>
                         </p>
                         <p className="text-sm" style={{ color: '#7B7B7B' }}>
-                            All submissions are screened automatically. Only eligible submissions are reviewed internally, and a small number may be invited into further consideration. 
-                            For selected projects, Storygate Studio may offer a paid engagement tailored to the scope and needs of the work. 
-                            Pricing and terms are discussed only after a project has been reviewed.
+                            Evaluation, revision, and development tools (including RevisionGrade analysis and Film/TV adaptation packages) are separate paid services and are not required to maintain a Storygate Studio submission.
+                        </p>
+                        <p className="text-sm" style={{ color: '#7B7B7B' }}>
+                            For projects invited into deeper engagement, Storygate Studio may offer a paid development arrangement tailored to the scope of the work. Pricing and terms are discussed only after internal review.
                         </p>
                     </CardContent>
                 </Card>
 
-                {/* Final Note */}
+                {/* Human Review Disclosure */}
                 <Card className="mb-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
                     <CardContent className="pt-6 space-y-4">
-                        <p style={{ color: '#D4D4D4' }} className="text-center italic">
-                            Storygate Studio exists for work that is already reaching toward something more.
-                        </p>
-                        <div className="pt-4 border-t" style={{ borderColor: '#7B7B7B' }}>
-                            <p className="text-sm text-center" style={{ color: '#7B7B7B' }}>
-                                <strong style={{ color: '#D4D4D4' }}>Human Review Disclosure:</strong> Storygate Studio is the only environment where human reviewers may read your work, and only after you submit explicitly for this track and your submission qualifies.
+                        <div>
+                            <p className="text-sm font-semibold mb-2" style={{ color: '#7A1E1E' }}>Human Review Disclosure</p>
+                            <p className="text-sm mb-3" style={{ color: '#D4D4D4' }}>
+                                Storygate Studio is the only environment within RevisionGrade where human reviewers may read submitted work.
                             </p>
+                            <p className="text-sm" style={{ color: '#7B7B7B' }}>
+                                Human review occurs only after:
+                            </p>
+                            <ul className="text-sm mt-2 space-y-1" style={{ color: '#7B7B7B' }}>
+                                <li>• The author explicitly submits to Storygate Studio, and</li>
+                                <li>• The submission meets the readiness threshold and is selected for internal consideration.</li>
+                            </ul>
                         </div>
                     </CardContent>
                 </Card>
@@ -421,10 +436,17 @@ export default function StorygateStudio() {
                 <Card id="submission-form" style={{ borderColor: '#7A1E1E', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
                     <CardHeader>
                         <CardTitle style={{ color: '#7A1E1E' }}>Submit Your Project</CardTitle>
-                        <p className="text-sm mt-2" style={{ color: '#7B7B7B' }}>
-                            Each submission is reviewed internally. If your project aligns with our current focus, 
-                            you may be contacted for next steps.
-                        </p>
+                        <div className="space-y-2 mt-3">
+                            <p className="text-sm" style={{ color: '#7B7B7B' }}>
+                                All submissions are screened automatically.
+                            </p>
+                            <p className="text-sm" style={{ color: '#7B7B7B' }}>
+                                Only projects that meet the readiness threshold are eligible for internal review.
+                            </p>
+                            <p className="text-sm font-semibold" style={{ color: '#7A1E1E' }}>
+                                Storygate Studio cannot respond to all eligible submissions. Internal review and follow-up communication are not guaranteed.
+                            </p>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-6">
