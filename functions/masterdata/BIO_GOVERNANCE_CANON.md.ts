@@ -44,7 +44,23 @@ The following terms are **PROHIBITED** unless backed by named, verifiable eviden
 - `certified` → MUST name certifying organization
 - `licensed` → MUST name licensing authority
 
-### 2.2 Enforcement Logic
+### 2.2 Definition of Evidence
+**Evidence** refers to user-provided, declarative information that names a verifiable entity, institution, publication, credential, or measurable outcome. RevisionGrade does not independently verify claims but requires claims to be structurally verifiable.
+
+**What Counts as Evidence:**
+- Named institutions (MIT, Stanford, Johns Hopkins)
+- Named publications (The New Yorker, Nature, Random House)
+- Named awards (Pushcart Prize, NEA Fellowship, Pulitzer)
+- Named organizations (Society for Technical Communication, MLA)
+- Specific metrics (10 years, PhD, 5 publications)
+
+**What Does NOT Count as Evidence:**
+- Self-assessment ("I am an expert")
+- Aspirational claims ("I will be a bestseller")
+- Generic statements ("passionate about writing")
+- Implied credentials without names
+
+### 2.3 Enforcement Logic
 ```
 IF claim contains HARD_BLOCK_TERM:
     IF no evidence in input:
@@ -185,7 +201,7 @@ Every bio generation outputs a confidence score based on evidence density.
 
 #### Medium Confidence (50-79%)
 - General professional experience documented
-- Unverified but plausible claims
+- Documented professional experience without named institutional anchors
 - Vague temporal markers ("years of experience")
 - Indirect manuscript relevance
 
@@ -236,7 +252,23 @@ Log all governance interventions:
 - Evidence anchors added
 - Prestige claims validated/rejected
 
-### 8.3 User-Facing Messaging
+### 8.3 Anti-Hallucination Rule
+The system MUST NOT fabricate, infer, or embellish credentials, publications, institutions, awards, or durations not explicitly provided in the input. When evidence is missing, the system must neutralize or omit claims rather than invent details.
+
+**Prohibited Actions:**
+- Inventing institution names not in input
+- Fabricating publication titles or journals
+- Inferring awards or honors not stated
+- Extrapolating years of experience beyond input
+- Creating plausible-sounding but fictional credentials
+
+**Required Actions When Evidence Absent:**
+- Use neutral language ("brings professional experience")
+- Omit specifics rather than invent
+- Log missing evidence for user feedback
+- Lower confidence score accordingly
+
+### 8.4 User-Facing Messaging
 If confidence score < 50%, return warning:
 ```
 "⚠️ Bio confidence: LOW. Consider adding:
