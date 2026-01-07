@@ -114,19 +114,28 @@ Deno.serve(async (req) => {
                     received_filename: fileName
                 }, { status: 400 });
             }
-            
-            // Use InvokeLLM for ALL file types - bypasses CORS completely
-            const fileType = isWordDoc ? 'DOCX/DOC' : isPdf ? 'PDF' : isRtf ? 'RTF' : 'TXT';
-            console.log('🔍 Extracting', fileType, 'from:', file_url);
-            
-            const extracted = await base44.integrations.Core.InvokeLLM({
-                prompt: "Extract all text from this document. Return ONLY the complete raw text, no markdown formatting, no explanations. Just the text exactly as it appears.",
-                file_urls: [file_url]
-            });
-            
-            // Handle both string and object responses from InvokeLLM
-            manuscriptText = (typeof extracted === 'string' ? extracted : (extracted?.response || extracted?.text || '')).toString().trim();
-            console.log('✅ File extracted:', manuscriptText.length, 'characters');
+
+            // TXT files: Direct fetch (same domain, no CORS)
+            if (isTxt) {
+                console.log('🔍 Fetching TXT file directly:', file_url);
+                const response = await fetch(file_url);
+                if (!response.ok) throw new Error(`Failed to fetch TXT file: ${response.status} ${response.statusText}`);
+                manuscriptText = await response.text();
+                console.log('✅ TXT file fetched:', manuscriptText.length, 'characters');
+            } else {
+                // Use InvokeLLM for complex formats (DOCX, PDF, RTF)
+                const fileType = isWordDoc ? 'DOCX/DOC' : isPdf ? 'PDF' : 'RTF';
+                console.log('🔍 Extracting', fileType, 'from:', file_url);
+
+                const extracted = await base44.integrations.Core.InvokeLLM({
+                    prompt: "Extract all text from this document. Return ONLY the complete raw text, no markdown formatting, no explanations. Just the text exactly as it appears.",
+                    file_urls: [file_url]
+                });
+
+                // Handle both string and object responses from InvokeLLM
+                manuscriptText = (typeof extracted === 'string' ? extracted : (extracted?.response || extracted?.text || '')).toString().trim();
+                console.log('✅ File extracted:', manuscriptText.length, 'characters');
+            }
             
         } catch (fetchError) {
             console.error('❌ File fetch/processing error:', fetchError);
