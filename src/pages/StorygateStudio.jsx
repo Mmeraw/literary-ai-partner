@@ -321,23 +321,7 @@ export default function StorygateStudio() {
                     </CardContent>
                 </Card>
 
-                {/* How It Works */}
-                <Card className="mb-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
-                    <CardHeader>
-                        <CardTitle style={{ color: '#7A1E1E' }}>How It Works</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4" style={{ color: '#D4D4D4' }}>
-                        <p>
-                            All submissions are screened automatically based on evaluation data provided at submission.
-                        </p>
-                        <p>
-                            Only projects that meet the readiness threshold (8.0/10 or higher) are eligible for internal consideration.
-                        </p>
-                        <p>
-                            A small number of eligible projects may be invited into further review or development pathways.
-                        </p>
-                    </CardContent>
-                </Card>
+
 
                 {/* What It Is / Is Not */}
                 <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -378,19 +362,15 @@ export default function StorygateStudio() {
                     <CardContent className="space-y-4" style={{ color: '#D4D4D4' }}>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Initial Screening</p>
-                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>All submissions are screened automatically.</p>
-                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>Submissions below the readiness threshold are declined automatically and are not read by a human.</p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>Only submissions that meet the readiness threshold are eligible for internal consideration.</p>
+                            <p className="text-sm" style={{ color: '#7B7B7B' }}>All submissions are screened automatically. Only submissions that meet the readiness threshold are queued for internal consideration, and a small number may be selected for human review.</p>
                         </div>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Storygate Review Pass</p>
-                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>A limited number of eligible projects may be invited into a structured internal review phase.</p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>Internal review and follow-up communication are not guaranteed.</p>
+                            <p className="text-sm" style={{ color: '#7B7B7B' }}>A limited number of eligible projects may be invited into a structured internal review phase. Internal review and follow-up communication are not guaranteed.</p>
                         </div>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Development Track</p>
-                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>A very small number of projects may be invited into deeper collaboration or development.</p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>Participation in this phase is by invitation only.</p>
+                            <p className="text-sm" style={{ color: '#7B7B7B' }}>A very small number of projects may be invited into deeper collaboration or development. Participation is by invitation only.</p>
                         </div>
                     </CardContent>
                 </Card>
