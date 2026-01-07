@@ -425,13 +425,6 @@ export default function StorygateStudio() {
                 <Card id="submission-form" style={{ borderColor: '#7A1E1E', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
                     <CardHeader>
                         <CardTitle style={{ color: '#7A1E1E' }}>Submit Your Project</CardTitle>
-                        <div className="p-4 rounded-lg mt-4" style={{ backgroundColor: 'rgba(169, 142, 74, 0.1)', borderWidth: '1px', borderColor: '#A98E4A' }}>
-                            <p className="text-sm font-semibold mb-2" style={{ color: '#7A1E1E' }}>Before You Submit</p>
-                            <p className="text-sm" style={{ color: '#D4D4D4' }}>
-                                All submissions require a verified readiness score of <strong>8.0/10 or higher</strong>. 
-                                Projects above this threshold enter the eligible queue, though <strong>invitation to human review is not guaranteed</strong>.
-                            </p>
-                        </div>
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-6">
@@ -439,7 +432,7 @@ export default function StorygateStudio() {
                             <div className="p-6 rounded-lg" style={{ backgroundColor: 'rgba(169, 142, 74, 0.05)', borderWidth: '2px', borderColor: '#A98E4A' }}>
                                 <h3 className="text-lg font-semibold mb-3" style={{ color: '#7A1E1E' }}>Evaluation & Readiness *</h3>
                                 <p className="text-sm mb-4" style={{ color: '#7B7B7B' }}>
-                                    Storygate Studio eligibility requires a verified readiness score of 8.0/10 or higher from RevisionGrade or an accepted professional evaluation.
+                                    Storygate Studio eligibility requires a verified readiness score of 8.0/10 or higher from RevisionGrade or an accepted professional evaluation. Projects above this threshold enter the eligible queue, though invitation to human review is not guaranteed.
                                 </p>
                                 
                                 <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: 'rgba(122, 30, 30, 0.1)', borderWidth: '1px', borderColor: '#7A1E1E' }}>
