@@ -62,14 +62,14 @@ export default function YourWriting() {
     toast.info('Extracting text from file...');
 
     try {
-      const { data: uploadResult } = await base44.integrations.Core.UploadFile({ file });
+      const uploadResult = await base44.integrations.Core.UploadFile({ file });
       
-      const { data: extractResult } = await base44.functions.invoke('ingestUploadedFileToText', {
+      const extractResponse = await base44.functions.invoke('ingestUploadedFileToText', {
         file_url: uploadResult.file_url
       });
 
-      if (extractResult.text) {
-        setText(extractResult.text);
+      if (extractResponse.data?.text) {
+        setText(extractResponse.data.text);
         if (!title) {
           setTitle(file.name.replace(/\.[^/.]+$/, ''));
         }
@@ -79,7 +79,7 @@ export default function YourWriting() {
       }
     } catch (error) {
       console.error('File upload error:', error);
-      toast.error('Failed to extract text from file');
+      toast.error(error.response?.data?.error || error.message || 'Failed to extract text from file');
     } finally {
       setIsUploading(false);
       event.target.value = '';
