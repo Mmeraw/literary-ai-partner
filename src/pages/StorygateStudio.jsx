@@ -593,9 +593,21 @@ export default function StorygateStudio() {
                                         <h4 className="font-semibold mb-1" style={{ color: primaryPath === 'MANUSCRIPT' ? '#A98E4A' : '#D4D4D4' }}>
                                             Manuscript / Publishing
                                         </h4>
-                                        <p className="text-xs" style={{ color: '#7B7B7B' }}>
-                                            Query letter, synopsis, author bio
-                                        </p>
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <p className="text-xs cursor-help inline-flex items-center" style={{ color: '#B0B0B0' }}>
+                                                        Query letter
+                                                        <HelpCircle className="w-3 h-3 ml-1" />
+                                                    </p>
+                                                </TooltipTrigger>
+                                                <TooltipContent className="max-w-xs" style={{ backgroundColor: 'rgba(14, 14, 14, 0.95)', borderColor: '#7B7B7B' }}>
+                                                    <p className="text-xs" style={{ color: '#F2EFEA' }}>
+                                                        Your query letter should include a compelling pitch paragraph, a brief synopsis of the work, and a short author bio in a single professional letter.
+                                                    </p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
                                     </button>
                                     <button
                                         type="button"
