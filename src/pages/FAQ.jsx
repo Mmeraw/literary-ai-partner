@@ -874,151 +874,12 @@ export default function FAQ() {
                                     <AccordionTrigger>
                                         Who owns the work created using this platform?
                                     </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p>
-                                                <strong>The author retains full ownership of all submitted and generated material.</strong> RevisionGrade™ 
-                                                does not claim authorship, co-authorship, or creative rights over user content.
-                                            </p>
-                                            <p>
-                                                You own your work. Period.
-                                            </p>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="still-mine">
-                                    <AccordionTrigger>
-                                        If the system revises or improves my work, is it still mine?
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p>
-                                                <strong>Yes.</strong> Just as with a human editor, ghostwriter, or script consultant, 
-                                                the author remains the creator.
-                                            </p>
-                                            <p>
-                                                Our system provides <strong>analytical feedback, structural revision, and stylistic refinement</strong> 
-                                                based on the author's original material and direction. It operates as an editorial and analytical assistant—not 
-                                                a creative originator.
-                                            </p>
-                                            <p className="text-indigo-900 font-semibold">
-                                                Editorial transformation ≠ Creative origination.
-                                            </p>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="ai-writing">
-                                    <AccordionTrigger>
-                                        How is this different from "AI writing my book"?
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p>
-                                                <strong>Our platform does not generate independent stories or substitute authorial intent.</strong>
-                                            </p>
-                                            <p>
-                                                It operates as an <strong>editorial and analytical assistant</strong>—evaluating, revising, and refining 
-                                                material that <strong>the author has already created</strong>.
-                                            </p>
-                                            <p>
-                                                Think of it this way:
-                                            </p>
-                                            <ul className="list-disc ml-6 space-y-1">
-                                                <li>You write the story, characters, and scenes</li>
-                                                <li>RevisionGrade™ evaluates against professional standards</li>
-                                                <li>You decide which suggestions to accept or reject</li>
-                                                <li>The final work reflects <strong>your creative choices</strong></li>
-                                            </ul>
-                                            <p className="text-indigo-900 font-semibold mt-3">
-                                                RevisionGrade™ doesn't create—it refines what you've already built.
-                                            </p>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="vs-human-editor">
-                                    <AccordionTrigger>
-                                        Is this different from hiring a professional editor or script doctor?
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p>
-                                                <strong>Functionally, no.</strong> The difference is scale and speed.
-                                            </p>
-                                            <p>
-                                                Professional editors routinely:
-                                            </p>
-                                            <ul className="list-disc ml-6 space-y-1">
-                                                <li>Restructure chapters and scenes</li>
-                                                <li>Rewrite dialogue and descriptions</li>
-                                                <li>Cut, move, and reframe entire sections</li>
-                                                <li>Polish sentence-level craft</li>
-                                            </ul>
-                                            <p className="mt-3">
-                                                Yet the author's name goes on the cover—because <strong>editors provide transformation, not origination</strong>.
-                                            </p>
-                                            <p className="text-indigo-900 font-semibold">
-                                                The same ethical standard applies here: the work remains the author's intellectual property.
-                                            </p>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="claims-ownership">
-                                    <AccordionTrigger>
-                                        Does the platform claim ownership of my text or ideas?
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p>
-                                                <strong>No.</strong> All submitted content remains the exclusive property of the author.
-                                            </p>
-                                            <p>
-                                                RevisionGrade™ operates under the same principle as professional editorial services: 
-                                                we provide analysis and refinement—<strong>you retain all rights</strong>.
-                                            </p>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="editorial-precedent">
-                                    <AccordionTrigger>
-                                        Is there precedent for this in publishing?
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p>
-                                                <strong>Yes—it's standard practice.</strong>
-                                            </p>
-                                            <p>
-                                                In publishing law and practice:
-                                            </p>
-                                            <ul className="list-disc ml-6 space-y-2">
-                                                <li><strong>Editors do not become co-authors</strong> unless they contribute original creative content</li>
-                                                <li><strong>Structural edits, rewrites, line edits, and suggestions do not transfer authorship</strong></li>
-                                                <li><strong>Ghostwriters</strong> are often contractually invisible—and our system does less than that</li>
-                                            </ul>
-                                            <p className="mt-3">
-                                                RevisionGrade™ is closer to:
-                                            </p>
-                                            <ul className="list-disc ml-6 space-y-1">
-                                                <li>Grammarly (but deeper)</li>
-                                                <li>A developmental editor</li>
-                                                <li>A screenplay consultant</li>
-                                            </ul>
-                                            <p className="mt-3 text-indigo-900 font-semibold">
-                                                All of which are universally accepted in professional publishing.
-                                            </p>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
+...
                             </Accordion>
                         </CardContent>
                     </Card>
 
-                    {/* Trusted Path */}
+                    {/* Revision Mode */}
                     <Card className="border-0 shadow-md">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-xl">
@@ -1233,204 +1094,40 @@ export default function FAQ() {
                         </CardContent>
                     </Card>
 
-                    {/* Revision Mode */}
+                    {/* Trusted Path */}
                     <Card className="border-0 shadow-md">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-xl">
-                                <Sparkles className="w-5 h-5 text-indigo-600" />
-                                Revision Mode™
+                                <Shield className="w-5 h-5 text-purple-600" />
+                                Trusted Path™
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <Accordion type="single" collapsible className="w-full">
-                                <AccordionItem value="what-is-revision-mode">
+                                <AccordionItem value="what-is-trusted-path">
                                     <AccordionTrigger>
-                                        What is Revision Mode™?
+                                        What is Trusted Path™?
                                     </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p>
-                                                Revision Mode™ is a diagnostic and guidance system designed to evaluate a manuscript's structure, clarity, and narrative function. 
-                                                It identifies where a manuscript succeeds, where it fails, and what kind of revision is required to move it closer to professional standards.
-                                            </p>
-                                            <p className="font-semibold text-indigo-900">
-                                                It does not rewrite your book for you. It shows you what must change and why.
-                                            </p>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
+...
+                            </Accordion>
+                        </CardContent>
+                    </Card>
 
-                                <AccordionItem value="automatic-fix">
-                                    <AccordionTrigger>
-                                        Does Revision Mode™ "fix" my manuscript automatically?
+                    {/* Storygate Studio */}
+                    <Card className="border-0 shadow-md">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <Shield className="w-5 h-5 text-red-600" />
+                                Storygate Studio™
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Accordion type="single" collapsible className="w-full" value={defaultOpen}>
+                                <AccordionItem value="what-is-storygate" className={filteredMatches && !filteredMatches.includes('what-is-storygate') ? 'hidden' : ''}>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="what-is-storygate">
+                                        What is Storygate Studio?
                                     </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p><strong>No.</strong></p>
-                                            <p>
-                                                Revision Mode™ does not generate a finished, publishable manuscript from weak or incomplete material. 
-                                                It does not replace the author's creative labor, judgment, or voice.
-                                            </p>
-                                            <p className="font-semibold text-slate-900">Instead, it provides:</p>
-                                            <ul className="list-disc ml-6 space-y-1">
-                                                <li>Structural diagnosis</li>
-                                                <li>Clear identification of narrative weaknesses</li>
-                                                <li>Specific guidance on what type of revision is needed</li>
-                                            </ul>
-                                            <p className="text-indigo-900 font-semibold">
-                                                Think of it as a developmental editor, not a ghostwriter.
-                                            </p>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="major-problems">
-                                    <AccordionTrigger>
-                                        What if my manuscript has major problems?
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p><strong>Revision Mode™ will tell you—clearly and honestly.</strong></p>
-                                            <p>If your manuscript suffers from:</p>
-                                            <ul className="list-disc ml-6 space-y-1">
-                                                <li>Weak or missing plot structure</li>
-                                                <li>Underdeveloped characters</li>
-                                                <li>Incoherent stakes or causality</li>
-                                                <li>Conceptual or tonal mismatch</li>
-                                            </ul>
-                                            <p className="mt-3">…it will not attempt to "polish over" those issues.</p>
-                                            <p className="font-semibold text-slate-900">Instead, it will explain:</p>
-                                            <ul className="list-disc ml-6 space-y-1">
-                                                <li>Why the material fails</li>
-                                                <li>Where the failure occurs</li>
-                                                <li>What kind of work would be required to fix it</li>
-                                            </ul>
-                                            <p className="text-indigo-900 font-semibold">
-                                                This transparency is intentional and essential.
-                                            </p>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="guarantee-publishable">
-                                    <AccordionTrigger>
-                                        Does Revision Mode™ guarantee a publishable result?
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p><strong>No.</strong></p>
-                                            <p>
-                                                Revision Mode™ does not guarantee publication, agent interest, or commercial success.
-                                            </p>
-                                            <p className="font-semibold text-slate-900">What it guarantees is:</p>
-                                            <ul className="list-disc ml-6 space-y-1">
-                                                <li>Honest diagnostic feedback</li>
-                                                <li>Alignment with professional evaluation standards</li>
-                                                <li>A clear understanding of whether a manuscript is structurally viable</li>
-                                            </ul>
-                                            <p className="mt-3">
-                                                Publication still depends on the author's execution, revision choices, and creative judgment.
-                                            </p>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="why-no-rewrite">
-                                    <AccordionTrigger>
-                                        Why doesn't Revision Mode™ just "rewrite it better"?
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p><strong>Because rewriting without understanding is deception.</strong></p>
-                                            <p>Automatically rewriting weak material can:</p>
-                                            <ul className="list-disc ml-6 space-y-1">
-                                                <li>Mask foundational flaws</li>
-                                                <li>Produce generic or hollow prose</li>
-                                                <li>Give false confidence</li>
-                                            </ul>
-                                            <p className="text-indigo-900 font-semibold mt-3">
-                                                RevisionGrade™ is designed to build stronger writers, not mask problems with artificial polish.
-                                            </p>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="who-for">
-                                    <AccordionTrigger>
-                                        Who is Revision Mode™ for?
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p><strong>Revision Mode™ is ideal for:</strong></p>
-                                            <ul className="list-disc ml-6 space-y-1">
-                                                <li>Writers who want professional-level feedback</li>
-                                                <li>Authors preparing for agents or publishers</li>
-                                                <li>Creators who want to understand why something isn't working</li>
-                                                <li>Writers serious about craft improvement</li>
-                                            </ul>
-                                            <p className="mt-3">
-                                                It is not intended for users seeking instant, fully rewritten manuscripts.
-                                            </p>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="what-to-expect">
-                                    <AccordionTrigger>
-                                        What should I expect after running Revision Mode™?
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p className="font-semibold text-slate-900">You should expect:</p>
-                                            <ul className="list-disc ml-6 space-y-1">
-                                                <li>A clear diagnostic of your manuscript's strengths and failures</li>
-                                                <li>Explicit identification of structural and narrative issues</li>
-                                                <li>Actionable guidance on what to revise and why</li>
-                                                <li>A realistic sense of where your work stands in the professional landscape</li>
-                                            </ul>
-                                            <p className="font-semibold text-slate-900 mt-3">You should not expect:</p>
-                                            <ul className="list-disc ml-6 space-y-1">
-                                                <li>A finished book</li>
-                                                <li>Automated "fixes" that bypass craft</li>
-                                                <li>Guaranteed market success</li>
-                                            </ul>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="why-better">
-                                    <AccordionTrigger>
-                                        Why is this approach better?
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <p className="text-slate-700">
-                                            <strong>Because honesty scales. Illusions do not.</strong>
-                                        </p>
-                                        <p className="text-slate-700 mt-3">
-                                            RevisionGrade™ treats writing as a craft—not a button to press—and respects both the reader and the author 
-                                            by refusing to fake improvement.
-                                        </p>
-                                    </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="core-philosophy">
-                                    <AccordionTrigger>
-                                        What is the core philosophy behind Revision Mode™?
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <div className="space-y-3 text-slate-700">
-                                            <p className="font-semibold text-indigo-900">
-                                                Revision Mode™ does not create talent.
-                                            </p>
-                                            <p>
-                                                It reveals it, challenges it, and helps it grow.
-                                            </p>
-                                            <p className="font-semibold text-slate-900">
-                                                That is the contract.
-                                            </p>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
+...
                             </Accordion>
                         </CardContent>
                     </Card>
