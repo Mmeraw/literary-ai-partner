@@ -10,7 +10,8 @@ import {
     X, 
     Loader2,
     AlertCircle,
-    Upload
+    Upload,
+    HelpCircle
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
@@ -21,6 +22,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import DocumentSelector from '@/components/DocumentSelector';
 import StorygateStudioFAQ from '@/components/storygate/StorygateStudioFAQ';
 
@@ -551,8 +558,29 @@ export default function StorygateStudio() {
                                     )}
 
                                     <div>
-                                        <label className="block text-sm font-medium mb-2" style={{ color: formData.evaluationSource === 'Equivalent' ? '#F2EFEA' : '#D4D4D4' }}>
+                                        <label className="flex items-center gap-2 text-sm font-medium mb-2" style={{ color: formData.evaluationSource === 'Equivalent' ? '#F2EFEA' : '#D4D4D4' }}>
                                             Evaluation Report ID / Link {formData.evaluationSource === 'Equivalent' ? '*' : '(Optional)'}
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <HelpCircle className="w-4 h-4 cursor-help" style={{ color: '#7B7B7B' }} />
+                                                    </TooltipTrigger>
+                                                    <TooltipContent className="max-w-xs" style={{ backgroundColor: 'rgba(14, 14, 14, 0.95)', borderColor: '#7B7B7B' }}>
+                                                        <p className="text-xs mb-2" style={{ color: '#F2EFEA' }}>
+                                                            <strong>For RevisionGrade evaluations:</strong>
+                                                        </p>
+                                                        <p className="text-xs mb-3" style={{ color: '#D4D4D4' }}>
+                                                            Your manuscript ID from the Dashboard (auto-filled if you selected a document above)
+                                                        </p>
+                                                        <p className="text-xs mb-2" style={{ color: '#F2EFEA' }}>
+                                                            <strong>For external evaluations:</strong>
+                                                        </p>
+                                                        <p className="text-xs" style={{ color: '#D4D4D4' }}>
+                                                            Provide any verifiable reference: report URL, evaluator contact email, agency reference number, or third-party service report ID
+                                                        </p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
                                         </label>
                                         {formData.evaluationSource === 'Equivalent' && (
                                             <p className="text-xs mb-2" style={{ color: '#7B7B7B' }}>
