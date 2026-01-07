@@ -34,8 +34,71 @@ async function loadMasterData() {
                     "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
                 }
             },
+            "memoirChapterNarrative": {
+                "label": "Memoir Chapter / Narrative",
+                "family": "Prose Nonfiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "R", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "O", "worldbuilding": "O", "stakes": "R",
+                    "linePolish": "R", "marketFit": "R", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "creativeNonfiction": {
+                "label": "Creative Nonfiction",
+                "family": "Prose Nonfiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "O", "conflict": "O", "theme": "R",
+                    "pacing": "R", "dialogue": "O", "worldbuilding": "O", "stakes": "O",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "academicAnalyticalProse": {
+                "label": "Academic/Analytical Prose",
+                "family": "Prose Nonfiction",
+                "criteria": {
+                    "hook": "O", "voice": "O", "character": "NA", "conflict": "NA", "theme": "R",
+                    "pacing": "O", "dialogue": "NA", "worldbuilding": "NA", "stakes": "NA",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "O", "technical": "R"
+                }
+            },
+            "professionalNonfictionSample": {
+                "label": "Professional Nonfiction Sample",
+                "family": "Prose Nonfiction",
+                "criteria": {
+                    "hook": "O", "voice": "O", "character": "NA", "conflict": "NA", "theme": "O",
+                    "pacing": "O", "dialogue": "NA", "worldbuilding": "NA", "stakes": "NA",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "O", "technical": "R"
+                }
+            },
+            "opinionEditorial": {
+                "label": "Opinion/Editorial",
+                "family": "Prose Nonfiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "NA", "conflict": "O", "theme": "R",
+                    "pacing": "O", "dialogue": "NA", "worldbuilding": "NA", "stakes": "O",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "O", "technical": "R"
+                }
+            },
             "novelChapter": {
                 "label": "Novel Chapter",
+                "family": "Prose Fiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "R", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "R", "stakes": "R",
+                    "linePolish": "R", "marketFit": "R", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "literaryFictionGeneral": {
+                "label": "Literary Fiction (General)",
+                "family": "Prose Fiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "R", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "R", "stakes": "R",
+                    "linePolish": "R", "marketFit": "R", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "genreFictionGeneral": {
+                "label": "Genre Fiction (General)",
                 "family": "Prose Fiction",
                 "criteria": {
                     "hook": "R", "voice": "R", "character": "R", "conflict": "R", "theme": "R",
@@ -50,6 +113,24 @@ async function loadMasterData() {
                     "hook": "R", "voice": "R", "character": "R", "conflict": "R", "theme": "R",
                     "pacing": "R", "dialogue": "R", "worldbuilding": "R", "stakes": "R",
                     "linePolish": "R", "marketFit": "R", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "flashFictionMicro": {
+                "label": "Flash Fiction / Micro",
+                "family": "Prose Fiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "O", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "O", "worldbuilding": "O", "stakes": "R",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "proseScene": {
+                "label": "Prose Scene",
+                "family": "Prose Fiction",
+                "criteria": {
+                    "hook": "R", "voice": "R", "character": "R", "conflict": "R", "theme": "O",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "O", "stakes": "R",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
                 }
             },
             "featureScreenplay": {
@@ -70,22 +151,76 @@ async function loadMasterData() {
                     "linePolish": "O", "marketFit": "O", "keepGoing": "R", "technical": "R"
                 }
             },
-            "flashFictionMicro": {
-                "label": "Flash Fiction / Micro",
-                "family": "Prose Fiction",
+            "televisionPilot": {
+                "label": "Television Pilot",
+                "family": "Script/Screenplay",
                 "criteria": {
-                    "hook": "R", "voice": "R", "character": "O", "conflict": "R", "theme": "R",
-                    "pacing": "R", "dialogue": "O", "worldbuilding": "O", "stakes": "R",
-                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                    "hook": "R", "voice": "O", "character": "R", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "R", "stakes": "R",
+                    "linePolish": "O", "marketFit": "R", "keepGoing": "R", "technical": "R"
                 }
             },
-            "proseScene": {
-                "label": "Prose Scene",
-                "family": "Prose Fiction",
+            "televisionEpisode": {
+                "label": "Television Episode",
+                "family": "Script/Screenplay",
                 "criteria": {
-                    "hook": "R", "voice": "R", "character": "R", "conflict": "R", "theme": "O",
+                    "hook": "R", "voice": "O", "character": "R", "conflict": "R", "theme": "O",
                     "pacing": "R", "dialogue": "R", "worldbuilding": "O", "stakes": "R",
-                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                    "linePolish": "O", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "stagePlayScript": {
+                "label": "Stage Play Script",
+                "family": "Script/Screenplay",
+                "criteria": {
+                    "hook": "R", "voice": "O", "character": "R", "conflict": "R", "theme": "R",
+                    "pacing": "R", "dialogue": "R", "worldbuilding": "O", "stakes": "R",
+                    "linePolish": "O", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                }
+            },
+            "queryPackage": {
+                "label": "Query Package",
+                "family": "Submission Materials",
+                "criteria": {
+                    "hook": "R", "voice": "O", "character": "NA", "conflict": "NA", "theme": "O",
+                    "pacing": "NA", "dialogue": "NA", "worldbuilding": "NA", "stakes": "NA",
+                    "linePolish": "R", "marketFit": "R", "keepGoing": "NA", "technical": "R"
+                }
+            },
+            "pitchOrLogline": {
+                "label": "Pitch or Logline",
+                "family": "Submission Materials",
+                "criteria": {
+                    "hook": "R", "voice": "O", "character": "O", "conflict": "O", "theme": "O",
+                    "pacing": "NA", "dialogue": "NA", "worldbuilding": "NA", "stakes": "O",
+                    "linePolish": "R", "marketFit": "R", "keepGoing": "NA", "technical": "R"
+                }
+            },
+            "synopsis": {
+                "label": "Synopsis",
+                "family": "Submission Materials",
+                "criteria": {
+                    "hook": "R", "voice": "O", "character": "O", "conflict": "R", "theme": "O",
+                    "pacing": "O", "dialogue": "NA", "worldbuilding": "O", "stakes": "R",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "NA", "technical": "R"
+                }
+            },
+            "treatmentOrSeriesBible": {
+                "label": "Treatment or Series Bible",
+                "family": "Submission Materials",
+                "criteria": {
+                    "hook": "R", "voice": "O", "character": "R", "conflict": "R", "theme": "R",
+                    "pacing": "O", "dialogue": "O", "worldbuilding": "R", "stakes": "R",
+                    "linePolish": "O", "marketFit": "R", "keepGoing": "NA", "technical": "R"
+                }
+            },
+            "outlineOrProposal": {
+                "label": "Outline or Proposal",
+                "family": "Submission Materials",
+                "criteria": {
+                    "hook": "O", "voice": "O", "character": "O", "conflict": "O", "theme": "O",
+                    "pacing": "NA", "dialogue": "NA", "worldbuilding": "O", "stakes": "O",
+                    "linePolish": "R", "marketFit": "O", "keepGoing": "NA", "technical": "R"
                 }
             },
             "otherUserDefined": {
