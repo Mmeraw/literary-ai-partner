@@ -15,7 +15,6 @@ import Enterprise from './pages/Enterprise';
 import EthicsAndSafety from './pages/EthicsAndSafety';
 import Evaluate from './pages/Evaluate';
 import EvaluateChapter from './pages/EvaluateChapter';
-import FAQ from './pages/FAQ';
 import FilmAdaptation from './pages/FilmAdaptation';
 import FindAgents from './pages/FindAgents';
 import ForProfessionals from './pages/ForProfessionals';
@@ -84,7 +83,6 @@ export const PAGES = {
     "EthicsAndSafety": EthicsAndSafety,
     "Evaluate": Evaluate,
     "EvaluateChapter": EvaluateChapter,
-    "FAQ": FAQ,
     "FilmAdaptation": FilmAdaptation,
     "FindAgents": FindAgents,
     "ForProfessionals": ForProfessionals,
