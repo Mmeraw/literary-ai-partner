@@ -31,7 +31,7 @@ const dashboardPages = [
 const revisePages = [
     { name: 'Scene(s) — partial or full', page: 'History', icon: Edit3 },
     { name: 'Chapter(s) — partial or full', page: 'History', icon: Edit3 },
-    { name: 'Full Novel', page: 'History', icon: BookOpen },
+    { name: 'Full Novel', page: 'YourWriting', icon: BookOpen },
     { name: 'Full Screenplay', page: 'History', icon: Film },
 ];
 
