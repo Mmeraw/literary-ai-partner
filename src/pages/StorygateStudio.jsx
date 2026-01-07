@@ -618,11 +618,24 @@ export default function StorygateStudio() {
                                                 : 'border-slate-600 hover:border-slate-500'
                                         }`}
                                     >
-                                        <h4 className="font-semibold mb-1" style={{ color: primaryPath === 'SCREEN' ? '#A98E4A' : '#D4D4D4' }}>
-                                            Screen / Adaptation
-                                        </h4>
-                                        <p className="text-xs" style={{ color: '#7B7B7B' }}>
-                                            Logline, adaptation pitch, Film/TV Pitch Deck (required), author bio; source material optional
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <h4 className="font-semibold mb-1 cursor-help inline-flex items-center" style={{ color: primaryPath === 'SCREEN' ? '#A98E4A' : '#D4D4D4' }}>
+                                                        Screen / Adaptation
+                                                        <HelpCircle className="w-4 h-4 ml-1" />
+                                                    </h4>
+                                                </TooltipTrigger>
+                                                <TooltipContent className="max-w-sm" style={{ backgroundColor: 'rgba(14, 14, 14, 0.95)', borderColor: '#7B7B7B' }}>
+                                                    <p className="text-xs" style={{ color: '#F2EFEA' }}>
+                                                        <strong>Screen / Adaptation submissions include:</strong><br/>
+                                                        A logline, a brief adaptation pitch, a Film/TV pitch deck (required), and an author bio. Source material (the underlying book, article, or IP) is optional; a clear deck is more important than attaching full material.
+                                                    </p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                        <p className="text-xs" style={{ color: '#B0B0B0' }}>
+                                            Required materials
                                         </p>
                                     </button>
                                 </div>
