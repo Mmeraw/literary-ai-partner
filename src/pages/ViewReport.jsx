@@ -275,6 +275,30 @@ ${submission.text || 'No text available'}
                         </div>
                     </div>
 
+                    {/* Sub-8.0 Remediation Message */}
+                    {(evaluationResult.overallScore || submission.overall_score) * 10 < 80 && (
+                        <div className="p-6 rounded-xl bg-gradient-to-br from-rose-50 to-red-50 border-2 border-rose-300">
+                            <h3 className="text-lg font-bold text-rose-900 mb-3">This project is not yet structurally ready for professional submission.</h3>
+                            <p className="text-sm text-rose-800 mb-3">
+                                Your current readiness score is below 8.0/10, which means the foundational story spine (concept, structure, and execution) does not yet meet the threshold required for professional routing.
+                            </p>
+                            <p className="text-sm text-rose-800 mb-4">
+                                This is not a judgment on your potential as an author. It is a clear signal that the manuscript needs further structural and narrative work before it can be evaluated as submission-ready.
+                            </p>
+                            <div className="p-4 rounded-lg bg-white border border-rose-200">
+                                <h4 className="font-semibold text-slate-900 mb-2">Recommended Actions</h4>
+                                <p className="text-sm text-slate-700 mb-3">
+                                    At this stage, the most valuable work is structural: clarifying the core premise, strengthening the narrative spine, and resolving major issues in character, stakes, or pacing.
+                                </p>
+                                <ul className="text-sm text-slate-700 space-y-2">
+                                    <li>• <strong>Focus Areas:</strong> Review the weakest criteria below to identify structural gaps</li>
+                                    <li>• <strong>Rebuild Structure:</strong> Use revision tools to strengthen the narrative foundation</li>
+                                    <li>• <strong>Re-evaluate:</strong> Submit again after substantial revision to see if the score moves toward 8.0+</li>
+                                </ul>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Supporting AI Analysis - Move to left column */}
                     <div className="space-y-4">
                         <div>
