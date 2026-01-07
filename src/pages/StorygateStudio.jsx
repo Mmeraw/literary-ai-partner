@@ -315,7 +315,7 @@ export default function StorygateStudio() {
                 {/* What It Is */}
                 <Card className="mb-8" style={{ borderColor: '#A98E4A', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
                     <CardContent className="pt-6 space-y-4" style={{ color: '#F2EFEA' }}>
-                        <p style={{ color: '#7B7B7B' }} className="italic">
+                        <p style={{ color: '#B0B0B0' }} className="italic">
                             It is not a general submission service.
                         </p>
                         <p style={{ color: '#D4D4D4' }} className="font-semibold">
@@ -365,17 +365,17 @@ export default function StorygateStudio() {
                     <CardContent className="space-y-4" style={{ color: '#D4D4D4' }}>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Automatic Screening</p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>All submissions are screened automatically. Submissions that meet the readiness threshold (8.0/10 or higher) enter the eligible queue, and a limited number may be invited to the Storygate Review Pass. Submissions below this threshold are declined without human review; some may receive brief, structured feedback derived from existing evaluation data, but no bespoke commentary will be provided.</p>
+                            <p className="text-sm" style={{ color: '#B0B0B0' }}>All submissions are screened automatically. Submissions that meet the readiness threshold (8.0/10 or higher) enter the eligible queue, and a limited number may be invited to the Storygate Review Pass. Submissions below this threshold are declined without human review; some may receive brief, structured feedback derived from existing evaluation data, but no bespoke commentary will be provided.</p>
                         </div>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Storygate Review Pass</p>
-                            <p className="text-sm italic mb-1" style={{ color: '#7B7B7B' }}>(Internal human review; no guarantee of response)</p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>A limited number of eligible projects may be invited into a structured internal review phase. Internal review and follow-up communication are not guaranteed.</p>
+                            <p className="text-sm italic mb-1" style={{ color: '#B0B0B0' }}>(Internal human review; no guarantee of response)</p>
+                            <p className="text-sm" style={{ color: '#B0B0B0' }}>A limited number of eligible projects may be invited into a structured internal review phase. Internal review and follow-up communication are not guaranteed.</p>
                         </div>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Development Track</p>
-                            <p className="text-sm italic mb-1" style={{ color: '#7B7B7B' }}>(Invitation-only collaboration; may involve paid engagement)</p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>A very small number of projects may be invited into deeper collaboration or development. Participation is by invitation only.</p>
+                            <p className="text-sm italic mb-1" style={{ color: '#B0B0B0' }}>(Invitation-only collaboration; may involve paid engagement)</p>
+                            <p className="text-sm" style={{ color: '#B0B0B0' }}>A very small number of projects may be invited into deeper collaboration or development. Participation is by invitation only.</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -389,13 +389,13 @@ export default function StorygateStudio() {
                         <p>
                             <strong style={{ color: '#D4D4D4' }}>Submission to Storygate Studio is free.</strong>
                         </p>
-                        <p className="text-sm" style={{ color: '#7B7B7B' }}>
+                        <p className="text-sm" style={{ color: '#B0B0B0' }}>
                             Evaluation, revision, and development tools (including RevisionGrade analysis and Film/TV adaptation packages) are separate paid services and are not required to maintain a Storygate Studio submission.
                         </p>
-                        <p className="text-sm" style={{ color: '#7B7B7B' }}>
+                        <p className="text-sm" style={{ color: '#B0B0B0' }}>
                             For projects invited into deeper engagement, Storygate Studio may offer a paid development arrangement tailored to the scope of the work. Pricing and terms are discussed only after a project has been selected for internal human review.
                         </p>
-                        <p className="text-sm" style={{ color: '#7B7B7B' }}>
+                        <p className="text-sm" style={{ color: '#B0B0B0' }}>
                             A Storygate Studio submission remains on file regardless of subscription status (until the user removes it); subscriptions apply to tools and services, not to waiting or continued eligibility.
                         </p>
                     </CardContent>
@@ -409,10 +409,10 @@ export default function StorygateStudio() {
                             <p className="text-sm mb-3" style={{ color: '#D4D4D4' }}>
                                 Storygate Studio is the only environment within RevisionGrade where human reviewers may read submitted work.
                             </p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>
+                            <p className="text-sm" style={{ color: '#B0B0B0' }}>
                                 Human review occurs only after:
                             </p>
-                            <ul className="text-sm mt-2 space-y-1" style={{ color: '#7B7B7B' }}>
+                            <ul className="text-sm mt-2 space-y-1" style={{ color: '#B0B0B0' }}>
                                 <li>• The author explicitly submits to Storygate Studio, and</li>
                                 <li>• The submission meets the readiness threshold and is selected for internal human review.</li>
                             </ul>
@@ -430,7 +430,7 @@ export default function StorygateStudio() {
                             {/* Evaluation & Readiness (MOVED UP - Critical Gate) */}
                             <div className="p-6 rounded-lg" style={{ backgroundColor: 'rgba(169, 142, 74, 0.05)', borderWidth: '2px', borderColor: '#A98E4A' }}>
                                 <h3 className="text-lg font-semibold mb-3" style={{ color: '#7A1E1E' }}>Evaluation & Readiness *</h3>
-                                <p className="text-sm mb-4" style={{ color: '#7B7B7B' }}>
+                                <p className="text-sm mb-4" style={{ color: '#B0B0B0' }}>
                                     Storygate Studio eligibility requires a verified readiness score of 8.0/10 or higher from RevisionGrade or an accepted professional evaluation. Submissions below this threshold are declined automatically. Projects above this threshold enter the eligible queue, though invitation to human review is not guaranteed.
                                 </p>
 
@@ -467,7 +467,7 @@ export default function StorygateStudio() {
                                             style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
                                             required
                                         />
-                                        <p className="text-xs mt-2" style={{ color: '#7B7B7B' }}>
+                                        <p className="text-xs mt-2" style={{ color: '#B0B0B0' }}>
                                             Score of 8.0+ required for consideration.
                                         </p>
                                         {formData.evaluationScore && parseFloat(formData.evaluationScore) < 8.0 && (
