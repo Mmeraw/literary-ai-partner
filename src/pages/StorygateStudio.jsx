@@ -868,20 +868,6 @@ export default function StorygateStudio() {
                                 </div>
                             )}
 
-                            {/* Contact Information */}
-                                
-                                {/* Readiness Threshold */}
-                                <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: 'rgba(122, 30, 30, 0.1)', borderWidth: '1px', borderColor: '#7A1E1E' }}>
-                                    <p className="text-sm font-semibold mb-2" style={{ color: '#7A1E1E' }}>Readiness Threshold (Required)</p>
-                                    <p className="text-sm mb-3" style={{ color: '#D4D4D4' }}>
-                                        Storygate Studio is selective by design. To be eligible for internal consideration, projects must meet a minimum overall score of <strong>8.0/10 (or equivalent)</strong> based on a RevisionGrade evaluation or an accepted professional evaluation.
-                                    </p>
-                                    <p className="text-sm font-semibold" style={{ color: '#7A1E1E' }}>Automatic Screening</p>
-                                    <p className="text-sm" style={{ color: '#D4D4D4' }}>
-                                        Submissions below 8.0/10 are declined automatically and are not read by a human.
-                                    </p>
-                                </div>
-                                
                             {/* Evaluation & Readiness (shown for all paths) */}
                             {primaryPath && (
                                 <div className="p-6 rounded-lg" style={{ backgroundColor: 'rgba(169, 142, 74, 0.05)', borderWidth: '1px', borderColor: '#A98E4A' }}>
@@ -1014,8 +1000,6 @@ export default function StorygateStudio() {
                                             </div>
                                         </div>
                                     )}
-                            </div>
-
                                 </div>
                             )}
 
@@ -1072,21 +1056,24 @@ export default function StorygateStudio() {
                                 </label>
                             </div>
                             )}
-                            <Button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className="w-full h-12 hover:opacity-90 transition-opacity"
-                                style={{ backgroundColor: '#7A1E1E', color: '#F2EFEA' }}
-                            >
-                                {isSubmitting ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                        Submitting...
-                                    </>
-                                ) : (
-                                    'Submit to Storygate Studio'
-                                )}
-                            </Button>
+
+                            {/* Submit Button */}
+                            {primaryPath && (
+                                <Button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="w-full h-12 hover:opacity-90 transition-opacity"
+                                    style={{ backgroundColor: '#7A1E1E', color: '#F2EFEA' }}
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                            Submitting...
+                                        </>
+                                    ) : (
+                                        'Submit to Storygate Studio'
+                                    )}
+                                </Button>
                             )}
                         </form>
                     </CardContent>
