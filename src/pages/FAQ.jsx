@@ -58,6 +58,17 @@ export default function FAQ() {
             { value: 'content-privacy', text: 'Can staff access my manuscripts?' },
             { value: 'data-usage', text: 'How is my data used?' },
             { value: 'why-automated', text: 'Why is automation important?' }
+        ],
+        storygate: [
+            { value: 'what-is-storygate', text: 'What is Storygate Studio?' },
+            { value: 'manuscript-materials', text: 'What materials are required for manuscript submissions?' },
+            { value: 'pitch-in-query', text: 'Why does Storygate treat the pitch as part of the query letter?' },
+            { value: 'pitch-synopsis-bio-order', text: 'Why is the order Pitch → Synopsis → Bio → Query important?' },
+            { value: 'film-deck-required', text: 'Is a Film / TV Pitch Deck required?' },
+            { value: 'source-material-definition', text: 'What is Source Material?' },
+            { value: 'declined-feedback', text: 'Will I receive feedback if my submission is declined?' },
+            { value: 'payment-to-stay', text: 'Do I need to keep paying to stay in Storygate Studio?' },
+            { value: 'guarantee-representation', text: 'Does Storygate guarantee representation or production?' }
         ]
     }), []);
 
@@ -1919,6 +1930,169 @@ export default function FAQ() {
                                                 don't have to compete.
                                             </p>
                                         </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </CardContent>
+                    </Card>
+
+                    {/* Storygate Studio */}
+                    <Card className="border-0 shadow-md">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <Shield className="w-5 h-5 text-red-600" />
+                                Storygate Studio™
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Accordion type="single" collapsible className="w-full" value={defaultOpen}>
+                                <AccordionItem value="what-is-storygate" className={filteredMatches && !filteredMatches.includes('what-is-storygate') ? 'hidden' : ''}>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="what-is-storygate">
+                                        What is Storygate Studio?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            Storygate Studio is a selective professional gateway for narrative projects that have already demonstrated strong readiness.
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="manuscript-materials" className={filteredMatches && !filteredMatches.includes('manuscript-materials') ? 'hidden' : ''}>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="manuscript-materials">
+                                        What materials are required for manuscript submissions?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>Manuscript submissions require:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>A query letter (including a clear pitch / hook paragraph)</li>
+                                                <li>A synopsis</li>
+                                                <li>An author bio</li>
+                                            </ul>
+                                            <p className="font-semibold text-indigo-900 mt-2">
+                                                The pitch is part of the query letter, not a separate document.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="pitch-in-query" className={filteredMatches && !filteredMatches.includes('pitch-in-query') ? 'hidden' : ''}>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="pitch-in-query">
+                                        Why does Storygate treat the pitch as part of the query letter?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>
+                                                In traditional publishing, the pitch is not a separate document. It is the opening hook paragraph inside the query letter—the section that quickly communicates what the book is, why it's compelling, and why it belongs in the market.
+                                            </p>
+                                            <p>Storygate Studio follows this industry standard.</p>
+                                            <p className="font-semibold text-slate-900 mt-3">For manuscript submissions:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>You do not upload a separate pitch document.</li>
+                                                <li>Your query letter must include a clear, compelling pitch paragraph.</li>
+                                                <li>This is exactly where agents expect to find it.</li>
+                                            </ul>
+                                            <p className="font-semibold text-slate-900 mt-3">Internally, Storygate may evaluate:</p>
+                                            <ol className="list-decimal ml-6 space-y-1">
+                                                <li>Pitch (the hook inside the query)</li>
+                                                <li>Synopsis</li>
+                                                <li>Author bio</li>
+                                                <li>The full query letter</li>
+                                            </ol>
+                                            <p className="mt-3">
+                                                But for applicants, this remains a single, standard query letter—formatted and structured according to professional agent norms.
+                                            </p>
+                                            <p className="text-indigo-900 font-semibold mt-3">
+                                                Storygate enforces this approach to keep submissions aligned with real-world publishing expectations and to avoid unnecessary or redundant materials.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="pitch-synopsis-bio-order" className={filteredMatches && !filteredMatches.includes('pitch-synopsis-bio-order') ? 'hidden' : ''}>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="pitch-synopsis-bio-order">
+                                        Why is the order Pitch → Synopsis → Bio → Query important?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p>This reflects how agents assess submissions:</p>
+                                            <ul className="list-disc ml-6 space-y-1">
+                                                <li>Pitch first (inside the query)</li>
+                                                <li>Then story understanding (synopsis)</li>
+                                                <li>Then author context (bio)</li>
+                                                <li>Then the full professional letter (query)</li>
+                                            </ul>
+                                            <p className="mt-3">
+                                                Storygate enforces this structure to match industry norms. <strong>Pitch refers to the hook paragraph inside the query letter, not a separate upload.</strong>
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="film-deck-required" className={filteredMatches && !filteredMatches.includes('film-deck-required') ? 'hidden' : ''}>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="film-deck-required">
+                                        Is a Film / TV Pitch Deck required?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            <strong>Yes.</strong> All Screen / Adaptation submissions require a Film / TV Pitch Deck. Projects without a deck cannot advance to human review.
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="source-material-definition" className={filteredMatches && !filteredMatches.includes('source-material-definition') ? 'hidden' : ''}>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="source-material-definition">
+                                        What is "Source Material"?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            Source Material is the underlying work being adapted (such as a novel manuscript, series bible, or article). <strong>It does not replace the Film / TV Pitch Deck.</strong>
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="declined-feedback" className={filteredMatches && !filteredMatches.includes('declined-feedback') ? 'hidden' : ''}>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="declined-feedback">
+                                        Will I receive feedback if my submission is declined?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            Auto-declined submissions may receive brief, structured feedback derived from existing evaluation data. We do not provide bespoke critique.
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="payment-to-stay" className={filteredMatches && !filteredMatches.includes('payment-to-stay') ? 'hidden' : ''}>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="payment-to-stay">
+                                        Do I need to keep paying to stay in Storygate Studio?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="space-y-3 text-slate-700">
+                                            <p className="font-semibold text-indigo-900">No.</p>
+                                            <p>
+                                                Once your project is submitted to Storygate Studio, it remains eligible for consideration regardless of whether you maintain a paid subscription.
+                                            </p>
+                                            <p>
+                                                Subscriptions apply to evaluation and development tools (such as RevisionGrade, revisions, or Film/TV deck creation). They do not apply to waiting, being considered, or remaining in the Storygate Studio queue.
+                                            </p>
+                                            <p>
+                                                You may downgrade your plan or cancel entirely after submitting. Your Storygate Studio submission will remain on file and may still be reviewed or routed based on the materials already submitted.
+                                            </p>
+                                            <p className="font-semibold text-slate-900 mt-3">
+                                                If you later wish to revise your work, update materials, or submit a new version, those actions require paid tools again.
+                                            </p>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="guarantee-representation" className={filteredMatches && !filteredMatches.includes('guarantee-representation') ? 'hidden' : ''}>
+                                    <AccordionTrigger data-faq-trigger data-faq-value="guarantee-representation">
+                                        Does Storygate guarantee representation or production?
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p className="text-slate-700">
+                                            <strong>No.</strong> Storygate Studio does not guarantee representation, publication, or production.
+                                        </p>
                                     </AccordionContent>
                                 </AccordionItem>
                             </Accordion>
