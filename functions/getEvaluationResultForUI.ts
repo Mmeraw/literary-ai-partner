@@ -30,11 +30,13 @@ Deno.serve(async (req) => {
             'created': 1
         };
 
-        // Sort: highest status priority first, then most recent
+        // Sort: highest status priority first, then most recent, then by ID (deterministic tie-breaker)
         const sortedRuns = allRuns.sort((a, b) => {
             const priorityDiff = (statusPriority[b.status] || 0) - (statusPriority[a.status] || 0);
             if (priorityDiff !== 0) return priorityDiff;
-            return new Date(b.created_date) - new Date(a.created_date);
+            const timeDiff = new Date(b.created_date) - new Date(a.created_date);
+            if (timeDiff !== 0) return timeDiff;
+            return b.id.localeCompare(a.id); // Final deterministic tie-breaker
         });
 
         // GOVERNED PATH (AUTHORITATIVE)
@@ -165,6 +167,14 @@ Deno.serve(async (req) => {
                     createdAt: run.created_date,
                     governanceVersion: run.governanceVersion,
                     inputFingerprintHash: run.inputFingerprintHash,
+
+                    meta: {
+                        selectedBy: 'status_then_recency',
+                        statusPriorityApplied: true,
+                        runCount: sortedRuns.length,
+                        selectedStatus: run.status,
+                        selectedPriority: statusPriority[run.status] || 0
+                    },
 
                     summary: {
                         overallScore: artifact?.phase1OverallReadiness || 0,
