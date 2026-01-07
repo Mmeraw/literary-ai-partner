@@ -124,11 +124,12 @@ Deno.serve(async (req) => {
                 console.log('✅ TXT file fetched:', manuscriptText.length, 'characters');
             } else {
                 // Use InvokeLLM for complex formats (DOCX, PDF, RTF)
+                // For query letters, extract first 50 pages / ~30K words max to stay under timeout
                 const fileType = isWordDoc ? 'DOCX/DOC' : isPdf ? 'PDF' : 'RTF';
                 console.log('🔍 Extracting', fileType, 'from:', file_url);
 
                 const extracted = await base44.integrations.Core.InvokeLLM({
-                    prompt: "Extract all text from this document. Return ONLY the complete raw text, no markdown formatting, no explanations. Just the text exactly as it appears.",
+                    prompt: `Extract text from the first 50 pages of this document (approximately the first third of a typical manuscript). This is sufficient for query letter generation. Return ONLY the raw text, no markdown formatting, no explanations.`,
                     file_urls: [file_url]
                 });
 
@@ -208,10 +209,11 @@ Deno.serve(async (req) => {
             maxConfidence: preflight.maxConfidence
         });
 
-        // Step 1: Extract pitch fields (file already fetched for preflight)
+        // Step 1: Extract pitch fields
+        // For query letters, we only need first ~30K chars to extract pitch elements
         console.log('🔄 Step 1: Extracting pitch fields...');
-        const manuscriptSample = manuscriptText.substring(0, Math.min(50000, manuscriptText.length));
-        console.log(`✅ File processed: ${manuscriptSample.length} characters`);
+        const manuscriptSample = manuscriptText.substring(0, Math.min(30000, manuscriptText.length));
+        console.log(`✅ Using ${manuscriptSample.length} character sample for pitch extraction`);
         
         // Extract pitch fields with LLM
         console.log('🔍 Extracting pitch fields...');
