@@ -603,7 +603,7 @@ export default function StorygateStudio() {
                                                 </TooltipTrigger>
                                                 <TooltipContent className="max-w-xs" style={{ backgroundColor: 'rgba(14, 14, 14, 0.95)', borderColor: '#7B7B7B' }}>
                                                     <p className="text-xs" style={{ color: '#F2EFEA' }}>
-                                                        Your query letter should include a compelling pitch paragraph, a brief synopsis of the work, and a short author bio in a single professional letter.
+                                                        Your query letter should include a compelling pitch paragraph, a brief synopsis of the work, a short author bio, and market comparables in a single professional letter.
                                                     </p>
                                                 </TooltipContent>
                                             </Tooltip>
