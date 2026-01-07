@@ -290,14 +290,18 @@ export default function QueryLetter() {
                                 <input
                                     type="file"
                                     accept=".pdf,.doc,.docx,.rtf,.txt"
-                                    onChange={(e) => {
+                                    onChange={async (e) => {
                                         const file = e.target.files?.[0];
-                                        if (file && file.size > 25 * 1024 * 1024) {
+                                        if (!file) return;
+
+                                        if (file.size > 25 * 1024 * 1024) {
                                             toast.error('File must be under 25MB');
                                             e.target.value = '';
                                             return;
                                         }
+
                                         setAutoFormData({...autoFormData, manuscriptFile: file});
+                                        e.target.value = '';
                                     }}
                                     className="hidden"
                                     id="query-manuscript-upload"
