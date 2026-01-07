@@ -451,19 +451,19 @@ export default function FilmAdaptation() {
                                 >
                                     ×
                                 </button>
-                            </div>
-                            <CardContent className="space-y-4">
-                                <DocumentSelector
-                                    value={selectedDocumentId}
-                                    onChange={handleDocumentSelect}
-                                    filterType="MANUSCRIPT"
-                                    title="Choose from Dashboard Library"
-                                    description="Auto-loads title, genre, and full text for pitch deck generation"
-                                />
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <DocumentSelector
+                                value={selectedDocumentId}
+                                onChange={handleDocumentSelect}
+                                filterType="MANUSCRIPT"
+                                title="Choose from Dashboard Library"
+                                description="Auto-loads title, genre, and full text for pitch deck generation"
+                            />
 
-                                <div className="text-center text-xs text-slate-500 font-medium py-2">
-                                    OR MANUALLY EDIT FIELDS
-                                </div>
+                            <div className="text-center text-xs text-slate-500 font-medium py-2">
+                                OR MANUALLY EDIT FIELDS
+                            </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
