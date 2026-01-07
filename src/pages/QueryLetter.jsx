@@ -42,36 +42,64 @@ export default function QueryLetter() {
     const [queryLetter, setQueryLetter] = useState('');
     const [suggestedAgents, setSuggestedAgents] = useState([]);
     const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
+    const [jobId, setJobId] = useState(null);
+    const [jobStatus, setJobStatus] = useState(null);
+    const [progress, setProgress] = useState('');
     
     const revision = useRevisionFlow('query');
 
+    // Poll job status
+    React.useEffect(() => {
+        if (!jobId || jobStatus === 'completed' || jobStatus === 'failed') return;
+
+        const interval = setInterval(async () => {
+            try {
+                const { data } = await base44.functions.invoke('getQueryLetterJobStatus', { job_id: jobId });
+                
+                setJobStatus(data.status);
+                setProgress(data.progress || '');
+
+                if (data.status === 'completed') {
+                    setQueryLetter(data.result.query_letter);
+                    setSuggestedAgents(data.result.suggested_agents || []);
+                    toast.success('Query letter generated successfully!');
+                    await revision.createBaseline(data.result.query_letter, `query_${Date.now()}`);
+                    setGenerating(false);
+                } else if (data.status === 'failed') {
+                    toast.error('Generation failed', {
+                        description: data.error_message || 'An error occurred during processing',
+                        duration: 10000
+                    });
+                    setGenerating(false);
+                }
+            } catch (error) {
+                console.error('❌ Status poll error:', error);
+            }
+        }, 2000); // Poll every 2 seconds
+
+        return () => clearInterval(interval);
+    }, [jobId, jobStatus]);
+
     const handleAutoGenerate = async () => {
-        console.log('🚀 [FRONTEND] handleAutoGenerate called');
-        console.log('🚀 [FRONTEND] autoFormData:', autoFormData);
-        
-        // Removed validation - allow generation without files (AUTO mode)
         if (!autoFormData.manuscriptFile) {
-            console.error('❌ [FRONTEND] No manuscript file');
             toast.error('Please upload your manuscript');
             return;
         }
 
         setGenerating(true);
-        console.log('🚀 [FRONTEND] Starting file upload...');
+        setJobStatus('pending');
+        setProgress('Uploading manuscript...');
         
         try {
             // Upload manuscript file
-            console.log('📤 [FRONTEND] Uploading file:', autoFormData.manuscriptFile.name);
             const uploadResult = await base44.integrations.Core.UploadFile({ file: autoFormData.manuscriptFile });
-            console.log('✅ [FRONTEND] Upload result:', uploadResult);
-            
             const { file_url } = uploadResult;
-            console.log('✅ [FRONTEND] file_url:', file_url);
             
-            // Default to AUTO if no bio provided
+            setProgress('Processing bio...');
+            
+            // Handle bio extraction
             let bioText = autoFormData.bioText || 'No bio provided - RevisionGrade will generate from manuscript context.';
             
-            // If LinkedIn URL provided, extract bio
             if (autoFormData.bioMode === 'linkedin' && autoFormData.linkedinUrl) {
                 toast.loading('Extracting LinkedIn profile...', { id: 'linkedin' });
                 const { data: extractedBio } = await base44.functions.invoke('extractLinkedInBio', {
@@ -81,7 +109,6 @@ export default function QueryLetter() {
                 toast.success('LinkedIn profile extracted', { id: 'linkedin' });
             }
             
-            // If CV/Resume uploaded, extract bio
             if (autoFormData.bioMode === 'upload' && autoFormData.bioFile) {
                 toast.loading('Extracting bio from CV...', { id: 'cv' });
                 const { file_url: bio_url } = await base44.integrations.Core.UploadFile({ file: autoFormData.bioFile });
@@ -97,9 +124,7 @@ export default function QueryLetter() {
                 if (isWordDoc) {
                     const response = await fetch(bio_url);
                     if (!response.ok) throw new Error('Failed to fetch CV file');
-                    
                     const arrayBuffer = await response.arrayBuffer();
-                    
                     const mammoth = await import('mammoth');
                     const result = await mammoth.extractRawText({ arrayBuffer });
                     cvText = result.value;
@@ -112,7 +137,6 @@ export default function QueryLetter() {
                         file_url: bio_url,
                         json_schema: { type: "object", properties: { text: { type: "string" } } }
                     });
-                    
                     if (extracted.status !== 'success') {
                         throw new Error(`Failed to extract ${isPdf ? 'PDF' : 'RTF'} text`);
                     }
@@ -125,30 +149,18 @@ export default function QueryLetter() {
                     throw new Error('CV text too short or empty');
                 }
                 
-                // Generate bio from CV text
                 const bio = await base44.integrations.Core.InvokeLLM({
-                    prompt: `Generate a professional author bio (150-200 words) for literary agent submissions based on this CV/resume:
-
-${cvText}
-
-Create a concise, agent-ready bio that:
-- Highlights relevant credentials (degrees, professional experience, writing awards)
-- Mentions any published work or writing credentials
-- Focuses on elements that establish writing authority
-- Is written in third person
-- Is professional but engaging
-
-Return only the bio text, no additional commentary.`
+                    prompt: `Generate a professional author bio (150-200 words) for literary agent submissions based on this CV/resume:\n\n${cvText}\n\nCreate a concise, agent-ready bio that:\n- Highlights relevant credentials (degrees, professional experience, writing awards)\n- Mentions any published work or writing credentials\n- Focuses on elements that establish writing authority\n- Is written in third person\n- Is professional but engaging\n\nReturn only the bio text, no additional commentary.`
                 });
                 
                 bioText = bio;
                 toast.success('Bio extracted from CV', { id: 'cv' });
             }
             
-            // Generate complete query package
-            console.log('🚀 [FRONTEND] Starting query letter generation...');
-
-            const payload = {
+            setProgress('Storing manuscript for processing...');
+            
+            // Store job and trigger async processing
+            const { data } = await base44.functions.invoke('storeQueryLetterJob', {
                 file_url,
                 bio: bioText,
                 synopsis_mode: autoFormData.synopsisMode,
@@ -158,118 +170,32 @@ Return only the bio text, no additional commentary.`
                 comps_mode: autoFormData.compsMode,
                 manual_comps: autoFormData.manualComps,
                 genre: autoFormData.genre,
-                voiceIntensity
-            };
-
-            console.log('📦 [FRONTEND] Full payload:', JSON.stringify(payload, null, 2));
-            console.log('📦 [FRONTEND] Payload summary:', {
-                file_url,
-                bio_length: bioText?.length,
-                synopsis_mode: autoFormData.synopsisMode,
-                existing_synopsis_length: autoFormData.existingSynopsis?.length,
-                one_line_pitch_length: autoFormData.oneLinePitch?.length,
-                pitch_paragraph_length: autoFormData.pitchParagraph?.length,
-                comps_mode: autoFormData.compsMode,
-                manual_comps_length: autoFormData.manualComps?.length,
-                genre: autoFormData.genre,
-                voiceIntensity
+                voice_intensity: voiceIntensity
             });
 
-            console.log('🚀 [FRONTEND] About to invoke generateQueryLetterPackage...');
-            console.log('⏱️ [FRONTEND] Timestamp:', new Date().toISOString());
+            setJobId(data.job_id);
+            setJobStatus('pending');
+            setProgress('Queued for processing...');
+            
+            toast.success('Manuscript stored successfully. Generation starting...', {
+                duration: 5000
+            });
 
-            const response = await base44.functions.invoke('generateQueryLetterPackage', payload);
-
-            console.log('✅ [FRONTEND] Function returned!');
-            console.log('📦 [FRONTEND] Raw response:', response);
-            console.log('📦 [FRONTEND] Response type:', typeof response);
-            console.log('📦 [FRONTEND] Response keys:', Object.keys(response || {}));
-            console.log('📦 [FRONTEND] Full response JSON:', JSON.stringify(response, null, 2));
-
-            // Extract data - base44.functions.invoke returns { data: {...} }
-            const data = response?.data || response;
-
-            console.log('📦 [FRONTEND] Extracted data:', data);
-            console.log('📦 [FRONTEND] Data keys:', Object.keys(data || {}));
-            console.log('📦 [FRONTEND] query_letter exists:', !!data?.query_letter);
-            console.log('📦 [FRONTEND] query_letter type:', typeof data?.query_letter);
-            console.log('📦 [FRONTEND] query_letter preview:', data?.query_letter?.substring(0, 200));
-
-            // Check for errors first
-            if (data?.error) {
-                console.error('❌ [FRONTEND] Server returned error:', data.error);
-                toast.error(`Server error: ${data.error}`, {
-                    description: data.details || 'Check console for details',
-                    duration: 10000
-                });
-                return;
-            }
-
-            // Validate query_letter exists
-            if (!data?.query_letter) {
-                console.error('❌ [FRONTEND] Missing query_letter in response:', {
-                    data,
-                    dataKeys: Object.keys(data || {}),
-                    hasQueryLetter: !!data?.query_letter
-                });
-                toast.error('Query letter not found in server response', {
-                    description: 'Check browser console for details',
-                    duration: 10000
-                });
-                return;
-            }
-
-            console.log('✅ [FRONTEND] Query letter found, updating state...');
-
-            setQueryLetter(data.query_letter);
-            setSuggestedAgents(data.suggested_agents || []);
-
-            toast.success(`Query letter generated! (${data.query_letter.length} characters)`);
-
-            console.log('✅ [FRONTEND] State updated, creating baseline...');
-            await revision.createBaseline(data.query_letter, `query_${Date.now()}`);
-            console.log('✅ [FRONTEND] Baseline created!');
         } catch (error) {
             console.error('❌ QUERY LETTER ERROR:', error);
-            console.error('Error details:', {
-                message: error.message,
-                code: error.code,
-                status: error.response?.status,
-                statusText: error.response?.statusText,
-                data: error.response?.data,
-                stack: error.stack
-            });
-
-            // Handle 422 validation errors (matrixPreflight)
+            
             if (error.response?.status === 422) {
                 const errorData = error.response?.data;
                 toast.error(errorData?.title || 'Validation Error', {
                     description: errorData?.explanation || errorData?.error || 'Your manuscript does not meet the requirements',
                     duration: 10000
                 });
-            } else if (error.response?.status === 504) {
-                toast.error('Processing Timeout', {
-                    description: 'Your manuscript is too large to process in one request. Try using Manual mode or upload a shorter excerpt.',
-                    duration: 12000
-                });
-            } else if (error.response?.status === 500 || error.code === 'ERR_BAD_RESPONSE') {
-                toast.error('Backend Error (500)', {
-                    description: error.response?.data?.error || error.message || 'Check browser console for details',
-                    duration: 10000
-                });
-            } else if (error.response?.status === 400) {
-                toast.error('Invalid Request', {
-                    description: error.response?.data?.error || error.message,
-                    duration: 8000
-                });
             } else {
-                const errorMsg = error.message || error.response?.data?.error || 'Unknown error occurred';
-                toast.error('Generation Failed: ' + errorMsg, {
-                    description: 'Check browser console (F12) for detailed logs',
+                toast.error('Failed to start generation', {
+                    description: error.message || 'Please try again',
                     duration: 8000
                 });
             }
-        } finally {
             setGenerating(false);
         }
     };
@@ -653,7 +579,7 @@ Return only the bio text, no additional commentary.`
                                 {generating ? (
                                     <>
                                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                        Analyzing & Generating...
+                                        {progress || 'Processing...'}
                                     </>
                                 ) : (
                                     <>
@@ -662,6 +588,17 @@ Return only the bio text, no additional commentary.`
                                     </>
                                 )}
                             </Button>
+
+                            {generating && progress && (
+                                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="text-sm text-blue-900">
+                                        <strong>Status:</strong> {progress}
+                                    </p>
+                                    <p className="text-xs text-blue-600 mt-1">
+                                        Processing in background - you can leave this page and return later
+                                    </p>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 )}
