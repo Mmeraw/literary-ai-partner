@@ -62,6 +62,7 @@ import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
 import YourWriting from './pages/YourWriting';
+import FAQ from './pages/FAQ';
 import __Layout from './Layout.jsx';
 
 
@@ -130,6 +131,7 @@ export const PAGES = {
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
     "YourWriting": YourWriting,
+    "FAQ": FAQ,
 }
 
 export const pagesConfig = {
