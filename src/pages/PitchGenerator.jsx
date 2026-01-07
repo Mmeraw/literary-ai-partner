@@ -13,8 +13,10 @@ import { useRevisionFlow } from '@/components/useRevisionFlow';
 import RevisionViewer from '@/components/RevisionViewer';
 import RevisionControls from '@/components/RevisionControls';
 import { exportTxt } from '@/components/utils/exportTxt';
+import DocumentSelector from '@/components/DocumentSelector';
 
 export default function PitchGenerator() {
+    const [selectedDocumentId, setSelectedDocumentId] = useState(null);
     const [manuscriptInfo, setManuscriptInfo] = useState({
         title: '',
         genre: '',
@@ -40,6 +42,15 @@ export default function PitchGenerator() {
             return await base44.entities.Manuscript.filter({ created_by: user.email });
         }
     });
+
+    const handleDocumentSelect = async (docId) => {
+        setSelectedDocumentId(docId);
+        const doc = await base44.entities.Document.get(docId);
+        if (doc.content_reference_id) {
+            const manuscript = await base44.entities.Manuscript.get(doc.content_reference_id);
+            await loadFromManuscript(manuscript);
+        }
+    };
 
     const filteredManuscripts = manuscripts.filter(m => 
         m.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -299,139 +310,18 @@ export default function PitchGenerator() {
                     <div className="space-y-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Manuscript Information</CardTitle>
+                                <CardTitle>Select Manuscript</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="p-4 rounded-lg bg-indigo-50 border-2 border-dashed border-indigo-300">
-                                    <div className="text-center">
-                                        <Upload className="w-8 h-8 mx-auto mb-2 text-indigo-600" />
-                                        <p className="text-sm font-medium text-indigo-900 mb-1">
-                                            Auto-Fill from Manuscript
-                                        </p>
-                                        <p className="text-xs text-indigo-700 mb-3">
-                                            Upload your manuscript to populate all fields automatically
-                                        </p>
-                                        <input
-                                            type="file"
-                                            id="pitch-file-upload"
-                                            onChange={handleFileUpload}
-                                            className="hidden"
-                                            accept=".pdf,.doc,.docx,.rtf,.txt"
-                                        />
-                                        <label htmlFor="pitch-file-upload">
-                                            <Button 
-                                                type="button" 
-                                                variant="outline" 
-                                                disabled={uploadingFile}
-                                                asChild
-                                            >
-                                                <span className="cursor-pointer">
-                                                    {uploadingFile ? (
-                                                        <>
-                                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                            Analyzing...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Upload className="w-4 h-4 mr-2" />
-                                                            Upload File
-                                                        </>
-                                                    )}
-                                                </span>
-                                            </Button>
-                                        </label>
-                                        {uploadedFileName && (
-                                            <p className="text-xs text-green-600 mt-2">
-                                                ✓ {uploadedFileName}
-                                            </p>
-                                        )}
-                                        <p className="text-xs text-slate-500 mt-2">
-                                            PDF, DOC, DOCX, RTF, or TXT • Max 25MB
-                                        </p>
-                                    </div>
-                                </div>
+                                <DocumentSelector
+                                    value={selectedDocumentId}
+                                    onChange={handleDocumentSelect}
+                                    filterType="MANUSCRIPT"
+                                    title="Choose from Dashboard Library"
+                                    description="Automatically extracts all pitch fields from your stored manuscript"
+                                />
 
-                                <div className="text-center text-xs text-slate-500 font-medium">
-                                    OR PASTE TEXT DIRECTLY
-                                </div>
-
-                                <div className="p-4 rounded-lg bg-purple-50 border-2 border-dashed border-purple-300">
-                                    <label className="block text-sm font-medium text-purple-900 mb-2">
-                                        Paste Manuscript Text
-                                    </label>
-                                    <Textarea
-                                        value={manualText}
-                                        onChange={(e) => setManualText(e.target.value)}
-                                        placeholder="Paste your manuscript text here (at least 100 characters)..."
-                                        className="h-32 bg-white border-purple-200"
-                                    />
-                                    <div className="flex items-center justify-between mt-2">
-                                        <span className="text-xs text-purple-700">
-                                            {manualText.length} / 100 characters minimum
-                                        </span>
-                                        <Button
-                                            onClick={handleManualTextExtract}
-                                            disabled={processingText || !manualText || manualText.trim().length < 100}
-                                            className="bg-purple-600 hover:bg-purple-700 text-white"
-                                        >
-                                            {processingText ? (
-                                                <>
-                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                    Analyzing...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Sparkles className="w-4 h-4 mr-2" />
-                                                    Extract Fields
-                                                </>
-                                            )}
-                                        </Button>
-                                    </div>
-                                </div>
-
-                                <div className="text-center text-xs text-slate-500 font-medium">
-                                    OR LOAD FROM PREVIOUS WORK
-                                </div>
-
-                                {manuscripts.length > 0 && (
-                                    <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <FileText className="w-4 h-4 text-slate-600" />
-                                            <span className="text-sm font-medium text-slate-700">
-                                                Your Previous Works ({manuscripts.length})
-                                            </span>
-                                        </div>
-                                        <div className="relative mb-2">
-                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                            <Input
-                                                placeholder="Search by title..."
-                                                value={searchQuery}
-                                                onChange={(e) => setSearchQuery(e.target.value)}
-                                                className="pl-9 bg-white"
-                                            />
-                                        </div>
-                                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                                            {filteredManuscripts.map((manuscript) => (
-                                                <button
-                                                    key={manuscript.id}
-                                                    onClick={() => loadFromManuscript(manuscript)}
-                                                    disabled={uploadingFile}
-                                                    className="w-full p-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-indigo-300 transition-all text-left disabled:opacity-50"
-                                                >
-                                                    <div className="font-medium text-sm text-slate-900">{manuscript.title}</div>
-                                                    <div className="text-xs text-slate-500 mt-1">
-                                                        {manuscript.word_count?.toLocaleString()} words
-                                                        {manuscript.revisiongrade_overall && (
-                                                            <span className="ml-2">• Score: {manuscript.revisiongrade_overall}/10</span>
-                                                        )}
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="text-center text-xs text-slate-500 font-medium">
+                                <div className="text-center text-xs text-slate-500 font-medium py-2">
                                     OR FILL IN MANUALLY
                                 </div>
 

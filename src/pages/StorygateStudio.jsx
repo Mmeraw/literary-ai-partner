@@ -21,8 +21,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import DocumentSelector from '@/components/DocumentSelector';
 
 export default function StorygateStudio() {
+    const [selectedDocumentId, setSelectedDocumentId] = useState(null);
     const [formData, setFormData] = useState({
         first_name: '',
         last_name: '',
@@ -51,6 +53,20 @@ export default function StorygateStudio() {
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+
+    const handleDocumentSelect = async (docId) => {
+        setSelectedDocumentId(docId);
+        const doc = await base44.entities.Document.get(docId);
+        if (doc.content_reference_id) {
+            const manuscript = await base44.entities.Manuscript.get(doc.content_reference_id);
+            setFormData(prev => ({
+                ...prev,
+                project_title: manuscript.title || '',
+                description: manuscript.spine_evaluation?.logline || ''
+            }));
+            toast.success('Manuscript loaded from Dashboard');
+        }
+    };
 
     const handleSeekingToggle = (value) => {
         setFormData(prev => ({
@@ -311,6 +327,18 @@ export default function StorygateStudio() {
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-6">
+                            {/* Document Selector */}
+                            <div className="p-6 rounded-lg" style={{ backgroundColor: 'rgba(169, 142, 74, 0.05)', borderWidth: '1px', borderColor: '#A98E4A' }}>
+                                <h3 className="text-lg font-semibold mb-3" style={{ color: '#7A1E1E' }}>Select Your Work</h3>
+                                <DocumentSelector
+                                    value={selectedDocumentId}
+                                    onChange={handleDocumentSelect}
+                                    filterType="MANUSCRIPT"
+                                    title="Choose from Dashboard Library"
+                                    description="Your evaluated manuscript from the Dashboard (8.0+ score required)"
+                                />
+                            </div>
+
                             {/* Contact Information */}
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div>

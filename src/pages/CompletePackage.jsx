@@ -17,8 +17,10 @@ import { useRevisionFlow } from '@/components/useRevisionFlow';
 import RevisionViewer from '@/components/RevisionViewer';
 import RevisionControls from '@/components/RevisionControls';
 import { exportTxt } from '@/components/utils/exportTxt';
+import DocumentSelector from '@/components/DocumentSelector';
 
 export default function CompletePackage() {
+    const [selectedDocumentId, setSelectedDocumentId] = useState(null);
     const [manuscriptInfo, setManuscriptInfo] = useState({
         title: '',
         genre: '',
@@ -43,6 +45,15 @@ export default function CompletePackage() {
     const [voiceIntensity, setVoiceIntensity] = useState('house');
     
     const packageRevision = useRevisionFlow('complete_submission');
+
+    const handleDocumentSelect = async (docId) => {
+        setSelectedDocumentId(docId);
+        const doc = await base44.entities.Document.get(docId);
+        if (doc.content_reference_id) {
+            setSelectedManuscriptId(doc.content_reference_id);
+            await loadManuscript(doc.content_reference_id);
+        }
+    };
 
     // Fetch user's manuscripts
     const { data: manuscripts = [], isLoading: manuscriptsLoading } = useQuery({
@@ -397,89 +408,13 @@ ${packageData.queryLetter}
                                 <p className="text-sm text-slate-600 mt-1">For manuscripts, screenplays, or any complete work</p>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                {/* Load from Manuscript */}
-                                {manuscriptsLoading || loadingManuscript ? (
-                                    <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-center">
-                                        <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-slate-400" />
-                                        <p className="text-sm text-slate-600">
-                                            {loadingManuscript ? 'Analyzing manuscript and pre-filling fields...' : 'Loading your manuscripts...'}
-                                        </p>
-                                    </div>
-                                ) : manuscripts.length > 0 ? (
-                                    <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200">
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <BookOpen className="w-4 h-4 text-indigo-600" />
-                                            <span className="text-sm font-semibold text-slate-800">Load New or Existing Project</span>
-                                        </div>
-                                        <div className="mb-3 p-3 rounded-lg bg-purple-50 border border-purple-200">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <Zap className="w-4 h-4 text-purple-600" />
-                                                <span className="text-xs font-semibold text-purple-900">Voice Intensity</span>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => setVoiceIntensity('neutral')}
-                                                    disabled={loadingManuscript}
-                                                    className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-all ${
-                                                        voiceIntensity === 'neutral'
-                                                            ? 'bg-purple-600 text-white'
-                                                            : 'bg-white text-slate-700 border border-slate-200'
-                                                    } disabled:opacity-50`}
-                                                >
-                                                    Neutral
-                                                </button>
-                                                <button
-                                                    onClick={() => setVoiceIntensity('house')}
-                                                    disabled={loadingManuscript}
-                                                    className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-all ${
-                                                        voiceIntensity === 'house'
-                                                            ? 'bg-purple-600 text-white'
-                                                            : 'bg-white text-slate-700 border border-slate-200'
-                                                    } disabled:opacity-50`}
-                                                >
-                                                    House
-                                                </button>
-                                                <button
-                                                    onClick={() => setVoiceIntensity('amped')}
-                                                    disabled={loadingManuscript}
-                                                    className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-all ${
-                                                        voiceIntensity === 'amped'
-                                                            ? 'bg-purple-600 text-white'
-                                                            : 'bg-white text-slate-700 border border-slate-200'
-                                                    } disabled:opacity-50`}
-                                                >
-                                                    Amped
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <Select 
-                                            value={selectedManuscriptId} 
-                                            onValueChange={(value) => {
-                                                setSelectedManuscriptId(value);
-                                                loadManuscript(value);
-                                            }}
-                                            disabled={loadingManuscript}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select a project to auto-populate all fields" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="new">New Project</SelectItem>
-                                                {manuscripts.map((manuscript) => (
-                                                    <SelectItem key={manuscript.id} value={manuscript.id}>
-                                                        {manuscript.title} ({manuscript.word_count?.toLocaleString()} words)
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                ) : (
-                                    <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
-                                        <p className="text-sm text-slate-700 mb-2">
-                                            No projects found. <Link to={createPageUrl('UploadManuscript')} className="text-indigo-600 hover:underline font-medium">Upload your work</Link> to auto-fill these fields.
-                                        </p>
-                                    </div>
-                                )}
+                                <DocumentSelector
+                                    value={selectedDocumentId}
+                                    onChange={handleDocumentSelect}
+                                    filterType="MANUSCRIPT"
+                                    title="Choose from Dashboard Library"
+                                    description="Auto-populates all fields from your stored manuscript"
+                                />
 
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">

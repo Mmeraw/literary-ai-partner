@@ -15,6 +15,7 @@ import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { StarRating, ThumbsFeedback, CanonAccuracyCheck } from '@/components/FeedbackWidget';
+import DocumentSelector from '@/components/DocumentSelector';
 
 const pdfExamples = [
     {
@@ -50,6 +51,7 @@ const comparison = [
 ];
 
 export default function FilmAdaptation() {
+    const [selectedDocumentId, setSelectedDocumentId] = useState(null);
     const [manuscriptData, setManuscriptData] = useState({
         title: '',
         genre: '',
@@ -62,6 +64,21 @@ export default function FilmAdaptation() {
     const [convertingDocx, setConvertingDocx] = useState(false);
     const [docxPreview, setDocxPreview] = useState(null);
     const [includeCreatorMark, setIncludeCreatorMark] = useState(true);
+
+    const handleDocumentSelect = async (docId) => {
+        setSelectedDocumentId(docId);
+        const doc = await base44.entities.Document.get(docId);
+        if (doc.content_reference_id) {
+            const manuscript = await base44.entities.Manuscript.get(doc.content_reference_id);
+            setManuscriptData({
+                title: manuscript.title || '',
+                genre: manuscript.spine_evaluation?.genre || '',
+                logline: manuscript.spine_evaluation?.logline || '',
+                manuscriptText: manuscript.full_text || ''
+            });
+            toast.success('Manuscript loaded from Dashboard');
+        }
+    };
 
     const handleTxtUpload = (e) => {
         const file = e.target.files[0];
@@ -435,8 +452,19 @@ export default function FilmAdaptation() {
                                     ×
                                 </button>
                             </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
+                            <CardContent className="space-y-4">
+                                <DocumentSelector
+                                    value={selectedDocumentId}
+                                    onChange={handleDocumentSelect}
+                                    filterType="MANUSCRIPT"
+                                    title="Choose from Dashboard Library"
+                                    description="Auto-loads title, genre, and full text for pitch deck generation"
+                                />
+
+                                <div className="text-center text-xs text-slate-500 font-medium py-2">
+                                    OR MANUALLY EDIT FIELDS
+                                </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
                                     Title *
@@ -467,95 +495,8 @@ export default function FilmAdaptation() {
                                     value={manuscriptData.logline}
                                     onChange={(e) => setManuscriptData(prev => ({ ...prev, logline: e.target.value }))}
                                     placeholder="When an amphibian empire faces extinction..."
-                                    className="min-h-[120px]"
+                                    className="min-h-[80px]"
                                 />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-3">
-                                    Manuscript or Screenplay (up to 250,000 words) *
-                                </label>
-                                
-                                {/* Primary: Paste */}
-                                <div className="mb-4">
-                                    <Textarea
-                                        value={manuscriptData.manuscriptText}
-                                        onChange={(e) => {
-                                            const wordCount = e.target.value.split(/\s+/).filter(w => w).length;
-                                            if (wordCount > 250000) {
-                                                toast.error('Text exceeds 250,000 word limit');
-                                                return;
-                                            }
-                                            setManuscriptData(prev => ({ ...prev, manuscriptText: e.target.value }));
-                                        }}
-                                        placeholder="✏️ Paste your manuscript or screenplay text here (fastest)"
-                                        className="min-h-[320px]"
-                                    />
-                                    {manuscriptData.manuscriptText && (
-                                        <p className="text-sm text-emerald-600 mt-2">
-                                            ✓ Loaded {manuscriptData.manuscriptText.split(/\s+/).filter(w => w).length.toLocaleString()} words
-                                        </p>
-                                    )}
-                                </div>
-
-                                {/* Secondary: Upload DOCX */}
-                                <div className="flex items-center gap-4 mb-2">
-                                    <div className="flex-1 border-t border-slate-300"></div>
-                                    <span className="text-xs text-slate-500">OR</span>
-                                    <div className="flex-1 border-t border-slate-300"></div>
-                                </div>
-
-                                <div className="flex gap-3">
-                                    <div className="flex-1">
-                                        <input
-                                            type="file"
-                                            accept=".doc,.docx,.rtf,.pdf"
-                                            onChange={handleDocxUpload}
-                                            className="hidden"
-                                            id="docx-upload"
-                                            disabled={convertingDocx}
-                                        />
-                                        <label htmlFor="docx-upload">
-                                            <Button variant="outline" className="w-full" disabled={convertingDocx} asChild>
-                                                <span className="cursor-pointer">
-                                                    {convertingDocx ? (
-                                                        <>
-                                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                            Processing...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <FileText className="w-4 h-4 mr-2" />
-                                                            Upload File
-                                                        </>
-                                                    )}
-                                                </span>
-                                            </Button>
-                                        </label>
-                                    </div>
-
-                                    <div className="flex-1">
-                                        <input
-                                            type="file"
-                                            accept=".txt"
-                                            onChange={handleTxtUpload}
-                                            className="hidden"
-                                            id="txt-upload"
-                                        />
-                                        <label htmlFor="txt-upload">
-                                            <Button variant="ghost" className="w-full" asChild>
-                                                <span className="cursor-pointer">
-                                                    <Upload className="w-4 h-4 mr-2" />
-                                                    Upload TXT
-                                                </span>
-                                            </Button>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <p className="text-xs text-slate-500 mt-3 text-center">
-                                    Supports: DOC, DOCX, RTF, PDF, TXT • Word files auto-extracted + previewed
-                                </p>
                             </div>
 
                             <div className="mb-6 p-4 rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200">
