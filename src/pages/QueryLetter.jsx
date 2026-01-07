@@ -247,6 +247,11 @@ Return only the bio text, no additional commentary.`
                     description: errorData?.explanation || errorData?.error || 'Your manuscript does not meet the requirements',
                     duration: 10000
                 });
+            } else if (error.response?.status === 504) {
+                toast.error('Processing Timeout', {
+                    description: 'Your manuscript is too large to process in one request. Try using Manual mode or upload a shorter excerpt.',
+                    duration: 12000
+                });
             } else if (error.response?.status === 500 || error.code === 'ERR_BAD_RESPONSE') {
                 toast.error('Backend Error (500)', {
                     description: error.response?.data?.error || error.message || 'Check browser console for details',
