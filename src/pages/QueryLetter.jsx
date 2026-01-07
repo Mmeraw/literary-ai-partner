@@ -239,9 +239,15 @@ Return only the bio text, no additional commentary.`
                 data: error.response?.data,
                 stack: error.stack
             });
-            
-            // Check for server errors (500)
-            if (error.response?.status === 500 || error.code === 'ERR_BAD_RESPONSE') {
+
+            // Handle 422 validation errors (matrixPreflight)
+            if (error.response?.status === 422) {
+                const errorData = error.response?.data;
+                toast.error(errorData?.title || 'Validation Error', {
+                    description: errorData?.explanation || errorData?.error || 'Your manuscript does not meet the requirements',
+                    duration: 10000
+                });
+            } else if (error.response?.status === 500 || error.code === 'ERR_BAD_RESPONSE') {
                 toast.error('Backend Error (500)', {
                     description: error.response?.data?.error || error.message || 'Check browser console for details',
                     duration: 10000
