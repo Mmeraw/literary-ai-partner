@@ -127,15 +127,24 @@ export default function ResultsGoverned() {
         );
     }
 
-    // COMPUTE ELIGIBILITY (LOCKED LOGIC)
-    const requiredGates = ['readiness', 'coverage', 'integrity'];
+    // COMPUTE ELIGIBILITY (LOCKED LOGIC - HARDCODED REQUIRED GATES)
+    const REQUIRED_GATES = ['readiness', 'coverage', 'integrity']; // HARDCODED - DO NOT RELAX
     const gateMap = new Map(gates.map(g => [g.gateType, g]));
-    const hasAllRequiredGates = requiredGates.every(r => gateMap.has(r));
-    const allRequiredGatesPass = requiredGates.every(r => gateMap.get(r)?.status === 'pass');
+    
+    // Validate gate completeness (each must have status and observed defined)
+    const gateIsComplete = (gate) => {
+        return gate && gate.status && (gate.observed !== undefined || gate.gateType === 'integrity');
+    };
+    
+    const hasAllRequiredGates = REQUIRED_GATES.every(r => gateMap.has(r) && gateIsComplete(gateMap.get(r)));
+    const allRequiredGatesPass = REQUIRED_GATES.every(r => gateMap.get(r)?.status === 'pass');
     
     const isEligible = flags.RG_ELIGIBILITY_REQUIRE_GATES 
         ? (isGoverned && hasAllRequiredGates && allRequiredGatesPass)
         : false;
+
+    // Version lock (UI can detect old governance)
+    const governanceVersion = evaluationResult.governanceVersion || 'unknown';
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -181,14 +190,30 @@ export default function ResultsGoverned() {
                                     }
                                 </p>
                                 {evaluationResult.evaluationRunId && (
-                                    <div className="mt-3 flex items-center gap-2">
-                                        <span className="text-xs text-slate-600">Evaluation Run ID:</span>
-                                        <code 
-                                            data-testid="banner-evaluation-run-id"
-                                            className="text-xs bg-white px-2 py-1 rounded border border-slate-200"
-                                        >
-                                            {evaluationResult.evaluationRunId}
-                                        </code>
+                                    <div className="mt-3 space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-slate-600">Evaluation Run ID:</span>
+                                            <code 
+                                                data-testid="banner-evaluation-run-id"
+                                                className="text-xs bg-white px-2 py-1 rounded border border-slate-200"
+                                            >
+                                                {evaluationResult.evaluationRunId}
+                                            </code>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-slate-600">Governance Version:</span>
+                                            <code className="text-xs bg-white px-2 py-1 rounded border border-slate-200">
+                                                {governanceVersion}
+                                            </code>
+                                        </div>
+                                        {evaluationResult.inputFingerprintHash && (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-slate-600">Input Fingerprint:</span>
+                                                <code className="text-xs bg-white px-2 py-1 rounded border border-slate-200 font-mono">
+                                                    {evaluationResult.inputFingerprintHash.substring(0, 16)}...
+                                                </code>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>

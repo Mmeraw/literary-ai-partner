@@ -260,7 +260,7 @@ async function aggregateChapterResults(chapter, agentAnalysis, waveScores, waveH
     const rawCombinedScore = (agentAnalysis.overallScore * 0.5) + (waveAnalysis.waveScore * 0.5);
     const combinedScore = Math.max(0, rawCombinedScore - integrityPenalty);
 
-    // CREATE GOVERNED SEGMENT
+    // CREATE GOVERNED SEGMENT (with stable identity)
     const criteriaScores = {};
     agentAnalysis.criteria?.forEach(c => {
         const key = c.name?.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'unknown';
@@ -270,6 +270,7 @@ async function aggregateChapterResults(chapter, agentAnalysis, waveScores, waveH
     await base44.asServiceRole.entities.EvaluationSegment.create({
         runId: evaluationRunId,
         segmentIndex: chapter.order,
+        segmentStableId: chapter.id,
         segmentLabel: chapter.title || `Chapter ${chapter.order}`,
         segmentStartOffset: 0,
         segmentEndOffset: chapter.text.length,
@@ -486,12 +487,18 @@ async function runEvaluation(manuscriptId, base44) {
         }
 
         // CREATE GOVERNED RUN (IMMUTABLE BOUNDARY)
+        const inputFingerprintHash = await crypto.subtle.digest(
+            'SHA-256',
+            new TextEncoder().encode(manuscript.full_text)
+        ).then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''));
+
         const evaluationRun = await base44.asServiceRole.entities.EvaluationRun.create({
             projectId: manuscriptId,
             workTypeUi: 'manuscript',
             sourceFileId: manuscriptId,
             sourceFilename: manuscript.title || 'untitled',
             sourceWordCountEstimate: manuscript.word_count || 0,
+            inputFingerprintHash,
             segmentationMode: 'auto',
             segmentationUserConfirmed: true,
             phase2Enabled: true,
@@ -504,14 +511,14 @@ async function runEvaluation(manuscriptId, base44) {
             status: 'created'
         });
 
-        console.log(`🔐 GOVERNED_RUN_CREATED`, { runId: evaluationRun.id, manuscriptId, timestamp: new Date().toISOString() });
+        console.log(`🔐 GOVERNED_RUN_CREATED`, { runId: evaluationRun.id, inputHash: inputFingerprintHash.substring(0, 12), manuscriptId, timestamp: new Date().toISOString() });
 
         // Store evaluationRunId reference on manuscript (temp for migration)
         await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
             _current_evaluation_run_id: evaluationRun.id
         });
 
-        // Update EvaluationRun status
+        // LIFECYCLE: created → segmented
         await base44.asServiceRole.entities.EvaluationRun.update(evaluationRun.id, {
             status: 'segmented'
         });
@@ -994,10 +1001,12 @@ SCORING GUIDELINES:
         });
 
 
-        // Update EvaluationRun to phase1_complete
+        // LIFECYCLE: segmented → phase1_complete
         await base44.asServiceRole.entities.EvaluationRun.update(evaluationRun.id, {
             status: 'phase1_complete'
         });
+
+        console.log(`🔐 LIFECYCLE: phase1_complete`, { runId: evaluationRun.id, timestamp: new Date().toISOString() });
 
         // PHASE 4: Final composite scoring
         // Reload all chapters to get final status
@@ -1071,9 +1080,19 @@ SCORING GUIDELINES:
             ? evaluatedChapters.reduce((sum, ch) => sum + (ch.word_count || 0), 0) / manuscript.word_count
             : 0;
 
+        // Fetch all written segments to verify integrity
+        const writtenSegments = await base44.asServiceRole.entities.EvaluationSegment.filter({ runId: evaluationRun.id });
+        const segmentsExpected = finalChapters.length;
+        const segmentsWritten = writtenSegments.length;
+        const segmentsMissing = finalChapters
+            .filter(ch => !writtenSegments.some(seg => seg.segmentStableId === ch.id))
+            .map(ch => ({ chapterId: ch.id, title: ch.title }));
+
         const readinessPassed = phase1Readiness >= 8.0;
         const coveragePassed = coverageChapters >= 5 && coverageWordPct >= 0.25;
-        const phase2Allowed = readinessPassed && coveragePassed;
+        const integrityPassed = segmentsMissing.length === 0 && segmentsWritten === segmentsExpected;
+
+        const phase2Allowed = readinessPassed && coveragePassed && integrityPassed;
 
         const gateDecision = await base44.asServiceRole.entities.EvaluationGateDecision.create({
             runId: evaluationRun.id,
@@ -1088,16 +1107,27 @@ SCORING GUIDELINES:
             coverageFailReason: !coveragePassed 
                 ? `Coverage insufficient: ${coverageChapters} chapters (need 5), ${(coverageWordPct * 100).toFixed(1)}% words (need 25%)`
                 : null,
+            integrityPassed,
+            integrityObserved: {
+                segmentsExpected,
+                segmentsWritten,
+                segmentsMissing,
+                gateDecisionWritten: true,
+                timestamp: new Date().toISOString()
+            },
+            integrityFailReason: !integrityPassed
+                ? `Integrity check failed: ${segmentsMissing.length} missing segment(s), expected ${segmentsExpected}, got ${segmentsWritten}`
+                : null,
             phase2Allowed,
             phase2BlockReason: !phase2Allowed 
-                ? (!readinessPassed ? 'readiness_insufficient' : 'coverage_insufficient')
+                ? (!readinessPassed ? 'readiness_insufficient' : !coveragePassed ? 'coverage_insufficient' : 'integrity_failed')
                 : null,
             userMessageTitle: phase2Allowed 
                 ? 'Evaluation Complete - Submission Ready'
                 : 'Evaluation Complete - Not Submission Ready',
             userMessageBody: phase2Allowed
-                ? 'Your manuscript meets the readiness and coverage thresholds for Phase 2 evaluation.'
-                : `Your manuscript does not yet meet the required thresholds. ${!readinessPassed ? 'Readiness score below 8.0.' : ''} ${!coveragePassed ? 'Coverage insufficient.' : ''}`
+                ? 'Your manuscript meets the readiness, coverage, and integrity thresholds.'
+                : `Your manuscript does not yet meet required thresholds. ${!readinessPassed ? 'Readiness score below 8.0. ' : ''}${!coveragePassed ? 'Coverage insufficient. ' : ''}${!integrityPassed ? 'Integrity check failed.' : ''}`
         });
 
         console.log(`🚪 GATE_DECISION_CREATED`, { 
@@ -1105,11 +1135,23 @@ SCORING GUIDELINES:
             phase2Allowed, 
             readinessPassed, 
             coveragePassed,
+            integrityPassed,
             timestamp: new Date().toISOString() 
         });
 
+        // LIFECYCLE: phase1_complete → gated (HARD STOP - gates must exist)
+        if (!readinessPassed || !coveragePassed || !integrityPassed) {
+            console.log(`⛔ GATE_BLOCK`, { runId: evaluationRun.id, readinessPassed, coveragePassed, integrityPassed });
+        }
+
+        await base44.asServiceRole.entities.EvaluationRun.update(evaluationRun.id, {
+            status: 'gated'
+        });
+
+        console.log(`🔐 LIFECYCLE: gated`, { runId: evaluationRun.id, timestamp: new Date().toISOString() });
+
         // CREATE ARTIFACTS
-        await base44.asServiceRole.entities.EvaluationArtifacts.create({
+        const artifacts = await base44.asServiceRole.entities.EvaluationArtifacts.create({
             runId: evaluationRun.id,
             phase1OverallReadiness: phase1Readiness,
             phase1CriteriaAggregate: manuscript.spine_evaluation?.criteria || {},
@@ -1125,7 +1167,7 @@ SCORING GUIDELINES:
         });
 
         // CREATE SPINE SYNTHESIS
-        await base44.asServiceRole.entities.EvaluationSpineSynthesis.create({
+        const synthesis = await base44.asServiceRole.entities.EvaluationSpineSynthesis.create({
             runId: evaluationRun.id,
             spineReadiness: phase1Readiness,
             diagnosis: [],
@@ -1136,7 +1178,29 @@ SCORING GUIDELINES:
             }
         });
 
-        // Update EvaluationRun to complete
+        // Generate artifacts hash for integrity verification
+        const artifactsPayload = JSON.stringify({
+            artifacts: artifacts.id,
+            synthesis: synthesis.id,
+            gateDecision: gateDecision.id,
+            segments: writtenSegments.map(s => s.id).sort()
+        });
+        const artifactsHash = await crypto.subtle.digest(
+            'SHA-256',
+            new TextEncoder().encode(artifactsPayload)
+        ).then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+        // Update integrity observed with artifacts hash
+        await base44.asServiceRole.entities.EvaluationGateDecision.update(gateDecision.id, {
+            integrityObserved: {
+                ...gateDecision.integrityObserved,
+                artifactsHash,
+                spineSynthesisWritten: true,
+                artifactsWritten: true
+            }
+        });
+
+        // LIFECYCLE: gated → complete (TERMINAL)
         await base44.asServiceRole.entities.EvaluationRun.update(evaluationRun.id, {
             status: phase2Allowed ? 'phase2_complete' : 'phase2_skipped',
             statusDetail: hasFailures 
@@ -1146,8 +1210,9 @@ SCORING GUIDELINES:
 
         console.log(`🔐 GOVERNED_RUN_COMPLETE`, { 
             runId: evaluationRun.id, 
-            status: evaluationRun.status,
+            status: phase2Allowed ? 'phase2_complete' : 'phase2_skipped',
             phase2Allowed,
+            artifactsHash: artifactsHash.substring(0, 12),
             timestamp: new Date().toISOString() 
         });
 

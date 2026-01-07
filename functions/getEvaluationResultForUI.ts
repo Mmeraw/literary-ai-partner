@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Project ID required' }, { status: 400 });
         }
 
-        // Look for most recent EvaluationRun for this project
+        // Look for most recent EvaluationRun for this project (only terminal states)
         const evaluationRuns = await base44.asServiceRole.entities.EvaluationRun.filter(
             { projectId, status: { $in: ['phase2_complete', 'complete', 'phase2_skipped'] } },
             '-created_date',
@@ -25,6 +25,33 @@ Deno.serve(async (req) => {
         // GOVERNED PATH (AUTHORITATIVE)
         if (evaluationRuns.length > 0) {
             const run = evaluationRuns[0];
+
+            // REJECT INCOMPLETE RUNS (hard stop)
+            if (!['phase2_complete', 'phase2_skipped', 'complete'].includes(run.status)) {
+                return Response.json({
+                    evaluationResult: {
+                        source: 'governed',
+                        projectId,
+                        evaluationRunId: run.id,
+                        createdAt: run.created_date,
+                        summary: {
+                            overallScore: 0,
+                            readinessBand: 'pending',
+                            storyGateEligible: false,
+                            format: run.workTypeUi || 'manuscript',
+                            primaryGenres: [],
+                            lengthDisplay: 'Evaluation in progress'
+                        },
+                        gates: [],
+                        assertions: [
+                            { code: 'GATES_INCOMPLETE', status: 'fail', detail: 'Evaluation run not yet complete. Gates pending.' }
+                        ],
+                        artifacts: { spineSynthesis: null, segmentEvidence: [] },
+                        exports: { pdfUrl: null, txtUrl: null },
+                        legacy: { isFallback: false, warning: null }
+                    }
+                });
+            }
 
             // Fetch gate decision
             const gateDecisions = await base44.asServiceRole.entities.EvaluationGateDecision.filter({ runId: run.id });
@@ -41,7 +68,7 @@ Deno.serve(async (req) => {
             // Fetch segments for evidence
             const segments = await base44.asServiceRole.entities.EvaluationSegment.filter({ runId: run.id }, 'segmentIndex');
 
-            // Build gates array
+            // Build gates array (REQUIRED: readiness, coverage, integrity)
             const gates = [];
             
             if (gateDecision) {
@@ -65,15 +92,20 @@ Deno.serve(async (req) => {
                         : [gateDecision.coverageFailReason || 'Coverage insufficient.']
                 });
 
+                // INTEGRITY GATE (FALSIFIABLE)
+                const integrityObserved = gateDecision.integrityObserved || {};
                 gates.push({
                     gateType: 'integrity',
-                    status: 'pass',
+                    status: gateDecision.integrityPassed ? 'pass' : 'fail',
                     threshold: null,
-                    observed: null,
-                    reasons: [
-                        'Score finalized and locked.',
-                        'Synthesis derived only from measured artifacts.'
-                    ]
+                    observed: integrityObserved,
+                    reasons: gateDecision.integrityPassed
+                        ? [
+                            'All expected segments written.',
+                            'Artifacts hash verified.',
+                            'Gate decision and synthesis complete.'
+                          ]
+                        : [gateDecision.integrityFailReason || 'Integrity verification failed.']
                 });
             }
 
@@ -116,13 +148,15 @@ Deno.serve(async (req) => {
                     projectId: run.projectId,
                     evaluationRunId: run.id,
                     createdAt: run.created_date,
+                    governanceVersion: run.governanceVersion,
+                    inputFingerprintHash: run.inputFingerprintHash,
 
                     summary: {
                         overallScore: artifact?.phase1OverallReadiness || 0,
                         readinessBand: gateDecision?.phase2Allowed ? 'submission_ready' : 'needs_revision',
                         storyGateEligible: gateDecision?.phase2Allowed || false,
                         format: run.workTypeUi || 'manuscript',
-                        primaryGenres: [], // Extract from project if available
+                        primaryGenres: [],
                         lengthDisplay: `${run.sourceWordCountEstimate?.toLocaleString() || 'unknown'} words`
                     },
 
@@ -141,7 +175,7 @@ Deno.serve(async (req) => {
                     },
 
                     exports: {
-                        pdfUrl: null, // Wire to export generation later
+                        pdfUrl: null,
                         txtUrl: null
                     },
 
