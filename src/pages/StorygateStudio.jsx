@@ -432,16 +432,9 @@ export default function StorygateStudio() {
                             <div className="p-6 rounded-lg" style={{ backgroundColor: 'rgba(169, 142, 74, 0.05)', borderWidth: '2px', borderColor: '#A98E4A' }}>
                                 <h3 className="text-lg font-semibold mb-3" style={{ color: '#7A1E1E' }}>Evaluation & Readiness *</h3>
                                 <p className="text-sm mb-4" style={{ color: '#7B7B7B' }}>
-                                    Storygate Studio eligibility requires a verified readiness score of 8.0/10 or higher from RevisionGrade or an accepted professional evaluation. Projects above this threshold enter the eligible queue, though invitation to human review is not guaranteed.
+                                    Storygate Studio eligibility requires a verified readiness score of 8.0/10 or higher from RevisionGrade or an accepted professional evaluation. Submissions below this threshold are declined automatically. Projects above this threshold enter the eligible queue, though invitation to human review is not guaranteed.
                                 </p>
-                                
-                                <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: 'rgba(122, 30, 30, 0.1)', borderWidth: '1px', borderColor: '#7A1E1E' }}>
-                                    <p className="text-sm font-semibold mb-2" style={{ color: '#7A1E1E' }}>Readiness Threshold (Required)</p>
-                                    <p className="text-sm" style={{ color: '#D4D4D4' }}>
-                                        Minimum overall score of <strong>8.0/10</strong> required. Submissions below this threshold are declined automatically.
-                                    </p>
-                                </div>
-                                
+
                                 <div className="space-y-4">
                                     <div>
                                         <label className="block text-sm font-medium mb-2" style={{ color: '#F2EFEA' }}>
