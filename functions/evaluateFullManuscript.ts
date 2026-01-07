@@ -246,7 +246,7 @@ Provide: score (1-10), criticalIssues, strengthAreas, waveHits.`,
 }
 
 // JOB HANDLER: Aggregate chapter results and finalize
-async function aggregateChapterResults(chapter, agentAnalysis, waveScores, waveHits, waveErrors, integrity, integrityPenalty, evaluationMode, base44, finalStatus = 'evaluated') {
+async function aggregateChapterResults(chapter, agentAnalysis, waveScores, waveHits, waveErrors, integrity, integrityPenalty, evaluationMode, base44, evaluationRunId, finalStatus = 'evaluated') {
     const avgWaveScore = (waveScores.early + waveScores.mid + waveScores.late) / 3;
     const waveAnalysis = {
         waveScore: avgWaveScore,
@@ -260,6 +260,36 @@ async function aggregateChapterResults(chapter, agentAnalysis, waveScores, waveH
     const rawCombinedScore = (agentAnalysis.overallScore * 0.5) + (waveAnalysis.waveScore * 0.5);
     const combinedScore = Math.max(0, rawCombinedScore - integrityPenalty);
 
+    // CREATE GOVERNED SEGMENT
+    const criteriaScores = {};
+    agentAnalysis.criteria?.forEach(c => {
+        const key = c.name?.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'unknown';
+        criteriaScores[key] = c.score;
+    });
+
+    await base44.asServiceRole.entities.EvaluationSegment.create({
+        runId: evaluationRunId,
+        segmentIndex: chapter.order,
+        segmentLabel: chapter.title || `Chapter ${chapter.order}`,
+        segmentStartOffset: 0,
+        segmentEndOffset: chapter.text.length,
+        segmentWordCount: chapter.word_count,
+        criteriaScores,
+        criteriaNotes: agentAnalysis.criteria?.map(c => ({
+            name: c.name,
+            strengths: c.strengths,
+            weaknesses: c.weaknesses,
+            notes: c.notes
+        })) || [],
+        waveSubstrate: {
+            waveScore: avgWaveScore,
+            waveHits,
+            tieredScores: waveScores
+        },
+        compressedSummary: JSON.stringify(chapter.summary_json || {})
+    });
+
+    // LEGACY WRITE (DUAL-WRITE DURING MIGRATION)
     await base44.asServiceRole.entities.Chapter.update(chapter.id, {
         evaluation_score: combinedScore,
         chapter_craft_score: waveAnalysis.waveScore,
@@ -416,8 +446,16 @@ async function evaluateChapterParallel(chapter, chapterIndex, totalChapters, man
         const successCount = [agentResult, earlyResult, midResult, lateResult].filter(r => r.status === 'fulfilled').length;
         const finalStatus = successCount >= 3 ? 'evaluated' : successCount >= 1 ? 'partial' : 'failed';
 
+        // Get evaluationRunId from manuscript context (passed through)
+        const [currentManuscript] = await base44.asServiceRole.entities.Manuscript.filter({ id: manuscriptId });
+        const evaluationRunId = currentManuscript._current_evaluation_run_id;
+
+        // Get evaluationRunId from manuscript context
+        const [currentManuscript] = await base44.asServiceRole.entities.Manuscript.filter({ id: manuscriptId });
+        const evaluationRunId = currentManuscript._current_evaluation_run_id;
+
         // Aggregate and save with final status
-        await aggregateChapterResults(chapter, agentAnalysis, waveScores, waveHits, waveErrors, integrity, integrityPenalty, evaluationMode, base44, finalStatus);
+        await aggregateChapterResults(chapter, agentAnalysis, waveScores, waveHits, waveErrors, integrity, integrityPenalty, evaluationMode, base44, evaluationRunId, finalStatus);
 
         console.log(`✅ Chapter ${chapterIndex + 1} evaluation complete (${finalStatus})`);
         return { success: true, status: finalStatus };
@@ -446,6 +484,37 @@ async function runEvaluation(manuscriptId, base44) {
         if (!manuscript || chapters.length === 0) {
             throw new Error('Manuscript or chapters not found');
         }
+
+        // CREATE GOVERNED RUN (IMMUTABLE BOUNDARY)
+        const evaluationRun = await base44.asServiceRole.entities.EvaluationRun.create({
+            projectId: manuscriptId,
+            workTypeUi: 'manuscript',
+            sourceFileId: manuscriptId,
+            sourceFilename: manuscript.title || 'untitled',
+            sourceWordCountEstimate: manuscript.word_count || 0,
+            segmentationMode: 'auto',
+            segmentationUserConfirmed: true,
+            phase2Enabled: true,
+            readinessFloor: 8.0,
+            coverageMinChapters: 5,
+            coverageMinWordPct: 0.25,
+            governanceVersion: 'EVAL_METHOD_v1.0.0',
+            allowRawTextInPhase2: false,
+            phase2ReadOnlyScores: true,
+            status: 'created'
+        });
+
+        console.log(`🔐 GOVERNED_RUN_CREATED`, { runId: evaluationRun.id, manuscriptId, timestamp: new Date().toISOString() });
+
+        // Store evaluationRunId reference on manuscript (temp for migration)
+        await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+            _current_evaluation_run_id: evaluationRun.id
+        });
+
+        // Update EvaluationRun status
+        await base44.asServiceRole.entities.EvaluationRun.update(evaluationRun.id, {
+            status: 'segmented'
+        });
 
         // IMMEDIATE PROGRESS KICK - Show 1% so bar moves instantly
         await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
@@ -925,6 +994,11 @@ SCORING GUIDELINES:
         });
 
 
+        // Update EvaluationRun to phase1_complete
+        await base44.asServiceRole.entities.EvaluationRun.update(evaluationRun.id, {
+            status: 'phase1_complete'
+        });
+
         // PHASE 4: Final composite scoring
         // Reload all chapters to get final status
         const finalChapters = await base44.asServiceRole.entities.Chapter.filter({ 
@@ -989,6 +1063,93 @@ SCORING GUIDELINES:
         });
 
         console.log(`Finalizing manuscript: ${evaluatedChapters.length} evaluated, ${failedChapters.length} failed, ${finalChapters.length} total`);
+
+        // GOVERNED GATE EVALUATION
+        const phase1Readiness = manuscript.spine_score ? Math.max(0, manuscript.spine_score - integrityPenalty) : 0;
+        const coverageChapters = evaluatedChapters.length;
+        const coverageWordPct = manuscript.word_count > 0 
+            ? evaluatedChapters.reduce((sum, ch) => sum + (ch.word_count || 0), 0) / manuscript.word_count
+            : 0;
+
+        const readinessPassed = phase1Readiness >= 8.0;
+        const coveragePassed = coverageChapters >= 5 && coverageWordPct >= 0.25;
+        const phase2Allowed = readinessPassed && coveragePassed;
+
+        const gateDecision = await base44.asServiceRole.entities.EvaluationGateDecision.create({
+            runId: evaluationRun.id,
+            readinessFloor: 8.0,
+            readinessValue: phase1Readiness,
+            readinessPassed,
+            coverageMinChapters: 5,
+            coverageMinWordPct: 0.25,
+            coverageChaptersValue: coverageChapters,
+            coverageWordPctValue: coverageWordPct,
+            coveragePassed,
+            coverageFailReason: !coveragePassed 
+                ? `Coverage insufficient: ${coverageChapters} chapters (need 5), ${(coverageWordPct * 100).toFixed(1)}% words (need 25%)`
+                : null,
+            phase2Allowed,
+            phase2BlockReason: !phase2Allowed 
+                ? (!readinessPassed ? 'readiness_insufficient' : 'coverage_insufficient')
+                : null,
+            userMessageTitle: phase2Allowed 
+                ? 'Evaluation Complete - Submission Ready'
+                : 'Evaluation Complete - Not Submission Ready',
+            userMessageBody: phase2Allowed
+                ? 'Your manuscript meets the readiness and coverage thresholds for Phase 2 evaluation.'
+                : `Your manuscript does not yet meet the required thresholds. ${!readinessPassed ? 'Readiness score below 8.0.' : ''} ${!coveragePassed ? 'Coverage insufficient.' : ''}`
+        });
+
+        console.log(`🚪 GATE_DECISION_CREATED`, { 
+            gateId: gateDecision.id, 
+            phase2Allowed, 
+            readinessPassed, 
+            coveragePassed,
+            timestamp: new Date().toISOString() 
+        });
+
+        // CREATE ARTIFACTS
+        await base44.asServiceRole.entities.EvaluationArtifacts.create({
+            runId: evaluationRun.id,
+            phase1OverallReadiness: phase1Readiness,
+            phase1CriteriaAggregate: manuscript.spine_evaluation?.criteria || {},
+            coverageSegmentsEvaluated: evaluatedChapters.length,
+            coverageSegmentsTotalEstimate: finalChapters.length,
+            coverageWordCountEvaluated: evaluatedChapters.reduce((sum, ch) => sum + (ch.word_count || 0), 0),
+            coverageWordCountTotalEstimate: manuscript.word_count || 0,
+            coverageWordPctEvaluated: coverageWordPct,
+            chapterSummaries: finalChapters.map(ch => ch.summary_json).filter(Boolean),
+            beatMap: {},
+            actMap: {},
+            threadGraph: {}
+        });
+
+        // CREATE SPINE SYNTHESIS
+        await base44.asServiceRole.entities.EvaluationSpineSynthesis.create({
+            runId: evaluationRun.id,
+            spineReadiness: phase1Readiness,
+            diagnosis: [],
+            waveGuide: manuscript.spine_evaluation || {},
+            governanceAssertions: {
+                rawTextReadInPhase2: false,
+                scoresModifiedInPhase2: false
+            }
+        });
+
+        // Update EvaluationRun to complete
+        await base44.asServiceRole.entities.EvaluationRun.update(evaluationRun.id, {
+            status: phase2Allowed ? 'phase2_complete' : 'phase2_skipped',
+            statusDetail: hasFailures 
+                ? `Complete with ${failedChapters.length} chapter(s) failed`
+                : 'Complete'
+        });
+
+        console.log(`🔐 GOVERNED_RUN_COMPLETE`, { 
+            runId: evaluationRun.id, 
+            status: evaluationRun.status,
+            phase2Allowed,
+            timestamp: new Date().toISOString() 
+        });
 
         // Mark manuscript as ready (even with failures) - use finalChapters.length for accurate total
         await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
