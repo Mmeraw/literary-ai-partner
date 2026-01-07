@@ -43,6 +43,10 @@ Deno.serve(async (req) => {
         if (sortedRuns.length > 0) {
             const run = sortedRuns[0];
 
+            // Detect unknown status (not in priority map)
+            const hasUnknownStatus = !statusPriority.hasOwnProperty(run.status);
+            const selectedPriority = statusPriority[run.status] ?? -1;
+
             // REJECT INCOMPLETE RUNS (hard stop - return pending state)
             if (!['phase2_complete', 'phase2_skipped', 'complete'].includes(run.status)) {
                 return Response.json({
@@ -133,6 +137,15 @@ Deno.serve(async (req) => {
                 { code: 'NO_STORYGATE_WITHOUT_GATES', status: 'true', detail: 'Eligibility requires passing gates.' }
             ];
 
+            // Detect unknown run status
+            if (hasUnknownStatus) {
+                assertions.push({
+                    code: 'UNKNOWN_RUN_STATUS',
+                    status: 'fail',
+                    detail: `Run status "${run.status}" not recognized in priority map. May indicate schema drift.`
+                });
+            }
+
             if (synthesis?.governanceAssertions) {
                 assertions.push({
                     code: 'RAW_TEXT_PHASE2',
@@ -173,7 +186,7 @@ Deno.serve(async (req) => {
                         statusPriorityApplied: true,
                         runCount: sortedRuns.length,
                         selectedStatus: run.status,
-                        selectedPriority: statusPriority[run.status] || 0
+                        selectedPriority
                     },
 
                     summary: {
