@@ -422,15 +422,11 @@ export default function StorygateStudio() {
                 <Card id="submission-form" style={{ borderColor: '#7A1E1E', backgroundColor: 'rgba(14, 14, 14, 0.8)', borderRadius: '0.5rem' }}>
                     <CardHeader>
                         <CardTitle style={{ color: '#7A1E1E' }}>Submit Your Project</CardTitle>
-                        <div className="space-y-2 mt-3">
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>
-                                Submissions are screened automatically. Only projects that meet the readiness threshold are eligible for internal consideration, and a small number may be selected for human review.
-                            </p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>
-                                Submissions below the readiness threshold are declined automatically and are not read by a human. Some auto-declined submissions may receive brief, structured feedback derived from existing evaluation data.
-                            </p>
-                            <p className="text-sm font-semibold" style={{ color: '#7A1E1E' }}>
-                                Storygate Studio cannot respond to all eligible submissions. Internal review and follow-up communication are not guaranteed.
+                        <div className="p-4 rounded-lg mt-4" style={{ backgroundColor: 'rgba(169, 142, 74, 0.1)', borderWidth: '1px', borderColor: '#A98E4A' }}>
+                            <p className="text-sm font-semibold mb-2" style={{ color: '#7A1E1E' }}>Before You Submit</p>
+                            <p className="text-sm" style={{ color: '#D4D4D4' }}>
+                                All submissions require a verified readiness score of <strong>8.0/10 or higher</strong>. 
+                                Projects above this threshold are eligible for internal consideration, though <strong>internal review and follow-up are not guaranteed</strong>.
                             </p>
                         </div>
                     </CardHeader>
@@ -618,6 +614,14 @@ export default function StorygateStudio() {
                                     />
                                 </div>
                             )}
+
+                            {/* Privacy Notice */}
+                            <div className="p-4 rounded-lg" style={{ backgroundColor: 'rgba(14, 14, 14, 0.3)', borderWidth: '1px', borderColor: '#7B7B7B' }}>
+                                <p className="text-xs" style={{ color: '#D4D4D4' }}>
+                                    <strong>Your data is private.</strong> Information you provide is used for evaluation and consideration only. 
+                                    No submission data is used for model training, shared with third parties, or sold.
+                                </p>
+                            </div>
 
                             {/* Contact Information */}
                             <div className="grid md:grid-cols-2 gap-4">
@@ -1061,6 +1065,27 @@ export default function StorygateStudio() {
                                     </span>
                                 </label>
                             </div>
+                            )}
+
+                            {/* What to Expect */}
+                            {primaryPath && (
+                                <div className="p-6 rounded-lg" style={{ backgroundColor: 'rgba(169, 142, 74, 0.1)', borderWidth: '2px', borderColor: '#A98E4A' }}>
+                                    <h3 className="text-sm font-semibold mb-3" style={{ color: '#7A1E1E' }}>What to Expect After You Submit</h3>
+                                    <div className="space-y-2 text-sm" style={{ color: '#D4D4D4' }}>
+                                        <p className="flex items-start gap-2">
+                                            <span style={{ color: '#A98E4A' }}>•</span>
+                                            <span><strong>Automatic screening</strong> verifies your readiness score meets the 8.0/10 threshold</span>
+                                        </p>
+                                        <p className="flex items-start gap-2">
+                                            <span style={{ color: '#A98E4A' }}>•</span>
+                                            <span><strong>Eligible projects</strong> are queued for internal consideration; a small number may be selected for human review</span>
+                                        </p>
+                                        <p className="flex items-start gap-2">
+                                            <span style={{ color: '#A98E4A' }}>•</span>
+                                            <span><strong>No guarantees or timelines</strong> — most eligible submissions do not receive individualized feedback or follow-up</span>
+                                        </p>
+                                    </div>
+                                </div>
                             )}
 
                             {/* Submit Button */}

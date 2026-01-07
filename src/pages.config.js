@@ -15,6 +15,7 @@ import Enterprise from './pages/Enterprise';
 import EthicsAndSafety from './pages/EthicsAndSafety';
 import Evaluate from './pages/Evaluate';
 import EvaluateChapter from './pages/EvaluateChapter';
+import FAQ from './pages/FAQ';
 import FilmAdaptation from './pages/FilmAdaptation';
 import FindAgents from './pages/FindAgents';
 import ForProfessionals from './pages/ForProfessionals';
@@ -62,7 +63,6 @@ import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
 import YourWriting from './pages/YourWriting';
-import FAQ from './pages/FAQ';
 import __Layout from './Layout.jsx';
 
 
@@ -84,6 +84,7 @@ export const PAGES = {
     "EthicsAndSafety": EthicsAndSafety,
     "Evaluate": Evaluate,
     "EvaluateChapter": EvaluateChapter,
+    "FAQ": FAQ,
     "FilmAdaptation": FilmAdaptation,
     "FindAgents": FindAgents,
     "ForProfessionals": ForProfessionals,
@@ -131,7 +132,6 @@ export const PAGES = {
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
     "YourWriting": YourWriting,
-    "FAQ": FAQ,
 }
 
 export const pagesConfig = {
