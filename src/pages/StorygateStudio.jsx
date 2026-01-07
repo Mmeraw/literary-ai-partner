@@ -362,7 +362,8 @@ export default function StorygateStudio() {
                     <CardContent className="space-y-4" style={{ color: '#D4D4D4' }}>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Initial Screening</p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>All submissions are screened automatically. Only submissions that meet the readiness threshold are queued for internal consideration, and a small number may be selected for human review.</p>
+                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>All submissions are screened automatically. Only submissions that meet the readiness threshold are queued for internal consideration, and a small number may be selected for human review.</p>
+                            <p className="text-sm" style={{ color: '#7B7B7B' }}>Submissions below 8.0/10 are declined automatically and are not read by a human. Auto-declined submissions may receive brief, structured feedback derived from existing evaluation data; no bespoke commentary will be provided.</p>
                         </div>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Storygate Review Pass</p>
@@ -388,7 +389,10 @@ export default function StorygateStudio() {
                             Evaluation, revision, and development tools (including RevisionGrade analysis and Film/TV adaptation packages) are separate paid services and are not required to maintain a Storygate Studio submission.
                         </p>
                         <p className="text-sm" style={{ color: '#7B7B7B' }}>
-                            For projects invited into deeper engagement, Storygate Studio may offer a paid development arrangement tailored to the scope of the work. Pricing and terms are discussed only after internal review.
+                            For projects invited into deeper engagement, Storygate Studio may offer a paid development arrangement tailored to the scope of the work. Pricing and terms are discussed only after a project has been selected for internal human review.
+                        </p>
+                        <p className="text-sm" style={{ color: '#7B7B7B' }}>
+                            A Storygate Studio submission remains on file regardless of subscription status; subscriptions apply to tools and services, not to waiting or continued eligibility.
                         </p>
                     </CardContent>
                 </Card>
@@ -406,7 +410,7 @@ export default function StorygateStudio() {
                             </p>
                             <ul className="text-sm mt-2 space-y-1" style={{ color: '#7B7B7B' }}>
                                 <li>• The author explicitly submits to Storygate Studio, and</li>
-                                <li>• The submission meets the readiness threshold and is selected for internal consideration.</li>
+                                <li>• The submission meets the readiness threshold and is selected for internal human review.</li>
                             </ul>
                         </div>
                     </CardContent>
@@ -418,10 +422,7 @@ export default function StorygateStudio() {
                         <CardTitle style={{ color: '#7A1E1E' }}>Submit Your Project</CardTitle>
                         <div className="space-y-2 mt-3">
                             <p className="text-sm" style={{ color: '#7B7B7B' }}>
-                                All submissions are screened automatically.
-                            </p>
-                            <p className="text-sm" style={{ color: '#7B7B7B' }}>
-                                Only projects that meet the readiness threshold are eligible for internal review.
+                                Submissions are screened automatically. Only projects that meet the readiness threshold are eligible for internal consideration, and a small number may be selected for human review.
                             </p>
                             <p className="text-sm font-semibold" style={{ color: '#7A1E1E' }}>
                                 Storygate Studio cannot respond to all eligible submissions. Internal review and follow-up communication are not guaranteed.
@@ -430,11 +431,138 @@ export default function StorygateStudio() {
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-6">
+                            {/* Evaluation & Readiness (MOVED UP - Critical Gate) */}
+                            <div className="p-6 rounded-lg" style={{ backgroundColor: 'rgba(169, 142, 74, 0.05)', borderWidth: '2px', borderColor: '#A98E4A' }}>
+                                <h3 className="text-lg font-semibold mb-3" style={{ color: '#7A1E1E' }}>Evaluation & Readiness *</h3>
+                                <p className="text-sm mb-4" style={{ color: '#7B7B7B' }}>
+                                    Storygate Studio eligibility requires a verified readiness score of 8.0/10 or higher from RevisionGrade or an accepted professional evaluation.
+                                </p>
+                                
+                                <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: 'rgba(122, 30, 30, 0.1)', borderWidth: '1px', borderColor: '#7A1E1E' }}>
+                                    <p className="text-sm font-semibold mb-2" style={{ color: '#7A1E1E' }}>Readiness Threshold (Required)</p>
+                                    <p className="text-sm" style={{ color: '#D4D4D4' }}>
+                                        Minimum overall score of <strong>8.0/10</strong> required. Submissions below this threshold are declined automatically.
+                                    </p>
+                                </div>
+                                
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2" style={{ color: '#F2EFEA' }}>
+                                            Evaluation Source *
+                                        </label>
+                                        <Select 
+                                            value={formData.evaluationSource} 
+                                            onValueChange={(value) => setFormData({...formData, evaluationSource: value})}
+                                        >
+                                            <SelectTrigger style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}>
+                                                <SelectValue placeholder="Select evaluation source" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="RevisionGrade">RevisionGrade evaluation</SelectItem>
+                                                <SelectItem value="Equivalent">External professional evaluation</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2" style={{ color: '#F2EFEA' }}>
+                                            Overall Readiness Score (0.0–10.0) *
+                                        </label>
+                                        <Input
+                                            type="number"
+                                            step="0.1"
+                                            min="0"
+                                            max="10"
+                                            value={formData.evaluationScore}
+                                            onChange={(e) => setFormData({...formData, evaluationScore: e.target.value})}
+                                            style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                            required
+                                        />
+                                        <p className="text-xs mt-2" style={{ color: '#7B7B7B' }}>
+                                            Score of 8.0+ required for consideration.
+                                        </p>
+                                        {formData.evaluationScore && parseFloat(formData.evaluationScore) < 8.0 && (
+                                            <div className="mt-2 p-3 rounded" style={{ backgroundColor: 'rgba(122, 30, 30, 0.1)', borderWidth: '1px', borderColor: '#7A1E1E' }}>
+                                                <p className="text-xs flex items-start gap-2" style={{ color: '#7A1E1E' }}>
+                                                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                                                    <span>Projects below 8.0/10 will be automatically declined.</span>
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {formData.evaluationSource === 'Equivalent' && (
+                                        <div className="space-y-4 p-4 rounded-lg" style={{ backgroundColor: 'rgba(14, 14, 14, 0.3)', borderWidth: '1px', borderColor: '#7B7B7B' }}>
+                                            <div>
+                                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                                    Evaluator Type *
+                                                </label>
+                                                <Input
+                                                    value={formData.evaluatorType}
+                                                    onChange={(e) => setFormData({...formData, evaluatorType: e.target.value})}
+                                                    placeholder="e.g., agent, editor, producer, third-party service"
+                                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                                    Evaluator Name or Organization *
+                                                </label>
+                                                <Input
+                                                    value={formData.evaluatorName}
+                                                    onChange={(e) => setFormData({...formData, evaluatorName: e.target.value})}
+                                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                                    Evaluation Date *
+                                                </label>
+                                                <Input
+                                                    type="date"
+                                                    value={formData.evaluationDate}
+                                                    onChange={(e) => setFormData({...formData, evaluationDate: e.target.value})}
+                                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                                    Summary Outcome *
+                                                </label>
+                                                <Textarea
+                                                    value={formData.evaluationSummary}
+                                                    onChange={(e) => setFormData({...formData, evaluationSummary: e.target.value})}
+                                                    placeholder="Brief summary of the evaluation outcome"
+                                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                                    className="min-h-[100px]"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
+                                            Evaluation Report ID / Link (Optional)
+                                        </label>
+                                        <Input
+                                            value={formData.evaluationReportId}
+                                            onChange={(e) => setFormData({...formData, evaluationReportId: e.target.value})}
+                                            placeholder="e.g., manuscript ID, report URL"
+                                            style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Primary Path Selection */}
                             <div className="p-6 rounded-lg" style={{ backgroundColor: 'rgba(122, 30, 30, 0.1)', borderWidth: '2px', borderColor: '#7A1E1E' }}>
                                 <h3 className="text-lg font-semibold mb-3" style={{ color: '#7A1E1E' }}>Submission Track *</h3>
                                 <p className="text-sm mb-4" style={{ color: '#D4D4D4' }}>
-                                    Choose your primary path. Both tracks require a readiness score of 8.0/10 or higher.
+                                    Choose your primary path.
                                 </p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <button
@@ -450,7 +578,7 @@ export default function StorygateStudio() {
                                             Manuscript / Publishing
                                         </h4>
                                         <p className="text-xs" style={{ color: '#7B7B7B' }}>
-                                            For novels seeking literary agents, editors, publishers
+                                            Query letter, synopsis, author bio
                                         </p>
                                     </button>
                                     <button
@@ -466,7 +594,7 @@ export default function StorygateStudio() {
                                             Screen / Adaptation
                                         </h4>
                                         <p className="text-xs" style={{ color: '#7B7B7B' }}>
-                                            For screenplays or adaptation-ready IP for Film/TV
+                                            Logline, adaptation pitch, Film/TV Pitch Deck (required), author bio; source material optional
                                         </p>
                                     </button>
                                 </div>
@@ -679,6 +807,9 @@ export default function StorygateStudio() {
                                 <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
                                     What are you seeking? (Check all that apply)
                                 </label>
+                                <p className="text-xs mb-3" style={{ color: '#7B7B7B' }}>
+                                    This helps us understand your goals and route eligible projects appropriately. It does not override the readiness threshold.
+                                </p>
                                 <div className="space-y-2">
                                     {[
                                         { value: 'structural', label: 'Structural evaluation' },
@@ -871,140 +1002,7 @@ export default function StorygateStudio() {
                                 </div>
                             )}
 
-                            {/* Evaluation & Readiness (shown for all paths) */}
-                            {primaryPath && (
-                                <div className="p-6 rounded-lg" style={{ backgroundColor: 'rgba(169, 142, 74, 0.05)', borderWidth: '1px', borderColor: '#A98E4A' }}>
-                                    <h3 className="text-lg font-semibold mb-3" style={{ color: '#7A1E1E' }}>Evaluation & Readiness</h3>
-                                    <p className="text-sm mb-4" style={{ color: '#7B7B7B' }}>
-                                        Both tracks require a minimum readiness score of 8.0/10 from RevisionGrade or an equivalent professional evaluation.
-                                    </p>
-                                    
-                                    <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: 'rgba(122, 30, 30, 0.1)', borderWidth: '1px', borderColor: '#7A1E1E' }}>
-                                        <p className="text-sm font-semibold mb-2" style={{ color: '#7A1E1E' }}>Readiness Threshold (Required)</p>
-                                        <p className="text-sm" style={{ color: '#D4D4D4' }}>
-                                            Minimum overall score of <strong>8.0/10</strong> required. Submissions below this threshold are declined automatically.
-                                        </p>
-                                    </div>
-                                    
-                                    <div className="mb-4">
-                                        <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
-                                            Evaluation Source *
-                                        </label>
-                                        <Select 
-                                            value={formData.evaluationSource} 
-                                            onValueChange={(value) => setFormData({...formData, evaluationSource: value})}
-                                        >
-                                            <SelectTrigger style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}>
-                                                <SelectValue placeholder="Select evaluation source" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="RevisionGrade">RevisionGrade evaluation</SelectItem>
-                                                <SelectItem value="Equivalent">External professional evaluation</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
 
-                                    {formData.evaluationSource === 'RevisionGrade' && (
-                                        <div>
-                                            <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
-                                                RevisionGrade Score (0.0–10.0) *
-                                            </label>
-                                            <Input
-                                                type="number"
-                                                step="0.1"
-                                                min="0"
-                                                max="10"
-                                                value={formData.evaluationScore}
-                                                onChange={(e) => setFormData({...formData, evaluationScore: e.target.value})}
-                                                style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
-                                                required
-                                            />
-                                            <p className="text-xs mt-2" style={{ color: '#7B7B7B' }}>
-                                                Score of 8.0+ required for consideration.
-                                            </p>
-                                            {formData.evaluationScore && parseFloat(formData.evaluationScore) < 8.0 && (
-                                                <div className="mt-2 p-3 rounded" style={{ backgroundColor: 'rgba(122, 30, 30, 0.1)', borderWidth: '1px', borderColor: '#7A1E1E' }}>
-                                                    <p className="text-xs flex items-start gap-2" style={{ color: '#7A1E1E' }}>
-                                                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                                                        <span>Projects below 8.0/10 will be automatically declined.</span>
-                                                    </p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {formData.evaluationSource === 'Equivalent' && (
-                                        <div className="space-y-4">
-                                            <div>
-                                                <label className="block text-sm font-medium mb-2" style={{ color: '#F2EFEA' }}>
-                                                    Equivalent Score (0.0–10.0) *
-                                                </label>
-                                                <Input
-                                                    type="number"
-                                                    step="0.1"
-                                                    min="0"
-                                                    max="10"
-                                                    value={formData.evaluationScore}
-                                                    onChange={(e) => setFormData({...formData, evaluationScore: e.target.value})}
-                                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
-                                                    required
-                                                />
-                                                <p className="text-xs mt-2" style={{ color: '#7B7B7B' }}>
-                                                    Score of 8.0+ required for consideration.
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
-                                                    Evaluator Type *
-                                                </label>
-                                                <Input
-                                                    value={formData.evaluatorType}
-                                                    onChange={(e) => setFormData({...formData, evaluatorType: e.target.value})}
-                                                    placeholder="e.g., agent, editor, producer, third-party service"
-                                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
-                                                    required
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
-                                                    Evaluator Name or Organization *
-                                                </label>
-                                                <Input
-                                                    value={formData.evaluatorName}
-                                                    onChange={(e) => setFormData({...formData, evaluatorName: e.target.value})}
-                                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
-                                                    required
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
-                                                    Evaluation Date *
-                                                </label>
-                                                <Input
-                                                    type="date"
-                                                    value={formData.evaluationDate}
-                                                    onChange={(e) => setFormData({...formData, evaluationDate: e.target.value})}
-                                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
-                                                    required
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
-                                                    Summary Outcome *
-                                                </label>
-                                                <Textarea
-                                                    value={formData.evaluationSummary}
-                                                    onChange={(e) => setFormData({...formData, evaluationSummary: e.target.value})}
-                                                    placeholder="Brief summary of the evaluation outcome"
-                                                    style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
-                                                    className="min-h-[100px]"
-                                                    required
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
 
                             {/* Why Storygate (shown for all paths) */}
                             {primaryPath && (
