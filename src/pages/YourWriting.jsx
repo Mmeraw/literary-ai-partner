@@ -454,52 +454,76 @@ export default function YourWriting() {
                 {/* Work Type Confirmation Dialog */}
                 {showWorkTypeConfirm && workTypeDetection && (
                   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 max-h-[90vh] overflow-y-auto">
                       <h3 className="text-2xl font-bold text-slate-900 mb-4">Confirm Work Type</h3>
-                      <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200 mb-6">
+                      
+                      {workTypeDetection.detected_work_type === 'unknown' || workTypeDetection.work_type_label === 'Unknown Work Type' ? (
+                        <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 mb-6">
+                          <p className="text-sm text-slate-700 mb-2">
+                            <strong>Could not automatically detect work type</strong>
+                          </p>
+                          <p className="text-xs text-slate-600">
+                            This can happen with very short excerpts, unconventional formatting, or experimental structures. Please select your work type manually below.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200 mb-6">
+                          <p className="text-sm text-slate-700 mb-2">
+                            <strong>Detected:</strong> {workTypeDetection.work_type_label}
+                          </p>
+                          <p className="text-sm text-slate-600">
+                            <strong>Confidence:</strong> {workTypeDetection.detection_confidence}
+                          </p>
+                        </div>
+                      )}
+                      
+                      <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 mb-6">
                         <p className="text-sm text-slate-700 mb-2">
-                          <strong>Detected:</strong> {workTypeDetection.work_type_label}
+                          <strong>Why Work Type matters:</strong>
                         </p>
-                        <p className="text-sm text-slate-600">
-                          <strong>Confidence:</strong> {workTypeDetection.detection_confidence}
+                        <p className="text-xs text-slate-600">
+                          Work Type determines which evaluation criteria apply. For example, screenplays are not evaluated for prose rhythm, and novels are not evaluated for scene headings. Some criteria may show as N/A based on your format.
                         </p>
                       </div>
-                      <p className="text-sm text-slate-600 mb-4">
-                        Work Type determines which evaluation criteria apply to your writing. Some criteria may not be applicable (N/A) based on your format.
-                      </p>
-                      <div className="flex gap-3">
-                        <Button
-                          onClick={() => handleConfirmWorkType(workTypeDetection.detected_work_type, 'confirm')}
-                          className="flex-1 bg-indigo-600 hover:bg-indigo-700"
-                        >
-                          Confirm
-                        </Button>
-                        <Button
-                          onClick={() => setShowWorkTypeConfirm(false)}
-                          variant="outline"
-                          className="flex-1"
-                        >
-                          Choose Different Type
-                        </Button>
-                      </div>
+
+                      {workTypeDetection.detected_work_type !== 'unknown' && workTypeDetection.work_type_label !== 'Unknown Work Type' ? (
+                        <div className="flex gap-3 mb-4">
+                          <Button
+                            onClick={() => handleConfirmWorkType(workTypeDetection.detected_work_type, 'confirm')}
+                            className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+                          >
+                            Confirm: {workTypeDetection.work_type_label}
+                          </Button>
+                          <Button
+                            onClick={() => setShowWorkTypeConfirm(false)}
+                            variant="outline"
+                            className="flex-1"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : null}
+
                       {workTypeDetection.all_work_types && (
-                        <details className="mt-4">
-                          <summary className="text-sm text-slate-600 cursor-pointer hover:text-slate-900">
-                            View all Work Types
-                          </summary>
-                          <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+                        <div className="mt-4">
+                          <p className="text-sm font-semibold text-slate-900 mb-3">
+                            {workTypeDetection.detected_work_type === 'unknown' || workTypeDetection.work_type_label === 'Unknown Work Type' 
+                              ? 'Select your Work Type:' 
+                              : 'Or choose a different Work Type:'}
+                          </p>
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
                             {workTypeDetection.all_work_types.map((wt) => (
                               <button
                                 key={wt.id}
                                 onClick={() => handleConfirmWorkType(wt.id, 'override', wt.id)}
-                                className="w-full text-left p-3 rounded-lg hover:bg-slate-100 border border-slate-200"
+                                className="w-full text-left p-3 rounded-lg hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 transition-colors"
                               >
                                 <p className="text-sm font-medium text-slate-900">{wt.label}</p>
                                 <p className="text-xs text-slate-600">{wt.family}</p>
                               </button>
                             ))}
                           </div>
-                        </details>
+                        </div>
                       )}
                     </div>
                   </div>
