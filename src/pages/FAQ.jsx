@@ -1435,63 +1435,6 @@ export default function FAQ() {
                         </CardContent>
                     </Card>
 
-                    {/* Disclaimers */}
-                    <Card className="border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-white shadow-lg">
-                        <CardHeader>
-                            <CardTitle className="text-2xl text-amber-900">Important Disclaimers</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div>
-                                <h3 className="font-semibold text-slate-900 mb-2">Public-Facing Disclaimer</h3>
-                                <p className="text-slate-700">
-                                    <strong>RevisionGrade™ does not write or rewrite your manuscript.</strong>
-                                </p>
-                                <p className="text-slate-700 mt-2">
-                                    It evaluates structure, clarity, and narrative effectiveness using professional editorial criteria. 
-                                    Revision Mode™ identifies where a manuscript succeeds, where it fails, and what kind of revision is required. 
-                                    It does not guarantee publication, representation, or commercial success.
-                                </p>
-                                <p className="text-slate-700 mt-2">
-                                    The quality of the final work remains dependent on the author's decisions, effort, and creative execution.
-                                </p>
-                            </div>
-
-                            <div className="border-t border-amber-200 pt-4">
-                                <h3 className="font-semibold text-slate-900 mb-2">What Revision Mode™ Is Not</h3>
-                                <p className="text-slate-700 mb-2">Revision Mode™ is not:</p>
-                                <ul className="list-disc ml-6 space-y-1 text-slate-700">
-                                    <li>A ghostwriter</li>
-                                    <li>A shortcut to publication</li>
-                                    <li>A guarantee of success</li>
-                                    <li>A replacement for authorial craft</li>
-                                    <li>A tool that "fixes" weak ideas automatically</li>
-                                </ul>
-                                <p className="text-indigo-900 font-semibold mt-2">
-                                    It is a diagnostic and guidance system—not a creative substitute.
-                                </p>
-                            </div>
-
-                            <div className="border-t border-amber-200 pt-4">
-                                <h3 className="font-semibold text-slate-900 mb-2">Legal Statement</h3>
-                                <p className="text-slate-700 text-sm">
-                                    RevisionGrade™ provides analytical feedback based on narrative structure, industry standards, and comparative 
-                                    storytelling models. All feedback is advisory in nature. Use of Revision Mode™ does not guarantee publishability, 
-                                    market success, or representation. The user retains full responsibility for creative decisions, revisions, and 
-                                    final outcomes. RevisionGrade™ does not claim authorship, ownership, or creative contribution to submitted works. 
-                                    All intellectual property remains solely with the user. RevisionGrade™ does not permanently overwrite a user's 
-                                    original manuscript; users should retain a copy of their original submission. Any revision suggestions or outputs 
-                                    are intended to support the user's own editorial process, not replace it.
-                                </p>
-                            </div>
-
-                            <div className="border-t border-amber-200 pt-4">
-                                <p className="text-lg text-center text-indigo-900 font-semibold italic">
-                                    "We don't write your book. We help you understand it—so you can write it better."
-                                </p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
                     {/* AI Usage & Transparency */}
                     <Card className="border-0 shadow-md">
                         <CardHeader>
@@ -2145,6 +2088,63 @@ export default function FAQ() {
                                     </AccordionContent>
                                 </AccordionItem>
                             </Accordion>
+                        </CardContent>
+                    </Card>
+
+                    {/* Disclaimers */}
+                    <Card className="border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-white shadow-lg">
+                        <CardHeader>
+                            <CardTitle className="text-2xl text-amber-900">Important Disclaimers</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <h3 className="font-semibold text-slate-900 mb-2">Public-Facing Disclaimer</h3>
+                                <p className="text-slate-700">
+                                    <strong>RevisionGrade™ does not write or rewrite your manuscript.</strong>
+                                </p>
+                                <p className="text-slate-700 mt-2">
+                                    It evaluates structure, clarity, and narrative effectiveness using professional editorial criteria. 
+                                    Revision Mode™ identifies where a manuscript succeeds, where it fails, and what kind of revision is required. 
+                                    It does not guarantee publication, representation, or commercial success.
+                                </p>
+                                <p className="text-slate-700 mt-2">
+                                    The quality of the final work remains dependent on the author's decisions, effort, and creative execution.
+                                </p>
+                            </div>
+
+                            <div className="border-t border-amber-200 pt-4">
+                                <h3 className="font-semibold text-slate-900 mb-2">What Revision Mode™ Is Not</h3>
+                                <p className="text-slate-700 mb-2">Revision Mode™ is not:</p>
+                                <ul className="list-disc ml-6 space-y-1 text-slate-700">
+                                    <li>A ghostwriter</li>
+                                    <li>A shortcut to publication</li>
+                                    <li>A guarantee of success</li>
+                                    <li>A replacement for authorial craft</li>
+                                    <li>A tool that "fixes" weak ideas automatically</li>
+                                </ul>
+                                <p className="text-indigo-900 font-semibold mt-2">
+                                    It is a diagnostic and guidance system—not a creative substitute.
+                                </p>
+                            </div>
+
+                            <div className="border-t border-amber-200 pt-4">
+                                <h3 className="font-semibold text-slate-900 mb-2">Legal Statement</h3>
+                                <p className="text-slate-700 text-sm">
+                                    RevisionGrade™ provides analytical feedback based on narrative structure, industry standards, and comparative 
+                                    storytelling models. All feedback is advisory in nature. Use of Revision Mode™ does not guarantee publishability, 
+                                    market success, or representation. The user retains full responsibility for creative decisions, revisions, and 
+                                    final outcomes. RevisionGrade™ does not claim authorship, ownership, or creative contribution to submitted works. 
+                                    All intellectual property remains solely with the user. RevisionGrade™ does not permanently overwrite a user's 
+                                    original manuscript; users should retain a copy of their original submission. Any revision suggestions or outputs 
+                                    are intended to support the user's own editorial process, not replace it.
+                                </p>
+                            </div>
+
+                            <div className="border-t border-amber-200 pt-4">
+                                <p className="text-lg text-center text-indigo-900 font-semibold italic">
+                                    "We don't write your book. We help you understand it—so you can write it better."
+                                </p>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
