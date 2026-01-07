@@ -184,67 +184,51 @@ Return only the bio text, no additional commentary.`
             console.log('📦 [FRONTEND] Raw response:', response);
             console.log('📦 [FRONTEND] Response type:', typeof response);
             console.log('📦 [FRONTEND] Response keys:', Object.keys(response || {}));
+            console.log('📦 [FRONTEND] Full response JSON:', JSON.stringify(response, null, 2));
 
-            console.log('✅ Function invoke completed');
-            console.log('📦 QueryLetter raw result:', response);
-            console.log('📦 Response type:', typeof response);
-            console.log('📦 Response keys:', Object.keys(response || {}));
-            console.log('📦 Full JSON:', JSON.stringify(response, null, 2));
+            // Extract data - base44.functions.invoke returns { data: {...} }
+            const data = response?.data || response;
 
-            // Extract data from response (handle both data.data and direct data structure)
-            const data = response.data || response;
-            
-            console.log('📦 Extracted data:', data);
-            console.log('📦 Query letter field:', data?.query_letter);
-            console.log('📦 Query letter type:', typeof data?.query_letter);
-            console.log('📦 Query letter length:', data?.query_letter?.length);
-            console.log('📦 Suggested agents field:', data?.suggested_agents);
+            console.log('📦 [FRONTEND] Extracted data:', data);
+            console.log('📦 [FRONTEND] Data keys:', Object.keys(data || {}));
+            console.log('📦 [FRONTEND] query_letter exists:', !!data?.query_letter);
+            console.log('📦 [FRONTEND] query_letter type:', typeof data?.query_letter);
+            console.log('📦 [FRONTEND] query_letter preview:', data?.query_letter?.substring(0, 200));
 
-            // Validate response structure
-            if (!data || typeof data !== 'object') {
-                console.error('❌ Invalid response format:', { data, response });
-                toast.error('Invalid response format received from server');
-                return;
-            }
-
-            if (!data.query_letter) {
-                console.error('❌ Missing query_letter in response. Full response:', {
-                    response,
-                    data,
-                    keys: Object.keys(data || {}),
-                    hasError: !!data.error,
-                    errorMessage: data.error
+            // Check for errors first
+            if (data?.error) {
+                console.error('❌ [FRONTEND] Server returned error:', data.error);
+                toast.error(`Server error: ${data.error}`, {
+                    description: data.details || 'Check console for details',
+                    duration: 10000
                 });
-                
-                if (data.error) {
-                    toast.error(`Server error: ${data.error}`, {
-                        description: data.details || 'Check console for details'
-                    });
-                } else {
-                    toast.error('Query letter not found in server response', {
-                        description: 'The server responded but did not include the query letter. Check console for details.'
-                    });
-                }
                 return;
             }
 
-            console.log('✅ Setting query letter state:', data.query_letter.substring(0, 100) + '...');
-            
-            // base44.functions.invoke may wrap data in response.data
+            // Validate query_letter exists
+            if (!data?.query_letter) {
+                console.error('❌ [FRONTEND] Missing query_letter in response:', {
+                    data,
+                    dataKeys: Object.keys(data || {}),
+                    hasQueryLetter: !!data?.query_letter
+                });
+                toast.error('Query letter not found in server response', {
+                    description: 'Check browser console for details',
+                    duration: 10000
+                });
+                return;
+            }
+
+            console.log('✅ [FRONTEND] Query letter found, updating state...');
+
             setQueryLetter(data.query_letter);
             setSuggestedAgents(data.suggested_agents || []);
-            
-            // VISUAL CONFIRMATION - Show the first 100 chars in a toast
-            toast.success(`Query letter generated! (${data.query_letter.length} characters)`, {
-                description: data.query_letter.substring(0, 100) + '...'
-            });
 
-            console.log('✅ State updated, creating baseline...');
-            
-            // Create baseline OutputVersion
+            toast.success(`Query letter generated! (${data.query_letter.length} characters)`);
+
+            console.log('✅ [FRONTEND] State updated, creating baseline...');
             await revision.createBaseline(data.query_letter, `query_${Date.now()}`);
-
-            console.log('✅ Baseline created!');
+            console.log('✅ [FRONTEND] Baseline created!');
         } catch (error) {
             console.error('❌ QUERY LETTER ERROR:', error);
             console.error('Error details:', {
