@@ -397,7 +397,7 @@ export default function StorygateStudio() {
                             For projects invited into deeper engagement, Storygate Studio may offer a paid development arrangement tailored to the scope of the work. Pricing and terms are discussed only after a project has been selected for internal human review.
                         </p>
                         <p className="text-sm" style={{ color: '#7B7B7B' }}>
-                            A Storygate Studio submission remains on file regardless of subscription status; subscriptions apply to tools and services, not to waiting or continued eligibility.
+                            A Storygate Studio submission remains on file regardless of subscription status (until the user removes it); subscriptions apply to tools and services, not to waiting or continued eligibility.
                         </p>
                     </CardContent>
                 </Card>

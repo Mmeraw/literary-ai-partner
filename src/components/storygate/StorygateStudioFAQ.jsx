@@ -69,13 +69,13 @@ Storygate enforces this structure to match industry norms. Pitch refers to the h
             question: "Do I need to keep paying to stay in Storygate Studio?",
             answer: `No.
 
-Once your project is submitted to Storygate Studio, it remains eligible for consideration regardless of whether you maintain a paid subscription.
+            Once your project is submitted to Storygate Studio, it remains eligible for consideration regardless of whether you maintain a paid subscription (until you remove it).
 
-Subscriptions apply to evaluation and development tools (such as RevisionGrade, revisions, or Film/TV deck creation). They do not apply to waiting, being considered, or remaining in the Storygate Studio queue.
+            Subscriptions apply to evaluation and development tools (such as RevisionGrade, revisions, or Film/TV deck creation). They do not apply to waiting, being considered, or remaining in the Storygate Studio queue.
 
-You may downgrade your plan or cancel entirely after submitting. Your Storygate Studio submission will remain on file and may still be reviewed or routed based on the materials already submitted.
+            You may downgrade your plan or cancel entirely after submitting. Your Storygate Studio submission will remain on file and may still be reviewed or routed based on the materials already submitted.
 
-If you later wish to revise your work, update materials, or submit a new version, those actions require paid tools again.`
+            If you later wish to revise your work, update materials, or submit a new version, those actions require paid tools again.`
         },
         {
             question: "Does Storygate guarantee representation or production?",
