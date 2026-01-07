@@ -546,7 +546,7 @@ export default function StorygateStudio() {
                                                             <strong>For RevisionGrade evaluations:</strong>
                                                         </p>
                                                         <p className="text-xs mb-3" style={{ color: '#D4D4D4' }}>
-                                                            Your manuscript ID from the Dashboard (auto-filled if you selected a document above)
+                                                            Your manuscript ID from the RevisionGrade Dashboard (auto-filled if you selected a document above)
                                                         </p>
                                                         <p className="text-xs mb-2" style={{ color: '#F2EFEA' }}>
                                                             <strong>For external evaluations:</strong>
