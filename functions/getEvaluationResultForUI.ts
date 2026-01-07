@@ -15,18 +15,33 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Project ID required' }, { status: 400 });
         }
 
-        // Look for most recent EvaluationRun for this project (only terminal states)
-        const evaluationRuns = await base44.asServiceRole.entities.EvaluationRun.filter(
-            { projectId, status: { $in: ['phase2_complete', 'complete', 'phase2_skipped'] } },
-            '-created_date',
-            1
-        );
+        // Fetch ALL runs for this project and select by advancement + recency
+        const allRuns = await base44.asServiceRole.entities.EvaluationRun.filter({ projectId });
+
+        // Status priority: most advanced first, then newest
+        const statusPriority = {
+            'phase2_complete': 6,
+            'complete': 6,
+            'phase2_skipped': 5,
+            'gated': 4,
+            'phase1_complete': 3,
+            'segmented': 2,
+            'failed': 2,
+            'created': 1
+        };
+
+        // Sort: highest status priority first, then most recent
+        const sortedRuns = allRuns.sort((a, b) => {
+            const priorityDiff = (statusPriority[b.status] || 0) - (statusPriority[a.status] || 0);
+            if (priorityDiff !== 0) return priorityDiff;
+            return new Date(b.created_date) - new Date(a.created_date);
+        });
 
         // GOVERNED PATH (AUTHORITATIVE)
-        if (evaluationRuns.length > 0) {
-            const run = evaluationRuns[0];
+        if (sortedRuns.length > 0) {
+            const run = sortedRuns[0];
 
-            // REJECT INCOMPLETE RUNS (hard stop)
+            // REJECT INCOMPLETE RUNS (hard stop - return pending state)
             if (!['phase2_complete', 'phase2_skipped', 'complete'].includes(run.status)) {
                 return Response.json({
                     evaluationResult: {
