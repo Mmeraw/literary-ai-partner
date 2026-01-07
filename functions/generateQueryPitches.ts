@@ -44,12 +44,31 @@ Deno.serve(async (req) => {
         if (!preflightResult.allowed) {
             return Response.json({
                 success: false,
-                error: 'SCOPE_VIOLATION',
-                message: preflightResult.refusalMessage,
+                status: 'error',
+                code: 'SCOPE_VIOLATION',
+                message: 'Request blocked by governance policy.',
+                result: null,
+                warnings: [],
+                audit: {
+                    endpoint: 'generateQueryPitches',
+                    governanceStatus: 'hard_blocked',
+                    llmInvoked: false,
+                    policyVersion: 'EVAL_METHOD_v1.0.0'
+                },
                 details: {
-                    wordCount: inputWordCount,
-                    minRequired: preflightResult.minWordsAllowed,
-                    confidence: preflightResult.confidence
+                    blockedBy: 'matrixPreflight',
+                    gateBlocked: true,
+                    endpoint: 'generateQueryPitches',
+                    policyVersion: 'EVAL_METHOD_v1.0.0',
+                    reason: preflightResult.refusalMessage,
+                    thresholds: {
+                        minWords: preflightResult.minWordsAllowed
+                    },
+                    observed: {
+                        words: inputWordCount
+                    },
+                    maxAllowed: {},
+                    matrixCompliance: preflightResult.matrixcompliance
                 }
             }, { status: 400 });
         }
@@ -182,13 +201,21 @@ CRITICAL GUIDELINES:
 
         return Response.json({
             success: true,
-            pitches: response,
+            status: 'ok',
+            code: null,
+            message: null,
+            result: {
+                pitches: response
+            },
+            warnings: [],
             audit: {
-                matrixpreflightallowed: preflightResult.allowed,
-                matrixcompliance: preflightResult.matrixcompliance,
+                endpoint: 'generateQueryPitches',
+                governanceStatus: 'allowed',
+                llmInvoked: true,
+                policyVersion: 'EVAL_METHOD_v1.0.0',
+                matrixCompliance: preflightResult.matrixcompliance,
                 confidence: preflightResult.confidence,
-                wordCount: inputWordCount,
-                llminvoked: true
+                inputWordCount: inputWordCount
             }
         });
 

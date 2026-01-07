@@ -47,13 +47,33 @@ Deno.serve(async (req) => {
                 if (!preflightResponse.data.allowed) {
                     return Response.json({
                         success: false,
-                        error: 'SCOPE_VIOLATION',
-                        artifact: artifact,
-                        message: preflightResponse.data.refusalMessage,
+                        status: 'error',
+                        code: 'SCOPE_VIOLATION',
+                        message: 'Request blocked by governance policy.',
+                        result: null,
+                        warnings: [],
+                        audit: {
+                            endpoint: 'generateCompletePackage',
+                            governanceStatus: 'hard_blocked',
+                            llmInvoked: false,
+                            policyVersion: 'EVAL_METHOD_v1.0.0'
+                        },
                         details: {
-                            wordCount: inputWordCount,
-                            minRequired: preflightResponse.data.minWordsAllowed,
-                            confidence: preflightResponse.data.confidence
+                            blockedBy: 'matrixPreflight',
+                            gateBlocked: true,
+                            endpoint: 'generateCompletePackage',
+                            compound: true,
+                            failedArtifact: artifact,
+                            policyVersion: 'EVAL_METHOD_v1.0.0',
+                            reason: preflightResponse.data.refusalMessage,
+                            thresholds: {
+                                minWords: preflightResponse.data.minWordsAllowed
+                            },
+                            observed: {
+                                words: inputWordCount
+                            },
+                            maxAllowed: {},
+                            matrixCompliance: preflightResponse.data.matrixcompliance
                         }
                     }, { status: 400 });
                 }
@@ -285,16 +305,29 @@ Return only the query letter text.`,
 
         return Response.json({
             success: true,
-            package: {
-                pitches: pitchesResult,
-                synopses: synopsesResult,
-                authorBio: bioResult,
-                queryLetter: queryResult
+            status: 'ok',
+            code: null,
+            message: null,
+            result: {
+                package: {
+                    pitches: pitchesResult,
+                    synopses: synopsesResult,
+                    authorBio: bioResult,
+                    queryLetter: queryResult
+                }
             },
+            warnings: [],
             audit: {
-                matrixpreflight_compound: preflightResults,
-                wordCount: inputWordCount,
-                llminvoked: true
+                endpoint: 'generateCompletePackage',
+                governanceStatus: 'allowed',
+                llmInvoked: true,
+                policyVersion: 'EVAL_METHOD_v1.0.0',
+                compound: true,
+                subArtifacts: artifacts.map(a => ({
+                    type: a,
+                    status: preflightResults[a].allowed ? 'pass' : 'fail'
+                })),
+                inputWordCount: inputWordCount
             }
         });
 

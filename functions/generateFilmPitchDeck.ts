@@ -40,12 +40,32 @@ Deno.serve(async (req) => {
         // HARD GATE: Block if preflight failed
         if (!preflightResult.allowed) {
             return Response.json({
-                error: 'SCOPE_VIOLATION',
-                message: preflightResult.refusalMessage,
+                success: false,
+                status: 'error',
+                code: 'SCOPE_VIOLATION',
+                message: 'Request blocked by governance policy.',
+                result: null,
+                warnings: [],
+                audit: {
+                    endpoint: 'generateFilmPitchDeck',
+                    governanceStatus: 'hard_blocked',
+                    llmInvoked: false,
+                    policyVersion: 'EVAL_METHOD_v1.0.0'
+                },
                 details: {
-                    wordCount: inputWordCount,
-                    minRequired: preflightResult.minWordsAllowed,
-                    confidence: preflightResult.confidence
+                    blockedBy: 'matrixPreflight',
+                    gateBlocked: true,
+                    endpoint: 'generateFilmPitchDeck',
+                    policyVersion: 'EVAL_METHOD_v1.0.0',
+                    reason: preflightResult.refusalMessage,
+                    thresholds: {
+                        minWords: preflightResult.minWordsAllowed
+                    },
+                    observed: {
+                        words: inputWordCount
+                    },
+                    maxAllowed: {},
+                    matrixCompliance: preflightResult.matrixcompliance
                 }
             }, { status: 400 });
         }
@@ -146,13 +166,22 @@ Focus on SCREEN VIABILITY:
 
         return Response.json({
             success: true,
-            pitchDeck: response,
-            wordCount: inputWordCount,
+            status: 'ok',
+            code: null,
+            message: null,
+            result: {
+                pitchDeck: response,
+                wordCount: inputWordCount
+            },
+            warnings: [],
             audit: {
-                matrixpreflightallowed: preflightResult.allowed,
-                matrixcompliance: preflightResult.matrixcompliance,
+                endpoint: 'generateFilmPitchDeck',
+                governanceStatus: 'allowed',
+                llmInvoked: true,
+                policyVersion: 'EVAL_METHOD_v1.0.0',
+                matrixCompliance: preflightResult.matrixcompliance,
                 confidence: preflightResult.confidence,
-                llminvoked: true
+                inputWordCount: inputWordCount
             }
         });
 

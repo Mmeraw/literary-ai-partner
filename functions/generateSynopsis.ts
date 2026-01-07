@@ -82,15 +82,32 @@ Deno.serve(async (req) => {
         // HARD GATE: Block if preflight failed
         if (!preflightResult.allowed) {
             return Response.json({
-                error: 'ERR_SYNOPSIS_SCOPE_VIOLATION',
-                gate_blocked: true,
-                message: preflightResult.refusalMessage,
+                success: false,
+                status: 'error',
+                code: 'SCOPE_VIOLATION',
+                message: 'Request blocked by governance policy.',
+                result: null,
+                warnings: [],
+                audit: {
+                    endpoint: 'generateSynopsis',
+                    governanceStatus: 'hard_blocked',
+                    llmInvoked: false,
+                    policyVersion: 'EVAL_METHOD_v1.0.0'
+                },
                 details: {
-                    wordCount: inputWordCount,
-                    minRequired: preflightResult.minWordsAllowed,
-                    maxAllowed: preflightResult.maxWordsAllowed,
-                    confidence: preflightResult.confidence,
-                    matrixcompliance: preflightResult.matrixcompliance
+                    blockedBy: 'matrixPreflight',
+                    gateBlocked: true,
+                    endpoint: 'generateSynopsis',
+                    policyVersion: 'EVAL_METHOD_v1.0.0',
+                    reason: preflightResult.refusalMessage,
+                    thresholds: {
+                        minWords: preflightResult.minWordsAllowed
+                    },
+                    observed: {
+                        words: inputWordCount
+                    },
+                    maxAllowed: preflightResult.maxWordsAllowed || {},
+                    matrixCompliance: preflightResult.matrixcompliance
                 }
             }, { status: 400 });
         }
@@ -483,13 +500,6 @@ Provide validation report with WAVE rule compliance.`;
             evaluation_data: {
                 validation: validationResponse,
                 skeleton: skeletonResponse,
-                matrixpreflight_audit: {
-                    matrixpreflightallowed: preflightResult.allowed,
-                    matrixcompliance: preflightResult.matrixcompliance,
-                    confidence: preflightResult.confidence,
-                    wordCount: inputWordCount,
-                    llminvoked: true
-                },
                 audit_trail: {
                     source_manuscript_id: source_document_id || null,
                     source_document_id: source_document_id || null,
@@ -523,11 +533,26 @@ Provide validation report with WAVE rule compliance.`;
 
         return Response.json({
             success: true,
-            synopsis: synopsisResponse.synopsis_text,
-            validation: validationResponse,
-            version: versionConfig.name,
-            word_count: validationResponse.word_count,
-            document_id: document.id
+            status: 'ok',
+            code: null,
+            message: null,
+            result: {
+                synopsis: synopsisResponse.synopsis_text,
+                validation: validationResponse,
+                version: versionConfig.name,
+                word_count: validationResponse.word_count,
+                document_id: document.id
+            },
+            warnings: [],
+            audit: {
+                endpoint: 'generateSynopsis',
+                governanceStatus: 'allowed',
+                llmInvoked: true,
+                policyVersion: 'EVAL_METHOD_v1.0.0',
+                matrixCompliance: preflightResult.matrixcompliance,
+                confidence: preflightResult.confidence,
+                inputWordCount: inputWordCount
+            }
         });
 
     } catch (error) {

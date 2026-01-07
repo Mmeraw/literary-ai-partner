@@ -119,13 +119,31 @@ Deno.serve(async (req) => {
         if (!preflightResult.allowed) {
             return Response.json({
                 success: false,
-                error: 'SCOPE_VIOLATION',
-                message: preflightResult.refusalMessage,
+                status: 'error',
+                code: 'SCOPE_VIOLATION',
+                message: 'Request blocked by governance policy.',
+                result: null,
+                warnings: [],
+                audit: {
+                    endpoint: 'generateComparables',
+                    governanceStatus: 'hard_blocked',
+                    llmInvoked: false,
+                    policyVersion: 'EVAL_METHOD_v1.0.0'
+                },
                 details: {
-                    wordCount: inputWordCount,
-                    minRequired: preflightResult.minWordsAllowed,
-                    confidence: preflightResult.confidence,
-                    matrixcompliance: preflightResult.matrixcompliance
+                    blockedBy: 'matrixPreflight',
+                    gateBlocked: true,
+                    endpoint: 'generateComparables',
+                    policyVersion: 'EVAL_METHOD_v1.0.0',
+                    reason: preflightResult.refusalMessage,
+                    thresholds: {
+                        minWords: preflightResult.minWordsAllowed
+                    },
+                    observed: {
+                        words: inputWordCount
+                    },
+                    maxAllowed: {},
+                    matrixCompliance: preflightResult.matrixcompliance
                 }
             }, { status: 400 });
         }
@@ -394,18 +412,27 @@ Return only one of these genre names (exact match): thriller, literary_fiction, 
 
         return Response.json({ 
             success: true,
-            report_id: report.id,
-            analysis: comparablesAnalysis,
-            metadata: {
-                capped: capped,
-                word_count: wordCount,
-                genre: finalGenre
+            status: 'ok',
+            code: null,
+            message: null,
+            result: {
+                report_id: report.id,
+                analysis: comparablesAnalysis,
+                metadata: {
+                    capped: capped,
+                    word_count: wordCount,
+                    genre: finalGenre
+                }
             },
+            warnings: [],
             audit: {
-                matrixpreflightallowed: preflightResult.allowed,
-                matrixcompliance: preflightResult.matrixcompliance,
+                endpoint: 'generateComparables',
+                governanceStatus: 'allowed',
+                llmInvoked: true,
+                policyVersion: 'EVAL_METHOD_v1.0.0',
+                matrixCompliance: preflightResult.matrixcompliance,
                 confidence: preflightResult.confidence,
-                llminvoked: true
+                inputWordCount: wordCount
             }
         });
 
