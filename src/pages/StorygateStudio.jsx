@@ -362,15 +362,17 @@ export default function StorygateStudio() {
                     <CardContent className="space-y-4" style={{ color: '#D4D4D4' }}>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Initial Screening</p>
-                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>All submissions are screened automatically. Only submissions that meet the readiness threshold are queued for internal consideration, and a small number may be selected for human review.</p>
+                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>All submissions are screened automatically. Only submissions that meet the readiness threshold are eligible for internal consideration; from these, a small number are selected for human review.</p>
                             <p className="text-sm" style={{ color: '#7B7B7B' }}>Submissions below 8.0/10 are declined automatically and are not read by a human. Auto-declined submissions may receive brief, structured feedback derived from existing evaluation data; no bespoke commentary will be provided.</p>
                         </div>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Storygate Review Pass</p>
+                            <p className="text-sm italic mb-1" style={{ color: '#7B7B7B' }}>(Internal human review; no guarantee of response)</p>
                             <p className="text-sm" style={{ color: '#7B7B7B' }}>A limited number of eligible projects may be invited into a structured internal review phase. Internal review and follow-up communication are not guaranteed.</p>
                         </div>
                         <div>
                             <p className="font-semibold" style={{ color: '#D4D4D4' }}>Development Track</p>
+                            <p className="text-sm italic mb-1" style={{ color: '#7B7B7B' }}>(Invitation-only collaboration; may involve paid engagement)</p>
                             <p className="text-sm" style={{ color: '#7B7B7B' }}>A very small number of projects may be invited into deeper collaboration or development. Participation is by invitation only.</p>
                         </div>
                     </CardContent>
@@ -423,6 +425,9 @@ export default function StorygateStudio() {
                         <div className="space-y-2 mt-3">
                             <p className="text-sm" style={{ color: '#7B7B7B' }}>
                                 Submissions are screened automatically. Only projects that meet the readiness threshold are eligible for internal consideration, and a small number may be selected for human review.
+                            </p>
+                            <p className="text-sm" style={{ color: '#7B7B7B' }}>
+                                Submissions below the readiness threshold are declined automatically and are not read by a human. Some auto-declined submissions may receive brief, structured feedback derived from existing evaluation data.
                             </p>
                             <p className="text-sm font-semibold" style={{ color: '#7A1E1E' }}>
                                 Storygate Studio cannot respond to all eligible submissions. Internal review and follow-up communication are not guaranteed.
