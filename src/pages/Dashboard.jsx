@@ -1,19 +1,30 @@
-import React, { useMemo } from 'react';
-import { useQuery } from "@tanstack/react-query";
+import React, { useMemo, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from '@/api/base44Client';
-import { Loader2, BookOpen, CheckCircle2, Edit3, Package, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Loader2, BookOpen, CheckCircle2, Edit3, Package, TrendingUp, TrendingDown, Minus, Upload, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Dashboard() {
+    const queryClient = useQueryClient();
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadTitle, setUploadTitle] = useState('');
+
     const { data: user } = useQuery({
         queryKey: ['currentUser'],
         queryFn: () => base44.auth.me()
+    });
+
+    const { data: documents = [], isLoading: loadingDocuments } = useQuery({
+        queryKey: ['userDocuments'],
+        queryFn: () => base44.entities.Document.list('-created_date', 100)
     });
 
     const { data: submissions = [], isLoading: loadingSubmissions } = useQuery({
@@ -41,7 +52,77 @@ export default function Dashboard() {
         enabled: manuscripts.length > 0
     });
 
-    const isLoading = loadingSubmissions || loadingManuscripts || loadingSessions;
+    const isLoading = loadingSubmissions || loadingManuscripts || loadingSessions || loadingDocuments;
+
+    const handleFileUpload = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const allowedTypes = [
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/msword',
+            'application/pdf',
+            'text/plain'
+        ];
+
+        if (!allowedTypes.includes(file.type)) {
+            toast.error('Please upload .docx, .doc, .pdf, or .txt files');
+            return;
+        }
+
+        setIsUploading(true);
+        toast.info('Uploading and extracting text...');
+
+        try {
+            const uploadResult = await base44.integrations.Core.UploadFile({ file });
+            const extractResponse = await base44.functions.invoke('ingestUploadedFileToText', {
+                file_url: uploadResult.file_url
+            });
+
+            if (extractResponse.data?.text) {
+                const text = extractResponse.data.text;
+                const wordCount = text.split(/\s+/).filter(w => w).length;
+                const title = uploadTitle.trim() || file.name.replace(/\.[^/.]+$/, '');
+                
+                // Detect document type and scope
+                const type = wordCount > 10000 ? 'MANUSCRIPT' : 'CHAPTER';
+                const scope = wordCount > 10000 ? 'FULL' : 'UNIT';
+
+                // Create Manuscript entity
+                const manuscript = await base44.entities.Manuscript.create({
+                    title,
+                    full_text: text,
+                    word_count: wordCount,
+                    status: 'uploaded'
+                });
+
+                // Create Document entity referencing the manuscript
+                await base44.entities.Document.create({
+                    type,
+                    scope,
+                    state: 'UPLOADED',
+                    title,
+                    content_reference_id: manuscript.id,
+                    content_reference_type: 'Manuscript',
+                    last_activity_at: new Date().toISOString()
+                });
+
+                queryClient.invalidateQueries({ queryKey: ['userDocuments'] });
+                queryClient.invalidateQueries({ queryKey: ['userManuscripts'] });
+                
+                toast.success('Document uploaded successfully! Now available for all outputs.');
+                setUploadTitle('');
+            } else {
+                throw new Error('No text extracted from file');
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            toast.error(error.response?.data?.error || error.message || 'Failed to upload document');
+        } finally {
+            setIsUploading(false);
+            event.target.value = '';
+        }
+    };
 
     // Compute metrics (CANONICAL SPEC v1.1)
     const metrics = useMemo(() => {
@@ -152,6 +233,76 @@ export default function Dashboard() {
                         Welcome back, {user?.full_name || 'Writer'}
                     </p>
                 </div>
+
+                {/* Upload Area - Single Source of Truth */}
+                <Card className="mb-8 border-2 border-indigo-100 bg-gradient-to-br from-indigo-50 to-white">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Upload className="w-5 h-5 text-indigo-600" />
+                            Upload Your Work
+                        </CardTitle>
+                        <p className="text-sm text-slate-600 mt-1">
+                            Upload once, use everywhere. Your document will be available for Query Letters, Synopsis, Pitches, and all outputs.
+                        </p>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <Input
+                                value={uploadTitle}
+                                onChange={(e) => setUploadTitle(e.target.value)}
+                                placeholder="Document title (optional)"
+                                className="flex-1"
+                                disabled={isUploading}
+                            />
+                            <div>
+                                <input
+                                    type="file"
+                                    id="dashboard-file-upload"
+                                    className="hidden"
+                                    accept=".docx,.doc,.pdf,.txt"
+                                    onChange={handleFileUpload}
+                                    disabled={isUploading}
+                                />
+                                <label htmlFor="dashboard-file-upload">
+                                    <Button
+                                        type="button"
+                                        disabled={isUploading}
+                                        onClick={() => document.getElementById('dashboard-file-upload').click()}
+                                        className="cursor-pointer bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                                    >
+                                        {isUploading ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                Processing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Upload className="w-4 h-4 mr-2" />
+                                                Upload Document
+                                            </>
+                                        )}
+                                    </Button>
+                                </label>
+                            </div>
+                        </div>
+                        {documents.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-indigo-100">
+                                <h4 className="text-sm font-medium text-slate-700 mb-2">Your Documents</h4>
+                                <div className="space-y-2">
+                                    {documents.slice(0, 5).map(doc => (
+                                        <div key={doc.id} className="flex items-center justify-between p-2 rounded bg-white border border-slate-200">
+                                            <div className="flex items-center gap-2">
+                                                <FileText className="w-4 h-4 text-indigo-600" />
+                                                <span className="text-sm text-slate-900">{doc.title}</span>
+                                            </div>
+                                            <Badge variant="outline" className="text-xs">{doc.state}</Badge>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
 
                 {/* Overview Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
