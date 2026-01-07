@@ -46,7 +46,6 @@ export default function StorygateStudio() {
         tone: '',
         description: '',
         project_stage: '',
-        seeking: [],
         evaluationSource: '',
         evaluationScore: '',
         evaluationReportId: '',
@@ -88,14 +87,7 @@ export default function StorygateStudio() {
         }
     };
 
-    const handleSeekingToggle = (value) => {
-        setFormData(prev => ({
-            ...prev,
-            seeking: prev.seeking.includes(value)
-                ? prev.seeking.filter(v => v !== value)
-                : [...prev.seeking, value]
-        }));
-    };
+
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -188,7 +180,6 @@ export default function StorygateStudio() {
                 tone: formData.tone,
                 description: formData.description,
                 project_stage: formData.project_stage,
-                seeking: formData.seeking,
                 why_storygate: formData.why_storygate,
                 evaluationSource: formData.evaluationSource,
                 evaluationScore: parseFloat(formData.evaluationScore),
@@ -850,35 +841,7 @@ export default function StorygateStudio() {
                                 </Select>
                             </div>
 
-                            {/* What Are You Seeking */}
-                            <div>
-                                <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
-                                    What are you seeking? (Check all that apply)
-                                </label>
-                                <p className="text-xs mb-3" style={{ color: '#7B7B7B' }}>
-                                    This helps us understand your goals and route eligible projects appropriately. It does not override the readiness threshold.
-                                </p>
-                                <div className="space-y-2">
-                                    {[
-                                        { value: 'structural', label: 'Structural evaluation' },
-                                        { value: 'developmental', label: 'Developmental insight' },
-                                        { value: 'positioning', label: 'Market / positioning guidance' },
-                                        { value: 'professional', label: 'Professional feedback' },
-                                        { value: 'direction', label: 'Unsure — seeking direction' }
-                                    ].map(option => (
-                                        <label key={option.value} className="flex items-center gap-2 cursor-pointer" style={{ color: '#D4D4D4' }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.seeking.includes(option.value)}
-                                                onChange={() => handleSeekingToggle(option.value)}
-                                                className="rounded"
-                                                style={{ borderColor: '#7B7B7B', backgroundColor: 'rgba(14, 14, 14, 0.6)' }}
-                                            />
-                                            {option.label}
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
+
 
                             {/* Track-Specific Materials */}
                             {primaryPath === 'MANUSCRIPT' && (
