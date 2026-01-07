@@ -118,6 +118,11 @@ export default function StorygateStudio() {
             return;
         }
 
+        if (formData.evaluationSource === 'Equivalent' && !formData.evaluationReportId?.trim()) {
+            toast.error('Evaluation Report ID/Link is required for external evaluations');
+            return;
+        }
+
         if (!formData.why_storygate.trim()) {
             toast.error('Please explain why you are submitting to Storygate Studio');
             return;
@@ -361,8 +366,8 @@ export default function StorygateStudio() {
                     </CardHeader>
                     <CardContent className="space-y-4" style={{ color: '#D4D4D4' }}>
                         <div>
-                            <p className="font-semibold" style={{ color: '#D4D4D4' }}>Initial Screening</p>
-                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>All submissions are screened automatically. Only submissions that meet the readiness threshold are eligible for internal consideration; from these, a small number are selected for human review.</p>
+                            <p className="font-semibold" style={{ color: '#D4D4D4' }}>Automatic Screening</p>
+                            <p className="text-sm mb-2" style={{ color: '#7B7B7B' }}>All submissions are screened automatically. Submissions that meet the readiness threshold (8.0/10 or higher) enter the eligible queue; a limited number may be invited to the Storygate Review Pass.</p>
                             <p className="text-sm" style={{ color: '#7B7B7B' }}>Submissions below 8.0/10 are declined automatically and are not read by a human. Auto-declined submissions may receive brief, structured feedback derived from existing evaluation data; no bespoke commentary will be provided.</p>
                         </div>
                         <div>
@@ -426,7 +431,7 @@ export default function StorygateStudio() {
                             <p className="text-sm font-semibold mb-2" style={{ color: '#7A1E1E' }}>Before You Submit</p>
                             <p className="text-sm" style={{ color: '#D4D4D4' }}>
                                 All submissions require a verified readiness score of <strong>8.0/10 or higher</strong>. 
-                                Projects above this threshold are eligible for internal consideration, though <strong>internal review and follow-up are not guaranteed</strong>.
+                                Projects above this threshold enter the eligible queue, though <strong>invitation to human review is not guaranteed</strong>.
                             </p>
                         </div>
                     </CardHeader>
@@ -546,14 +551,20 @@ export default function StorygateStudio() {
                                     )}
 
                                     <div>
-                                        <label className="block text-sm font-medium mb-2" style={{ color: '#D4D4D4' }}>
-                                            Evaluation Report ID / Link (Optional)
+                                        <label className="block text-sm font-medium mb-2" style={{ color: formData.evaluationSource === 'Equivalent' ? '#F2EFEA' : '#D4D4D4' }}>
+                                            Evaluation Report ID / Link {formData.evaluationSource === 'Equivalent' ? '*' : '(Optional)'}
                                         </label>
+                                        {formData.evaluationSource === 'Equivalent' && (
+                                            <p className="text-xs mb-2" style={{ color: '#7B7B7B' }}>
+                                                Required for external evaluations to verify authenticity
+                                            </p>
+                                        )}
                                         <Input
                                             value={formData.evaluationReportId}
                                             onChange={(e) => setFormData({...formData, evaluationReportId: e.target.value})}
-                                            placeholder="e.g., manuscript ID, report URL"
+                                            placeholder="e.g., manuscript ID, report URL, evaluator contact"
                                             style={{ backgroundColor: 'rgba(14, 14, 14, 0.6)', borderColor: '#7B7B7B', color: '#F2EFEA' }}
+                                            required={formData.evaluationSource === 'Equivalent'}
                                         />
                                     </div>
                                 </div>
@@ -1078,11 +1089,11 @@ export default function StorygateStudio() {
                                         </p>
                                         <p className="flex items-start gap-2">
                                             <span style={{ color: '#A98E4A' }}>•</span>
-                                            <span><strong>Eligible projects</strong> are queued for internal consideration; a small number may be selected for human review</span>
+                                            <span><strong>Eligible projects</strong> enter the queue; a limited number may be invited to the Storygate Review Pass (human review)</span>
                                         </p>
                                         <p className="flex items-start gap-2">
                                             <span style={{ color: '#A98E4A' }}>•</span>
-                                            <span><strong>No guarantees or timelines</strong> — most eligible submissions do not receive individualized feedback or follow-up</span>
+                                            <span><strong>No guarantees or timelines</strong> — most eligible submissions are not invited to human review or follow-up</span>
                                         </p>
                                     </div>
                                 </div>
