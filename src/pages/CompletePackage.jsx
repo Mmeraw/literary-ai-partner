@@ -142,16 +142,10 @@ export default function CompletePackage() {
             
             let cvText = '';
             
-            if (isWordDoc) {
+            if (isWordDoc || isTxt) {
                 const response = await fetch(file_url);
-                if (!response.ok) throw new Error('Failed to fetch CV file');
-                
-                const arrayBuffer = await response.arrayBuffer();
-                const buffer = new Uint8Array(arrayBuffer);
-                
-                const mammoth = await import('mammoth');
-                const result = await mammoth.extractRawText({ buffer });
-                cvText = result.value;
+                if (!response.ok) throw new Error('Failed to fetch file');
+                cvText = await response.text();
             } else if (isTxt) {
                 const response = await fetch(file_url);
                 if (!response.ok) throw new Error('Failed to fetch TXT file');
