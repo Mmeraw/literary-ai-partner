@@ -34,14 +34,13 @@ function toAuthorDTO(industryUser) {
 
 /**
  * Safe error response (no stack traces, no internal IDs)
+ * Canon shape: { code, message, requestId } ONLY
  */
 function errorResponse(code, message, requestId, status = 400) {
     return Response.json({
-        success: false,
         code,
         message,
-        requestId,
-        canonVersion: CANON_VERSION
+        requestId
     }, { status });
 }
 
@@ -97,10 +96,8 @@ Deno.serve(async (req) => {
             // STATE MACHINE: If already PENDING, idempotent return
             if (existing.verification_status === 'PENDING') {
                 return Response.json({
-                    success: true,
                     request: toAuthorDTO(existing),
-                    note: 'Verification request already pending',
-                    canonVersion: CANON_VERSION
+                    note: 'Verification request already pending'
                 });
             }
 
@@ -126,10 +123,8 @@ Deno.serve(async (req) => {
                 });
 
                 return Response.json({
-                    success: true,
                     request: toAuthorDTO(updated),
-                    submitted_at: new Date().toISOString(),
-                    canonVersion: CANON_VERSION
+                    submitted_at: new Date().toISOString()
                 });
             }
         }
@@ -147,10 +142,8 @@ Deno.serve(async (req) => {
         });
 
         return Response.json({
-            success: true,
             request: toAuthorDTO(newRecord),
-            submitted_at: new Date().toISOString(),
-            canonVersion: CANON_VERSION
+            submitted_at: new Date().toISOString()
         });
 
     } catch (error) {
