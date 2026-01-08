@@ -9,10 +9,89 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { text, mode, voicePreservation } = await req.json();
+        const { text, mode, voicePreservation, manuscript_id } = await req.json();
 
         if (!text) {
-            return Response.json({ error: 'Text required' }, { status: 400 });
+            return Response.json({
+                success: false,
+                status: 'error',
+                code: 'MISSING_INPUT',
+                message: 'Text required',
+                result: null,
+                warnings: [],
+                audit: {},
+                details: {}
+            }, { status: 400 });
+        }
+
+        // MATRIX PREFLIGHT (Governance Layer - Conversion surface)
+        const inputWordCount = text.split(/\s+/).length;
+        const inputCharCount = text.length;
+
+        let preflightResult = null;
+        try {
+            const preflightResponse = await base44.asServiceRole.functions.invoke('matrixPreflight', {
+                operation: 'formatScreenplay',
+                inputText: text,
+                manuscriptId: manuscript_id,
+                userIntent: { 
+                    mode: mode || 'auto',
+                    voicePreservation: voicePreservation || 'balanced'
+                }
+            });
+            preflightResult = preflightResponse.data;
+        } catch (preflightError) {
+            console.error('matrixPreflight error:', preflightError);
+            return Response.json({
+                success: false,
+                status: 'error',
+                code: 'PREFLIGHT_FAILED',
+                message: 'Scope validation failed',
+                result: null,
+                warnings: [],
+                audit: {
+                    endpoint: 'formatScreenplay',
+                    governanceStatus: 'error',
+                    llmInvoked: false,
+                    policyVersion: 'EVAL_METHOD_v1.0.0'
+                },
+                details: { error: preflightError.message }
+            }, { status: 500 });
+        }
+
+        // HARD GATE: Block if preflight failed
+        if (!preflightResult.allowed) {
+            return Response.json({
+                success: false,
+                status: 'error',
+                code: 'SCOPE_VIOLATION',
+                message: 'Request blocked by governance policy.',
+                result: null,
+                warnings: [],
+                audit: {
+                    endpoint: 'formatScreenplay',
+                    governanceStatus: 'hard_blocked',
+                    llmInvoked: false,
+                    policyVersion: 'EVAL_METHOD_v1.0.0'
+                },
+                details: {
+                    blockedBy: 'matrixPreflight',
+                    gateBlocked: true,
+                    endpoint: 'formatScreenplay',
+                    policyVersion: 'EVAL_METHOD_v1.0.0',
+                    reason: preflightResult.refusalMessage,
+                    thresholds: {
+                        maxWords: preflightResult.maxWordsAllowed,
+                        maxChars: preflightResult.maxCharsAllowed
+                    },
+                    observed: {
+                        words: inputWordCount,
+                        chars: inputCharCount
+                    },
+                    maxAllowed: {},
+                    matrixCompliance: preflightResult.matrixcompliance
+                }
+            }, { status: 400 });
         }
 
         // Normalize italics: convert *text* to <em>text</em> for consistent processing
@@ -157,8 +236,26 @@ Output ONLY the cleaned screenplay text. Strip all HTML tags. No explanations, n
         });
 
         return Response.json({
-            formatted_text: result,
-            mode: detectedMode
+            success: true,
+            status: 'ok',
+            code: null,
+            message: null,
+            result: {
+                formatted_text: result,
+                mode: detectedMode
+            },
+            warnings: [],
+            audit: {
+                endpoint: 'formatScreenplay',
+                governanceStatus: 'allowed',
+                llmInvoked: true,
+                policyVersion: 'EVAL_METHOD_v1.0.0',
+                matrixCompliance: preflightResult.matrixcompliance,
+                confidence: preflightResult.confidence,
+                inputWordCount: inputWordCount,
+                inputCharCount: inputCharCount,
+                conversionMode: detectedMode
+            }
         });
 
     } catch (error) {

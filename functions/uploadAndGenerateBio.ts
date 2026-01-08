@@ -13,7 +13,86 @@ Deno.serve(async (req) => {
         const file = formData.get('file');
 
         if (!file) {
-            return Response.json({ error: 'No file provided' }, { status: 400 });
+            return Response.json({
+                success: false,
+                status: 'error',
+                code: 'MISSING_INPUT',
+                message: 'No file provided',
+                result: null,
+                warnings: [],
+                audit: {},
+                details: {}
+            }, { status: 400 });
+        }
+
+        // MATRIX PREFLIGHT (Governance Layer - CV/Bio surface)
+        const fileSize = file.size;
+        const fileName = file.name;
+
+        let preflightResult = null;
+        try {
+            const preflightResponse = await base44.asServiceRole.functions.invoke('matrixPreflight', {
+                operation: 'uploadAndGenerateBio',
+                inputText: '',
+                manuscriptId: null,
+                userIntent: { 
+                    sourceType: 'cv',
+                    fileSize,
+                    fileName
+                }
+            });
+            preflightResult = preflightResponse.data;
+        } catch (preflightError) {
+            console.error('matrixPreflight error:', preflightError);
+            return Response.json({
+                success: false,
+                status: 'error',
+                code: 'PREFLIGHT_FAILED',
+                message: 'Scope validation failed',
+                result: null,
+                warnings: [],
+                audit: {
+                    endpoint: 'uploadAndGenerateBio',
+                    governanceStatus: 'error',
+                    llmInvoked: false,
+                    policyVersion: 'EVAL_METHOD_v1.0.0'
+                },
+                details: { error: preflightError.message }
+            }, { status: 500 });
+        }
+
+        // HARD GATE: Block if preflight failed
+        if (!preflightResult.allowed) {
+            return Response.json({
+                success: false,
+                status: 'error',
+                code: 'SCOPE_VIOLATION',
+                message: 'Request blocked by governance policy.',
+                result: null,
+                warnings: [],
+                audit: {
+                    endpoint: 'uploadAndGenerateBio',
+                    governanceStatus: 'hard_blocked',
+                    llmInvoked: false,
+                    policyVersion: 'EVAL_METHOD_v1.0.0'
+                },
+                details: {
+                    blockedBy: 'matrixPreflight',
+                    gateBlocked: true,
+                    endpoint: 'uploadAndGenerateBio',
+                    sourceType: 'cv',
+                    policyVersion: 'EVAL_METHOD_v1.0.0',
+                    reason: preflightResult.refusalMessage,
+                    thresholds: {
+                        maxFileSize: preflightResult.maxFileSizeAllowed
+                    },
+                    observed: {
+                        fileSize: fileSize
+                    },
+                    maxAllowed: {},
+                    matrixCompliance: preflightResult.matrixcompliance
+                }
+            }, { status: 400 });
         }
 
         // Upload the file
@@ -67,8 +146,24 @@ Return only the bio text, no additional commentary.`
 
         return Response.json({
             success: true,
-            bio: bio,
-            authorName: cvData.name || null
+            status: 'ok',
+            code: null,
+            message: null,
+            result: {
+                bio: bio,
+                authorName: cvData.name || null
+            },
+            warnings: [],
+            audit: {
+                endpoint: 'uploadAndGenerateBio',
+                governanceStatus: 'allowed',
+                llmInvoked: true,
+                policyVersion: 'EVAL_METHOD_v1.0.0',
+                sourceType: 'cv',
+                matrixCompliance: preflightResult.matrixcompliance,
+                confidence: preflightResult.confidence,
+                fileSize: fileSize
+            }
         });
 
     } catch (error) {

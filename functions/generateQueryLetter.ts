@@ -16,10 +16,89 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { manuscriptTitle, genre, wordCount, synopsis, bio, agentName } = await req.json();
+        const { manuscriptTitle, genre, wordCount, synopsis, bio, agentName, manuscript_id, synopsisArtifactId, evaluationRunId } = await req.json();
 
         if (!manuscriptTitle || !synopsis) {
-            return Response.json({ error: 'Title and synopsis are required' }, { status: 400 });
+            return Response.json({
+                success: false,
+                status: 'error',
+                code: 'MISSING_INPUT',
+                message: 'Title and synopsis are required',
+                result: null,
+                warnings: [],
+                audit: {},
+                details: {}
+            }, { status: 400 });
+        }
+
+        // MATRIX PREFLIGHT (Governance Layer - Query Letter surface)
+        const synopsisWordCount = synopsis.split(/\s+/).length;
+        const provenanceMode = synopsisArtifactId ? 'artifact_backed' : evaluationRunId ? 'evaluation_backed' : 'manual_paste';
+
+        let preflightResult = null;
+        try {
+            const preflightResponse = await base44.asServiceRole.functions.invoke('matrixPreflight', {
+                operation: 'generateQueryLetter',
+                inputText: synopsis,
+                manuscriptId: manuscript_id,
+                userIntent: { 
+                    provenanceMode,
+                    synopsisArtifactId,
+                    evaluationRunId
+                }
+            });
+            preflightResult = preflightResponse.data;
+        } catch (preflightError) {
+            console.error('matrixPreflight error:', preflightError);
+            return Response.json({
+                success: false,
+                status: 'error',
+                code: 'PREFLIGHT_FAILED',
+                message: 'Scope validation failed',
+                result: null,
+                warnings: [],
+                audit: {
+                    endpoint: 'generateQueryLetter',
+                    governanceStatus: 'error',
+                    llmInvoked: false,
+                    policyVersion: 'EVAL_METHOD_v1.0.0'
+                },
+                details: { error: preflightError.message }
+            }, { status: 500 });
+        }
+
+        // HARD GATE: Block if preflight failed
+        if (!preflightResult.allowed) {
+            return Response.json({
+                success: false,
+                status: 'error',
+                code: 'SCOPE_VIOLATION',
+                message: 'Request blocked by governance policy.',
+                result: null,
+                warnings: [],
+                audit: {
+                    endpoint: 'generateQueryLetter',
+                    governanceStatus: 'hard_blocked',
+                    llmInvoked: false,
+                    policyVersion: 'EVAL_METHOD_v1.0.0'
+                },
+                details: {
+                    blockedBy: 'matrixPreflight',
+                    gateBlocked: true,
+                    endpoint: 'generateQueryLetter',
+                    provenanceMode: provenanceMode,
+                    policyVersion: 'EVAL_METHOD_v1.0.0',
+                    reason: preflightResult.refusalMessage,
+                    thresholds: {
+                        minWords: preflightResult.minWordsAllowed
+                    },
+                    observed: {
+                        words: synopsisWordCount
+                    },
+                    maxAllowed: {},
+                    matrixCompliance: preflightResult.matrixcompliance
+                }
+            }, { status: 400 });
         }
 
         const queryPrompt = `Write a professional query letter for this manuscript:
@@ -37,7 +116,26 @@ Follow industry standards: personalized opening, compelling hook, brief synopsis
             prompt: queryPrompt
         });
 
-        return Response.json({ query_letter: queryLetter });
+        return Response.json({
+            success: true,
+            status: 'ok',
+            code: null,
+            message: null,
+            result: {
+                query_letter: queryLetter
+            },
+            warnings: provenanceMode === 'manual_paste' ? ['Synopsis not artifact-backed - provenance unverified'] : [],
+            audit: {
+                endpoint: 'generateQueryLetter',
+                governanceStatus: 'allowed',
+                llmInvoked: true,
+                policyVersion: 'EVAL_METHOD_v1.0.0',
+                provenanceMode: provenanceMode,
+                matrixCompliance: preflightResult.matrixcompliance,
+                confidence: preflightResult.confidence,
+                synopsisWordCount: synopsisWordCount
+            }
+        });
 
     } catch (error) {
         console.error('Query letter generation error:', error);
