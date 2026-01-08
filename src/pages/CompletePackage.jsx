@@ -142,15 +142,11 @@ export default function CompletePackage() {
             
             let cvText = '';
             
-            if (isWordDoc || isTxt) {
-                const response = await fetch(file_url);
-                if (!response.ok) throw new Error('Failed to fetch file');
-                cvText = await response.text();
-            } else if (isTxt) {
+            if (isTxt) {
                 const response = await fetch(file_url);
                 if (!response.ok) throw new Error('Failed to fetch TXT file');
                 cvText = await response.text();
-            } else if (isPdf || isRtf) {
+            } else if (isWordDoc || isPdf || isRtf) {
                 const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
                     file_url,
                     json_schema: { type: "object", properties: { text: { type: "string" } } }
