@@ -13,11 +13,11 @@ const BASE_URL = Deno.env.get("BASE44_API_URL") || "http://localhost:8000";
 const FUNCTION_URL = `${BASE_URL}/functions/getIndustrySubmissionsList`;
 
 /**
- * Test 1: Industry-only gate enforced
+ * Test 1: Role gate enforced - INDUSTRY_USER + ADMIN allowed, AUTHOR denied
  * 
- * Assertion: Only INDUSTRY_USER role can access, AUTHOR/ADMIN denied with 403
+ * Assertion: AUTHOR denied 403; unauthenticated 401; INDUSTRY_USER allowed 200; admin allowed 200
  */
-Deno.test("getIndustrySubmissionsList - Industry-only gate enforced", async () => {
+Deno.test("getIndustrySubmissionsList - Role gate enforced", async () => {
     // Test AUTHOR denied
     const authorResponse = await fetch(FUNCTION_URL, {
         method: "POST",
@@ -32,7 +32,18 @@ Deno.test("getIndustrySubmissionsList - Industry-only gate enforced", async () =
     const authorData = await authorResponse.json();
     assertEquals(authorData.code, "INDUSTRY_ACCESS_REQUIRED", "Error code must be INDUSTRY_ACCESS_REQUIRED");
 
-    // Test ADMIN denied
+    // Test unauthenticated denied
+    const unauthResponse = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({})
+    });
+
+    assertEquals(unauthResponse.status, 401, "Unauthenticated requests must be denied with 401");
+
+    // Test ADMIN allowed
     const adminResponse = await fetch(FUNCTION_URL, {
         method: "POST",
         headers: {
@@ -42,7 +53,7 @@ Deno.test("getIndustrySubmissionsList - Industry-only gate enforced", async () =
         body: JSON.stringify({})
     });
 
-    assertEquals(adminResponse.status, 403, "Admins must be denied with 403 (industry-only route)");
+    assertEquals(adminResponse.status, 200, "Admins must be allowed to review submissions");
 
     // Test INDUSTRY_USER allowed
     const industryResponse = await fetch(FUNCTION_URL, {
@@ -60,57 +71,62 @@ Deno.test("getIndustrySubmissionsList - Industry-only gate enforced", async () =
 /**
  * Test 2: Read-only guarantee - no mutations
  * 
- * Assertion: Function must not modify any entities (submissions unchanged before/after call)
+ * Assertion: Submissions count and fields unchanged before/after call
  */
 Deno.test("getIndustrySubmissionsList - Read-only guarantee (no mutations)", async () => {
-    // Get submission count before call
-    const beforeResponse = await fetch(`${BASE_URL}/functions/getSubmissionCount`, {
-        method: "POST",
+    // Get all submissions before call
+    const beforeResponse = await fetch(`${BASE_URL}/entities/StorygateSubmission`, {
+        method: "GET",
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_ADMIN")}`
-        },
-        body: JSON.stringify({})
+        }
     });
     const beforeData = await beforeResponse.json();
-    const countBefore = beforeData.count;
+    const countBefore = beforeData.length;
+    const firstSubmissionBefore = beforeData[0];
 
     // Call the function
     const response = await fetch(FUNCTION_URL, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_INDUSTRY_USER")}`
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_ADMIN")}`
         },
         body: JSON.stringify({})
     });
 
     assertEquals(response.status, 200, "Request must succeed");
 
-    // Get submission count after call
-    const afterResponse = await fetch(`${BASE_URL}/functions/getSubmissionCount`, {
-        method: "POST",
+    // Get all submissions after call
+    const afterResponse = await fetch(`${BASE_URL}/entities/StorygateSubmission`, {
+        method: "GET",
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_ADMIN")}`
-        },
-        body: JSON.stringify({})
+        }
     });
     const afterData = await afterResponse.json();
-    const countAfter = afterData.count;
+    const countAfter = afterData.length;
+    const firstSubmissionAfter = afterData[0];
 
     // Count must be unchanged
-    assertEquals(
-        countAfter,
-        countBefore,
-        "Submission count must not change (read-only guarantee)"
-    );
+    assertEquals(countAfter, countBefore, "Submission count must not change (read-only guarantee)");
+    
+    // Fields must be unchanged
+    if (firstSubmissionBefore) {
+        assertEquals(
+            JSON.stringify(firstSubmissionAfter),
+            JSON.stringify(firstSubmissionBefore),
+            "Submission data must not be modified"
+        );
+    }
 });
 
 /**
  * Test 3: Pagination support
  * 
- * Assertion: Function must respect limit/offset parameters and return pagination metadata
+ * Assertion: Limit/offset respected; MAX_PAGE_SIZE enforced; no duplicates across pages
  */
 Deno.test("getIndustrySubmissionsList - Pagination support", async () => {
     // Test with limit=5, offset=0
@@ -118,7 +134,7 @@ Deno.test("getIndustrySubmissionsList - Pagination support", async () => {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_INDUSTRY_USER")}`
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_ADMIN")}`
         },
         body: JSON.stringify({
             limit: 5,
@@ -145,12 +161,32 @@ Deno.test("getIndustrySubmissionsList - Pagination support", async () => {
         "submissions count must not exceed limit"
     );
 
+    // Test MAX_PAGE_SIZE enforcement (request 1000, expect capped at 100)
+    const maxPageResponse = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_ADMIN")}`
+        },
+        body: JSON.stringify({
+            limit: 1000,
+            offset: 0
+        })
+    });
+
+    const maxPageData = await maxPageResponse.json();
+    assertEquals(
+        maxPageData.pagination.limit <= 100,
+        true,
+        "limit must be capped at MAX_PAGE_SIZE (100)"
+    );
+
     // Test with limit=5, offset=5 (next page)
     const page2Response = await fetch(FUNCTION_URL, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_INDUSTRY_USER")}`
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_ADMIN")}`
         },
         body: JSON.stringify({
             limit: 5,
@@ -162,7 +198,7 @@ Deno.test("getIndustrySubmissionsList - Pagination support", async () => {
     const page2Data = await page2Response.json();
     assertEquals(page2Data.pagination.offset, 5, "offset must match request");
 
-    // Verify different results (no duplicate submissions across pages)
+    // Verify no duplicate submissions across pages
     if (page1Data.submissions.length > 0 && page2Data.submissions.length > 0) {
         const page1Ids = page1Data.submissions.map(s => s.id);
         const page2Ids = page2Data.submissions.map(s => s.id);
@@ -172,16 +208,16 @@ Deno.test("getIndustrySubmissionsList - Pagination support", async () => {
 });
 
 /**
- * Test 4: Allowlist DTO - only safe fields
+ * Test 4: Allowlist DTO keyset exact
  * 
- * Assertion: Response must contain ONLY allowlist fields, no sensitive data
+ * Assertion: Response item keys exactly match allowlist; banned fields absent
  */
-Deno.test("getIndustrySubmissionsList - Allowlist DTO (safe fields only)", async () => {
+Deno.test("getIndustrySubmissionsList - Allowlist DTO keyset exact", async () => {
     const response = await fetch(FUNCTION_URL, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_INDUSTRY_USER")}`
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_ADMIN")}`
         },
         body: JSON.stringify({})
     });
@@ -199,7 +235,7 @@ Deno.test("getIndustrySubmissionsList - Allowlist DTO (safe fields only)", async
         assertEquals(
             JSON.stringify(actualKeys),
             JSON.stringify(allowedKeys),
-            "Submission DTO must contain only allowlist fields"
+            "Submission DTO must contain exactly allowlist fields: ['evaluationScore','format','genre','id','primaryPath','projectStage','status','submittedAt','title']"
         );
 
         // Banned fields MUST be absent
@@ -210,16 +246,17 @@ Deno.test("getIndustrySubmissionsList - Allowlist DTO (safe fields only)", async
         assertEquals(submission.description, undefined, "description must NOT be present");
         assertEquals(submission.why_storygate, undefined, "why_storygate must NOT be present");
         assertEquals(submission.queryLetterText, undefined, "queryLetterText must NOT be present");
+        assertEquals(submission.synopsisText, undefined, "synopsisText must NOT be present");
         assertEquals(submission.internal_notes, undefined, "internal_notes must NOT be present");
     }
 });
 
 /**
- * Test 5: Error shape exactly {code, message, requestId}
+ * Test 5: Error shape keys exact
  * 
- * Assertion: All errors must return canonical error shape with NO extra fields
+ * Assertion: Error object keys exactly ['code','message','requestId']
  */
-Deno.test("getIndustrySubmissionsList - Error shape keys exactly ['code','message','requestId']", async () => {
+Deno.test("getIndustrySubmissionsList - Error shape keys exact", async () => {
     const response = await fetch(FUNCTION_URL, {
         method: "POST",
         headers: {
@@ -229,6 +266,7 @@ Deno.test("getIndustrySubmissionsList - Error shape keys exactly ['code','messag
         body: JSON.stringify({})
     });
 
+    assertEquals(response.status, 403, "Request must fail with 403 for AUTHOR");
     const data = await response.json();
     const actualKeys = Object.keys(data).sort();
     const expectedKeys = ['code', 'message', 'requestId'].sort();
@@ -237,11 +275,16 @@ Deno.test("getIndustrySubmissionsList - Error shape keys exactly ['code','messag
     assertEquals(
         JSON.stringify(actualKeys),
         JSON.stringify(expectedKeys),
-        "Error response keys must be exactly ['code', 'message', 'requestId']"
+        "Error response keys must be exactly ['code','message','requestId']"
     );
 
     // Required fields
     assertExists(data.code, "Error must have 'code' field");
     assertExists(data.message, "Error must have 'message' field");
     assertExists(data.requestId, "Error must have 'requestId' field");
+
+    // Banned fields
+    assertEquals(data.stack, undefined, "stack trace must NOT be present");
+    assertEquals(data.error, undefined, "raw error must NOT be present");
+    assertEquals(data.details, undefined, "details must NOT be present");
 });
