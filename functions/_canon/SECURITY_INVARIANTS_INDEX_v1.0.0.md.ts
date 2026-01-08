@@ -1,86 +1,53 @@
-# SECURITY_INVARIANTS_INDEX_v1.0.0.md
+# Security Invariants Index v1.0.0
 
-**Canon Index — Security & Trust Invariants (v1.0.0)**
+## Safe Error Shape
+All Phase 3 functions MUST return errors in this exact shape:
 
-**Status:** CANON-READY  
-**Change Control:** CCR required after freeze  
-**Last-Modified:** 2026-01-08  
-**Depends on:** WORK_TYPE_POLICY_ROUTING_SPEC.md (v1.0.0), INDUSTRY_PORTAL_SPEC_v1.0.0.md (v1.0.0), INDUSTRY_ENTITIES_v1.0.0.md (v1.0.0), AUTHOR_DTO_ALLOWLIST_RULE_v1.0.0.md (v1.0.0)
+```json
+{
+  "code": "ERROR_CODE",
+  "message": "Human-readable error message",
+  "requestId": "req_1234567890_abcdef"
+}
+```
 
----
+### Forbidden Fields in Error Responses
+- ❌ `success` - Redundant with HTTP status
+- ❌ `stack` - Exposes internal implementation
+- ❌ `details` - May leak sensitive data
+- ❌ Any database IDs or internal references
 
-## Purpose
+### Implementation
+```javascript
+function errorResponse(code, message, requestId, status = 400) {
+    return Response.json({
+        code,
+        message,
+        requestId
+    }, { status });
+}
+```
 
-Provide a single authoritative index of the security/trust canon documents that define:
-- what policy semantics are allowed (by work type)
-- who can access industry vs author surfaces
-- which fields can be exposed to which role
-- how author outputs are mechanically prevented from leaking internal data
+## Request ID Format
+- Pattern: `req_{timestamp}_{random}`
+- Example: `req_1736352000_7a9k3m`
+- Purpose: Traceable across logs without exposing internal IDs
 
-These invariants are non-negotiable and must be enforced via code structure and CI gates, not convention.
+## Role Gate Pattern
+```javascript
+// CORRECT: Block authors from industry functions
+if (user.role === 'author' || user.role === 'user') {
+    return errorResponse('ROLE_FORBIDDEN', 'Authors cannot access this resource', requestId, 403);
+}
 
----
+// INCORRECT: Allow-list only (misses future roles)
+if (user.role !== 'agent') {
+    return errorResponse('FORBIDDEN', 'Access denied', requestId, 403);
+}
+```
 
-## 1. Canon Invariant Cluster (Binding)
+## DTO Filtering Enforcement
+ALL responses containing IndustryUser data MUST use `toAuthorDTO()` unless user is admin.
 
-### 1) WORK_TYPE_POLICY_ROUTING_SPEC.md (v1.0.0)
-
-**Role:** Policy-family binding for evaluation semantics and allowed/forbidden copy by workTypeUi.
-
-**Primary risk controlled:** semantic drift (Micro receiving Manuscript routing language).
-
----
-
-### 2) INDUSTRY_PORTAL_SPEC_v1.0.0.md (v1.0.0)
-
-**Role:** Hard route separation and industry UI architecture under `/agent/*`, distinct from author UI.
-
-**Primary risk controlled:** accidental cross-surface exposure (authors landing in industry views).
-
----
-
-### 3) INDUSTRY_ENTITIES_v1.0.0.md (v1.0.0)
-
-**Role:** Minimal industry entity set + DTO contracts + Visibility Contract table (Author vs Industry field matrix).
-
-**Primary risk controlled:** internal fields (notes/tags/reason codes/pipeline) appearing in author outputs.
-
----
-
-### 4) AUTHOR_DTO_ALLOWLIST_RULE_v1.0.0.md (v1.0.0)
-
-**Role:** Allowlist-only author serialization; bans raw entity/internal DTO returns; mandates safe error shapes; defines release-blocking tests.
-
-**Primary risk controlled:** leakage via reused internal DTOs, feature-flagged endpoints, and error payloads.
-
----
-
-## 2. Enforcement Requirements (Release Blocking)
-
-Any release affecting submissions, evaluations, or messaging must satisfy:
-- workTypeUi → policyFamily selector correctness and copy safety
-- `/agent/*` route and role gating (author forbidden)
-- author DTO allowlist serialization (no raw entities/internal DTOs)
-- "no-leak" assertions from Visibility Contract
-- safe author error shapes (code, message, requestId)
-
----
-
-## 3. Default Visibility Principle (Invariant)
-
-**New fields added to any entity are AUTHOR-INVISIBLE by default.**
-
-Author visibility requires:
-- explicit allowlist addition in Author DTO schemas
-- visibility table update (Author=Y)
-- passing no-leak tests
-
----
-
-## 4. Change Control
-
-Any change to these invariants requires a CCR including:
-- rationale
-- affected surfaces and roles
-- diffs to visibility table and/or allowlists
-- updated tests demonstrating continued guarantees
+## State Machine Enforcement
+ALL state transitions MUST be validated against AGENT_ONBOARDING_VERIFICATION_SPEC before updating database.
