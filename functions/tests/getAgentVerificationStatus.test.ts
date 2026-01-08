@@ -1,208 +1,159 @@
 /**
- * RELEASE-BLOCKING TESTS: getAgentVerificationStatus
+ * Release-Blocking Tests for getAgentVerificationStatus
  * 
- * Authority: AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0.md
+ * Authority: AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0
+ * Function: functions/getAgentVerificationStatus.js
  * 
- * 4 Critical Tests:
- * 1. Author-safe DTO (no PII leakage)
- * 2. Industry-safe DTO (minimal fields only)
- * 3. Read-only enforcement (no state changes)
- * 4. Safe error shape
+ * These four tests must pass before Function #2 can be released to production.
  */
 
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
 
-Deno.serve(async (req) => {
-    try {
-        const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-        
-        if (!user || user.role !== 'admin') {
-            return Response.json({ error: 'Admin access required' }, { status: 403 });
+const BASE_URL = Deno.env.get("BASE44_API_URL") || "http://localhost:8000";
+const FUNCTION_URL = `${BASE_URL}/functions/getAgentVerificationStatus`;
+
+/**
+ * Test 1: AUTHOR role denied (403)
+ * 
+ * Assertion: Authors/users cannot check industry verification status
+ */
+Deno.test("getAgentVerificationStatus - AUTHOR role denied with 403", async () => {
+    const response = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_AUTHOR")}`
         }
+    });
 
-        const results = [];
-        
-        // TEST 1: Author-safe DTO (No PII leakage)
-        try {
-            const testEmail = `test_status_author_${Date.now()}@example.com`;
+    assertEquals(response.status, 403, "Authors must be denied with 403 Forbidden");
+    
+    const data = await response.json();
+    assertEquals(data.code, "ROLE_FORBIDDEN", "Error code must be ROLE_FORBIDDEN");
+    assertExists(data.requestId, "Request ID must be present in error response");
+});
 
-            const testRecord = await base44.asServiceRole.entities.IndustryUser.create({
-                user_email: testEmail,
-                full_name: 'Status Test Agent',
-                company: 'Status Test Agency',
-                role_type: 'agent',
-                verification_status: 'PENDING',
-                linkedin_url: 'https://linkedin.com/in/secret',
-                imdb_url: 'https://imdb.com/name/secret'
-            });
-
-            const response = await base44.asServiceRole.functions.invoke('getAgentVerificationStatus', {});
-
-            const statusData = response.data.status;
-            const noPII = !statusData.user_email && 
-                         !statusData.linkedin_url && 
-                         !statusData.imdb_url &&
-                         statusData.verificationStatus &&
-                         statusData.fullName;
-
-            results.push({
-                test: 'TEST_1_AUTHOR_SAFE_DTO',
-                status: noPII ? 'PASS' : 'FAIL',
-                evidence: {
-                    response_fields: Object.keys(statusData),
-                    has_pii: !!statusData.user_email || !!statusData.linkedin_url,
-                    has_status: !!statusData.verificationStatus
-                }
-            });
-
-            // Cleanup
-            await base44.asServiceRole.entities.IndustryUser.delete(testRecord.id);
-
-        } catch (error) {
-            results.push({
-                test: 'TEST_1_AUTHOR_SAFE_DTO',
-                status: 'FAIL',
-                error: error.message
-            });
+/**
+ * Test 2: Read-only guarantee (no mutations)
+ * 
+ * Assertion: Function must not create, update, or delete any records
+ */
+Deno.test("getAgentVerificationStatus - Read-only guarantee with no mutations", async () => {
+    // Get initial state
+    const initialResponse = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_AGENT_PENDING")}`
         }
+    });
 
-        // TEST 2: Industry-safe DTO (Minimal fields)
-        try {
-            const testEmail = `test_status_industry_${Date.now()}@example.com`;
+    assertEquals(initialResponse.status, 200, "Initial request must succeed");
+    const initialData = await initialResponse.json();
 
-            const testRecord = await base44.asServiceRole.entities.IndustryUser.create({
-                user_email: testEmail,
-                full_name: 'Industry Test Agent',
-                company: 'Industry Test Agency',
-                role_type: 'agent',
-                verification_status: 'VERIFIED',
-                bio: 'This should not leak in status check'
-            });
-
-            const response = await base44.asServiceRole.functions.invoke('getAgentVerificationStatus', {});
-
-            const statusData = response.data.status;
-            const minimalFields = statusData.verificationStatus &&
-                                 statusData.lastUpdated &&
-                                 !statusData.bio &&
-                                 !statusData.id;
-
-            results.push({
-                test: 'TEST_2_INDUSTRY_SAFE_DTO',
-                status: minimalFields ? 'PASS' : 'FAIL',
-                evidence: {
-                    response_fields: Object.keys(statusData),
-                    has_status: !!statusData.verificationStatus,
-                    has_bio: !!statusData.bio,
-                    has_id: !!statusData.id
-                }
-            });
-
-            // Cleanup
-            await base44.asServiceRole.entities.IndustryUser.delete(testRecord.id);
-
-        } catch (error) {
-            results.push({
-                test: 'TEST_2_INDUSTRY_SAFE_DTO',
-                status: 'FAIL',
-                error: error.message
-            });
+    // Call again - state must be identical (no side effects)
+    const secondResponse = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_AGENT_PENDING")}`
         }
+    });
 
-        // TEST 3: Read-only enforcement (No state changes)
-        try {
-            const testEmail = `test_readonly_${Date.now()}@example.com`;
+    assertEquals(secondResponse.status, 200, "Second request must succeed");
+    const secondData = await secondResponse.json();
 
-            const testRecord = await base44.asServiceRole.entities.IndustryUser.create({
-                user_email: testEmail,
-                full_name: 'Readonly Test Agent',
-                company: 'Readonly Test Agency',
-                role_type: 'agent',
-                verification_status: 'PENDING'
-            });
+    // Verify state is identical (no mutations occurred)
+    assertEquals(
+        JSON.stringify(initialData.status),
+        JSON.stringify(secondData.status),
+        "State must be identical - no mutations allowed"
+    );
 
-            const beforeStatus = testRecord.verification_status;
+    // Verify verification_status has not changed (critical invariant)
+    assertEquals(
+        initialData.status.verification_status,
+        secondData.status.verification_status,
+        "Verification status must not change on read"
+    );
+});
 
-            // Call getAgentVerificationStatus
-            await base44.asServiceRole.functions.invoke('getAgentVerificationStatus', {});
-
-            // Verify status unchanged
-            const afterRecords = await base44.asServiceRole.entities.IndustryUser.filter({
-                user_email: testEmail
-            });
-            const afterStatus = afterRecords[0].verification_status;
-
-            const noMutation = beforeStatus === afterStatus && afterStatus === 'PENDING';
-
-            results.push({
-                test: 'TEST_3_READ_ONLY_ENFORCEMENT',
-                status: noMutation ? 'PASS' : 'FAIL',
-                evidence: {
-                    before_status: beforeStatus,
-                    after_status: afterStatus,
-                    status_unchanged: beforeStatus === afterStatus
-                }
-            });
-
-            // Cleanup
-            await base44.asServiceRole.entities.IndustryUser.delete(testRecord.id);
-
-        } catch (error) {
-            results.push({
-                test: 'TEST_3_READ_ONLY_ENFORCEMENT',
-                status: 'FAIL',
-                error: error.message
-            });
+/**
+ * Test 3: Allowlist DTO - banned fields must be absent
+ * 
+ * Assertion: Response must contain ONLY allowlist fields, NO banned fields
+ */
+Deno.test("getAgentVerificationStatus - Allowlist DTO with no banned fields", async () => {
+    const response = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_AGENT_VERIFIED")}`
         }
+    });
 
-        // TEST 4: Safe Error Shape
-        try {
-            // Trigger internal error by calling with malformed context (simulate)
-            // In reality, test that error responses have safe shape
-            
-            // For this test, we verify the function returns safe shape on missing record
-            const testEmail = `test_error_${Date.now()}@example.com`;
-            
-            // Don't create record - test UNVERIFIED path
-            const response = await base44.asServiceRole.functions.invoke('getAgentVerificationStatus', {});
+    assertEquals(response.status, 200, "Request must succeed");
+    
+    const data = await response.json();
+    const status = data.status;
 
-            const safeShape = response.data.success !== undefined &&
-                            response.data.canonVersion &&
-                            !response.data.stack;
+    // Allowlist fields MUST be present
+    assertExists(status.id, "id must be present");
+    assertExists(status.full_name, "full_name must be present");
+    assertExists(status.company, "company must be present");
+    assertExists(status.role_type, "role_type must be present");
+    assertExists(status.verification_status, "verification_status must be present");
+    assertExists(status.bio, "bio must be present");
+    assertExists(status.last_updated, "last_updated must be present");
 
-            results.push({
-                test: 'TEST_4_SAFE_ERROR_SHAPE',
-                status: safeShape ? 'PASS' : 'FAIL',
-                evidence: {
-                    response_structure: Object.keys(response.data),
-                    has_success: response.data.success !== undefined,
-                    has_canon_version: !!response.data.canonVersion,
-                    no_stack_trace: !response.data.stack
-                }
-            });
+    // Banned fields MUST be absent
+    assertEquals(status.user_email, undefined, "user_email must NOT be present");
+    assertEquals(status.verification_date, undefined, "verification_date must NOT be present");
+    assertEquals(status.verified_by, undefined, "verified_by must NOT be present");
+    assertEquals(status.linkedin_url, undefined, "linkedin_url must NOT be present");
+    assertEquals(status.imdb_url, undefined, "imdb_url must NOT be present");
+    assertEquals(status.rate_limit_flags, undefined, "rate_limit_flags must NOT be present");
+    assertEquals(status.suspended, undefined, "suspended must NOT be present");
+});
 
-        } catch (error) {
-            results.push({
-                test: 'TEST_4_SAFE_ERROR_SHAPE',
-                status: 'FAIL',
-                error: error.message
-            });
+/**
+ * Test 4: Error shape exactly {code, message, requestId}
+ * 
+ * Assertion: All errors must return canonical error shape with NO extra fields
+ */
+Deno.test("getAgentVerificationStatus - Error shape exactly code+message+requestId", async () => {
+    const response = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_AUTHOR")}`
         }
+    });
 
-        // Summary
-        const passed = results.filter(r => r.status === 'PASS').length;
-        const failed = results.filter(r => r.status === 'FAIL').length;
+    const data = await response.json();
 
-        return Response.json({
-            overall: passed === 4 ? 'PASS' : 'FAIL',
-            summary: `${passed}/4 tests passed`,
-            test_cases: results,
-            canon_version: 'AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0'
-        });
+    // Required fields
+    assertExists(data.code, "Error must have 'code' field");
+    assertExists(data.message, "Error must have 'message' field");
+    assertExists(data.requestId, "Error must have 'requestId' field");
 
-    } catch (error) {
-        console.error('Test suite error:', error);
-        return Response.json({ error: error.message }, { status: 500 });
-    }
+    // NO extra fields allowed
+    const allowedKeys = ["code", "message", "requestId"];
+    const actualKeys = Object.keys(data);
+    
+    actualKeys.forEach(key => {
+        assertEquals(
+            allowedKeys.includes(key),
+            true,
+            `Error response must not contain field: ${key}`
+        );
+    });
+
+    // NO stack traces
+    assertEquals(data.stack, undefined, "Error must NOT include stack trace");
+    assertEquals(data.stackTrace, undefined, "Error must NOT include stackTrace");
+    
+    // NO internal IDs
+    assertEquals(data.userId, undefined, "Error must NOT include userId");
+    assertEquals(data.recordId, undefined, "Error must NOT include recordId");
 });

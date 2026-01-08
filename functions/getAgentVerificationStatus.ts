@@ -2,12 +2,12 @@
  * PHASE 3 FUNCTION #2: getAgentVerificationStatus
  * 
  * Authority: AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0.md
- * Purpose: Read-only status check (no state changes)
+ * State Transition: NONE (read-only)
  * 
  * Release-Blocking Tests:
- * 1. Author-safe DTO (no PII leakage)
- * 2. Industry-safe DTO (minimal fields)
- * 3. No state modification (read-only enforcement)
+ * 1. Role gate (AUTHOR → 403)
+ * 2. Read-only guarantee (no mutations)
+ * 3. Allowlist DTO (toStatusDTO only)
  * 4. Safe error shape ({ code, message, requestId })
  */
 
@@ -16,28 +16,30 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 const CANON_VERSION = 'AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0';
 
 /**
- * Minimal DTO for verification status checks
- * Safe for both authors and industry users
+ * Status DTO Allowlist (READ_ONLY_STATUS_DTO_v1.0.0)
+ * Only these fields returned to applicants checking their own status
  */
-function toVerificationStatusDTO(industryUser) {
+function toStatusDTO(industryUser) {
     return {
-        verificationStatus: industryUser.verification_status,
-        lastUpdated: industryUser.updated_date || industryUser.created_date,
-        fullName: industryUser.full_name,
-        company: industryUser.company
+        id: industryUser.id,
+        full_name: industryUser.full_name,
+        company: industryUser.company,
+        role_type: industryUser.role_type,
+        verification_status: industryUser.verification_status,
+        bio: industryUser.bio,
+        last_updated: industryUser.updated_date || industryUser.created_date
     };
 }
 
 /**
  * Safe error response (no stack traces, no internal IDs)
+ * Canon shape: { code, message, requestId } ONLY
  */
 function errorResponse(code, message, requestId, status = 400) {
     return Response.json({
-        success: false,
         code,
         message,
-        requestId,
-        canonVersion: CANON_VERSION
+        requestId
     }, { status });
 }
 
@@ -52,29 +54,35 @@ Deno.serve(async (req) => {
             return errorResponse('UNAUTHORIZED', 'Authentication required', requestId, 401);
         }
 
-        // Fetch IndustryUser record for current user
-        const records = await base44.asServiceRole.entities.IndustryUser.filter({
+        // ROLE GATE: Authors cannot check industry verification status
+        if (user.role === 'author' || user.role === 'user') {
+            return errorResponse(
+                'ROLE_FORBIDDEN',
+                'Authors cannot access industry verification status',
+                requestId,
+                403
+            );
+        }
+
+        // READ-ONLY: Query existing IndustryUser record (no writes, no mutations)
+        const existingRecords = await base44.asServiceRole.entities.IndustryUser.filter({
             user_email: user.email
         });
 
-        if (records.length === 0) {
+        if (existingRecords.length === 0) {
+            // No record found = UNVERIFIED state (never requested verification)
             return Response.json({
-                success: true,
-                status: {
-                    verificationStatus: 'UNVERIFIED',
-                    note: 'No verification request on file'
-                },
-                canonVersion: CANON_VERSION
+                verification_status: 'UNVERIFIED',
+                message: 'No verification request found',
+                last_updated: null
             });
         }
 
-        const industryUser = records[0];
+        const industryUser = existingRecords[0];
 
-        // Return minimal DTO (read-only, no mutations)
+        // Return allowlist DTO (no banned fields)
         return Response.json({
-            success: true,
-            status: toVerificationStatusDTO(industryUser),
-            canonVersion: CANON_VERSION
+            status: toStatusDTO(industryUser)
         });
 
     } catch (error) {
