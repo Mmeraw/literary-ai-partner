@@ -17,17 +17,12 @@ const CANON_VERSION = 'AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0';
 
 /**
  * Status DTO Allowlist (READ_ONLY_STATUS_DTO_v1.0.0)
- * Only these fields returned to applicants checking their own status
+ * Only verification state and last updated timestamp - nothing else
  */
-function toStatusDTO(industryUser) {
+function toMinimalStatusDTO(industryUser) {
     return {
-        id: industryUser.id,
-        full_name: industryUser.full_name,
-        company: industryUser.company,
-        role_type: industryUser.role_type,
-        verification_status: industryUser.verification_status,
-        bio: industryUser.bio,
-        last_updated: industryUser.updated_date || industryUser.created_date
+        verificationState: industryUser.verification_status,
+        lastUpdatedAt: industryUser.updated_date || industryUser.created_date || null
     };
 }
 
@@ -72,18 +67,15 @@ Deno.serve(async (req) => {
         if (existingRecords.length === 0) {
             // No record found = UNVERIFIED state (never requested verification)
             return Response.json({
-                verification_status: 'UNVERIFIED',
-                message: 'No verification request found',
-                last_updated: null
+                verificationState: 'UNVERIFIED',
+                lastUpdatedAt: null
             });
         }
 
         const industryUser = existingRecords[0];
 
-        // Return allowlist DTO (no banned fields)
-        return Response.json({
-            status: toStatusDTO(industryUser)
-        });
+        // Return minimal allowlist DTO (verification state only)
+        return Response.json(toMinimalStatusDTO(industryUser));
 
     } catch (error) {
         console.error('getAgentVerificationStatus error:', error);
