@@ -121,13 +121,10 @@ export default function QueryLetter() {
                 
                 let cvText = '';
                 
-                if (isWordDoc) {
+                if (isWordDoc || isTxt) {
                     const response = await fetch(bio_url);
-                    if (!response.ok) throw new Error('Failed to fetch CV file');
-                    const arrayBuffer = await response.arrayBuffer();
-                    const mammoth = await import('mammoth');
-                    const result = await mammoth.extractRawText({ arrayBuffer });
-                    cvText = result.value;
+                    if (!response.ok) throw new Error('Failed to fetch file');
+                    cvText = await response.text();
                 } else if (isTxt) {
                     const response = await fetch(bio_url);
                     if (!response.ok) throw new Error('Failed to fetch TXT file');
