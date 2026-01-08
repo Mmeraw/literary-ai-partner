@@ -1,113 +1,70 @@
-# PHASE_3_EXECUTION_RULES_v1.0.0.md
+# PHASE 3 EXECUTION RULES v1.0.0
 
-**Canon Rules — Phase 3 Execution Hygiene (v1.0.0)**
-
-**Status:** CANON-READY  
-**Change Control:** CCR required after freeze  
-**Last-Modified:** 2026-01-08  
-**Depends on:** SECURITY_INVARIANTS_INDEX_v1.0.0.md (v1.0.0), AUTHOR_DTO_ALLOWLIST_RULE_v1.0.0.md (v1.0.0)
-
----
+**Authority:** StoryGate Studio Implementation Roadmap  
+**Status:** LOCKED  
+**Last Modified:** 2026-01-08
 
 ## Purpose
 
-Prevent drift, leakage, and revert loops during Phase 3 implementation by enforcing strict one-at-a-time execution with mandatory test gates.
+Governs the strict execution protocol for implementing Phase 3 (Industry Professional Verification) functions with zero scope drift.
 
----
+## Core Principle
 
-## Non-Negotiable Rules
+**Every function must be:**
+1. Defined atomically (one state transition, one responsibility)
+2. Tested with release-blocking assertions
+3. Locked before proceeding to the next function
 
-### Rule 1: One Function Per PR
+## Execution Protocol
 
-Each backend function must be implemented in a separate pull request.
+### Step 1: Define Function Scope (Atomic)
 
-**No bulk creation of multiple functions/endpoints in a single PR.**
+Each function must specify:
+- **State Transition:** Exactly ONE state machine edge (e.g., UNVERIFIED→PENDING)
+- **Role Gate:** Who can invoke (e.g., agents only, admin only)
+- **DTO Allowlist:** What fields are returned to non-admin users
+- **Error Shape:** Canonical safe error format
 
-### Rule 2: Tests Required in Same PR
+### Step 2: Write Canon Documentation
 
-Every function PR must include all release-blocking tests defined in its Definition of Done:
-- Role gate tests
-- State machine tests (if applicable)
-- Allowlist serialization tests
-- Safe error shape tests
-- Audit emission tests (if applicable)
+Before writing code, create canon files defining:
+- Entity schema (state machine, validation rules)
+- Function specification (inputs, outputs, invariants)
+- Security rules (DTO allowlists, role gates)
 
-**No "we'll add tests later" allowed.**
+**EXCEPTION LOG (Jan 8, 2026):**  
+`functions/_canon/` directory did not exist in repository. Canon docs were created in `functions/_canon/` on Jan 8, 2026. Previous copies under `functions/canon/` (no underscore) were retired.
 
-### Rule 3: Stop + Summarize
+### Step 3: Implement Function
 
-After each function is implemented, the implementer must provide a summary including:
-- Filename and route
-- Input payload shape
-- Output DTO shape
-- Canon sections implemented (by spec + section number)
-- Tests added (by name)
+Write backend function adhering strictly to canon spec:
+- Enforce state machine transitions
+- Apply DTO allowlist for author-facing responses
+- Return safe error shape: `{ code, message, requestId }` ONLY
+- No `success` field in errors (breaks invariant)
 
-**No work on the next function may begin until explicit approval is given.**
+### Step 4: Write Release-Blocking Tests
 
-### Rule 4: No Shared Endpoints Without Role Shaping
+Each function must have 4 tests:
+1. **Role Gate:** Verify access control (e.g., authors blocked)
+2. **State Machine:** Verify valid/invalid transitions
+3. **DTO Allowlist:** Verify no PII leakage
+4. **Safe Error Shape:** Verify error format compliance
 
-No endpoint may be callable by both AUTHOR and INDUSTRY roles unless:
-- Server-side role-shaped DTO selection is implemented before serialization
-- Tests verify correct DTO selection per role
-- Both Author and Industry DTO paths are explicitly tested
+### Step 5: Run Tests & Lock
 
-**UI-based role checks are not sufficient.**
+- Run test suite
+- Verify all 4 tests pass
+- Document test results
+- Lock function (no further changes without CCR)
 
-### Rule 5: No Bulk Creation
+### Step 6: Proceed to Next Function
 
-Do not create multiple entities, functions, or endpoints simultaneously "to save time."
+Only after lock, move to next atomic function.
 
-**Atomic, sequential implementation is required for audit trail and revert safety.**
+## Change Control
 
----
-
-## Function Implementation Order (Phase 3)
-
-Functions must be implemented in this exact order:
-
-### Phase 3A - Onboarding & Verification
-1. `createAgentVerificationRequest` (UNVERIFIED → PENDING)
-2. `getAgentVerificationStatus` (read-only)
-3. `approveAgentVerification` (PENDING → VERIFIED, admin-only)
-4. `rejectAgentVerification` (PENDING → REJECTED, admin-only)
-5. `suspendIndustryUser` (VERIFIED → SUSPENDED, admin-only)
-
-### Phase 3B - Submissions & Decisions
-6. `getIndustrySubmissionsList` (read-only, pagination required)
-7. `recordIndustryDecision` (append-only)
-8. `getSubmissionDecisions` (read-only)
-
-### Phase 3C - Templates & Messaging
-9. `getResponseTemplates` (read-only, resolution order)
-10. `sendIndustryMessage` (highest trust surface, last)
-
-**No function may be started until the previous function is approved and locked.**
-
----
-
-## Path Conventions
-
-All canon specifications must be written to:
-- `functions/_canon/` (underscore, no spaces)
-
-Not:
-- `functions/canon/`
-- `functions/ canon/`
-- filenames with spaces
-
-**Consistent paths prevent "can't find spec" failures.**
-
----
-
-## Release Gates
-
-Any PR that fails its required tests must be rejected until fixed.
-
-No merge exceptions for:
-- Missing tests
-- Failing role gate tests
-- Author DTO leakage
-- Unsafe error shapes
-
-**These are security and trust invariants, not suggestions.**
+Any modification to this spec requires:
+1. Updated semantic version (v1.1.0, v2.0.0, etc.)
+2. CCR (Canon Change Request) with rationale
+3. Security review for state machine/role gate changes

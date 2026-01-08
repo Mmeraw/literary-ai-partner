@@ -7,7 +7,7 @@
  * 1. TEST_ROLE_GATE: Authors blocked (403)
  * 2. TEST_STATE_MACHINE: UNVERIFIED→PENDING valid, other transitions invalid
  * 3. TEST_ALLOWLIST_DTO: No PII leakage (email, linkedin, imdb hidden)
- * 4. TEST_SAFE_ERROR_SHAPE: All errors return { success, code, message, requestId }
+ * 4. TEST_SAFE_ERROR_SHAPE: All errors return EXACTLY { code, message, requestId }
  */
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
                 bio: 'Test bio'
             });
 
-            const pendingCheck = response1.data.success && 
+            const pendingCheck = response1.data.request &&
                                  response1.data.request.verification_status === 'PENDING';
 
             await base44.asServiceRole.entities.IndustryUser.update(unverifiedRecord.id, {
@@ -87,8 +87,7 @@ Deno.serve(async (req) => {
                 bio: 'Test bio'
             });
 
-            const verifiedBlockCheck = !response2.data.success && 
-                                       response2.data.code === 'STATE_VIOLATION';
+            const verifiedBlockCheck = response2.data.code === 'STATE_VIOLATION';
 
             results.push({
                 test: 'TEST_STATE_MACHINE',
@@ -161,27 +160,37 @@ Deno.serve(async (req) => {
             });
         }
 
-        // TEST 4: Safe Error Shape
+        // TEST 4: Safe Error Shape (Canon: { code, message, requestId } ONLY)
         try {
             const response = await base44.asServiceRole.functions.invoke('createAgentVerificationRequest', {
                 full_name: 'Test Agent'
             });
 
-            const errorShape = !response.data.success &&
+            const responseKeys = Object.keys(response.data);
+            const hasExactKeys = responseKeys.length === 3 &&
+                                 responseKeys.includes('code') &&
+                                 responseKeys.includes('message') &&
+                                 responseKeys.includes('requestId');
+            
+            const errorShape = hasExactKeys &&
                               response.data.code &&
                               response.data.message &&
                               response.data.requestId &&
+                              !response.data.success &&
                               !response.data.stack;
 
             results.push({
                 test: 'TEST_SAFE_ERROR_SHAPE',
-                assertion: 'All errors return { success, code, message, requestId }',
+                assertion: 'All errors return EXACTLY { code, message, requestId }',
                 status: errorShape ? 'PASS' : 'FAIL',
                 evidence: {
                     error_response: response.data,
+                    response_keys: responseKeys,
+                    has_exact_3_keys: hasExactKeys,
                     has_code: !!response.data.code,
                     has_message: !!response.data.message,
                     has_requestId: !!response.data.requestId,
+                    no_success_field: !response.data.success,
                     no_stack_trace: !response.data.stack
                 }
             });
@@ -189,7 +198,7 @@ Deno.serve(async (req) => {
         } catch (error) {
             results.push({
                 test: 'TEST_SAFE_ERROR_SHAPE',
-                assertion: 'All errors return { success, code, message, requestId }',
+                assertion: 'All errors return EXACTLY { code, message, requestId }',
                 status: 'FAIL',
                 error: error.message
             });
