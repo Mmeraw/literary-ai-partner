@@ -374,7 +374,7 @@ export default function YourWriting() {
                           ) : (
                             <>
                               <Upload className="w-4 h-4 mr-2" />
-                              Upload File
+                              Upload File (250k max)
                             </>
                           )}
                         </Button>
@@ -391,14 +391,33 @@ export default function YourWriting() {
                     <p className="text-sm text-slate-500">
                       Word count: {wordCount.toLocaleString()}
                     </p>
+                    {wordCount > 150000 && wordCount <= 250000 && (
+                      <p className="text-xs text-amber-600 font-medium">
+                        Large paste detected—upload file recommended
+                      </p>
+                    )}
                     {wordCount > 250000 && (
                       <p className="text-xs text-red-600 font-medium">
                         Exceeds 250,000 word limit
                       </p>
                     )}
                   </div>
+                  {wordCount > 100000 && wordCount <= 150000 && (
+                    <div className="mt-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                      <p className="text-xs text-amber-800">
+                        <strong>Large paste detected:</strong> For better performance above 100k words, please upload your file instead.
+                      </p>
+                    </div>
+                  )}
+                  {wordCount > 150000 && (
+                    <div className="mt-2 p-3 rounded-lg bg-red-50 border border-red-200">
+                      <p className="text-xs text-red-800">
+                        <strong>Paste limit exceeded:</strong> Text over 150,000 words cannot be pasted. Please upload your file instead.
+                      </p>
+                    </div>
+                  )}
                   <p className="mt-1 text-xs text-slate-500">
-                    Upload .docx, .pdf, or .txt files, or paste directly
+                    Paste up to 150k words or upload files up to 250k words
                   </p>
                 </div>
 
@@ -428,7 +447,7 @@ export default function YourWriting() {
 
                 <Button
                   onClick={handleEvaluate}
-                  disabled={isProcessing || isDetecting || !text.trim() || wordCount > 250000}
+                  disabled={isProcessing || isDetecting || !text.trim() || wordCount > 250000 || wordCount > 150000}
                   className="w-full h-12 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                   size="lg"
                 >
