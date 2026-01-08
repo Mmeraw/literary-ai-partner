@@ -1,50 +1,102 @@
 # Agent Onboarding Verification Specification v1.0.0
 
-## Authority
-This document is the canonical specification for industry professional verification within the Storygate system.
+**Authority:** Phase 3 canonical specification for industry professional verification
+**Scope:** Function #1 (createAgentVerificationRequest)
+**Lifecycle:** UNVERIFIED → PENDING (agent-initiated, self-service only)
 
 ## State Machine
 
-### Valid States
-- `UNVERIFIED` - Initial state, no verification requested
-- `PENDING` - Verification request submitted, awaiting admin review
-- `VERIFIED` - Admin-approved industry professional
-- `REJECTED` - Verification request denied
-- `REVOKED` - Previously verified, access revoked
+### Allowed Transitions
+- **UNVERIFIED → PENDING**: Agent submits verification request (self-service)
+  - First-time submission OR update from UNVERIFIED state
+  - Idempotent: if already PENDING, returns existing record
 
-### Valid Transitions
-- `UNVERIFIED` → `PENDING` (agent-initiated, self-service)
-- `PENDING` → `VERIFIED` (admin approval)
-- `PENDING` → `REJECTED` (admin denial)
-- `VERIFIED` → `REVOKED` (admin revocation)
+### Blocked Transitions (State Violations)
+- **VERIFIED → PENDING**: Cannot request re-verification
+- **REJECTED → PENDING**: Cannot resubmit after rejection
+- **REVOKED → PENDING**: Cannot restore revoked status
+- **PENDING → PENDING**: Idempotent return (not an error)
 
-### Forbidden Transitions
-- `VERIFIED` → `PENDING` (cannot re-request after verification)
-- `REJECTED` → `PENDING` (cannot re-request after rejection)
-- `REVOKED` → `PENDING` (cannot re-request after revocation)
+## Role Gate (Security Invariant)
 
-## Role Gates
+### Denied Roles (403 Forbidden)
+- `author`: Authors cannot request industry verification
+- `user`: Regular users cannot request industry verification
+- Unauthenticated users: 401 Unauthorized
 
-### Function: createAgentVerificationRequest
-- **Allowed:** Users with role NOT equal to 'author' or 'user'
-- **Blocked:** Authors (role='author' or role='user') → 403 Forbidden
+### Allowed Roles
+- `agent`, `producer`, `executive`, `manager`: Can request verification
 
-### Function: getAgentVerificationStatus
-- **Allowed:** All authenticated users (read-only)
-- **Blocked:** Unauthenticated requests → 401 Unauthorized
+## Allowlist DTO Rule
 
-## Data Access Rules
-Refer to `AUTHOR_DTO_ALLOWLIST_RULE_v1.0.0.md` for field-level access control.
+See: `AUTHOR_DTO_ALLOWLIST_RULE_v1.0.0.md`
 
-## Security Invariants
-1. **No stack traces** in error responses (use safe error shape)
-2. **No internal IDs** exposed (use requestId for tracing)
-3. **DTO filtering** enforced on all non-admin responses
-4. **State machine** strictly enforced (no manual status overrides)
+Only these fields returned to non-admin users:
+- id
+- full_name
+- company
+- role_type
+- verification_status
+- bio
+
+**Banned fields** (never returned to non-admin):
+- user_email
+- verification_date
+- verified_by
+- rate_limit_flags
+- suspended
+- linkedin_url (admin verification only)
+- imdb_url (admin verification only)
+
+## Error Shape (Canonical)
+
+All errors must return exactly this shape:
+```json
+{
+  "code": "ERROR_CODE",
+  "message": "Human-readable message",
+  "requestId": "req_timestamp_random"
+}
+```
+
+**No stack traces, no internal IDs, no database errors exposed.**
+
+## Validation Rules
+
+### Required Fields
+- full_name (non-empty string)
+- company (non-empty string)
+- role_type (must be in allowlist)
+
+### Role Type Allowlist
+- `agent`
+- `producer`
+- `executive`
+- `manager`
+
+### Optional Fields
+- bio
+- linkedin_url (for admin verification)
+- imdb_url (for admin verification)
+
+## Function Boundary (What This Does NOT Do)
+
+- ❌ Does not approve/reject verification (admin-only, separate function)
+- ❌ Does not create organizations
+- ❌ Does not assign roles
+- ❌ Does not grant portal access
+- ❌ Does not send invitations
+- ❌ Does not transition to VERIFIED/REJECTED/REVOKED
+
+## Governance Version
+
+`AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0`
 
 ## Release-Blocking Tests
-All Phase 3 functions must pass:
-1. Role gate enforcement
-2. State machine validation
-3. DTO allowlist compliance
-4. Safe error shape verification
+
+See: `functions/tests/createAgentVerificationRequest.test.js`
+
+1. **AUTHOR denied (403)**: Author/user roles cannot request verification
+2. **State machine**: Only UNVERIFIED → PENDING succeeds
+3. **Allowlist DTO**: Banned fields never returned
+4. **Error shape**: Exactly {code, message, requestId}

@@ -1,221 +1,177 @@
 /**
- * RELEASE-BLOCKING TESTS: createAgentVerificationRequest
+ * Release-Blocking Tests for createAgentVerificationRequest
  * 
- * Authority: AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0.md
+ * Authority: AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0
+ * Function: functions/createAgentVerificationRequest.js
  * 
- * 4 Critical Tests:
- * 1. TEST_ROLE_GATE: Authors blocked (403)
- * 2. TEST_STATE_MACHINE: UNVERIFIED→PENDING valid, other transitions invalid
- * 3. TEST_ALLOWLIST_DTO: No PII leakage (email, linkedin, imdb hidden)
- * 4. TEST_SAFE_ERROR_SHAPE: All errors return EXACTLY { code, message, requestId }
+ * These four tests must pass before Function #1 can be released to production.
  */
 
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
 
-Deno.serve(async (req) => {
-    try {
-        const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-        
-        if (!user || user.role !== 'admin') {
-            return Response.json({ error: 'Admin access required' }, { status: 403 });
-        }
+const BASE_URL = Deno.env.get("BASE44_API_URL") || "http://localhost:8000";
+const FUNCTION_URL = `${BASE_URL}/functions/createAgentVerificationRequest`;
 
-        const results = [];
-        
-        // TEST 1: Role Gate (Authors blocked)
-        try {
-            const testAuthorEmail = `test_author_${Date.now()}@example.com`;
-            
-            const testRecord = await base44.asServiceRole.entities.IndustryUser.create({
-                user_email: testAuthorEmail,
-                full_name: 'Test Author User',
-                company: 'N/A',
-                role_type: 'agent',
-                verification_status: 'UNVERIFIED'
-            });
+/**
+ * Test 1: AUTHOR role denied (403)
+ * 
+ * Assertion: Authors/users cannot request industry verification
+ */
+Deno.test("createAgentVerificationRequest - AUTHOR role denied with 403", async () => {
+    const response = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_AUTHOR")}` // Mock author token
+        },
+        body: JSON.stringify({
+            full_name: "Test Author",
+            company: "Test Publisher",
+            role_type: "agent"
+        })
+    });
 
-            results.push({
-                test: 'TEST_ROLE_GATE',
-                assertion: 'Authors blocked (403)',
-                status: 'PASS',
-                evidence: 'Function includes role gate: user.role === "author" returns 403',
-                note: 'Role enforcement verified in code review (cannot simulate author auth in test)'
-            });
+    assertEquals(response.status, 403, "Authors must be denied with 403 Forbidden");
+    
+    const data = await response.json();
+    assertEquals(data.code, "ROLE_FORBIDDEN", "Error code must be ROLE_FORBIDDEN");
+    assertExists(data.requestId, "Request ID must be present in error response");
+});
 
-            await base44.asServiceRole.entities.IndustryUser.delete(testRecord.id);
+/**
+ * Test 2: Only UNVERIFIED → PENDING transition succeeds
+ * 
+ * Assertion: State machine only allows UNVERIFIED → PENDING, blocks all other transitions
+ */
+Deno.test("createAgentVerificationRequest - Only UNVERIFIED to PENDING succeeds", async () => {
+    // Test 2a: UNVERIFIED → PENDING (should succeed)
+    const unverifiedResponse = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_AGENT_UNVERIFIED")}`
+        },
+        body: JSON.stringify({
+            full_name: "Test Agent",
+            company: "Test Agency",
+            role_type: "agent",
+            bio: "Test bio"
+        })
+    });
 
-        } catch (error) {
-            results.push({
-                test: 'TEST_ROLE_GATE',
-                assertion: 'Authors blocked (403)',
-                status: 'FAIL',
-                error: error.message
-            });
-        }
+    assertEquals(unverifiedResponse.status, 200, "UNVERIFIED → PENDING must succeed");
+    
+    const unverifiedData = await unverifiedResponse.json();
+    assertEquals(unverifiedData.request.verification_status, "PENDING", "Status must be PENDING");
 
-        // TEST 2: State Machine (UNVERIFIED→PENDING valid, others invalid)
-        try {
-            const testEmail = `test_agent_${Date.now()}@example.com`;
+    // Test 2b: VERIFIED → PENDING (should fail with STATE_VIOLATION)
+    const verifiedResponse = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_AGENT_VERIFIED")}`
+        },
+        body: JSON.stringify({
+            full_name: "Verified Agent",
+            company: "Verified Agency",
+            role_type: "agent"
+        })
+    });
 
-            const unverifiedRecord = await base44.asServiceRole.entities.IndustryUser.create({
-                user_email: testEmail,
-                full_name: 'Test Agent',
-                company: 'Test Agency',
-                role_type: 'agent',
-                verification_status: 'UNVERIFIED'
-            });
+    assertEquals(verifiedResponse.status, 400, "VERIFIED → PENDING must fail");
+    
+    const verifiedData = await verifiedResponse.json();
+    assertEquals(verifiedData.code, "STATE_VIOLATION", "Must return STATE_VIOLATION error");
+});
 
-            const response1 = await base44.asServiceRole.functions.invoke('createAgentVerificationRequest', {
-                full_name: 'Test Agent',
-                company: 'Test Agency',
-                role_type: 'agent',
-                bio: 'Test bio'
-            });
+/**
+ * Test 3: Allowlist DTO - banned fields must be absent
+ * 
+ * Assertion: Response must contain ONLY allowlist fields, NO banned fields
+ */
+Deno.test("createAgentVerificationRequest - Allowlist DTO with no banned fields", async () => {
+    const response = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_AGENT_UNVERIFIED")}`
+        },
+        body: JSON.stringify({
+            full_name: "Test Agent",
+            company: "Test Agency",
+            role_type: "producer",
+            bio: "Test bio",
+            linkedin_url: "https://linkedin.com/in/test",
+            imdb_url: "https://imdb.com/name/test"
+        })
+    });
 
-            const pendingCheck = response1.data.request &&
-                                 response1.data.request.verification_status === 'PENDING';
+    assertEquals(response.status, 200, "Request must succeed");
+    
+    const data = await response.json();
+    const request = data.request;
 
-            await base44.asServiceRole.entities.IndustryUser.update(unverifiedRecord.id, {
-                verification_status: 'VERIFIED'
-            });
+    // Allowlist fields MUST be present
+    assertExists(request.id, "id must be present");
+    assertExists(request.full_name, "full_name must be present");
+    assertExists(request.company, "company must be present");
+    assertExists(request.role_type, "role_type must be present");
+    assertExists(request.verification_status, "verification_status must be present");
+    assertExists(request.bio, "bio must be present");
 
-            const response2 = await base44.asServiceRole.functions.invoke('createAgentVerificationRequest', {
-                full_name: 'Test Agent',
-                company: 'Test Agency',
-                role_type: 'agent',
-                bio: 'Test bio'
-            });
+    // Banned fields MUST be absent
+    assertEquals(request.user_email, undefined, "user_email must NOT be present");
+    assertEquals(request.verification_date, undefined, "verification_date must NOT be present");
+    assertEquals(request.verified_by, undefined, "verified_by must NOT be present");
+    assertEquals(request.linkedin_url, undefined, "linkedin_url must NOT be present");
+    assertEquals(request.imdb_url, undefined, "imdb_url must NOT be present");
+    assertEquals(request.rate_limit_flags, undefined, "rate_limit_flags must NOT be present");
+    assertEquals(request.suspended, undefined, "suspended must NOT be present");
+});
 
-            const verifiedBlockCheck = response2.data.code === 'STATE_VIOLATION';
+/**
+ * Test 4: Error shape exactly {code, message, requestId}
+ * 
+ * Assertion: All errors must return canonical error shape with NO extra fields
+ */
+Deno.test("createAgentVerificationRequest - Error shape exactly code+message+requestId", async () => {
+    const response = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_AUTHOR")}`
+        },
+        body: JSON.stringify({
+            full_name: "Test",
+            company: "Test",
+            role_type: "invalid_role"
+        })
+    });
 
-            results.push({
-                test: 'TEST_STATE_MACHINE',
-                assertion: 'UNVERIFIED→PENDING valid, other transitions invalid',
-                status: pendingCheck && verifiedBlockCheck ? 'PASS' : 'FAIL',
-                evidence: {
-                    unverified_to_pending: pendingCheck,
-                    verified_to_pending_blocked: verifiedBlockCheck
-                }
-            });
+    const data = await response.json();
 
-            await base44.asServiceRole.entities.IndustryUser.delete(unverifiedRecord.id);
+    // Required fields
+    assertExists(data.code, "Error must have 'code' field");
+    assertExists(data.message, "Error must have 'message' field");
+    assertExists(data.requestId, "Error must have 'requestId' field");
 
-        } catch (error) {
-            results.push({
-                test: 'TEST_STATE_MACHINE',
-                assertion: 'UNVERIFIED→PENDING valid, other transitions invalid',
-                status: 'FAIL',
-                error: error.message
-            });
-        }
+    // NO extra fields allowed
+    const allowedKeys = ["code", "message", "requestId"];
+    const actualKeys = Object.keys(data);
+    
+    actualKeys.forEach(key => {
+        assertEquals(
+            allowedKeys.includes(key),
+            true,
+            `Error response must not contain field: ${key}`
+        );
+    });
 
-        // TEST 3: Allowlist DTO (No PII leakage)
-        try {
-            const testEmail = `test_dto_${Date.now()}@example.com`;
-
-            const testRecord = await base44.asServiceRole.entities.IndustryUser.create({
-                user_email: testEmail,
-                full_name: 'DTO Test Agent',
-                company: 'DTO Test Agency',
-                role_type: 'agent',
-                verification_status: 'UNVERIFIED',
-                linkedin_url: 'https://linkedin.com/in/secret',
-                imdb_url: 'https://imdb.com/name/secret'
-            });
-
-            const response = await base44.asServiceRole.functions.invoke('createAgentVerificationRequest', {
-                full_name: 'DTO Test Agent',
-                company: 'DTO Test Agency',
-                role_type: 'agent',
-                bio: 'DTO test'
-            });
-
-            const responseData = response.data.request;
-            const noPII = !responseData.user_email && 
-                         !responseData.linkedin_url && 
-                         !responseData.imdb_url &&
-                         responseData.full_name && 
-                         responseData.company;
-
-            results.push({
-                test: 'TEST_ALLOWLIST_DTO',
-                assertion: 'No PII leakage (email, linkedin, imdb hidden)',
-                status: noPII ? 'PASS' : 'FAIL',
-                evidence: {
-                    response_fields: Object.keys(responseData),
-                    has_pii: !!responseData.user_email || !!responseData.linkedin_url,
-                    has_public_fields: !!responseData.full_name && !!responseData.company
-                }
-            });
-
-            await base44.asServiceRole.entities.IndustryUser.delete(testRecord.id);
-
-        } catch (error) {
-            results.push({
-                test: 'TEST_ALLOWLIST_DTO',
-                assertion: 'No PII leakage (email, linkedin, imdb hidden)',
-                status: 'FAIL',
-                error: error.message
-            });
-        }
-
-        // TEST 4: Safe Error Shape (Canon: { code, message, requestId } ONLY)
-        try {
-            const response = await base44.asServiceRole.functions.invoke('createAgentVerificationRequest', {
-                full_name: 'Test Agent'
-            });
-
-            const responseKeys = Object.keys(response.data);
-            const hasExactKeys = responseKeys.length === 3 &&
-                                 responseKeys.includes('code') &&
-                                 responseKeys.includes('message') &&
-                                 responseKeys.includes('requestId');
-            
-            const errorShape = hasExactKeys &&
-                              response.data.code &&
-                              response.data.message &&
-                              response.data.requestId &&
-                              !response.data.success &&
-                              !response.data.stack;
-
-            results.push({
-                test: 'TEST_SAFE_ERROR_SHAPE',
-                assertion: 'All errors return EXACTLY { code, message, requestId }',
-                status: errorShape ? 'PASS' : 'FAIL',
-                evidence: {
-                    error_response: response.data,
-                    response_keys: responseKeys,
-                    has_exact_3_keys: hasExactKeys,
-                    has_code: !!response.data.code,
-                    has_message: !!response.data.message,
-                    has_requestId: !!response.data.requestId,
-                    no_success_field: !response.data.success,
-                    no_stack_trace: !response.data.stack
-                }
-            });
-
-        } catch (error) {
-            results.push({
-                test: 'TEST_SAFE_ERROR_SHAPE',
-                assertion: 'All errors return EXACTLY { code, message, requestId }',
-                status: 'FAIL',
-                error: error.message
-            });
-        }
-
-        const passed = results.filter(r => r.status === 'PASS').length;
-        const failed = results.filter(r => r.status === 'FAIL').length;
-
-        return Response.json({
-            overall: passed === 4 ? 'PASS' : 'FAIL',
-            summary: `${passed}/4 tests passed`,
-            test_cases: results,
-            canon_version: 'AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0'
-        });
-
-    } catch (error) {
-        console.error('Test suite error:', error);
-        return Response.json({ error: error.message }, { status: 500 });
-    }
+    // NO stack traces
+    assertEquals(data.stack, undefined, "Error must NOT include stack trace");
+    assertEquals(data.stackTrace, undefined, "Error must NOT include stackTrace");
+    
+    // NO internal IDs
+    assertEquals(data.userId, undefined, "Error must NOT include userId");
+    assertEquals(data.recordId, undefined, "Error must NOT include recordId");
 });

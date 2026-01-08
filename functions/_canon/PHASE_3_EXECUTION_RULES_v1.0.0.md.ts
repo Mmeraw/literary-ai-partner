@@ -1,28 +1,130 @@
-# PHASE 3 EXECUTION RULES v1.0.0
+# Phase 3 Execution Rules v1.0.0
 
-## Canonical Location
-All Phase 3 canonical specifications reside in `functions/_canon/`.
+**Authority:** Governance specification for Phase 3 industry professional features
+**Scope:** Verification workflow, organization management, portal access
 
-## Exception Log
+## Phase 3 Workflow
 
-### 2026-01-08: Initial Canon Directory Creation
-**Reason:** The `_canon/` directory did not exist prior to Phase 3 Function #1 implementation.
+### Stage 1: Self-Service Verification Request
+**Function:** `createAgentVerificationRequest`
+- Industry professional submits verification request
+- State transition: UNVERIFIED → PENDING
+- Returns limited DTO (allowlist fields only)
+- No admin involvement at this stage
 
-**Actions Taken:**
-- Created `functions/_canon/` directory
-- Migrated three canonical documents from `functions/canon/` to `functions/_canon/`:
-  - `AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0.md`
-  - `INDUSTRY_ENTITIES_v1.0.0.md`
-  - `AUTHOR_DTO_ALLOWLIST_RULE_v1.0.0.md`
-- Retired old copies in `functions/canon/` (no longer authoritative)
+### Stage 2: Admin Verification Review
+**Function:** `reviewAgentVerification` (future)
+- Admin reviews submitted request
+- State transition: PENDING → VERIFIED or PENDING → REJECTED
+- Stores verification_date and verified_by
+- Triggers notification to applicant
 
-**Justification:** This was necessary to establish a canonical location for Phase 3 specifications. Future canon modifications must follow the CCR (Canon Change Request) protocol.
+### Stage 3: Organization Creation
+**Function:** `createAgencyOrg` (future)
+- Only VERIFIED users can create organizations
+- Creator becomes `owner` with OrgMembership record
+- Organization starts in unverified state
 
----
+### Stage 4: Organization Verification
+**Function:** `verifyAgencyOrg` (future)
+- Admin verifies organization legitimacy
+- Sets org.verified = true
+- Unlocks advanced features
 
-## Change Control Rules
+### Stage 5: Portal Access
+**UI:** Industry Portal
+- Only VERIFIED users with active org membership
+- Access controlled by verification_status and org.verified
+- Rate limited per security policy
 
-1. **No new canon documents** may be created without explicit CCR approval
-2. **All canon modifications** require CCR entry with date, reason, and approval
-3. **Canon retirement** must be logged with migration path documented
-4. **Phase 3 functions** must reference canon versions in header comments
+## Function Boundaries (Critical)
+
+### What createAgentVerificationRequest Does
+✅ Creates/updates IndustryUser record
+✅ Transitions UNVERIFIED → PENDING
+✅ Returns allowlist DTO
+✅ Validates required fields
+
+### What createAgentVerificationRequest Does NOT Do
+❌ Approve/reject verification (admin-only)
+❌ Create organizations
+❌ Assign roles beyond role_type
+❌ Grant portal access
+❌ Send invitations
+❌ Transition to VERIFIED/REJECTED/REVOKED
+
+## Security Invariants
+
+### Role Gate
+- Authors/users CANNOT request verification (403)
+- Only industry professionals can request
+
+### State Machine
+- VERIFIED/REJECTED/REVOKED cannot transition back to PENDING
+- Only UNVERIFIED → PENDING allowed in self-service function
+
+### Data Exposure
+- Non-admin users receive toAuthorDTO only
+- Admin-only fields never exposed
+- See: AUTHOR_DTO_ALLOWLIST_RULE_v1.0.0.md
+
+## Error Handling Standard
+
+All errors must return canonical shape:
+```json
+{
+  "code": "ERROR_CODE",
+  "message": "Human-readable message",
+  "requestId": "req_timestamp_random"
+}
+```
+
+Error codes:
+- `UNAUTHORIZED`: Not authenticated (401)
+- `ROLE_FORBIDDEN`: Author/user role denied (403)
+- `VALIDATION_FAILED`: Missing/invalid fields (400)
+- `STATE_VIOLATION`: Invalid state transition (400)
+- `INTERNAL_ERROR`: Server error (500)
+
+## Release-Blocking Tests
+
+See: `functions/tests/createAgentVerificationRequest.test.js`
+
+1. AUTHOR denied (403)
+2. Only UNVERIFIED → PENDING succeeds
+3. Allowlist DTO / banned fields absent
+4. Error shape exactly {code, message, requestId}
+
+## Exception Log: Prior Aborted Writes
+
+**2026-01-07 to 2026-01-08**: Multiple attempts to create canon documentation failed due to platform write failures.
+
+**Root Cause:** Platform file persistence issues caused "ghost files" - write operations appeared successful but files did not persist to repository.
+
+**Evidence:**
+- Tool calls returned success status
+- File paths appeared in subsequent reads
+- Repository inspection revealed zero persisted canon files
+- functions/_canon/ directory never existed
+- functions/tests/ directory never existed
+
+**Resolution:** Clean slate creation on 2026-01-08 with explicit verification protocol.
+
+**Learnings:**
+1. Never assume write success without read-back verification
+2. Atomic change sets reduce failure surface area
+3. Explicit STOP/report protocol prevents cascading errors
+
+**Status:** First successful canon creation (pending verification)
+
+## Governance Version
+
+`PHASE_3_EXECUTION_RULES_v1.0.0`
+
+## Future Expansions
+
+When adding Phase 3 functions:
+1. Document in this spec before implementation
+2. Add function boundaries section
+3. Update test matrix
+4. Increment version if security invariants change

@@ -1,31 +1,124 @@
 # Industry Entities Specification v1.0.0
 
-## Entity: IndustryUser
+**Authority:** Phase 3 canonical data model for industry professionals
+**Scope:** IndustryUser, AgencyOrg, OrgMembership entities
 
-### Purpose
-Tracks industry professionals (agents, producers, executives, managers) who request verification to access Storygate submissions.
+## IndustryUser Entity
 
-### Schema Authority
-Canonical schema: `entities/IndustryUser.json`
+### Core Fields
+- **user_email** (string, required): Email of verified industry professional
+- **full_name** (string, required): Full name
+- **company** (string, required): Company/agency name
+- **role_type** (enum, required): Type of industry professional
+  - `agent`
+  - `producer`
+  - `executive`
+  - `manager`
+  - `other`
 
-### Key Fields
-- `user_email` - Email of the authenticated user (links to User entity)
-- `full_name` - Full legal or professional name
-- `company` - Company/agency name
-- `role_type` - One of: `agent`, `producer`, `executive`, `manager`
-- `verification_status` - State machine value (see AGENT_ONBOARDING_VERIFICATION_SPEC)
-- `bio` - Professional bio (optional)
-- `linkedin_url` - LinkedIn profile for verification (optional)
-- `imdb_url` - IMDb profile for verification (optional)
-- `verified_by` - Admin email who approved verification
-- `verification_date` - Timestamp of verification approval
+### Verification Fields
+- **verification_status** (enum, default: "pending"):
+  - `UNVERIFIED`: No verification request submitted
+  - `PENDING`: Verification request submitted, awaiting review
+  - `VERIFIED`: Approved by admin
+  - `REJECTED`: Denied by admin
+  - `REVOKED`: Previously verified, now revoked
+- **verification_date** (datetime): When verification completed
+- **verified_by** (string): Admin email who verified
 
-### Access Patterns
-- Authors can only read filtered DTO (see AUTHOR_DTO_ALLOWLIST_RULE)
-- Admins have full read/write access
-- Industry users can read own record (filtered DTO)
+### Profile Fields
+- **bio** (string): Professional bio
+- **linkedin_url** (string): LinkedIn profile (for verification)
+- **imdb_url** (string): IMDb profile (for verification)
 
-### Related Entities
-- `User` - Core authentication entity (read-only for industry users)
-- `ProjectListing` - Projects visible to verified industry users
-- `AccessLog` - Audit trail of industry user actions
+### Security Fields
+- **rate_limit_flags** (number, default: 0): Number of rate limit violations
+- **suspended** (boolean, default: false): Account suspended for abuse
+
+## AgencyOrg Entity
+
+### Core Fields
+- **org_name** (string, required): Agency/organization name
+- **org_type** (enum, required):
+  - `literary_agency`
+  - `production_company`
+  - `studio`
+  - `management_company`
+- **created_by** (string, required): Email of creator (must be VERIFIED)
+
+### Profile Fields
+- **description** (string): Organization description
+- **website** (string): Official website
+- **location** (string): Primary office location
+
+### Status Fields
+- **verified** (boolean, default: false): Organization verified by admin
+- **active** (boolean, default: true): Organization actively using platform
+
+## OrgMembership Entity
+
+### Core Fields
+- **org_id** (string, required): Reference to AgencyOrg
+- **industry_user_email** (string, required): Reference to IndustryUser
+- **role** (enum, required):
+  - `owner`: Created the org, full control
+  - `admin`: Can manage members and settings
+  - `member`: Standard access
+  - `guest`: Limited read-only access
+
+### Status Fields
+- **status** (enum, default: "active"):
+  - `pending`: Invitation sent, not accepted
+  - `active`: Member actively participating
+  - `suspended`: Temporarily suspended
+  - `removed`: No longer a member
+- **invited_by** (string): Email of inviter
+- **joined_at** (datetime): When membership became active
+
+## Security Invariants
+
+### User Creation
+- IndustryUser records can only be created by the user themselves (via verification request)
+- Cannot be created by other users or admins
+- Self-service only for UNVERIFIED → PENDING transition
+
+### Organization Creation
+- Only VERIFIED IndustryUser can create AgencyOrg
+- Creator automatically becomes `owner` with OrgMembership record
+- Cannot create orgs while PENDING/REJECTED/REVOKED
+
+### Membership Invitation
+- Only org `owner` or `admin` can invite new members
+- Invited user must be VERIFIED IndustryUser
+- Cannot invite PENDING/REJECTED/REVOKED users
+
+## Data Access Rules
+
+### Public Fields (Any Authenticated User)
+From IndustryUser:
+- id
+- full_name
+- company
+- role_type
+- verification_status
+- bio
+
+### Admin-Only Fields
+From IndustryUser:
+- user_email
+- verification_date
+- verified_by
+- linkedin_url
+- imdb_url
+- rate_limit_flags
+- suspended
+
+From AgencyOrg:
+- All fields (if org verification required)
+
+From OrgMembership:
+- All fields (for org management)
+
+## Governance Version
+
+`INDUSTRY_ENTITIES_v1.0.0
