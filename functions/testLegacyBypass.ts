@@ -1,0 +1,54 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+// TEST 4: Legacy Bypass Prevention (Code Inspection)
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (user?.role !== 'admin') {
+            return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
+        }
+
+        // This test validates that UI code doesn't contain legacy entity reads
+        // In Base44 platform, we can't read source files directly from backend
+        // So this test returns instructions for manual verification
+        
+        const prohibitedPatterns = [
+            { pattern: 'base44.entities.Submission', description: 'Direct Submission entity read' },
+            { pattern: 'base44.entities.ManuscriptChapter', description: 'Direct ManuscriptChapter entity read' },
+            { pattern: 'submission.overall_score', description: 'Direct access to legacy score' },
+            { pattern: 'submission.readiness_score', description: 'Direct access to legacy readiness' }
+        ];
+
+        const uiFilesToCheck = [
+            'pages/ViewReport.js',
+            'pages/ManuscriptDashboard.js',
+            'pages/Dashboard.js',
+            'pages/ResultsGoverned.js',
+            'components/evaluation/ScoreCard.js'
+        ];
+
+        return Response.json({
+            testName: 'Legacy Bypass Prevention',
+            testType: 'code_inspection',
+            timestamp: new Date().toISOString(),
+            instructions: {
+                message: 'This test requires source code inspection',
+                prohibitedPatterns,
+                filesToCheck: uiFilesToCheck,
+                passCriteria: 'Zero matches for prohibited patterns in active UI paths'
+            },
+            manualVerificationRequired: true,
+            evidence: {
+                prohibitedPatterns,
+                uiFilesToCheck,
+                recommendation: 'Run grep/search across UI files for prohibited patterns and verify all results flow through getEvaluationResultForUI'
+            }
+        });
+
+    } catch (error) {
+        console.error('Test execution error:', error);
+        return Response.json({ error: error.message }, { status: 500 });
+    }
+});

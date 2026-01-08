@@ -38,6 +38,7 @@ import Pricing from './pages/Pricing';
 import Privacy from './pages/Privacy';
 import Progress from './pages/Progress';
 import QueryLetter from './pages/QueryLetter';
+import ResultsGoverned from './pages/ResultsGoverned';
 import Revise from './pages/Revise';
 import SampleAnalyses from './pages/SampleAnalyses';
 import SampleAnalysis from './pages/SampleAnalysis';
@@ -63,7 +64,7 @@ import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
 import YourWriting from './pages/YourWriting';
-import ResultsGoverned from './pages/ResultsGoverned';
+import Phase1ExitTests from './pages/Phase1ExitTests';
 import __Layout from './Layout.jsx';
 
 
@@ -108,6 +109,7 @@ export const PAGES = {
     "Privacy": Privacy,
     "Progress": Progress,
     "QueryLetter": QueryLetter,
+    "ResultsGoverned": ResultsGoverned,
     "Revise": Revise,
     "SampleAnalyses": SampleAnalyses,
     "SampleAnalysis": SampleAnalysis,
@@ -133,7 +135,7 @@ export const PAGES = {
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
     "YourWriting": YourWriting,
-    "ResultsGoverned": ResultsGoverned,
+    "Phase1ExitTests": Phase1ExitTests,
 }
 
 export const pagesConfig = {
