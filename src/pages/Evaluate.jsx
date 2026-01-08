@@ -164,24 +164,6 @@ export default function Evaluate() {
             return;
         }
 
-        const wordCount = text.split(/\s+/).filter(w => w).length;
-        
-        if (wordCount > 3000) {
-            toast.error(
-                <div>
-                    <div className="font-semibold mb-1">You've reached the preview limit.</div>
-                    <div className="text-sm">To evaluate additional chapters or generate a full manuscript score, unlock full analysis.</div>
-                </div>,
-                { duration: 6000 }
-            );
-            
-            setTimeout(() => {
-                window.location.href = createPageUrl('Pricing');
-            }, 2000);
-            
-            return;
-        }
-
         setIsProcessing(true);
         setCurrentStep(2);
         setError(null);
@@ -306,7 +288,7 @@ export default function Evaluate() {
                                 <div className="flex justify-end">
                                     <Button
                                         onClick={evaluateText}
-                                        disabled={!title.trim() || !text.trim() || text.split(/\s+/).filter(w => w).length > 3000}
+                                        disabled={!title.trim() || !text.trim()}
                                         size="lg"
                                         className="h-12 px-8 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                                     >

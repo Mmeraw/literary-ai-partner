@@ -32,6 +32,7 @@ import LogoGenerator from './pages/LogoGenerator';
 import ManuscriptDashboard from './pages/ManuscriptDashboard';
 import Methodology from './pages/Methodology';
 import PaymentSuccess from './pages/PaymentSuccess';
+import Phase1ExitTests from './pages/Phase1ExitTests';
 import PitchBuilder from './pages/PitchBuilder';
 import PitchGenerator from './pages/PitchGenerator';
 import Pricing from './pages/Pricing';
@@ -64,7 +65,6 @@ import ValidationReport from './pages/ValidationReport';
 import ViewReport from './pages/ViewReport';
 import WhyRevisionGrade from './pages/WhyRevisionGrade';
 import YourWriting from './pages/YourWriting';
-import Phase1ExitTests from './pages/Phase1ExitTests';
 import __Layout from './Layout.jsx';
 
 
@@ -103,6 +103,7 @@ export const PAGES = {
     "ManuscriptDashboard": ManuscriptDashboard,
     "Methodology": Methodology,
     "PaymentSuccess": PaymentSuccess,
+    "Phase1ExitTests": Phase1ExitTests,
     "PitchBuilder": PitchBuilder,
     "PitchGenerator": PitchGenerator,
     "Pricing": Pricing,
@@ -135,7 +136,6 @@ export const PAGES = {
     "ViewReport": ViewReport,
     "WhyRevisionGrade": WhyRevisionGrade,
     "YourWriting": YourWriting,
-    "Phase1ExitTests": Phase1ExitTests,
 }
 
 export const pagesConfig = {
