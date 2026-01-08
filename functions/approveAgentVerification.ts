@@ -16,18 +16,22 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 const CANON_VERSION = 'AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0';
 
 /**
- * DTO Allowlist (AUTHOR_DTO_ALLOWLIST_RULE_v1.0.0)
- * Only these fields returned to non-admin users
+ * Admin Decision DTO (ADMIN_VERIFICATION_DECISION_DTO_v1.0.0)
+ * Admin-only verification decision response - never use author DTOs in admin functions
  */
-function toAuthorDTO(industryUser) {
-    return {
-        id: industryUser.id,
-        full_name: industryUser.full_name,
-        company: industryUser.company,
-        role_type: industryUser.role_type,
-        verification_status: industryUser.verification_status,
-        bio: industryUser.bio
+function toAdminVerificationDecisionDTO(targetUserId, previousState, newState, rolesGranted, agencyOrgId, requestId, updatedAt) {
+    const dto = {
+        targetUserId,
+        previousState,
+        newState,
+        rolesGranted,
+        requestId,
+        updatedAt
     };
+    if (agencyOrgId) {
+        dto.agencyOrgId = agencyOrgId;
+    }
+    return dto;
 }
 
 /**
@@ -99,18 +103,76 @@ Deno.serve(async (req) => {
             );
         }
 
+        const previousState = industryUser.verification_status;
+        const newState = 'VERIFIED';
+        const updatedAt = new Date().toISOString();
+
         // Transition: PENDING → VERIFIED
         const updated = await base44.asServiceRole.entities.IndustryUser.update(industryUser.id, {
-            verification_status: 'VERIFIED',
-            verification_date: new Date().toISOString(),
+            verification_status: newState,
+            verification_date: updatedAt,
             verified_by: user.email
         });
 
-        return Response.json({
-            approved: toAuthorDTO(updated),
-            verified_at: updated.verification_date,
-            verified_by: user.email
+        // ROLE GRANT: Grant INDUSTRY_USER role to enable /agent/* access
+        const targetUser = await base44.asServiceRole.entities.User.filter({
+            email: industryUser.user_email
         });
+
+        if (targetUser.length === 0) {
+            return errorResponse(
+                'USER_NOT_FOUND',
+                'User account not found for industry user',
+                requestId,
+                404
+            );
+        }
+
+        // Grant INDUSTRY_USER role (enables /agent/* access via role gate)
+        await base44.asServiceRole.entities.User.update(targetUser[0].id, {
+            role: 'INDUSTRY_USER'
+        });
+
+        const rolesGranted = ['INDUSTRY_USER'];
+
+        // AUDIT LOGGING: Emit append-only audit events
+        await base44.asServiceRole.entities.EvaluationAuditEvent.create({
+            event_type: 'verification_approved',
+            entity_type: 'IndustryUser',
+            entity_id: updated.id,
+            user_email: user.email,
+            metadata: {
+                target_user_email: industryUser.user_email,
+                previous_state: previousState,
+                new_state: newState,
+                verified_by: user.email,
+                request_id: requestId
+            }
+        });
+
+        await base44.asServiceRole.entities.EvaluationAuditEvent.create({
+            event_type: 'industry_access_granted',
+            entity_type: 'User',
+            entity_id: targetUser[0].id,
+            user_email: user.email,
+            metadata: {
+                target_user_email: industryUser.user_email,
+                roles_granted: rolesGranted,
+                request_id: requestId
+            }
+        });
+
+        return Response.json(
+            toAdminVerificationDecisionDTO(
+                industryUser.user_email,
+                previousState,
+                newState,
+                rolesGranted,
+                null, // agencyOrgId (optional, not implemented yet)
+                requestId,
+                updatedAt
+            )
+        );
 
     } catch (error) {
         console.error('approveAgentVerification error:', error);

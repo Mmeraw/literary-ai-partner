@@ -4,7 +4,7 @@
  * Authority: AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0
  * Function: functions/approveAgentVerification.js
  * 
- * These four tests must pass before Function #3 can be released to production.
+ * These SIX tests must pass before Function #3 can be released to production.
  */
 
 import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
@@ -13,12 +13,29 @@ const BASE_URL = Deno.env.get("BASE44_API_URL") || "http://localhost:8000";
 const FUNCTION_URL = `${BASE_URL}/functions/approveAgentVerification`;
 
 /**
- * Test 1: Non-admin denied (403)
+ * Test 1: Admin-only gate (ADMIN_REVIEWER allowed; others denied)
  * 
- * Assertion: Only admins can approve verification requests
+ * Assertion: Only admins can approve, all other roles denied with 403
  */
-Deno.test("approveAgentVerification - Non-admin denied with 403", async () => {
-    const response = await fetch(FUNCTION_URL, {
+Deno.test("approveAgentVerification - Admin-only gate enforced", async () => {
+    // Test AUTHOR denied
+    const authorResponse = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_AUTHOR")}`
+        },
+        body: JSON.stringify({
+            industry_user_id: "test_user_id"
+        })
+    });
+
+    assertEquals(authorResponse.status, 403, "Authors must be denied with 403");
+    const authorData = await authorResponse.json();
+    assertEquals(authorData.code, "ADMIN_REQUIRED", "Error code must be ADMIN_REQUIRED");
+
+    // Test INDUSTRY_USER denied
+    const industryResponse = await fetch(FUNCTION_URL, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -29,11 +46,21 @@ Deno.test("approveAgentVerification - Non-admin denied with 403", async () => {
         })
     });
 
-    assertEquals(response.status, 403, "Non-admins must be denied with 403 Forbidden");
-    
-    const data = await response.json();
-    assertEquals(data.code, "ADMIN_REQUIRED", "Error code must be ADMIN_REQUIRED");
-    assertExists(data.requestId, "Request ID must be present in error response");
+    assertEquals(industryResponse.status, 403, "Industry users must be denied with 403");
+
+    // Test ADMIN allowed
+    const adminResponse = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_ADMIN")}`
+        },
+        body: JSON.stringify({
+            industry_user_id: Deno.env.get("BASE44_QA_USER_ID_PENDING")
+        })
+    });
+
+    assertEquals(adminResponse.status, 200, "Admin must be allowed");
 });
 
 /**
@@ -88,15 +115,16 @@ Deno.test("approveAgentVerification - State machine enforces PENDING→VERIFIED 
 
     assertEquals(pendingResponse.status, 200, "PENDING→VERIFIED transition must succeed");
     const pendingData = await pendingResponse.json();
-    assertEquals(pendingData.approved.verification_status, "VERIFIED", "Status must be VERIFIED after approval");
+    assertEquals(pendingData.newState, "VERIFIED", "New state must be VERIFIED");
+    assertEquals(pendingData.previousState, "PENDING", "Previous state must be PENDING");
 });
 
 /**
- * Test 3: Allowlist DTO - banned fields must be absent
+ * Test 3: Admin DTO keyset exact - no entity snapshots
  * 
- * Assertion: Response must contain ONLY allowlist fields in approved object
+ * Assertion: Response keys must be exactly admin decision DTO fields
  */
-Deno.test("approveAgentVerification - Allowlist DTO with no banned fields", async () => {
+Deno.test("approveAgentVerification - Admin DTO keyset exact", async () => {
     const response = await fetch(FUNCTION_URL, {
         method: "POST",
         headers: {
@@ -111,24 +139,23 @@ Deno.test("approveAgentVerification - Allowlist DTO with no banned fields", asyn
     assertEquals(response.status, 200, "Request must succeed");
     
     const data = await response.json();
-    const approved = data.approved;
+    const actualKeys = Object.keys(data).sort();
+    const expectedKeys = ['newState', 'previousState', 'requestId', 'rolesGranted', 'targetUserId', 'updatedAt'].sort();
 
-    // Allowlist fields MUST be present
-    assertExists(approved.id, "id must be present");
-    assertExists(approved.full_name, "full_name must be present");
-    assertExists(approved.company, "company must be present");
-    assertExists(approved.role_type, "role_type must be present");
-    assertExists(approved.verification_status, "verification_status must be present");
-    assertExists(approved.bio, "bio must be present");
+    // Response must contain EXACTLY admin decision DTO keys
+    assertEquals(
+        JSON.stringify(actualKeys),
+        JSON.stringify(expectedKeys),
+        "Response keys must match admin decision DTO exactly"
+    );
 
-    // Banned fields MUST be absent
-    assertEquals(approved.user_email, undefined, "user_email must NOT be present");
-    assertEquals(approved.linkedin_url, undefined, "linkedin_url must NOT be present");
-    assertEquals(approved.imdb_url, undefined, "imdb_url must NOT be present");
-    assertEquals(approved.rate_limit_flags, undefined, "rate_limit_flags must NOT be present");
-    assertEquals(approved.suspended, undefined, "suspended must NOT be present");
-    assertEquals(approved.verification_date, undefined, "verification_date must NOT be in DTO");
-    assertEquals(approved.verified_by, undefined, "verified_by must NOT be in DTO");
+    // Banned fields MUST be absent (no entity snapshots or author DTOs)
+    assertEquals(data.approved, undefined, "Must NOT contain nested 'approved' author DTO");
+    assertEquals(data.id, undefined, "Must NOT contain entity id");
+    assertEquals(data.full_name, undefined, "Must NOT contain profile fields");
+    assertEquals(data.company, undefined, "Must NOT contain profile fields");
+    assertEquals(data.verified_by, undefined, "Must NOT contain verified_by at top level");
+    assertEquals(data.verified_at, undefined, "Must NOT contain verified_at at top level");
 });
 
 /**
@@ -163,4 +190,84 @@ Deno.test("approveAgentVerification - Error shape keys exactly ['code','message'
     assertExists(data.code, "Error must have 'code' field");
     assertExists(data.message, "Error must have 'message' field");
     assertExists(data.requestId, "Error must have 'requestId' field");
+});
+
+/**
+ * Test 5: Roles granted correctness
+ * 
+ * Assertion: INDUSTRY_USER role must be granted on successful approval
+ */
+Deno.test("approveAgentVerification - Roles granted correctness", async () => {
+    const response = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_ADMIN")}`
+        },
+        body: JSON.stringify({
+            industry_user_id: Deno.env.get("BASE44_QA_USER_ID_PENDING")
+        })
+    });
+
+    assertEquals(response.status, 200, "Request must succeed");
+    
+    const data = await response.json();
+    
+    // Verify rolesGranted field exists and contains INDUSTRY_USER
+    assertExists(data.rolesGranted, "rolesGranted must be present");
+    assertEquals(Array.isArray(data.rolesGranted), true, "rolesGranted must be an array");
+    assertEquals(
+        data.rolesGranted.includes('INDUSTRY_USER'),
+        true,
+        "INDUSTRY_USER role must be granted"
+    );
+});
+
+/**
+ * Test 6: Audit events emitted
+ * 
+ * Assertion: verification_approved and industry_access_granted audit events must be emitted
+ */
+Deno.test("approveAgentVerification - Audit events emitted", async () => {
+    // Approve a pending user
+    const response = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_ADMIN")}`
+        },
+        body: JSON.stringify({
+            industry_user_id: Deno.env.get("BASE44_QA_USER_ID_PENDING")
+        })
+    });
+
+    assertEquals(response.status, 200, "Request must succeed");
+    const data = await response.json();
+    const requestId = data.requestId;
+
+    // Wait for audit events to be written (async)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Query audit events using the request_id from the response
+    const auditResponse = await fetch(`${BASE_URL}/functions/queryAuditEvents`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("BASE44_QA_TOKEN_ADMIN")}`
+        },
+        body: JSON.stringify({
+            request_id: requestId
+        })
+    });
+
+    assertEquals(auditResponse.status, 200, "Audit query must succeed");
+    const auditData = await auditResponse.json();
+
+    // Verify verification_approved event exists
+    const approvalEvent = auditData.events?.find(e => e.event_type === 'verification_approved');
+    assertExists(approvalEvent, "verification_approved audit event must be emitted");
+
+    // Verify industry_access_granted event exists
+    const accessEvent = auditData.events?.find(e => e.event_type === 'industry_access_granted');
+    assertExists(accessEvent, "industry_access_granted audit event must be emitted");
 });
