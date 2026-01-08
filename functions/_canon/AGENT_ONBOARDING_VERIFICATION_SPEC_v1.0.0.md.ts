@@ -1,244 +1,140 @@
-# Canon Spec — Agent Onboarding & Verification (v1.0.0)
+# AGENT ONBOARDING & VERIFICATION SPECIFICATION v1.0.0
 
-**Status:** CANON-READY  
-**Change Control:** CCR required after freeze  
-**Last-Modified:** 2025-01-08  
-**Depends on:** INDUSTRY_PORTAL_SPEC_v1.0.0.md (v1.0.0), INDUSTRY_ENTITIES_v1.0.0.md (v1.0.0), AUTHOR_DTO_ALLOWLIST_RULE_v1.0.0.md (v1.0.0)
-
----
+**Authority:** Phase 3 Execution Rules v1.0.0  
+**Status:** LOCKED  
+**Last Modified:** 2026-01-08
 
 ## Purpose
 
-Define a secure, auditable, and abuse-resistant onboarding and verification process for industry users (agents, managers, producers, executives) who access the Industry Portal (`/agent/*`). This spec governs who may obtain `INDUSTRY_*` roles, how trust is established and revoked, how `AgencyOrg` entities are formed, and how access is rate-limited and audited.
+Defines the canonical verification flow for industry professionals (agents, producers, executives) requesting access to StoryGate Studio author work.
 
-**This document establishes verification as a structural trust gate, not a UI convenience.**
+## Verification Flow
 
----
+### Phase 1: Agent Self-Registration (UNVERIFIED → PENDING)
 
-## 1. Scope (v1.0.0)
+**Function:** `createAgentVerificationRequest`
 
-### In-scope
-- Industry user onboarding flow
-- Verification state machine
-- Verification methods and requirements
-- AgencyOrg creation and membership rules
-- Abuse prevention and rate limiting
-- Audit logging for all trust-relevant events
+**Who:** Industry professional (self-service)
 
-### Out-of-scope (later phases)
-- Automated third-party verification APIs
-- Paid priority verification
-- Deep reputation scoring
-- Analytics dashboards for admins
+**Input:**
+```json
+{
+  "full_name": "Jane Smith",
+  "company": "Big Agency LLC",
+  "role_type": "agent",
+  "bio": "15 years repping literary fiction...",
+  "linkedin_url": "https://linkedin.com/in/janesmith",
+  "imdb_url": "https://imdb.com/name/nm1234567" // optional
+}
+```
 
----
+**State Transition:** `UNVERIFIED → PENDING`
 
-## 2. Roles and Actors
+**Validations:**
+1. User must be authenticated
+2. User role must NOT be 'author' (agents cannot be authors)
+3. `role_type` must be one of: `['agent', 'producer', 'executive', 'manager']`
+4. No existing PENDING request for this user
+5. All required fields present
 
-### Industry Roles
-- **INDUSTRY_USER** — verified industry professional
-- **INDUSTRY_ADMIN** — verified industry professional with org admin rights
+**Output (Success):**
+```json
+{
+  "success": true,
+  "request": {
+    "id": "industry_user_abc123",
+    "verification_status": "PENDING",
+    "submitted_at": "2026-01-08T10:00:00Z"
+  }
+}
+```
 
-### System Roles
-- **ADMIN_REVIEWER** — internal admin authorized to approve/reject/suspend
-- **SYSTEM** — automated enforcement (rate limits, temporary locks)
+**Output (Error - Safe Shape):**
+```json
+{
+  "success": false,
+  "code": "ROLE_FORBIDDEN",
+  "message": "Authors cannot request industry verification",
+  "requestId": "req_xyz789"
+}
+```
 
-**Authors never participate in this flow.**
+### Phase 2: Admin Review (PENDING → VERIFIED or REJECTED)
 
----
+**Function:** `approveAgent` or `rejectAgent`
 
-## 3. Verification State Machine (Non-Negotiable)
+**Who:** Admin only
 
-### States
+**Not Implemented Yet:** Phase 3 Function #2 (future work)
 
-**UNVERIFIED**  
-Initial state. User record exists but has no access to `/agent/*` routes.
+### Phase 3: Revocation (VERIFIED → REVOKED)
 
-**PENDING**  
-Verification request submitted; awaiting manual review.
+**Function:** `revokeAgent`
 
-**VERIFIED**  
-Approved. User granted `INDUSTRY_USER` (or `INDUSTRY_ADMIN`) role and `/agent/*` access.
+**Who:** Admin only
 
-**SUSPENDED**  
-Access revoked after verification due to abuse, policy violation, or security concern.
+**Not Implemented Yet:** Phase 3 Function #3 (future work)
 
-**REJECTED**  
-Verification request denied. No industry access granted.
+## State Machine Enforcement
 
-### Allowed Transitions
+**CRITICAL:** Backend functions are the ONLY way to transition `verification_status`.
 
-- `UNVERIFIED` → `PENDING`
-- `PENDING` → `VERIFIED`
-- `PENDING` → `REJECTED`
-- `VERIFIED` → `SUSPENDED`
-- `SUSPENDED` → `VERIFIED` (admin-only, explicit reinstatement)
-- `SUSPENDED` → `REJECTED` (permanent removal)
+### Function #1: createAgentVerificationRequest
 
-### Forbidden Transitions
+- **Allowed:** `UNVERIFIED → PENDING`
+- **Forbidden:** Any other transition
+- **Role Gate:** Authors blocked (403)
+- **Idempotency:** If already PENDING, return existing record (not error)
 
-- `UNVERIFIED` → `VERIFIED` (no bypass)
-- `REJECTED` → `VERIFIED` (requires new request)
-- Any → `VERIFIED` without manual admin action
+### Function #2: approveAgent (Future)
 
----
+- **Allowed:** `PENDING → VERIFIED`
+- **Forbidden:** Direct `UNVERIFIED → VERIFIED` (bypass protection)
+- **Role Gate:** Admin only
 
-## 4. Verification Methods (v1 Requirements)
+### Function #3: rejectAgent (Future)
 
-**All initial verifications require manual review.**
+- **Allowed:** `PENDING → REJECTED`
+- **Admin Note:** Required reason for rejection
 
-### Allowed Inputs (one or more required)
-- Professional email address (agency/production domain preferred)
-- LinkedIn profile URL
-- IMDb / IMDbPro profile (for producers/executives)
-- Agency or production company name
-- Role/title description
+### Function #4: revokeAgent (Future)
 
-### Optional Enhancements
-- Domain ownership check (email domain vs agency name)
-- Prior AgencyOrg invite code (see §6)
+- **Allowed:** `VERIFIED → REVOKED`
+- **Admin Note:** Required reason for revocation
+- **Cascade:** Revoke all AccessUnlock records
 
-### Hard Rule
-**No fully automated approval is permitted for first-time verification.**
+## Security Invariants
 
----
+1. **No Bypass:** UI cannot directly update `verification_status` field
+2. **Role Separation:** Authors cannot verify themselves as agents
+3. **Audit Trail:** All transitions logged to `IndustryDecision` entity
+4. **PII Protection:** See AUTHOR_DTO_ALLOWLIST_RULE_v1.0.0.md
 
-## 5. Access Control Rules
+## Error Handling Standard
 
-### UNVERIFIED / PENDING / REJECTED users:
-- Cannot access `/agent/*`
-- Receive `403` on all industry endpoints
-- May access only onboarding/status pages
+All functions return safe error shapes (no stack traces, no internal IDs):
 
-### VERIFIED users:
-- Granted `INDUSTRY_USER` role
-- May access `/agent/*` routes subject to rate limits
+```json
+{
+  "success": false,
+  "code": "VALIDATION_FAILED" | "ROLE_FORBIDDEN" | "STATE_VIOLATION",
+  "message": "Human-readable error",
+  "requestId": "req_abc123" // for support lookup
+}
+```
 
-### VERIFIED + org admin flag:
-- Granted `INDUSTRY_ADMIN` role
-- May manage org settings, invites, and templates
+## Testing Requirements
 
-### SUSPENDED users:
-- Immediate revocation of `/agent/*` access
-- Existing sessions invalidated
+**Release-Blocking Tests (Function #1):**
 
----
+1. **Role Gate:** Author calling `createAgentVerificationRequest` returns 403
+2. **State Machine:** UNVERIFIED→PENDING succeeds, PENDING→PENDING is idempotent, VERIFIED→PENDING fails
+3. **DTO Allowlist:** Response includes only allowed fields (no email leakage)
+4. **Error Shape:** All errors return `{ success, code, message, requestId }`
 
-## 6. AgencyOrg Creation & Membership
+## Change Control
 
-### 6.1 Org Creation
-
-An `AgencyOrg` may be created when:
-- An `ADMIN_REVIEWER` approves the first `VERIFIED` user for a new agency/company
-- Or an `ADMIN_REVIEWER` manually creates the org during verification
-
-The first verified user is assigned:
-- `OrgMembership.role = ADMIN`
-
-### 6.2 Joining Existing Orgs
-
-Additional reps may join an existing `AgencyOrg` via:
-- Admin-issued invite code
-- Manual admin linking during verification
-
-### Rules
-- Only `INDUSTRY_ADMIN` may invite org members
-- Self-claiming an org without admin approval is **forbidden**
-- Duplicate org creation must be reviewed and merged manually
-
----
-
-## 7. Abuse Prevention & Rate Limiting (v1)
-
-### Access Limits (per INDUSTRY_USER)
-- Submission detail views: capped per day
-- Message sends: capped per day
-- Bulk actions: disabled in v1
-
-### Suspension Triggers (examples)
-- Scraping-like access patterns
-- Excessive automated requests
-- Harassment or policy violations
-- Misrepresentation during verification
-
-### Suspension Effects
-- Immediate access revocation
-- Audit event logged
-- Manual review required for reinstatement
-
-### Suspension Scope
-- Suspended user's existing queue access revoked immediately
-- In-flight messages from suspended user held for admin review
-- Submissions previously viewed by suspended user remain in author's record
-- **Org-level:** Suspension of one rep does not affect other org members
-
----
-
-## 8. Audit Events (Required)
-
-**All of the following must be logged (append-only):**
-
-### Verification
-- `verification_requested`
-- `verification_approved`
-- `verification_rejected`
-- `verification_suspended`
-- `verification_reinstated`
-
-### Access
-- `industry_access_granted`
-- `industry_access_revoked`
-
-### Organization
-- `agency_created`
-- `org_membership_added`
-- `org_membership_removed`
-- `org_role_changed`
-
-### Audit fields (minimum)
-- `actorId` (admin/system)
-- `targetUserId`
-- `agencyOrgId` (if applicable)
-- `timestamp`
-- `reasonCode` (optional)
-- `notes` (internal)
-
-**Audit logs are industry-internal and never author-visible.**
-
----
-
-## 9. Required Tests (Release Blocking)
-
-### Verification Flow
-- `UNVERIFIED` user cannot access `/agent/*`
-- `VERIFIED` user can access `/agent/*`
-- `SUSPENDED` user receives `403` and session invalidation
-
-### Org Rules
-- Non-admin cannot invite org members
-- Admin can invite and assign roles
-- Duplicate org creation requires admin intervention
-
-### Rate Limits
-- Exceeding access limits triggers enforcement
-- Enforcement actions logged
-
-### Audit
-- Every verification state change emits an audit event
-- Every access grant/revoke emits an audit event
-
----
-
-## 10. Change Control
-
-**This spec governs platform trust and industry access.**
-
-Any change requires a CCR including:
-- Rationale
-- Affected roles or states
-- Updated state transitions
-- Updated tests proving enforcement
-
----
-
-**End of Agent Onboarding & Verification Spec v1.0.0**
+Any modification to this flow requires:
+1. Updated semantic version (v1.1.0, v2.0.0, etc.)
+2. Regression test suite update
+3. Security review for PII/bypass risks
