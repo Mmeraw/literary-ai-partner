@@ -59,11 +59,12 @@ Deno.serve(async (req) => {
             return errorResponse('UNAUTHORIZED', 'Authentication required', requestId, 401);
         }
 
-        // INDUSTRY-ONLY GATE: Only verified industry users can access submission lists
-        if (user.role !== 'INDUSTRY_USER') {
+        // INDUSTRY + ADMIN GATE: Only verified industry users and admins can access submission lists
+        const allowedRoles = ['INDUSTRY_USER', 'admin'];
+        if (!allowedRoles.includes(user.role)) {
             return errorResponse(
                 'INDUSTRY_ACCESS_REQUIRED',
-                'Only verified industry users can access submission lists',
+                'Only verified industry users and administrators can access submission lists',
                 requestId,
                 403
             );
