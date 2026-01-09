@@ -208,13 +208,35 @@ Deno.serve(async (req) => {
                 criteriaPlan.criteria.pacing = { status: 'NA' };
             }
             
+            // REBUILD LISTS after enforcement (critical fix)
+            applicableCriteria.length = 0;
+            naCriteria.length = 0;
+            naCriteriaSet.clear();
+            optionalCriteria.length = 0;
+            requiredCriteria.length = 0;
+            
+            for (const [criterionId, criterionMeta] of Object.entries(criteriaPlan.criteria)) {
+                if (criterionMeta.status === 'NA') {
+                    naCriteria.push(criterionId);
+                    naCriteriaSet.add(criterionId.toLowerCase());
+                } else if (criterionMeta.status === 'O') {
+                    optionalCriteria.push(criterionId);
+                    applicableCriteria.push(criterionId);
+                } else if (criterionMeta.status === 'R') {
+                    requiredCriteria.push(criterionId);
+                    applicableCriteria.push(criterionId);
+                } else if (criterionMeta.status === 'C') {
+                    applicableCriteria.push(criterionId);
+                }
+            }
+            
             // Log for verification
             console.log('[Sample Scope Enforcement]', {
                 sampleScope,
                 wordCount,
                 hasDialogue,
-                naCriteria: Object.keys(criteriaPlan.criteria)
-                    .filter(k => criteriaPlan.criteria[k].status === 'NA')
+                naCriteria,
+                applicableCriteria
             });
         }
         
