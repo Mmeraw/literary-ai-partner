@@ -477,8 +477,11 @@ async function evaluateChapterParallel(chapter, chapterIndex, totalChapters, man
 
 // Background evaluation runner
 async function runEvaluation(manuscriptId) {
-    // Create base client from environment - platform provides necessary context
-    const base44 = createClientFromRequest(new Request('http://internal'));
+    // Create fresh service role client for background execution
+    const base44 = createClient(
+        Deno.env.get('BASE44_API_URL'),
+        Deno.env.get('BASE44_APP_ID')
+    );
     
     try {
         // Get manuscript
