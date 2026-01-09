@@ -290,6 +290,12 @@ Deno.serve(async (req) => {
         - Evaluate ONLY applicable criteria
         - Do NOT reference, score, or suggest improvements based on excluded criteria
 
+        CRITICAL ENFORCEMENT RULE:
+        - DO NOT score criteria marked as "NA" in the applicable criteria list
+        - If a criterion is not in APPLICABLE CRITERIA list above, DO NOT include it in your response
+        - NEVER score "Dialogue" if no quoted speech exists in the text
+        - Return ONLY criterion_ids that are in the applicable list
+
         TITLE: ${title}
 
         TEXT:
