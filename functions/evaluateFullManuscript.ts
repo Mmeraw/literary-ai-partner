@@ -476,14 +476,45 @@ async function evaluateChapterParallel(chapter, chapterIndex, totalChapters, man
 }
 
 // Background evaluation runner
-async function runEvaluation(manuscriptId, base44) {
+async function runEvaluation(manuscriptId, passedBase44) {
+    // Re-initialize SDK with service role for background execution
+    const base44 = passedBase44;
+    
     try {
-        // Get manuscript and chapters
+        // Get manuscript
         const [manuscript] = await base44.asServiceRole.entities.Manuscript.filter({ id: manuscriptId });
-        const chapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
+        
+        if (!manuscript) {
+            throw new Error('Manuscript not found');
+        }
 
-        if (!manuscript || chapters.length === 0) {
-            throw new Error('Manuscript or chapters not found');
+        // Get chapters - if none exist, split the manuscript first
+        let chapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
+        
+        if (chapters.length === 0) {
+            console.log(`📄 No chapters found, splitting manuscript first...`);
+            await base44.asServiceRole.entities.Manuscript.update(manuscriptId, {
+                status: 'splitting',
+                evaluation_progress: {
+                    current_step: 'Splitting manuscript into chapters...',
+                    percent_complete: 1,
+                    last_updated: new Date().toISOString()
+                }
+            });
+            
+            // Invoke splitManuscript and wait for it
+            await base44.asServiceRole.functions.invoke('splitManuscript', { 
+                manuscript_id: manuscriptId 
+            });
+            
+            // Reload chapters after split
+            chapters = await base44.asServiceRole.entities.Chapter.filter({ manuscript_id: manuscriptId }, 'order');
+            
+            if (chapters.length === 0) {
+                throw new Error('Failed to split manuscript into chapters');
+            }
+            
+            console.log(`✅ Split complete: ${chapters.length} chapters created`);
         }
 
         // CREATE GOVERNED RUN (IMMUTABLE BOUNDARY)
