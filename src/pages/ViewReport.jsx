@@ -59,12 +59,55 @@ export default function ViewReport() {
 
     const evaluationResult = submission.result_json || {};
     
-    // Extract policy routing from evaluation result (if available)
-    const policyRouting = evaluationResult.work_type_routing?.policy_routing || {
-        scoreLabel: 'Agent-Reality Grade',
-        scoreRange: '/100',
-        readinessFloorEnabled: true
+    // Extract or infer policy routing (handles legacy evaluations)
+    const getPolicyRouting = () => {
+        // If policy_routing is stored, use it
+        if (evaluationResult.work_type_routing?.policy_routing) {
+            return evaluationResult.work_type_routing.policy_routing;
+        }
+        
+        // Legacy fallback: infer from work_type_label
+        const workTypeLabel = evaluationResult.work_type_routing?.work_type_label;
+        
+        // Micro-fiction family
+        if (workTypeLabel && [
+            'Flash Fiction / Micro',
+            'Poetry',
+            'Vignette',
+            'Micro-Fiction'
+        ].includes(workTypeLabel)) {
+            return {
+                scoreLabel: 'Craft Score',
+                scoreRange: '/10',
+                readinessFloorEnabled: false,
+                forbiddenPhrases: ['Agent-Reality Grade', 'submission-ready', 'professional routing']
+            };
+        }
+        
+        // Screenplay family
+        if (workTypeLabel && [
+            'Screenplay',
+            'TV Script',
+            'Feature Film',
+            'Script'
+        ].includes(workTypeLabel)) {
+            return {
+                scoreLabel: 'Reader Grade',
+                scoreRange: '/100',
+                readinessFloorEnabled: true,
+                readinessFloorValue: 6.5
+            };
+        }
+        
+        // Default to manuscript policy
+        return {
+            scoreLabel: 'Agent-Reality Grade',
+            scoreRange: '/100',
+            readinessFloorEnabled: true
+        };
     };
+    
+    const policyRouting = getPolicyRouting();
     
     // Calculate improvement metrics
     const hasRevisionSession = revisionSessions.length > 0;
