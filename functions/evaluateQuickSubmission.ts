@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
         }
         
         // PHASE 1: Matrix Preflight Validation (MUST execute before LLM)
-        const preflightResponse = await base44.asServiceRole.functions.invoke('matrixPreflight', {
+        const preflightResponse = await base44.functions.invoke('matrixPreflight', {
             inputText: text,
             requestType: 'quick_evaluation',
             userEmail: user.email
@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
         if (!preflight.allowed) {
             // Create audit log for blocked request
             try {
-                const auditBaseResponse = await base44.asServiceRole.functions.invoke('governanceVersion', {
+                const auditBaseResponse = await base44.functions.invoke('governanceVersion', {
                     action: 'buildAuditBase',
                     eventName: 'EVAL_QUICK_BLOCKED',
                     functionId: 'evaluateQuickSubmission',
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
             });
 
             // Return standardized refusal response
-            const refusalResponse = await base44.asServiceRole.functions.invoke('governanceVersion', {
+            const refusalResponse = await base44.functions.invoke('governanceVersion', {
                 action: 'buildRefusalResponse',
                 status: "blocked",
                 code: preflight.userFacingCode,
@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
         
         // MDM GATE: Work Type routing required (MDM Canon v1)
         if (!final_work_type_used) {
-            const refusalResponse = await base44.asServiceRole.functions.invoke('governanceVersion', {
+            const refusalResponse = await base44.functions.invoke('governanceVersion', {
                 action: 'buildRefusalResponse',
                 status: "blocked",
                 code: "EVALUATION_BLOCKED",
@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
         }
         
         // Load criteria plan from master data
-        const criteriaPlanResult = await base44.asServiceRole.functions.invoke('validateWorkTypeMatrix', {
+        const criteriaPlanResult = await base44.functions.invoke('validateWorkTypeMatrix', {
             action: 'buildPlan',
             workTypeId: final_work_type_used
         });
@@ -693,7 +693,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             submissionId = newSubmission.id;
 
             // Create audit event (MDM Canon v1 + Phase 1 compliance)
-            const auditBaseResponse = await base44.asServiceRole.functions.invoke('governanceVersion', {
+            const auditBaseResponse = await base44.functions.invoke('governanceVersion', {
                 action: 'buildAuditBase',
                 eventName: 'EVAL_QUICK_RUN',
                 functionId: 'evaluateQuickSubmission',
