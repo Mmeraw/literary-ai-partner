@@ -271,32 +271,41 @@ ${submission.text || 'No text available'}
                     <div className="p-8 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-900 border-2 border-indigo-500 shadow-2xl">
                         <div className="flex items-center gap-2 mb-3">
                             <Badge className="bg-indigo-500 text-white border-0">
-                                Agent-Reality Grade
+                                {policyRouting?.scoreLabel || 'Craft Score'}
                             </Badge>
-                            <Badge variant="outline" className="border-white/30 text-white/80">
-                                Calibrated Against Real Agent Decisions
-                            </Badge>
+                            {policyRouting?.scoreLabel === 'Agent-Reality Grade' && (
+                                <Badge variant="outline" className="border-white/30 text-white/80">
+                                    Calibrated Against Real Agent Decisions
+                                </Badge>
+                            )}
                         </div>
                         <div className="flex items-end justify-between mb-4">
-                            <h2 className="text-2xl font-bold text-white">Base44 Calibrated Score</h2>
+                            <h2 className="text-2xl font-bold text-white">
+                                {policyRouting?.scoreLabel === 'Agent-Reality Grade' ? 'Base44 Calibrated Score' : 'Craft Analysis'}
+                            </h2>
                             <div className="text-right">
                                 <span className={`text-5xl font-bold ${
-                                    (evaluationResult.overallScore || submission.overall_score) * 10 >= 80 ? 'text-emerald-400' :
-                                    (evaluationResult.overallScore || submission.overall_score) * 10 >= 60 ? 'text-amber-400' :
+                                    (evaluationResult.overallScore || submission.overall_score) * (policyRouting?.scoreRange === '/100' ? 10 : 1) >= (policyRouting?.scoreRange === '/100' ? 80 : 8) ? 'text-emerald-400' :
+                                    (evaluationResult.overallScore || submission.overall_score) * (policyRouting?.scoreRange === '/100' ? 10 : 1) >= (policyRouting?.scoreRange === '/100' ? 60 : 6) ? 'text-amber-400' :
                                     'text-rose-400'
                                 }`}>
-                                    {Math.round((evaluationResult.overallScore || submission.overall_score) * 10)}
+                                    {policyRouting?.scoreRange === '/100' 
+                                        ? Math.round((evaluationResult.overallScore || submission.overall_score) * 10)
+                                        : (evaluationResult.overallScore || submission.overall_score).toFixed(1)
+                                    }
                                 </span>
-                                <span className="text-white/60 text-xl">/100</span>
+                                <span className="text-white/60 text-xl">{policyRouting?.scoreRange || '/10'}</span>
                             </div>
                         </div>
                         <p className="text-white/90 text-lg mb-4">{evaluationResult.agentVerdict || 'Evaluation complete'}</p>
-                        <div className="p-4 rounded-lg bg-white/10 border border-white/20">
-                            <p className="text-sm text-white/80">
-                                <strong className="text-white">We'd rather hurt your feelings than waste your submission.</strong>
-                                <br />This score reflects agent-rejection reality based on 7 calibrated benchmarks from actual publishing outcomes.
-                            </p>
-                        </div>
+                        {policyRouting?.scoreLabel === 'Agent-Reality Grade' && (
+                            <div className="p-4 rounded-lg bg-white/10 border border-white/20">
+                                <p className="text-sm text-white/80">
+                                    <strong className="text-white">We'd rather hurt your feelings than waste your submission.</strong>
+                                    <br />This score reflects agent-rejection reality based on 7 calibrated benchmarks from actual publishing outcomes.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Sub-8.0 Remediation Message */}
