@@ -59,6 +59,30 @@ export default function ViewReport() {
 
     const evaluationResult = submission.result_json || {};
     
+    // POLICY ROUTING: Determine copy blocks based on Work Type
+    const [policyRouting, setPolicyRouting] = React.useState(null);
+    
+    React.useEffect(() => {
+        const fetchPolicyRouting = async () => {
+            if (evaluationResult.work_type_routing?.work_type_label) {
+                try {
+                    const response = await base44.functions.invoke('getPolicyFamily', {
+                        workTypeUi: evaluationResult.work_type_routing.work_type_label
+                    });
+                    setPolicyRouting(response.data?.routingSpec);
+                } catch (error) {
+                    console.error('Policy routing fetch failed:', error);
+                    // Fallback to neutral
+                    setPolicyRouting({
+                        scoreLabel: 'Craft Analysis',
+                        scoreRange: '/10'
+                    });
+                }
+            }
+        };
+        fetchPolicyRouting();
+    }, [evaluationResult.work_type_routing?.work_type_label]);
+    
     // Calculate improvement metrics
     const hasRevisionSession = revisionSessions.length > 0;
     const activeSession = revisionSessions.find(s => s.status === 'in_progress') || revisionSessions[0];
