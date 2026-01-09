@@ -470,6 +470,85 @@ ${submission.text || 'No text available'}
                                 </div>
                             </div>
                         ))}
+                        
+                        {/* NOT ASSESSED CRITERIA */}
+                        {evaluationResult.criteria && (() => {
+                            const criteriaLabels = {
+                                hook: 'The Hook',
+                                voice: 'Voice & Narrative Style',
+                                character: 'Characters & Introductions',
+                                conflict: 'Conflict & Tension',
+                                theme: 'Thematic Resonance',
+                                pacing: 'Pacing & Structural Flow',
+                                dialogue: 'Dialogue & Subtext',
+                                worldbuilding: 'Worldbuilding & Immersion',
+                                stakes: 'Stakes & Emotional Investment',
+                                linePolish: 'Line-Level Polish',
+                                marketFit: 'Marketability & Genre Fit',
+                                keepGoing: 'Would Agent Keep Reading',
+                                technical: 'Technical / Formatting Correctness'
+                            };
+                            
+                            const notAssessed = evaluationResult.work_type_routing?.na_criteria || [];
+                            
+                            if (notAssessed.length === 0) return null;
+                            
+                            return (
+                                <div className="mt-8 p-6 bg-slate-50 rounded-xl border border-slate-200">
+                                    <h3 className="text-lg font-semibold text-slate-800 mb-2">
+                                        Not Assessed ({notAssessed.length}/13)
+                                    </h3>
+                                    <p className="text-sm text-slate-600 mb-4">
+                                        The following criteria cannot be reliably assessed from this sample length or content type.
+                                    </p>
+                                    <div className="space-y-3">
+                                        {notAssessed.map(criterionId => {
+                                            const naReasons = {
+                                                dialogue: { 
+                                                    reason: "No dialogue detected in this sample.", 
+                                                    hint: "For dialogue scoring, submit a scene with spoken interaction (≈300+ words recommended)." 
+                                                },
+                                                character: { 
+                                                    reason: "Insufficient sample length for character assessment.", 
+                                                    hint: "Submit 500+ words with character interaction for full assessment." 
+                                                },
+                                                marketFit: { 
+                                                    reason: "Market positioning requires substantial sample.", 
+                                                    hint: "Submit 3,000+ words for reliable genre fit assessment." 
+                                                },
+                                                stakes: { 
+                                                    reason: "Stakes assessment requires longer narrative context.", 
+                                                    hint: "Submit 1,000+ words for stakes evaluation." 
+                                                },
+                                                keepGoing: { 
+                                                    reason: "Preview signal only—full agent simulation requires longer excerpt.", 
+                                                    hint: "Submit 1,500+ words for comprehensive agent assessment." 
+                                                },
+                                                pacing: { 
+                                                    reason: "Pacing assessment requires scene-level structure.", 
+                                                    hint: "Submit 1,000+ words for pacing evaluation." 
+                                                }
+                                            };
+                                            
+                                            const info = naReasons[criterionId] || { 
+                                                reason: "Not applicable to this sample.", 
+                                                hint: null 
+                                            };
+                                            
+                                            return (
+                                                <div key={criterionId} className="border-l-2 border-slate-300 pl-4">
+                                                    <p className="font-medium text-slate-700">
+                                                        {criteriaLabels[criterionId]} — <span className="text-slate-500">Not assessed</span>
+                                                    </p>
+                                                    <p className="text-sm text-slate-600 mt-1">{info.reason}</p>
+                                                    {info.hint && <p className="text-sm text-blue-600 mt-1">→ {info.hint}</p>}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
 
                     {/* Wave Hits */}
