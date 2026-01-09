@@ -754,21 +754,24 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
         console.error('Quick evaluation error:', error);
         
         // Capture to Sentry with context
-        const payload = await req.json().catch(() => ({}));
-        Sentry.captureException(error, {
-            extra: {
-                function: 'evaluateQuickSubmission',
-                operation: 'quick_evaluation',
-                title: payload.title || 'unknown',
-                word_count: payload.text?.split(/\s+/).filter(w => w).length || 0,
-                style_mode: payload.styleMode || 'unknown',
-                user_email: user?.email || 'unknown',
-                is_timeout: error.message.includes('timeout'),
-                error_message: error.message,
-                timestamp: new Date().toISOString()
-            }
-        });
-        await Sentry.flush(2000);
+        try {
+            const payload = await req.clone().json().catch(() => ({}));
+            Sentry.captureException(error, {
+                extra: {
+                    function: 'evaluateQuickSubmission',
+                    operation: 'quick_evaluation',
+                    title: payload.title || 'unknown',
+                    word_count: payload.text?.split(/\s+/).filter(w => w).length || 0,
+                    style_mode: payload.styleMode || 'unknown',
+                    is_timeout: error.message.includes('timeout'),
+                    error_message: error.message,
+                    timestamp: new Date().toISOString()
+                }
+            });
+            await Sentry.flush(2000);
+        } catch (sentryError) {
+            console.error('Sentry logging failed:', sentryError);
+        }
         
         // Check if it's a timeout
         if (error.message.includes('timeout')) {
