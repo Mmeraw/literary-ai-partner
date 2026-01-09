@@ -60,7 +60,11 @@ export default function ViewReport() {
     const evaluationResult = submission.result_json || {};
     
     // POLICY ROUTING: Determine copy blocks based on Work Type
-    const [policyRouting, setPolicyRouting] = React.useState(null);
+    const [policyRouting, setPolicyRouting] = React.useState({
+        scoreLabel: 'Agent-Reality Grade',
+        scoreRange: '/100',
+        readinessFloorEnabled: true
+    });
     
     React.useEffect(() => {
         const fetchPolicyRouting = async () => {
@@ -69,14 +73,11 @@ export default function ViewReport() {
                     const response = await base44.functions.invoke('getPolicyFamily', {
                         workTypeUi: evaluationResult.work_type_routing.work_type_label
                     });
-                    setPolicyRouting(response.data?.routingSpec);
+                    if (response.data?.routingSpec) {
+                        setPolicyRouting(response.data.routingSpec);
+                    }
                 } catch (error) {
                     console.error('Policy routing fetch failed:', error);
-                    // Fallback to neutral
-                    setPolicyRouting({
-                        scoreLabel: 'Craft Analysis',
-                        scoreRange: '/10'
-                    });
                 }
             }
         };
