@@ -334,8 +334,10 @@ ${submission.text || 'No text available'}
                         )}
                     </div>
 
-                    {/* Sub-8.0 Remediation Message - ONLY for Manuscript Policy */}
-                    {policyRouting.readinessFloorEnabled && (evaluationResult.overallScore || submission.overall_score) * 10 < 80 && (
+                    {/* Sub-8.0 Remediation Message - ONLY for Manuscript Policy (hard-blocked for Micro) */}
+                    {policyRouting.readinessFloorEnabled && 
+                     policyRouting.scoreLabel !== 'Craft Score' && 
+                     (evaluationResult.overallScore || submission.overall_score) * 10 < 80 && (
                         <div className="p-6 rounded-xl bg-gradient-to-br from-rose-50 to-red-50 border-2 border-rose-300">
                             <h3 className="text-lg font-bold text-rose-900 mb-3">This project is not yet structurally ready for professional submission.</h3>
                             <p className="text-sm text-rose-800 mb-3">
