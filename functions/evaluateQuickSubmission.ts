@@ -639,7 +639,17 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             agentAnalysis.overallScore || 5,
             preflight.maxConfidence / 10 // Convert 0-100 to 0-10
         );
-        
+
+        // POLICY ROUTING: Get policy family for this Work Type
+        const policyResponse = await base44.functions.invoke('getPolicyFamily', {
+            workTypeUi: criteriaPlan.workTypeLabel
+        });
+        const policyRouting = policyResponse.data?.routingSpec || {
+            scoreLabel: 'Craft Analysis',
+            scoreRange: '/10',
+            forbiddenPhrases: []
+        };
+
         const evaluationResult = {
             overallScore: cappedOverallScore,
             agentVerdict: agentAnalysis.agentVerdict || "Evaluation complete",
@@ -665,6 +675,7 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
                 matrix_version: criteriaPlan.matrixVersion,
                 na_criteria: naCriteria,
                 required_criteria: requiredCriteria,
+                policy_routing: policyRouting,
                 na_output_gate: {
                     enforcement_active: true,
                     gate_type: "criterion_id_based + agentSnapshot_disabled",

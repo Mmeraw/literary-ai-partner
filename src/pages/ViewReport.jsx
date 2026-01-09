@@ -59,6 +59,13 @@ export default function ViewReport() {
 
     const evaluationResult = submission.result_json || {};
     
+    // Extract policy routing from evaluation result (if available)
+    const policyRouting = evaluationResult.work_type_routing?.policy_routing || {
+        scoreLabel: 'Agent-Reality Grade',
+        scoreRange: '/100',
+        readinessFloorEnabled: true
+    };
+    
     // Calculate improvement metrics
     const hasRevisionSession = revisionSessions.length > 0;
     const activeSession = revisionSessions.find(s => s.status === 'in_progress') || revisionSessions[0];
@@ -247,36 +254,45 @@ ${submission.text || 'No text available'}
                     <div className="p-8 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-900 border-2 border-indigo-500 shadow-2xl">
                         <div className="flex items-center gap-2 mb-3">
                             <Badge className="bg-indigo-500 text-white border-0">
-                                Agent-Reality Grade
+                                {policyRouting.scoreLabel}
                             </Badge>
-                            <Badge variant="outline" className="border-white/30 text-white/80">
-                                Calibrated Against Real Agent Decisions
-                            </Badge>
+                            {policyRouting.scoreLabel === 'Agent-Reality Grade' && (
+                                <Badge variant="outline" className="border-white/30 text-white/80">
+                                    Calibrated Against Real Agent Decisions
+                                </Badge>
+                            )}
                         </div>
                         <div className="flex items-end justify-between mb-4">
-                            <h2 className="text-2xl font-bold text-white">Base44 Calibrated Score</h2>
+                            <h2 className="text-2xl font-bold text-white">
+                                {policyRouting.scoreLabel === 'Agent-Reality Grade' ? 'Base44 Calibrated Score' : 'Craft Analysis'}
+                            </h2>
                             <div className="text-right">
                                 <span className={`text-5xl font-bold ${
-                                    (evaluationResult.overallScore || submission.overall_score) * 10 >= 80 ? 'text-emerald-400' :
-                                    (evaluationResult.overallScore || submission.overall_score) * 10 >= 60 ? 'text-amber-400' :
+                                    (evaluationResult.overallScore || submission.overall_score) * (policyRouting.scoreRange === '/100' ? 10 : 1) >= (policyRouting.scoreRange === '/100' ? 80 : 8) ? 'text-emerald-400' :
+                                    (evaluationResult.overallScore || submission.overall_score) * (policyRouting.scoreRange === '/100' ? 10 : 1) >= (policyRouting.scoreRange === '/100' ? 60 : 6) ? 'text-amber-400' :
                                     'text-rose-400'
                                 }`}>
-                                    {Math.round((evaluationResult.overallScore || submission.overall_score) * 10)}
+                                    {policyRouting.scoreRange === '/100' 
+                                        ? Math.round((evaluationResult.overallScore || submission.overall_score) * 10)
+                                        : (evaluationResult.overallScore || submission.overall_score).toFixed(1)
+                                    }
                                 </span>
-                                <span className="text-white/60 text-xl">/100</span>
+                                <span className="text-white/60 text-xl">{policyRouting.scoreRange}</span>
                             </div>
                         </div>
                         <p className="text-white/90 text-lg mb-4">{evaluationResult.agentVerdict || 'Evaluation complete'}</p>
-                        <div className="p-4 rounded-lg bg-white/10 border border-white/20">
-                            <p className="text-sm text-white/80">
-                                <strong className="text-white">We'd rather hurt your feelings than waste your submission.</strong>
-                                <br />This score reflects agent-rejection reality based on 7 calibrated benchmarks from actual publishing outcomes.
-                            </p>
-                        </div>
+                        {policyRouting.scoreLabel === 'Agent-Reality Grade' && (
+                            <div className="p-4 rounded-lg bg-white/10 border border-white/20">
+                                <p className="text-sm text-white/80">
+                                    <strong className="text-white">We'd rather hurt your feelings than waste your submission.</strong>
+                                    <br />This score reflects agent-rejection reality based on 7 calibrated benchmarks from actual publishing outcomes.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Sub-8.0 Remediation Message */}
-                    {(evaluationResult.overallScore || submission.overall_score) * 10 < 80 && (
+                    {/* Sub-8.0 Remediation Message - ONLY for Manuscript Policy */}
+                    {policyRouting.readinessFloorEnabled && (evaluationResult.overallScore || submission.overall_score) * 10 < 80 && (
                         <div className="p-6 rounded-xl bg-gradient-to-br from-rose-50 to-red-50 border-2 border-rose-300">
                             <h3 className="text-lg font-bold text-rose-900 mb-3">This project is not yet structurally ready for professional submission.</h3>
                             <p className="text-sm text-rose-800 mb-3">
