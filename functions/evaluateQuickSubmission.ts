@@ -128,6 +128,21 @@ Deno.serve(async (req) => {
 
         const wordCount = text.split(/\s+/).filter(w => w).length;
         
+        // SAMPLE SCOPE DETECTION (v1.0.0 Canon)
+        const sampleScope = 
+            wordCount < 50 ? 'S0' :
+            wordCount < 500 ? 'S1' :
+            wordCount < 3000 ? 'S2' :
+            wordCount < 20000 ? 'S3' : 'S4';
+
+        // DIALOGUE DETECTION (v1.0.0 Canon)
+        const hasDialogue = /["'].*?["']/.test(text) && 
+                            /\b(said|asked|replied|whispered|shouted|murmured|muttered)\b/i.test(text);
+
+        // CHARACTER COUNT (simple heuristic)
+        const namedEntities = (text.match(/[A-Z][a-z]{2,}/g) || []).length;
+        const hasMultipleCharacters = namedEntities >= 2;
+        
         if (wordCount > 3000) {
             return Response.json({ 
                 error: 'Preview limit reached. Use full manuscript evaluation for longer works.',
