@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest, createClient } from 'npm:@base44/sdk@0.8.6';
 import { captureError, captureCritical } from './utils/errorTracking.js';
 import { withTimeoutAndRetry } from './utils/retryLogic.js';
 import OpenAI from 'npm:openai@4.76.1';
@@ -476,9 +476,13 @@ async function evaluateChapterParallel(chapter, chapterIndex, totalChapters, man
 }
 
 // Background evaluation runner
-async function runEvaluation(manuscriptId, passedBase44) {
-    // Re-initialize SDK with service role for background execution
-    const base44 = passedBase44;
+async function runEvaluation(manuscriptId) {
+    // Create fresh service role client for background execution
+    const base44 = createClient(
+        Deno.env.get('BASE44_API_URL'),
+        Deno.env.get('BASE44_APP_ID'),
+        { serviceRoleKey: Deno.env.get('BASE44_SERVICE_ROLE_KEY') }
+    );
     
     try {
         // Get manuscript
@@ -1344,7 +1348,7 @@ Deno.serve(async (req) => {
         }
 
         // Start evaluation in background (don't await)
-        runEvaluation(manuscript_id, base44).catch(err => {
+        runEvaluation(manuscript_id).catch(err => {
             console.error('Background evaluation failed:', err);
         });
 
