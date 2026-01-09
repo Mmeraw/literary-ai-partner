@@ -754,14 +754,15 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
         console.error('Quick evaluation error:', error);
         
         // Capture to Sentry with context
+        const payload = await req.json().catch(() => ({}));
         Sentry.captureException(error, {
             extra: {
                 function: 'evaluateQuickSubmission',
                 operation: 'quick_evaluation',
-                title,
-                word_count: text?.split(/\s+/).filter(w => w).length,
-                style_mode: styleMode,
-                user_email: user?.email,
+                title: payload.title || 'unknown',
+                word_count: payload.text?.split(/\s+/).filter(w => w).length || 0,
+                style_mode: payload.styleMode || 'unknown',
+                user_email: user?.email || 'unknown',
                 is_timeout: error.message.includes('timeout'),
                 error_message: error.message,
                 timestamp: new Date().toISOString()
