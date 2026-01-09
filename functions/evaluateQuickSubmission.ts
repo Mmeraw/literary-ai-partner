@@ -762,6 +762,75 @@ Also identify 3-5 priority wave numbers to focus on and next actions.`,
             }
         };
 
+        // POSTFLIGHT INTEGRITY GATE (Function #6 Lock)
+        // Fail-closed validator prevents integrity drift from shipping
+        const integrityFailures = [];
+        
+        // Rule 1: Scored count must match plan
+        const scoredCount = processedCriteria.length;
+        const expectedScoredCount = applicableCriteria.length;
+        if (scoredCount !== expectedScoredCount) {
+            integrityFailures.push(`SCORED_COUNT_MISMATCH: got ${scoredCount}, expected ${expectedScoredCount}`);
+        }
+        
+        // Rule 2: No N/A criterion can have a score
+        const forbiddenScored = processedCriteria.filter(c => 
+            naCriteriaSet.has(c.criterion_id)
+        );
+        if (forbiddenScored.length > 0) {
+            integrityFailures.push(`FORBIDDEN_SCORED: ${forbiddenScored.map(c => c.criterion_id).join(', ')}`);
+        }
+        
+        // Rule 3: Craft score must not use N/A in denominator
+        // (This will be fixed in Step 2, for now just detect if total criteria used)
+        const usesTotalCriteria = scoredCount < 13 && cappedOverallScore < 5;
+        if (usesTotalCriteria) {
+            integrityFailures.push(`CRAFT_SCORE_DENOMINATOR_SUSPECT: score ${cappedOverallScore} seems to include N/A criteria`);
+        }
+        
+        // Rule 4: N/A section must exist when N/A criteria present
+        // (ViewReport enforces this, but mark if missing)
+        if (naCriteria.length > 0 && !evaluationResult.work_type_routing.na_criteria) {
+            integrityFailures.push(`NA_SECTION_MISSING: ${naCriteria.length} N/A criteria not tracked`);
+        }
+        
+        if (integrityFailures.length > 0) {
+            console.error('[POSTFLIGHT INTEGRITY GATE FAILURE]', {
+                failures: integrityFailures,
+                work_type: final_work_type_used,
+                scored_count: scoredCount,
+                expected_scored: expectedScoredCount,
+                na_criteria: naCriteria,
+                processedCriteria: processedCriteria.map(c => c.criterion_id)
+            });
+            
+            // Sentry alert for integrity breach
+            Sentry.captureMessage('EVAL_INTEGRITY_FAILURE', {
+                level: 'error',
+                tags: { integrity_breach: true },
+                extra: {
+                    failures: integrityFailures,
+                    work_type: final_work_type_used,
+                    scored_count: scoredCount,
+                    expected_scored: expectedScoredCount,
+                    na_criteria: naCriteria
+                }
+            });
+            
+            return Response.json({
+                error: 'Evaluation integrity check failed',
+                code: 'EVAL_INTEGRITY_FAILURE',
+                details: 'The evaluation result does not meet quality standards. This has been logged for review.',
+                integrity_failures: integrityFailures
+            }, { status: 500 });
+        }
+        
+        console.log('[POSTFLIGHT INTEGRITY GATE PASSED]', {
+            scored_count: scoredCount,
+            na_count: naCriteria.length,
+            work_type: final_work_type_used
+        });
+
         // Save to database with Work Type audit trail
         let submissionId = null;
         try {
