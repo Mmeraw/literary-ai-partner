@@ -190,6 +190,34 @@ Deno.serve(async (req) => {
             na_criteria: naCriteria
         });
         
+        // ENFORCE N/A FOR MICRO SAMPLES (Sample Scope Enforcement v1.0.0)
+        if (sampleScope === 'S1' && criteriaPlan.family === 'micro') {
+            
+            // ALWAYS N/A for S1 micro (cannot assess from paragraph):
+            criteriaPlan.criteria.marketFit = { status: 'NA' };
+            criteriaPlan.criteria.stakes = { status: 'NA' };
+            criteriaPlan.criteria.keepGoing = { status: 'NA' };
+            
+            // CONDITIONAL N/A (feature-gated):
+            if (!hasDialogue) {
+                criteriaPlan.criteria.dialogue = { status: 'NA' };
+            }
+            
+            if (wordCount < 200 || !hasMultipleCharacters) {
+                criteriaPlan.criteria.character = { status: 'NA' };
+                criteriaPlan.criteria.pacing = { status: 'NA' };
+            }
+            
+            // Log for verification
+            console.log('[Sample Scope Enforcement]', {
+                sampleScope,
+                wordCount,
+                hasDialogue,
+                naCriteria: Object.keys(criteriaPlan.criteria)
+                    .filter(k => criteriaPlan.criteria[k].status === 'NA')
+            });
+        }
+        
         // Map criterion IDs to labels for LLM prompt
         const criteriaLabels = {
             hook: 'The Hook - First pages pull reader in with intrigue, tension, unique voice',
