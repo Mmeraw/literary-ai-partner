@@ -79,11 +79,11 @@ async function loadMasterData() {
             },
             "flashFictionMicro": {
                 "label": "Flash Fiction / Micro",
-                "family": "Prose Fiction",
+                "family": "micro",
                 "criteria": {
-                    "hook": "R", "voice": "R", "character": "O", "conflict": "R", "theme": "R",
-                    "pacing": "R", "dialogue": "O", "worldbuilding": "O", "stakes": "R",
-                    "linePolish": "R", "marketFit": "O", "keepGoing": "R", "technical": "R"
+                    "hook": "R", "voice": "R", "character": "C", "conflict": "R", "theme": "R",
+                    "pacing": "NA", "dialogue": "C", "worldbuilding": "NA", "stakes": "NA",
+                    "linePolish": "R", "marketFit": "NA", "keepGoing": "NA", "technical": "R"
                 }
             },
             "proseScene": {
