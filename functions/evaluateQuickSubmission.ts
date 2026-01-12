@@ -30,6 +30,7 @@ Deno.serve(async (req) => {
         });
         const preflight = preflightResponse.data;
         
+        
         if (!preflight.allowed) {
             // Create audit log for blocked request
             try {
