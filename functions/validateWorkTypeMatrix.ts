@@ -7,6 +7,7 @@ Sentry.init({
   tracesSampleRate: 1.0,
 });
 
+
 // Load master data
 let masterData = null;
 let validationCache = null;
