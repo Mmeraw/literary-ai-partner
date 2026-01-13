@@ -1,0 +1,199 @@
+# BASE44 FILE ACCESS BUG REPORT
+**Report ID:** BASE44-BUG-2026-01-10-001  
+**Reporter:** RevisionGrade Application Owner  
+**Date:** 2026-01-10  
+**Severity:** HIGH (Blocks governance validation)  
+**Status:** OPEN
+
+---
+
+## SUMMARY
+
+AI assistant cannot read 119 of 121 .md files in `functions/` directory despite files appearing in UI file browser. This blocks the `validateCanonCompliance.js` function from comparing canonical governance specs against live enforcement code.
+
+---
+
+## IMPACT
+
+### Immediate Impact
+- **Canon compliance validation BLOCKED** - cannot verify code matches governance specs
+- **Governance drift detection IMPOSSIBLE** - no way to catch when code and specs diverge
+- **Manual audits required** - defeats purpose of automated validation
+
+### Downstream Risk
+- Code changes occur without spec validation
+- Specs become stale without detection
+- User-facing errors caused by drift go unnoticed until production
+- Governance architecture incomplete
+
+---
+
+## REPRODUCTION STEPS
+
+1. Open Base44 AI chat interface
+2. Request file read via `read_file` tool
+3. Attempt to read any .md file from `functions/` directory (except WAVE_GUIDE.md and CONSOLIDATED_GOVERNANCE_EXPORT.md)
+4. Observe "File not found" error despite file showing in UI browser
+
+### Example Failed Reads
+```
+read_file("functions/MATRIX_PREFLIGHT_SPEC.md") → "File not found"
+read_file("functions/WORK_TYPE_GOVERNANCE_CLARIFICATION.md") → "File not found"
+read_file("functions/_canon/WORK_TYPE_POLICY_ROUTING_SPEC_v1.0.0.md") → "File not found"
+read_file("functions/masterdata/BIO_GOVERNANCE_CANON.md") → "File not found"
+```
+
+### Successful Reads (Control)
+```
+read_file("functions/WAVE_GUIDE.md") → SUCCESS (502 lines)
+read_file("functions/CONSOLIDATED_GOVERNANCE_EXPORT.md") → SUCCESS
+```
+
+---
+
+## EXPECTED BEHAVIOR
+
+All files visible in UI file browser should be readable via `read_file` tool when:
+1. User has access to the app
+2. Files exist in app's functions directory
+3. Files are not explicitly protected
+
+---
+
+## ACTUAL BEHAVIOR
+
+- **UI shows:** 121 .md files exist in functions/
+- **read_file returns:** "File not found" for 119/121 files
+- **Files accessible:** Only 2 files readable (WAVE_GUIDE.md, CONSOLIDATED_GOVERNANCE_EXPORT.md)
+
+---
+
+## AFFECTED FILES (119 total)
+
+### Canonical Specs (_canon/ directory)
+- WORK_TYPE_POLICY_ROUTING_SPEC_v1.0.0.md
+- INTEGRITY_GATE_SPEC_v1.0.0.md
+- PHASE_3_EXECUTION_RULES_v1.0.0.md
+- AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0.md
+- AUTHOR_DTO_ALLOWLIST_RULE_v1.0.0.md
+- COPY_BLOCKS_MANUSCRIPT_v1.0.0.md
+- COPY_BLOCKS_MICRO_v1.0.0.md
+- COPY_BLOCKS_NA_REASONS_v1.0.0.md
+- INDUSTRY_ENTITIES_v1.0.0.md
+- INDUSTRY_PORTAL_SPEC_v1.0.0.md
+- SECURITY_INVARIANTS_INDEX_v1.0.0.md
+
+### Master Data
+- masterdata/BIO_GOVERNANCE_CANON.md
+- masterdata/work_type_criteria_applicability.v1.json
+
+### Governance Documentation (106+ files)
+See CONSOLIDATED_GOVERNANCE_EXPORT.md Section 3 for complete list including:
+- MATRIX_PREFLIGHT_SPEC.md
+- VOICE_PRESERVATION_CANON.md
+- TRANSGRESSIVE_MODE_SPEC.md
+- WAVE_SYNOPSIS_EXTRACTION_RULES.md
+- WAVE_VALIDATION_SUITE.md
+- MASTER_FUNCTION_GOVERNANCE_SPEC.md
+- EVALUATE_ENTRY_CANON.md
+- [103 additional files...]
+
+---
+
+## ROOT CAUSE HYPOTHESIS
+
+### Possible Causes
+1. **Permission Issue:** AI tool has read restrictions on .md files (but why do 2 work?)
+2. **File Extension Filter:** Platform blocks .md reads by default (but WAVE_GUIDE.md works)
+3. **Stale Cache:** Files were deleted but UI cache still shows them
+4. **Path Resolution:** Tool can't resolve paths with subdirectories (_canon/, masterdata/)
+5. **File Encoding:** Files saved with encoding the tool can't parse
+
+### Evidence Against "Files Don't Exist"
+- Files appear in UI file browser
+- User confirms files exist locally
+- CONSOLIDATED_GOVERNANCE_EXPORT.md references all files and was generated recently
+- No deletion events logged
+
+---
+
+## DIAGNOSTIC DATA
+
+### Environment
+- **Platform:** Base44
+- **App ID:** [RevisionGrade Production]
+- **Date Tested:** 2026-01-10
+- **Tool Used:** `read_file` via AI assistant
+- **User Role:** Admin/Owner
+
+### Test Matrix
+| File | Path | Result | Size Estimate |
+|------|------|--------|---------------|
+| WAVE_GUIDE.md | functions/ | ✅ SUCCESS | 502 lines |
+| CONSOLIDATED_GOVERNANCE_EXPORT.md | functions/ | ✅ SUCCESS | ~600 lines |
+| MATRIX_PREFLIGHT_SPEC.md | functions/ | ❌ FAIL | Unknown |
+| WORK_TYPE_POLICY_ROUTING_SPEC_v1.0.0.md | functions/_canon/ | ❌ FAIL | Unknown |
+| BIO_GOVERNANCE_CANON.md | functions/masterdata/ | ❌ FAIL | Unknown |
+
+---
+
+## REQUESTED RESOLUTION
+
+### Required Actions
+1. **Investigate:** Determine why 119/121 .md files return "File not found"
+2. **Fix:** Enable read access for all .md files in functions/ directory
+3. **Test:** Verify `read_file` tool can access all files visible in UI
+4. **Document:** Clarify any intentional file access restrictions
+
+### Success Criteria
+- `read_file("functions/MATRIX_PREFLIGHT_SPEC.md")` returns content
+- `read_file("functions/_canon/WORK_TYPE_POLICY_ROUTING_SPEC_v1.0.0.md")` returns content
+- `validateCanonCompliance.js` can load all canonical specs
+- No false "File not found" errors for files in UI browser
+
+---
+
+## WORKAROUND (TEMPORARY)
+
+Current workaround while bug exists:
+1. User manually copies .md file content
+2. User pastes into chat for AI to parse
+3. AI performs validation manually
+
+**This defeats the purpose of automated validation.**
+
+---
+
+## PRIORITY JUSTIFICATION
+
+### Why HIGH Priority?
+1. **Blocks core feature:** Canon compliance validation unusable
+2. **Governance risk:** No automated drift detection
+3. **User trust:** App owner cannot audit governance integrity
+4. **Engineering debt:** Manual workarounds required
+
+### Business Impact
+- Governance validation architecture incomplete
+- Cannot confidently deploy code changes
+- Audit trail incomplete without automated compliance checks
+- Trust in governance framework undermined
+
+---
+
+## ATTACHMENTS
+
+1. `CONSOLIDATED_GOVERNANCE_EXPORT.md` - Lists all 119 affected files
+2. `validateCanonCompliance.js` - Function blocked by this bug
+3. `GOVERNANCE_CODE_EXTRACT.js` - Live code extract for comparison
+
+---
+
+## CONTACT
+
+**For Questions:** RevisionGrade app owner via Base44 support  
+**Related Tickets:** None  
+**Dependencies:** validateCanonCompliance.js implementation
+
+---
+
+**END OF BUG REPORT**

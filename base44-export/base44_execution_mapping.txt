@@ -1,0 +1,1113 @@
+# BASE44 EXECUTION MAPPING
+## RevisionGrade System Implementation Plan
+
+**Status:** Binding Implementation Plan  
+**Date:** 2026-01-04  
+**Version:** 1.0  
+**Prepared by:** Base44 Engineering Team
+
+---
+
+## Executive Summary
+
+This document provides the layer-by-layer implementation mapping for RevisionGrade as requested. All mandatory system layers are addressed with explicit implementation approaches, ownership, acceptance criteria, and instrumentation points.
+
+**Key Confirmations:**
+- All 8 mandatory layers are implementable within Base44 architecture
+- No fundamental blockers identified
+- Release gates are enforceable at platform level
+- Monitoring and metrics infrastructure is in place
+
+**Key Dependencies:**
+- RevisionGrade must provide evaluation logic, confidence scoring algorithms, and threshold definitions
+- Shared responsibility on acceptance criteria validation
+- Control Tower dashboard design to be finalized jointly
+
+---
+
+## LAYER 1: INPUT & CONTEXT INGESTION
+
+### Scope / Responsibilities
+
+**MUST DO:**
+- Ingest manuscript files (DOCX, TXT, PDF, RTF) via existing upload infrastructure
+- Parse structural elements (chapters, scenes, dialogue, metadata)
+- Create immutable input snapshot per evaluation run
+- Version and timestamp all inputs
+- Extract observable facts only (title, character names mentioned, structural markers)
+
+**MUST NOT DO:**
+- Infer missing information
+- Correct or interpret content
+- Mutate input after evaluation begins
+- Make assumptions about author intent
+
+### Implementation Approach
+
+**Components:**
+- Extend existing `ingestUploadedFileToText` function
+- New `Manuscript` entity with immutable snapshot field
+- New `ManuscriptVersion` entity for audit trail
+- Structural parsing via existing document conversion pipeline
+- Metadata extraction using LLM with strict "observable facts only" prompt
+
+**Data Flow:**
+```
+Upload → File Storage → Text Extraction → Structure Parse → Immutable Snapshot → Entity Lock
+```
+
+**Technical Details:**
+- Use Base44 file storage for raw uploads
+- Store extracted text in `Manuscript.full_text` (immutable)
+- Store structural map in `Manuscript.structure_json` (chapters array, metadata)
+- `Manuscript.ingestion_locked_at` timestamp prevents mutation
+- All changes after lock create new version via `ManuscriptVersion` entity
+
+### Ownership & Accountability
+
+| Responsibility | Owner |
+|---|---|
+| File upload infrastructure | Base44 |
+| Text extraction logic | Base44 (existing) |
+| Structure parsing rules | RevisionGrade |
+| Immutability enforcement | Base44 |
+| Version control | Base44 |
+| Parse accuracy validation | Joint |
+
+### Test Plan + Acceptance Criteria
+
+**Release-Blocking Tests:**
+
+1. **Immutability Test**
+   - Evidence: Attempt to modify locked manuscript returns error
+   - Evidence: Timestamp proves lock enforcement
+
+2. **Idempotency Test**
+   - Evidence: Same input yields identical parsed structure across multiple ingestions
+   - Evidence: Character list, chapter boundaries, metadata consistent
+
+3. **No Inference Test**
+   - Evidence: Ambiguous inputs remain ambiguous (e.g., unclear POV flagged as "unknown")
+   - Evidence: No fabricated characters or events in extracted metadata
+
+4. **Auditability Test**
+   - Evidence: Every ingestion logged with user, timestamp, file hash
+   - Evidence: Version history retrievable
+
+**Acceptance Evidence:**
+- Test suite passing (100% of above tests)
+- Manual review of 10 sample manuscripts showing no hallucination
+- Audit log export demonstrating immutability
+
+### Instrumentation
+
+**Metrics to Track:**
+- `ingestion_success_rate` (%)
+- `ingestion_error_rate` by file type (%)
+- `parse_accuracy_score` (manual validation sample)
+- `immutability_violations` (count, should be 0)
+- `ingestion_duration_ms` (p50, p95, p99)
+
+**Events to Log:**
+- `manuscript_uploaded` (user, file_url, timestamp)
+- `manuscript_parsed` (manuscript_id, structure_summary, timestamp)
+- `manuscript_locked` (manuscript_id, timestamp)
+- `parse_failure` (error_type, file_type, details)
+
+**Sentry Tags:**
+- `pipeline: ingestion`
+- `feature: upload`
+- `manuscript_id: {id}`
+
+---
+
+## LAYER 2: EVALUATION & ANALYSIS ENGINE
+
+### Scope / Responsibilities
+
+**MUST DO:**
+- Apply WAVE framework (61 principles across 3 tiers: early, mid, late)
+- Apply 13 Story Evaluation Criteria
+- Detect ambiguity, inconsistency, missing data
+- Produce findings with evidence references
+- Flag structural issues (POV breaks, character inconsistencies, logic gaps)
+
+**MUST NOT DO:**
+- Make final readiness decisions
+- Resolve ambiguity without flagging it
+- Produce assertions without evidence attribution
+- Override author-provided facts
+
+### Implementation Approach
+
+**Components:**
+- Existing `evaluateFullManuscript` function (already implements WAVE + 13 criteria)
+- Chapter-level evaluation via `evaluateChapterParallel`
+- Spine synthesis via existing spine evaluation logic
+- Integration with OpenAI API for analysis
+
+**Data Flow:**
+```
+Manuscript → Chapter Split → Parallel Evaluation (Agent + WAVE Tiers) → Aggregate → Spine Synthesis → Store Results
+```
+
+**Technical Details:**
+- Backend function orchestrates evaluation phases
+- Each chapter receives: agent analysis (12 criteria) + WAVE analysis (3 tiers)
+- Results stored in `Chapter.evaluation_result` and `Chapter.wave_results_json`
+- Spine evaluation stored in `Manuscript.spine_evaluation`
+- Ambiguity preserved via explicit "unknown" states in evaluation JSON
+
+### Ownership & Accountability
+
+| Responsibility | Owner |
+|---|---|
+| Evaluation prompt engineering | RevisionGrade |
+| WAVE principle definitions | RevisionGrade |
+| 13-criteria scoring rubric | RevisionGrade |
+| LLM orchestration infrastructure | Base44 |
+| Result storage & versioning | Base44 |
+| Ambiguity detection accuracy | Joint validation |
+
+### Test Plan + Acceptance Criteria
+
+**Release-Blocking Tests:**
+
+1. **Ambiguity Preservation Test**
+   - Evidence: Manuscript with unclear protagonist returns "protagonist: unknown" or "protagonist: ambiguous between X and Y"
+   - Evidence: No forced resolution of contradictory facts
+
+2. **Evidence Attribution Test**
+   - Evidence: Every weakness/strength includes text excerpt or chapter reference
+   - Evidence: No generic claims without citation
+
+3. **No Hallucination Test**
+   - Evidence: Characters not in manuscript don't appear in evaluation
+   - Evidence: Events not described don't appear in findings
+
+4. **Consistency Test**
+   - Evidence: Re-running evaluation on same manuscript yields consistent findings
+   - Evidence: Score variance < 0.5 points across runs
+
+**Acceptance Evidence:**
+- Regression test suite (gold standard manuscripts with known correct evaluations)
+- Manual validation of 20 diverse manuscripts showing no hallucination
+- Ambiguity preservation validated in 10 edge cases
+
+### Instrumentation
+
+**Metrics to Track:**
+- `evaluation_accuracy_vs_validation` (% of claims validated as correct)
+- `hallucination_rate` (% of evaluations with fabricated details)
+- `ambiguity_detection_rate` (% of ambiguous manuscripts correctly flagged)
+- `evaluation_duration_ms` by manuscript length (p50, p95, p99)
+- `wave_tier_failure_rate` (% of chapters with failed WAVE tiers)
+
+**Events to Log:**
+- `evaluation_started` (manuscript_id, user, timestamp)
+- `chapter_evaluated` (chapter_id, scores, duration_ms)
+- `evaluation_completed` (manuscript_id, overall_score, duration_ms)
+- `evaluation_failed` (manuscript_id, error_type, details)
+- `ambiguity_detected` (manuscript_id, ambiguity_type, location)
+
+**Sentry Tags:**
+- `pipeline: full_manuscript`
+- `feature: evaluate`
+- `manuscript_id: {id}`
+- `evaluation_mode: {standard|transgressive|trauma_memoir}`
+
+---
+
+## LAYER 3: CONFIDENCE & UNCERTAINTY LAYER
+
+### Scope / Responsibilities
+
+**MUST DO:**
+- Assign confidence score (0-100% or 0-10 scale) to every evaluative claim
+- Classify outputs into confidence bands (High ≥95%, Medium 80-94%, Low <80%)
+- Surface "unknown" / "indeterminate" states explicitly
+- Prevent confidence inflation
+- Tag outputs below threshold for special handling
+
+**MUST NOT DO:**
+- Present low-confidence outputs as certain
+- Hide uncertainty to improve perception
+- Allow outputs without confidence metadata
+- Auto-resolve uncertainty
+
+### Implementation Approach
+
+**Components:**
+- **Currently Missing** - New `ConfidenceModel` module required
+- Confidence scoring logic per claim type (structural, character, narrative)
+- Threshold enforcement in release gate
+- UI components for confidence visualization
+
+**Proposed Architecture:**
+```typescript
+interface ConfidenceScore {
+  value: number; // 0-100
+  band: 'high' | 'medium' | 'low';
+  rationale: string;
+  evidence_strength: 'strong' | 'moderate' | 'weak';
+  ambiguity_flags: string[];
+}
+
+interface EvaluativeClaim {
+  claim_type: string;
+  assertion: string;
+  evidence: string[];
+  confidence: ConfidenceScore;
+}
+```
+
+**Data Flow:**
+```
+Evaluation Findings → Confidence Assignment → Band Classification → Metadata Attachment → UI Rendering
+```
+
+**Technical Implementation:**
+- Add `confidence_metadata` field to evaluation results
+- Implement confidence scoring rules (e.g., multiple evidence sources = higher confidence)
+- Create UI components: `<ConfidenceBadge />`, `<ConfidenceExplanation />`
+- Store confidence history for calibration tracking
+
+### Ownership & Accountability
+
+| Responsibility | Owner |
+|---|---|
+| Confidence scoring algorithm | RevisionGrade |
+| Threshold definitions (e.g., 95%) | RevisionGrade |
+| Confidence metadata enforcement | Base44 |
+| UI visualization | Base44 |
+| Calibration tracking | Joint |
+| Inflation prevention | Base44 (enforcement) |
+
+### Test Plan + Acceptance Criteria
+
+**Release-Blocking Tests:**
+
+1. **100% Coverage Test**
+   - Evidence: Every evaluation output includes confidence metadata
+   - Evidence: No claim presented without confidence
+
+2. **Band Classification Test**
+   - Evidence: Outputs correctly classified into high/medium/low bands
+   - Evidence: Band thresholds enforced (≥95% = high, etc.)
+
+3. **No Inflation Test**
+   - Evidence: Confidence scores do not increase without new evidence
+   - Evidence: Audit log shows no manual confidence overrides
+
+4. **Unknown State Test**
+   - Evidence: Ambiguous evaluations return confidence band "low" or "indeterminate"
+   - Evidence: UI displays "uncertain" rather than hiding it
+
+**Acceptance Evidence:**
+- 100% of test evaluations include confidence metadata
+- Manual review confirms no confidence inflation in 50 sample evaluations
+- UI screenshots showing explicit uncertainty rendering
+
+### Instrumentation
+
+**Metrics to Track:**
+- `confidence_coverage_rate` (% outputs with confidence metadata, target 100%)
+- `high_confidence_rate` (% outputs in high band)
+- `low_confidence_rate` (% outputs in low band)
+- `confidence_calibration_accuracy` (predicted confidence vs actual validation)
+- `confidence_inflation_incidents` (count, should be 0)
+
+**Events to Log:**
+- `confidence_assigned` (claim_id, confidence_score, band, rationale)
+- `low_confidence_output_generated` (output_id, confidence_score, reason)
+- `confidence_inflation_detected` (output_id, old_score, new_score, trigger)
+- `unknown_state_preserved` (manuscript_id, ambiguity_type)
+
+**Sentry Tags:**
+- `pipeline: confidence`
+- `feature: scoring`
+- `confidence_band: {high|medium|low}`
+
+**ASSUMPTION:**
+RevisionGrade will provide the confidence scoring algorithm and threshold values before Phase 2 implementation begins.
+
+---
+
+## LAYER 4: AUTHOR DECISION & ACCEPTANCE INTERFACE
+
+### Scope / Responsibilities
+
+**MUST DO:**
+- Present evaluation findings with confidence clearly visible
+- Require explicit author acknowledgment for below-threshold outputs
+- Allow selective acceptance, rejection, or re-analysis per finding
+- Log all acceptance decisions immutably
+- Preserve author as final authority
+
+**MUST NOT DO:**
+- Auto-accept below-threshold outputs
+- Proceed to export without explicit acceptance
+- Allow silent overrides
+- Mutable decision logs
+
+### Implementation Approach
+
+**Components:**
+- New `AcceptanceDecision` entity (immutable)
+- UI components: acceptance modal, confidence warnings, decision log viewer
+- Workflow enforcement in frontend + backend
+
+**Entity Schema:**
+```json
+{
+  "name": "AcceptanceDecision",
+  "properties": {
+    "manuscript_id": "string",
+    "output_type": "string (evaluation|synopsis|query_letter|etc)",
+    "confidence_band": "string (high|medium|low)",
+    "author_decision": "string (accepted|rejected|re_analyze)",
+    "acknowledged_risks": "array<string>",
+    "decision_timestamp": "datetime",
+    "decision_by": "string (user email)"
+  }
+}
+```
+
+**UI Flow:**
+```
+Evaluation Complete → Confidence Check → (if low) → Warning Modal → Explicit Opt-In Required → Log Decision → Proceed
+```
+
+**Technical Details:**
+- Frontend: React modal with explicit checkbox "I understand this evaluation has low confidence and may require manual review"
+- Backend: `acceptEvaluationOutput` function validates confidence before allowing export
+- Immutability enforced by entity design (no update method, only create)
+
+### Ownership & Accountability
+
+| Responsibility | Owner |
+|---|---|
+| Acceptance UI design | Base44 |
+| Workflow enforcement logic | Base44 |
+| Decision logging | Base44 |
+| Immutability enforcement | Base44 |
+| Threshold definition | RevisionGrade |
+| Risk messaging copy | RevisionGrade |
+
+### Test Plan + Acceptance Criteria
+
+**Release-Blocking Tests:**
+
+1. **Below-Threshold Gate Test**
+   - Evidence: Low-confidence output cannot proceed without explicit opt-in
+   - Evidence: Attempt to bypass returns error
+
+2. **Immutable Log Test**
+   - Evidence: Acceptance decisions cannot be modified after creation
+   - Evidence: Audit log shows all decisions with timestamps
+
+3. **Author Authority Test**
+   - Evidence: Author can reject high-confidence outputs
+   - Evidence: System respects rejection and does not auto-proceed
+
+4. **Re-Analysis Test**
+   - Evidence: Author can trigger re-evaluation
+   - Evidence: New evaluation creates new decision record (doesn't overwrite)
+
+**Acceptance Evidence:**
+- Test suite covering all decision paths (accept/reject/re-analyze)
+- Manual QA walkthrough demonstrating gate enforcement
+- Audit log export showing immutability
+
+### Instrumentation
+
+**Metrics to Track:**
+- `acceptance_rate_by_confidence_band` (%)
+- `rejection_rate` (%)
+- `re_analysis_rate` (%)
+- `below_threshold_acceptances` (count)
+- `decision_time_to_action` (minutes between evaluation and decision)
+
+**Events to Log:**
+- `acceptance_decision_made` (decision_id, manuscript_id, decision, confidence_band, timestamp)
+- `below_threshold_accepted` (manuscript_id, confidence_score, acknowledged_risks, user)
+- `output_rejected` (manuscript_id, output_type, reason, user)
+- `re_analysis_requested` (manuscript_id, reason, user)
+
+**Sentry Tags:**
+- `pipeline: acceptance`
+- `feature: decision_gate`
+- `confidence_band: {high|medium|low}`
+
+---
+
+## LAYER 5: RELEASE GATE & OUTPUT CONTROL
+
+### Scope / Responsibilities
+
+**MUST DO:**
+- Enforce readiness thresholds before export
+- Block export if confidence < threshold OR acceptance missing
+- Label outputs as Not Ready / Conditionally Ready / Ready
+- Apply gates equally to all users (no admin bypass)
+
+**MUST NOT DO:**
+- Allow bypass mechanisms
+- Silent release of below-threshold outputs
+- Release without acceptance decision on file
+
+### Implementation Approach
+
+**Components:**
+- New `ReleaseGate` backend function (called before any export)
+- `OutputReadiness` entity tracking gate status
+- UI state management preventing premature download/export
+
+**Readiness States:**
+```typescript
+type ReadinessState = 
+  | 'NOT_READY'       // Evaluation incomplete or failed
+  | 'CONDITIONAL'     // Below threshold, requires acceptance
+  | 'READY';          // Above threshold OR acceptance on file
+```
+
+**Gate Logic:**
+```typescript
+function checkReleaseGate(manuscriptId: string): ReadinessState {
+  const manuscript = getManuscript(manuscriptId);
+  const confidence = manuscript.confidence_score;
+  const acceptance = getAcceptanceDecision(manuscriptId);
+  
+  if (!manuscript.evaluation_complete) return 'NOT_READY';
+  if (confidence >= THRESHOLD) return 'READY';
+  if (acceptance?.decision === 'accepted') return 'READY';
+  return 'CONDITIONAL';
+}
+```
+
+**Technical Details:**
+- Backend function `releaseGate` called before export/download
+- Returns `{allowed: boolean, state: ReadinessState, reason: string}`
+- Frontend disables export buttons until gate passes
+- All export functions (PDF, DOCX, email) validate gate first
+
+### Ownership & Accountability
+
+| Responsibility | Owner |
+|---|---|
+| Gate logic implementation | Base44 |
+| Threshold enforcement | Base44 |
+| No-bypass guarantee | Base44 |
+| Readiness state tracking | Base44 |
+| Threshold values | RevisionGrade |
+| Override prohibition | Joint commitment |
+
+### Test Plan + Acceptance Criteria
+
+**Release-Blocking Tests:**
+
+1. **Gate Enforcement Test**
+   - Evidence: Below-threshold output without acceptance blocked
+   - Evidence: API returns 403 Forbidden with clear reason
+
+2. **No Bypass Test**
+   - Evidence: Admin account cannot bypass gate
+   - Evidence: Direct API calls to export functions return 403 if gate fails
+
+3. **Readiness State Test**
+   - Evidence: UI displays correct state (Not Ready / Conditional / Ready)
+   - Evidence: State updates in real-time when acceptance provided
+
+4. **Audit Trail Test**
+   - Evidence: All gate checks logged with timestamp, user, outcome
+   - Evidence: Blocked attempts visible in audit log
+
+**Acceptance Evidence:**
+- Security test demonstrating no bypass possible
+- Manual QA showing all export paths gated
+- Audit log export with gate check history
+
+### Instrumentation
+
+**Metrics to Track:**
+- `gate_pass_rate` (% outputs passing gate on first check)
+- `gate_block_rate` (% outputs blocked)
+- `conditional_release_rate` (% requiring acceptance)
+- `bypass_attempts` (count, should be 0)
+
+**Events to Log:**
+- `release_gate_checked` (manuscript_id, state, confidence, timestamp)
+- `release_gate_passed` (manuscript_id, export_type, user, timestamp)
+- `release_gate_blocked` (manuscript_id, reason, user, timestamp)
+- `bypass_attempt_detected` (manuscript_id, user, method, timestamp)
+
+**Sentry Tags:**
+- `pipeline: release_gate`
+- `feature: export_control`
+- `readiness_state: {not_ready|conditional|ready}`
+
+**HARD COMMITMENT:**
+No bypass, no exceptions. Gate failures are treated as security incidents (Severity-1).
+
+---
+
+## LAYER 6: REPORTING, DASHBOARDS & MONITORING (CONTROL TOWER)
+
+### Scope / Responsibilities
+
+**MUST DO:**
+- Track accuracy, confidence, incident metrics continuously
+- Provide separate dashboards for internal, partner, investor audiences
+- Surface trends, anomalies, degradation early
+- Enable drill-down from metrics to specific incidents
+
+**MUST NOT DO:**
+- Suppress metrics to improve optics
+- Allow metric manipulation
+- Delay metric updates beyond defined SLA (near-real-time)
+
+### Implementation Approach
+
+**Components:**
+- Analytics dashboard page (`pages/ControlTower.js` or similar)
+- Metrics aggregation backend functions
+- Real-time metric updates via database queries
+- Sentry integration for error/incident tracking
+
+**Dashboard Views:**
+
+1. **Operational Health Dashboard** (Internal)
+   - Evaluation success rate
+   - Confidence calibration trend
+   - Gate pass/block rates
+   - Incident frequency by type
+   - Mean time to detection (MTTD) / resolution (MTTR)
+
+2. **Quality & Risk Dashboard** (Governance)
+   - Accuracy vs validation outcomes
+   - Hallucination/misattribution incidents
+   - Low-confidence output rate
+   - Repeated error classes
+
+3. **Partner SLA Dashboard** (Base44 View)
+   - Uptime
+   - Response times (p95, p99)
+   - Error rates
+   - Deployment stability
+
+4. **Strategic Summary Dashboard** (Investor View)
+   - High-level health score
+   - Trend lines (accuracy improving, confidence calibrating)
+   - Major incident summary
+   - Learning velocity
+
+**Data Flow:**
+```
+System Events → Analytics Entity → Aggregation Function → Dashboard Query → React Components → Live UI
+```
+
+**Technical Details:**
+- Use existing `Analytics` entity to store granular events
+- Create aggregation functions (daily/weekly rollups)
+- Dashboard components use React Query for auto-refresh
+- Charts via Recharts library
+
+### Ownership & Accountability
+
+| Responsibility | Owner |
+|---|---|
+| Dashboard UI implementation | Base44 |
+| Metrics collection infrastructure | Base44 |
+| Metric definition & targets | RevisionGrade |
+| Dashboard access control | Base44 |
+| Metric interpretation | RevisionGrade |
+| No suppression guarantee | Joint commitment |
+
+### Test Plan + Acceptance Criteria
+
+**Release-Blocking Tests:**
+
+1. **Near-Real-Time Test**
+   - Evidence: Event logged in database appears on dashboard within 60 seconds
+   - Evidence: Manual event trigger → dashboard update confirmed
+
+2. **No Suppression Test**
+   - Evidence: Negative metrics (high error rate, low confidence) visible immediately
+   - Evidence: No filtering or hiding of "bad" data
+
+3. **Trend Detection Test**
+   - Evidence: Dashboard identifies confidence drift over time
+   - Evidence: Alert triggered when metric crosses threshold
+
+4. **Drill-Down Test**
+   - Evidence: Click on metric → view underlying incidents/events
+   - Evidence: Trace from aggregate to individual manuscript
+
+**Acceptance Evidence:**
+- Dashboard functional demo showing all 4 views
+- Real-time test showing 60-second latency
+- Manual review confirming no metric suppression
+
+### Instrumentation
+
+**Metrics to Track:**
+*(These are the metrics the Control Tower displays)*
+
+**Accuracy Metrics:**
+- `evaluation_accuracy_rate` (%)
+- `hallucination_incident_rate` (per 1000 evaluations)
+- `misattribution_rate` (%)
+
+**Confidence Metrics:**
+- `confidence_calibration_error` (predicted vs actual)
+- `high_confidence_rate` (%)
+- `low_confidence_acceptance_rate` (%)
+
+**Quality Metrics:**
+- `incident_count_by_type` (count per type per week)
+- `mean_time_to_detection_hours` (MTTD)
+- `mean_time_to_resolution_hours` (MTTR)
+
+**Reliability Metrics:**
+- `evaluation_failure_rate` (%)
+- `regression_incident_count` (per release)
+- `uptime_percentage` (%)
+
+**Learning Metrics:**
+- `error_class_recurrence_rate` (% of error types appearing again)
+- `accuracy_improvement_trend` (delta per month)
+- `closed_loop_completion_rate` (% incidents with corrective action)
+
+**Events to Log:**
+- `metric_updated` (metric_name, value, timestamp)
+- `threshold_crossed` (metric_name, threshold, current_value, direction)
+- `dashboard_accessed` (user, view_type, timestamp)
+
+**Sentry Tags:**
+- `pipeline: control_tower`
+- `feature: monitoring`
+
+**ASSUMPTION:**
+RevisionGrade will provide specific metric threshold values (e.g., "accuracy must be >92%") before dashboard goes live.
+
+---
+
+## LAYER 7: INCIDENT, LEARNING & FEEDBACK LOOP
+
+### Scope / Responsibilities
+
+**MUST DO:**
+- Log all significant failures, misclassifications, and user corrections
+- Perform root-cause analysis on repeated error classes
+- Feed validated learnings back into evaluation logic
+- Demonstrate measurable improvement over time
+
+**MUST NOT DO:**
+- Allow silent failures
+- Ignore repeated error patterns
+- Skip root-cause analysis
+- Claim improvement without evidence
+
+### Implementation Approach
+
+**Components:**
+- New `EvaluationIncident` entity
+- Incident classification logic (hallucination, ambiguity miss, confidence error, etc.)
+- Feedback collection UI (user reports issue with evaluation)
+- Learning integration: corrected evaluations inform prompt updates
+
+**Entity Schema:**
+```json
+{
+  "name": "EvaluationIncident",
+  "properties": {
+    "incident_id": "string",
+    "manuscript_id": "string",
+    "incident_type": "string (hallucination|ambiguity_missed|confidence_error|gate_bypass)",
+    "severity": "string (low|medium|high|critical)",
+    "description": "string",
+    "root_cause": "string",
+    "corrective_action": "string",
+    "corrective_action_status": "string (pending|implemented|validated)",
+    "reported_at": "datetime",
+    "resolved_at": "datetime"
+  }
+}
+```
+
+**Feedback Flow:**
+```
+User Reports Issue → Incident Logged → Classification → RCA (if repeated) → Corrective Action → Validation → Learning Update
+```
+
+**Learning Integration:**
+- User corrections stored in `EvaluationSignal` entity (already exists)
+- Repeated error classes trigger RCA workflow
+- Prompt improvements versioned and tested before deployment
+- Improvement tracked via accuracy metrics
+
+### Ownership & Accountability
+
+| Responsibility | Owner |
+|---|---|
+| Incident logging infrastructure | Base44 |
+| Incident classification logic | RevisionGrade |
+| RCA process | RevisionGrade |
+| Corrective action implementation | Joint |
+| Learning validation | Joint |
+| Improvement tracking | Base44 (metrics) |
+
+### Test Plan + Acceptance Criteria
+
+**Release-Blocking Tests:**
+
+1. **No Silent Failure Test**
+   - Evidence: All evaluation failures logged as incidents
+   - Evidence: Incident count > 0 for intentional test failures
+
+2. **RCA Trigger Test**
+   - Evidence: 3 incidents of same type trigger RCA workflow
+   - Evidence: RCA status tracked in incident entity
+
+3. **Learning Integration Test**
+   - Evidence: User correction → evaluation signal → prompt update
+   - Evidence: Corrected manuscript re-evaluated with higher accuracy
+
+4. **Improvement Measurement Test**
+   - Evidence: Accuracy metric improves month-over-month
+   - Evidence: Repeated error class count decreases
+
+**Acceptance Evidence:**
+- Incident log export showing all test failures captured
+- RCA documentation for at least one error class
+- Before/after accuracy comparison showing improvement
+
+### Instrumentation
+
+**Metrics to Track:**
+- `incident_count_by_type` (count per type per week)
+- `incident_severity_distribution` (% by severity)
+- `rca_trigger_rate` (% incidents triggering RCA)
+- `corrective_action_implementation_time` (days)
+- `error_class_recurrence_rate` (%)
+- `learning_velocity` (accuracy improvement per month)
+
+**Events to Log:**
+- `incident_reported` (incident_id, type, severity, manuscript_id, user, timestamp)
+- `rca_triggered` (incident_id, error_class, occurrence_count, timestamp)
+- `corrective_action_planned` (incident_id, action_description, owner, timestamp)
+- `corrective_action_implemented` (incident_id, implementation_details, timestamp)
+- `learning_update_applied` (update_type, version, validation_score, timestamp)
+
+**Sentry Tags:**
+- `pipeline: incident_management`
+- `feature: learning_loop`
+- `incident_type: {type}`
+- `severity: {low|medium|high|critical}`
+
+---
+
+## LAYER 8: OPERATIONAL STABILITY & VERSIONING
+
+### Scope / Responsibilities
+
+**MUST DO:**
+- Version all evaluation logic, criteria, thresholds
+- Regression test before every release
+- Ensure rollback capability
+- Maintain stable behavior under scale
+- Prevent breaking changes
+
+**MUST NOT DO:**
+- Deploy untested changes to production
+- Skip regression testing
+- Deploy without rollback plan
+- Allow unversioned changes to evaluation logic
+
+### Implementation Approach
+
+**Components:**
+- Evaluation logic versioning (currently ad-hoc, needs formalization)
+- Regression test suite (gold standard manuscripts with known correct evaluations)
+- Deployment pipeline with automated testing gates
+- Rollback mechanism (redeploy previous version)
+
+**Versioning Strategy:**
+```
+evaluation_logic_v1.2.0
+├── wave_principles_v1.2.0.json
+├── thirteen_criteria_v1.2.0.json
+├── confidence_model_v1.2.0.js
+└── thresholds_v1.2.0.json
+```
+
+**Deployment Pipeline:**
+```
+Code Change → Regression Tests → Staging Deploy → Manual QA → Production Deploy → Monitoring → Rollback if Metrics Degrade
+```
+
+**Technical Details:**
+- Version stored in `Manuscript.evaluation_version` (e.g., "1.2.0")
+- Regression test suite runs on every deployment
+- Monitoring alerts if accuracy drops >2% post-deploy
+- Rollback: redeploy previous function version, metrics confirm stability
+
+### Ownership & Accountability
+
+| Responsibility | Owner |
+|---|---|
+| Version control infrastructure | Base44 |
+| Regression test suite | Joint |
+| Deployment pipeline | Base44 |
+| Rollback mechanism | Base44 |
+| Evaluation logic versions | RevisionGrade |
+| Stability monitoring | Base44 |
+
+### Test Plan + Acceptance Criteria
+
+**Release-Blocking Tests:**
+
+1. **Regression Test Suite Pass**
+   - Evidence: All gold standard manuscripts evaluated correctly
+   - Evidence: No score degradation >0.5 points
+
+2. **Versioning Test**
+   - Evidence: Manuscript entity includes evaluation version
+   - Evidence: Historical evaluations retrievable with version tag
+
+3. **Rollback Test**
+   - Evidence: Simulate bad deploy → rollback → stability restored
+   - Evidence: Metrics return to pre-deploy levels within 5 minutes
+
+4. **Stability Test**
+   - Evidence: Evaluation accuracy stable across 1000 manuscripts
+   - Evidence: No crashes or timeouts under load
+
+**Acceptance Evidence:**
+- Regression test suite passing (100%)
+- Rollback demo with metrics showing recovery
+- Load test report (1000 evaluations, 0 failures)
+
+### Instrumentation
+
+**Metrics to Track:**
+- `regression_test_pass_rate` (%, target 100%)
+- `deployment_frequency` (per week)
+- `rollback_frequency` (per deployment)
+- `post_deploy_accuracy_delta` (% change)
+- `evaluation_failure_rate_by_version` (%)
+- `version_adoption_rate` (% manuscripts on latest)
+
+**Events to Log:**
+- `evaluation_version_deployed` (version, timestamp, deployed_by)
+- `regression_tests_run` (version, pass_count, fail_count, timestamp)
+- `deployment_rollback` (version_from, version_to, reason, timestamp)
+- `stability_alert_triggered` (metric_name, threshold, current_value, timestamp)
+
+**Sentry Tags:**
+- `pipeline: deployment`
+- `feature: stability`
+- `evaluation_version: {version}`
+
+---
+
+## CROSS-CUTTING CONCERNS
+
+### Sentry Integration
+
+**Current Status:** Already implemented across most backend functions
+
+**Enhancements Needed:**
+- Standardize tags across all layers (pipeline, feature, manuscript_id)
+- Add confidence_band and evaluation_version tags
+- Implement custom Sentry scopes for incident context
+- Alert routing: critical incidents → Slack/email
+
+**Example Sentry Capture:**
+```javascript
+Sentry.captureException(error, {
+  tags: {
+    pipeline: 'full_manuscript',
+    feature: 'evaluate',
+    confidence_band: 'low',
+    evaluation_version: '1.2.0'
+  },
+  extra: {
+    manuscript_id: manuscriptId,
+    manuscript_title: manuscript.title,
+    word_count: manuscript.word_count,
+    user_email: user.email
+  }
+});
+```
+
+### Security & Access Control
+
+**Already Implemented:**
+- User authentication via Base44 SDK
+- Role-based access (admin vs user)
+
+**Enhancements Needed:**
+- Admin-only access to Control Tower dashboards
+- Audit log access restrictions
+- Rate limiting on evaluation endpoints (prevent abuse)
+
+### Performance & Scalability
+
+**Current Bottlenecks:**
+- Manuscript evaluation takes 5-15 minutes for 80k word novels
+- Parallel chapter evaluation helps but still sequential phases
+
+**Optimization Opportunities:**
+- Cache chapter summaries for re-evaluation
+- Pre-warm LLM contexts
+- Database query optimization (add indexes on manuscript_id, user_email)
+
+**Scalability Plan:**
+- Horizontal scaling of backend functions (Base44 handles automatically)
+- Database connection pooling (Base44 handles)
+- Rate limiting to prevent abuse (needs implementation)
+
+---
+
+## PHASED ROLLOUT PLAN
+
+### Phase 1: Foundation (Weeks 1-3)
+
+**Deliverables:**
+- Layer 1: Input & Context Ingestion (hardening existing)
+- Layer 2: Evaluation Engine (already exists, add instrumentation)
+- Basic monitoring (Sentry events, analytics logging)
+
+**Acceptance Gate:**
+- Immutability tests pass
+- Evaluation accuracy validated on 50 test manuscripts
+- Sentry events flowing to dashboard
+
+### Phase 2: Governance (Weeks 4-6)
+
+**Deliverables:**
+- Layer 3: Confidence & Uncertainty Layer (NEW - biggest lift)
+- Layer 4: Author Acceptance Interface (NEW)
+- Layer 5: Release Gate (NEW)
+
+**Acceptance Gate:**
+- 100% confidence coverage
+- Below-threshold gate blocking works
+- Acceptance decisions logged immutably
+
+### Phase 3: Observability (Weeks 7-9)
+
+**Deliverables:**
+- Layer 6: Control Tower dashboards (4 views)
+- Metrics aggregation and trend tracking
+- Alerting on threshold violations
+
+**Acceptance Gate:**
+- All dashboards functional
+- Real-time metric updates (<60 sec latency)
+- Alert triggered by test incident
+
+### Phase 4: Learning (Weeks 10-12)
+
+**Deliverables:**
+- Layer 7: Incident management and learning loop
+- Layer 8: Versioning and regression testing
+- End-to-end improvement cycle demonstrated
+
+**Acceptance Gate:**
+- Incident → RCA → corrective action cycle complete
+- Regression test suite passing
+- Measurable accuracy improvement shown
+
+---
+
+## ASSUMPTIONS & DEPENDENCIES
+
+### Assumptions
+
+1. **RevisionGrade provides:**
+   - Confidence scoring algorithm and thresholds by [DATE]
+   - Evaluation logic version definitions by [DATE]
+   - Metric target values (e.g., accuracy >92%) by [DATE]
+   - Risk messaging copy for acceptance UI by [DATE]
+
+2. **Base44 platform capabilities:**
+   - Backend functions can enforce release gates (YES - confirmed)
+   - Entities support immutability patterns (YES - via design)
+   - Real-time metrics feasible (<60 sec latency) (YES - via queries)
+
+3. **Deployment model:**
+   - Phased rollout acceptable (vs big-bang launch)
+   - Beta users available for validation (RevisionGrade to provide)
+
+### Dependencies
+
+1. **External:**
+   - OpenAI API stability and rate limits
+   - Sentry service availability
+
+2. **Internal:**
+   - RevisionGrade sign-off on confidence scoring approach
+   - Joint definition of gold standard test suite
+   - Shared acceptance criteria validation
+
+### Blockers
+
+**NONE IDENTIFIED** - All layers implementable within Base44 architecture.
+
+---
+
+## RISK REGISTER
+
+| Risk | Impact | Likelihood | Mitigation |
+|---|---|---|---|
+| Confidence model complexity delays Phase 2 | HIGH | MEDIUM | Start design early, simplify initial algorithm, iterate |
+| Regression test suite incomplete | MEDIUM | MEDIUM | Build suite incrementally, prioritize edge cases |
+| Control Tower dashboard scope creep | MEDIUM | LOW | Lock 4 views, defer enhancements to Phase 5 |
+| LLM API rate limits during evaluation | HIGH | LOW | Implement retry logic, queue management, exponential backoff |
+| User resistance to acceptance gates | MEDIUM | MEDIUM | Clear messaging, education, confidence explanation UI |
+
+---
+
+## OPEN QUESTIONS FOR REVISIONGRADE
+
+1. **Confidence Thresholds:** What is the exact threshold value (e.g., 95%, 90%, 8/10)? Does it vary by output type (evaluation vs synopsis)?
+
+2. **Confidence Algorithm:** Should we use a simple evidence-count heuristic initially, or wait for a more sophisticated ML-based model?
+
+3. **Acceptance UI Copy:** What exact language should appear in the below-threshold warning modal?
+
+4. **Metric Targets:** What are the specific targets for each metric (e.g., accuracy >92%, MTTR <24 hours)?
+
+5. **Gold Standard Test Suite:** Can RevisionGrade provide 20-30 manuscripts with known-correct evaluations for regression testing?
+
+6. **Beta User Group:** Who will participate in Phase 1-2 validation before wider rollout?
+
+---
+
+## CONCLUSION
+
+This execution mapping provides a complete, layer-by-layer implementation plan for RevisionGrade with no fundamental blockers identified. All 8 mandatory layers are implementable within Base44's architecture, and the phased rollout plan ensures disciplined, gated progress.
+
+**Key Confirmations:**
+✅ All mandatory layers addressed  
+✅ Ownership explicitly assigned  
+✅ Acceptance criteria defined  
+✅ Instrumentation specified  
+✅ No bypass mechanisms possible  
+✅ Release gates enforceable  
+
+**Next Steps:**
+1. RevisionGrade review and approval of this mapping
+2. Answer open questions (thresholds, copy, test suite)
+3. Sprint planning for Phase 1 (Weeks 1-3)
+4. Joint kickoff meeting to align on execution cadence
+
+We're ready to build this system with the discipline and rigor it requires.
+
+---
+
+**Prepared by:** Base44 Engineering Team  
+**Review Requested by:** [DATE]  
+**Target Phase 1 Start:** [DATE]
