@@ -20,6 +20,8 @@ This guide documents the migration process from Base44 to Supabase (backend) and
    - Users can only access their own manuscripts
    - Users can only view their own evaluations
    - Story criteria are readable by all authenticated users
+4. **Edge Function Creation** - Created `/evaluate` endpoint with 13 RevisionGrade criteria
+5. **Frontend API Wrapper** - Created `src/api/evaluate.js` for Supabase integration
 
 ### 🚧 Pending Steps
 
@@ -122,3 +124,90 @@ For questions or issues during migration, refer to:
 - **Phase 1 (Completed)**: Database setup and schema creation
 - **Phase 2 (Next)**: Data migration and Vercel deployment  
 - **Phase 3 (Future)**: Testing and production cutover
+
+
+## Deployment Instructions
+
+### Prerequisites
+
+1. **Install Supabase CLI**:
+```bash
+# macOS
+brew install supabase/tap/supabase
+
+# Windows
+scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
+scoop install supabase
+
+# Linux
+brew install supabase/tap/supabase
+```
+
+2. **Login to Supabase**:
+```bash
+supabase login
+```
+
+### Deploy Edge Function
+
+1. **Link your project** (if not already linked):
+```bash
+supabase link --project-ref xtumxjnzdswuumndcbwc
+```
+
+2. **Deploy the evaluate function**:
+```bash
+cd supabase/functions/evaluate
+supabase functions deploy evaluate --no-verify-jwt
+```
+
+3. **Set environment variables** (if needed):
+```bash
+supabase secrets set OPENAI_API_KEY=your_openai_api_key_here
+```
+
+4. **Verify deployment**:
+```bash
+supabase functions list
+```
+
+### Environment Variables
+
+Add these to your `.env` file:
+
+```env
+VITE_SUPABASE_URL=https://xtumxjnzdswuumndcbwc.supabase.co
+VITE_SUPABASE_ANON_KEY=your_anon_key_from_supabase_dashboard
+```
+
+Get your anon key from: Supabase Dashboard > Project Settings > API
+
+### Frontend Integration
+
+Replace Base44 evaluation calls with:
+
+```javascript
+import { evaluateManuscript } from './api/evaluate';
+
+// Instead of Base44 call
+const result = await evaluateManuscript(manuscriptText, userId);
+```
+
+### Vercel Deployment
+
+1. **Connect GitHub repo** to Vercel
+2. **Add environment variables** in Vercel Dashboard:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+3. **Deploy**: Vercel will auto-deploy on push to main
+
+### Testing
+
+Test the Edge Function:
+
+```bash
+curl -i --location --request POST 'https://xtumxjnzdswuumndcbwc.supabase.co/functions/v1/evaluate' \
+  --header 'Authorization: Bearer YOUR_ANON_KEY' \
+  --header 'Content-Type: application/json' \
+  --data '{"text":"Sample manuscript text","user_id":"test-user-id"}'
+```
