@@ -1,39 +1,33 @@
-import { createClient } from '@supabase/supabase-js';
-
-// Initialize Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// src/api/evaluate.js
+// MVP: Direct Edge Function call (no auth required)
 
 /**
  * Evaluate manuscript using Supabase Edge Function
  * @param {string} manuscriptText - The manuscript content to evaluate
- * @param {string} userId - The user ID from authentication
- * @returns {Promise<Object>} - Evaluation results with scores and feedback
+ * @returns {Promise<Object>} - Evaluation results with 13 criteria
  */
-export async function evaluateManuscript(manuscriptText, userId) {
-  try {
-    // Get the current session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError || !session) {
-      throw new Error('User must be authenticated to evaluate manuscripts');
-    }
+export async function evaluateManuscript(manuscriptText) {
+  const url = import.meta.env.VITE_EVALUATE_URL;
+  if (!url) {
+    throw new Error('Missing VITE_EVALUATE_URL environment variable');
+  }
 
-    // Call the Edge Function
-    const { data, error } = await supabase.functions.invoke('evaluate', {
-      body: {
-        text: manuscriptText,
-        user_id: userId
-      },
+  const token = import.meta.env.VITE_EVAL_TOKEN || '';
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${session.access_token}`
-      }
+        'Content-Type': 'application/json',
+        ...(token ? { 'X-Eval-Token': token } : {}),
+      },
+      body: JSON.stringify({ text: manuscriptText }),
     });
 
-    if (error) {
-      console.error('Edge Function error:', error);
-      throw new Error(`Evaluation failed: ${error.message}`);
+    const data = await res.json().catch(() => ({}));
+    
+    if (!res.ok) {
+      throw new Error(data?.error || `Evaluate failed (${res.status})`);
     }
 
     return data;
@@ -44,43 +38,20 @@ export async function evaluateManuscript(manuscriptText, userId) {
 }
 
 /**
- * Get evaluation history for a user
- * @param {string} userId - The user ID
+ * Get evaluation history (placeholder for future implementation)
  * @returns {Promise<Array>} - Array of past evaluations
  */
-export async function getEvaluationHistory(userId) {
-  try {
-    const { data, error } = await supabase
-      .from('manuscripts')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    console.error('Error fetching evaluation history:', err);
-    throw err;
-  }
+export async function getEvaluationHistory() {
+  // TODO: Implement when user system is added
+  return [];
 }
 
 /**
- * Get a specific evaluation by ID
+ * Get a specific evaluation (placeholder for future implementation)
  * @param {string} evaluationId - The evaluation ID
  * @returns {Promise<Object>} - Evaluation data
  */
 export async function getEvaluation(evaluationId) {
-  try {
-    const { data, error } = await supabase
-      .from('manuscripts')
-      .select('*')
-      .eq('id', evaluationId)
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    console.error('Error fetching evaluation:', err);
-    throw err;
-  }
+  // TODO: Implement when user system is added
+  throw new Error('Not implemented: getEvaluation');
 }
