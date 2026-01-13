@@ -1,0 +1,135 @@
+# BIBLE RULE → VALIDATOR → SLA → INCIDENT CODE MAP
+
+**Status:** ENGINEERING IMPLEMENTATION CONTRACT
+
+**Purpose:** Maps every Bible rule to a validator, SLA classification, and canonical incident code.
+
+Base44 must use this to:
+- Implement validators
+- Wire CI gates
+- Define "pass vs block"
+- Stop debates about severity
+
+This prevents "we didn't know it was blocking."
+
+---
+
+## VALIDATION RULES
+
+### 1. Title Page Outside Script Body
+
+**Bible Rule:** Title page lives outside the script body. Script begins with FADE IN: or first slugline.
+
+**Validator:** Detect title block before FADE IN or slugline  
+**SLA:** `HARD_FAIL`  
+**Incident Code:** `#titlepage-embedded`
+
+---
+
+### 2. Slugline Format: INT./EXT. LOCATION – TIME
+
+**Bible Rule:** Sluglines must follow `INT./EXT. LOCATION – TIME` format, all caps, with en dash.
+
+**Validator:** Regex slugline check  
+**SLA:** `HARD_FAIL`  
+**Incident Code:** `#slugline-format`
+
+---
+
+### 3. Character First Appearance Capped
+
+**Bible Rule:** First appearance of tracked character in action must be ALL CAPS with identifier.
+
+**Validator:** First mention capitalization scan  
+**SLA:** `HARD_FAIL`  
+**Incident Code:** `#char-intro-missed`
+
+---
+
+### 4. Action Blocks ≤ 5 Lines, Filmable
+
+**Bible Rule:** Action blocks should be 2–4 lines, max 5. Must be visually filmable.
+
+**Validator:** Paragraph length + interiority scan  
+**SLA:** `SOFT_WARN` (escalates on repeat)  
+**Incident Code:** `#action-bloat`
+
+---
+
+### 5. Em Dash Usage — No Spaces
+
+**Bible Rule:** Em dash `—` must have no spaces on either side (except label separators).
+
+**Validator:** Dash character check  
+**SLA:** `SOFT_WARN`  
+**Incident Code:** `#emdash-wrong`
+
+---
+
+### 6. Single Sound Cue System
+
+**Bible Rule:** Use consistent sound convention throughout script (e.g., `SFX:`).
+
+**Validator:** Sound token consistency check  
+**SLA:** `HARD_FAIL`  
+**Incident Code:** `#sound-inconsistent`
+
+---
+
+### 7. Dialogue Formatting Blocks
+
+**Bible Rule:** Character name ALL CAPS, centered. No blank line between name and dialogue.
+
+**Validator:** Dialogue structure parser  
+**SLA:** `HARD_FAIL`  
+**Incident Code:** `#dialogue-spacing`
+
+---
+
+### 8. Hyphen Portability
+
+**Bible Rule:** Use standard hyphens `-` only. Avoid non-breaking or special hyphens.
+
+**Validator:** Unicode hyphen scan  
+**SLA:** `SOFT_WARN`  
+**Incident Code:** `#hyphen-glitch`
+
+---
+
+### 9. Correct Mode Routing
+
+**Bible Rule:** If output is for WriterDuet/script use, mode must be "screenplay", not "prose".
+
+**Validator:** Mode vs structure consistency check  
+**SLA:** `HARD_FAIL`  
+**Incident Code:** `#mode-mismatch`
+
+---
+
+## SLA DEFINITIONS
+
+### HARD_FAIL
+- **Effect:** Blocks delivery to user
+- **Action:** Must be fixed before release
+- **Examples:** Slugline format, dialogue spacing, mode mismatch
+
+### SOFT_WARN
+- **Effect:** May be delivered if logged
+- **Action:** Surface to user, log incident
+- **Escalation:** Repeated violations convert to HARD_FAIL
+- **Examples:** Em dash spacing, action bloat, hyphen glyphs
+
+---
+
+## IMPLEMENTATION GUIDANCE
+
+1. **Pre-generation validators** run before content generation
+2. **Post-generation validators** run after content generation
+3. **CI gates** enforce HARD_FAIL blocks
+4. **Incident logs** capture all violations for remediation
+
+---
+
+**Version:** 1.0  
+**Status:** BINDING IMPLEMENTATION CONTRACT  
+**Authority:** Engineering must implement; QA must enforce

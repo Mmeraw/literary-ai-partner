@@ -1,0 +1,136 @@
+# Storygate Studio — Subscription Independence Rule (CANON-LOCKED)
+
+**Status:** BINDING  
+**Effective Date:** 2026-01-07  
+**Version:** 1.0
+
+---
+
+## Core Principle
+
+**Once a Storygate Studio submission is created and accepted into the queue, the submission record MUST remain active and reviewable regardless of the user's current subscription status.**
+
+---
+
+## What Subscription Changes MUST NOT Affect
+
+Downgrading to a lower tier (e.g., $19) or canceling entirely MUST NOT:
+
+1. Remove the submission from internal queues
+2. Change `screeningStatus`
+3. Block internal review
+4. Block downstream routing or introductions
+5. Delete or expire the submission record
+6. Prevent contact with the submitter if the project is deemed meritorious
+
+**There is no "parking fee" or pay-to-stay requirement for Storygate Studio submissions.**
+
+---
+
+## Billing Separation (Hard Rule)
+
+### What Subscriptions Govern
+
+Subscription tiers govern **tool access only**:
+- Evaluate (new manuscript evaluations)
+- Revise (revision generation)
+- Film/TV Deck generation
+- **New Storygate submissions**
+
+### What Subscriptions MUST NOT Govern
+
+Subscriptions MUST NOT govern:
+- The existence of a previously submitted Storygate Studio project
+- Its eligibility for consideration
+- Internal review process
+- Contact or introduction if the project is deemed meritorious
+
+---
+
+## Frozen Snapshot Behavior
+
+Each Storygate submission is a **locked snapshot of materials at time of submission**.
+
+- Later non-payment MUST NOT delete, expire, or invalidate that snapshot
+- Any updates require a new paid service and resubmission
+- The original submission remains valid indefinitely
+
+---
+
+## Implementation Requirements
+
+### Database Integrity
+
+`StorygateSubmission` records MUST:
+- Persist indefinitely once created
+- Never be filtered by user subscription status
+- Never be excluded from internal queues based on billing
+
+### Queue Filtering
+
+Internal queue filters MUST:
+- Filter ONLY by `screeningStatus` and `primaryPath`
+- NEVER filter by user subscription tier
+- NEVER filter by subscription active/inactive state
+
+### Access Control
+
+- Internal reviewers MUST see all eligible submissions regardless of submitter's current subscription
+- Submission detail views MUST be accessible to reviewers regardless of billing status
+- Contact information MUST remain available for invited projects regardless of billing status
+
+---
+
+## Acceptance Test (Base44 MUST Pass)
+
+### Test Scenario
+
+1. User submits a Storygate project at ≥ 8.0 (any tier)
+2. Submission is accepted (screeningStatus = ELIGIBLE or RECOMMEND_HUMAN_REVIEW)
+3. User cancels subscription entirely (or downgrades to free/lowest tier)
+
+### Required Outcomes (ALL MUST PASS)
+
+✅ Submission still appears in internal queues  
+✅ Submission can still be reviewed by internal team  
+✅ Submission can still be routed / introduced if selected  
+✅ Submitter contact information remains accessible  
+✅ No UI warnings or blocks on the submission record  
+
+### Failure Condition
+
+If ANY of the above fails, implementation is incorrect and MUST be fixed before release.
+
+---
+
+## Rationale
+
+Storygate Studio is a **professional gateway**, not a subscription-gated service.
+
+Submissions are evaluated on merit, not payment continuity. Allowing billing status to affect submitted work would:
+
+1. Create an artificial barrier to merit-based selection
+2. Penalize creators for financial circumstances unrelated to creative quality
+3. Undermine the integrity of the selection process
+4. Introduce pay-to-stay mechanics inconsistent with professional standards
+
+**This rule protects the credibility of Storygate Studio as a selective, merit-based environment.**
+
+---
+
+## Enforcement
+
+This document is **CANON** and supersedes any conflicting implementation, UI logic, or billing policy.
+
+Any code that filters, hides, or blocks Storygate submissions based on subscription status is **non-compliant** and MUST be removed.
+
+---
+
+## Contact for Questions
+
+If implementation questions arise, refer to:
+- `entities/StorygateSubmission.json` (schema definition)
+- `functions/screenStorygateSubmission.js` (screening logic)
+- `STORYGATE_STUDIO_CANON_v1.1.md` (submission and screening rules)
+
+**End of Document**

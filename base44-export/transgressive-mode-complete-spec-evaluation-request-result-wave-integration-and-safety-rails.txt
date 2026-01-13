@@ -1,0 +1,247 @@
+# Transgressive Mode: Complete Specification
+
+## Overview
+Transgressive Mode is an interpretation overlay, NOT a replacement of WAVE. It evaluates craft effectiveness, control, and intent for dark/extreme material without moral filtering.
+
+## Core Principle
+**WAVE detectors unchanged** → findings generated identically → **interpretation layer added** → different scoring/guidance
+
+---
+
+## JSON Schema: Evaluation Request
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://revisiongrade.com/schemas/evaluation-request.json",
+  "title": "EvaluationRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manuscript_id", "evaluation_mode"],
+  "properties": {
+    "manuscript_id": {
+      "type": "string",
+      "description": "Unique identifier for the manuscript."
+    },
+    "chapter_id": {
+      "type": ["string", "null"],
+      "description": "Optional: evaluate a single chapter."
+    },
+    "evaluation_mode": {
+      "type": "string",
+      "enum": ["standard", "transgressive", "trauma_memoir"],
+      "default": "standard",
+      "description": "Controls interpretation layer only. Does not change WAVE detectors."
+    },
+    "market_path": {
+      "type": "string",
+      "enum": ["mainstream_agent_ready", "transgressive_niche", "literary_extreme"],
+      "default": "mainstream_agent_ready",
+      "description": "Affects risk/market notes and optimization targets."
+    },
+    "author_intent_declaration": {
+      "type": "boolean",
+      "default": false,
+      "description": "Required for transgressive mode: user confirms they want craft-not-comfort feedback."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "evaluation_mode": { "const": "transgressive" } }
+      },
+      "then": {
+        "required": ["author_intent_declaration"],
+        "properties": {
+          "author_intent_declaration": { "const": true }
+        }
+      }
+    }
+  ]
+}
+```
+
+## JSON Schema: Evaluation Result
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://revisiongrade.com/schemas/evaluation-result.json",
+  "title": "EvaluationResult",
+  "type": "object",
+  "required": ["manuscript_id", "evaluation_mode", "scores"],
+  "properties": {
+    "manuscript_id": { "type": "string" },
+    "evaluation_mode": { "type": "string", "enum": ["standard", "transgressive", "trauma_memoir"] },
+    "market_path": { "type": "string" },
+    "scores": {
+      "type": "object",
+      "required": ["story_score", "craft_score"],
+      "properties": {
+        "story_score": { "type": "number", "minimum": 0, "maximum": 10 },
+        "craft_score": { "type": "number", "minimum": 0, "maximum": 10 },
+        "transgressive_score": { "type": ["number", "null"], "minimum": 0, "maximum": 10 }
+      }
+    },
+    "transgressive_analysis": {
+      "type": ["object", "null"],
+      "properties": {
+        "dimensions": {
+          "type": "object",
+          "properties": {
+            "authorial_control": { "type": "number", "description": "Is chaos authored or accidental?" },
+            "psychological_truth": { "type": "number", "description": "Does extremity reveal character/theme?" },
+            "transgression_to_meaning": { "type": "number", "description": "Does darkness serve narrative function?" },
+            "escalation_variation": { "type": "number", "description": "Does shock escalate or repeat?" },
+            "voice_integrity": { "type": "number", "description": "Is instability intentional?" },
+            "reader_orientation": { "type": "number", "description": "Oriented but not coddled?" },
+            "originality_of_extremity": { "type": "number", "description": "Non-derivative transgression?" }
+          }
+        },
+        "intent_detection": {
+          "type": "object",
+          "properties": {
+            "intent_likelihood": { "type": "number", "minimum": 0, "maximum": 100 },
+            "classification": { "type": "string", "enum": ["transgressive_craft", "mixed", "high_liability"] }
+          }
+        },
+        "risk_flags": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "severity": { "type": "string", "enum": ["info", "warn", "blocker"] },
+              "message": { "type": "string" },
+              "craft_vs_risk": { "type": "string", "description": "Separate craft from platform risk" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+## Implementation Map: WAVE Integration
+
+### Current Pipeline (Unchanged Core)
+```
+1. parseChapters()
+2. runSpineEvaluation()
+3. runWaveTiers(early/mid/late) ← DETECTORS UNCHANGED
+4. aggregateChapterScores()
+5. aggregateManuscriptScores()
+6. renderDashboardPayload()
+```
+
+### New Pipeline (Minimal Addition)
+```
+1. parseChapters()
+2. runSpineEvaluation() + evaluationMode parameter
+3. runWaveTiers(early/mid/late, evaluationMode) ← DETECTORS UNCHANGED
+   3.5 interpretFindingsByMode() ← NEW INTERPRETATION LAYER
+4. aggregateChapterScores() + transgressive dimensions
+5. aggregateManuscriptScores() + transgressive panel
+6. renderDashboardPayload() + risk/market notes
+```
+
+### Key Functions to Add/Modify
+
+#### 1. Interpretation Layer (NEW)
+```javascript
+function interpretFindingsByMode(findings, text, evaluationMode, marketPath) {
+  if (evaluationMode === 'standard') {
+    return { interpreted: findings, transgressive: null };
+  }
+  
+  // Transgressive mode: re-score findings by intent/control
+  const interpreted = findings.map(finding => {
+    const isIntentional = detectIntent(finding, text);
+    const servesTheme = assessThematicFunction(finding, text);
+    
+    return {
+      ...finding,
+      craft_impact: isIntentional && servesTheme ? 'high' : 'low',
+      risk_only: !isIntentional,
+      rewrite_guidance: evaluationMode === 'transgressive' 
+        ? 'increase_precision' 
+        : 'reduce_extremity'
+    };
+  });
+  
+  const transgressive = calculateTransgressiveDimensions(interpreted, text);
+  
+  return { interpreted, transgressive };
+}
+```
+
+#### 2. Spine Evaluation (MODIFIED)
+Add `evaluationMode` parameter, inject mode guidance into prompt (already done in previous changes).
+
+#### 3. WAVE Tier Evaluation (MODIFIED)
+Add `evaluationMode` parameter, inject mode guidance into prompt (already done in previous changes).
+
+#### 4. Suggestion Generation (MODIFIED)
+```javascript
+// In generateRevisionSuggestions function
+// Add mode-aware guidance
+if (evaluationMode === 'transgressive') {
+  // Don't soften, increase precision/control
+  // Flag only: repetition, incoherence, contradiction
+} else {
+  // Standard agent-ready polish
+}
+```
+
+---
+
+## Transgressive Dimensions (Scoring)
+
+1. **Authorial Control** (0-10): Is chaos authored or accidental?
+2. **Psychological Truth** (0-10): Does extremity reveal character/theme?
+3. **Transgression-to-Meaning Ratio** (0-10): Does darkness serve narrative function?
+4. **Escalation Variation** (0-10): Does shock escalate or repeat?
+5. **Voice Integrity** (0-10): Is instability intentional?
+6. **Reader Orientation** (0-10): Oriented but not coddled?
+7. **Originality of Extremity** (0-10): Non-derivative transgression?
+
+**Composite Transgressive Score** = average of dimensions
+
+---
+
+## Critical Safety Rails
+
+1. **Targeted Hate Detection**: If finding involves protected-class stereotyping or slurs, do NOT suggest "make it more hateful." Instead:
+   - Flag in "Risk & Market Notes"
+   - Suggest precision alternatives that preserve darkness without cheap targeting
+   
+2. **Intent Classification**:
+   - `transgressive_craft`: High intent, high control → full craft evaluation
+   - `mixed`: Some intentional, some accidental → highlight risks separately
+   - `high_liability`: Unclear intent, potential harm → flag clearly without blocking
+
+3. **Separate Craft from Risk**:
+   - Craft score = effectiveness, control, precision
+   - Risk flags = platform/agent/retailer friction (informational only)
+
+---
+
+## UI Language Requirements
+
+### Mode must be NEUTRAL, not judgmental
+- ✅ "Transgressive (craft, not comfort)"
+- ❌ "Dark content warning"
+- ❌ "Offensive material mode"
+
+### Feedback language must evaluate, not moralize
+- ✅ "This passage uses transgression deliberately. Its effectiveness depends on whether readers interpret the extremity as thematically motivated."
+- ❌ "This may be offensive or inappropriate."
+- ❌ "Consider toning this down."
+
+### Risk notes must be informational, not censorious
+- ✅ "Platform risk: Some retailers restrict graphic violence. Preserving impact while reducing explicit detail may expand market reach."
+- ❌ "This is too graphic."
+- ❌ "You should remove this."

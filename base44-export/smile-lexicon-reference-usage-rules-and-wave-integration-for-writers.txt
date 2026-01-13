@@ -1,0 +1,139 @@
+# 600+ Words to Describe Smiles: A Reference for Writers
+
+**USAGE RULE**: This is a **reference tool**, not a correction engine.
+
+- **Professional Tier (8-10)**: Use for OPTIONAL polish suggestions only. Frame as "Consider X for nuance" with 2-3 alternatives.
+- **Developmental Tier (<6)**: Use for anti-repetition when "smile" appears 3+ times per 1k words.
+- **Never auto-apply**: Preserve author's voice and intentional restraint.
+
+---
+
+## Emotion → Smile Type Mapping
+
+### Approval
+- Adjectives: approving, agreeable, encouraging
+- Alternatives: beam, warm smile
+- Body language: tilting head to bare neck, mirroring body language
+
+### Arrogance  
+- Adjectives: arrogant, haughty, supercilious, smug
+- Alternatives: smirk, sneer
+- Body language: upturned nose, puffed chest, lifted chin
+
+### Contempt
+- Adjectives: contemptuous, scornful, disdainful
+- Alternatives: sneer, fleer, curl of lip
+- Body language: pinched mouth, wrinkled nose, curled upper lip
+
+### Flirtatiousness
+- Adjectives: coquettish, flirtatious, seductive
+- Alternatives: simper
+- Body language: fluttering eyelashes, head turned away while maintaining eye contact
+
+### Joy/Happiness
+- Adjectives: joyous, radiant, beaming, ecstatic
+- Alternatives: beam, grin
+- Physical: sparkling eyes, pronounced dimples, happy tears
+
+### Hostility
+- Adjectives: hostile, malicious, sinister, menacing
+- Alternatives: leer, rictus grin, reptilian smile
+- Body language: bulging eyes, clenched jaw, rigid neck cords
+
+### Shyness
+- Adjectives: shy, bashful, timid, tentative
+- Alternatives: soft smile, hesitant smile
+- Body language: minimal eye contact, biting lip, head bowed
+
+---
+
+## Context-Specific Alternatives
+
+### Horror/Dark Fiction
+cold, deadly, rictus, lurid, sinister, reptilian, ghastly, menacing, feral, predatory, vampiric
+
+### Literary Fiction  
+wry, enigmatic, rueful, wintry, melancholy, pensive, sardonic, ironic, cryptic, knowing
+
+### Romance
+warm, tender, soft, radiant, dazzling, inviting, intimate, loving, adoring
+
+### Thriller/Suspense
+calculating, dangerous, predatory, wolfish, cunning, sly, deceptive
+
+---
+
+## Replacement Nouns
+
+**Instead of "adjective + smile", use:**
+
+- **Beam**: good-natured or radiant smile
+- **Fleer**: impudent or jeering smile  
+- **Grin**: broad smile
+- **Simper**: coquettish, coy, or ingratiating smile
+- **Smirk**: smug, conceited, or silly smile
+- **Sneer**: contemptuous, mocking, or unpleasant smile
+- **Leer**: lecherous or malicious smile
+- **Rictus**: fixed grin, often involuntary or death-related
+
+---
+
+## Selected Adjectives (Context-Matched)
+
+### Professional/Polished
+enigmatic, inscrutable, serene, poised, composed, measured, knowing, wry, subtle
+
+### Character Age
+- **Childlike**: impish, mischievous, sunny, innocent, toothy
+- **Elderly**: wintry, patient, weary, sagacious, benign
+
+### Negative Emotions
+bitter, bittersweet, forced, brittle, hollow, joyless, mirthless, wan, fleeting, reluctant
+
+### Intensity
+faint, slight, tentative vs. broad, enormous, wide, ear-to-ear
+
+---
+
+## Anti-Cliché Guidance
+
+**Avoid auto-flagging these UNLESS they're genuinely cliché in context:**
+- Cheshire Cat smile (overdone)
+- Reached the eyes (tell, not show)
+- Lit up the room (vague)
+
+**Fresher alternatives:**
+- "As wrinkled as his slept-in shirt"
+- "Sparkling as sunrays on powdered snow"
+- "Like a vampire who smells fresh blood" (genre-appropriate)
+
+---
+
+## Integration Rules for WAVE Evaluation
+
+1. **Density Check**: Flag "smile" if used 3+ times per 1,000 words
+2. **Tier Gating**:
+   - **8-10 tier**: "Optional: 'simper' adds coquettish nuance [alts: fleer, smirk]"
+   - **<6 tier**: "Repetitive 'smile' → vary with grin/beam/smirk"
+3. **Context Match**: Align suggestions with genre, tone, character age
+4. **Never Stack**: If suggesting sentence-level revision, don't also flag "smile" within it
+5. **Preserve Restraint**: Don't escalate "smiled" → "grinned wickedly" in minimal prose
+
+---
+
+## Example Application
+
+**Original**: "He smiled at her."
+
+**Professional Tier (8-10)**: 
+- "Optional polish: 'simpered' for coy/ingratiating nuance. [Alts: grinned, beamed]"
+
+**Developmental Tier (<6)**:  
+- "Repetitive 'smile' (4th use). Consider: grin, beam, smirk, or remove entirely if action is implied."
+
+**Horror Context**:  
+- "For sinister tone: leer, rictus grin, reptilian smile"
+
+---
+
+**Attribution**: Adapted from Kathy Steinemann's comprehensive smile lexicon.

@@ -1,0 +1,657 @@
+# RG-STORYGATE-001 — QA WALKTHROUGH SCRIPT (FUNCTION TEST #6 RE-RUN)
+
+**Epic:** RG-STORYGATE-001  
+**Purpose:** Determine VERIFIED / PARTIALLY VERIFIED / FAILED status for Storygate surfaces  
+**Execution Date:** [To be scheduled after Phase 4 complete, targeting 2026-02-09]  
+**QA Lead:** [Name]  
+**Witnesses:** [Names]
+
+---
+
+## Pre-Test Conditions (MANDATORY)
+
+**Before any test execution:**
+
+- [ ] **No code changes during walkthrough** — This is observational runtime behavior only
+- [ ] All Phase 4 tickets marked DONE
+- [ ] Test environment matches production configuration
+- [ ] Three test accounts prepared:
+  - Creator account (non-admin)
+  - Industry/Buyer account (non-admin)
+  - Admin/Verifier account (admin role)
+- [ ] Test inputs documented
+- [ ] Expected behavior defined
+- [ ] Evidence capture tools ready (screenshots, logs, audit queries)
+
+**If any pre-condition fails → halt test, remediate, reschedule**
+
+---
+
+## Test Inputs
+
+### Input F1 — Creator Workflow (Full Lifecycle)
+- Creator submits a film/story to Storygate Studio
+- Creator sets visibility (public/private)
+- Creator enables access requests
+- **Verify:** Creation, listing, access control logic
+
+### Input F2 — Buyer/Industry Workflow (Discovery & Access)
+- Industry user browses Storygate marketplace
+- Industry user finds a listing
+- Industry user requests access
+- Creator receives access request
+- Creator approves/denies access
+- **Verify:** Discovery, request flow, permission logic
+
+### Input F3 — Verification Workflow (Admin)
+- Admin verifies a creator (sets `verified: true`)
+- Verified badge visible on listing
+- **Verify:** Verification state persistence and UI display
+
+### Input F4 — Edge Cases (Negative Paths)
+- Request access without account (should fail)
+- Request access to private listing (should fail or show permission error)
+- Submit without required fields (should fail with validation error)
+- **Verify:** Error handling and validator behavior
+
+---
+
+## Evidence Requirements (MUST CAPTURE FOR EACH INPUT)
+
+For **EACH test input**, QA must collect:
+
+### 1. UI Screenshots
+- [ ] Before action (initial state)
+- [ ] During action (processing/loading state)
+- [ ] After action (success confirmation or error state)
+- [ ] Relevant UI elements (buttons, forms, error messages, badges)
+
+### 2. Function Traces (With Timestamps)
+- [ ] Which functions executed
+- [ ] Execution order
+- [ ] Timestamps (start, end)
+- [ ] Parameters passed
+- [ ] Return values
+
+### 3. Validator Evidence
+- [ ] Which validators ran
+- [ ] Validator outcomes (pass / soft / hard)
+- [ ] Failure codes (if any)
+- [ ] Validator execution logged in audit
+
+### 4. Audit Records (Structured)
+- [ ] Query audit entity after each action
+- [ ] Verify structured event exists (not free-text logs)
+- [ ] All required fields populated
+- [ ] `request_id` correlates related events
+
+### 5. SLA Timing Metrics
+- [ ] `start_ms`, `end_ms`, `elapsed_ms` present
+- [ ] Operations array populated (where applicable)
+- [ ] Timing written to audit record (not console logs)
+
+---
+
+## Test Execution — Input F1 (Creator Workflow)
+
+### Step F1-1: Creator Submits to Storygate Studio
+
+**Action:**
+1. Sign in as Creator account
+2. Navigate to StorygateStudio page
+3. Fill in submission form with valid data:
+   - First name, last name, email
+   - Project title: "Test Project Alpha"
+   - Format: "Novel"
+   - Genre: "Literary fiction"
+   - Description: [300+ words]
+   - Why Storygate: [detailed response]
+   - Check acknowledgment boxes
+4. Click "Submit to Storygate Studio"
+
+**Expected Behavior:**
+- ✅ Submission accepted
+- ✅ `StorygateSubmission` entity created
+- ✅ Confirmation message displayed
+- ✅ **Governed entry executed** (new requirement)
+- ✅ **Validators executed** (STORYGATE_REQUIRED_FIELDS)
+- ✅ **Audit event created** (action_type=create_submission)
+- ✅ **SLA timing captured**
+
+**Evidence to Capture:**
+- [ ] Screenshot: submission form (filled, before submit)
+- [ ] Screenshot: confirmation screen
+- [ ] Function trace: `submitStoryGateFilm` executed with timestamp
+- [ ] Function trace: `governedEvaluateEntry` called FIRST (new)
+- [ ] Validator log: STORYGATE_REQUIRED_FIELDS = pass
+- [ ] Audit record query: action_type=create_submission, event_id=[ID], validators_run=[list]
+- [ ] SLA metrics: start_ms, end_ms, elapsed_ms
+
+**PASS Criteria:**
+- Submission created AND governed entry + validators + audit + SLA all present
+
+**FAIL Criteria:**
+- Any governance hook missing
+
+---
+
+### Step F1-2: Creator Creates Listing
+
+**Action:**
+1. Sign in as Creator account
+2. Navigate to CreatorStoryGate or CreateStoryGateListing page
+3. Select manuscript (must be `is_final: true`)
+4. Fill in listing metadata:
+   - Title: "Test Project Alpha"
+   - Logline: [1-2 sentences]
+   - Genre: "Literary fiction"
+   - Visibility: "Public" (discoverable)
+5. Enable access requests
+6. Click "Create Listing"
+
+**Expected Behavior:**
+- ✅ Listing created (ProjectListing entity)
+- ✅ Visibility = discoverable
+- ✅ **Governed entry executed**
+- ✅ **Validators executed** (STORYGATE_REQUIRED_FIELDS, STORYGATE_VISIBILITY_RULES)
+- ✅ **Audit event created** (action_type=create_listing)
+- ✅ **SLA timing captured**
+
+**Evidence to Capture:**
+- [ ] Screenshot: listing creation form (before submit)
+- [ ] Screenshot: listing management view (after creation)
+- [ ] Function trace: `createStoryGateListing` executed with timestamp
+- [ ] Function trace: `governedEvaluateEntry` called FIRST (new)
+- [ ] Validator log: STORYGATE_REQUIRED_FIELDS = pass, STORYGATE_VISIBILITY_RULES = pass
+- [ ] Audit record query: action_type=create_listing, listing_id=[ID], creator_id=[ID], validators_run=[list]
+- [ ] SLA metrics: start_ms, end_ms, elapsed_ms
+
+**PASS Criteria:**
+- Listing created AND discoverable in marketplace (verified in F2) AND governed entry + validators + audit + SLA all present
+
+**FAIL Criteria:**
+- Any governance hook missing OR listing not discoverable when visibility=public
+
+---
+
+## Test Execution — Input F2 (Industry/Buyer Workflow)
+
+### Step F2-1: Industry User Discovers Listing
+
+**Action:**
+1. Sign in as Industry account (non-admin)
+2. Navigate to StoryGate marketplace browse/search
+3. Search for "Test Project Alpha" or browse listings
+4. Verify listing is visible
+
+**Expected Behavior:**
+- ✅ Public listing is discoverable
+- ✅ Listing metadata visible (title, logline, genre, RevisionGrade score if present)
+- ✅ Gated content requires access request (not visible yet)
+
+**Evidence to Capture:**
+- [ ] Screenshot: marketplace browse/search with listing visible
+- [ ] Screenshot: listing card in search results
+- [ ] Function trace: marketplace query executed
+
+**PASS Criteria:**
+- Listing discoverable when visibility=public
+
+**FAIL Criteria:**
+- Public listing not discoverable
+
+---
+
+### Step F2-2: Industry User Requests Access
+
+**Action:**
+1. Industry user opens listing detail page
+2. Click "Request Access" button
+3. Optionally enter message: "I'm interested in reviewing this project"
+4. Submit access request
+
+**Expected Behavior:**
+- ✅ Access request created (AccessUnlock entity, status=pending)
+- ✅ Creator receives notification (email or dashboard alert)
+- ✅ **Industry user verification enforced** (must be verified, not suspended)
+- ✅ **Governed entry executed**
+- ✅ **Validators executed** (STORYGATE_ACCESS_CONTROL)
+- ✅ **Audit event created** (action_type=request_access)
+- ✅ **SLA timing captured**
+
+**Evidence to Capture:**
+- [ ] Screenshot: listing detail before access request (gated state)
+- [ ] Screenshot: request access UI
+- [ ] Screenshot: request confirmation
+- [ ] Function trace: `requestProjectAccess` executed with timestamp
+- [ ] Function trace: `governedEvaluateEntry` called FIRST (new)
+- [ ] Validator log: STORYGATE_ACCESS_CONTROL = pass (industry user verified)
+- [ ] Audit record query: action_type=request_access, listing_id=[ID], requester_id=[ID], validators_run=[list]
+- [ ] SLA metrics: start_ms, end_ms, elapsed_ms
+
+**PASS Criteria:**
+- Access request created AND creator notified AND governed entry + validators + audit + SLA all present
+
+**FAIL Criteria:**
+- Any governance hook missing OR unverified industry user can request
+
+---
+
+### Step F2-3: Creator Approves Access
+
+**Action:**
+1. Sign in as Creator account
+2. Navigate to CreatorStoryGate dashboard
+3. Locate pending access request from Industry user
+4. Click "Approve"
+
+**Expected Behavior:**
+- ✅ AccessUnlock status updated (pending → approved)
+- ✅ Industry user notified (email)
+- ✅ **Ownership verification enforced** (only creator can approve)
+- ✅ **Governed entry executed**
+- ✅ **Validators executed** (STORYGATE_ACCESS_CONTROL)
+- ✅ **Audit event created** (action_type=grant_access)
+- ✅ **SLA timing captured**
+
+**Evidence to Capture:**
+- [ ] Screenshot: creator request inbox (pending request)
+- [ ] Screenshot: approval action confirmation
+- [ ] Function trace: `handleAccessRequest` executed with timestamp (action=approve)
+- [ ] Function trace: `governedEvaluateEntry` called FIRST (new)
+- [ ] Validator log: STORYGATE_ACCESS_CONTROL = pass (creator owns listing)
+- [ ] Audit record query: action_type=grant_access, listing_id=[ID], creator_id=[ID], requester_id=[ID], access_granted=true, validators_run=[list]
+- [ ] SLA metrics: start_ms, end_ms, elapsed_ms
+
+**PASS Criteria:**
+- Access granted AND governed entry + validators + audit + SLA all present
+
+**FAIL Criteria:**
+- Any governance hook missing OR non-creator can approve
+
+---
+
+### Step F2-4: Industry User Accesses Content
+
+**Action:**
+1. Sign in as Industry account
+2. Navigate back to listing detail page
+3. Verify gated content is now accessible
+
+**Expected Behavior:**
+- ✅ Full listing content visible
+- ✅ Access control check passes (checkProjectAccess returns access: true)
+- ✅ Contact info visible if `contact_enabled: true`
+
+**Evidence to Capture:**
+- [ ] Screenshot: listing detail page (full access granted)
+- [ ] Function trace: `checkProjectAccess` executed (access: true, unlock present)
+- [ ] Audit record query: AccessLog or equivalent (view action logged)
+
+**PASS Criteria:**
+- Gated content accessible after approval
+
+**FAIL Criteria:**
+- Access still blocked after approval
+
+---
+
+### Step F2-5: Creator Denies Access (Second Request)
+
+**Action:**
+1. Industry user requests access to a second listing (or revoke and re-request same listing)
+2. Creator clicks "Deny" instead of "Approve"
+
+**Expected Behavior:**
+- ✅ AccessUnlock status updated (pending → denied)
+- ✅ Industry user notified (email)
+- ✅ **Governed entry executed**
+- ✅ **Validators executed** (STORYGATE_ACCESS_CONTROL)
+- ✅ **Audit event created** (action_type=deny_access)
+- ✅ **SLA timing captured**
+
+**Evidence to Capture:**
+- [ ] Screenshot: denial action confirmation
+- [ ] Function trace: `handleAccessRequest` executed (action=deny)
+- [ ] Function trace: `governedEvaluateEntry` called FIRST (new)
+- [ ] Validator log: STORYGATE_ACCESS_CONTROL = pass
+- [ ] Audit record query: action_type=deny_access, access_granted=false, validators_run=[list]
+- [ ] SLA metrics: start_ms, end_ms, elapsed_ms
+
+**PASS Criteria:**
+- Access denied AND governed entry + validators + audit + SLA all present
+
+**FAIL Criteria:**
+- Any governance hook missing
+
+---
+
+## Test Execution — Input F3 (Verification Workflow)
+
+### Step F3-1: Admin Verifies Creator
+
+**Action:**
+1. Sign in as Admin account
+2. Navigate to AdminVerificationQueue page
+3. Locate Creator account in "Pending" tab
+4. Click "Approve"
+
+**Expected Behavior:**
+- ✅ IndustryUser.verification_status updated (pending → verified)
+- ✅ Verification timestamp recorded (`verification_date`)
+- ✅ Verifying admin recorded (`verified_by`)
+- ✅ Creator notified (email)
+- ✅ **Admin auth enforced** (non-admin blocked)
+- ✅ **Governed entry executed**
+- ✅ **Validators executed** (STORYGATE_VERIFICATION_STATE)
+- ✅ **Audit event created** (action_type=verify_creator)
+- ✅ **SLA timing captured**
+
+**Evidence to Capture:**
+- [ ] Screenshot: admin verification action (before click)
+- [ ] Screenshot: verification confirmation (after click)
+- [ ] Screenshot: updated IndustryUser record (verification_status=verified)
+- [ ] Function trace: `handleVerification` executed (action=approve)
+- [ ] Function trace: `governedEvaluateEntry` called FIRST (new)
+- [ ] Validator log: STORYGATE_VERIFICATION_STATE = pass (admin auth confirmed)
+- [ ] Audit record query: action_type=verify_creator, verification_state=verified, admin_id=[ID], validators_run=[list]
+- [ ] SLA metrics: start_ms, end_ms, elapsed_ms
+
+**PASS Criteria:**
+- Verification state updated AND admin-only AND governed entry + validators + audit + SLA all present
+
+**FAIL Criteria:**
+- Any governance hook missing OR non-admin can verify
+
+---
+
+### Step F3-2: Verified Badge Visible on Listing
+
+**Action:**
+1. Navigate to listing detail page as any user
+2. Verify "Verified Creator" badge is visible
+
+**Expected Behavior:**
+- ✅ Verified badge visible on listing
+- ✅ Badge reflects real verification state (server-side, not client-only)
+
+**Evidence to Capture:**
+- [ ] Screenshot: listing with verified badge
+- [ ] Query: IndustryUser.verification_status = verified (server confirmation)
+
+**PASS Criteria:**
+- Badge visible AND reflects server state
+
+**FAIL Criteria:**
+- Badge visible but verification_status ≠ verified (spoofing)
+
+---
+
+## Test Execution — Input F4 (Edge Cases — Negative Paths)
+
+### Step F4-A: Request Access Without Account
+
+**Action:**
+1. Sign out (unauthenticated session)
+2. Navigate to listing detail page
+3. Attempt to click "Request Access" button
+
+**Expected Behavior:**
+- ✅ Action blocked (401 Unauthorized)
+- ✅ User-visible error message
+- ✅ **Governed entry executed** (validates auth first)
+- ✅ **Validators fail** (auth validator)
+- ✅ **Audit event created** (action_type=request_access, access_granted=false, failure_codes=[AUTH_REQUIRED])
+- ✅ **SLA timing captured**
+
+**Evidence to Capture:**
+- [ ] Screenshot: error state (user not signed in)
+- [ ] Function trace: `requestProjectAccess` returns 401
+- [ ] Validator log: auth check = fail, failure_code=AUTH_REQUIRED
+- [ ] Audit record query: action_type=request_access_denied, failure_codes=[AUTH_REQUIRED]
+
+**PASS Criteria:**
+- Request blocked AND error visible AND validator failure + audit event present
+
+**FAIL Criteria:**
+- Request succeeds OR no validator/audit evidence
+
+---
+
+### Step F4-B: Request Access to Private Listing
+
+**Action:**
+1. Creator sets listing visibility = "Private"
+2. Sign in as Industry account
+3. Attempt to discover listing in marketplace browse/search
+4. Attempt to directly access listing URL (if known)
+
+**Expected Behavior:**
+- ✅ Private listing NOT visible in marketplace browse/search
+- ✅ Direct URL access blocked (403 Forbidden or "Project is private")
+- ✅ **Governed entry executed**
+- ✅ **Validators fail** (STORYGATE_VISIBILITY_RULES)
+- ✅ **Audit event created** (action_type=access_denied, failure_codes=[PRIVATE_LISTING])
+
+**Evidence to Capture:**
+- [ ] Screenshot: marketplace search results (private listing absent)
+- [ ] Screenshot: direct access error (403 or permission denied)
+- [ ] Function trace: `checkProjectAccess` returns access=false, reason='Project is private'
+- [ ] Validator log: STORYGATE_VISIBILITY_RULES = fail, failure_code=PRIVATE_LISTING
+- [ ] Audit record query: action_type=access_denied, access_granted=false, failure_codes=[PRIVATE_LISTING]
+
+**PASS Criteria:**
+- Private listing not discoverable AND access blocked AND validator failure + audit event present
+
+**FAIL Criteria:**
+- Private listing discoverable OR access granted → **FAILED (Security Risk)**
+
+---
+
+### Step F4-C: Submit Without Required Fields
+
+**Action:**
+1. Navigate to StorygateStudio submission form
+2. Leave required fields blank (first_name, project_title, description, etc.)
+3. Click "Submit"
+
+**Expected Behavior:**
+- ✅ Submission blocked (400 Bad Request)
+- ✅ User-visible error messages (field-specific)
+- ✅ **Governed entry executed**
+- ✅ **Validators fail** (STORYGATE_REQUIRED_FIELDS)
+- ✅ **Audit event created** (action_type=submission_failed, failure_codes=[MISSING_REQUIRED_FIELDS])
+
+**Evidence to Capture:**
+- [ ] Screenshot: error state (required field validation errors)
+- [ ] Function trace: `submitStoryGateFilm` returns 400
+- [ ] Validator log: STORYGATE_REQUIRED_FIELDS = fail, failure_codes=[MISSING_FIRST_NAME, MISSING_PROJECT_TITLE, ...]
+- [ ] Audit record query: action_type=submission_failed, failure_codes=[list]
+
+**PASS Criteria:**
+- Submission blocked AND errors visible AND validator failures + audit event present
+
+**FAIL Criteria:**
+- Submission succeeds OR no validator/audit evidence
+
+---
+
+## Governance Evidence Checklist (MANDATORY FOR VERIFIED)
+
+### A. Governed Entry
+- [ ] Governed entry executed FIRST for all state-changing actions
+- [ ] QA checklist enforced
+- [ ] Halt-on-fail behavior demonstrated
+- [ ] Evidence: traces show `governedEvaluateEntry` before processing
+
+**If unchecked → FAILED**
+
+### B. Validators
+- [ ] STORYGATE_REQUIRED_FIELDS validator executed
+- [ ] STORYGATE_VISIBILITY_RULES validator executed
+- [ ] STORYGATE_ACCESS_CONTROL validator executed
+- [ ] STORYGATE_VERIFICATION_STATE validator executed
+- [ ] Validator outcomes recorded (pass / soft / hard)
+- [ ] Failure codes populated when validators fail
+
+**If any validator missing → UNVERIFIED**
+
+### C. Routing & Detection
+- [ ] `action_type` explicit for all events (create_listing, request_access, grant_access, deny_access, verify_creator)
+- [ ] No silent heuristics or inference
+
+**If routing implicit → FAILED**
+
+### D. Audit Record (Mandatory)
+- [ ] Structured audit event exists for ALL state-changing actions (not logs)
+- [ ] `event_id` present
+- [ ] `request_id` present
+- [ ] `timestamp_utc` present
+- [ ] `action_type` correct
+- [ ] Actor context correct (`creator_id`, `requester_id`, `admin_id`)
+- [ ] `validators_run` populated
+- [ ] `failure_codes` populated (if applicable)
+- [ ] `listing_id` present (where applicable)
+- [ ] `access_granted` present (for access actions)
+- [ ] `verification_state` present (for verification actions)
+
+**If audit missing or incomplete → FAILED**
+
+### E. SLA Timing
+- [ ] `start_ms` present
+- [ ] `end_ms` present
+- [ ] `elapsed_ms` present
+- [ ] Operations array populated (where applicable)
+
+**If missing → PARTIALLY VERIFIED**
+
+### F. Negative Path Testing
+- [ ] Unauthenticated access blocked (F4-A)
+- [ ] Private listing access blocked (F4-B)
+- [ ] Invalid submission blocked (F4-C)
+- [ ] Errors user-visible
+- [ ] Failures auditable (validator evidence + audit event)
+
+**If silent failure or bypass → FAILED**
+
+### G. Storygate-Specific (Security Gate)
+- [ ] Listing persistence verified (query entity shows created listings)
+- [ ] Access control enforced (private listings not discoverable)
+- [ ] Access requests gated (unauthenticated or unverified blocked)
+- [ ] Verification state enforced (admin-only, server-side)
+- [ ] Verified badge reflects real state (not client-only)
+
+**If access or verification bypassed → FAILED (Security Risk)**
+
+---
+
+## Promotion Decision Rubric (Mechanical)
+
+### VERIFIED
+**All must be present:**
+- Listing persistence + discovery works
+- Access control enforced, no bypass
+- Verification enforced + visible + auditable
+- Governed entry + validators + structured audit + SLA timing
+- Negative paths blocked with evidence
+- All checkboxes above = ✅
+
+**Action:** Update Webpage Contract Matrix: Storygate = VERIFIED
+
+---
+
+### PARTIALLY VERIFIED
+**Functionality correct, but any of:**
+- SLA missing
+- Audit present but incomplete fields
+- Validators not consistently executed
+
+**Action:** Update Webpage Contract Matrix: Storygate = PARTIALLY VERIFIED  
+**Note:** Remaining gaps listed in follow-up ticket
+
+---
+
+### FAILED
+**Any of:**
+- Access control bypass (private listing discoverable)
+- Verification badge visible without auditable state
+- Governance bypass (no validators/audit for state change)
+- Governed entry absent
+- Negative paths not blocked
+
+**Action:** Update Webpage Contract Matrix: Storygate = FAILED  
+**Impact:** Release-blocking  
+**Escalation:** GOVERNANCE_BYPASS incident created
+
+---
+
+## Evidence Packet Submission Format
+
+**QA Lead must compile and attach:**
+
+1. **Evidence Summary Document** (markdown or PDF):
+   - Test execution date/time
+   - Accounts used (creator, industry, admin)
+   - Pass/fail decision for each input
+   - Links to all screenshots, logs, audit queries
+   - Promotion decision (VERIFIED / PARTIALLY VERIFIED / FAILED)
+
+2. **Screenshots Folder** (organized by test input):
+   - F1_creator_workflow/
+   - F2_industry_workflow/
+   - F3_verification_workflow/
+   - F4_edge_cases/
+
+3. **Function Traces** (text file or log export):
+   - Timestamps for all function executions
+   - Parameters passed
+   - Return values
+
+4. **Validator Results** (CSV or table):
+   - Validator name | Outcome | Failure codes | Action
+
+5. **Audit Record Queries** (JSON export):
+   - All audit events created during test
+   - Confirm all required fields present
+
+6. **SLA Metrics** (table or JSON):
+   - Action | start_ms | end_ms | elapsed_ms
+
+---
+
+## Final Instruction to QA
+
+**This is not a functional test.**  
+**This is a governance audit.**
+
+Your job is to:
+1. Execute the test inputs exactly as written
+2. Capture ALL evidence (screenshots, traces, validators, audit, SLA)
+3. Apply the promotion rubric mechanically (no judgment calls)
+4. Submit evidence packet with clear VERIFIED / PARTIALLY VERIFIED / FAILED decision
+
+**If you cannot point to evidence, the surface is not VERIFIED.**
+
+---
+
+## Post-Test Actions
+
+### If VERIFIED:
+- [ ] Update Webpage Contract Matrix: Storygate = VERIFIED
+- [ ] Close RG-STORYGATE-001 Epic
+- [ ] Archive evidence packet
+- [ ] Proceed to next surface
+
+### If PARTIALLY VERIFIED:
+- [ ] Update Webpage Contract Matrix: Storygate = PARTIALLY VERIFIED
+- [ ] Document remaining gaps
+- [ ] Create follow-up tickets (if needed)
+- [ ] Escalate to stakeholders
+
+### If FAILED:
+- [ ] Update Webpage Contract Matrix: Storygate = FAILED
+- [ ] Create GOVERNANCE_BYPASS incident
+- [ ] Escalate to engineering lead
+- [ ] Block release until remediated
+
+**QA authority is mechanical, not negotiable.**

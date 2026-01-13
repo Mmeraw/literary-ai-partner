@@ -1,0 +1,100 @@
+# STORYGATE STUDIO™ — OFFICIAL COLOR SYSTEM
+
+**Status:** Canonical  
+**Last Updated:** 2025-12-31
+
+This palette is now canonical for Storygate Studio.  
+All future design, UI, and brand decisions should derive from it.
+
+---
+
+## PRIMARY PALETTE (LOCKED)
+
+### Obsidian Black
+- **Hex:** `#0E0E0E`
+- **Role:** Foundation / Background
+- **Used for:**
+  - Page backgrounds
+  - Section blocks
+  - Modal overlays
+- **Purpose:** Weight, seriousness, containment.
+
+### Bone White
+- **Hex:** `#F2EFEA`
+- **Role:** Primary text
+- **Used for:**
+  - Body copy
+  - Long-form reading
+  - Interface text
+- **Purpose:** Readability, restraint, human warmth.
+
+### Blood Oxblood
+- **Hex:** `#7A1E1E`
+- **Role:** Primary accent
+- **Used for:**
+  - H1s and section headers
+  - Primary CTA buttons
+  - Key emphasis moments
+- **Purpose:** Authority, gravity, intentional tension.
+
+### Ash Gray
+- **Hex:** `#7B7B7B`
+- **Role:** Secondary UI text
+- **Used for:**
+  - Labels
+  - Metadata
+  - Helper text
+- **Purpose:** Hierarchy without distraction.
+
+### Tarnished Gold
+- **Hex:** `#A98E4A`
+- **Role:** Rare accent
+- **Used for:**
+  - Thin rules
+  - Icon strokes
+  - "Invitation only" indicators
+- **Purpose:** Ritual, prestige, restraint.
+
+---
+
+## USAGE RULE (NON-NEGOTIABLE)
+
+**If a new element cannot be expressed using these five colors, it should not exist.**
+
+This rule keeps the system disciplined, legible, and timeless.
+
+---
+
+## VISUAL PHILOSOPHY CHECK
+
+### If the design ever starts to feel:
+- Loud
+- Trendy
+- Startup-y
+- Over-styled
+
+**Then something is wrong.**
+
+### The correct feeling is:
+**Private archive. Serious work. Quiet authority.**
+
+---
+
+## IMPLEMENTATION NOTES
+
+- **Backgrounds:** Always Obsidian Black (`#0E0E0E`)
+- **Body text:** Always Bone White (`#F2EFEA`)
+- **Headings:** Blood Oxblood (`#7A1E1E`)
+- **CTAs:** Blood Oxblood background with Bone White text
+- **Secondary text:** Ash Gray (`#7B7B7B`)
+- **Accents:** Tarnished Gold (`#A98E4A`) — used sparingly
+
+---
+
+## READY TO SHIP
+
+You now have:
+- A locked color system
+- Clear hierarchy
+- A visual identity consistent with Storygate's philosophy
+- A foundation that scales across web, print, and future products

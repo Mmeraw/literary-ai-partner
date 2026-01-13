@@ -1,0 +1,152 @@
+# RevisionGrade™ Screenplay Formatting Standard
+## WriterDuet Compatible Specification – v1.0 (Dec 2025)
+
+**Status: CANON / PRIMARY SPEC**
+
+**Scope:** Spec scripts and AI-generated screenplay output. Shooting script elements (scene numbers, shot lists, detailed camera instructions) are deliberately out of scope.
+
+This document defines the formatting conventions RevisionGrade uses to generate and evaluate screenplays, aligned with contemporary American spec script standards and compatible with WriterDuet .txt import.
+
+---
+
+## CORE CONVENTIONS
+
+### 1. Title Page
+- The title page lives outside the script body.
+- Authoring tools (WriterDuet, etc.) generate it.
+- The script body begins with `FADE IN:` or the first scene heading.
+
+### 2. Scene Headings (Sluglines)
+- **Format:** `INT.` or `EXT.` + `LOCATION` + `–` + `TIME OF DAY`
+- **Example:** `EXT. HIGHWAY – DAY`
+- ALL CAPS, left aligned.
+- One blank line before and after.
+- Use an en dash between location and time: `–`.
+- Use `CONTINUOUS` only for truly immediate continuity (no time jump).
+
+### 3. Secondary Headings / Sub Slugs
+- Inside an established scene, you may use short sub headings for shifts in focus:
+  - `LATER` / `SAME` / `KITCHEN` etc.
+- Keep them in ALL CAPS and left aligned.
+- Use sparingly and only when they help readability.
+
+### 4. Character Introduction (Spec Standard)
+- First time a tracked character appears in action:
+  - ALL CAPS name + brief identifier:
+  - `MIKE (60s), ex military, drives alone.`
+- If it's a one-off extra who never speaks, no need to cap.
+- If they speak (even once), cap them on first action mention:
+  - `A FARM WORKER whispers.`
+
+### 5. Action Paragraphing
+- Action lines describe only what is visually or audibly happening on screen.
+- Left aligned, no indent. Present tense.
+- Break into short, shootable blocks (2–4 lines each).
+- Fragments for rhythm are fine, but avoid relying on "unfilmables" alone; pair inner states with physical behavior.
+
+### 6. Em Dashes
+- Use a true em dash `—` with no spaces inside normal sentences:
+  - `Flatland slides by—corn, potatoes, dust.`
+- Allow spaced em dashes only when used as a label separator, e.g.:
+  - `GLYPH VISIBLE: ● — the symbol pulses once, then disappears.`
+
+### 7. Sound Cues (SFX)
+- Treat as action lines with a consistent tag:
+  - `SFX: CRACK! A shot echoes across the valley.`
+- ALL CAPS tag `SFX:` followed by sentence case description.
+- Use consistently throughout the script.
+
+### 8. Dialogue Formatting
+- **Character names:**
+  - ALL CAPS, centered (~3.5" from left margin).
+- **Dialogue:**
+  - Directly under the name, indented ~2.5".
+  - No blank line between name and dialogue.
+  - Avoid long monologues; break after 4–5 lines where possible.
+
+### 9. Parentheticals
+- Optional; used to clarify delivery or brief action attached to the line.
+- Placed between name and dialogue.
+- Indented slightly more than dialogue (~3.0").
+- Must be short (ideally one line).
+
+### 10. Voiceover, Off Screen, and Continued
+- Add tags beside the character name:
+  - `(V.O.)` for voiceover.
+  - `(O.S.)` for off screen.
+  - `(CONT'D)` is optional; generally managed by software.
+- **Example:**
+  ```
+  MIKE (V.O.)
+  ```
+
+### 11. Transitions
+- Right aligned (~6.0" from left margin), ALL CAPS:
+  - `CUT TO:`
+  - `FADE OUT.`
+  - `SMASH TO:` etc.
+- One blank line before each transition.
+- Use transitions sparingly in spec scripts.
+
+### 12. Hyphens and Portability
+- Use standard hyphens `-` for compounds (nose-out).
+- Avoid non-breaking hyphens or non-ASCII characters that may break .txt imports.
+
+---
+
+## WRITERDUET COMPATIBLE .TXT TEMPLATE
+
+```
+EXT. LOCATION NAME – TIME OF DAY
+
+Action line goes here. Describe what is visually happening on screen.
+
+Use present tense. No indent. Break into short paragraphs every 3–5 lines.
+
+                    CHARACTER NAME
+            (optional parenthetical here)
+    Dialogue begins here. It is indented 2.5" from the left margin.
+    Do not insert a blank line between the character and their dialogue.
+
+                    OTHER CHARACTER
+    Dialogue continues. Avoid stacking long monologues; break after 4–5 lines.
+
+More action. Keep it visual and filmable.
+
+                                                                CUT TO:
+```
+
+---
+
+## ROUTING RULE: SCREENPLAY MODE VS PROSE MODE
+
+### Mode: "screenplay"
+- Enforces all standards in this document.
+- Turns on stricter checks: no inline quote styling, no curly quotes breaking sluglines, no narrative paragraphs masquerading as action.
+- Prioritizes structure and formatting correctness alongside content.
+
+### Mode: "prose-adaptation"
+- Looser formatting, allowed to use paragraphs, internal thought, rhetorical devices.
+- Uses prose voice; not constrained by INT./EXT. or dialogue blocks.
+
+**Rule:**
+"If the user is asking for scenes/pages in script form or anything meant for WriterDuet/Final Draft, always use screenplay mode and apply the Screenplay Quality Standard."
+
+---
+
+## STRATEGIC VALUE
+
+### Trust with agents and screenwriters
+Agents, managers, and producers are extremely sensitive to formatting quality; scripts that violate basic conventions are often rejected unread. By enforcing a clear, industry-aligned standard, RevisionGrade positions itself as a reliable upstream filter whose output is already in professional shape.
+
+### Consistent AI behavior and evaluation
+The platform's AI-driven analysis and transformation pipelines depend on predictable structure (scene headings, action blocks, dialogue, transitions). A fixed spec reduces ambiguity, improves model performance, and makes automated scoring and diagnostics significantly more reliable.
+
+### Interoperability with the professional ecosystem
+The spec is explicitly WriterDuet-compatible and follows patterns shared by major formatting guides (INT./EXT. sluglines, Courier 12, standard indents). This allows writers to move work cleanly between RevisionGrade and their existing tools, lowering adoption friction.
+
+---
+
+**Version:** 1.0  
+**Last Updated:** December 2025  
+**Status:** BINDING CANON
