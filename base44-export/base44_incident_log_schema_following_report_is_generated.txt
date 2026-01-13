@@ -1,0 +1,146 @@
+# REVISIONGRADE™ — EVALUATE INCIDENT LOG SCHEMA
+
+**Status:** CANON / BINDING  
+**Applies to:** Engineering, Infrastructure, Compliance  
+**Purpose:** Request-level auditability for EVALUATE process
+
+---
+
+## CANONICAL EVENT: EVALUATE_REQUEST_EVENT
+
+### Required fields (non-optional)
+
+**Event metadata:**
+- `event_id` (string, UUID)
+- `timestamp_utc` (ISO 8601 datetime)
+- `request_id` (string, unique per request)
+- `user_id` (string)
+- `account_id` (string)
+- `build_version` (string)
+- `environment` (enum: prod | staging)
+
+**Detection fields:**
+- `detected_format` (enum: scene | chapter | screenplay | manuscript)
+- `detection_signals` (array of strings)
+- `detection_confidence` (number, 0–1)
+
+**Routing fields:**
+- `routed_pipeline` (enum: quick | manuscript)
+- `routing_decision_source` (enum: auto | manual_override)
+
+**Validator fields:**
+- `validators_run` (array of strings)
+- `validators_failed` (array of strings)
+- `failure_codes` (array of strings)
+- `severity` (enum: none | soft | hard)
+
+**Outcome fields:**
+- `evaluation_started` (boolean)
+- `evaluation_completed` (boolean)
+- `revision_enabled` (boolean)
+
+---
+
+## INCIDENT TRIGGERS
+
+| Trigger | Action |
+|---------|--------|
+| Any HARD_FAIL | Auto-file incident |
+| SLA breach | Auto-file incident |
+| Validator skipped | Auto-file incident |
+| Detection fallback | Auto-file incident |
+
+---
+
+## RETENTION & AUDIT
+
+**Retention periods:**
+- Raw events: **90 days**
+- Incident summaries: **2 years**
+
+**Audit access:**
+- Engineering + QA + Compliance
+
+**Deletion policy:**
+- Prohibited before retention expiry
+- Requires written authorization for early deletion
+- Audit trail of deletions maintained indefinitely
+
+---
+
+## EVENT SCHEMA (JSON)
+
+```json
+{
+  "event_id": "uuid-v4",
+  "timestamp_utc": "2026-01-03T12:34:56.789Z",
+  "request_id": "req_abc123",
+  "user_id": "user_xyz789",
+  "account_id": "acct_def456",
+  "build_version": "1.2.3",
+  "environment": "prod",
+  
+  "detected_format": "manuscript",
+  "detection_signals": [
+    "word_count_threshold_exceeded",
+    "chapter_headings_detected"
+  ],
+  "detection_confidence": 0.98,
+  
+  "routed_pipeline": "manuscript",
+  "routing_decision_source": "auto",
+  
+  "validators_run": [
+    "EVAL_UI_SINGLE_ENTRY_VALIDATOR",
+    "EVAL_NO_FORMAT_SELECTION_VALIDATOR",
+    "EVAL_DETECTION_REQUIRED_VALIDATOR",
+    "EVAL_PIPELINE_MATCH_VALIDATOR",
+    "EVAL_REVISION_GATE_VALIDATOR"
+  ],
+  "validators_failed": [],
+  "failure_codes": [],
+  "severity": "none",
+  
+  "evaluation_started": true,
+  "evaluation_completed": false,
+  "revision_enabled": false
+}
+```
+
+---
+
+## INCIDENT REPORT SCHEMA
+
+When an incident is triggered, the following report is generated:
+
+```json
+{
+  "incident_id": "inc_abc123",
+  "incident_type": "HARD_FAIL",
+  "timestamp_utc": "2026-01-03T12:34:56.789Z",
+  "source_event_id": "uuid-v4",
+  "failure_codes": ["EVAL-HARD-002"],
+  "validator_failed": "EVAL_NO_FORMAT_SELECTION_VALIDATOR",
+  "description": "Format selection dropdown detected in UI render",
+  "severity": "hard",
+  "status": "open",
+  "assigned_to": null,
+  "resolution": null,
+  "resolved_at": null
+}
+```
+
+---
+
+## COMPLIANCE REQUIREMENTS
+
+1. **Every evaluation request** must emit an EVALUATE_REQUEST_EVENT
+2. **Every validator execution** must be logged in validators_run
+3. **Every failure** must emit a failure code
+4. **Every HARD_FAIL** must block further processing
+5. **Every incident** must be tracked until resolution
+
+**Non-compliance:**
+- Missing event logs = audit failure
+- Bypassed validators = release blocking
+- Unreported failures = compliance violation

@@ -1,0 +1,185 @@
+# Function Spec: File Processing (ingestUploadedFileToText, convertDocxToText)
+**5-Field Contract** | **Phase:** 0 Complete | **Version:** 1.0.0
+
+---
+
+## 1. INPUTS
+
+**Accepted Types:**
+- `file`: binary (uploaded file via multipart/form-data)
+- **Supported formats:**
+  - DOCX (Microsoft Word 2007+)
+  - DOC (Microsoft Word 97-2003)
+  - PDF (text-based, not scanned images)
+  - TXT (plain text, UTF-8)
+
+**Size Limits:**
+- Maximum file size: 25 MB
+- Minimum file size: 1 KB (prevent empty uploads)
+- Word count after extraction: 50-200,000 words
+
+**Visible Ingestion:**
+- YourWriting or UploadManuscript page shows file upload widget
+- Supported formats listed explicitly
+- File size shown during upload
+- Upload progress bar visible
+- Conversion progress shown ("Extracting text...")
+
+**Validation at Entry:**
+- File format check by MIME type and extension
+- File size check before upload starts
+- Non-text PDFs detected and rejected (requires OCR, not supported)
+- Corrupt files detected by parser and rejected
+
+---
+
+## 2. ROUTING
+
+**Pipeline Selection:**
+- `ingestUploadedFileToText` orchestrates the flow
+- Routes to appropriate parser based on file type:
+  - DOCX/DOC → `convertDocxToText`
+  - PDF → PDF text extraction (Deno built-in or library)
+  - TXT → direct read (no conversion)
+
+**Routing Logic:**
+```
+IF file.size > 25MB THEN BLOCK (file too large)
+IF file.size < 1KB THEN BLOCK (file too small)
+IF MIME type NOT IN [docx, doc, pdf, txt] THEN BLOCK (unsupported format)
+ELSE:
+  CASE file.type:
+    WHEN "docx" | "doc" → convertDocxToText
+    WHEN "pdf" → extractPdfText
+    WHEN "txt" → readPlainText
+  END
+  THEN return extracted text
+```
+
+---
+
+## 3. VALIDATION
+
+**Hard Fails (Block Execution):**
+- File size > 25 MB
+- File size < 1 KB
+- Unsupported file format
+- Corrupt file (parser error)
+- Non-text PDF (scanned image)
+- Extraction results in < 50 words
+- User not authenticated
+
+**Soft Fails (Warn but Proceed):**
+- File > 10 MB (warn: "large file, may take time")
+- Extracted text > 150,000 words (warn: "very long manuscript")
+- Minor formatting issues (stripped, text still extracted)
+
+**Validation Sequence:**
+1. Auth check (401 if fails)
+2. File presence check (400 if missing)
+3. File size check (413 if too large, 400 if too small)
+4. MIME type validation (415 if unsupported)
+5. File integrity check (500 if corrupt)
+6. Text extraction (500 if extraction fails)
+7. Word count check (422 if < 50 words)
+
+**Visibility:**
+- All validation failures return standardized error response
+- Upload widget shows allowed formats + size limits
+- Extraction errors shown with specific reason
+- User prompted to retry with different file
+
+---
+
+## 4. OUTPUTS
+
+**Artifact Type:** ExtractedText (JSON)
+
+**Required Fields:**
+```json
+{
+  "extractedText": "string (full plain text)",
+  "wordCount": "number",
+  "originalFileName": "string",
+  "fileType": "docx | doc | pdf | txt",
+  "fileSizeMB": "number",
+  "extractionMethod": "string (parser used)",
+  "extractedAt": "ISO 8601",
+  "warnings": "array (formatting issues, if any)"
+}
+```
+
+**Format:**
+- JSON response with `{ success: true, extractedText: {...} }`
+- Success: 200 OK
+- File too large: 413 Payload Too Large
+- Unsupported format: 415 Unsupported Media Type
+- Extraction failed: 500 Internal Server Error
+
+**Gating:**
+- Extracted text MUST be ≥50 words
+- Text MUST be plain (all formatting stripped)
+- Unicode characters preserved (UTF-8)
+- Paragraph breaks preserved (double newlines)
+
+**Storage:**
+- Extracted text stored in Manuscript or Submission entity
+- Original file NOT stored (only extracted text)
+- File metadata logged for audit
+
+---
+
+## 5. AUDIT
+
+**Required Events:**
+- Event: FILE_INGESTED (success) or FILE_INGESTION_FAILED (failed)
+- Entity: EvaluationAuditEvent
+
+**Required Fields:**
+```json
+{
+  "event_id": "evt_{timestamp}_{random}",
+  "request_id": "{file_name}_{timestamp}",
+  "timestamp_utc": "ISO 8601",
+  "function_id": "ingestUploadedFileToText",
+  "canon_hash": "EVALUATE_ENTRY_CANON_v1.2",
+  "governance_version": "1.0.0",
+  "user_email": "user@example.com",
+  "original_file_name": "{name}",
+  "file_type": "docx | doc | pdf | txt",
+  "file_size_mb": "{number}",
+  "extraction_method": "convertDocxToText | pdfExtract | plainText",
+  "extracted_word_count": "{number}",
+  "extraction_duration_ms": "{number}",
+  "success": true | false,
+  "failure_reason": "{reason or null}"
+}
+```
+
+**Sentry Integration:**
+- Errors captured with file metadata (name, type, size)
+- No file content logged (privacy)
+
+---
+
+## Canon Reference
+
+- Governed by: `EVALUATE_ENTRY_CANON.md` v1.2 (Section 2.1: File Ingestion)
+- Input validation: `PHASE_1_GOVERNANCE_EVIDENCE.md`
+
+---
+
+## Test Coverage
+
+- Manual QA: Upload DOCX, DOC, PDF, TXT files
+- Corrupt file handling tested
+- Size limit validation automated
+
+**Acceptance Criteria:**
+✅ Blocks unsupported formats  
+✅ Blocks files > 25 MB  
+✅ Blocks files < 1 KB  
+✅ Extracts text from all supported formats  
+✅ Preserves paragraph breaks  
+✅ Strips formatting correctly  
+✅ Audit event logged with metadata

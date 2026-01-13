@@ -1,0 +1,116 @@
+# BASE44 — Document Governance Specification
+**Implementation Instructions**
+
+**Version:** V1.1 (refined)  
+**Date:** January 01, 2026  
+**Audience:** Base44 Product + Design + Backend Implementers
+
+---
+
+## 1) Core Principle
+
+Base44 manages writing artifacts. Every artifact is represented as a **Document** governed by:
+
+- **Type** — what kind of writing it is.
+- **Scope** — how large it is.
+- **State** — where it is in the lifecycle.
+
+**No workflow may bypass or "skip" states.** State transitions are enforced server-side.
+
+---
+
+## 2) Document Types (Canonical Enum)
+
+These are the supported `DocumentType` values. Anything not listed is out-of-scope for Base44.
+
+| DocumentType | Definition |
+|--------------|------------|
+| MANUSCRIPT | Full-length prose work (novel / nonfiction manuscript). |
+| SCREENPLAY | Screenplay formatted work (feature, pilot, short). |
+| CHAPTER | A chapter extracted from a manuscript (unit). |
+| SCENE | A scene (prose or screenplay scene unit). |
+| SYNOPSIS | Synopsis of a manuscript or screenplay (short/standard/extended). |
+| QUERY | Query letter or query synopsis used for agent/editor submissions. |
+| AUTHOR_BIO | Author biography for submissions or marketing decks. |
+| PITCH | Pitch materials (one-pager, pitch paragraph, deck text). |
+| MARKET_COMPARABLES | Comparable titles/films/series + positioning notes. |
+| EVALUATION | System-generated evaluation report produced from a Document. |
+| STORYGATE_SUBMISSION | Storygate Studio submission write-up (curated submission narrative). |
+
+**Note:** "Agent package" or "submission package" is a collection of Documents, not its own DocumentType.
+
+---
+
+## 3) Document Scope (Canonical Enum)
+
+| Scope | Meaning | Examples |
+|-------|---------|----------|
+| FULL | Entire work for that type | Full manuscript; full screenplay; full synopsis |
+| PARTIAL | Subset of a work | Excerpt; selected scenes; partial manuscript |
+| UNIT | Atomic unit | One chapter; one scene; one section |
+
+---
+
+## 4) Document States (Canonical Enum)
+
+These are the **only allowed** `DocumentState` values:
+
+| State | Plain-English Meaning |
+|-------|----------------------|
+| UPLOADED | Raw input exists. No evaluation has occurred. |
+| EVALUATED | Evaluation completed; score and breakdown captured. |
+| REVISION_IN_PROGRESS | Active editing cycle (draft changes underway). |
+| REVISED | A completed revision exists (revision finalized). |
+| RESCORED | Re-evaluation completed after a revision. |
+| LOCKED | Final / canonical. Read-only; must be cloned to continue work. |
+
+---
+
+## 5) Allowed State Transitions (Enforced)
+
+**Only these transitions are valid.** Any other transition must be rejected with `INVALID_STATE_TRANSITION`.
+
+| From | To | Intent |
+|------|----|----|
+| UPLOADED | EVALUATED | Run evaluation on the uploaded document. |
+| EVALUATED | REVISION_IN_PROGRESS | Begin editing based on evaluation. |
+| REVISION_IN_PROGRESS | REVISED | Finalize a revision. |
+| REVISED | RESCORED | Re-score after revision is finalized. |
+| RESCORED | LOCKED | Lock as final/canonical. |
+| RESCORED | REVISION_IN_PROGRESS | Start another revision cycle. |
+
+---
+
+## 6) UI Invariants (Must-Haves)
+
+UI must always reflect **server-truth state** and allowed actions. Buttons appear only when allowed.
+
+- No evaluation button unless `state == UPLOADED`.
+- No revision button unless `state == EVALUATED or RESCORED`.
+- No rescore button unless `state == REVISED`.
+- No lock button unless `state == RESCORED`.
+- Locked documents are **read-only**; the only primary action is **Clone**.
+- Document Detail View must show: current State, allowedActions, last updated, and a version/history panel.
+
+---
+
+## 7) Minimum Information Architecture
+
+Primary navigation is intentionally minimal:
+
+- **Overview**
+- **Documents**
+
+**Documents page must support:**
+- Filtering by Type, Scope, and State
+- Display: Title / Type / Scope / State / Last Updated
+
+---
+
+## 8) Definition of "Evaluation" and "Storygate Submission"
+
+To avoid ambiguity:
+
+- **EVALUATION** is a DocumentType representing the generated evaluation report associated with a source Document.
+- **STORYGATE_SUBMISSION** is a DocumentType representing the curated submission narrative and metadata used in Storygate Studio workflows.
+- Both must link back to the source Document via `parentDocumentId` (or a required `sourceDocumentId` field).

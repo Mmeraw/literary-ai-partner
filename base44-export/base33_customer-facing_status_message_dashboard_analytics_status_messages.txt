@@ -1,0 +1,225 @@
+# Customer-Facing Status Message Standard
+## Dashboard & Analytics Transparency
+
+**Purpose:** Prevent silent erosion of trust by ensuring customers always know what's happening.
+
+---
+
+## 1. When to Display a Status Message
+
+A message must appear when:
+- Data freshness threshold exceeded
+- Analytics pipeline degraded
+- Partial metrics unavailable
+- Dashboard temporarily unavailable
+
+❌ **Silent degradation is forbidden**
+
+---
+
+## 2. Message Placement
+
+- **Location:** Top of Dashboard / Analytics page
+- **Style:** Non-modal
+- **Dismissible:** Yes (user can close)
+- **Blocking:** Does not block interaction unless data is invalid
+
+---
+
+## 3. Message Severity Levels
+
+### 🟢 Informational
+
+**Use when:** Minor delays, no data loss
+
+**Copy (Locked):**
+```
+Some analytics may be delayed. Last update: [timestamp].
+```
+
+**Color:** Blue background, dark blue text  
+**Icon:** Info icon  
+**Dismissible:** Yes
+
+---
+
+### 🟡 Degraded
+
+**Use when:** Partial data unavailable
+
+**Copy (Locked):**
+```
+We're experiencing delays with some analytics panels.
+Data remains safe and will update automatically.
+```
+
+**Color:** Yellow background, dark yellow text  
+**Icon:** Warning icon  
+**Dismissible:** Yes
+
+---
+
+### 🔴 Outage
+
+**Use when:** Dashboard or Analytics unavailable
+
+**Copy (Locked):**
+```
+Analytics are temporarily unavailable.
+We're working to restore service.
+```
+
+**Color:** Red background, dark red text  
+**Icon:** Alert icon  
+**Dismissible:** No (must be visible until resolved)
+
+---
+
+## 4. Forbidden Language
+
+❌ "Unexpected issue"  
+❌ "Something went wrong"  
+❌ "Try refreshing"  
+❌ Any technical jargon
+
+### Messages must be:
+- **Calm** — Not alarming
+- **Honest** — Not misleading
+- **Non-alarming** — Not catastrophizing
+- **Non-technical** — No error codes or stack traces
+
+---
+
+## 5. Removal Rules
+
+A status message may only be removed when:
+1. Data freshness restored
+2. FUNCTION TEST #9 re-run
+3. PASS recorded
+4. Evidence attached to ticket
+
+**Do not remove prematurely.**
+
+---
+
+## 6. Why This Matters
+
+Broken dashboards don't just look bad — they:
+- Undermine trust
+- Trigger support churn
+- Signal immaturity
+
+**Transparent dashboards increase trust even during issues.**
+
+---
+
+## 7. Implementation Guidelines
+
+### Frontend Implementation (React)
+
+```jsx
+// Example status message component
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Info, AlertTriangle, AlertCircle } from "lucide-react";
+
+export default function DashboardStatusMessage({ severity, message, timestamp, onDismiss }) {
+  const icons = {
+    info: Info,
+    warning: AlertTriangle,
+    error: AlertCircle
+  };
+  
+  const colors = {
+    info: "bg-blue-50 border-blue-200 text-blue-900",
+    warning: "bg-yellow-50 border-yellow-200 text-yellow-900",
+    error: "bg-red-50 border-red-200 text-red-900"
+  };
+
+  const Icon = icons[severity];
+
+  return (
+    <Alert className={`${colors[severity]} mb-4`}>
+      <Icon className="h-4 w-4" />
+      <AlertDescription>
+        {message}
+        {timestamp && ` Last update: ${timestamp}`}
+      </AlertDescription>
+      {severity !== 'error' && onDismiss && (
+        <button onClick={onDismiss} className="ml-auto">
+          Dismiss
+        </button>
+      )}
+    </Alert>
+  );
+}
+```
+
+### Usage Example
+
+```jsx
+// In Dashboard.js or Analytics.js
+import DashboardStatusMessage from '@/components/DashboardStatusMessage';
+
+export default function Dashboard() {
+  const [showStatus, setShowStatus] = useState(false);
+  const [statusSeverity, setStatusSeverity] = useState('info');
+  const [statusMessage, setStatusMessage] = useState('');
+  
+  // Check data freshness
+  useEffect(() => {
+    const lastUpdate = getLastUpdateTimestamp();
+    const now = Date.now();
+    const ageMinutes = (now - lastUpdate) / 1000 / 60;
+    
+    if (ageMinutes > 5 && ageMinutes <= 10) {
+      setStatusSeverity('info');
+      setStatusMessage('Some analytics may be delayed.');
+      setShowStatus(true);
+    } else if (ageMinutes > 10) {
+      setStatusSeverity('warning');
+      setStatusMessage("We're experiencing delays with some analytics panels. Data remains safe and will update automatically.");
+      setShowStatus(true);
+    }
+  }, []);
+
+  return (
+    <div>
+      {showStatus && (
+        <DashboardStatusMessage 
+          severity={statusSeverity}
+          message={statusMessage}
+          timestamp={formatTimestamp(lastUpdate)}
+          onDismiss={() => setShowStatus(false)}
+        />
+      )}
+      {/* Rest of dashboard */}
+    </div>
+  );
+}
+```
+
+---
+
+## 8. Testing Requirements
+
+All status messages must be tested in FUNCTION TEST #9:
+- [ ] Info message displays correctly
+- [ ] Warning message displays correctly
+- [ ] Error message displays correctly
+- [ ] Messages dismiss when appropriate
+- [ ] Error messages do NOT dismiss
+- [ ] Timestamps are accurate
+- [ ] Copy matches locked templates exactly
+
+---
+
+## 9. Enforcement
+
+**This is a reliability policy, not governance.**
+
+Violations:
+- Trigger bug tickets
+- Do not block release
+- Must be fixed for product credibility
+
+**Status messages are the first line of defense against silent failures.**

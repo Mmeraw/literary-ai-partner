@@ -1,0 +1,232 @@
+# DEFENSIVE ENGINEERING STANDARD v1.0
+**RevisionGrade / Base44 Platform**  
+**Authority: Binding Technical Standard**
+
+---
+
+## PURPOSE
+This document defines mandatory defensive engineering practices for all LLM-assisted features, backend functions, and user-facing outputs within Base44/RevisionGrade.
+
+**Core Principle:** No silent failures. No hallucinations. No ambiguous states.
+
+---
+
+## SCOPE
+Applies to:
+- All backend functions that call external LLMs
+- All features that generate user-facing content
+- All validation and error-handling logic
+- All schema-based outputs
+
+---
+
+## MANDATORY GATES
+
+### 1. PRE-FLIGHT VALIDATION
+Before invoking any LLM:
+- **Input Completeness Check:** Verify all required inputs exist
+- **Input Format Check:** Validate schema/structure of request
+- **Eligibility Gate:** Confirm the request qualifies for the intended output type
+
+**If any check fails:**
+- Return explicit error with missing fields listed
+- Do NOT proceed to LLM call
+- Log the failure with request metadata
+
+### 2. SCHEMA-FIRST OUTPUT
+All LLM responses that produce structured data MUST:
+- Define a strict JSON schema before generation
+- Include `required` fields (no optionals for critical data)
+- Specify `enum` values where choices are finite
+- Use `minItems` / `maxItems` for arrays
+
+**Schema Enforcement:**
+```javascript
+response_json_schema: {
+  type: 'object',
+  required: ['field1', 'field2'], // MANDATORY
+  properties: {
+    field1: { type: 'string', minLength: 10 },
+    field2: { type: 'array', minItems: 3, items: {...} }
+  },
+  additionalProperties: false // Block unspecified fields
+}
+```
+
+### 3. POST-GENERATION VALIDATION
+After LLM returns output:
+- **Schema Conformance:** Validate against defined schema
+- **Content Integrity:** Check for required elements (not just fields)
+- **Format Compliance:** Verify no structural violations (bullets where prose required, etc.)
+- **Canon Compliance:** Check against content-specific rules (e.g., Synopsis Master Guide)
+
+**Validation Result Format:**
+```javascript
+{
+  ok: boolean,
+  failures: [{
+    code: 'ERROR_CODE',
+    severity: 'BLOCKER' | 'WARN',
+    message: string,
+    evidence?: string
+  }]
+}
+```
+
+### 4. AUTO-REGENERATION WITH CORRECTIVE INSTRUCTIONS
+If validation fails with BLOCKER severity:
+- **Attempt #2:** Call LLM again with:
+  - Original input
+  - Failed output (for reference)
+  - Explicit list of violations to fix
+  - Corrective instructions (deterministic, not "try better")
+  
+**Max regeneration attempts:** 1  
+(Total: 2 LLM calls maximum per request)
+
+### 5. HARD FAIL WITH USER-VISIBLE ERRORS
+If validation fails after regeneration:
+- **Block output completely**
+- Return structured error response:
+  ```javascript
+  {
+    success: false,
+    error: 'GENERATION_FAILED',
+    details: 'Clear user-facing message',
+    missing: ['specific', 'missing', 'elements'],
+    next_action: 'PROVIDE_MORE_INFO' | 'RETRY' | 'CONTACT_SUPPORT'
+  }
+  ```
+- **Log failure** with:
+  - Request ID
+  - Input summary
+  - Both LLM outputs
+  - Validation failures
+  - Timestamp
+
+---
+
+## ERROR HANDLING STANDARDS
+
+### NO SILENT FAILURES
+**Forbidden:**
+- Returning partial/incomplete output without warning
+- Substituting placeholder text ("More details coming...")
+- Returning success=true when validation failed
+- Catching errors without user notification
+
+**Required:**
+- Explicit error codes
+- User-actionable error messages
+- Logged error details for debugging
+- Clear next steps
+
+### ERROR RESPONSE FORMAT
+All functions must return:
+```javascript
+{
+  success: boolean,
+  data?: object,        // Only present if success=true
+  error?: string,       // Error code if success=false
+  details?: string,     // User-facing explanation
+  missing?: string[],   // Missing required inputs
+  debug?: object        // Internal diagnostic data (dev mode only)
+}
+```
+
+### LOGGING REQUIREMENTS
+Every function call must log:
+- **Entry:** Function name, user ID, timestamp
+- **LLM calls:** Model, token count, latency
+- **Validation:** Pass/fail status, failure codes
+- **Exit:** Success status, error code (if any)
+
+---
+
+## HALLUCINATION PREVENTION
+
+### 1. NO INVENTION RULE
+LLMs must NOT:
+- Invent plot points not in source material
+- Create character names/details not provided
+- Fabricate facts, dates, or events
+- Add content to meet length requirements
+
+**Enforcement:**
+- Explicitly instruct: "Do not invent. If info is missing, state what is missing and stop."
+- Include "MISSING_INFO" as a valid response type
+- Validate outputs for invented content (heuristics + manual review flags)
+
+### 2. CANON COMPLIANCE
+For domain-specific outputs (synopsis, query letter, etc.):
+- Define a canonical spec (like Synopsis Master Guide)
+- Treat spec as **binding contract**, not reference
+- Validate outputs against spec requirements
+- Block outputs that violate canon
+
+---
+
+## DETERMINISTIC HELPERS
+
+### Pre-Processing
+Before LLM calls, use deterministic code for:
+- Format normalization (whitespace, line endings)
+- Structure detection (bullets, headers, numbering)
+- Input validation (length, completeness)
+
+### Post-Processing
+After LLM calls, use deterministic code for:
+- Format scrubbing (remove bullets/headers)
+- Paragraph consolidation
+- Tense/POV checking (heuristics)
+- Schema validation
+
+**Why:** Reduces LLM failure modes and increases reliability.
+
+---
+
+## TESTING REQUIREMENTS
+
+### Unit Tests Required
+For each LLM-integrated function:
+- **Pre-flight gate tests:** Missing inputs, format conflicts
+- **Schema validation tests:** Missing fields, wrong types
+- **Content validation tests:** Missing required elements
+- **Regeneration tests:** First attempt fails, second succeeds
+- **Hard fail tests:** Both attempts fail, proper error returned
+
+### Integration Tests Required
+- **End-to-end happy path:** Valid input → valid output
+- **Partial input path:** Missing data → proper error
+- **Malformed output path:** LLM returns bad format → regeneration or fail
+- **Adversarial input:** Edge cases, stress tests
+
+---
+
+## COMPLIANCE CHECKLIST
+
+Before shipping any LLM-integrated feature:
+
+- [ ] Pre-flight validation implemented
+- [ ] Strict JSON schema defined for outputs
+- [ ] Post-generation validator implemented
+- [ ] Auto-regen with corrective instructions implemented
+- [ ] Hard fail with user-visible errors implemented
+- [ ] All error states return structured error responses
+- [ ] Logging covers entry/LLM calls/validation/exit
+- [ ] Unit tests cover pre-flight, validation, regen, fail paths
+- [ ] Integration tests cover happy path and failure modes
+- [ ] Documentation includes error codes and next actions
+
+---
+
+## ENFORCEMENT
+**Non-negotiable.**  
+Code reviews must verify compliance with this standard.  
+CI/CD gates should block deployment of non-compliant functions.
+
+---
+
+**Document Owner:** Michael J. Meraw / RevisionGrade Engineering  
+**Last Updated:** 2026-01-02  
+**Version:** 1.0

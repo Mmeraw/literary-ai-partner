@@ -1,0 +1,300 @@
+# CONSOLIDATED GOVERNANCE EXPORT
+**Export Date:** 2026-01-10  
+**Purpose:** Holistic review for gaps in governance canon, code, and documentation
+
+---
+
+## CONTENTS
+
+1. Entity Schemas Export (JSON)
+2. Governance Code Extract (JavaScript with embedded documentation)
+3. Snapshot Context (what was listed but may not exist on disk)
+
+---
+
+## 1. ENTITY SCHEMAS EXPORT
+
+**File:** `functions/entity_schemas_export.json`  
+**Contents:** All 35 entity schemas in machine-readable JSON format  
+**Location:** Dashboard → Code → functions → entity_schemas_export.json
+
+This file contains the complete database schema definitions for your application.
+
+---
+
+## 2. GOVERNANCE CODE EXTRACT
+
+**File:** `functions/GOVERNANCE_CODE_EXTRACT.js`  
+**Contents:** Canonical master data and enforcement logic extracted from live code  
+**Location:** Dashboard → Code → functions → GOVERNANCE_CODE_EXTRACT.js
+
+### Extracted Components:
+
+#### A. Master Data Matrix (MDM Canon v1.0.0)
+- Work Type → Criteria Applicability Matrix
+- 9 work types defined (personalEssayReflection, memoirVignette, novelChapter, shortStory, featureScreenplay, scriptSceneFilmTv, flashFictionMicro, proseScene, otherUserDefined)
+- 13 criteria with R/O/NA/C status for each work type
+- Source: `functions/validateWorkTypeMatrix.js` lines 20-90
+
+#### B. Matrix Preflight Rules
+- Input scale definitions (paragraph, scene, chapter, multi_chapter, full_manuscript)
+- Confidence caps by scale (paragraph: 40, scene: 65, chapter: 75, multi_chapter: 85, full_manuscript: 95)
+- Request type requirements
+- Allowed/blocked outputs by scale
+- Block reason codes
+- Source: `functions/matrixPreflight.js`
+
+#### C. Policy Routing Specs
+- 4 policy families (MICRO_POLICY, MANUSCRIPT_POLICY, SCREENPLAY_POLICY, NEUTRAL_POLICY)
+- Work Type → Policy Family mapping
+- Per-policy routing rules (score labels, readiness floor, allowed/forbidden phrases)
+- Source: `functions/getPolicyFamily.js`
+
+#### D. Quick Evaluation Enforcement
+- Criteria labels (UI mapping)
+- Sample scope detection rules (S0-S4)
+- Micro family scope enforcement (flashFictionMicro S1 special rules)
+- NA Output Gate (MDM Rule M4: Hard Prohibition)
+- Postflight Integrity Gate
+- Source: `functions/evaluateQuickSubmission.js`
+
+#### E. Full Manuscript Enforcement
+- Governed Run schema (EvaluationRun entity requirements)
+- Phase gate lifecycle progression
+- Gate decision rules (readiness, coverage, integrity)
+- Integrity check (Phase 0 pre-evaluation)
+- 12 Agent Criteria (spine evaluation)
+- WAVE tier structure (early/mid/late)
+- Scoring aggregation formulas
+- Source: `functions/evaluateFullManuscript.js`
+
+#### F. Critical Code Sections
+- Complete code snippets showing enforcement at key decision points
+- Includes the flashFictionMicro bug location (lines 161-204 of evaluateQuickSubmission.js)
+
+---
+
+## 3. SNAPSHOT CONTEXT (MAY BE STALE)
+
+The following .md files were listed in the context snapshot but do not appear to exist on disk. They may have been:
+- Deleted
+- Renamed
+- Never created
+- Referenced in stale snapshot data
+
+### Files Listed in Snapshot (Not Found):
+
+**Criteria & Standards:**
+- 12_STORY_CRITERIA.md
+- 13_STORY_CRITERIA.md
+- ACCEPTANCE_TEST_SUITE.md
+- AI_ROUTING_SPEC.md
+
+**Base44 Contracts & Implementation:**
+- BASE44_CONTRACT_ADDENDUM.md
+- BASE44_ENGINEERING_QA_SPEC.md
+- BASE44_EXECUTION_MAPPING.md
+- BASE44_GOVERNANCE_OVERVIEW.md
+- BASE44_IMPLEMENTATION_ROADMAP.md
+- BASE44_IMPLEMENTATION_SPEC.md
+- BASE44_MISTAKE_PROOFING_PROTOCOL.md
+- BASE44_QUERY_LETTER_BUG_REPORT.md
+
+**Canon & Protocols:**
+- CANON_CHANGE_REQUEST_PROTOCOL.md
+- COMPARABLES_CANON_SPEC.md
+- COMPETITIVE_COMPARISON_TABLE.md
+- CONFIDENCE_SCORING_HEURISTIC_v1.md
+- CONTROL_TOWER_SPECIFICATION.md
+
+**Dashboard & Analytics:**
+- DASHBOARD_ANALYTICS_JIRA_AUTOMATION.md
+- DASHBOARD_ANALYTICS_QA_WALKTHROUGH.md
+- DASHBOARD_ANALYTICS_RELIABILITY_CONTRACT.md
+- DASHBOARD_ANALYTICS_RELIABILITY_POLICY.md
+- DASHBOARD_ANALYTICS_STATUS_MESSAGES.md
+
+**Engineering Standards:**
+- DEFENSIVE_ENGINEERING_STANDARD.md
+- DEFENSIVE_ERROR_HANDLING_STANDARD.md
+- DIAGNOSTICS_DASHBOARD_SPECIFICATION.md
+- DIAGNOSTICS_JIRA_EPIC.md
+- DIAGNOSTICS_UI_WIREFRAME_SPEC.md
+
+**Evaluation Standards:**
+- EVALUATE_ENTRY_CANON.md
+- EVALUATE_GOVERNANCE_ADDENDUM.md
+- EVALUATE_INCIDENT_LOG_SCHEMA.md
+- EVALUATE_QA_CHECKLIST.md
+- EVALUATE_RULE_VALIDATOR_SLA_MAP.md
+- EXECUTABLE_FUNCTION_INVENTORY.md
+
+**Film & Output Standards:**
+- FILM_PITCH_DECK_QUALITY_STANDARD.md
+- FUNCTION_EVALUATE_FULL_SPEC.md
+- FUNCTION_EVALUATE_QUICK_SPEC.md
+- FUNCTION_FILE_PROCESSING_SPEC.md
+- FUNCTION_FILM_PITCH_SPEC.md
+- FUNCTION_INDEX.md
+- FUNCTION_MANUSCRIPT_MGMT_SPEC.md
+- FUNCTION_QUERY_LETTER_SPEC.md
+- FUNCTION_QUERY_PACKAGE_SPEC.md
+- FUNCTION_SYNOPSIS_SPEC.md
+
+**Gold Standards & Calibration:**
+- GOLD_STANDARD_CALIBRATION.md
+- GOVERNANCE_COMPLIANCE_EVIDENCE_REQUEST.md
+- GOVERNANCE_ENGINEERING_CHECKLIST.md
+
+**Governance Epics:**
+- GOVERNANCE_EPIC_EVALUATE_YOURWRITING.md
+- GOVERNANCE_EPIC_RG-EVAL-002.md
+- GOVERNANCE_EPIC_RG-EVAL-003.md
+- GOVERNANCE_EPIC_RG-EVAL-004.md
+- GOVERNANCE_EPIC_RG-EVAL-005.md
+- GOVERNANCE_EPIC_RG-INDUSTRY-001.md
+- GOVERNANCE_EPIC_RG-OUTPUTS-001.md
+- GOVERNANCE_EPIC_RG-STORYGATE-001.md
+- GOVERNANCE_EXECUTIVE_SUMMARY.md
+- GOVERNANCE_INCIDENT_LOG.md
+- GOVERNANCE_JIRA_TICKET_TEMPLATE.md
+- GOVERNANCE_PR_TEMPLATE.md
+- GOVERNANCE_QA_TEST_MATRIX.md
+
+**Incident Logs & Architecture:**
+- INCIDENT_LOG.md
+- MASTER-ARCHITECTURE.md
+- MASTER_FUNCTION_GOVERNANCE_SPEC.md
+- MATRIX_PREFLIGHT_SPEC.md
+- MDM_IMPLEMENTATION_EVIDENCE.md
+- MINIMUM_INPUT_ALLOWED_CLAIMS_MATRIX.md
+- MULTI_MODEL_GOVERNANCE_STANDARD.md
+
+**Phase Documentation:**
+- PHASE_0_ACKNOWLEDGMENT_TEMPLATE.md
+- PHASE_1_CLOSURE_RECORD.md
+- PHASE_1_GOVERNANCE_EVIDENCE.md
+- PHASE_1_OUTPUT_SURFACE_GOVERNANCE_SEALED.md
+- PHASE_1_ROADMAP_STATUS_STRUCTURALLY_CLOSED.md
+- PHASE_2_OBSERVABILITY_ENTRY_SPEC.md
+
+**Detection & Quality:**
+- PSC_DETECTION_GUIDE.md
+- QA_ENFORCEMENT_CHECKLIST.md
+- REVISIONGRADE_FUNCTIONALITY_SCHEMA.md
+- REVISIONGRADE_FUNCTIONAL_ARCHITECTURE.md
+
+**Industry & Storygate:**
+- RG-INDUSTRY-001_PHASE_0_ACKNOWLEDGMENT_TEMPLATE.md
+- RG-INDUSTRY-001_QA_WALKTHROUGH_SCRIPT.md
+- RG-OUTPUTS-001_PHASE_0_ACKNOWLEDGMENT_TEMPLATE.md
+- RG-OUTPUTS-001_QA_WALKTHROUGH_SCRIPT.md
+- RG-STORYGATE-001_PHASE_0_ACKNOWLEDGMENT_TEMPLATE.md
+- RG-STORYGATE-001_QA_WALKTHROUGH_SCRIPT.md
+
+**Scope & Standards:**
+- SCOPE_B_IMPLEMENTATION_EVIDENCE.md
+- SCREENPLAY_GOVERNANCE_ADDENDUM.md
+- SCREENPLAY_INCIDENT_LOG_SCHEMA.md
+- SCREENPLAY_QA_CHECKLIST_WRITERDUET_MODE.md
+- SCREENPLAY_QUALITY_STANDARD.md
+- SCREENPLAY_QUALITY_STANDARD_CANON.md
+- SCREENPLAY_RULE_VALIDATOR_SLA_MAP.md
+
+**SLA & Policy:**
+- SLA_FRAMEWORK.md
+- SLUR_GOVERNANCE_DOC.md
+- SLUR_LEXICON_SCHEMA.json
+- SMILE_LEXICON.md
+
+**Storygate:**
+- STORYGATE_FLOW_MAP.md
+- STORYGATE_POSITIONING.md
+- STORYGATE_STUDIO_DESIGN_SYSTEM.md
+- STORYGATE_SUBSCRIPTION_INDEPENDENCE_CANON.md
+- STORY_ARCHITECTURE_GUIDE.md
+
+**Synopsis & Tests:**
+- SYNOPSIS_SPEC.json
+- TICKET_SET_MASTER.md
+- TOADSTONE_POWER_OF_BELIEF.md
+- TRANSGRESSIVE_MODE_SPEC.md
+
+**Voice & WAVE:**
+- VOICE_PRESERVATION_CANON.md
+- WAVE_GUIDE.md
+- WAVE_GUIDE (duplicate?)
+- WAVE_SYNOPSIS_EXTRACTION_RULES.md
+- WAVE_TEST_CASES.json
+- WAVE_VALIDATION_SUITE.md
+
+**Workflow & Work Type:**
+- WHY_GOVERNANCE_MATTERS_COPY.md
+- WORKFLOW_STATE_MAPPING.md
+- WORK_TYPE_GOVERNANCE_CLARIFICATION.md
+- WRITERDUET_FORMATTING_STANDARD.md
+
+**Canon Directory:**
+- _canon/AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0.md
+- _canon/AUTHOR_DTO_ALLOWLIST_RULE_v1.0.0.md
+- _canon/COPY_BLOCKS_MANUSCRIPT_v1.0.0.md
+- _canon/COPY_BLOCKS_MICRO_v1.0.0.md
+- _canon/COPY_BLOCKS_NA_REASONS_v1.0.0.md
+- _canon/INDUSTRY_ENTITIES_v1.0.0.md
+- _canon/INDUSTRY_PORTAL_SPEC_v1.0.0.md
+- _canon/INTEGRITY_GATE_SPEC_v1.0.0.md
+- _canon/PHASE_3_EXECUTION_RULES_v1.0.0.md
+- _canon/SECURITY_INVARIANTS_INDEX_v1.0.0.md
+- _canon/WORK_TYPE_POLICY_ROUTING_SPEC_v1.0.0.md
+
+**Master Data:**
+- masterdata/BIO_GOVERNANCE_CANON.md
+- masterdata/work_type_criteria_applicability.v1.json
+
+---
+
+## WHAT EXISTS AND WHERE
+
+### ✅ Files Created and Verified:
+1. **`functions/entity_schemas_export.json`** - All 35 entity schemas
+2. **`functions/GOVERNANCE_CODE_EXTRACT.js`** - Canonical governance logic from live code
+3. **`functions/CONSOLIDATED_GOVERNANCE_EXPORT.md`** - This file
+
+### 🔍 Next Steps for Complete Governance Audit:
+
+1. **Code vs. Spec Deconfliction:**
+   - Compare `GOVERNANCE_CODE_EXTRACT.js` master data against any offline documentation you have
+   - Look for discrepancies in R/O/NA/C status for each work type
+   - Verify sample scope enforcement rules match intent
+
+2. **Entity Schemas Review:**
+   - Compare `entity_schemas_export.json` against expected schema definitions
+   - Check for missing fields, incorrect types, or outdated constraints
+
+3. **Missing Documentation:**
+   - If you have .md files locally that should be in the project, upload them
+   - Create new documentation where gaps exist
+   - Version-lock critical specs (use _canon/ directory pattern)
+
+4. **Critical Bug Location:**
+   - Review `evaluateQuickSubmission.js` lines 161-204 (flashFictionMicro sample scope enforcement)
+   - Verify that NA criteria are correctly enforced after conditional checks
+   - Ensure applicableCriteria array is rebuilt correctly
+
+---
+
+## VERIFICATION CHECKLIST
+
+- [ ] Entity schemas match expected database structure
+- [ ] Master data matrix (R/O/NA/C) matches governance intent
+- [ ] Policy routing specs align with product requirements
+- [ ] Sample scope enforcement correctly handles micro family
+- [ ] NA Output Gate blocks forbidden criteria
+- [ ] Postflight Integrity Gate catches violations
+- [ ] Gate decision rules (readiness, coverage, integrity) match Phase 1 spec
+- [ ] WAVE tier structure matches editorial standards
+- [ ] Scoring formulas produce expected composite scores
+
+---
+
+**End of Consolidated Export**
