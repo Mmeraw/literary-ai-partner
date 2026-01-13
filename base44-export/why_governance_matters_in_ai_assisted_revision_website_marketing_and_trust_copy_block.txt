@@ -1,0 +1,157 @@
+# Why Governance Matters in AI-Assisted Revision
+## Website Block (Marketing + Trust)
+
+**Purpose:** Trust-building narrative for homepage, about page, and methodology page  
+**Last Updated:** 2026-01-03  
+**Status:** Website-Ready
+
+---
+
+## Primary Copy (Hero/About Page)
+
+### Why Governance Matters
+
+Most writing tools blur analysis, suggestion, and rewriting into a single stream. That's convenient—but dangerous.
+
+**RevisionGrade treats serious manuscripts differently.**
+
+✓ Every critique is tied to evidence.  
+✓ Every revision is tracked.  
+✓ Every deviation from established canon is flagged before it becomes a problem.
+
+This isn't about replacing editors or automating creativity.  
+It's about protecting voice, continuity, and intent while using AI responsibly.
+
+**If you've ever asked:**  
+*"Is this actually better—or just different?"*
+
+RevisionGrade is built to answer that question with proof.
+
+---
+
+## Extended Copy (Methodology Page)
+
+### The Problem with "Smart" Rewriting
+
+Most AI writing tools operate on a dangerous assumption: that change equals improvement.
+
+They suggest edits inline, often without context, and expect you to trust that their "smarter" version is actually better. But better for what? Better for whom?
+
+When you're working on a novel, memoir, or screenplay that has:
+- An established voice
+- Locked continuity
+- Character arcs that span 300+ pages
+- Themes that must stay consistent
+
+...then blind rewriting isn't just unhelpful—it's actively destructive.
+
+### How RevisionGrade Is Different
+
+**1. Diagnostics Before Revision**  
+We measure first. You see exactly what needs attention and why—before any AI touches your manuscript.
+
+**2. Evidence for Every Critique**  
+Every flag, warning, or suggestion links back to the rule that triggered it. No mystery feedback. No "trust us."
+
+**3. Canon Enforcement**  
+We track your established facts, voice patterns, and style guidelines. If a revision would create drift, you see the warning before it ships.
+
+**4. Audit Trail**  
+Every change is logged. Every version is trackable. You can always prove what changed, when, and why.
+
+### Who This Is For
+
+**Indie authors** who need professional feedback but can't afford a $5,000 developmental edit.
+
+**Editors and agents** who need to maintain manuscript integrity across multiple revision passes.
+
+**Studios and publishers** who need governance, not just grammar checking.
+
+### What This Isn't
+
+This is not a tool that:
+- Rewrites your book for you
+- Promises to make you a bestseller
+- Replaces human editorial judgment
+- Automates creativity
+
+RevisionGrade is infrastructure for serious revision work. We provide diagnostics, evidence, and governance—not magic.
+
+---
+
+## Trust Signals (Testimonial-Ready Copy)
+
+### For Authors
+> "I've used AutoCrit and ProWritingAid, but RevisionGrade is the first tool that makes me feel safe using AI on my manuscript. The evidence linkage means I know why something is flagged, and the canon drift warnings have saved me from continuity disasters."
+
+### For Editors
+> "Finally, a revision tool that respects the editorial process. Diagnostics separate from rewriting means I can review metrics without worrying about voice drift. The audit trail makes client handoffs seamless."
+
+### For Studios
+> "RevisionGrade is the only platform we've found that can handle the governance requirements for franchise-level IP. Version control, canon enforcement, and full auditability—all out of the box."
+
+---
+
+## FAQ Snippets (Governance-Focused)
+
+**Q: Why do you separate Evaluate and Revise?**  
+A: Because measuring problems and fixing problems are different skills. Diagnostics should be objective and reproducible. Revision should be deliberate and tracked. Mixing them creates confusion and drift.
+
+**Q: What is canon drift?**  
+A: Canon drift is when revisions gradually alter voice, facts, or style in ways that contradict your established baseline. Most tools don't detect this—RevisionGrade does.
+
+**Q: Do you use AI for rewriting?**  
+A: Yes, but with guardrails. AI suggestions only appear after diagnostics, and every proposed change must be explicitly approved. Nothing ships without your sign-off.
+
+**Q: Can I trust the diagnostics?**  
+A: Every metric is reproducible from audit logs. Click any Evidence Badge to see the exact validator, rule, and segments that triggered the flag. No black boxes.
+
+**Q: Is this overkill for a first draft?**  
+A: If you're experimenting, yes. If you're submitting to agents, querying publishers, or managing franchise IP, no—this is exactly the right level of rigor.
+
+---
+
+## Positioning Against Competitors (Governance Lens)
+
+| Need | AutoCrit | ProWritingAid | Grammarly | RevisionGrade |
+|------|----------|---------------|-----------|---------------|
+| "I want diagnostics without rewriting" | ✅ | ⚠️ (mixed) | ❌ | ✅ |
+| "I want evidence for every critique" | ❌ | ❌ | ❌ | ✅ |
+| "I want to prevent voice drift" | ❌ | ❌ | ❌ | ✅ |
+| "I want audit-trail governance" | ❌ | ❌ | ⚠️ (business only) | ✅ |
+
+---
+
+## Call-to-Action Variants
+
+### CTA 1: For Homepage
+> **See What Needs Revision—Before Anything Changes**  
+> Run diagnostics on your manuscript. Get evidence-backed feedback. Revise with confidence.  
+> [Start Free Evaluation]
+
+### CTA 2: For Methodology Page
+> **Built for Authors Who Take Revision Seriously**  
+> Diagnostics, governance, and AI assistance—without losing control.  
+> [See How It Works]
+
+### CTA 3: For Pricing Page
+> **Professional Tools for Professional Work**  
+> Join authors, editors, and studios who need more than grammar checking.  
+> [Compare Plans]
+
+---
+
+## Visual Metaphors (For Design Team)
+
+**Governance ≠ Bureaucracy**  
+Think: Engineering safety checks, not corporate red tape.
+
+**Evidence ≠ Paranoia**  
+Think: Medical test results with doctor's notes, not conspiracy theories.
+
+**Audit Trail ≠ Surveillance**  
+Think: Git commit history, not Big Brother.
+
+---
+
+**END OF GOVERNANCE COPY**

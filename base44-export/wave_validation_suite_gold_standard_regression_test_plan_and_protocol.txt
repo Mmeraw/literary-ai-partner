@@ -1,0 +1,181 @@
+# WAVE Validation Suite
+## Gold Standard Test Cases for Regression Prevention
+
+---
+
+## Purpose
+
+This validation suite ensures that:
+1. WAVE catches authentic literary errors found in real manuscripts
+2. The system doesn't over-correct or flatten voice
+3. Severity classifications match human editorial judgment
+4. Auto-fix logic respects authorial intent
+
+---
+
+## Test Case Structure
+
+Each test case includes:
+- **Wave ID**: Unique identifier (e.g., WAVE-PSC-01)
+- **Rule Name**: Which WAVE or Story Architecture rule it tests
+- **Text Snippet**: The actual problematic passage
+- **Violation Type**: What specifically is wrong
+- **Why It Fails**: Editorial rationale (one sentence)
+- **Acceptable Fix Patterns**: 2-3 model corrections
+- **Severity**: Soft / Moderate / Hard
+- **Auto-fix Allowed**: Boolean (respects authorial control)
+- **Criterion Mapping**: Which of the 13 criteria this affects
+
+---
+
+## Test Categories
+
+### Category A: Physical State Continuity (PSC)
+Tests the system's ability to detect contradictory physical states without over-correcting intentional ambiguity.
+
+**Reference:** `WAVE_TEST_CASES.json` → `WAVE-PSC-01`
+
+### Category B: Document Boundary Hygiene
+Tests detection of research notes, URLs, and citations embedded in narrative prose.
+
+**Reference:** `WAVE_TEST_CASES.json` → `WAVE-AUTH-01`
+
+### Category C: Voice Drift & Register Control
+Tests the system's ability to flag unintentional shifts from scene voice to report/caption voice.
+
+**Reference:** `WAVE_TEST_CASES.json` → `WAVE-C-01`
+
+### Category D: Placeholder Language
+Tests detection of vague catch-alls like "other places," "something or other," "things."
+
+**Reference:** `WAVE_TEST_CASES.json` → `WAVE-10-01`
+
+### Category E: Image vs Interpretation
+Tests the system's ability to flag "telling" when the scene already "shows."
+
+**Reference:** `WAVE_TEST_CASES.json` → `WAVE-B-01`, `WAVE-B-02`
+
+### Category F: Filter Verbs & Intensifiers
+Tests detection of scaffolding language that should be removed in late-stage drafts.
+
+**Reference:** `WAVE_TEST_CASES.json` → `WAVE-4-01`, `WAVE-5-01`
+
+### Category G: Technical Correctness
+Tests the system's ability to catch word choice errors that break credibility (e.g., "peer" vs "pier").
+
+**Reference:** `WAVE_TEST_CASES.json` → `WAVE-AUTH-02`
+
+### Category H: Narrative Closure & Thread Disappearance
+Tests Story Architecture layer's ability to flag major threads that vanish without on-page closure.
+
+**Reference:** `WAVE_TEST_CASES.json` → `WAVE-CLOSURE-01`
+
+---
+
+## Validation Protocol
+
+### Step 1: Detection Rate Test
+Run evaluation against each test case.
+- **Success:** System flags the violation correctly
+- **Failure:** System misses the violation or flags incorrectly
+
+**Target:** 95%+ detection rate on flagged violations
+
+### Step 2: False Positive Test
+Run evaluation against acceptable_fix_patterns.
+- **Success:** System does NOT flag the corrected versions
+- **Failure:** System flags clean text
+
+**Target:** <5% false positive rate
+
+### Step 3: Severity Accuracy Test
+Compare system severity classification to human judgment.
+- **Success:** System severity matches test case severity
+- **Failure:** System over- or under-estimates impact
+
+**Target:** 90%+ accuracy on severity classification
+
+### Step 4: Auto-fix Respect Test
+Verify that `auto_fix_allowed: false` is honored.
+- **Success:** System flags but does not rewrite
+- **Failure:** System rewrites without permission
+
+**Target:** 100% compliance (critical for authorial control)
+
+---
+
+## Regression Prevention
+
+### When to Run Validation
+- Before deploying new model versions
+- After changes to WAVE logic
+- After changes to Story Architecture detection
+- Monthly as baseline health check
+
+### Failure Response Protocol
+If validation fails:
+1. **Identify which test case(s) failed**
+2. **Classify failure type:**
+   - Detection miss (should flag, didn't)
+   - False positive (shouldn't flag, did)
+   - Severity mismatch (flagged correctly, wrong severity)
+   - Auto-fix violation (rewrote when shouldn't have)
+3. **Fix detection logic, not test cases** (unless test case is genuinely wrong)
+4. **Rerun full suite**
+5. **Document change in validation log**
+
+---
+
+## Success Criteria
+
+| Metric | Target | Critical? |
+|--------|--------|-----------|
+| Detection Rate | 95%+ | Yes |
+| False Positive Rate | <5% | Yes |
+| Severity Accuracy | 90%+ | No |
+| Auto-fix Respect | 100% | Yes |
+
+---
+
+## Example: Running Validation Against WAVE-PSC-01
+
+**Test Case:** Physical State Continuity violation (wet ink + dusty curl)
+
+**Input Text:**
+> "The notice curled at the corners, a film of dust over the paper. Blue Sharpie smeared like it was still wet where someone had dragged their thumb across it."
+
+**Expected Output:**
+```json
+{
+  "flag_type": "Physical State Continuity Violation",
+  "wave_id": "WAVE-PSC-01",
+  "severity": "Moderate",
+  "auto_fix_allowed": false,
+  "message": "Object described as long-aged (curling, dusty) and freshly smeared (wet ink) without transition or cause.",
+  "criterion_affected": "Criterion 12: Narrative Closure & Promises Kept"
+}
+```
+
+**Validation Checks:**
+- ✅ System flagged the violation
+- ✅ Severity = "Moderate" (matches test case)
+- ✅ Auto-fix = false (no rewrite provided)
+- ✅ Mapped to Criterion 12
+
+**Result:** PASS
+
+---
+
+## Integration with Base44 Training Pipeline
+
+1. **Load test cases** from `WAVE_TEST_CASES.json`
+2. **Run evaluation function** against each snippet
+3. **Compare output** to expected results
+4. **Log validation metrics**
+5. **Alert on failure** (threshold breach)
+
+This ensures that Base44's WAVE engine remains calibrated to real-world editorial standards without drifting toward over-correction or voice-flattening.
+
+---
+
+**END OF VALIDATION SUITE**

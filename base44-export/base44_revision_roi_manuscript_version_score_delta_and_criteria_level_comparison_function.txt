@@ -1,0 +1,112 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { current_manuscript_id, prior_manuscript_id } = await req.json();
+
+        // Fetch both manuscripts
+        const [current, prior] = await Promise.all([
+            base44.asServiceRole.entities.Manuscript.get(current_manuscript_id),
+            base44.asServiceRole.entities.Manuscript.get(prior_manuscript_id)
+        ]);
+
+        if (!current || !prior) {
+            return Response.json({ 
+                success: false,
+                error: 'Manuscript not found' 
+            }, { status: 404 });
+        }
+
+        // Calculate overall delta
+        const currentScore = current.spine_score || current.revisiongrade_overall || 0;
+        const priorScore = prior.spine_score || prior.revisiongrade_overall || 0;
+        const delta = currentScore - priorScore;
+
+        // Criteria-level comparison
+        const criteriaDeltas = {};
+        const currentEval = current.spine_evaluation || {};
+        const priorEval = prior.spine_evaluation || {};
+
+        const criteria = [
+            'hook', 'voice', 'pacing', 'structure', 'character_development',
+            'dialogue', 'theme', 'emotional_impact', 'originality',
+            'prose_quality', 'world_building', 'stakes'
+        ];
+
+        for (const criterion of criteria) {
+            const currentCriterionScore = currentEval[criterion]?.score || 0;
+            const priorCriterionScore = priorEval[criterion]?.score || 0;
+            const criterionDelta = currentCriterionScore - priorCriterionScore;
+
+            if (Math.abs(criterionDelta) > 0.1) {
+                criteriaDeltas[criterion] = {
+                    current: currentCriterionScore,
+                    prior: priorCriterionScore,
+                    delta: criterionDelta,
+                    direction: criterionDelta > 0 ? 'improved' : 'regressed'
+                };
+            }
+        }
+
+        // Identify key improvements
+        const improvements = Object.entries(criteriaDeltas)
+            .filter(([_, data]) => data.delta > 0)
+            .sort((a, b) => b[1].delta - a[1].delta)
+            .slice(0, 3);
+
+        // Identify regressions
+        const regressions = Object.entries(criteriaDeltas)
+            .filter(([_, data]) => data.delta < 0)
+            .sort((a, b) => a[1].delta - b[1].delta)
+            .slice(0, 3);
+
+        // ROI Assessment
+        const worthIt = currentScore >= 8.5 || delta >= 0.2;
+        const atRisk = regressions.length > 2 || delta < -0.1;
+
+        const revisionROI = {
+            overall_delta: delta,
+            current_score: currentScore,
+            prior_score: priorScore,
+            worth_it: worthIt,
+            at_risk_of_overpolish: atRisk,
+            key_improvements: improvements.map(([name, data]) => ({
+                criterion: name,
+                delta: data.delta,
+                current: data.current
+            })),
+            regressions: regressions.map(([name, data]) => ({
+                criterion: name,
+                delta: data.delta,
+                current: data.current
+            })),
+            recommendation: worthIt && !atRisk 
+                ? 'Revision successful - ready for next phase'
+                : atRisk 
+                    ? 'Warning: Multiple regressions detected'
+                    : delta < 0.1 
+                        ? 'Minimal improvement - consider different approach'
+                        : 'Solid progress - continue refining',
+            submission_ready: currentScore >= 8.5
+        };
+
+        return Response.json({
+            success: true,
+            comparison: revisionROI
+        });
+
+    } catch (error) {
+        console.error('Version comparison error:', error);
+        return Response.json({ 
+            success: false,
+            error: error.message 
+        }, { status: 500 });
+    }
+});

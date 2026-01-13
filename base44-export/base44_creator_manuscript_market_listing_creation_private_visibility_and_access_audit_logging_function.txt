@@ -1,0 +1,95 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { 
+            manuscript_id, 
+            title, 
+            logline, 
+            synopsis_public, 
+            genre, 
+            stage,
+            materials_available,
+            contact_enabled
+        } = await req.json();
+
+        if (!manuscript_id || !title || !logline || !genre) {
+            return Response.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Verify manuscript is final and owned by user
+        const manuscripts = await base44.asServiceRole.entities.Manuscript.filter({ 
+            id: manuscript_id 
+        });
+        const manuscript = manuscripts[0];
+
+        if (!manuscript) {
+            return Response.json({ error: 'Manuscript not found' }, { status: 404 });
+        }
+
+        if (manuscript.created_by !== user.email) {
+            return Response.json({ error: 'Not your manuscript' }, { status: 403 });
+        }
+
+        if (!manuscript.is_final) {
+            return Response.json({ error: 'Only final manuscripts can be listed' }, { status: 400 });
+        }
+
+        // Check for existing listing
+        const existingListings = await base44.asServiceRole.entities.ProjectListing.filter({
+            manuscript_id,
+            creator_email: user.email
+        });
+
+        if (existingListings.length > 0) {
+            return Response.json({ error: 'Listing already exists for this manuscript' }, { status: 400 });
+        }
+
+        // Create listing (private by default)
+        const listing = await base44.asServiceRole.entities.ProjectListing.create({
+            manuscript_id,
+            creator_email: user.email,
+            visibility: 'private',
+            title,
+            logline,
+            synopsis_public: synopsis_public || '',
+            genre,
+            format: 'novel',
+            stage: stage || 'final',
+            word_count: manuscript.word_count,
+            revisiongrade_score: manuscript.revisiongrade_overall || manuscript.spine_score,
+            materials_available: materials_available || [],
+            access_requires_approval: true,
+            contact_enabled: contact_enabled || false,
+            active: true
+        });
+
+        // Log listing creation
+        await base44.asServiceRole.entities.AccessLog.create({
+            user_email: user.email,
+            user_role: 'creator',
+            action_type: 'listing_created',
+            project_listing_id: listing.id,
+            manuscript_id,
+            success: true,
+            metadata: { title, visibility: 'private' }
+        });
+
+        return Response.json({ 
+            success: true,
+            listing_id: listing.id,
+            message: 'Listing created (private by default)'
+        });
+
+    } catch (error) {
+        console.error('Create listing error:', error);
+        return Response.json({ error: error.message }, { status: 500 });
+    }
+});

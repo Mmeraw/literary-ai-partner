@@ -1,0 +1,191 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import mammoth from 'npm:mammoth@1.8.0';
+import * as Sentry from 'npm:@sentry/deno@8.43.0';
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN'),
+  environment: Deno.env.get('BASE44_ENV') ?? 'production',
+  tracesSampleRate: 1.0,
+});
+
+Deno.serve(async (req) => {
+    const corsHeaders = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+
+    try {
+        // Handle OPTIONS for CORS
+        if (req.method === 'OPTIONS') {
+            return new Response(null, { status: 200, headers: corsHeaders });
+        }
+
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ 
+                success: false,
+                error: '🔒 Please sign in to upload documents',
+                errorType: 'auth'
+            }, { status: 401, headers: corsHeaders });
+        }
+
+        console.log('Processing file upload...');
+        const formData = await req.formData();
+        console.log('FormData received');
+        const file = formData.get('file');
+        console.log('File extracted:', file ? file.name : 'NO FILE');
+
+        if (!file) {
+            return Response.json({ 
+                success: false,
+                error: '📄 No document selected. Please choose a .DOCX file.',
+                errorType: 'validation'
+            }, { status: 400, headers: corsHeaders });
+        }
+
+        // Validate file type
+        const fileName = file.name?.toLowerCase() || '';
+        if (!fileName.endsWith('.docx')) {
+            return Response.json({ 
+                success: false,
+                error: '⚠️ Only .DOCX files supported. For older .DOC files, save as .DOCX first or paste text directly.',
+                errorType: 'format'
+            }, { status: 400, headers: corsHeaders });
+        }
+
+        // Check file size before processing - aggressive limit
+        const fileSize = file.size;
+        console.log('File size:', fileSize, 'bytes');
+        
+        if (fileSize > 5_000_000) { // 5MB limit (aggressive)
+            return Response.json({ 
+                success: false,
+                error: '📊 Large file detected (>5MB). Paste text directly above for instant processing—no wait, no conversion.',
+                errorType: 'size',
+                suggestion: 'Copy text from Word → Paste above'
+            }, { status: 400, headers: corsHeaders });
+        }
+
+        // Convert to ArrayBuffer for mammoth
+        console.log('Converting to ArrayBuffer...');
+        const arrayBuffer = await file.arrayBuffer();
+        console.log('ArrayBuffer size:', arrayBuffer.byteLength);
+
+        // AGGRESSIVE: 5 second timeout, text-only extraction first
+        console.log('Starting fast text-only extraction with 5s timeout...');
+        
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => {
+                console.error('TIMEOUT: Conversion exceeded 5 seconds');
+                reject(new Error('TIMEOUT'));
+            }, 5000);
+        });
+
+        // Extract text only for speed (skip HTML initially)
+        const conversionPromise = mammoth.extractRawText({ arrayBuffer })
+            .then(result => {
+                console.log('Text extraction completed');
+                return result;
+            });
+
+        const textResult = await Promise.race([
+            conversionPromise,
+            timeoutPromise
+        ]);
+
+        const text = textResult.value;
+        const messages = textResult.messages || [];
+        console.log('Extracted word count:', text.split(/\s+/).filter(w => w).length);
+
+        // Count words
+        const wordCount = text.split(/\s+/).filter(w => w).length;
+
+        if (wordCount === 0) {
+            return Response.json({ 
+                success: false,
+                error: '📭 Document appears empty. Please check the file or try pasting text directly.',
+                errorType: 'empty'
+            }, { status: 400, headers: corsHeaders });
+        }
+
+        if (wordCount > 250000) {
+            return Response.json({ 
+                success: false,
+                error: `📊 Document too large: ${wordCount.toLocaleString()} words (max 250,000). Consider submitting chapters separately.`,
+                errorType: 'size'
+            }, { status: 400, headers: corsHeaders });
+        }
+
+        // Build quality metrics (simplified - no HTML)
+        const warnings = messages.filter(m => m.type === 'warning');
+        const extractionQuality = {
+            wordCount,
+            warnings: warnings.length,
+            hasComplexFormatting: warnings.length > 3
+        };
+
+        // Generate preview
+        const textPreview = text.substring(0, 2000) + (text.length > 2000 ? '...' : '');
+
+        return Response.json({
+            success: true,
+            text: text,
+            html: `<p>${textPreview.replace(/\n/g, '</p><p>')}</p>`, // Simple HTML for preview
+            wordCount: wordCount,
+            preview: textPreview,
+            quality: extractionQuality,
+            message: warnings.length > 3 
+                ? `✓ Text extracted (${warnings.length} style notes). Formatting simplified.`
+                : `✓ Document converted cleanly.`
+        }, { headers: corsHeaders });
+
+    } catch (error) {
+        console.error('DOCX conversion error:', error);
+        console.error('Error type:', error.message);
+        
+        // Premium error message based on error type
+        let errorMessage = '🔄 Conversion issue detected. ';
+        let errorType = 'conversion';
+        
+        if (error.message === 'TIMEOUT') {
+            errorMessage = '⏱️ Large or complex document detected. For best results: (1) Paste text directly above, or (2) Export as plain text (.TXT) from Word → "Save As" → Plain Text (UTF-8).';
+            errorType = 'timeout';
+        } else if (error.message?.includes('zip') || error.message?.includes('corrupt')) {
+            errorMessage += 'File may be corrupted. Try re-saving as .DOCX or paste text directly.';
+        } else if (error.message?.includes('password') || error.message?.includes('encrypt')) {
+            errorMessage += 'Document appears password-protected. Remove protection and try again.';
+        } else if (error.message?.includes('image') || error.message?.includes('embed')) {
+            errorMessage = '📷 Document contains images or embedded objects. For fastest processing, paste text directly or remove images/comments.';
+            errorType = 'complex';
+        } else {
+            errorMessage += 'Complex document structure (tracked changes, comments, or formatting). Paste text for instant results.';
+        }
+
+        // Capture to Sentry with context
+        Sentry.captureException(error, {
+            extra: {
+                function: 'convertDocxToText',
+                operation: 'docx_conversion',
+                file_name: file?.name,
+                file_size: file?.size,
+                error_type: errorType,
+                is_timeout: error.message === 'TIMEOUT',
+                user_email: user?.email,
+                error_message: error.message,
+                timestamp: new Date().toISOString()
+            }
+        });
+        await Sentry.flush(2000);
+        
+        return Response.json({ 
+            success: false,
+            error: errorMessage,
+            errorType: errorType,
+            fallback: 'paste',
+            suggestion: 'Paste text directly above for instant processing'
+        }, { status: 500, headers: corsHeaders });
+    }
+});
