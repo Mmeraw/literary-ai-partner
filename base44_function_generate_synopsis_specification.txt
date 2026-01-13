@@ -1,0 +1,177 @@
+# Function Spec: generateSynopsis
+**5-Field Contract** | **Phase:** 0 Complete | **Version:** 1.0.0
+
+---
+
+## 1. INPUTS
+
+**Accepted Types:**
+- `manuscriptId`: string (required, reference to Manuscript entity)
+- `length`: enum (query | short | medium | long | custom)
+  - query: 150-250 words
+  - short: 250-500 words
+  - medium: 500-1000 words
+  - long: 1000-2000 words
+  - custom: user-specified word count
+- `targetWordCount`: number (if length=custom, range: 150-2000)
+- `focusAreas`: array of strings (optional, e.g., ["plot", "character", "theme"])
+
+**Size Limits:**
+- Input manuscript: minimum 2,000 words (chapter scale) via matrixPreflight
+- Output synopsis: 150-2000 words (enforced by LLM schema)
+
+**Visible Ingestion:**
+- Synopsis page shows manuscript title + word count
+- Length selector visible with word count ranges
+- Custom length input validated in real-time
+- Generation progress shown (loading state)
+
+**Validation at Entry:**
+- matrixPreflight validates manuscript >= 2,000 words
+- If manuscript < 2,000 words: block with "INSUFFICIENT_INPUT"
+- If manuscript not evaluated yet: warn user (soft fail, can proceed)
+
+---
+
+## 2. ROUTING
+
+**Pipeline Selection:**
+- Input scale: chapter | multi_chapter | full_manuscript
+- Routing determined by matrixPreflight based on manuscript word count
+
+**Routing Logic:**
+```
+IF manuscript.wordCount < 2000 THEN BLOCK (chapter minimum required)
+IF manuscript.spine_evaluation exists THEN use spine data
+ELSE extract synopsis from full_text (warning: unevaluated manuscript)
+```
+
+**Content Source Priority:**
+1. Use `spine_evaluation.synopsis` if exists
+2. Use Chapter summaries if available
+3. Extract from `full_text` as fallback
+
+---
+
+## 3. VALIDATION
+
+**Hard Fails (Block Execution):**
+- Manuscript < 2,000 words
+- Manuscript not found
+- Invalid length parameter
+- targetWordCount outside 150-2000 range
+- User not authenticated
+
+**Soft Fails (Warn but Proceed):**
+- Manuscript not evaluated (no spine data available)
+- Custom target word count > 2000 (capped at 2000)
+
+**Validation Sequence:**
+1. Auth check (401 if fails)
+2. Manuscript retrieval (404 if not found)
+3. matrixPreflight (422 if < 2000 words)
+4. Length parameter validation (400 if invalid)
+5. Target word count validation (400 if out of range)
+
+**Visibility:**
+- All validation failures return standardized refusal response
+- Warning shown if manuscript not evaluated
+- Word count range displayed for selected length option
+
+---
+
+## 4. OUTPUTS
+
+**Artifact Type:** Synopsis (JSON + plain text)
+
+**Required Fields:**
+```json
+{
+  "synopsis": "string (plain text)",
+  "wordCount": "number (actual word count)",
+  "targetLength": "enum (query | short | medium | long | custom)",
+  "focusAreas": "array (if specified)",
+  "generatedFrom": "enum (spine | chapters | full_text)",
+  "qaChecks": {
+    "wordCountMatch": "boolean",
+    "spoilerCheck": "boolean",
+    "structureCheck": "boolean"
+  }
+}
+```
+
+**Format:**
+- JSON response with `{ success: true, synopsis: {...} }`
+- Success: 200 OK
+- Validation block: 422 Unprocessable Entity
+- Timeout: 408 Request Timeout
+
+**Gating:**
+- Word count MUST be within ±10% of target
+- MUST NOT include spoilers beyond 75% of manuscript (enforced by prompt)
+- MUST follow 3-act structure or equivalent
+- QA validation runs post-generation (see SYNOPSIS_SPEC.md)
+
+**Storage:**
+- Not automatically saved to database (user decides whether to save)
+- If saved: stored as standalone document or attached to manuscript metadata
+
+---
+
+## 5. AUDIT
+
+**Required Events:**
+- Event: SYNOPSIS_GENERATED (success) or SYNOPSIS_BLOCKED (blocked)
+- Entity: EvaluationAuditEvent
+
+**Required Fields:**
+```json
+{
+  "event_id": "evt_{timestamp}_{random}",
+  "request_id": "{manuscript_id}_synopsis",
+  "timestamp_utc": "ISO 8601",
+  "function_id": "generateSynopsis",
+  "canon_hash": "SYNOPSIS_SPEC_v1.0",
+  "governance_version": "1.0.0",
+  "user_email": "user@example.com",
+  "manuscript_id": "{id}",
+  "manuscript_word_count": "{number}",
+  "target_length": "query | short | medium | long | custom",
+  "target_word_count": "{number}",
+  "actual_word_count": "{number}",
+  "source": "spine | chapters | full_text",
+  "qa_passed": true | false,
+  "matrix_preflight_allowed": true,
+  "llm_invoked": true
+}
+```
+
+**QA Audit:**
+- Separate event if QA fails: SYNOPSIS_QA_FAILED
+- Includes specific QA check failures
+
+**Sentry Integration:**
+- Errors captured with manuscript context
+- QA failures logged as warnings
+
+---
+
+## Canon Reference
+
+- Governed by: `SYNOPSIS_SPEC.md` v1.0
+- QA validation: `runSynopsisQA` function
+- Input validation: `PHASE_1_GOVERNANCE_EVIDENCE.md`
+
+---
+
+## Test Coverage
+
+- See: `tests/synopsis_regression_culture.json` (regression tests)
+- Manual QA: Generate synopsis for various manuscript lengths
+
+**Acceptance Criteria:**
+✅ Blocks manuscript < 2,000 words  
+✅ Generates synopsis within target word count ±10%  
+✅ No spoilers beyond 75% mark  
+✅ QA validation runs automatically  
+✅ Audit event logged with all required fields

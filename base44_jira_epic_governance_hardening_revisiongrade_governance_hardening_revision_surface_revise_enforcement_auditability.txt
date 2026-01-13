@@ -1,0 +1,596 @@
+# JIRA EPIC — GOVERNANCE HARDENING
+
+## Epic ID
+**RG-EVAL-004**
+
+## Epic Name
+**RevisionGrade Governance Hardening — Revision Surface (Revise) — Enforcement & Auditability**
+
+## Type
+Governance Hardening (Release-Blocking, **Non-Breaking**)
+
+## Status
+**Planned — BLOCKED (No Implementation Authorized)**
+
+## Target Completion
+**2026-02-10 (Monday) — Revise → VERIFIED Status**
+
+This is a **hard deadline**. Failure to meet this timeline makes Revise release-blocking.
+
+**Created:** 2026-01-03
+
+---
+
+## 🟢 GOVERNANCE HARDENING NOTICE
+
+**This Epic adds governance enforcement, auditability, and SLA instrumentation to Revise.**
+
+**This is NOT a rescue Epic. Core Revise behavior is correct.**
+
+FUNCTION TEST #4 (Revise runtime walkthrough) confirmed:
+
+- ✅ Baseline gating enforced (cannot revise without evaluation)
+- ✅ WAVE tier structure present and respected
+- ✅ Voice preservation logic functional and enforced via prompts + structural gating
+- ✅ Trusted Path threshold gating operational
+- ✅ Structural gate blocks sentence-level polish below score 8.0
+
+**The gap:** These correct behaviors are not governed, audited, or instrumented.
+
+**Charter:** Preserve existing Revise behavior exactly. Add governance enforcement, auditability, and SLA instrumentation.
+
+---
+
+## Timeline Requirements (Non-Negotiable)
+
+| Milestone | Deadline | Owner | Dependencies |
+|-----------|----------|-------|--------------|
+| Jira Acknowledgment | **2026-01-06 (Monday)** | Base44 DevOps | RG-EVAL-001 infrastructure in progress |
+| All 8 Tickets Created & Dependencies Configured | **2026-01-08 (Wednesday)** | Base44 DevOps | — |
+| Phase 1 Complete (Dependency Check: T8) | **2026-01-13 (Monday)** | Base44 Engineering | Confirms RG-EVAL-001-T2, T6 done |
+| Phase 2 Complete (Validators: T2, T3) | **2026-01-20 (Monday)** | Base44 Engineering | Phase 1 complete |
+| Phase 3 Complete (Integration: T1, T4, T5, T6) | **2026-02-03 (Monday)** | Base44 Engineering | Phase 2 complete |
+| Phase 4 Complete (UI Visibility: T7) | **2026-02-07 (Friday)** | Base44 Engineering | Phase 3 complete |
+| Verification Walkthrough + Evidence Review | **2026-02-09 (Monday)** | RevisionGrade + Base44 | Phase 4 complete |
+| Revise → VERIFIED Status | **2026-02-10 (Tuesday)** | RevisionGrade | Evidence review passed |
+
+**Release Gate:** Revise must be VERIFIED by 2026-02-10 to unblock release. Any delay is release-blocking.
+
+**Critical Dependency:** Phase 1 cannot start until RG-EVAL-001-T2 (EvaluationAuditEvent entity) and RG-EVAL-001-T6 (governedEvaluateEntry wrapper) are complete.
+
+---
+
+## Epic Purpose (Non-Negotiable)
+
+**This Epic hardens governance on the Revise surface by:**
+
+1. **Preserving all existing business logic** (baseline gating, WAVE tier logic, voice preservation enforcement)
+2. **Adding governance enforcement layer** (validators for gating, tier validation, voice preservation audit)
+3. **Adding auditability** (structured audit events for all revision requests)
+4. **Adding SLA instrumentation** (timing metrics for generation phases)
+5. **Making safety visible** (surface voiceGuard.js results and WAVE tier tags to users)
+
+**This is additive work. No refactoring. No logic changes. Observation → Instrumentation → Promotion.**
+
+---
+
+## Governing Authority (Hierarchy — Locked)
+
+All work under this Epic is governed by, in order:
+
+1. **FUNCTION_INDEX.md** (Authoritative Registry)
+2. **Webpage Contract Matrix v1.0** (Revise row — PARTIALLY VERIFIED)
+3. **Definition of VERIFIED** (with governance enforcement)
+4. **WAVE_GUIDE.md** (WAVE tier structure and craft definitions)
+5. **VOICE_PRESERVATION_CANON.md** (voice preservation enforcement rules)
+6. **GOVERNANCE_EPIC_RG-EVAL-004.md** (this Epic)
+
+If any artifact conflicts with the above, it is invalid.
+
+---
+
+## Current Compliance Status
+
+**PARTIALLY VERIFIED — Behavior Correct, Governance Hooks Incomplete**
+
+### Evidence (from Verification Walkthrough #4)
+
+**What Works (No Changes Required):**
+
+- ✅ Baseline gating enforced (History.js lines 51-54 block revision without evaluation)
+- ✅ WAVE tier structure present (WAVES object lines 10-72 includes tier classification)
+- ✅ Voice preservation logic enforced (prompts lines 189-204, structural gate lines 598-615)
+- ✅ Trusted Path threshold gating operational (score-based access control)
+- ✅ Structural gate blocks polish below score 8.0 (correct WAVE tier respect)
+
+**What's Missing (Governance Layer Only):**
+
+- ❌ No `governedEvaluateEntry` wrapper
+- ❌ No WAVE_* validators executed (validation is LLM-prompt-based, should be validator-based)
+- ❌ `voiceGuard.js` exists but is NOT invoked in revision pipeline
+- ❌ No structured audit event (EVALUATE_REQUEST_EVENT)
+- ❌ No SLA timing metrics
+- ❌ WAVE tier tags not visible to user
+- ❌ Voice preservation audit results not surfaced to user
+
+---
+
+## Explicit Constraints (Must Be Restated in Jira)
+
+1. **Core Revise behavior must not change.** All baseline gating, WAVE tier logic, voice preservation, and trusted path gating remain exactly as currently implemented.
+2. **This is additive governance work only.** No refactoring of `generateRevisionSuggestions.js` logic.
+3. **No implementation may begin without explicit phase authorization.**
+4. **Evidence is mandatory for all acceptance decisions.**
+
+---
+
+## Definition of VERIFIED (Acceptance Gate)
+
+Revise may be promoted to **VERIFIED** only if all conditions below are evidenced:
+
+### ✅ Baseline Gating Enforced (AND Audited)
+- Revision cannot be initiated without completed evaluation
+- Backend validator enforces this (not UI-only)
+- Rejection is logged to audit record with reason code
+- **Evidence:** Validator executes on revision request; attempted revision without baseline is rejected with WAVE_BASELINE_GATING failure code
+
+### ✅ WAVE Tier Structure Respected (AND Formalized)
+- Suggestions are tagged and filtered by WAVE tier (early | mid | late)
+- Tier-specific craft checks are applied
+- Structural gate blocks sentence-polish below score 8.0
+- **Evidence:** WAVE_TIER_VALIDATOR executes; suggestions include explicit tier tags; score-based filtering logged
+
+### ✅ Voice Preservation Enforced (AND Audited)
+- `voiceGuard.js` is invoked post-generation
+- Voice preservation setting is checked against suggestions
+- Dialogue preservation audit is logged
+- **Evidence:** voiceGuard.js called after generation; audit record includes voice preservation check results
+
+### ✅ Governed Entry Enforced
+- `governedEvaluateEntry` executes before `generateRevisionSuggestions`
+- QA checklist enforced with halt-on-fail behavior
+- Canon bundle loaded and validated
+
+### ✅ Validators Executed
+- All WAVE_* validators load from `WAVE_VALIDATION_SUITE.md`
+- Results logged (pass / soft / hard)
+- Validator failures include reason codes
+
+### ✅ Audit Record Written
+- Structured EVALUATE_REQUEST_EVENT (or explicitly named, structured equivalent)
+- Not free-text logs
+- Required fields populated:
+  - `event_id`, `request_id`, `timestamp_utc`
+  - `baseline_evaluation_id` (proof of gating)
+  - `wave_tier` (early | mid | late)
+  - `voice_preservation_setting`
+  - `validators_run`, `validators_failed`, `failure_codes`
+  - `voice_preservation_audit_result`
+
+### ✅ SLA Timing Captured
+- `start_ms`, `end_ms`, `elapsed_ms` minimum
+- Per-operation timing (LLM call, filtering, voice check)
+- Written to audit record
+
+### ✅ Safety Visible to User
+- WAVE tier tags displayed in UI (not just wave_name)
+- Voice preservation audit results shown (dialogue preserved ✅ or violations ⚠️)
+- User can see what protections were applied
+
+**If any condition is missing → UNVERIFIED or FAILED.**
+
+---
+
+## Governance Gaps (Evidence from Walkthrough #4)
+
+| Gap | Evidence | Severity | Governance Layer |
+|-----|----------|----------|------------------|
+| G1: No `governedEvaluateEntry` | Not called in Revise flow | 🔴 CRITICAL | Infrastructure |
+| G2: No WAVE_BASELINE_GATING validator | Gating enforced UI-only (History.js), no backend validator | 🔴 CRITICAL | Validator |
+| G3: No WAVE_TIER_VALIDATOR | Tier logic embedded in LLM prompts, not formalized as validator | 🔴 CRITICAL | Validator |
+| G4: voiceGuard.js not invoked | Module exists but never imported/called in generateRevisionSuggestions.js | 🔴 CRITICAL | Integration |
+| G5: No audit record | No EVALUATE_REQUEST_EVENT created | 🔴 CRITICAL | Infrastructure |
+| G6: No SLA metrics | No timing capture | 🟡 HIGH | Instrumentation |
+| G7: WAVE tier not surfaced in UI | Only wave_name shown, tier (early/mid/late) not explicit | 🟡 MEDIUM | UI |
+| G8: Voice preservation audit not surfaced | User cannot see what voice preservation checks were performed | 🟡 MEDIUM | UI |
+
+---
+
+## Required Child Tickets (MANDATORY)
+
+### RG-EVAL-004-T1 — Wire governedEvaluateEntry into Revise Flow
+**Priority:** P0 (Blocks Verification)  
+**Type:** Governance Hardening
+
+**Description:**
+
+Current state: Revise.js calls `generateRevisionSuggestions` directly, bypassing governance wrapper.
+
+**Required:**
+- `Revise.js` must call `governedEvaluateEntry` FIRST
+- `governedEvaluateEntry` validates input against `EVALUATE_QA_CHECKLIST.md`
+- Only if validation passes, proceed to `generateRevisionSuggestions`
+- If validation fails, halt and return error with checklist violations
+
+**Artifact Links:**
+- `FUNCTION_INDEX.md` (Revision → Runtime → governedEvaluateEntry.js)
+- Webpage Contract Matrix v1.0 (Revise row, Required Gates column)
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] `Revise.js` calls `governedEvaluateEntry` BEFORE `generateRevisionSuggestions`
+- [ ] `governedEvaluateEntry` loads and executes `EVALUATE_QA_CHECKLIST.md`
+- [ ] If checklist fails, returns error and halts (no suggestion generation)
+- [ ] If checklist passes, proceeds to `generateRevisionSuggestions`
+- [ ] Evidence: logs show `governedEvaluateEntry` call + QA checklist result
+- [ ] Evidence: test with invalid input shows halted flow + error
+- [ ] **Core behavior unchanged:** Valid revision requests proceed normally
+
+**Impact:** CRITICAL — blocks promotion to VERIFIED
+
+---
+
+### RG-EVAL-004-T2 — Implement WAVE_BASELINE_GATING Validator
+**Priority:** P0 (Blocks Verification)  
+**Type:** Governance Hardening
+
+**Description:**
+
+Current state: Baseline gating enforced at UI layer only (History.js line 51-54: check if `overall_score` exists). No backend validator.
+
+**Required:**
+- Create `WAVE_BASELINE_GATING` validator
+- Check that `baseline_evaluation_id` exists and is valid
+- Check that `overall_score >= 0` (proof of evaluation)
+- Reject revision request with WAVE_BASELINE_GATING failure code if baseline missing
+- Log rejection to audit record
+
+**Artifact Links:**
+- `FUNCTION_INDEX.md` (Revision → WAVE_VALIDATION_SUITE.md)
+- Webpage Contract Matrix v1.0 (Revise row)
+- `WAVE_GUIDE.md` (gating rules)
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] `WAVE_BASELINE_GATING` validator exists and is called
+- [ ] Returns pass/fail with reason code
+- [ ] Rejects revision without baseline with error code WAVE_BASELINE_GATING_FAILED
+- [ ] Evidence: logs show validator execution
+- [ ] Evidence: test revision without baseline shows validator rejection
+- [ ] **Core behavior unchanged:** Valid baselines proceed normally
+
+**Impact:** CRITICAL — blocks promotion to VERIFIED
+
+---
+
+### RG-EVAL-004-T3 — Implement WAVE_TIER_VALIDATOR
+**Priority:** P0 (Blocks Verification)  
+**Type:** Governance Hardening
+
+**Description:**
+
+Current state: WAVE tier structure present in code (WAVES object, tier classification), but tier-specific validation not formalized as a validator. Tier-specific logic embedded in LLM prompts and `categorizeFinding()` function.
+
+**Required:**
+- Create `WAVE_TIER_VALIDATOR`
+- **Input:** suggested changes + detected_tier + baseline_score
+- **Validate** that suggestions match tier-specific craft focus
+- **Return:** pass/fail + tier match evidence
+- Log validation result to audit record
+
+**Artifact Links:**
+- `FUNCTION_INDEX.md` (Revision → WAVE_VALIDATION_SUITE.md)
+- `WAVE_GUIDE.md` (tier definitions lines 10-72)
+- Webpage Contract Matrix v1.0 (Revise row)
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] `WAVE_TIER_VALIDATOR` exists and is called
+- [ ] Returns tier classification + pass/fail
+- [ ] Validates suggestions against tier-specific craft focus
+- [ ] Evidence: logs show validator execution with tier result
+- [ ] Evidence: suggestions include explicit tier tags (early | mid | late)
+- [ ] **Core behavior unchanged:** Tier-specific filtering works as before
+
+**Impact:** CRITICAL — blocks promotion to VERIFIED
+
+---
+
+### RG-EVAL-004-T4 — Wire voiceGuard.js into Revision Pipeline
+**Priority:** P0 (Blocks Verification)  
+**Type:** Governance Hardening
+
+**Description:**
+
+Current state: `voiceGuard.js` module exists with `enforceVoicePreservation()`, `checkDialoguePreservation()`, `createVoiceAuditLog()` functions, but is never imported or invoked in `generateRevisionSuggestions.js`.
+
+**Required:**
+- Import `voiceGuard.js` into `generateRevisionSuggestions.js`
+- After suggestion generation (line 707), invoke `voiceGuard.enforceVoicePreservation()`
+- **Pass:** suggestions, voice_preservation_level, baseline_voice_signals
+- voiceGuard checks for dialogue modifications against voice preservation setting
+- Log results to audit record (dialogue_modified: true/false, violations: [])
+
+**Artifact Links:**
+- `FUNCTION_INDEX.md` (Revision → voiceGuard.js)
+- `VOICE_PRESERVATION_CANON.md` (enforcement rules)
+- Webpage Contract Matrix v1.0 (Revise row)
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] `voiceGuard.js` imported in `generateRevisionSuggestions.js`
+- [ ] `enforceVoicePreservation()` called after suggestion generation
+- [ ] Voice preservation audit log created with results
+- [ ] Evidence: logs show voiceGuard execution + results
+- [ ] Evidence: audit record includes `voice_preservation_audit_result` field
+- [ ] **Core behavior unchanged:** Voice preservation logic unchanged, only now formalized via voiceGuard.js
+
+**Impact:** CRITICAL — blocks promotion to VERIFIED
+
+---
+
+### RG-EVAL-004-T5 — Create Audit Event Record for Revision Requests
+**Priority:** P0 (Blocks Verification)  
+**Type:** Governance Hardening
+
+**Description:**
+
+Current state: No audit record. Revision requests are unlogged.
+
+**Required:**
+- `generateRevisionSuggestions.js` must write audit record at START of request
+- Update audit record at END with results (validators, WAVE tier, voice check, SLA)
+- Audit record must include all required fields plus revision-specific fields
+
+**Artifact Links:**
+- `FUNCTION_INDEX.md` (Platform Standards → EVALUATE_INCIDENT_LOG_SCHEMA.md)
+- Webpage Contract Matrix v1.0 (Revise row, Audit Evidence column)
+- `EVALUATE_INCIDENT_LOG_SCHEMA.md` (audit schema spec)
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] `EvaluationAuditEvent` entity (created in RG-EVAL-001) is used for revision requests
+- [ ] `generateRevisionSuggestions` writes audit record at START with `event_id`, `request_id`, `timestamp_utc`
+- [ ] Audit record includes `baseline_evaluation_id` (proof of gating)
+- [ ] Audit record includes `wave_tier` (early | mid | late)
+- [ ] Audit record includes `voice_preservation_setting`
+- [ ] Audit record includes `validators_run`, `validators_failed`, `failure_codes`
+- [ ] Audit record includes `voice_preservation_audit_result`
+- [ ] Evidence: query `EvaluationAuditEvent` after test run shows complete record
+- [ ] **Core behavior unchanged:** Audit is observational only
+
+**Impact:** CRITICAL — blocks promotion to VERIFIED
+
+---
+
+### RG-EVAL-004-T6 — Implement SLA Timing Metrics (Revision)
+**Priority:** P1 (High)  
+**Type:** Governance Hardening
+
+**Description:**
+
+Current state: No timing metrics captured in revision pipeline.
+
+**Required:**
+
+`generateRevisionSuggestions.js` must wrap all major operations with timing:
+- Capture `start_timestamp_ms` before operation
+- Capture `end_timestamp_ms` after operation
+- Calculate `elapsed_ms = end - start`
+- Write to audit record's `sla_metrics` field
+
+**Operations to time:**
+- Overall revision request duration
+- Stage 1: Pattern detection (LLM call lines 255-286)
+- Stage 2: WAVE validation (LLM call lines 448-485)
+- voiceGuard execution (post T4 integration)
+- Suggestion filtering and categorization
+- Session creation/update
+
+**Artifact Links:**
+- `FUNCTION_INDEX.md` (Revision → WAVE_VALIDATION_SUITE.md)
+- `EVALUATE_INCIDENT_LOG_SCHEMA.md` (sla_metrics field spec)
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] `sla_metrics` object in audit record
+- [ ] `start_ms`, `end_ms`, `elapsed_ms` for overall request
+- [ ] `operations` array with per-operation timing
+- [ ] Evidence: audit record shows complete timing data for all phases
+- [ ] **Core behavior unchanged:** Timing is observational only
+
+**Impact:** HIGH — required for VERIFIED status
+
+---
+
+### RG-EVAL-004-T7 — Surface WAVE Tier Tags and Voice Audit in UI
+**Priority:** P2 (Medium)  
+**Type:** Governance Hardening
+
+**Description:**
+
+Current state:
+- WAVE tier exists in backend but not visible in UI (only `wave_name` shown, tier not explicit)
+- Voice preservation setting shown (line 468), but audit results not surfaced
+
+**Required:**
+- Display explicit WAVE tier badges in suggestion cards (early | mid | late)
+- Show voice preservation audit results (dialogue preserved ✅ or violations ⚠️)
+- Add tooltip explaining tier-specific craft focus
+- Persist tier and voice audit visibility across revision session
+
+**Artifact Links:**
+- `pages/Revise.js` (lines 663-682: SuggestionCard rendering)
+- `components/revision/SuggestionCard.jsx`
+- Webpage Contract Matrix v1.0 (Revise row, User Visibility column)
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] UI shows WAVE tier badge for each suggestion (early | mid | late)
+- [ ] UI shows voice preservation audit result (dialogue preserved: yes/no)
+- [ ] Tooltip explains tier-specific craft focus
+- [ ] Evidence: screenshot showing tier badges and voice audit result
+- [ ] **Core behavior unchanged:** UI enhancements only, no logic changes
+
+**Impact:** MEDIUM — improves user visibility and trust
+
+---
+
+### RG-EVAL-004-T8 — Governance Dependency Check (Revise)
+**Priority:** P0 (Blocks All Other Work)  
+**Type:** Infrastructure
+
+**Description:**
+
+Before any wiring or validator implementation can begin, confirm that RG-EVAL-001 infrastructure dependencies are complete.
+
+**Required:**
+- Verify `entities/EvaluationAuditEvent.json` exists
+- Verify `functions/governedEvaluateEntry.js` exists and tested
+- Verify RG-EVAL-001-T2 marked DONE
+- Verify RG-EVAL-001-T6 marked DONE
+- No wiring begins until confirmation complete
+
+**Artifact Links:**
+- RG-EVAL-001 Epic (dependency source)
+- `FUNCTION_INDEX.md` (infrastructure requirements)
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] `EvaluationAuditEvent` entity exists and queryable
+- [ ] `governedEvaluateEntry` function exists and tested
+- [ ] RG-EVAL-001-T2 status = DONE (evidence attached)
+- [ ] RG-EVAL-001-T6 status = DONE (evidence attached)
+- [ ] Confirmation documented in Epic notes
+
+**Impact:** CRITICAL — blocks all other tickets
+
+---
+
+## Ticket Dependencies
+
+```
+RG-EVAL-004-T8 (Dependency Check)
+  ↓
+RG-EVAL-004-T2 (Baseline Gating Validator) + RG-EVAL-004-T3 (Tier Validator)
+  ↓
+RG-EVAL-004-T1 (Governed Entry) + RG-EVAL-004-T4 (voiceGuard Integration) + RG-EVAL-004-T5 (Audit) + RG-EVAL-004-T6 (SLA)
+  ↓
+RG-EVAL-004-T7 (UI Visibility)
+```
+
+**Critical Path:** T8 → T2/T3 (parallel) → T1/T4/T5/T6 (parallel) → T7
+
+---
+
+## Incident Handling (Mandatory)
+
+Any of the following must result in a governance incident ticket:
+
+- Work begins without authorization
+- Phase sequencing violated
+- Core Revise logic modified (baseline gating, WAVE tier filtering, voice preservation, structural gate)
+- Governance hooks bypassed
+- Evidence missing at review time
+
+**Incident Type:** GOVERNANCE_BYPASS
+
+**Required Fields:**
+- Epic
+- Phase
+- Files Touched
+- Deployment Status
+- Remediation Decision
+
+**Work must pause until incident resolution.**
+
+---
+
+## Reporting Requirement (DevOps / AI Assistant)
+
+**Base44 AI Assistant must:**
+- Track this Epic in the Governance Catalogue
+- Report weekly status
+- Flag out-of-sequence or unauthorized work
+- Attach evidence links only (no judgments)
+
+**It must not:**
+- Advance phases
+- Close tickets
+- Mark VERIFIED
+
+---
+
+## Observational Testing Constraint
+
+**All verification walkthroughs must include:**
+
+> **Constraint:** Do not introduce, modify, or wire any new code while running this test. This walkthrough is strictly observational against the current runtime behavior.
+
+This prevents implementation during testing.
+
+---
+
+## Final Instruction to DevOps / Engineering
+
+**This Epic is governance hardening, not rescue.**
+
+- Core Revise behavior is correct and must be preserved exactly.
+- This is additive instrumentation only: validators, audit, SLA, visibility.
+- No code may be written, wired, or deployed until the Epic is acknowledged in Jira and Phase authorization is explicitly granted.
+- All acceptance decisions are evidence-based and human-authorized.
+- Any deviation from this process triggers immediate incident logging and work stoppage.
+
+---
+
+## Phase Execution Plan (To Be Authorized)
+
+### Phase 0: Epic Acknowledgment (Current)
+- ✅ Epic drafted
+- ⏳ Epic acknowledged in Jira
+- ⏳ All 8 tickets created with Epic link
+- ⏳ Dependencies configured
+- ⏳ Target completion date set
+
+### Phase 1: Infrastructure Dependencies (T8)
+**Authorization Required Before Starting**  
+**Deadline: 2026-01-13 (Monday)**
+- Verify RG-EVAL-001 completion
+- Confirm audit entity and wrapper exist
+- Test governed entry wrapper in isolation
+
+### Phase 2: Validators (T2, T3)
+**Authorization Required Before Starting**  
+**Deadline: 2026-01-20 (Monday)**
+- Implement WAVE_BASELINE_GATING validator (backend enforcement)
+- Implement WAVE_TIER_VALIDATOR (formalize tier checks)
+- No changes to existing gating or tier logic
+
+### Phase 3: Integration & Audit (T1, T4, T5, T6)
+**Authorization Required Before Starting**  
+**Deadline: 2026-02-03 (Monday)**
+- Wire governed entry
+- Wire voiceGuard.js post-generation
+- Create audit records
+- Capture SLA metrics
+
+### Phase 4: UI Visibility (T7)
+**Authorization Required Before Starting**  
+**Deadline: 2026-02-07 (Friday)**
+- Surface WAVE tier tags
+- Display voice preservation audit results
+- Add explanatory tooltips
+
+### Phase 5: Evidence & Promotion
+**Authorization Required Before Starting**  
+**Deadline: 2026-02-10 (Tuesday)**
+- Collect all evidence
+- Human review against Definition of VERIFIED
+- Promote to VERIFIED or iterate
+
+---
+
+## Success Criteria
+
+This Epic is complete when:
+
+1. All 8 tickets marked DONE with evidence links
+2. Verification Walkthrough #4 re-run shows VERIFIED status
+3. **Core Revise behavior unchanged** (baseline gating, WAVE tier logic, voice preservation, structural gate)
+4. **Governance layer added:** validators, audit, SLA, voiceGuard.js integration
+5. Revise row in Webpage Contract Matrix updated to VERIFIED
+6. No open governance incidents related to this Epic
+
+**Until then, Revise remains PARTIALLY VERIFIED and release-blocked.**

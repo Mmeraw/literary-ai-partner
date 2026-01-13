@@ -1,0 +1,39 @@
+# PR TEMPLATE (MANDATORY FOR ALL CHANGES)
+
+## Primary / Advisory Declaration
+
+**Primary System:**
+- [ ] RevisionGrade Core
+- [ ] Other (specify): ___________________
+
+**Advisory Systems Used:**
+- [ ] None
+- [ ] Perplexity
+- [ ] Other (specify): ___________________
+
+---
+
+## Behavior Summary
+
+- What does this change affect?
+- Does it modify scoring, classification, or output text?
+
+---
+
+## Governance Confirmation
+
+- ☐ No advisory system alters final output  
+- ☐ No silent overrides  
+- ☐ All failures surface an explicit error state  
+
+---
+
+## Verification
+
+Describe how this change was tested and how compliance was verified.
+
+---
+
+## Reviewer Confirmation
+
+- ☐ Meets Multi-Model Governance Standard

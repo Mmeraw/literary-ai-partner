@@ -1,0 +1,578 @@
+# JIRA EPIC — GOVERNANCE ENFORCEMENT (MANDATORY)
+
+## Epic ID
+**RG-OUTPUTS-001**
+
+## Epic Name
+**Outputs Governance & Verification Enforcement — Generation, Export, Provenance**
+
+## Type
+Governance-Compliance Remediation (Release-Blocking)
+
+## Status
+**PLANNED — BLOCKED (No Implementation Authorized)**
+
+## Target Completion
+**2026-02-10 (Tuesday) — Hard VERIFIED Deadline (Release Gate)**
+
+Failure to meet this deadline makes Outputs release-blocking.
+
+**Created:** 2026-01-03
+
+---
+
+## Epic Purpose (Non-Negotiable)
+
+**This Epic enforces end-to-end governance for all Outputs surfaces, ensuring that no generated or exported artifact can exist without:**
+
+- Governed entry
+- Validator execution
+- Auditable provenance
+- SLA timing evidence
+- Negative-path enforcement
+
+**Outputs are downstream risk surfaces.** If governance fails here, all upstream compliance is nullified.
+
+**This Epic does not redesign Outputs.**  
+**It enforces verification, traceability, and release-grade evidence.**
+
+Failure to comply results in FAILED status and release blocking.
+
+---
+
+## Governing Authority (Hierarchy — LOCKED)
+
+All work under this Epic is governed by, in order:
+
+1. **PLATFORM_GOVERNANCE_DOCTRINE.md** (RevisionGrade governance foundation)
+2. **Definition of VERIFIED** (acceptance gate standard)
+3. **Webpage Contract Matrix** (Outputs rows)
+4. **FUNCTION_INDEX.md** (authoritative registry)
+5. **BASE44_CONTRACT_ADDENDUM.md** (governance obligations)
+6. **QA_ENFORCEMENT_CHECKLIST.md** (evidence requirements)
+7. **RG-OUTPUTS-001** (this Epic)
+
+If any artifact conflicts with the above, it is invalid.
+
+---
+
+## Current Compliance Status
+
+**UNVERIFIED — Governance Evidence Incomplete**
+
+### Known Risks (from Code Review)
+
+- ❌ Output generation may occur without governed entry
+- ❌ Output provenance may not be auditable
+- ❌ Exported artifacts may lack validator traceability
+- ❌ SLA timing may be absent
+- ❌ Negative paths may fail silently
+- ⚠️ Output source verification inconsistent
+
+**Verdict:** Outputs surface functionality exists, but governance enforcement layer (governed entry, validators, audit, SLA, provenance) is incomplete or absent.
+
+---
+
+## Explicit Constraints (Must Be Restated in Jira)
+
+1. **No implementation may begin without explicit phase authorization.**
+2. **No wiring, refactoring, or runtime changes during verification walkthroughs.**
+3. **Any governance bypass triggers GOVERNANCE_BYPASS incident.**
+4. **Acceptance decisions are evidence-based only.**
+5. **Missing provenance = FAILED (Data Integrity Risk).**
+
+---
+
+## Phase 0 — Governance Alignment Confirmation (MANDATORY)
+
+**Before Phase 1 (Dependencies) may begin, Base44 must explicitly confirm the following in Jira comments or acknowledgment notes:**
+
+### Validator Alignment
+Confirm whether the following validators already exist, or identify their canonical equivalents:
+- `OUTPUT_ELIGIBILITY_CHECK`
+- `OUTPUT_SOURCE_PROVENANCE`
+- `OUTPUT_COMPLETENESS`
+- `OUTPUT_EXPORT_FORMAT`
+
+**If equivalents exist:** Cite their exact names and locations.  
+**If any do not exist:** Base44 must flag this and create explicit design tickets before implementation begins.
+
+### Audit Schema Compatibility
+Confirm that the required Outputs audit fields are supported by the existing `EvaluationAuditEvent` schema (or a superset).
+
+**Required fields:** `event_id`, `request_id`, `timestamp_utc`, `action_type`, `output_type`, `export_format`, `input_source_ids`, `validators_run`, `validators_failed`, `failure_codes`, `canon_hash`
+
+**If any required fields are missing** (e.g., `output_type`, `export_format`, `input_source_ids`), Base44 must:
+- Explicitly enumerate the delta
+- Create a schema extension ticket prior to Phase 2
+
+### Governed Entry Pattern Confirmation
+Confirm that Outputs will use the same governed entry enforcement pattern established in RG-EVAL Epics.
+
+Cite the existing implementation or reference document.
+
+**If no such pattern exists:** Base44 must flag this as a design gap before proceeding.
+
+---
+
+**No implementation work is authorized until all three confirmations are complete.**
+
+**Failure to confirm constitutes a Phase-0 block and schedule risk owned by Base44.**
+
+---
+
+## Definition of VERIFIED (Acceptance Gate — Outputs-Specific)
+
+Outputs may be promoted to **VERIFIED** only if all conditions below are evidenced:
+
+### ✅ Governed Entry
+- Governed entry executes before output generation/export
+- QA checklist enforced
+- Halt-on-fail behavior present
+- **Evidence:** Traces show governed entry execution before processing
+
+### ✅ Validators Executed
+**Required validators (minimum):**
+- OUTPUT_ELIGIBILITY_CHECK (validates prerequisites met for output generation)
+- OUTPUT_SOURCE_PROVENANCE (validates source inputs are governed and auditable)
+- OUTPUT_COMPLETENESS (validates output contains all required elements)
+- OUTPUT_EXPORT_FORMAT (validates export format integrity and structure)
+
+Results logged (pass / soft / hard).  
+**Evidence:** Audit record includes `validators_run`, `validators_failed`, `failure_codes`
+
+### ✅ Audit Record Written
+**For every output generation and export action:**
+
+A structured audit event must exist (not logs).
+
+**Required fields:**
+- `event_id`, `request_id`, `timestamp_utc`
+- `action_type` (generate_output | export_output)
+- `output_type` (agent_package | synopsis | query_letter | pitch | biography | comparables | film_adaptation)
+- `export_format` (pdf | docx | txt | zip)
+- `input_source_ids` (array of manuscript/submission IDs used as source)
+- `validators_run`, `validators_failed`, `failure_codes`
+- `canon_hash` / version
+
+**Evidence:** Query audit entity shows structured records for all output actions
+
+### ✅ SLA Timing Captured
+- `start_ms`, `end_ms`, `elapsed_ms`
+- Operations array where applicable (generation phase, export phase, validation phase)
+- **Evidence:** SLA metrics present in audit record
+
+### ✅ Export Provenance & Integrity
+- Every exported file traceable to governed inputs
+- Exported artifacts reference source evaluation IDs
+- Tampered or ungoverned sources block export
+- **Evidence:** Export audit includes `input_source_ids`; negative path test blocks ungoverned export
+
+### ✅ Negative Path Enforcement
+- Missing prerequisites block output generation
+- User-visible error messages
+- Failures auditable with validator evidence
+- **Evidence:** Invalid input test shows block + error + validator failure + audit event
+
+**If any condition is missing → UNVERIFIED or FAILED.**  
+**Missing provenance → FAILED (Data Integrity Risk).**
+
+---
+
+## Governance Gaps (Evidence from Code Review)
+
+| Gap | Evidence | Severity | Violation Type |
+|-----|----------|----------|----------------|
+| G1: No governed entry | Output functions may not call governedEvaluateEntry | 🔴 CRITICAL | Infrastructure missing |
+| G2: No validators | Output eligibility/provenance validation may be inline only | 🔴 CRITICAL | Enforcement missing |
+| G3: Incomplete audit | Output generation may not create structured audit events | 🔴 CRITICAL | Auditability incomplete |
+| G4: No SLA metrics | No timing capture for output generation/export | 🟡 HIGH | Performance tracking missing |
+| G5: Provenance tracking unclear | Export source verification may be implicit | 🔴 CRITICAL | Data integrity risk |
+| G6: Negative path handling unclear | Invalid output requests may fail silently | 🟡 MEDIUM | Error handling informal |
+
+---
+
+## Required Child Tickets (MANDATORY)
+
+### RG-OUTPUTS-001-T6 — Governance Dependency Check
+**Priority:** P0 (Blocks All Other Work)  
+**Type:** Infrastructure
+
+**Description:**
+
+Before any wiring or validator implementation can begin, confirm that governance infrastructure dependencies are complete.
+
+**Required:**
+- Verify `entities/EvaluationAuditEvent.json` exists (or confirm Outputs audit schema)
+- Verify `functions/governedEvaluateEntry.js` exists and tested
+- Verify RG-EVAL-001-T2 marked DONE (audit entity)
+- Verify RG-EVAL-001-T6 marked DONE (governed entry wrapper)
+- Confirm Phase-0 alignment (validators, audit schema, governed entry pattern)
+- No wiring begins until confirmation complete
+
+**Artifact Links:**
+- RG-EVAL-001 Epic (dependency source)
+- `FUNCTION_INDEX.md` (infrastructure requirements)
+- Phase-0 alignment confirmations
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] `EvaluationAuditEvent` entity exists and supports Outputs fields
+- [ ] `governedEvaluateEntry` function exists and tested
+- [ ] RG-EVAL-001-T2 status = DONE (evidence attached)
+- [ ] RG-EVAL-001-T6 status = DONE (evidence attached)
+- [ ] Phase-0 alignment confirmed (all three confirmations complete)
+- [ ] Confirmation documented in Epic notes
+
+**Impact:** CRITICAL — blocks all other tickets
+
+---
+
+### RG-OUTPUTS-001-T1 — Governed Entry Enforcement
+**Priority:** P0 (Blocks Verification)  
+**Type:** Critical Governance
+
+**Description:**
+
+Current state: Output functions may not call `governedEvaluateEntry`. QA checklist not enforced.
+
+**Required:**
+- All output generation and export actions must execute through governed entry before any processing
+- `governedEvaluateEntry` validates prerequisites against QA checklist
+- Only if validation passes, proceed to generation/export
+- If validation fails, halt and return error with checklist violations
+
+**Affected Functions (minimum):**
+- All output generation functions (synopsis, query letter, pitches, comparables, complete package, film adaptation)
+- All export functions (PDF, DOCX, TXT, ZIP generation)
+
+**Artifact Links:**
+- `FUNCTION_INDEX.md` (Outputs → Runtime → governedEvaluateEntry.js)
+- Webpage Contract Matrix (Outputs rows, Required Gates column)
+- RG-EVAL-001 governed entry pattern
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] All output functions call `governedEvaluateEntry` before processing
+- [ ] `governedEvaluateEntry` loads and executes QA checklist
+- [ ] If checklist fails, returns error and halts
+- [ ] If checklist passes, proceeds to generation/export
+- [ ] Evidence: logs show `governedEvaluateEntry` call + QA checklist result for all output actions
+- [ ] Evidence: test with invalid input shows halted flow + error
+
+**Impact:** CRITICAL — blocks promotion to VERIFIED
+
+---
+
+### RG-OUTPUTS-001-T2 — Output Eligibility Validators
+**Priority:** P0 (Blocks Verification)  
+**Type:** Critical Governance
+
+**Description:**
+
+Current state: Output eligibility validation may be inline only (no validator modules). Provenance verification inconsistent.
+
+**Required:**
+
+Implement and execute Outputs validators (minimum):
+- **OUTPUT_ELIGIBILITY_CHECK:** Validate that output may legally be generated (prerequisites met, source evaluation complete)
+- **OUTPUT_SOURCE_PROVENANCE:** Validate that all input sources are governed and auditable (manuscript evaluated, evaluation complete, source IDs traceable)
+- **OUTPUT_COMPLETENESS:** Validate that generated output contains all required elements (per output type canon)
+- **OUTPUT_EXPORT_FORMAT:** Validate export format integrity (PDF structure, DOCX validity, etc.)
+
+Each validator:
+- **Input:** request data + source IDs + current state
+- **Output:** pass/fail + failure codes + remediation suggestions
+- Invoked before generation/export
+- Logs validation result to audit record
+
+**Artifact Links:**
+- Output canon specs (SYNOPSIS_SPEC, COMPARABLES_CANON_SPEC, FILM_PITCH_DECK_QUALITY_STANDARD)
+- Webpage Contract Matrix (Outputs rows)
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] OUTPUT_ELIGIBILITY_CHECK validator exists and executes
+- [ ] OUTPUT_SOURCE_PROVENANCE validator exists and executes
+- [ ] OUTPUT_COMPLETENESS validator exists and executes
+- [ ] OUTPUT_EXPORT_FORMAT validator exists and executes
+- [ ] All validators return pass/fail + failure codes
+- [ ] Validators invoked before generation/export
+- [ ] Evidence: logs show validator execution + results for all output types
+- [ ] Evidence: `validators_run` and `validators_failed` populated in audit records
+
+**Impact:** CRITICAL — blocks promotion to VERIFIED
+
+---
+
+### RG-OUTPUTS-001-T3 — Output Audit Event Creation
+**Priority:** P0 (Blocks Verification)  
+**Type:** Critical Governance
+
+**Description:**
+
+Current state: Output generation and export may not create structured audit events.
+
+**Required:**
+
+Emit a structured audit event (not free-text logs) for every output generation and export action.
+
+**Required fields (minimum):**
+- `event_id`, `request_id`, `timestamp_utc`
+- `action_type` (generate_output | export_output)
+- `output_type` (agent_package | synopsis | query_letter | pitch | biography | comparables | film_adaptation)
+- `export_format` (pdf | docx | txt | zip) — for export actions
+- `input_source_ids` (array of manuscript/submission IDs used as source)
+- `validators_run` (array of validator names)
+- `validators_failed` (array of failed validator names)
+- `failure_codes` (array of codes, if any)
+- `canon_hash` / version
+- `user_email` (actor context)
+
+**Artifact Links:**
+- `EVALUATE_INCIDENT_LOG_SCHEMA.md` (audit schema spec)
+- Webpage Contract Matrix (Outputs rows, Audit Evidence column)
+- BASE44_CONTRACT_ADDENDUM.md (Section 3.3: Audit Record mandatory)
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] Structured audit event created for all output generation actions
+- [ ] Structured audit event created for all export actions
+- [ ] All required fields populated
+- [ ] Audit events queryable (not log-only)
+- [ ] No free-text log substitution
+- [ ] Evidence: query audit entity after test run shows complete records for all output types
+- [ ] **Core behavior unchanged:** Audit is observational only
+
+**Impact:** CRITICAL — blocks promotion to VERIFIED
+
+---
+
+### RG-OUTPUTS-001-T4 — SLA Timing Metrics (Generation & Export)
+**Priority:** P1 (High)  
+**Type:** Governance Hardening
+
+**Description:**
+
+Current state: Output generation and export may not capture timing metrics.
+
+**Required:**
+
+All output functions must wrap major operations with timing:
+- Capture `start_timestamp_ms` before operation
+- Capture `end_timestamp_ms` after operation
+- Calculate `elapsed_ms = end - start`
+- Write to audit record's `sla_metrics` field
+
+**Operations to time:**
+- Overall output request duration
+- Source validation phase
+- LLM generation calls (where applicable)
+- Validator execution
+- Output assembly
+- Export file creation (PDF, DOCX, etc.)
+
+**Artifact Links:**
+- `FUNCTION_INDEX.md` (Outputs → SLA Requirements)
+- `EVALUATE_INCIDENT_LOG_SCHEMA.md` (sla_metrics field spec)
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] `sla_metrics` object in audit record for all output actions
+- [ ] `start_ms`, `end_ms`, `elapsed_ms` for overall request
+- [ ] `operations` array with per-operation timing
+- [ ] Evidence: audit record shows complete timing data for all output types and export formats
+- [ ] **Core behavior unchanged:** Timing is observational only
+
+**Impact:** HIGH — required for VERIFIED status
+
+---
+
+### RG-OUTPUTS-001-T5 — Export Provenance & Integrity (Security Gate)
+**Priority:** P0 (Data Integrity Risk)  
+**Type:** Critical Security
+
+**Description:**
+
+Current state: Export provenance may be implicit or unverifiable.
+
+**Required:**
+
+Every exported artifact must be traceable to governed inputs:
+- All exported files must reference source evaluation IDs in audit record
+- Exported content must derive from evaluated, governed manuscripts/submissions
+- Tampered or ungoverned sources must block export
+- Export audit must include complete provenance chain
+
+**Test scenarios (negative paths):**
+- Attempt export with missing source → blocked + audit event
+- Attempt export with unevaluated source → blocked + audit event + validator failure
+- Attempt export with tampered source reference → blocked + audit event
+
+**Artifact Links:**
+- Output generation functions (synopsis, query, pitches, comparables, etc.)
+- Export functions (PDF, DOCX, TXT generation)
+- Webpage Contract Matrix (Outputs rows)
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] All exports include `input_source_ids` in audit record
+- [ ] Ungoverned source blocks export (validator failure)
+- [ ] Missing evaluation blocks export (validator failure)
+- [ ] Tampered source detected and blocked
+- [ ] All denials logged with audit event + validator evidence
+- [ ] Evidence: negative path tests show blocks + errors + audit + validators
+- [ ] **Fail Rule:** Ungoverned export → FAILED (Data Integrity Risk)
+
+**Impact:** CRITICAL — data integrity gate, release-blocking if failed
+
+---
+
+### RG-OUTPUTS-001-T6 — Negative Path Enforcement (Output Eligibility)
+**Priority:** P0 (Blocks Verification)  
+**Type:** Critical Governance
+
+**Description:**
+
+Current state: Output eligibility checks may be incomplete or silently bypassed.
+
+**Required:**
+
+Missing prerequisites must block output generation:
+- Missing source evaluation → block with error
+- Incomplete evaluation → block with error
+- Invalid output type requested → block with error
+- All blocks must be user-visible with remediation guidance
+- All failures must be auditable (validator evidence + audit event)
+
+**Test scenarios (negative paths):**
+- Request output without evaluated manuscript → blocked
+- Request output with partial evaluation (missing spine/criteria/WAVE) → blocked
+- Request invalid output type → blocked
+- All blocks must show validator failure + audit event
+
+**Artifact Links:**
+- Output generation functions
+- Webpage Contract Matrix (Outputs rows, Negative Path column)
+- QA_ENFORCEMENT_CHECKLIST.md (Section G: Negative Path Testing)
+
+**Acceptance Criteria (Definition of VERIFIED):**
+- [ ] Missing evaluation blocks output (400 + user-visible error)
+- [ ] Incomplete evaluation blocks output (400 + user-visible error + remediation CTA)
+- [ ] Invalid output type blocks request (400 + user-visible error)
+- [ ] All blocks logged with audit event + validator failure
+- [ ] Error messages include failure codes (ERR_OUTPUTS_MISSING_PREREQUISITE, etc.)
+- [ ] Evidence: negative path tests show blocks + errors + audit + validators
+- [ ] **Core behavior unchanged:** Eligibility checks are defensive gates
+
+**Impact:** CRITICAL — blocks promotion to VERIFIED
+
+---
+
+## Ticket Dependencies (Critical Path)
+
+```
+RG-OUTPUTS-001-T6 (Dependency Check - note: listed as T6 but functions as T8)
+  ↓
+RG-OUTPUTS-001-T1 (Governed Entry)
+  ↓
+RG-OUTPUTS-001-T2 (Validators) + RG-OUTPUTS-001-T3 (Audit) [parallel]
+  ↓
+RG-OUTPUTS-001-T4 (SLA) + RG-OUTPUTS-001-T5 (Provenance) [parallel]
+```
+
+**Critical Path:** T6 → T1 → T2/T3 → T4/T5
+
+---
+
+## Incident Handling (Mandatory)
+
+Any of the following must result in a governance incident ticket:
+
+- Work begins without authorization
+- Phase sequencing violated
+- Output generated without provenance
+- Governance hooks bypassed
+- Evidence missing at review time
+- Validators skipped
+
+**Incident Type:** GOVERNANCE_BYPASS
+
+**Required Fields:**
+- Epic ID
+- Phase
+- Files Touched
+- Deployment Status
+- Remediation Decision
+
+**Work must pause until incident resolution.**
+
+---
+
+## Timeline Requirements (Non-Negotiable)
+
+| Milestone | Deadline | Owner | Dependencies |
+|-----------|----------|-------|--------------|
+| Jira Acknowledgment + Phase-0 Confirmation | **2026-01-06 (Monday)** | Base44 DevOps | — |
+| All 6 Tickets Created & Dependencies Configured | **2026-01-08 (Wednesday)** | Base44 DevOps | Phase-0 complete |
+| Phase 1 Complete (Dependency Check: T6) | **2026-01-13 (Monday)** | Base44 Engineering | Confirms RG-EVAL-001 infrastructure |
+| Phase 2 Complete (Validators: T2) | **2026-01-20 (Monday)** | Base44 Engineering | Phase 1 complete |
+| Phase 3 Complete (Governed Entry + Audit: T1, T3) | **2026-02-03 (Monday)** | Base44 Engineering | Phase 2 complete |
+| Phase 4 Complete (SLA + Provenance: T4, T5) | **2026-02-07 (Friday)** | Base44 Engineering | Phase 3 complete |
+| Verification Walkthrough + Evidence Review | **2026-02-09 (Monday)** | RevisionGrade + Base44 | Phase 4 complete |
+| Outputs → VERIFIED Status | **2026-02-10 (Tuesday)** | RevisionGrade | Evidence review passed |
+
+**Release Gate:** Outputs must be VERIFIED by 2026-02-10 to unblock release. Any delay is release-blocking.
+
+**Dates do not authorize work. Phase approval is required.**
+
+---
+
+## Reporting Requirement (DevOps / AI Assistant)
+
+**Base44 AI Assistant must:**
+- Track this Epic in the Governance Catalogue
+- Report weekly status
+- Flag out-of-sequence or unauthorized work
+- Attach evidence links only (no judgments)
+
+**It must not:**
+- Advance phases
+- Close tickets
+- Mark VERIFIED
+
+---
+
+## Final Instruction to Base44
+
+**This Epic is governance-blocking and release-blocking.**
+
+- Outputs functionality exists and behaves correctly.
+- Governance enforcement layer (governed entry, validators, audit, SLA, provenance) is incomplete or unverified.
+- This is not feature design — it is enforcement of already-accepted governance obligations.
+- No code may be written, wired, or deployed until the Epic is acknowledged in Jira, Phase-0 confirmations are complete, and Phase authorization is explicitly granted.
+- All acceptance decisions are evidence-based and human-authorized.
+- Any deviation from this process triggers immediate incident logging and work stoppage.
+
+---
+
+## Success Criteria
+
+This Epic is complete when:
+
+1. All 6 tickets marked DONE with evidence links
+2. FUNCTION TEST #7 (Outputs walkthrough) shows VERIFIED status
+3. **All outputs traceable to governed sources** (provenance verified)
+4. **All exports auditable** (structured events, not logs)
+5. **All validators execute** (outcomes recorded)
+6. Outputs rows in Webpage Contract Matrix updated to VERIFIED
+7. No open governance incidents related to this Epic
+
+**Until then, Outputs remains UNVERIFIED and release-blocked.**
+
+---
+
+## Data Integrity Escalation
+
+**Outputs are the final mile before user/agent/studio consumption.**
+
+If provenance is missing or unverifiable:
+- Outputs = **FAILED (Data Integrity Risk)**
+- Release-blocking until remediated
+- Incident severity: CRITICAL
+
+**No workarounds. No exceptions.**
