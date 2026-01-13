@@ -61,19 +61,20 @@ The JSON MUST match this schema exactly:
 }
 
 The 13 criteria MUST be exactly these names in this order:
-1) Hook & Premise
-2) Voice & Prose
-3) Character Depth
-4) Conflict & Tension
-5) Theme & Meaning
-6) Structure & Plot
-7) Pacing
-8) Dialogue
-9) Worldbuilding
-10) Stakes
-11) Polish & Clarity
-12) Market Positioning
-13) Emotional Resonance
+
+1) Opening Hook
+2) Narrative Voice & Style
+3) Character Depth & Introduction
+4) Conflict, Tension & Escalation
+5) Thematic Resonance
+6) Structure, Pacing & Flow
+7) Dialogue & Subtext
+8) Worldbuilding & Immersion
+9) Stakes & Emotional Investment
+10) Line-Level Craft & Polish
+11) Marketability & Genre Position
+12) Narrative Closure & Promises Kept
+13) Would They Keep Reading?
 
 For each criterion:
 - score: 0-10 (10 = publishable, agent-ready)
