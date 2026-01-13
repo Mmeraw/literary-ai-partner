@@ -1,7 +1,7 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import MvpLayout from "./layouts/MvpLayout.jsx";
-import MvpLanding from "./pages/MvpLanding_TEMP.jsx";
+import MvpLanding from "./pages/MvpLanding.jsx";
 import MvpEvaluate from "./pages/MvpEvaluate.jsx";
 
 export default function App() {
