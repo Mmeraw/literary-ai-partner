@@ -3,6 +3,7 @@
 
 type RGCriterion = {
   name: string;
+  key?: string; // canonical snake_case key
   score: number; // 0-10
   strengths: string[];
   weaknesses: string[];
@@ -188,6 +189,29 @@ Deno.serve(async (req) => {
       },
       502
     );
+
+  // Map display names to canonical keys
+  const CANONICAL_KEYS: Record<string, string> = {
+    'Opening Hook': 'opening_hook',
+    'Narrative Voice & Style': 'narrative_voice_style',
+    'Character Depth & Introduction': 'character_depth_introduction',
+    'Conflict, Tension & Escalation': 'conflict_tension_escalation',
+    'Thematic Resonance': 'thematic_resonance',
+    'Structure, Pacing & Flow': 'structure_pacing_flow',
+    'Dialogue & Subtext': 'dialogue_subtext',
+    'Worldbuilding & Immersion': 'worldbuilding_immersion',
+    'Stakes & Emotional Investment': 'stakes_emotional_investment',
+    'Line-Level Craft & Polish': 'line_level_craft_polish',
+    'Marketability & Genre Position': 'marketability_genre_position',
+    'Narrative Closure & Promises Kept': 'narrative_closure_promises_kept',
+    'Would They Keep Reading?': 'would_keep_reading_gate',
+  };
+
+  // Add canonical keys to each criterion
+  parsed.criteria = parsed.criteria.map((c) => ({
+    ...c,
+    key: CANONICAL_KEYS[c.name] || c.name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+  }));
   }
 
   const latency = Date.now() - start;
