@@ -1,0 +1,518 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+/**
+ * Validation Harness for Gold Standard Training Set
+ * 
+ * Tests Base44's voice/register behavior against gold-labeled examples.
+ * Run this endpoint to validate current system before adding more training data.
+ */
+
+Deno.serve(async (req) => {
+  try {
+    const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+
+    if (!user || user.role !== 'admin') {
+      return Response.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    // Get dataset parameter (default: standard)
+    const { dataset = 'standard' } = await req.json().catch(() => ({}));
+
+    // Load appropriate gold standard
+    const goldBundlePath = dataset === 'slur' 
+      ? new URL('./toadstone_gold_slur.v1.json', import.meta.url)
+      : new URL('./toadstone_gold.v1.json', import.meta.url);
+    
+    const goldBundleText = await Deno.readTextFile(goldBundlePath);
+    
+    let goldBundle;
+    try {
+      goldBundle = JSON.parse(goldBundleText);
+    } catch (error) {
+      return Response.json({ 
+        error: 'Invalid JSON in gold bundle', 
+        details: error.message 
+      }, { status: 400 });
+    }
+
+    // Validate gold bundle structure
+    const validationErrors = validateGoldBundleStructure(goldBundle);
+    if (validationErrors.length > 0) {
+      return Response.json({ 
+        error: 'Gold bundle validation failed', 
+        validation_errors: validationErrors 
+      }, { status: 400 });
+    }
+
+    // Check for ID collisions
+    const idCollisions = checkIdCollisions(goldBundle.examples);
+    if (idCollisions.length > 0) {
+      return Response.json({ 
+        error: 'ID collisions detected in gold bundle', 
+        collisions: idCollisions 
+      }, { status: 400 });
+    }
+
+    // SLUR DATASET: Additional governance validation
+    if (dataset === 'slur') {
+      const slurValidationErrors = await validateSlurGovernance(goldBundle);
+      if (slurValidationErrors.length > 0) {
+        return Response.json({ 
+          error: 'Slur governance validation failed', 
+          validation_errors: slurValidationErrors 
+        }, { status: 400 });
+      }
+    }
+
+    // Generate bundle summary
+    const bundleSummary = generateBundleSummary(goldBundle, dataset === 'slur');
+
+    const results = {
+      timestamp: new Date().toISOString(),
+      gold_bundle_id: goldBundle.batch_id,
+      bundle_summary: bundleSummary,
+      total_examples: goldBundle.examples.length,
+      total_gold_issues: 0,
+      comparisons: [],
+      metrics: {
+        overall: {},
+        by_wave_item: {},
+        by_register: {},
+        by_register_lock: {},
+        top_mismatches: []
+      }
+    };
+
+    // Process each gold example
+    for (const goldExample of goldBundle.examples) {
+      results.total_gold_issues += goldExample.wave_issues.length;
+
+      // Simulate Base44 evaluation (in production, call actual evaluation)
+      // For now, we'll demonstrate the structure
+      const base44Result = await evaluateWithBase44(goldExample.excerpt, base44);
+
+      // Compare gold vs Base44
+      const comparison = compareExample(goldExample, base44Result);
+      results.comparisons.push(...comparison);
+    }
+
+    // Aggregate metrics
+    results.metrics = aggregateMetrics(results.comparisons);
+
+    return Response.json(results, { status: 200 });
+
+  } catch (error) {
+    console.error('Validation error:', error);
+    return Response.json({ 
+      error: 'Validation failed', 
+      details: error.message 
+    }, { status: 500 });
+  }
+});
+
+/**
+ * Validate gold bundle structure
+ */
+function validateGoldBundleStructure(bundle) {
+  const errors = [];
+
+  if (!bundle.batch_id) errors.push('Missing batch_id');
+  if (!Array.isArray(bundle.examples)) errors.push('Missing or invalid examples array');
+
+  if (bundle.examples) {
+    bundle.examples.forEach((ex, idx) => {
+      if (!ex.id) errors.push(`Example ${idx}: missing id`);
+      if (!ex.excerpt) errors.push(`Example ${idx}: missing excerpt`);
+      if (!ex.register) errors.push(`Example ${idx}: missing register`);
+      if (!ex.register_lock) errors.push(`Example ${idx}: missing register_lock`);
+      if (!Array.isArray(ex.wave_issues)) errors.push(`Example ${idx}: missing wave_issues array`);
+
+      if (ex.wave_issues) {
+        ex.wave_issues.forEach((issue, issueIdx) => {
+          if (!issue.wave_number) errors.push(`Example ${idx}, issue ${issueIdx}: missing wave_number`);
+          if (!issue.wave_item) errors.push(`Example ${idx}, issue ${issueIdx}: missing wave_item`);
+          if (!issue.label) errors.push(`Example ${idx}, issue ${issueIdx}: missing label`);
+          if (!issue.severity) errors.push(`Example ${idx}, issue ${issueIdx}: missing severity`);
+          if (!issue.correct_action) errors.push(`Example ${idx}, issue ${issueIdx}: missing correct_action`);
+        });
+      }
+    });
+  }
+
+  return errors;
+}
+
+/**
+ * Check for ID collisions
+ */
+function checkIdCollisions(examples) {
+  const idCounts = new Map();
+  const collisions = [];
+
+  examples.forEach(ex => {
+    const count = idCounts.get(ex.id) || 0;
+    idCounts.set(ex.id, count + 1);
+  });
+
+  for (const [id, count] of idCounts.entries()) {
+    if (count > 1) {
+      collisions.push({ id, count });
+    }
+  }
+
+  return collisions;
+}
+
+/**
+ * Validate slur-specific governance rules
+ */
+async function validateSlurGovernance(bundle) {
+  const errors = [];
+
+  if (!bundle.governance_rules) {
+    errors.push('Missing governance_rules object');
+    return errors;
+  }
+
+  // Load slur lexicon for validation
+  let lexiconData;
+  try {
+    const lexiconPath = new URL('./slur_lexicon.v1.json', import.meta.url);
+    const lexiconText = await Deno.readTextFile(lexiconPath);
+    lexiconData = JSON.parse(lexiconText);
+  } catch (error) {
+    errors.push(`Failed to load slur lexicon: ${error.message}`);
+    return errors;
+  }
+
+  bundle.examples.forEach((ex, idx) => {
+    // Lexicon match check
+    if (ex.slur_term_id && ex.slur_lexicon_required_match) {
+      const hasMatch = lexiconData?.lexicon_keys && 
+                      Object.keys(lexiconData.lexicon_keys).includes(ex.slur_term_id);
+      
+      if (!hasMatch) {
+        errors.push(`Example ${idx} (${ex.id}): slur_term_id "${ex.slur_term_id}" not found in lexicon`);
+      }
+    }
+
+    // Hard rule: contains_slur → MARKET_RISK_REVIEW + DO_NOT_AUTOREWRITE
+    if (ex.style_flags?.contains_slur === true) {
+      const issue = ex.wave_issues?.[0];
+      if (!issue) {
+        errors.push(`Example ${idx} (${ex.id}): contains_slur=true but no wave_issues defined`);
+      } else {
+        if (issue.label !== 'MARKET_RISK_REVIEW') {
+          errors.push(`Example ${idx} (${ex.id}): contains_slur=true must have label MARKET_RISK_REVIEW, got ${issue.label}`);
+        }
+        
+        if (issue.correct_action !== 'DO_NOT_AUTOREWRITE') {
+          errors.push(`Example ${idx} (${ex.id}): contains_slur=true must have correct_action DO_NOT_AUTOREWRITE, got ${issue.correct_action}`);
+        }
+        
+        if (issue.severity !== 'high' && issue.severity !== 'critical') {
+          errors.push(`Example ${idx} (${ex.id}): contains_slur=true must have severity high/critical, got ${issue.severity}`);
+        }
+      }
+    }
+
+    // Check no auto-rewrites proposed
+    ex.wave_issues?.forEach((issue, issueIdx) => {
+      if (issue.proposed_revision !== null && issue.proposed_revision !== undefined) {
+        errors.push(`Example ${idx} (${ex.id}), issue ${issueIdx}: proposed_revision must be null (no auto-rewrites allowed)`);
+      }
+      if (issue.alternatives !== null && issue.alternatives !== undefined) {
+        errors.push(`Example ${idx} (${ex.id}), issue ${issueIdx}: alternatives must be null (no auto-rewrites allowed)`);
+      }
+    });
+  });
+
+  return errors;
+}
+
+/**
+ * Generate bundle summary
+ */
+function generateBundleSummary(bundle, isSlurDataset = false) {
+  const registerBreakdown = {};
+  const registerLockBreakdown = {};
+  let totalIssues = 0;
+
+  // Slur-specific metrics
+  const slurMetrics = isSlurDataset ? {
+    slur_classifications: {},
+    auto_rewrite_violations: 0,
+    detection_rate: 0
+  } : null;
+
+  bundle.examples.forEach(ex => {
+    // Count by register
+    registerBreakdown[ex.register] = (registerBreakdown[ex.register] || 0) + 1;
+    
+    // Count by register_lock
+    const lockKey = `${ex.register}/${ex.register_lock}`;
+    registerLockBreakdown[lockKey] = (registerLockBreakdown[lockKey] || 0) + 1;
+    
+    // Count issues
+    totalIssues += ex.wave_issues.length;
+
+    // Slur-specific tracking
+    if (isSlurDataset && ex.slur_classification) {
+      slurMetrics.slur_classifications[ex.slur_classification] = 
+        (slurMetrics.slur_classifications[ex.slur_classification] || 0) + 1;
+    }
+  });
+
+  const summary = {
+    batches_loaded: 1, // Single canonical bundle
+    total_examples: bundle.examples.length,
+    unique_ids: bundle.examples.length,
+    collisions: 0,
+    total_issues: totalIssues,
+    register_breakdown: registerBreakdown,
+    register_lock_breakdown: registerLockBreakdown
+  };
+
+  if (isSlurDataset) {
+    summary.slur_metrics = slurMetrics;
+  }
+
+  return summary;
+}
+
+/**
+ * Simulate Base44 evaluation
+ * In production, this would call the actual WAVE evaluation system
+ */
+async function evaluateWithBase44(excerpt, base44) {
+  // TODO: Replace with actual Base44 WAVE evaluation call
+  // For now, return mock structure
+  return {
+    excerpt,
+    issues: [
+      // Example: {
+      //   wave_number: 2,
+      //   wave_item: "W2.REGISTER.PROFANITY",
+      //   label: "NO_ACTION",
+      //   severity: "low",
+      //   correct_action: "keep"
+      // }
+    ]
+  };
+}
+
+/**
+ * Index gold issues by wave_item key
+ */
+function indexGoldIssues(example) {
+  const map = new Map();
+  for (const issue of example.wave_issues) {
+    const key = `${issue.wave_number}|${issue.wave_item}`;
+    map.set(key, issue);
+  }
+  return map;
+}
+
+/**
+ * Index Base44 issues by wave_item key
+ */
+function indexBase44Issues(result) {
+  const map = new Map();
+  for (const issue of result.issues) {
+    const key = `${issue.wave_number}|${issue.wave_item}`;
+    map.set(key, issue);
+  }
+  return map;
+}
+
+/**
+ * Derive true positive classification for Base44
+ * Fix-like labels = TP, review/no_action labels = FP
+ */
+function deriveBase44TruePositive(issue) {
+  const fixLabels = [
+    "CLARITY_REVIEW",
+    "HOUSE_STYLE_REVIEW", 
+    "TYPOGRAPHY_REVIEW",
+    "CREDIBILITY_REVIEW",
+    "FORMAT_BREAK"
+  ];
+  return fixLabels.includes(issue.label);
+}
+
+/**
+ * Compare gold example vs Base44 result
+ */
+function compareExample(goldExample, base44Result) {
+  const goldIdx = indexGoldIssues(goldExample);
+  const baseIdx = indexBase44Issues(base44Result);
+
+  const rows = [];
+
+  // Compare each gold issue
+  for (const [key, goldIssue] of goldIdx.entries()) {
+    const base44Issue = baseIdx.get(key);
+
+    // If Base44 missed it, treat as default "NO_ACTION/low/keep"
+    const base44Norm = base44Issue ?? {
+      wave_number: goldIssue.wave_number,
+      wave_item: goldIssue.wave_item,
+      label: "NO_ACTION",
+      severity: "low",
+      correct_action: "keep"
+    };
+
+    const base44TP = base44Issue ? deriveBase44TruePositive(base44Norm) : false;
+
+    rows.push({
+      example_id: goldExample.id,
+      wave_item: goldIssue.wave_item,
+      register: goldExample.register,
+      register_lock: goldExample.register_lock,
+      gold: {
+        is_true_positive: goldIssue.is_true_positive,
+        label: goldIssue.label,
+        severity: goldIssue.severity,
+        correct_action: goldIssue.correct_action
+      },
+      base44: {
+        is_true_positive: base44TP,
+        label: base44Norm.label,
+        severity: base44Norm.severity,
+        correct_action: base44Norm.correct_action
+      },
+      match: {
+        is_true_positive: goldIssue.is_true_positive === base44TP,
+        label: goldIssue.label === base44Norm.label,
+        severity: goldIssue.severity === base44Norm.severity,
+        correct_action: goldIssue.correct_action === base44Norm.correct_action
+      }
+    });
+  }
+
+  return rows;
+}
+
+/**
+ * Aggregate accuracy metrics from comparisons
+ */
+function aggregateMetrics(comparisons) {
+  const metrics = {
+    overall: {
+      label_accuracy: 0,
+      severity_accuracy: 0,
+      action_accuracy: 0,
+      tp_fp_accuracy: 0,
+      total: comparisons.length
+    },
+    by_wave_item: {},
+    by_register: {},
+    by_register_lock: {},
+    top_mismatches: []
+  };
+
+  if (comparisons.length === 0) return metrics;
+
+  // Calculate overall accuracy
+  let labelMatches = 0;
+  let severityMatches = 0;
+  let actionMatches = 0;
+  let tpMatches = 0;
+
+  for (const row of comparisons) {
+    if (row.match.label) labelMatches++;
+    if (row.match.severity) severityMatches++;
+    if (row.match.correct_action) actionMatches++;
+    if (row.match.is_true_positive) tpMatches++;
+
+    // Track by wave_item
+    if (!metrics.by_wave_item[row.wave_item]) {
+      metrics.by_wave_item[row.wave_item] = {
+        total: 0,
+        label_matches: 0,
+        severity_matches: 0,
+        action_matches: 0
+      };
+    }
+    metrics.by_wave_item[row.wave_item].total++;
+    if (row.match.label) metrics.by_wave_item[row.wave_item].label_matches++;
+    if (row.match.severity) metrics.by_wave_item[row.wave_item].severity_matches++;
+    if (row.match.correct_action) metrics.by_wave_item[row.wave_item].action_matches++;
+
+    // Track by register
+    if (!metrics.by_register[row.register]) {
+      metrics.by_register[row.register] = {
+        total: 0,
+        label_matches: 0,
+        tp_matches: 0
+      };
+    }
+    metrics.by_register[row.register].total++;
+    if (row.match.label) metrics.by_register[row.register].label_matches++;
+    if (row.match.is_true_positive) metrics.by_register[row.register].tp_matches++;
+
+    // Track by register_lock
+    if (!metrics.by_register_lock[row.register_lock]) {
+      metrics.by_register_lock[row.register_lock] = {
+        total: 0,
+        label_matches: 0,
+        severity_matches: 0
+      };
+    }
+    metrics.by_register_lock[row.register_lock].total++;
+    if (row.match.label) metrics.by_register_lock[row.register_lock].label_matches++;
+    if (row.match.severity) metrics.by_register_lock[row.register_lock].severity_matches++;
+
+    // Track mismatches
+    if (!row.match.label || !row.match.severity || !row.match.correct_action) {
+      metrics.top_mismatches.push({
+        example_id: row.example_id,
+        wave_item: row.wave_item,
+        register: row.register,
+        register_lock: row.register_lock,
+        gold_label: row.gold.label,
+        base44_label: row.base44.label,
+        gold_severity: row.gold.severity,
+        base44_severity: row.base44.severity,
+        mismatch_type: !row.match.label ? 'label' : !row.match.severity ? 'severity' : 'action'
+      });
+    }
+  }
+
+  metrics.overall.label_accuracy = (labelMatches / comparisons.length * 100).toFixed(1) + '%';
+  metrics.overall.severity_accuracy = (severityMatches / comparisons.length * 100).toFixed(1) + '%';
+  metrics.overall.action_accuracy = (actionMatches / comparisons.length * 100).toFixed(1) + '%';
+  metrics.overall.tp_fp_accuracy = (tpMatches / comparisons.length * 100).toFixed(1) + '%';
+
+  // Calculate per-wave-item accuracy
+  for (const [waveItem, stats] of Object.entries(metrics.by_wave_item)) {
+    metrics.by_wave_item[waveItem].label_accuracy = 
+      (stats.label_matches / stats.total * 100).toFixed(1) + '%';
+    metrics.by_wave_item[waveItem].severity_accuracy = 
+      (stats.severity_matches / stats.total * 100).toFixed(1) + '%';
+    metrics.by_wave_item[waveItem].action_accuracy = 
+      (stats.action_matches / stats.total * 100).toFixed(1) + '%';
+  }
+
+  // Calculate per-register accuracy
+  for (const [register, stats] of Object.entries(metrics.by_register)) {
+    metrics.by_register[register].label_accuracy = 
+      (stats.label_matches / stats.total * 100).toFixed(1) + '%';
+    metrics.by_register[register].tp_accuracy = 
+      (stats.tp_matches / stats.total * 100).toFixed(1) + '%';
+  }
+
+  // Calculate per-register-lock accuracy
+  for (const [lock, stats] of Object.entries(metrics.by_register_lock)) {
+    metrics.by_register_lock[lock].label_accuracy = 
+      (stats.label_matches / stats.total * 100).toFixed(1) + '%';
+    metrics.by_register_lock[lock].severity_accuracy = 
+      (stats.severity_matches / stats.total * 100).toFixed(1) + '%';
+  }
+
+  // Sort top mismatches (show first 20)
+  metrics.top_mismatches = metrics.top_mismatches.slice(0, 20);
+
+  return metrics;
+}

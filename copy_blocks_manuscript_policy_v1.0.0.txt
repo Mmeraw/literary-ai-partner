@@ -1,0 +1,186 @@
+# COPY BLOCKS: MANUSCRIPT POLICY v1.0.0
+
+**Status:** CANONICAL  
+**Policy Family:** MANUSCRIPT_POLICY  
+**Applies to:** Novels, Novellas, Full-Length Manuscripts  
+**Effective Date:** 2026-01-08  
+
+---
+
+## PURPOSE
+
+This document contains the **locked, non-negotiable copy** for all user-facing messaging when evaluating full-length manuscripts. **No ad-hoc language generation is permitted.**
+
+All copy must reflect the **submission-readiness, agent-triage** nature of manuscript evaluation.
+
+---
+
+## SCORE DISPLAY
+
+### Overall Score Label
+```
+"Agent-Reality Grade"
+```
+
+### Score Range Display
+```
+"{score}/100"
+```
+**Example:** "Agent-Reality Grade: 85/100"
+
+### Score Band Labels
+- **80-100:** "Professional Tier (Submission-Ready)"
+- **60-79:** "Refinement Tier (Needs Polish)"
+- **40-59:** "Developmental Tier (Structural Work)"
+- **0-39:** "Early Draft (Foundational Issues)"
+
+---
+
+## EVALUATION SUMMARY MESSAGING
+
+### Professional Tier (80+)
+```
+"Agent-viable craft. Manuscript demonstrates professional-level execution. Feedback focuses on sharpening impact and submission readiness."
+```
+
+### Refinement Tier (60-79)
+```
+"Solid foundations with room for targeted polish. Revision focuses on clarity, pacing, and consistency to strengthen agent appeal."
+```
+
+### Developmental Tier (40-59)
+```
+"Promising concept with structural work needed. Revision focuses on narrative coherence, stakes, and character development."
+```
+
+### Early Draft (0-39)
+```
+"Early-stage manuscript. Focus on foundational craft: clear voice, scene function, and emotional stakes."
+```
+
+---
+
+## FORBIDDEN PHRASES (FOR NON-MANUSCRIPTS)
+
+**Note:** These phrases are ALLOWED for manuscripts but FORBIDDEN for micro-works.
+
+---
+
+## ALLOWED LANGUAGE
+
+- "Agent-Reality Grade"
+- "submission-ready"
+- "professional tier"
+- "agent-viable"
+- "market positioning"
+- "query-ready"
+- "readiness floor"
+- "Phase 2 eligible"
+- "StoryGate consideration"
+
+---
+
+## GATE MESSAGING
+
+### Readiness Gate (8.0 Floor)
+**Pass:**
+```
+"Readiness Gate: PASSED. Overall readiness meets 8.0 threshold. Phase 2 analysis enabled."
+```
+
+**Fail:**
+```
+"Readiness Gate: BLOCKED. Overall readiness ({score}) below 8.0 threshold. Focus on strengthening core craft before Phase 2."
+```
+
+### Coverage Gate
+**Pass:**
+```
+"Coverage Gate: PASSED. Minimum {chapters} chapters and {pct}% word coverage met."
+```
+
+**Fail:**
+```
+"Coverage Gate: BLOCKED. Insufficient manuscript coverage. Upload more chapters or full manuscript for complete analysis."
+```
+
+### Integrity Gate
+**Pass:**
+```
+"Integrity Gate: PASSED. All expected segments evaluated and artifacts verified."
+```
+
+**Fail:**
+```
+"Integrity Gate: FAILED. Evaluation incomplete. {reason}"
+```
+
+---
+
+## PHASE 2 MESSAGING
+
+### Phase 2 Allowed:
+```
+"Phase 2 Analysis: ENABLED. Manuscript meets all gates and is eligible for structural synthesis and StoryGate consideration."
+```
+
+### Phase 2 Blocked:
+```
+"Phase 2 Analysis: BLOCKED. {reason}. Complete Phase 1 revision priorities before unlocking Phase 2."
+```
+
+---
+
+## REVISION REQUEST FRAMING
+
+### Template:
+```
+"[Priority]: [Action] to strengthen [aspect] for agent submission."
+```
+
+### Examples:
+- "HIGH: Tighten opening hook to engage agents within the first 3 pages."
+- "MEDIUM: Clarify character motivations in Act 2 to strengthen emotional arc."
+- "LOW: Polish line-level prose for professional submission readiness."
+
+---
+
+## EXPORT/DOWNLOAD MESSAGING
+
+### PDF Export Title:
+```
+"Agent-Reality Evaluation: {title}"
+```
+
+### Subtitle:
+```
+"Full Manuscript Submission Analysis"
+```
+
+---
+
+## UI BADGE TEXT
+
+### Primary Badge:
+```
+"Agent-Reality Grade"
+```
+
+### Secondary Badge (Tier):
+```
+"⭐ Professional Tier"
+"🔧 Refinement Tier"
+"📝 Developmental Tier"
+```
+
+### Gate Status Badge:
+```
+"✅ All Gates Passed"
+"⚠️ Gates Pending"
+```
+
+---
+
+**Sealed:** 2026-01-08  
+**Canon Owner:** RevisionGrade Product Team  
+**Change Protocol:** Requires Phase 2 governance review

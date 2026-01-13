@@ -1,0 +1,48 @@
+{
+  "batch_id": "METAPHOR-FP-B5",
+  "project": "GENERAL",
+  "version": "voice_register_v1_training",
+  "meta": {
+    "source": "USER_FEEDBACK",
+    "total_examples": 1,
+    "date_created": "2025-12-30",
+    "training_purpose": "Prevent metaphor-to-plain flattening; distinguish stylistic metaphors from genuine clichés"
+  },
+  "examples": [
+    {
+      "id": "METAPHOR-001",
+      "chapter": null,
+      "excerpt": "he upped the frequency of his speech.",
+      "register": "neutral_narration",
+      "register_lock": "soft",
+      "style_flags": {
+        "allow_colloquial": false,
+        "allow_dialect_spellings": false,
+        "allow_metaphorical_language": true
+      },
+      "wave_issues": [
+        {
+          "wave_number": 4,
+          "wave_item": "W4.WORDING.METAPHOR_TO_PLAIN",
+          "detected_by_base44": true,
+          "is_true_positive": false,
+          "label": "VOICE_REGISTER_REVIEW",
+          "severity": "low",
+          "correct_action": "keep",
+          "rationale": "Original metaphor ('upped the frequency of his speech') encodes signal intensity, escalation, and staccato bursts—not just speed. Plain rewrite ('began speaking faster') flattens tone and erases metaphorical imagery. This is a stylistic choice, not a body-part cliché or filter word. Should be flagged as 'verify intent' if at all, not auto-applied.",
+          "incorrect_suggestion": "he began speaking faster.",
+          "why_incorrect": "'Faster' only captures tempo; 'frequency' implies pitch variation, signal density, and conversational escalation patterns. The metaphor is intentional and carries more semantic weight."
+        }
+      ],
+      "correct_handling": {
+        "action": "surface_as_optional",
+        "severity": "low",
+        "message": "Consider simplifying metaphor if immediacy is the goal, but note that 'frequency' conveys signal intensity beyond just speed."
+      }
+    }
+  ],
+  "policy_notes": {
+    "metaphor_vs_cliche": "Metaphors that encode additional meaning (signal patterns, intensity, rhythmic implications) should not be treated as clichés. Only flag as 'VERIFY_INTENT' if the metaphor feels stale or generic, not if it adds semantic precision.",
+    "tone_preservation": "When a revision 'risks losing the tone set by the original wording,' it should default to NO_ACTION or low-severity optional review, not a recommended fix."
+  }
+}

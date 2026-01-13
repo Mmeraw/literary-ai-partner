@@ -1,0 +1,74 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+// TEST 1: MatrixPreflight Universal Enforcement
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (user?.role !== 'admin') {
+            return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
+        }
+
+        const endpoints = [
+            { name: 'generateSynopsis', invalidPayload: { manuscriptText: 'Too short', title: 'Test' } },
+            { name: 'generateQueryPitches', invalidPayload: { manuscriptText: 'Short', logline: 'Test', title: 'Test' } },
+            { name: 'generateComparables', invalidPayload: { manuscriptText: 'Short', genre: 'fiction' } },
+            { name: 'generateCompletePackage', invalidPayload: { manuscriptText: 'Short', title: 'Test' } },
+            { name: 'generateFilmPitchDeck', invalidPayload: { manuscriptText: 'Short', title: 'Test' } },
+            { name: 'uploadAndGenerateBio', invalidPayload: {} },
+            { name: 'generateQueryLetter', invalidPayload: { manuscriptTitle: 'Test' } },
+            { name: 'formatScreenplay', invalidPayload: { text: 'x'.repeat(500000) } }
+        ];
+
+        const results = [];
+
+        for (const endpoint of endpoints) {
+            try {
+                const response = await base44.asServiceRole.functions.invoke(endpoint.name, endpoint.invalidPayload);
+                
+                const passed = 
+                    response.data.success === false &&
+                    response.data.code === 'SCOPE_VIOLATION' &&
+                    response.data.audit?.llmInvoked === false &&
+                    response.data.details?.blockedBy === 'matrixPreflight';
+
+                results.push({
+                    endpoint: endpoint.name,
+                    passed,
+                    evidence: {
+                        success: response.data.success,
+                        code: response.data.code,
+                        llmInvoked: response.data.audit?.llmInvoked,
+                        blockedBy: response.data.details?.blockedBy,
+                        fullResponse: response.data
+                    }
+                });
+            } catch (error) {
+                results.push({
+                    endpoint: endpoint.name,
+                    passed: false,
+                    error: error.message
+                });
+            }
+        }
+
+        const allPassed = results.every(r => r.passed);
+
+        return Response.json({
+            testName: 'MatrixPreflight Universal Enforcement',
+            passed: allPassed,
+            timestamp: new Date().toISOString(),
+            results,
+            summary: {
+                total: endpoints.length,
+                passed: results.filter(r => r.passed).length,
+                failed: results.filter(r => !r.passed).length
+            }
+        });
+
+    } catch (error) {
+        console.error('Test execution error:', error);
+        return Response.json({ error: error.message }, { status: 500 });
+    }
+});
