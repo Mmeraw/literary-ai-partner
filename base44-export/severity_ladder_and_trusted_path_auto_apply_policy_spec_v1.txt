@@ -1,0 +1,112 @@
+{
+  "version": "1.0",
+  "description": "Severity ladder and auto-apply eligibility policy for Base44 evaluation system",
+  "last_updated": "2025-12-30",
+  "severity_levels": {
+    "none": {
+      "description": "Informational only; no action required.",
+      "auto_apply": false,
+      "display_priority": 4,
+      "ui_treatment": "suppress_or_collapse"
+    },
+    "soft": {
+      "description": "Stylistic or optional improvement; do not alter text automatically.",
+      "auto_apply": false,
+      "display_priority": 3,
+      "ui_treatment": "show_as_optional"
+    },
+    "medium": {
+      "description": "Potential clarity or market concern; author review recommended.",
+      "auto_apply": false,
+      "display_priority": 2,
+      "ui_treatment": "show_as_recommended"
+    },
+    "strong": {
+      "description": "High-confidence structural or factual issue.",
+      "auto_apply": true,
+      "display_priority": 1,
+      "ui_treatment": "show_as_priority"
+    },
+    "critical": {
+      "description": "Breaks comprehension, legal risk, or structural failure.",
+      "auto_apply": false,
+      "display_priority": 0,
+      "requires_manual_review": true,
+      "ui_treatment": "show_as_blocking"
+    }
+  },
+  "override_rules": {
+    "voice_protection": {
+      "description": "Hard-locked voice zones cannot receive strong severity ratings for style issues.",
+      "if": {
+        "register_lock": "hard"
+      },
+      "then": {
+        "max_severity_for_style_issues": "soft",
+        "max_severity_for_clarity_issues": "medium",
+        "max_severity_for_market_risk": "strong",
+        "notes": "Structure and clarity can still fail; style cannot override voice."
+      }
+    },
+    "trusted_path_gating": {
+      "description": "Only strong severity suggestions are eligible for Trusted Path auto-apply.",
+      "full_zone_8_to_10": {
+        "auto_apply_threshold": "strong",
+        "auto_apply_enabled": true
+      },
+      "conditional_zone_6_to_8": {
+        "auto_apply_threshold": "medium",
+        "filter": "safe_segments_only",
+        "auto_apply_enabled": true
+      },
+      "failure_zone_0_to_6": {
+        "auto_apply_enabled": false,
+        "diagnostic_only": true,
+        "notes": "Structure repair required before polish."
+      }
+    }
+  },
+  "label_severity_mapping": {
+    "ERROR": {
+      "allowed_severities": ["medium", "strong", "critical"],
+      "default_severity": "strong"
+    },
+    "VOICE_REGISTER_REVIEW": {
+      "allowed_severities": ["soft", "medium"],
+      "default_severity": "soft"
+    },
+    "CLARITY_REVIEW": {
+      "allowed_severities": ["soft", "medium", "strong"],
+      "default_severity": "medium"
+    },
+    "MARKET_RISK_REVIEW": {
+      "allowed_severities": ["medium", "strong", "critical"],
+      "default_severity": "medium"
+    },
+    "TYPOGRAPHY_REVIEW": {
+      "allowed_severities": ["soft"],
+      "default_severity": "soft"
+    },
+    "NO_ACTION": {
+      "allowed_severities": ["none"],
+      "default_severity": "none"
+    }
+  },
+  "auto_apply_rules": {
+    "description": "Conditions under which suggestions can be auto-applied via Trusted Path",
+    "requirements": {
+      "all_of": [
+        "severity == 'strong'",
+        "trusted_path_zone in ['conditional', 'full']",
+        "register_lock != 'hard' OR issue_type == 'clarity' OR issue_type == 'structure'"
+      ]
+    },
+    "exclusions": {
+      "never_auto_apply": [
+        "MARKET_RISK_REVIEW (always requires manual review)",
+        "Suggestions with severity='critical'",
+        "Voice/register changes in hard-locked segments"
+      ]
+    }
+  }
+}

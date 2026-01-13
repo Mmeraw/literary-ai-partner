@@ -1,0 +1,112 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const data = await req.json();
+
+        // Required field validation
+        const requiredFields = [
+            'project_title',
+            'project_type',
+            'primary_genre',
+            'creator_name',
+            'creator_email',
+            'logline',
+            'synopsis',
+            'evaluation_type',
+            'intended_outcome'
+        ];
+
+        for (const field of requiredFields) {
+            if (!data[field]) {
+                return Response.json({ 
+                    error: `Missing required field: ${field}` 
+                }, { status: 400 });
+            }
+        }
+
+        // Length validation
+        if (data.project_title.length < 3) {
+            return Response.json({ 
+                error: 'Project title must be at least 3 characters' 
+            }, { status: 400 });
+        }
+
+        if (data.logline.length < 40 || data.logline.length > 400) {
+            return Response.json({ 
+                error: 'Logline must be between 40 and 400 characters' 
+            }, { status: 400 });
+        }
+
+        if (data.synopsis.length < 300 || data.synopsis.length > 2000) {
+            return Response.json({ 
+                error: 'Synopsis must be between 300 and 2000 characters' 
+            }, { status: 400 });
+        }
+
+        // Placeholder detection
+        const placeholderPatterns = [
+            /\btbd\b/i,
+            /lorem ipsum/i,
+            /coming soon/i,
+            /\[.*?\]/,
+            /insert.*here/i
+        ];
+
+        for (const pattern of placeholderPatterns) {
+            if (pattern.test(data.logline) || pattern.test(data.synopsis)) {
+                return Response.json({ 
+                    error: 'Please replace placeholder text with your actual content' 
+                }, { status: 400 });
+            }
+        }
+
+        // LinkedIn URL validation (if provided)
+        if (data.linkedin_url) {
+            if (!data.linkedin_url.includes('linkedin.com')) {
+                return Response.json({ 
+                    error: 'LinkedIn URL must be a valid LinkedIn profile link' 
+                }, { status: 400 });
+            }
+        }
+
+        // Create submission record
+        const submission = await base44.entities.StoryGateFilmSubmission.create({
+            ...data,
+            status: 'submitted',
+            created_by: user.email
+        });
+
+        // Send notification email to admin
+        try {
+            await base44.integrations.Core.SendEmail({
+                to: user.email,
+                from_name: 'StoryGate',
+                subject: 'StoryGate Film Submission Received',
+                body: `Thank you for your submission: "${data.project_title}".\n\nYour project has been received and will be reviewed according to our evaluation standards. You will be notified if it advances to the next review stage.\n\n- The StoryGate Team`
+            });
+        } catch (emailError) {
+            console.error('Email notification failed:', emailError);
+        }
+
+        return Response.json({
+            success: true,
+            submission_id: submission.id,
+            message: 'Submission received successfully'
+        });
+
+    } catch (error) {
+        console.error('StoryGate film submission error:', error);
+        return Response.json({ 
+            error: 'Failed to process submission',
+            details: error.message 
+        }, { status: 500 });
+    }
+});

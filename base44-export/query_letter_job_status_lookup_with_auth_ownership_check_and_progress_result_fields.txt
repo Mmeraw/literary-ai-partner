@@ -1,0 +1,49 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { job_id } = await req.json();
+
+        if (!job_id) {
+            return Response.json({ error: 'job_id is required' }, { status: 400 });
+        }
+
+        const jobs = await base44.entities.QueryLetterJob.filter({ id: job_id });
+        
+        if (!jobs || jobs.length === 0) {
+            return Response.json({ error: 'Job not found' }, { status: 404 });
+        }
+
+        const job = jobs[0];
+
+        // Check ownership
+        if (job.created_by !== user.email) {
+            return Response.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
+        return Response.json({
+            job_id: job.id,
+            status: job.status,
+            progress: job.progress,
+            result: job.result,
+            error_message: job.error_message,
+            created_at: job.created_date,
+            processing_started_at: job.processing_started_at,
+            completed_at: job.completed_at
+        });
+
+    } catch (error) {
+        console.error('❌ Get status error:', error);
+        return Response.json({ 
+            error: 'Failed to fetch job status',
+            details: error.message
+        }, { status: 500 });
+    }
+});

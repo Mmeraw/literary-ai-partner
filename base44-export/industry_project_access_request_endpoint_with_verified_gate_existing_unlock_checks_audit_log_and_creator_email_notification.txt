@@ -1,0 +1,105 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { listing_id, message } = await req.json();
+
+        if (!listing_id) {
+            return Response.json({ error: 'listing_id required' }, { status: 400 });
+        }
+
+        // Verify industry user is verified
+        const industryUsers = await base44.asServiceRole.entities.IndustryUser.filter({ 
+            user_email: user.email 
+        });
+        const industryUser = industryUsers[0];
+
+        if (!industryUser || industryUser.verification_status !== 'verified') {
+            return Response.json({ error: 'Industry verification required' }, { status: 403 });
+        }
+
+        if (industryUser.suspended) {
+            return Response.json({ error: 'Account suspended' }, { status: 403 });
+        }
+
+        // Get listing
+        const listings = await base44.asServiceRole.entities.ProjectListing.filter({ 
+            id: listing_id 
+        });
+        const listing = listings[0];
+
+        if (!listing) {
+            return Response.json({ error: 'Listing not found' }, { status: 404 });
+        }
+
+        if (listing.visibility !== 'discoverable' && listing.visibility !== 'restricted') {
+            return Response.json({ error: 'Project not accessible' }, { status: 403 });
+        }
+
+        // Check for existing unlock
+        const existingUnlocks = await base44.asServiceRole.entities.AccessUnlock.filter({
+            project_listing_id: listing_id,
+            industry_user_email: user.email
+        });
+
+        if (existingUnlocks.length > 0 && existingUnlocks[0].status === 'pending') {
+            return Response.json({ error: 'Access request already pending' }, { status: 400 });
+        }
+
+        if (existingUnlocks.length > 0 && existingUnlocks[0].status === 'approved') {
+            return Response.json({ error: 'Access already granted' }, { status: 400 });
+        }
+
+        // Create access unlock request
+        const unlock = await base44.asServiceRole.entities.AccessUnlock.create({
+            project_listing_id: listing_id,
+            manuscript_id: listing.manuscript_id,
+            industry_user_email: user.email,
+            creator_email: listing.creator_email,
+            status: 'pending',
+            requested_at: new Date().toISOString(),
+            request_message: message || '',
+            materials_accessed: [],
+            contact_unlocked: false
+        });
+
+        // Log access event
+        await base44.asServiceRole.entities.AccessLog.create({
+            user_email: user.email,
+            user_role: 'industry',
+            action_type: 'request_access',
+            project_listing_id: listing_id,
+            manuscript_id: listing.manuscript_id,
+            success: true,
+            metadata: { unlock_id: unlock.id }
+        });
+
+        // Notify creator (email)
+        try {
+            await base44.asServiceRole.integrations.Core.SendEmail({
+                to: listing.creator_email,
+                subject: `StoryGate: Access Request for "${listing.title}"`,
+                body: `${industryUser.full_name} (${industryUser.company}) has requested access to your project "${listing.title}".\n\n${message ? `Message: ${message}\n\n` : ''}Review and respond in your Creator Dashboard.`
+            });
+        } catch (error) {
+            console.error('Email notification failed:', error);
+        }
+
+        return Response.json({ 
+            success: true,
+            unlock_id: unlock.id,
+            message: 'Access request sent. Awaiting creator approval.'
+        });
+
+    } catch (error) {
+        console.error('Request access error:', error);
+        return Response.json({ error: error.message }, { status: 500 });
+    }
+});

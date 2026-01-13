@@ -1,0 +1,110 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { unlock_id, action } = await req.json();
+
+        if (!unlock_id || !action) {
+            return Response.json({ error: 'unlock_id and action required' }, { status: 400 });
+        }
+
+        if (!['approve', 'deny', 'revoke'].includes(action)) {
+            return Response.json({ error: 'Invalid action' }, { status: 400 });
+        }
+
+        // Get unlock
+        const unlocks = await base44.asServiceRole.entities.AccessUnlock.filter({ 
+            id: unlock_id 
+        });
+        const unlock = unlocks[0];
+
+        if (!unlock) {
+            return Response.json({ error: 'Unlock not found' }, { status: 404 });
+        }
+
+        // Verify creator owns this project
+        if (unlock.creator_email !== user.email) {
+            return Response.json({ error: 'Forbidden: not your project' }, { status: 403 });
+        }
+
+        // Update unlock status
+        let newStatus;
+        let timestamp;
+
+        if (action === 'approve') {
+            newStatus = 'approved';
+            timestamp = { approved_at: new Date().toISOString() };
+        } else if (action === 'deny') {
+            newStatus = 'denied';
+            timestamp = {};
+        } else if (action === 'revoke') {
+            newStatus = 'revoked';
+            timestamp = { revoked_at: new Date().toISOString() };
+        }
+
+        await base44.asServiceRole.entities.AccessUnlock.update(unlock_id, {
+            status: newStatus,
+            ...timestamp
+        });
+
+        // Log permission change
+        await base44.asServiceRole.entities.AccessLog.create({
+            user_email: user.email,
+            user_role: 'creator',
+            action_type: action === 'revoke' ? 'revoke_access' : 'permission_change',
+            project_listing_id: unlock.project_listing_id,
+            manuscript_id: unlock.manuscript_id,
+            success: true,
+            metadata: { unlock_id, action, industry_user: unlock.industry_user_email }
+        });
+
+        // Notify industry user
+        try {
+            const industryUsers = await base44.asServiceRole.entities.IndustryUser.filter({
+                user_email: unlock.industry_user_email
+            });
+            const industryUser = industryUsers[0];
+
+            const listings = await base44.asServiceRole.entities.ProjectListing.filter({
+                id: unlock.project_listing_id
+            });
+            const listing = listings[0];
+
+            if (industryUser && listing) {
+                let emailBody = '';
+                if (action === 'approve') {
+                    emailBody = `Your access request for "${listing.title}" has been approved. You can now view the project materials.`;
+                } else if (action === 'deny') {
+                    emailBody = `Your access request for "${listing.title}" was not approved at this time.`;
+                } else if (action === 'revoke') {
+                    emailBody = `Access to "${listing.title}" has been revoked.`;
+                }
+
+                await base44.asServiceRole.integrations.Core.SendEmail({
+                    to: unlock.industry_user_email,
+                    subject: `StoryGate: Access ${action === 'approve' ? 'Approved' : action === 'deny' ? 'Denied' : 'Revoked'} for "${listing.title}"`,
+                    body: emailBody
+                });
+            }
+        } catch (error) {
+            console.error('Email notification failed:', error);
+        }
+
+        return Response.json({ 
+            success: true,
+            action,
+            message: `Access ${action}d successfully`
+        });
+
+    } catch (error) {
+        console.error('Handle access request error:', error);
+        return Response.json({ error: error.message }, { status: 500 });
+    }
+});

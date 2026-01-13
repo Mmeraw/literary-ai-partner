@@ -1,0 +1,735 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import OpenAI from 'npm:openai@4.76.1';
+import * as Sentry from 'npm:@sentry/deno@8.43.0';
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN'),
+  environment: Deno.env.get('BASE44_ENV') ?? 'production',
+  tracesSampleRate: 1.0,
+});
+
+const openai = new OpenAI({
+    apiKey: Deno.env.get("OPENAI_API_KEY"),
+});
+
+// Wave definitions (server-side only, never exposed to client)
+// Complete 61+ WAVE System definitions
+const WAVES = {
+  1: { name: "Body-Part Clichés", focus: "Physical tells that advance story, not summarize emotion", tier: "mid" },
+  2: { name: "POV Honesty", focus: "Observable proof over mind-reading", tier: "early" },
+  3: { name: "Concrete Specificity", focus: "Replace generic nouns with lived details", tier: "mid" },
+  4: { name: "Filter Verbs", focus: "Remove I saw/felt/heard distance", tier: "mid" },
+  5: { name: "Adverb Diet", focus: "Strengthen verbs, cut intensifiers", tier: "mid" },
+  6: { name: "Active Voice", focus: "Restore agency, clarify actors", tier: "mid" },
+  7: { name: "Negation Discipline", focus: "Say what happened, not what didn't", tier: "mid" },
+  8: { name: "Abstract Triples", focus: "Two beats sharpen, three soften", tier: "mid" },
+  9: { name: "Motif Hygiene", focus: "Spotlight once per section, not wallpaper", tier: "late" },
+  10: { name: "Duplicate Brilliance", focus: "Remove echoed insights", tier: "late" },
+  11: { name: "Theme After Shown", focus: "Trust subtext, stop declaring", tier: "late" },
+  12: { name: "Micro-Location Economy", focus: "1 body + 1 system, then exit", tier: "mid" },
+  13: { name: "Dialogue Tags", focus: "Minimal attribution, trust the exchange", tier: "mid" },
+  14: { name: "Dialogue Under Pressure", focus: "Stress roughens speech, meaning over polish", tier: "mid" },
+  15: { name: "On-the-Nose Explanations", focus: "Trust subtext, cut because/which meant", tier: "late" },
+  16: { name: "Orientation Paragraphs", focus: "Orient once, enforce afterward", tier: "mid" },
+  17: { name: "Concrete Stakes", focus: "Name the loss or scene floats", tier: "early" },
+  18: { name: "Seed the Timer", focus: "External clock tightens momentum", tier: "mid" },
+  19: { name: "Consequence Marker", focus: "Every choice leaves a mark", tier: "mid" },
+  20: { name: "Decision Line", focus: "Every scene needs a turn", tier: "mid" },
+  21: { name: "Choreography Compression", focus: "Show only the step where failure is possible", tier: "mid" },
+  22: { name: "Continuity & Naming", focus: "Confusion is never clever unless intentional", tier: "mid" },
+  23: { name: "Sentence Start Variety", focus: "Vary entry point, not just verbs", tier: "late" },
+  24: { name: "Overused Sensory Words", focus: "Show interaction, not sensation", tier: "mid" },
+  25: { name: "Metaphor Freshness", focus: "If metaphor isn't doing work, it's dead weight", tier: "late" },
+  26: { name: "Cliché Alarm", focus: "Remove AI-adjacent tells", tier: "late" },
+  27: { name: "Rhythm Balance", focus: "Rhythm should track pressure", tier: "late" },
+  28: { name: "Paragraph Endings", focus: "End on proof or cut", tier: "late" },
+  29: { name: "Scene Entry", focus: "Arrive late, trust the reader", tier: "mid" },
+  30: { name: "Scene Exit", focus: "Exit on impact", tier: "mid" },
+  31: { name: "Information Density", focus: "Select, don't stack", tier: "mid" },
+  32: { name: "Spatial Clarity", focus: "Place bodies before you move them", tier: "mid" },
+  33: { name: "Pronoun Clarity", focus: "Never make the reader guess who acts", tier: "mid" },
+  34: { name: "Time Clarity", focus: "Time should never be implied when it can be anchored", tier: "mid" },
+  35: { name: "Emotional Escalation", focus: "Same emotion, higher cost—or change it", tier: "mid" },
+  36: { name: "Character Consistency", focus: "Change needs pressure or price", tier: "early" },
+  37: { name: "Dialogue Purpose", focus: "Dialogue must move something", tier: "mid" },
+  38: { name: "Exposition Camouflage", focus: "Information rides action", tier: "mid" },
+  39: { name: "Tension Without Saying Tension", focus: "Prove tension; never name it", tier: "late" },
+  40: { name: "Avoiding Summary Voice", focus: "Stay inside the moment", tier: "late" },
+  41: { name: "Concrete Proof Lines", focus: "If change is real, it leaves evidence", tier: "late" },
+  42: { name: "Symbol & Motif Placement", focus: "Symbols gain power through restraint", tier: "late" },
+  43: { name: "System Detail Accuracy", focus: "Bureaucracy must feel real", tier: "mid" },
+  44: { name: "Institutional Stakes", focus: "Clarify what they can/can't do", tier: "mid" },
+  45: { name: "Transaction Metaphor Discipline", focus: "One clean metaphor beats repeated cleverness", tier: "late" },
+  46: { name: "Over-Detail in Repeated Beats", focus: "Render it once, make it count", tier: "late" },
+  47: { name: "Compression of Similar Scenes", focus: "If it doesn't advance, it repeats", tier: "mid" },
+  48: { name: "Cutting Redundant Instructions", focus: "Show competence through behavior", tier: "late" },
+  49: { name: "Avoid Repeating Same Insight", focus: "One insight per chapter", tier: "late" },
+  50: { name: "Replace Explained Beats", focus: "Let readers watch, don't explain", tier: "late" },
+  51: { name: "Late-Stage Sentence Vanity", focus: "If line serves you more than story, cut it", tier: "late" },
+  52: { name: "Emotional Honesty Audit", focus: "Honest emotion shows in behavior, not volume", tier: "late" },
+  53: { name: "Narrative Distance Control", focus: "Choose your distance, don't drift", tier: "late" },
+  54: { name: "Ending Trust", focus: "End on proof, not commentary", tier: "late" },
+  55: { name: "Reader Trust Test", focus: "Readers remember more than you think", tier: "late" },
+  56: { name: "Earned Aphorisms Only", focus: "Wisdom must be paid for in story", tier: "late" },
+  57: { name: "Silence as Action", focus: "Silence must act", tier: "late" },
+  58: { name: "Negative Space", focus: "Implied meaning lingers longer", tier: "late" },
+  59: { name: "Final Consistency Pass", focus: "The world must obey itself", tier: "late" },
+  60: { name: "Submission Read Pass", focus: "Pages must earn their turn", tier: "late" },
+  61: { name: "Reflexive Pronouns & Redundancy", focus: "If removing the word strengthens, cut it", tier: "late" }
+};
+
+Deno.serve(async (req) => {
+  try {
+    const base44 = createClientFromRequest(req);
+
+    const { text, title, wave_number = 1, submission_id, session_id, evaluation_result, style_mode = 'neutral', manuscript_score, voice_preservation_level = 'balanced' } = await req.json();
+
+    // TRUSTED PATH THRESHOLD GATING + HARD STRUCTURAL GATE
+    // Calculate zone if manuscript_score provided
+    let trustedPathZone = null;
+    let canPolish = true;
+    let structuralGateActive = false;
+
+    if (manuscript_score !== undefined && manuscript_score !== null) {
+      if (manuscript_score < 6.0) {
+        trustedPathZone = 'failure';
+        canPolish = false;
+        structuralGateActive = true;
+      } else if (manuscript_score < 8.0) {
+        trustedPathZone = 'conditional';
+        canPolish = 'limited';
+        structuralGateActive = true; // HARD GATE: No sentence polish below 8.0
+      } else {
+        trustedPathZone = 'full';
+        canPolish = true;
+        structuralGateActive = false;
+      }
+    }
+
+    // Gate polish if in failure zone
+    if (trustedPathZone === 'failure') {
+      return Response.json({
+        error: 'structural_gating',
+        message: 'Structural readiness below threshold (6.0). Trusted Path is in diagnostic mode only.',
+        zone: trustedPathZone,
+        score: manuscript_score,
+        recommendations: [
+          'Focus on structural repair: missing beats, broken causality, unclear stakes',
+          'Address character motive gaps and scene purpose',
+          'Re-run evaluation after structural changes to unlock polish'
+        ]
+      }, { status: 403 });
+    }
+
+    // Support both direct text/title (anonymous), submission_id, or session_id
+    let workingText = text;
+    let workingTitle = title || 'Untitled';
+    
+    // Priority: text > session_id > submission_id
+    if (!workingText && session_id) {
+      // Fetch from existing session
+      const sessions = await base44.asServiceRole.entities.RevisionSession.filter({ id: session_id });
+      if (!sessions || sessions.length === 0) {
+        return Response.json({ error: 'Session not found' }, { status: 404 });
+      }
+      workingText = sessions[0].original_text;
+      workingTitle = sessions[0].title || 'Untitled';
+    }
+    
+    if (!workingText && submission_id) {
+      // Fetch from database if submission_id provided
+      const user = await base44.auth.me();
+      if (!user) {
+        return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      
+      const submissions = await base44.entities.Submission.filter({ id: submission_id });
+      if (!submissions || submissions.length === 0) {
+        return Response.json({ error: 'Submission not found' }, { status: 404 });
+      }
+      workingText = submissions[0].text;
+      workingTitle = submissions[0].title;
+    }
+
+    if (!workingText) {
+      return Response.json({ error: 'Text required (either directly, via session_id, or via submission_id)' }, { status: 400 });
+    }
+
+    const wave = WAVES[wave_number];
+    if (!wave) {
+      return Response.json({ error: 'Invalid wave number' }, { status: 400 });
+    }
+
+    // Limit text length for performance (roughly 2000 words max)
+    const wordCount = workingText.split(/\s+/).length;
+    const maxWords = 2000;
+    const truncatedText = wordCount > maxWords 
+      ? workingText.split(/\s+/).slice(0, maxWords).join(' ') + '...'
+      : workingText;
+
+    // TWO-STAGE PIPELINE: Pattern detection → WAVE contextual validation
+    // Reference: Complete WAVE system in functions/WAVE_GUIDE (61+ waves)
+
+    // Style guidance based on user selection
+    const styleGuidance = {
+      neutral: "Standard industry conventions. Clear, professional prose.",
+      lyrical: "Poetic rhythm, sensory immersion, elevated language. Prioritize beauty and resonance.",
+      rhythmical: "Cadence-driven, repetition for effect, oral-tradition pulse. Music in the prose.",
+      literary: "Dense imagery, subtext layering, mythic elevation. Sophisticated, literary fiction standards.",
+      commercial: "Tight pacing, accessible language, hooky dialogue. Reader engagement and momentum.",
+      transgressive: "TRANSGRESSIVE MODE (Authorial Intent): Dark realism, grotesque, extremity is assumed intentional. Evaluate CONTROL and PRECISION, not moral alignment. Ask 'Is this precise?' not 'Is this offensive?' Flag ONLY: repetitive shock without escalation, contradicts internal logic, weakens character integrity, collapses into unintentional parody. Do NOT flag: offensive language, violence, disturbing content, moral ambiguity. Preserve dark voice and thematic function.",
+      trauma_memoir: "Survivor testimony. Psychological accuracy is paramount. Respect embodied experience. Flag only: gratuitousness without therapeutic purpose, exploitation of trauma, invented details, or tonal inconsistency. Preserve authentic voice and sensory truth."
+    }[style_mode] || "Standard industry conventions.";
+
+    // STAGE 1: Detect risk patterns (candidates only, not final decisions)
+    const detectionPrompt = `You are a professional manuscript editor applying the WAVE Revision System. Focus on ${wave.name} (${wave.focus}).
+
+CRITICAL RULES (NON-NEGOTIABLE):
+1. NO FULL REWRITES. Output surgical patches only.
+2. NO HALLUCINATION. Do not flag patterns that aren't present in the text.
+3. PROTECTED ZONES - Do not touch:
+   - Operational authenticity (orders, checklists, briefings, radio phrasing)
+   - Proper nouns, ranks, units, dates, call signs, technical specs
+   - Poem line breaks and stanza structure
+   - Event sequence and cause-effect chain
+   - DIALOGUE (quoted speech) - see Voice Preservation rule below
+4. PRESERVE VOICE. Respect author's authority, authenticity, and tone.
+5. VOICE PRESERVATION LEVEL: ${voice_preservation_level}
+   ${voice_preservation_level === 'maximum' ? `
+   - DIALOGUE IS UNTOUCHABLE. No grammar, diction, or style suggestions inside quoted dialogue.
+   - Character idiolects are intentional craft. Non-standard grammar, slang, dialect = authorial choice.
+   - Only flag dialogue if meaning is genuinely ambiguous (clarity notes only, no rewrites).
+   - Narration/exposition evaluated normally.
+   ` : voice_preservation_level === 'balanced' ? `
+   - DIALOGUE PRESERVED VERBATIM. No rewrite suggestions by default.
+   - Clarity or consistency issues may be flagged (notes only, no replacement text).
+   - Narration/exposition receives normal craft feedback.
+   ` : voice_preservation_level === 'polish' ? `
+   - DIALOGUE STILL PRESERVED unless user explicitly enables normalization (not available here).
+   - Narration, exposition, summaries receive stronger polish.
+   - Do not suggest dialogue rewrites without explicit user opt-in.
+   ` : ''}
+5. MODE-SPECIFIC RULES:
+   ${style_mode === 'transgressive' ? `
+   - TRANSGRESSIVE MODE ACTIVE: Offensive/extreme content is INTENTIONAL, not an error
+   - DO NOT FLAG: violence, slurs, disturbing imagery, moral darkness, offensive language
+   - FLAG ONLY IF: repetitive without escalation, contradicts internal logic, weakens character integrity, unintentional parody
+   - QUESTION: "Is this precise and controlled?" NOT "Is this appropriate?"
+   - Evaluate: thematic function, psychological truth, narrative control
+   ` : style_mode === 'trauma_memoir' ? `
+   - TRAUMA MEMOIR MODE: Treat content as survivor testimony
+   - Do not flag difficult content as "gratuitous" unless it serves no therapeutic/narrative purpose
+   - Preserve sensory/embodied experience even when disturbing
+   - Flag ONLY: invented details, exploitation framing, tonal breaks
+   ` : ''}
+
+    WAVE CONTEXT:
+    - Tier: ${wave.tier}
+    - This is wave ${wave_number} of 61+ in the professional revision system
+    - Reference the complete WAVE Guide for full context on all 61 waves
+
+    STYLE MODE: ${style_mode}
+    - ${styleGuidance}
+    - Suggestions should align with this style while still addressing WAVE concerns
+
+SCAN FOR REVISION CANDIDATES matching these patterns:
+- Body-part clichés (jaw, chest, eyes) that summarize instead of advance
+- POV breaches (mind-reading, unobservable claims)
+- Generic nouns (thing, stuff, place, dark SUV) needing specificity
+- Filter verbs (saw, heard, felt) creating distance
+- Reflexive pronouns (himself, herself) with no narrative function
+- "As if" / "like" constructions weakening directness
+- Hedge phrases diluting authority
+- Passive constructions obscuring actors
+- Negation stacks (didn't, not, never)
+- Abstract triples (fear, doubt, uncertainty)
+- Motif repetition without escalation
+- Duplicate insights or echoed brilliance
+- On-the-nose explanations (because, which meant)
+- Summary voice instead of in-scene experience
+
+For each CANDIDATE (not final suggestions yet):
+- Exact original text
+- Potential revised version
+- What pattern was detected
+- Initial reasoning
+
+TEXT:
+${truncatedText}
+
+Return JSON with candidates array.`;
+
+    const candidatesResponse = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: detectionPrompt }],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "detection_candidates",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              candidates: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    original_text: { type: "string" },
+                    suggested_text: { type: "string" },
+                    pattern_detected: { type: "string" },
+                    initial_reasoning: { type: "string" }
+                  },
+                  required: ["original_text", "suggested_text", "pattern_detected", "initial_reasoning"],
+                  additionalProperties: false
+                }
+              }
+            },
+            required: ["candidates"],
+            additionalProperties: false
+          }
+        }
+      }
+    });
+    const candidates = JSON.parse(candidatesResponse.choices[0].message.content);
+
+    // STAGE 2: WAVE contextual validation (gating logic)
+    const validationPrompt = `You are a literary editor applying the complete WAVE Revision System (61+ waves) + 12 Story Evaluation Criteria.
+
+CRITICAL VALIDATION RULES (NON-NEGOTIABLE):
+1. NO HALLUCINATION. Verify the flagged text actually exists in the original.
+2. PROTECTED ZONES CHECK:
+   - Reject if touching operational authenticity (orders, briefings, radio calls)
+   - Reject if changing proper nouns, ranks, units, dates, call signs
+   - Reject if altering poem structure or event sequence
+   - REJECT IF TOUCHING DIALOGUE (quoted speech) unless voice_preservation_level explicitly allows it
+3. VOICE PRESERVATION (Level: ${voice_preservation_level}):
+   ${voice_preservation_level === 'maximum' ? `
+   - HARD BLOCK: Reject ALL suggestions that touch quoted dialogue
+   - Reject if suggestion removes character idiolect authenticity
+   - Reject any grammar "correction" inside dialogue
+   ` : voice_preservation_level === 'balanced' ? `
+   - Reject dialogue rewrites (clarity notes allowed, no replacement text)
+   - Preserve author's authority and character voice
+   ` : `
+   - Reject dialogue normalization unless user explicitly enabled it (not available in this flow)
+   - Preserve character voice by default
+   `}
+   - Reject if suggestion removes author's authority or authenticity.
+4. RISK ASSESSMENT: For every flagged issue, note what could be lost if changed.
+5. MODE-SPECIFIC VALIDATION:
+   ${style_mode === 'transgressive' ? `
+   - TRANSGRESSIVE MODE VALIDATION: Extreme content is assumed craft choice, not mistake
+   - ASSUME: Violence, darkness, disturbing imagery serves thematic/psychological function
+   - FLAG ONLY IF: repetitive shock (no escalation), contradicts character logic, narrative incoherence, unintentional parody
+   - NEVER: soften, moralize, suggest removal of darkness, flag as "gratuitous" or "offensive"
+   - PRESERVE: authorial control, dark voice, extremity, moral ambiguity
+   ` : style_mode === 'trauma_memoir' ? `
+   - TRAUMA MEMOIR MODE ACTIVE: Difficult content is testimony, not gratuitousness
+   - Preserve embodied/sensory detail even when disturbing (key to authenticity)
+   - Flag ONLY IF: exploitation framing, invented details, breaks psychological truth
+   - Do NOT suggest "toning down" survivor experience
+   ` : ''}
+
+    WAVE SYSTEM PHILOSOPHY:
+    The WAVE system is designed to systematically remove weakness while preserving voice. It operates in stages:
+    - EARLY waves (1-16): Structural truth, POV integrity, stakes clarity
+    - MID waves (17-40): Momentum, specificity, scene mechanics
+    - LATE waves (41-61): Authority, polish, submission readiness
+
+    STYLE MODE: ${style_mode}
+    - ${styleGuidance}
+    - All suggestions must respect this style preference while maintaining WAVE standards
+    - Lyrical/literary modes may preserve more poetic constructions
+    - Commercial mode prioritizes clarity and pace over stylistic flourishes
+
+    MANDATORY QUALITY GATES (REJECT if any violated):
+
+    1. IDIOMATIC ENGLISH ONLY
+       - NO translation artifacts ("Chief passed strike", "Strike passed")
+       - NO ungrammatical compression ("cinched deliberate" → must be "cinched deliberately")
+       - Must sound like natural, professional English prose
+
+    2. NO INVENTED CHOREOGRAPHY
+       - Don't add staging/actions not in original ("Shelter swallowed him" when no shelter entry exists)
+       - Don't introduce setting elements not present ("Shelter closed" implies door/action)
+       - Preserve original scene boundaries exactly
+
+    3. NO COINED JARGON
+       - Avoid invented compounds unless source uses them ("rope-hiss", "cat-lined", "mouth-marked")
+       - Keep language clean and accessible, not pseudo-poetic
+
+    4. MEANING FIDELITY ABSOLUTE
+       - "eyes met his" ≠ "kept eyes from the face" (opposite meanings!)
+       - Preserve original intent precisely; never drift to convenience
+       - If original shows avoidance, keep avoidance; don't invent connection
+
+    5. CORRECT WAVE CATEGORIZATION
+       - W2 (POV) = unverifiable internal motive/knowledge ONLY
+       - "where a mouth had closed" is physical inference, NOT mind-reading
+       - Don't mislabel observable evidence as POV breach
+       - W4 (Filter Verbs): Remove "watched/saw/heard/felt" distance, but preserve exact action
+       - Observable behavior (jaw tightens, eyes track) ≠ mind-reading
+
+    6. GRAMMATICAL CORRECTNESS
+       - All suggestions must be grammatically complete
+       - No broken constructions ("Back turned final" is not English)
+       - Adverbs need -ly unless legitimately stylistic
+
+    7. AGENCY PRESERVATION (Hard Constraint)
+       - Never transfer agency from character → environment
+       - "She left it open" ≠ "The curtain stayed open" (agency loss)
+       - Character choice must remain with character
+
+    8. NO INTERPRETIVE CLAUSES
+       - Remove explanations of motive: "as if by slowness he could make the act different" → delete
+       - Remove universalizing commentary: "because nodding is what a man does..." → delete
+       - Remove attribution of interior state: "a tiny prayer or a curse" → delete
+       - Keep observable behavior only
+
+    9. SINGLE CORRECT FIX PROTOCOL
+       - If only ONE fix preserves meaning + agency + rhythm: mark alternatives = null
+       - Filter verb removal: "She watched smoke curl" → "Smoke curled" (no alternates needed)
+       - Do not invent new verbs/metaphors just to offer choice
+
+    CRITICAL GATING RULE (from WAVE 61):
+    **Reflexive ≠ automatically bad**
+
+    If a flagged phrase serves:
+    - Embodiment (physical/psychological grounding)
+    - Intimacy (character-to-self connection)
+    - Agency reinforcement (deliberate self-action)
+    - Character voice (authentic speech patterns)
+    - Psychological cohesion (mental state tracking)
+
+    → KEEP IT (mark as "justified")
+
+    If it's:
+    - Redundant (meaning already clear)
+    - Weakens clarity or authority
+    - Adds no narrative function
+    - Generic/autopilot writing
+
+    → FLAG IT (mark as "revise")
+
+For each candidate, validate MANDATORY QUALITY GATES:
+1. Is the suggested fix idiomatic English? (no translation artifacts, no broken grammar)
+2. Does it preserve original meaning exactly? (no drift, no invention of opposite intent)
+3. Does it avoid invented choreography/staging? (only what source text contains)
+4. Is it free of coined jargon? (unless source uses it)
+5. Is the WAVE category correct? (W2 = true mind-reading only, not physical inference; W4 = filter verbs)
+6. Is it grammatically complete? (all adverbs properly formed, sentences complete)
+7. Does it preserve character agency? (no transfer to environment/objects)
+8. Does it avoid interpretive clauses? (no "as if...", "because...", "what a man does...")
+9. Does it avoid assigning interior motive to observable behavior?
+
+Then determine:
+10. Constraint Fidelity Score (0-125):
+    - 100-125: Zero semantic drift, zero agency loss, zero invention (PERFECT)
+    - 90-99: Excellent, minor acceptable risk
+    - 80-89: Acceptable but slightly interpretive
+    - <80: Violates fidelity or introduces narrative change (REJECT)
+11. Priority Level (High/Medium/Low):
+    - High: Critical issues blocking readability/submission (POV breaches, filter verbs, passive voice)
+    - Medium: Craft improvements with measurable impact (generic nouns, adverbs, clichés)
+    - Low: Polish/style refinements (sentence variety, metaphor freshness)
+12. Is there only ONE valid fix? (yes/no)
+    - If yes: mark alternatives = null, set alternatives_reason
+13. Does this construction serve voice/embodiment/agency? (yes/no)
+14. Which WAVE principle applies? (cite wave number)
+15. Final verdict: "keep" or "revise"
+
+If "keep": explain what narrative function it serves
+If "revise": provide editorial rationale + constraint fidelity score
+If any quality gate FAILS: verdict MUST be "keep" (don't suggest broken fixes)
+If only ONE fix preserves meaning/agency: alternatives = null
+
+CANDIDATES TO EVALUATE:
+${JSON.stringify(candidates.candidates, null, 2)}
+
+FULL TEXT CONTEXT:
+${truncatedText}
+
+Return JSON with validated results.`;
+
+    const validationResponse = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: validationPrompt }],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "validation_results",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              validated: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    original_text: { type: "string" },
+                    suggested_text: { type: "string" },
+                    verdict: { type: "string", enum: ["keep", "revise"] },
+                    serves_voice: { type: "boolean" },
+                    serves_embodiment: { type: "boolean" },
+                    narrative_justification: { type: "string" },
+                    why_flagged: { type: "string" },
+                    why_this_fix: { type: "string" },
+                    priority: { type: "string", enum: ["High", "Medium", "Low"] },
+                    constraint_fidelity_score: { type: "number" }
+                  },
+                  required: ["original_text", "verdict", "narrative_justification"],
+                  additionalProperties: false
+                }
+              }
+            },
+            required: ["validated"],
+            additionalProperties: false
+          }
+        }
+      }
+    });
+    const validation = JSON.parse(validationResponse.choices[0].message.content);
+
+    // CATEGORIZE FINDINGS: Structural vs Sentence-Level Polish
+    const categorizeFinding = (item, waveNum) => {
+      // Sentence-level polish waves (style, rhythm, metaphor, micro-wording)
+      const POLISH_WAVES = new Set([
+        1, // Body-part clichés
+        8, // Abstract triples
+        9, // Motif hygiene
+        10, // Duplicate brilliance
+        11, // Theme after shown
+        15, // On-the-nose explanations
+        23, // Sentence start variety
+        25, // Metaphor freshness
+        26, // Cliché alarm
+        27, // Rhythm balance
+        28, // Paragraph endings
+        45, // Transaction metaphor discipline
+        46, // Over-detail in repeated beats
+        49, // Avoid repeating same insight
+        51, // Late-stage sentence vanity
+        56, // Earned aphorisms
+        57, // Silence as action
+        58, // Negative space
+        61  // Reflexive pronouns
+      ]);
+      
+      // Check if this is polish vs structural/clarity
+      if (POLISH_WAVES.has(waveNum)) {
+        return 'sentence_polish';
+      }
+      
+      // Check severity/priority - High = structural, Low = polish
+      if (item.priority === 'High') return 'structural';
+      if (item.priority === 'Low') return 'sentence_polish';
+      
+      return 'craft_improvement'; // Medium priority craft improvements
+    };
+
+    // FINAL: Only return suggestions where verdict = "revise"
+    const approvedSuggestions = validation.validated
+      .filter(item => item.verdict === "revise")
+      .map(item => ({
+        original_text: item.original_text,
+        suggested_text: item.suggested_text || item.original_text,
+        why_flagged: item.why_flagged || item.narrative_justification,
+        why_this_fix: item.why_this_fix || "Strengthens clarity and narrative directness",
+        priority: item.priority || "Medium",
+        constraint_fidelity_score: item.constraint_fidelity_score || 90,
+        category: categorizeFinding(item, wave_number)
+      }));
+
+    // SINGLE PRIMARY FIX PROTOCOL: Validate if alternatives are viable
+    const validateAlternatives = (suggestion, waveNum) => {
+      // Conditions where only ONE correct fix exists (no semantic alternatives allowed):
+      // 1. W4 (Filter Verbs) - Remove distance, preserve exact action ("watched X" → "X happened")
+      // 2. W2 (POV) - Remove interior motive/explanation, keep behavior only
+      // 3. W13 (Dialogue Tags) - Ritual/teaching cadence requiring specific attribution
+      // 4. Agency-critical fixes where verb must stay with original actor
+      // 5. Interpretive clause removal - Only one way to delete commentary
+      
+      const isFilterVerbRemoval = waveNum === 4 && 
+        (suggestion.why_flagged?.includes('filter') || 
+         suggestion.why_flagged?.includes('watched') ||
+         suggestion.why_flagged?.includes('saw') ||
+         suggestion.why_flagged?.includes('heard'));
+      
+      const isPOVInferenceRemoval = waveNum === 2 && 
+        (suggestion.why_flagged?.includes('interior') || 
+         suggestion.why_flagged?.includes('motive') ||
+         suggestion.why_flagged?.includes('inference'));
+      
+      const isInterpretiveClauseRemoval = 
+        suggestion.why_flagged?.includes('interpretive') ||
+        suggestion.why_flagged?.includes('explanation') ||
+        suggestion.original_text?.includes('as if') ||
+        suggestion.original_text?.includes('because');
+      
+      const isRitualDialogue = waveNum === 13 && 
+        /^["'].*["']\s*["'].*["']\s*["']/.test(suggestion.original_text) &&
+        (suggestion.why_flagged?.includes('ritual') || suggestion.why_flagged?.includes('teaching'));
+      
+      const isAgencyPreservation = 
+        suggestion.why_this_fix?.includes('agency') ||
+        suggestion.why_this_fix?.includes('character choice');
+      
+      const isFidelityLocked = 
+        suggestion.why_this_fix?.includes('fidelity') ||
+        suggestion.why_this_fix?.includes('cadence') ||
+        suggestion.why_this_fix?.includes('meaning drift');
+      
+      if (isFilterVerbRemoval || isPOVInferenceRemoval || isInterpretiveClauseRemoval || 
+          isRitualDialogue || isAgencyPreservation || isFidelityLocked) {
+        const lockType = isFilterVerbRemoval ? 'filter_verb_removal' :
+                        isPOVInferenceRemoval ? 'pov_inference_removal' :
+                        isInterpretiveClauseRemoval ? 'interpretive_clause_removal' :
+                        isRitualDialogue ? 'ritual_cadence' :
+                        isAgencyPreservation ? 'agency_preservation' :
+                        'fidelity_constraint';
+        
+        console.log(`[WAVE ${waveNum}] Single Primary Fix locked - ${lockType}`);
+        return {
+          allows_alternatives: false,
+          alternatives_reason: "Any alternate would introduce semantic drift, agency loss, or invented action",
+          lock_scope: "row",
+          lock_type: lockType
+        };
+      }
+      
+      return { allows_alternatives: true, alternatives_reason: null, lock_scope: null, lock_type: null };
+    };
+
+    // HARD STRUCTURAL GATE: Block sentence-level polish below 8.0
+    let filteredSuggestions = approvedSuggestions;
+
+    if (structuralGateActive && manuscript_score < 8.0) {
+      // CRITICAL RULE: Below 8.0, hide all sentence-level polish
+      filteredSuggestions = approvedSuggestions.filter(s => {
+        // Only keep structural and clarity fixes
+        return s.category === 'structural' || 
+               (s.category === 'craft_improvement' && s.priority === 'High');
+      });
+      
+      console.log(`[STRUCTURAL_GATE] Score ${manuscript_score}: Blocked ${approvedSuggestions.length - filteredSuggestions.length} polish suggestions`);
+    } else if (trustedPathZone === 'conditional') {
+      // In conditional zone (6.0-7.9): only allow High and Medium priority, limit quantity
+      filteredSuggestions = approvedSuggestions
+        .filter(s => s.priority === 'High' || s.priority === 'Medium')
+        .slice(0, 20);
+    }
+
+    const suggestions = filteredSuggestions
+      .map((s, idx) => {
+        const altValidation = validateAlternatives(s, wave_number);
+        return {
+          id: `w${wave_number}_${idx}`,
+          wave_name: wave.name,
+          ...s,
+          status: "pending",
+          alternatives: altValidation.allows_alternatives ? [] : null,
+          alternatives_status: altValidation.allows_alternatives ? null : "fidelity_locked",
+          alternatives_reason: altValidation.alternatives_reason,
+          lock_scope: altValidation.lock_scope,
+          lock_type: altValidation.lock_type,
+          trusted_path_zone: trustedPathZone
+        };
+      })
+      .sort((a, b) => {
+        // Sort by priority: High > Medium > Low
+        const priorityOrder = { High: 0, Medium: 1, Low: 2 };
+        return priorityOrder[a.priority] - priorityOrder[b.priority];
+      });
+
+    // Create or update revision session
+    if (session_id) {
+      // Update existing session with suggestions
+      try {
+        await base44.asServiceRole.entities.RevisionSession.update(session_id, {
+          suggestions: suggestions,
+          current_wave: wave_number,
+          current_position: 0,
+          status: 'in_progress'
+        });
+        return Response.json({ 
+          session_id: session_id,
+          wave_name: wave.name,
+          suggestions,
+          wave_number 
+        });
+      } catch (updateError) {
+        console.error('Could not update session:', updateError);
+        return Response.json({ error: 'Failed to update session with suggestions' }, { status: 500 });
+      }
+    } else {
+      // Create new session
+      const sessionData = {
+        submission_id: submission_id || `temp_${Date.now()}`,
+        title: workingTitle,
+        original_text: workingText,
+        current_text: workingText,
+        current_wave: wave_number,
+        current_position: 0,
+        suggestions: suggestions,
+        status: 'in_progress'
+      };
+
+      try {
+        const session = await base44.entities.RevisionSession.create(sessionData);
+        return Response.json({ 
+          session_id: session.id,
+          wave_name: wave.name,
+          suggestions,
+          wave_number,
+          trusted_path_zone: trustedPathZone,
+          trusted_path_can_polish: canPolish,
+          structural_gate_active: structuralGateActive,
+          blocked_polish_count: structuralGateActive ? approvedSuggestions.length - suggestions.length : 0,
+          manuscript_score: manuscript_score
+        });
+      } catch (dbError) {
+        // If DB fails (e.g., anonymous user), return suggestions without saving
+        console.warn('Could not save session to DB:', dbError);
+        return Response.json({ 
+          session_id: null,
+          wave_name: wave.name,
+          suggestions,
+          wave_number,
+          anonymous: true,
+          trusted_path_zone: trustedPathZone,
+          trusted_path_can_polish: canPolish,
+          structural_gate_active: structuralGateActive,
+          blocked_polish_count: structuralGateActive ? approvedSuggestions.length - suggestions.length : 0,
+          manuscript_score: manuscript_score
+        });
+      }
+      }
+
+  } catch (error) {
+    console.error('Revision generation error:', error);
+    
+    // Capture to Sentry with context
+    Sentry.captureException(error, {
+      extra: {
+        function: 'generateRevisionSuggestions',
+        operation: 'wave_revision',
+        wave_number,
+        wave_name: WAVES[wave_number]?.name,
+        submission_id,
+        session_id,
+        style_mode,
+        voice_preservation_level,
+        manuscript_score,
+        trusted_path_zone: trustedPathZone,
+        word_count: text?.split(/\s+/).length,
+        error_message: error.message,
+        timestamp: new Date().toISOString()
+      }
+    });
+    await Sentry.flush(2000);
+    
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+});

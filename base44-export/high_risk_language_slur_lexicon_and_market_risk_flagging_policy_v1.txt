@@ -1,0 +1,322 @@
+{
+  "version": "1.0",
+  "last_updated": "2025-12-30",
+  "description": "Production lexicon for high-risk language detection and classification",
+  "governance_rules": {
+    "no_auto_rewrite": true,
+    "always_flag": true,
+    "context_required": true
+  },
+  "lexicon_keys": {
+    "SLUR::RACE::N_WORD_HARD_R": "n***er",
+    "SLUR::RACE::ETHNIC_DEROGATORY_TERM_A": "c*on",
+    "SLUR::SEXUALITY::F_SLUR": "f*ggot",
+    "SLUR::RELIGION::K_SLUR": "k*ke",
+    "SLUR::RACE::C_SLUR": "ch*nk",
+    "SLUR::RACE::S_SLUR": "sp*c",
+    "SLUR::DISABILITY::R_SLUR": "r*tard",
+    "SLUR::DISABILITY::C_SLUR": "cr*pple",
+    "SLUR::GENDER::B_SLUR": "b*tch",
+    "SLUR::GENDER::S_SLUR": "sl*t",
+    "SLUR::GENDER::W_SLUR": "wh*re",
+    "SLUR::RACE::P_SLUR": "p*ki",
+    "SLUR::MIXED::T_LABEL": "t*rrorist",
+    "SLUR::CLASS::I_LABEL": "illeg*l"
+  },
+  "entries": [
+    {
+      "term": "n***er",
+      "lexicon_key": "SLUR::RACE::N_WORD_HARD_R",
+      "display_form": "n***er",
+      "variants": ["nigga", "ni**a", "n1gger", "nigg@", "niggaz", "niggas"],
+      "category": "race_ethnicity",
+      "target_groups": ["Black people"],
+      "is_paradigmatic_slur": true,
+      "is_reclaimed_possible": true,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "FLAG_ONLY",
+      "notes": "Paradigmatic anti-Black racial slur; widely treated as hate speech. Some intra-group reclaimed use, but external use is almost always high-risk.",
+      "example_contexts": [
+        {
+          "register": "dialogue",
+          "stance": "speaker_endorses",
+          "comment": "Hate speech in-character; preserve only if necessary and always flag for market risk."
+        },
+        {
+          "register": "narration",
+          "stance": "narrator_condemns",
+          "comment": "Reporting historical or critical use; keep but require flag and possible content warning."
+        }
+      ]
+    },
+    {
+      "term": "f*ggot",
+      "lexicon_key": "SLUR::SEXUALITY::F_SLUR",
+      "display_form": "f*ggot",
+      "variants": ["fag", "f@g", "f4g", "fagg0t"],
+      "category": "sexuality_gender",
+      "target_groups": ["Gay men", "Queer men in general"],
+      "is_paradigmatic_slur": true,
+      "is_reclaimed_possible": false,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "FLAG_ONLY",
+      "notes": "Highly offensive homophobic slur; typically marked as hate speech in US/UK contexts.",
+      "example_contexts": [
+        {
+          "register": "dialogue",
+          "stance": "speaker_endorses",
+          "comment": "Character using insult; allowed only as voice-authentic with explicit flag."
+        }
+      ]
+    },
+    {
+      "term": "tr*nny",
+      "display_form": "tr*nny",
+      "variants": ["tranni", "tr@nny"],
+      "category": "sexuality_gender",
+      "target_groups": ["Trans women", "Trans people in general"],
+      "is_paradigmatic_slur": true,
+      "is_reclaimed_possible": false,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "FLAG_ONLY",
+      "notes": "Widely recognised as a transphobic slur; generally treated as hate speech or at least high‑risk content.",
+      "example_contexts": [
+        {
+          "register": "dialogue",
+          "stance": "speaker_endorses",
+          "comment": "Hostile use; never auto-rewrite, always escalate/flag."
+        }
+      ]
+    },
+    {
+      "term": "k*ke",
+      "lexicon_key": "SLUR::RELIGION::K_SLUR",
+      "display_form": "k*ke",
+      "variants": ["k1ke"],
+      "category": "religion",
+      "target_groups": ["Jewish people"],
+      "is_paradigmatic_slur": true,
+      "is_reclaimed_possible": false,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "FLAG_ONLY",
+      "notes": "Classical antisemitic slur; typically classified as hate speech.",
+      "example_contexts": [
+        {
+          "register": "dialogue",
+          "stance": "speaker_endorses",
+          "comment": "Villain voice; content must be preserved only if essential and always flagged."
+        }
+      ]
+    },
+    {
+      "term": "ch*nk",
+      "display_form": "ch*nk",
+      "variants": ["ch1nk", "chank"],
+      "category": "race_ethnicity",
+      "target_groups": ["East Asian people", "People of perceived Chinese descent"],
+      "is_paradigmatic_slur": true,
+      "is_reclaimed_possible": false,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "FLAG_ONLY",
+      "notes": "Racial slur targeting East Asians; often tied to xenophobic or violent contexts.",
+      "example_contexts": [
+        {
+          "register": "social_media",
+          "stance": "speaker_endorses",
+          "comment": "Online harassment scenario; should be detected as hate speech."
+        }
+      ]
+    },
+    {
+      "term": "sp*c",
+      "display_form": "sp*c",
+      "variants": ["sp1c"],
+      "category": "race_ethnicity",
+      "target_groups": ["Hispanic people", "Latino people"],
+      "is_paradigmatic_slur": true,
+      "is_reclaimed_possible": false,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "FLAG_ONLY",
+      "notes": "Ethnic slur for people of Hispanic/Latino origin or descent.",
+      "example_contexts": [
+        {
+          "register": "dialogue",
+          "stance": "speaker_endorses",
+          "comment": "Insult in character's mouth; only preserved under strict editorial awareness."
+        }
+      ]
+    },
+    {
+      "term": "r*tard",
+      "display_form": "r*tard",
+      "variants": ["retarded", "r3tard", "re-tard"],
+      "category": "disability",
+      "target_groups": ["People with intellectual disabilities", "Neurodivergent people (by extension)"],
+      "is_paradigmatic_slur": true,
+      "is_reclaimed_possible": false,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "FLAG_ONLY",
+      "notes": "Ableist slur; many platforms classify as hate or abusive content when aimed at people/groups.",
+      "example_contexts": [
+        {
+          "register": "dialogue",
+          "stance": "speaker_endorses",
+          "comment": "Should trigger disability-targeted hate/abuse flagging."
+        }
+      ]
+    },
+    {
+      "term": "cr*pple",
+      "display_form": "cr*pple",
+      "variants": ["crippled", "cr1pple"],
+      "category": "disability",
+      "target_groups": ["People with physical disabilities"],
+      "is_paradigmatic_slur": true,
+      "is_reclaimed_possible": true,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "FLAG_ONLY",
+      "notes": "Historic disability slur; sometimes reclaimed in activist or academic contexts but default is offensive.",
+      "example_contexts": [
+        {
+          "register": "narration",
+          "stance": "narrator_condemns",
+          "comment": "Used in a quote from historical source; allowed but should be flagged."
+        }
+      ]
+    },
+    {
+      "term": "b*tch",
+      "display_form": "b*tch",
+      "variants": ["bitch", "b1tch", "b!tch", "bishes"],
+      "category": "sexuality_gender",
+      "target_groups": ["Women", "Feminine-presenting people"],
+      "is_paradigmatic_slur": false,
+      "is_reclaimed_possible": true,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "PRESERVE_WITH_FLAG",
+      "notes": "Gendered insult; high frequency and sometimes reclaimed. Risk depends heavily on tone and target.",
+      "example_contexts": [
+        {
+          "register": "dialogue",
+          "stance": "speaker_endorses",
+          "comment": "If aimed at women as group → misogynistic slur; if intra‑group joking, may downgrade risk but still flagged."
+        }
+      ]
+    },
+    {
+      "term": "sl*t",
+      "display_form": "sl*t",
+      "variants": ["slut", "sl4t"],
+      "category": "sexuality_gender",
+      "target_groups": ["Women", "Perceived sexually active people"],
+      "is_paradigmatic_slur": false,
+      "is_reclaimed_possible": true,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "PRESERVE_WITH_FLAG",
+      "notes": "Sexist/whorephobic insult; also reappropriated in some feminist contexts ("slutwalk"). Default treat as high‑risk misogynistic term.",
+      "example_contexts": [
+        {
+          "register": "social_media",
+          "stance": "speaker_endorses",
+          "comment": "Used to shame; classify as gender‑targeted abuse."
+        }
+      ]
+    },
+    {
+      "term": "wh*re",
+      "display_form": "wh*re",
+      "variants": ["whore", "wh0re"],
+      "category": "sexuality_gender",
+      "target_groups": ["Women", "Sex workers"],
+      "is_paradigmatic_slur": false,
+      "is_reclaimed_possible": true,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "PRESERVE_WITH_FLAG",
+      "notes": "Stigmatizing term for women/sex workers; often misogynistic. Sometimes reclaimed by sex‑worker advocacy.",
+      "example_contexts": [
+        {
+          "register": "dialogue",
+          "stance": "speaker_endorses",
+          "comment": "Default treat as misogynistic slur unless clearly self‑described or critical context."
+        }
+      ]
+    },
+    {
+      "term": "c*on",
+      "lexicon_key": "SLUR::RACE::ETHNIC_DEROGATORY_TERM_A",
+      "display_form": "c*on",
+      "variants": ["coon", "c00n"],
+      "category": "race_ethnicity",
+      "target_groups": ["Black people"],
+      "is_paradigmatic_slur": true,
+      "is_reclaimed_possible": false,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "FLAG_ONLY",
+      "notes": "Historic racist slur for Black people; still used in explicitly racist contexts.",
+      "example_contexts": [
+        {
+          "register": "narration",
+          "stance": "narrator_condemns",
+          "comment": "Appears in quoted historical material; must be preserved with flags and warnings."
+        }
+      ]
+    },
+    {
+      "term": "p*ki",
+      "display_form": "p*ki",
+      "variants": ["paki", "p@ki"],
+      "category": "race_ethnicity",
+      "target_groups": ["South Asians (esp. Pakistani, Indian, Bangladeshi)"],
+      "is_paradigmatic_slur": true,
+      "is_reclaimed_possible": false,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "FLAG_ONLY",
+      "notes": "UK‑centric racial/ethnic slur for South Asians; widely regarded as hate speech.",
+      "example_contexts": [
+        {
+          "register": "dialogue",
+          "stance": "speaker_endorses",
+          "comment": "Should be caught as racial slur with regional awareness."
+        }
+      ]
+    },
+    {
+      "term": "t*rrorist",
+      "display_form": "t*rrorist",
+      "variants": ["terrorist", "t3rrorist"],
+      "category": "mixed",
+      "target_groups": ["Context-dependent; often Muslims, Middle Eastern people, South Asians"],
+      "is_paradigmatic_slur": false,
+      "is_reclaimed_possible": false,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "PRESERVE_WITH_FLAG",
+      "notes": "Not inherently a slur, but frequently used as a group label for Muslims / Middle Easterners; risks stereotyping when generalized.",
+      "example_contexts": [
+        {
+          "register": "dialogue",
+          "stance": "speaker_endorses",
+          "comment": "If used to label whole groups ("all X are terrorists"), treat as de facto slur use."
+        }
+      ]
+    },
+    {
+      "term": "illeg*l",
+      "display_form": "illeg*l (as noun for person)",
+      "variants": ["illegals"],
+      "category": "class_status",
+      "target_groups": ["Undocumented migrants", "Immigrants"],
+      "is_paradigmatic_slur": false,
+      "is_reclaimed_possible": false,
+      "default_risk_bucket": "MARKET_RISK",
+      "default_allowed_action": "PRESERVE_WITH_FLAG",
+      "notes": "Dehumanizing shorthand for undocumented immigrants when used as a noun ('illegals'). Often flagged by inclusive-language guides.",
+      "example_contexts": [
+        {
+          "register": "narration",
+          "stance": "narrator_condemns",
+          "comment": "If used critically, keep but annotate as harmful term."
+        }
+      ]
+    }
+  ]
+}

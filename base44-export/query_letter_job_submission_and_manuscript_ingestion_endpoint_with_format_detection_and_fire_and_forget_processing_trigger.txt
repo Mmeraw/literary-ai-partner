@@ -1,0 +1,102 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const payload = await req.json();
+        const { 
+            file_url,
+            bio,
+            synopsis_mode = 'auto',
+            existing_synopsis = '',
+            one_line_pitch = '',
+            pitch_paragraph = '',
+            comps_mode = 'auto',
+            manual_comps = '',
+            genre = '',
+            voice_intensity = 'house'
+        } = payload;
+
+        if (!file_url) {
+            return Response.json({ error: 'file_url is required' }, { status: 400 });
+        }
+
+        console.log('📥 Storing manuscript for async processing...');
+
+        // Extract filename for type detection
+        const urlPath = file_url.split('?')[0];
+        const fileName = urlPath.split('/').pop().toLowerCase();
+        const isTxt = fileName.endsWith('.txt');
+        const isWordDoc = fileName.endsWith('.docx') || fileName.endsWith('.doc');
+        const isPdf = fileName.endsWith('.pdf');
+        const isRtf = fileName.endsWith('.rtf');
+
+        if (!isTxt && !isWordDoc && !isPdf && !isRtf) {
+            return Response.json({ 
+                error: 'Unsupported file format',
+                details: 'Please upload DOC, DOCX, TXT, PDF, or RTF files.'
+            }, { status: 400 });
+        }
+
+        // Fetch and cache manuscript text
+        let manuscriptText = '';
+        
+        if (isTxt) {
+            console.log('📄 Fetching TXT file...');
+            const response = await fetch(file_url);
+            if (!response.ok) throw new Error(`Failed to fetch TXT: ${response.status}`);
+            manuscriptText = await response.text();
+        } else {
+            console.log('📄 Extracting text from', fileName, '...');
+            const extracted = await base44.integrations.Core.InvokeLLM({
+                prompt: "Extract all text from this document. Return ONLY the complete raw text, no markdown formatting, no explanations.",
+                file_urls: [file_url]
+            });
+            manuscriptText = (typeof extracted === 'string' ? extracted : (extracted?.response || extracted?.text || '')).toString().trim();
+        }
+
+        console.log('✅ Manuscript cached:', manuscriptText.length, 'characters');
+
+        // Create job record
+        const job = await base44.entities.QueryLetterJob.create({
+            manuscript_text: manuscriptText,
+            manuscript_file_url: file_url,
+            bio,
+            synopsis_mode,
+            existing_synopsis,
+            one_line_pitch,
+            pitch_paragraph,
+            comps_mode,
+            manual_comps,
+            genre,
+            voice_intensity,
+            status: 'pending',
+            progress: 'Manuscript stored, queued for processing'
+        });
+
+        console.log('✅ Job created:', job.id);
+
+        // Trigger async processing (fire-and-forget)
+        base44.functions.invoke('processQueryLetterJob', { job_id: job.id })
+            .catch(err => console.error('Failed to trigger processing:', err));
+
+        return Response.json({
+            job_id: job.id,
+            status: 'pending',
+            message: 'Manuscript stored successfully. Processing will begin shortly.'
+        });
+
+    } catch (error) {
+        console.error('❌ Store job error:', error);
+        return Response.json({ 
+            error: 'Failed to store manuscript',
+            details: error.message
+        }, { status: 500 });
+    }
+});

@@ -1,0 +1,60 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+        
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { manuscript_id, voiceIntensity = 'house' } = await req.json();
+
+        if (!manuscript_id) {
+            return Response.json({ error: 'Missing manuscript_id' }, { status: 400 });
+        }
+
+        // Get manuscript
+        const manuscript = await base44.asServiceRole.entities.Manuscript.get(manuscript_id);
+        if (!manuscript) {
+            return Response.json({ error: 'Manuscript not found' }, { status: 404 });
+        }
+
+        console.log('🔄 Routing to universal extraction pipeline...');
+        
+        // MANDATORY: Route through universal extraction
+        const extractionResult = await base44.asServiceRole.functions.invoke('extractPitchFields', {
+            raw_text: manuscript.full_text,
+            voiceIntensity
+        });
+        
+        const extractionData = extractionResult.data || extractionResult;
+        
+        if (!extractionData.success) {
+            return Response.json({ 
+                success: false, 
+                error: extractionData.error || 'Extraction failed'
+            }, { status: 422 });
+        }
+
+        // Add manuscript-specific fields
+        const fields = {
+            ...extractionData.fields,
+            title: manuscript.title,
+            wordCount: manuscript.word_count.toString()
+        };
+
+        return Response.json({
+            success: true,
+            fields
+        });
+
+    } catch (error) {
+        console.error('Prefill error:', error);
+        return Response.json({ 
+            success: false, 
+            error: error.message 
+        }, { status: 500 });
+    }
+});

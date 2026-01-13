@@ -1,0 +1,59 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+Deno.serve(async (req) => {
+  try {
+    const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+    
+    if (!user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { original_text, current_suggestion, why_flagged, why_this_fix } = await req.json();
+
+    if (!original_text || !current_suggestion) {
+      return Response.json({ error: 'Original text and current suggestion required' }, { status: 400 });
+    }
+
+    const prompt = `Generate 2-3 alternative revisions for this passage.
+
+ORIGINAL:
+${original_text}
+
+CURRENT SUGGESTION:
+${current_suggestion}
+
+ISSUE:
+${why_flagged}
+
+GOAL:
+${why_this_fix}
+
+Provide 2-3 different approaches to fixing the same issue. Each should be distinct in style or emphasis.
+
+Return ONLY valid JSON:
+{
+  "alternatives": ["version 1", "version 2", "version 3"]
+}`;
+
+    const result = await base44.integrations.Core.InvokeLLM({
+      prompt,
+      response_json_schema: {
+        type: "object",
+        properties: {
+          alternatives: {
+            type: "array",
+            items: { type: "string" }
+          }
+        },
+        required: ["alternatives"]
+      }
+    });
+
+    return Response.json({ alternatives: result.alternatives });
+
+  } catch (error) {
+    console.error('Alternatives generation error:', error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+});

@@ -1,0 +1,137 @@
+/**
+ * POLICY ROUTING SELECTOR
+ * Binds workTypeUi to a canonical policy family (Phase 1.5 Semantic Alignment)
+ * 
+ * Authority: WORK_TYPE_POLICY_ROUTING_SPEC_v1.0.0.md
+ * Prevents manuscript-specific language from bleeding into micro-works
+ */
+
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+const POLICY_FAMILIES = {
+    MICRO_POLICY: 'MICRO_POLICY',
+    MANUSCRIPT_POLICY: 'MANUSCRIPT_POLICY',
+    SCREENPLAY_POLICY: 'SCREENPLAY_POLICY',
+    NEUTRAL_POLICY: 'NEUTRAL_POLICY'
+};
+
+// Deterministic lookup table (not LLM-inferred)
+const WORK_TYPE_TO_POLICY = {
+    'Flash Fiction / Micro': POLICY_FAMILIES.MICRO_POLICY,
+    'Poetry': POLICY_FAMILIES.MICRO_POLICY,
+    'Vignette': POLICY_FAMILIES.MICRO_POLICY,
+    'Micro-Fiction': POLICY_FAMILIES.MICRO_POLICY,
+    
+    'Novel': POLICY_FAMILIES.MANUSCRIPT_POLICY,
+    'Novella': POLICY_FAMILIES.MANUSCRIPT_POLICY,
+    'Full-Length Manuscript': POLICY_FAMILIES.MANUSCRIPT_POLICY,
+    'Manuscript': POLICY_FAMILIES.MANUSCRIPT_POLICY,
+    
+    'Screenplay': POLICY_FAMILIES.SCREENPLAY_POLICY,
+    'TV Script': POLICY_FAMILIES.SCREENPLAY_POLICY,
+    'Feature Film': POLICY_FAMILIES.SCREENPLAY_POLICY,
+    'Script': POLICY_FAMILIES.SCREENPLAY_POLICY,
+    
+    'Unclassified': POLICY_FAMILIES.NEUTRAL_POLICY,
+    'Experimental': POLICY_FAMILIES.NEUTRAL_POLICY
+};
+
+// Policy-specific routing rules
+const POLICY_ROUTING_SPECS = {
+    [POLICY_FAMILIES.MICRO_POLICY]: {
+        scoreLabel: 'Craft Score',
+        scoreRange: '/10',
+        readinessFloorEnabled: false,
+        phase2Enabled: false,
+        gatesEnabled: false,
+        allowedPhrases: ['craft score', 'compression', 'moment quality', 'literary journal fit'],
+        forbiddenPhrases: [
+            'readiness floor',
+            'professional routing',
+            'Agent-Reality Grade',
+            'submission-ready',
+            'agent-viable',
+            'Phase 2',
+            'StoryGate eligible',
+            'manuscript',
+            'market positioning'
+        ]
+    },
+    
+    [POLICY_FAMILIES.MANUSCRIPT_POLICY]: {
+        scoreLabel: 'Agent-Reality Grade',
+        scoreRange: '/100',
+        readinessFloorEnabled: true,
+        readinessFloorValue: 8.0,
+        phase2Enabled: true,
+        gatesEnabled: true,
+        allowedPhrases: [
+            'Agent-Reality Grade',
+            'submission-ready',
+            'professional tier',
+            'agent-viable',
+            'market positioning',
+            'readiness floor',
+            'Phase 2 eligible'
+        ],
+        forbiddenPhrases: []
+    },
+    
+    [POLICY_FAMILIES.SCREENPLAY_POLICY]: {
+        scoreLabel: 'Reader Grade',
+        scoreRange: '/100',
+        readinessFloorEnabled: true,
+        readinessFloorValue: 6.5,
+        phase2Enabled: true,
+        gatesEnabled: true,
+        allowedPhrases: ['spec-ready', 'coverage-worthy', 'reader pass', 'screen craft'],
+        forbiddenPhrases: ['Agent-Reality Grade', 'manuscript']
+    },
+    
+    [POLICY_FAMILIES.NEUTRAL_POLICY]: {
+        scoreLabel: 'Craft Analysis',
+        scoreRange: '/10',
+        readinessFloorEnabled: false,
+        phase2Enabled: false,
+        gatesEnabled: false,
+        allowedPhrases: ['craft analysis', 'structural notes', 'feedback'],
+        forbiddenPhrases: ['readiness floor', 'submission-ready', 'professional tier']
+    }
+};
+
+Deno.serve(async (req) => {
+    try {
+        const { workTypeUi } = await req.json();
+        
+        if (!workTypeUi) {
+            return Response.json({
+                success: false,
+                error: 'workTypeUi required',
+                policyFamily: null,
+                routingSpec: null
+            }, { status: 400 });
+        }
+        
+        // Deterministic binding
+        const policyFamily = WORK_TYPE_TO_POLICY[workTypeUi] || POLICY_FAMILIES.NEUTRAL_POLICY;
+        const routingSpec = POLICY_ROUTING_SPECS[policyFamily];
+        
+        return Response.json({
+            success: true,
+            workTypeUi,
+            policyFamily,
+            routingSpec,
+            canonVersion: 'WORK_TYPE_POLICY_ROUTING_SPEC_v1.0.0',
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('getPolicyFamily error:', error);
+        return Response.json({
+            success: false,
+            error: error.message,
+            policyFamily: null,
+            routingSpec: null
+        }, { status: 500 });
+    }
+});

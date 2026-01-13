@@ -1,0 +1,137 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+// Map wave items and criteria to issue codes
+const mapToIssueCodes = (waveHits, criteria) => {
+    const issueCodes = [];
+    
+    // Map wave items
+    const waveMapping = {
+        'Sentence Variety': 'SENTENCE_MONOTONY',
+        'Word Economy': 'WEAK_VERB_CLUSTERING',
+        'Active Voice': 'PASSIVE_VOICE',
+        'Adverb Reduction': 'ADVERB_OVERUSE',
+        'Dialogue Tags': 'DIALOGUE_TAG_ISSUES',
+        'Scene Structure': 'WEAK_SCENE_EXIT',
+        'Transition Flow': 'PACING_DRAG',
+        'Emotional Beats': 'TELLING_NOT_SHOWING'
+    };
+    
+    waveHits?.forEach(hit => {
+        const code = waveMapping[hit.wave_item] || 'WEAK_VERB_CLUSTERING';
+        const severity = hit.severity?.toLowerCase() || 'medium';
+        
+        issueCodes.push({
+            code,
+            severity,
+            signal_family: getSignalFamily(code)
+        });
+    });
+    
+    // Map low-scoring criteria
+    criteria?.forEach(criterion => {
+        if (criterion.score < 7) {
+            const code = mapCriterionToCode(criterion.name);
+            issueCodes.push({
+                code,
+                severity: criterion.score < 5 ? 'high' : 'medium',
+                signal_family: getSignalFamily(code)
+            });
+        }
+    });
+    
+    return issueCodes;
+};
+
+const mapCriterionToCode = (criterionName) => {
+    const mapping = {
+        'Dialogue & Subtext': 'EXPOSITION_DIALOGUE',
+        'Pacing & Structural Flow': 'PACING_DRAG',
+        'Line-Level Polish': 'WEAK_VERB_CLUSTERING'
+    };
+    return mapping[criterionName] || 'WEAK_VERB_CLUSTERING';
+};
+
+const getSignalFamily = (code) => {
+    const familyMap = {
+        'FILTERING_LANGUAGE': 'sentence_craft',
+        'WEAK_SCENE_EXIT': 'scene_structure',
+        'EXPOSITION_DIALOGUE': 'dialogue',
+        'WEAK_VERB_CLUSTERING': 'sentence_craft',
+        'PASSIVE_VOICE': 'sentence_craft',
+        'ADVERB_OVERUSE': 'sentence_craft',
+        'TELLING_NOT_SHOWING': 'emotional_beats',
+        'DIALOGUE_TAG_ISSUES': 'dialogue',
+        'SENTENCE_MONOTONY': 'sentence_craft',
+        'PACING_DRAG': 'pacing_flow'
+    };
+    return familyMap[code] || 'sentence_craft';
+};
+
+const calculateSignalFamilyScores = (criteria) => {
+    const familyScores = {
+        sentence_craft: [],
+        dialogue: [],
+        scene_structure: [],
+        character_voice: [],
+        pacing_flow: [],
+        emotional_beats: []
+    };
+    
+    const criteriaMapping = {
+        'Line-Level Polish': 'sentence_craft',
+        'Voice & Narrative Style': 'sentence_craft',
+        'Dialogue & Subtext': 'dialogue',
+        'Pacing & Structural Flow': 'pacing_flow',
+        'Scene Structure': 'scene_structure',
+        'Characters & Introductions': 'character_voice',
+        'Stakes & Emotional Investment': 'emotional_beats',
+        'Thematic Resonance': 'emotional_beats'
+    };
+    
+    criteria?.forEach(c => {
+        const family = criteriaMapping[c.name];
+        if (family) {
+            familyScores[family].push(c.score);
+        }
+    });
+    
+    // Average scores per family
+    const result = {};
+    Object.entries(familyScores).forEach(([family, scores]) => {
+        if (scores.length > 0) {
+            result[family] = scores.reduce((a, b) => a + b, 0) / scores.length;
+        }
+    });
+    
+    return result;
+};
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+        
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        
+        const { submissionId, evaluationResult, contentType, isRevision, originalSignalId } = await req.json();
+        
+        const signalData = {
+            submission_id: submissionId,
+            content_type: contentType || 'scene',
+            overall_score: evaluationResult.overallScore || 0,
+            signal_family_scores: calculateSignalFamilyScores(evaluationResult.criteria),
+            issue_codes: mapToIssueCodes(evaluationResult.waveHits, evaluationResult.criteria),
+            is_revision: isRevision || false,
+            original_signal_id: originalSignalId || null
+        };
+        
+        const signal = await base44.entities.EvaluationSignal.create(signalData);
+        
+        return Response.json({ success: true, signal });
+    } catch (error) {
+        console.error('Store evaluation signals error:', error);
+        return Response.json({ error: error.message }, { status: 500 });
+    }
+});

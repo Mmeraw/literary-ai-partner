@@ -1,0 +1,89 @@
+/**
+ * PHASE 3 FUNCTION #2: getAgentVerificationStatus
+ * 
+ * Authority: AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0.md
+ * State Transition: NONE (read-only)
+ * 
+ * Release-Blocking Tests:
+ * 1. Role gate (AUTHOR → 403)
+ * 2. Read-only guarantee (no mutations)
+ * 3. Allowlist DTO (toStatusDTO only)
+ * 4. Safe error shape ({ code, message, requestId })
+ */
+
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+const CANON_VERSION = 'AGENT_ONBOARDING_VERIFICATION_SPEC_v1.0.0';
+
+/**
+ * Status DTO Allowlist (READ_ONLY_STATUS_DTO_v1.0.0)
+ * Only verification state and last updated timestamp - nothing else
+ */
+function toMinimalStatusDTO(industryUser) {
+    return {
+        verificationState: industryUser.verification_status,
+        lastUpdatedAt: industryUser.updated_date || industryUser.created_date || null
+    };
+}
+
+/**
+ * Safe error response (no stack traces, no internal IDs)
+ * Canon shape: { code, message, requestId } ONLY
+ */
+function errorResponse(code, message, requestId, status = 400) {
+    return Response.json({
+        code,
+        message,
+        requestId
+    }, { status });
+}
+
+Deno.serve(async (req) => {
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+        
+        if (!user) {
+            return errorResponse('UNAUTHORIZED', 'Authentication required', requestId, 401);
+        }
+
+        // ROLE GATE: Authors cannot check industry verification status
+        if (user.role === 'author' || user.role === 'user') {
+            return errorResponse(
+                'ROLE_FORBIDDEN',
+                'Authors cannot access industry verification status',
+                requestId,
+                403
+            );
+        }
+
+        // READ-ONLY: Query existing IndustryUser record (no writes, no mutations)
+        const existingRecords = await base44.asServiceRole.entities.IndustryUser.filter({
+            user_email: user.email
+        });
+
+        if (existingRecords.length === 0) {
+            // No record found = UNVERIFIED state (never requested verification)
+            return Response.json({
+                verificationState: 'UNVERIFIED',
+                lastUpdatedAt: null
+            });
+        }
+
+        const industryUser = existingRecords[0];
+
+        // Return minimal allowlist DTO (verification state only)
+        return Response.json(toMinimalStatusDTO(industryUser));
+
+    } catch (error) {
+        console.error('getAgentVerificationStatus error:', error);
+        return errorResponse(
+            'INTERNAL_ERROR',
+            'Failed to retrieve verification status',
+            requestId,
+            500
+        );
+    }
+});
