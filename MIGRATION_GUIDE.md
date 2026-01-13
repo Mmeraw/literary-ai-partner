@@ -21,6 +21,26 @@ This guide documents the migration process from Base44 to Supabase (backend) and
    - Users can only view their own evaluations
    - Story criteria are readable by all authenticated users
 4. **Edge Function Creation** - Created `/evaluate` endpoint with 13 RevisionGrade criteria
+
+### Canonical 13 Story Criteria (Locked)
+
+The Edge Function evaluates manuscripts using these **exact** 13 criteria:
+
+1. **Opening Hook** — `opening_hook`
+2. **Narrative Voice & Style** — `narrative_voice_style`
+3. **Character Depth & Introduction** — `character_depth_introduction`
+4. **Conflict, Tension & Escalation** — `conflict_tension_escalation`
+5. **Thematic Resonance** — `thematic_resonance`
+6. **Structure, Pacing & Flow** — `structure_pacing_flow`
+7. **Dialogue & Subtext** — `dialogue_subtext`
+8. **Worldbuilding & Immersion** — `worldbuilding_immersion`
+9. **Stakes & Emotional Investment** — `stakes_emotional_investment`
+10. **Line-Level Craft & Polish** — `line_level_craft_polish`
+11. **Marketability & Genre Position** — `marketability_genre_position`
+12. **Narrative Closure & Promises Kept** — `narrative_closure_promises_kept`
+13. **Would They Keep Reading?** — `would_keep_reading_gate` (Hard gate, not averaged)
+
+Each criterion scores 1-10. Criterion #13 acts as a gate criterion.
 5. **Frontend API Wrapper** - Created `src/api/evaluate.js` for Supabase integration
 
 ### 🚧 Pending Steps
