@@ -11,6 +11,7 @@ export default function App() {
           <Route path="/" element={<MvpLanding />} />
                         <Route path="/evaluate" element={<Evaluate />} />
         <Route path="*" element={<Navigate to="/" replace />} />
+                      </Route>
       </Routes>
     </BrowserRouter>
   );
