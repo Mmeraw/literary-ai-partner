@@ -5,7 +5,26 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Optional: global resets / typography */
+/* CSS variables for light theme */
+:root {
+  --rg-bg: #f3f4f6;        /* slate-100 */
+  --rg-bg-elevated: #ffffff;
+  --rg-text: #020617;      /* slate-950 */
+  --rg-text-muted: #6b7280;/* gray-500 */
+  --rg-border-subtle: #e5e7eb;
+  --rg-accent: #4f46e5;    /* indigo-600 */
+  --rg-accent-soft: #eef2ff;/* indigo-50 */
+  --rg-danger: #dc2626;    /* red-600 */
+  --rg-radius-lg: 0.75rem;
+}
+
+/* Global element defaults */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html,
 body {
   height: 100%;
@@ -13,12 +32,77 @@ body {
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background-color: #f9fafb;
-  color: #0f172a;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background-color: var(--rg-bg);
+  color: var(--rg-text);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Make the root stretch full height for layouts like your homepage */
-#__next {
+/* Make root stretch for full-screen layouts */
+#__next,
+body > div:first-child {
   height: 100%;
+}
+
+/* Headings – tuned for evaluation dashboards */
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--rg-text);
+}
+
+p {
+  color: var(--rg-text-muted);
+}
+
+/* Utility classes that complement Tailwind for RevisionGrade */
+
+.rg-card {
+  border-radius: var(--rg-radius-lg);
+  background-color: var(--rg-bg-elevated);
+  border: 1px solid var(--rg-border-subtle);
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+}
+
+.rg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: var(--rg-accent-soft);
+  color: var(--rg-accent);
+}
+
+.rg-badge-danger {
+  background-color: rgba(248, 113, 113, 0.12);
+  color: var(--rg-danger);
+}
+
+/* Focus ring consistent with governance UI */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--rg-accent);
+  outline-offset: 2px;
+}
+
+/* Smooth page transitions for App Router */
+.page-enter {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 150ms ease-out, transform 150ms ease-out;
 }
