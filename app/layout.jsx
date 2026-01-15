@@ -1,4 +1,4 @@
-import "./globals.css";
+// import "./globals.css";
 
 export const metadata = {
   title: "RevisionGrade™",
@@ -12,4 +12,3 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
-
