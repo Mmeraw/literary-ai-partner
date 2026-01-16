@@ -1,5 +1,6 @@
+// app/layout.jsx
 import "./globals.css";
-import HeaderNav from "../src/components/HeaderNav";
+import HeaderNav from "@/components/HeaderNav";
 
 export const metadata = {
   title: "RevisionGrade™",
