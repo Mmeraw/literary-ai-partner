@@ -1,56 +1,56 @@
-// src/components/HeaderNav.jsx
 import Link from "next/link";
 
 const NAV = [
-  {
-    label: "Evaluate",
-    href: "/evaluate",
-  },
-  {
-    label: "Revise",
-    href: "/revise",
-  },
-  {
-    label: "Convert",
-    href: "/convert",
-  },
-  {
-    label: "Output",
-    href: "/outputs",
-  },
-  {
-    label: "StoryGate Studio",
-    href: "/storygate",
-  },
-  {
-    label: "Resources",
-    href: "/resources",
-  },
-  {
-    label: "Pricing",
-    href: "/pricing",
-  },
-  {
-    label: "Sign in",
-    href: "/signin",
-  },
+  { label: "Evaluate", href: "/evaluate" },
+  { label: "Revise", href: "/revise" },
+  { label: "Convert", href: "/convert" },
+  { label: "Output", href: "/outputs" },
+  { label: "Storygate Studio", href: "/storygate" },
+  { label: "Resources", href: "/resources" },
+  { label: "Pricing", href: "/pricing" },
+  { label: "Sign in", href: "/signin" },
 ];
 
 export default function HeaderNav() {
   return (
-    <header className="w-full border-b bg-white">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        <div className="font-semibold text-lg">RevisionGrade™</div>
-        <div className="flex flex-wrap gap-4 text-sm">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="hover:underline"
-            >
-              {item.label}
-            </Link>
-          ))}
+    <header style={{ width: "100%", borderBottom: "1px solid #ddd", background: "#fff" }}>
+      <nav
+        style={{
+          maxWidth: "80rem",
+          margin: "0 auto",
+          padding: "16px 24px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "24px",
+        }}
+      >
+        <div style={{ fontWeight: 600, fontSize: "18px" }}>RevisionGrade™</div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", fontSize: "14px" }}>
+          {NAV.map((item) => {
+            const isStorygate = item.href === "/storygate";
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                style={{
+                  textDecoration: "underline",
+                  color: isStorygate ? "#ff0000" : "#0000ee",
+                  fontWeight: isStorygate ? 700 : 400,
+                }}
+              >
+                {isStorygate ? (
+                  <>
+                    Storygate Studio<sup>™</sup>
+                  </>
+                ) : (
+                  item.label
+                )}
+              </Link>
+            );
+          })}
         </div>
       </nav>
     </header>

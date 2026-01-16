@@ -1,13 +1,15 @@
-// app/api/evaluate/route.js
 export async function POST(request) {
-  const body = await request.json();
-
-  return new Response(
-    JSON.stringify({
-      status: "ok",
-      echo: body,
-      message: "Evaluate minimal pipeline stub",
-    }),
-    { status: 200, headers: { "Content-Type": "application/json" } }
-  );
+  try {
+    const body = await request.json();
+    return Response.json({ 
+      success: true,
+      message: 'Evaluate endpoint working',
+      received: body 
+    });
+  } catch (error) {
+    return Response.json({ 
+      success: false, 
+      error: error.message 
+    }, { status: 500 });
+  }
 }
