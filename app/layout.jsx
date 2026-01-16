@@ -1,3 +1,4 @@
+// app/layout.jsx
 import "./globals.css";
 import HeaderNav from "../components/HeaderNav";
 
