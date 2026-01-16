@@ -11,7 +11,9 @@ export default function RootLayout({ children }) {
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased bg-gray-50">
         <HeaderNav />
-        <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
+        <main className="max-w-5xl mx-auto px-4 py-8">
+          {children}
+        </main>
       </body>
     </html>
   );
