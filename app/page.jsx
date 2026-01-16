@@ -56,9 +56,11 @@ export default function HomePage() {
 
       {error && <p className="mt-4 text-red-600">Error: {error}</p>}
 
-      {response && (
+    {response && (
         <pre className="mt-4 bg-gray-200 p-4 rounded text-black text-sm overflow-auto max-w-md">
           {JSON.stringify(response, null, 2)}
         </pre>
       )}
-    </mai
+    </main>
+  );
+}
