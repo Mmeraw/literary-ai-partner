@@ -152,7 +152,7 @@ curl -X POST "https://xtumxjnzdswuumndcbwc.functions.supabase.co/evaluate" \
 
 ```env
 NEXT_PUBLIC_EVALUATE_FUNCTION_URL=https://xtumxjnzdswuumndcbwc.functions.supabase.co/evaluate
-VITE_EVAL_TOKEN=your_random_token  # Optional speed bump
+NEXT_PUBLIC_EVAL_TOKEN=your_random_token  # Optional speed bump
 ```
 
 **2. Deploy to Vercel:**
@@ -171,10 +171,10 @@ git push origin main
 
 ---
 
-## 🔒 Security Note: VITE_EVAL_TOKEN
+## 🔒 Security Note: NEXT_PUBLIC_EVAL_TOKEN
 
 **Current Setup:**
-- `VITE_EVAL_TOKEN` is visible in browser DevTools
+- `NEXT_PUBLIC_EVAL_TOKEN` is visible in browser DevTools
 - It's a "speed bump" not real security
 - Acceptable for MVP migration phase
 
