@@ -23,7 +23,7 @@ require_dir() {
   fi
 }
 
-echo "== Golden Spine Guard =="
+echo "== Golden Spine Guard ==" 
 
 require_file "docs/GOLDEN_SPINE.md"
 require_dir "docs"
@@ -38,4 +38,4 @@ if [[ "$missing" -ne 0 ]]; then
   exit 1
 fi
 
-echo "== RESULT: PASS =="
+echo "== RESULT: PASS ==" 
