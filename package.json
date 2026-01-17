@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run spine:verify && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "spine:verify": "bash scripts/verify-spine.sh"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.3",
