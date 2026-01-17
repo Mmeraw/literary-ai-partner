@@ -151,7 +151,7 @@ curl -X POST "https://xtumxjnzdswuumndcbwc.functions.supabase.co/evaluate" \
 **1. Set environment variables in Vercel Dashboard:**
 
 ```env
-VITE_EVALUATE_URL=https://xtumxjnzdswuumndcbwc.functions.supabase.co/evaluate
+NEXT_PUBLIC_EVALUATE_FUNCTION_URL=https://xtumxjnzdswuumndcbwc.functions.supabase.co/evaluate
 VITE_EVAL_TOKEN=your_random_token  # Optional speed bump
 ```
 

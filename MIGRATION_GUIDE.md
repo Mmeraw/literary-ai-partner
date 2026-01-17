@@ -196,8 +196,8 @@ supabase functions list
 Add these to your `.env` file:
 
 ```env
-VITE_SUPABASE_URL=https://xtumxjnzdswuumndcbwc.supabase.co
-VITE_SUPABASE_ANON_KEY=your_anon_key_from_supabase_dashboard
+NEXT_PUBLIC_SUPABASE_URL=https://xtumxjnzdswuumndcbwc.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_from_supabase_dashboard
 ```
 
 Get your anon key from: Supabase Dashboard > Project Settings > API
@@ -217,8 +217,8 @@ const result = await evaluateManuscript(manuscriptText, userId);
 
 1. **Connect GitHub repo** to Vercel
 2. **Add environment variables** in Vercel Dashboard:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 3. **Deploy**: Vercel will auto-deploy on push to main
 
 ### Testing
