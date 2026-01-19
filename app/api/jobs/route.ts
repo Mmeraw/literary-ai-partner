@@ -1,21 +1,41 @@
 import { NextResponse } from "next/server";
-import { getSupabaseClient } from "../../../lib/supabase";
 
-export async function GET() {
-  const supabase = getSupabaseClient();
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
 
-  const { data, error } = await supabase
-    .from("evaluation_jobs")
-    .select("*")
-    .order("created_at", { ascending: false });
+    // Basic validation (keep simple for now)
+    const manuscript_id = body?.manuscript_id;
+    const job_type = body?.job_type;
 
-  if (error) {
-    console.error("GET /api/jobs error", error);
+    if (!manuscript_id || !job_type) {
+      return NextResponse.json(
+        { ok: false, error: "Missing required fields: manuscript_id, job_type" },
+        { status: 400 }
+      );
+    }
+
+    // TODO: wire to DB insert / queue logic
     return NextResponse.json(
-      { error: "failed_to_fetch_jobs" },
-      { status: 500 }
+      {
+        ok: true,
+        route: "/api/jobs",
+        received: { manuscript_id, job_type },
+        timestamp: new Date().toISOString(),
+      },
+      { status: 201 }
+    );
+  } catch (err) {
+    return NextResponse.json(
+      { ok: false, error: "Invalid JSON body" },
+      { status: 400 }
     );
   }
+}
 
-  return NextResponse.json({ jobs: data ?? [] });
+export async function GET() {
+  return NextResponse.json(
+    { ok: true, route: "/api/jobs", message: "Use POST to create a job." },
+    { status: 200 }
+  );
 }
