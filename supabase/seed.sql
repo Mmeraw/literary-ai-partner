@@ -1,9 +1,3 @@
--- Create a dummy manuscript so FK is satisfied
-insert into public.manuscripts (id, title)
-values (1, 'Seed Manuscript')
-on conflict (id) do nothing;
-
--- Create one evaluation job for that manuscript
 insert into public.evaluation_jobs (
   manuscript_id,
   job_type,

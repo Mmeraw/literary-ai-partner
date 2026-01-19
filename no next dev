@@ -1,0 +1,20 @@
+[1mdiff --git a/app/evaluate/page.jsx b/app/evaluate/page.jsx[m
+[1mindex b9b248a..80688e4 100644[m
+[1m--- a/app/evaluate/page.jsx[m
+[1m+++ b/app/evaluate/page.jsx[m
+[36m@@ -1,4 +1,12 @@[m
+[31m-import EvaluateEntry from "../../components/evaluation/EvaluateEntry";[m
+[31m-export default function EvaluatePage() {[m
+[31m-  return <EvaluateEntry />;[m
+[32m+[m[32m"use client";[m
+[32m+[m
+[32m+[m[32mexport default function Page() {[m
+[32m+[m[32m  return ([m
+[32m+[m[32m    <div style={{ padding: 24 }}>[m
+[32m+[m[32m      <h1>ROUTE FINGERPRINT: EVALUATE — 2026-01-17 — A1</h1>[m
+[32m+[m[32m      <button type="button" onClick={() => alert("Click works")}>[m
+[32m+[m[32m        Click test[m
+[32m+[m[32m      </button>[m
+[32m+[m[32m    </div>[m
+[32m+[m[32m  );[m
+ }[m

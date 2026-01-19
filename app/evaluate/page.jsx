@@ -1,4 +1,7 @@
+"use client";
+
 import EvaluateEntry from "../../components/evaluation/EvaluateEntry";
-export default function EvaluatePage() {
+
+export default function Page() {
   return <EvaluateEntry />;
 }

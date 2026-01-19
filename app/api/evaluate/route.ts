@@ -1,0 +1,74 @@
+// app/api/evaluate/route.ts
+
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+export async function POST(req: Request) {
+  try {
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Step 1: Create manuscript
+    const { data: manuscript, error: manuscriptError } = await supabase
+      .from("manuscripts")
+      .insert({ title: "Test Manuscript" })
+      .select()
+      .single();
+
+    if (manuscriptError) {
+      console.error("Manuscript insert error:", manuscriptError);
+      return Response.json(
+        { ok: false, error: `Manuscript error: ${manuscriptError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Step 2: Create evaluation job
+    const { data, error } = await supabase
+      .from("evaluation_jobs")
+      .insert({
+        manuscript_id: manuscript.id,
+        job_type: "full_evaluation",
+        phase: "phase_1",
+        policy_family: "standard",
+        voice_preservation_level: "balanced",
+        english_variant: "us",
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Evaluation job insert error:", error);
+      return Response.json(
+        { ok: false, error: `Database error: ${error.message}` },
+        { status: 500 }
+      );
+    }
+
+    // ✅ This return MUST be inside the POST function
+    return Response.json(
+      {
+        ok: true,
+        message: "Evaluation job created",
+        job: {
+          id: data.id,
+          manuscript_id: manuscript.id,
+          status: data.status,
+          phase: data.phase,
+          phase_1_status: data.phase_1_status,
+          policy_family: data.policy_family,
+          voice_preservation_level: data.voice_preservation_level,
+          english_variant: data.english_variant,
+        },
+      },
+      { status: 200 }
+    );
+  } catch (err: any) {
+    console.error("Hard fail in /api/evaluate:", err);
+    return Response.json(
+      { ok: false, error: err?.message || "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
