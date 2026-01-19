@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createJob } from "../../../lib/jobs/memoryStore";
 
 export async function POST(req: Request) {
   try {
@@ -14,19 +15,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // TODO: Replace this stub with DB insert / queue logic.
-    // For now, generate a job_id so the client has a stable handle.
-    const job_id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : "00000000-0000-0000-0000-000000000000";
+    const job = createJob({ manuscript_id, job_type });
 
     return NextResponse.json(
-      {
-        ok: true,
-        job_id,
-        status: "queued",
-      },
+      { ok: true, job_id: job.id, status: job.status },
       { status: 201 }
     );
   } catch {
