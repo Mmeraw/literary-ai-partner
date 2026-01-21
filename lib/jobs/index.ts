@@ -1,11 +1,10 @@
 export {
   PHASES,
   JOB_TYPES,
+  JOB_STATUS,
   isPhase1JobType,
   assertJobTypeAllowedForPhase,
 } from "./types";
-
-export { JOB_STATUS } from "./status";
 
 // Phase 1 exports (only what actually exists)
 export { PHASE_1_STATES } from "./phase1";

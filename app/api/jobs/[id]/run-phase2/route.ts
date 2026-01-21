@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getJob, updateJob, canRunPhase } from "@/lib/jobs/store";
-import { runPhase1 } from "@/lib/jobs/phase1";
-import { JobStatus } from "@/lib/jobs/types";
+import { runPhase2 } from "@/lib/jobs/phase2";
+import { getJob, canRunPhase } from "@/lib/jobs/store";
 
 type Params = { id: string };
 
@@ -13,18 +12,18 @@ export async function POST(_req: Request, ctx: { params: Promise<Params> }) {
     return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
   }
 
-  const eligibility = canRunPhase(job, "phase1");
+  const eligibility = canRunPhase(job, "phase2");
   if (!eligibility.ok) {
     return NextResponse.json({ ok: false, error: eligibility.reason }, { status: 409 });
   }
 
-  console.log("Phase1Started", { job_id: id });
+  console.log("Phase2Started", { job_id: id });
 
-  // Fire-and-forget - worker will atomically transition queued→running via lease acquisition
-  setTimeout(() => { void runPhase1(id); }, 0);
+  // Fire-and-forget - worker will atomically handle the running state via lease acquisition
+  setTimeout(() => { void runPhase2(id); }, 0);
 
   return NextResponse.json(
-    { ok: true, job_id: id, status: "queued" },
+    { ok: true, job_id: id, status: "running" },
     { status: 202 }
   );
 }

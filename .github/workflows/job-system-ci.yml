@@ -1,0 +1,163 @@
+name: Job System CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  job-system-tests:
+    name: Job System Smoke Tests & Invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js app
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Start dev server in background
+        run: |
+          npm run dev > /tmp/dev-server.log 2>&1 &
+          echo $! > /tmp/dev-server.pid
+          # Wait for server to be ready
+          timeout 60 bash -c 'until curl -sf http://localhost:3002/api/health; do sleep 1; done'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          USE_SUPABASE_JOBS: false
+
+      - name: Run Phase 1 smoke test
+        run: npm run jobs:smoke
+        env:
+          USE_SUPABASE_JOBS: false
+          BASE_URL: http://localhost:3002
+
+      - name: Run Phase 2 smoke test
+        run: npm run jobs:smoke:phase2
+        env:
+          USE_SUPABASE_JOBS: false
+          BASE_URL: http://localhost:3002
+
+      - name: Validate job invariants
+        run: node scripts/jobs-validate-invariants.mjs
+        env:
+          USE_SUPABASE_JOBS: false
+          BASE_URL: http://localhost:3002
+
+      - name: Run lease contention test
+        run: npm run jobs:test:contention
+        env:
+          USE_SUPABASE_JOBS: false
+          BASE_URL: http://localhost:3002
+
+      - name: Upload server logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-server-logs
+          path: /tmp/dev-server.log
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ -f /tmp/dev-server.pid ]; then
+            kill $(cat /tmp/dev-server.pid) || true
+          fi
+
+  supabase-backed-tests:
+    name: Supabase-Backed Job Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only run on main branch or when explicitly triggered
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js app
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Start dev server with Supabase backend
+        run: |
+          npm run dev > /tmp/dev-server-supabase.log 2>&1 &
+          echo $! > /tmp/dev-server.pid
+          timeout 60 bash -c 'until curl -sf http://localhost:3002/api/health; do sleep 1; done'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          USE_SUPABASE_JOBS: true
+
+      - name: Run smoke tests with Supabase
+        run: |
+          npm run jobs:smoke
+          npm run jobs:smoke:phase2
+        env:
+          USE_SUPABASE_JOBS: true
+          BASE_URL: http://localhost:3002
+
+      - name: Validate Supabase job invariants
+        run: node scripts/jobs-validate-invariants.mjs
+        env:
+          USE_SUPABASE_JOBS: true
+          BASE_URL: http://localhost:3002
+
+      - name: Upload server logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-server-supabase-logs
+          path: /tmp/dev-server-supabase.log
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ -f /tmp/dev-server.pid ]; then
+            kill $(cat /tmp/dev-server.pid) || true
+          fi

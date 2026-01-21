@@ -3,11 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3002",
     "build": "npm run spine:verify && next build",
     "start": "next start",
     "lint": "next lint",
-    "spine:verify": "bash scripts/verify-spine.sh"
+    "spine:verify": "bash scripts/verify-spine.sh",
+    "jobs:smoke": "node scripts/jobs-smoke.mjs",
+    "jobs:smoke:phase2": "node scripts/jobs-smoke-phase2.mjs",
+    "jobs:smoke:real": "node scripts/jobs-smoke-real.mjs",
+    "jobs:validate": "node scripts/jobs-validate-invariants.mjs",
+    "jobs:test:resume": "node scripts/jobs-phase2-resume-test.mjs",
+    "jobs:test:contention": "node scripts/jobs-lease-contention-test.mjs",
+    "jobs:retry-tick": "node scripts/jobs-retry-tick.mjs",
+    "jobs:load": "node scripts/jobs-load.mjs"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.3",

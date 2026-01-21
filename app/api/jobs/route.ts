@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createJob } from "../../../lib/jobs/memoryStore";
+import { createJob, getAllJobs } from "@/lib/jobs/store";
 
 export async function POST(req: Request) {
   try {
@@ -15,23 +15,22 @@ export async function POST(req: Request) {
       );
     }
 
-    const job = createJob({ manuscript_id, job_type });
+    const job = await createJob({ manuscript_id, job_type });
 
     return NextResponse.json(
       { ok: true, job_id: job.id, status: job.status },
       { status: 201 }
     );
-  } catch {
+  } catch (err) {
+    console.error("POST /api/jobs error:", err);
     return NextResponse.json(
-      { ok: false, error: "Invalid JSON body" },
+      { ok: false, error: "Invalid JSON body", details: err instanceof Error ? err.message : String(err) },
       { status: 400 }
     );
   }
 }
 
 export async function GET() {
-  return NextResponse.json(
-    { ok: true, route: "/api/jobs", message: "Use POST to create a job." },
-    { status: 200 }
-  );
+  const jobs = await getAllJobs();
+  return NextResponse.json({ jobs }, { status: 200 });
 }

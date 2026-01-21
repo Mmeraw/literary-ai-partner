@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: npm ci
+      - run: npm run dev &
+      - run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:3002/api/health; then
+              break
+            fi
+            sleep 1
+          done
+      - run: BASE_URL=http://localhost:3002 npm run jobs:smoke

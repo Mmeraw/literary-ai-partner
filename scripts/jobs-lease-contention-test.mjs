@@ -10,7 +10,7 @@
  */
 import { getBaseUrl } from "./base-url.mjs";
 
-function must(promise: Promise<Response>, context: string): Promise<Response> {
+function must(promise, context) {
   return promise.then((r) => {
     if (!r.ok) {
       throw new Error(`${context}: ${r.status} ${r.statusText}`);
@@ -19,11 +19,11 @@ function must(promise: Promise<Response>, context: string): Promise<Response> {
   });
 }
 
-function sleep(ms: number): Promise<void> {
+function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function main(): Promise<void> {
+async function main() {
   const BASE = await getBaseUrl();
   console.log(`Lease Contention Test - ${new Date().toISOString()}`);
 
@@ -143,7 +143,7 @@ async function main(): Promise<void> {
   process.exit(0);
 }
 
-main().catch((e: unknown) => {
-  console.error("ERROR:", (e as any)?.message || String(e));
+main().catch((e) => {
+  console.error("ERROR:", e?.message || String(e));
   process.exit(1);
 });

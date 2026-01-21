@@ -1,18 +1,23 @@
 #!/usr/bin/env node
+/**
+ * Real Manuscript Smoke Test (Phase 1 + Phase 2)
+ *
+ * This test uses a real manuscript ID from the database, unlike
+ * jobs-smoke.mjs and jobs-smoke-phase2.mjs which use synthetic fixtures.
+ *
+ * Usage:
+ *   MANUSCRIPT_ID=<real-uuid> npm run jobs:smoke:real
+ *   MANUSCRIPT_ID=<real-uuid> USE_SUPABASE_JOBS=true npm run jobs:smoke:real
+ *
+ * Purpose: Validate that real payloads from the database flow correctly
+ * through Phase 1 and Phase 2 without breaking evaluation logic.
+ */
 import { getBaseUrl } from "./base-url.mjs";
-
-console.log("jobs-smoke-phase2 fingerprint v1", new Date().toISOString());
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function assertInvariant(condition, message) {
-  if (!condition) {
-    throw new Error(`INVARIANT VIOLATION: ${message}`);
-  }
-}
-
 async function must(res, msg) {
-  const r = await res; // works whether res is Promise<Response> or Response
+  const r = await res;
   if (!r || typeof r.ok !== "boolean") {
     throw new Error(
       `must() expected a fetch Response, got: ${Object.prototype.toString.call(
@@ -29,15 +34,25 @@ async function must(res, msg) {
 
 async function main() {
   const BASE = await getBaseUrl();
+  const MANUSCRIPT_ID = process.env.MANUSCRIPT_ID;
 
-  // 1) Create job
+  if (!MANUSCRIPT_ID) {
+    console.error("ERROR: MANUSCRIPT_ID environment variable required");
+    console.error("Usage: MANUSCRIPT_ID=<uuid> npm run jobs:smoke:real");
+    process.exit(1);
+  }
+
+  console.log(`jobs-smoke-real using manuscript: ${MANUSCRIPT_ID}`);
+  console.log(`Running at ${new Date().toISOString()}`);
+
+  // 1) Create job with real manuscript
   const createRes = await must(
     fetch(`${BASE}/api/jobs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         job_type: "evaluate_full",
-        manuscript_id: "test-manuscript-123",
+        manuscript_id: MANUSCRIPT_ID,
       }),
     }),
     "Failed to create job",
@@ -47,6 +62,7 @@ async function main() {
   if (!jobId) {
     throw new Error("Could not find job id in create response");
   }
+  console.log(`Created job: ${jobId}`);
 
   // 2) Start Phase 1
   const run1Res = await must(
@@ -56,7 +72,7 @@ async function main() {
   await run1Res.json().catch(() => ({}));
 
   // Wait for Phase 1 to complete
-  const deadline1 = Date.now() + 60_000;
+  const deadline1 = Date.now() + 120_000; // 2 min for real manuscripts
   while (Date.now() < deadline1) {
     const getRes = await must(
       fetch(`${BASE}/api/jobs/${jobId}`),
@@ -85,7 +101,7 @@ async function main() {
       } (${completed_units}/${total_units})`,
     );
 
-    // Phase 1 leaves status=running but phase_status=complete when done
+    // Phase 1 leaves status=complete, phase_status=complete when done
     if (phase_status === "complete") {
       if (progress.phase !== "phase1" || progress.phase_status !== "complete") {
         throw new Error(
@@ -101,11 +117,11 @@ async function main() {
       process.exit(1);
     }
 
-    await sleep(1000);
+    await sleep(2000); // Poll less frequently for real data
   }
 
   if (Date.now() >= deadline1) {
-    console.error("TIMEOUT: Phase 1 did not complete in 60s");
+    console.error("TIMEOUT: Phase 1 did not complete in 2 minutes");
     process.exit(1);
   }
 
@@ -117,7 +133,7 @@ async function main() {
   await run2Res.json().catch(() => ({}));
 
   // 4) Poll Phase 2 until complete/failed
-  const deadline2 = Date.now() + 60_000;
+  const deadline2 = Date.now() + 120_000; // 2 min for real manuscripts
   while (Date.now() < deadline2) {
     const getRes = await must(
       fetch(`${BASE}/api/jobs/${jobId}`),
@@ -152,27 +168,22 @@ async function main() {
           `Phase 2 not properly completed: phase=${progress.phase}, phase_status=${progress.phase_status}`,
         );
       }
-
-      // Validate all invariants on completion
-      assertInvariant(
-        phase_status !== "complete" || status !== "running",
-        "phase_status='complete' must not coexist with status='running'",
-      );
-      assertInvariant(
-        completed_units <= total_units,
-        `completed_units (${completed_units}) must be <= total_units (${total_units})`,
-      );
-      assertInvariant(
-        !progress.lease_id && !progress.lease_expires_at,
-        "Lease must be cleared when status='complete'",
-      );
-      assertInvariant(
-        progress.phase2_last_processed_index !== undefined,
-        "phase2_last_processed_index must be set for completed Phase 2",
-      );
-
       console.log("OK: Phase 2 completed");
-      console.log("✅ All invariants validated");
+      console.log(`\nFinal snapshot:`);
+      console.log(
+        JSON.stringify(
+          {
+            status,
+            phase: progress.phase,
+            phase_status: progress.phase_status,
+            total_units,
+            completed_units,
+            lease_cleared: !progress.lease_id && !progress.lease_expires_at,
+          },
+          null,
+          2,
+        ),
+      );
       process.exit(0);
     }
 
@@ -181,10 +192,10 @@ async function main() {
       process.exit(1);
     }
 
-    await sleep(1000);
+    await sleep(2000); // Poll less frequently for real data
   }
 
-  console.error("TIMEOUT: Phase 2 did not complete in 60s");
+  console.error("TIMEOUT: Phase 2 did not complete in 2 minutes");
   process.exit(1);
 }
 

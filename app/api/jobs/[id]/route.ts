@@ -1,27 +1,18 @@
 import { NextResponse } from "next/server";
-import {
-  getJob,
-  isValidTransition,
-  updateJobStatus,
-  type JobStatus,
-} from "../../../../../lib/jobs/memoryStore";
+import { getJob, updateJob } from "@/lib/jobs/store";
+import { JobStatus } from "@/lib/jobs/types";
 
 type Params = { id: string };
 
-function transitionOr409(id: string, from: JobStatus, to: JobStatus) {
-  if (!isValidTransition(from, to)) {
-    return NextResponse.json(
-      { ok: false, error: `Invalid status transition: ${from} -> ${to}` },
-      { status: 409 }
-    );
-  }
+export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
+  const { id } = await ctx.params;
 
-  const updated = updateJobStatus(id, to);
-  if (!updated) {
+  const job = await getJob(id);
+  if (!job) {
     return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
   }
 
-  return updated;
+  return NextResponse.json({ job }, { status: 200 });
 }
 
 export async function POST(_req: Request, ctx: { params: Promise<Params> }) {
@@ -29,32 +20,44 @@ export async function POST(_req: Request, ctx: { params: Promise<Params> }) {
 
   const current = getJob(id);
   if (!current) {
-    return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
+    return NextResponse.json(
+      { ok: false, error: "Job not found" },
+      { status: 404 }
+    );
   }
 
   if (current.status === "complete") {
     return NextResponse.json({ ok: true, job: current }, { status: 200 });
   }
 
-  if (current.status === "queued") {
-    const running = transitionOr409(id, current.status, "running");
-    if (running instanceof NextResponse) return running;
+  try {
+    if (current.status === "queued") {
+      updateJob(id, { status: "running" });
+      const complete = updateJob(id, { status: "complete" });
+      return NextResponse.json({ ok: true, job: complete }, { status: 200 });
+    }
 
-    const complete = transitionOr409(id, running.status, "complete");
-    if (complete instanceof NextResponse) return complete;
-
-    return NextResponse.json({ ok: true, job: complete }, { status: 200 });
+    if (current.status === "running") {
+      const complete = updateJob(id, { status: "complete" });
+      return NextResponse.json({ ok: true, job: complete }, { status: 200 });
+    }
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: e.message }, { status: 409 });
   }
-
-  if (current.status === "running") {
-    const complete = transitionOr409(id, current.status, "complete");
-    if (complete instanceof NextResponse) return complete;
-
-    return NextResponse.json({ ok: true, job: complete }, { status: 200 });
-  }
-
-  return NextResponse.json(
-    { ok: false, error: `Job not runnable from status: ${current.status}` },
-    { status: 409 }
-  );
 }
+
+export async function PATCH(req: Request, ctx: { params: Promise<Params> }) {
+  const { id } = await ctx.params;
+
+  try {
+    const updates = await req.json();
+    const updated = updateJob(id, updates);
+    return NextResponse.json({ job: updated }, { status: 200 });
+  } catch (e) {
+    if (e.message === "Job not found") {
+      return NextResponse.json({ ok: false, error: e.message }, { status: 404 });
+    }
+    return NextResponse.json({ ok: false, error: e.message }, { status: 409 });
+  }
+}
+  

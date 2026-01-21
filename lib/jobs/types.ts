@@ -56,3 +56,24 @@ export function assertJobTypeAllowedForPhase(
     throw new Error(`Job type ${jobType} not allowed in Phase 1.`);
   }
 }
+
+export const JOB_STATUS = {
+  QUEUED: "queued",
+  RUNNING: "running",
+  RETRY_PENDING: "retry_pending",
+  FAILED: "failed",
+  COMPLETE: "complete",
+  CANCELED: "canceled",
+} as const;
+
+export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS];
+
+export type Job = {
+  id: string;
+  manuscript_id: string;
+  job_type: JobType;
+  status: JobStatus;
+  progress: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+};
