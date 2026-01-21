@@ -13,7 +13,7 @@ If the Job System changes any field shape or lifecycle meaning, this document mu
 Applies to:
 - `/evaluate` (Day-1 evaluation entry + jobs list)
 - Any UI that renders job status, phase, progress, or completion state
-- The “View Evaluation Report” CTA behavior
+- The "View Evaluation Report" CTA behavior
 
 Non-goals:
 - Defining the internal job engine implementation
@@ -99,8 +99,8 @@ Jobs are displayed sorted by:
 
 ### Empty state (no jobs)
 If `jobs.length === 0`:
-- Show message: “No evaluations yet”
-- Show CTA guidance: “Submit your manuscript above to run your first evaluation”
+- Show message: "No evaluations yet"
+- Show CTA guidance: "Submit your manuscript above to run your first evaluation"
 
 ### Status badge mapping
 UI displays a badge for `status`:
@@ -113,26 +113,26 @@ UI displays a badge for `status`:
 
 UI MUST NOT invent additional states.
 
-### Queued “trust screen”
+### Queued "trust screen"
 If `status === "queued"`:
-- Show message: “Preparing evaluation… this usually takes ~2–3 minutes”
-- UI may show a lightweight spinner or “preparing” icon
+- Show message: "Preparing evaluation… this usually takes ~2–3 minutes"
+- UI may show a lightweight spinner or "preparing" icon
 - Progress bar is optional; if shown, it must not imply completion percent if `total_units` is 0
 
-### Running “trust screen”
+### Running "trust screen"
 If `status === "running"`:
 - Show progress as `completed_units / total_units` only if `total_units > 0`
-- Show relative time (e.g., “2 minutes ago”) derived from timestamps
-- Show elapsed duration if implemented (e.g., “Running for 1 minute”)
+- Show relative time (e.g., "2 minutes ago") derived from timestamps
+- Show elapsed duration if implemented (e.g., "Running for 1 minute")
 
 ### Phase-specific copy (Track C)
 If `status === "running"` and `phase` is present:
 - `phase === "phase1"`:
-  - Primary: “Analyzing structure and craft…”
-  - Secondary (optional): “Examining narrative elements, pacing, and technical execution”
+  - Primary: "Analyzing structure and craft…"
+  - Secondary (optional): "Examining narrative elements, pacing, and technical execution"
 - `phase === "phase2"`:
-  - Primary: “Generating revision guidance…”
-  - Secondary (optional): “Creating actionable feedback and recommendations”
+  - Primary: "Generating revision guidance…"
+  - Secondary (optional): "Creating actionable feedback and recommendations"
 
 If `phase` is null/unknown:
 - UI must fall back to generic running copy (no guessing).
@@ -140,18 +140,18 @@ If `phase` is null/unknown:
 ### Completion state (success)
 If `status === "complete"`:
 - Show a clear success banner with:
-  - Title: “Evaluation Complete!”
+  - Title: "Evaluation Complete!"
   - Supporting text indicating the report is ready
-  - Prominent CTA: “View Evaluation Report”
+  - Prominent CTA: "View Evaluation Report"
 - UI MUST NOT continue polling
-- UI MUST NOT display “running” indicators
+- UI MUST NOT display "running" indicators
 
 ### Failure state
 If `status === "failed"`:
 - Show a failure banner/message
 - Optionally display `last_error` if present
 - UI MUST stop polling
-- UI MUST not show the completion CTA unless a future contract version defines a “partial report” concept
+- UI MUST not show the completion CTA unless a future contract version defines a "partial report" concept
 
 ### Canceled state
 If `status === "canceled"`:
@@ -196,4 +196,3 @@ Any change to:
 - polling expectations
 
 …requires updating this document FIRST, then updating the UI/tests.
-

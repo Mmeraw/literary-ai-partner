@@ -1,10 +1,13 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useJobs } from "../../lib/jobs/useJobs";
 import { getJobDisplayInfo, getJobStatusBadge } from "../../lib/jobs/ui-helpers";
 import { formatRelativeTime, formatDuration } from "../../lib/ui/time-helpers";
+import { getPhaseSpecificCopy } from "../../lib/ui/phase-helpers";
 import ManuscriptSubmissionForm from "./ManuscriptSubmissionForm";
+import CompletionBanner from "./CompletionBanner";
 
 /**
  * Day-1 Evaluation UI — Track A
@@ -44,6 +47,10 @@ export default function EvaluateEntry() {
 
   // Empty state: No jobs yet
   const hasNoJobs = sortedJobs.length === 0;
+  
+  // Track C: Check if most recent job is complete
+  const mostRecentJob = sortedJobs[0];
+  const showCompletionBanner = mostRecentJob && mostRecentJob.status === "complete";
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -59,6 +66,13 @@ export default function EvaluateEntry() {
 
         {/* Track A: Submission Form */}
         <ManuscriptSubmissionForm />
+
+        {/* Track C: Completion Banner */}
+        {showCompletionBanner && (
+          <div className="mt-8">
+            <CompletionBanner jobId={mostRecentJob.id} />
+          </div>
+        )}
 
         {/* Job Status Section */}
         <div className="mt-8">
@@ -126,9 +140,16 @@ export default function EvaluateEntry() {
                       const isComplete = job.status === "complete";
                       const isQueued = job.status === "queued";
                       const isRunning = job.status === "running";
+                      const isFailed = job.status === "failed";
                       const relativeTime = formatRelativeTime(job.created_at);
                       
-                      // Track B: Reassuring progress messages
+                      // Track C: Phase-specific copy
+                      const phaseInfo = getPhaseSpecificCopy(
+                        displayInfo.phaseDetail.phase,
+                        displayInfo.phaseDetail.phase_status
+                      );
+                      
+                      // Track B + C: Reassuring progress messages with phase-specific copy
                       let progressMessage = displayInfo.message || displayInfo.progress.display;
                       let subMessage = null;
                       
@@ -137,10 +158,15 @@ export default function EvaluateEntry() {
                         subMessage = "This usually takes ~2–3 minutes";
                       } else if (isRunning) {
                         const duration = formatDuration(job.created_at);
-                        progressMessage = displayInfo.phaseDetail.display || "Processing…";
-                        subMessage = `Running for ${duration}`;
+                        // Track C: Use phase-specific copy
+                        progressMessage = phaseInfo.displayCopy;
+                        subMessage = `Running for ${duration} • ${phaseInfo.description}`;
                       } else if (isComplete) {
                         progressMessage = "Evaluation complete";
+                        subMessage = "Ready to view your comprehensive report";
+                      } else if (isFailed) {
+                        progressMessage = "Evaluation failed";
+                        subMessage = displayInfo.message || "An error occurred during processing";
                       }
 
                       return (
@@ -185,15 +211,12 @@ export default function EvaluateEntry() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             {isComplete ? (
-                              <button
+                              <Link
+                                href={`/evaluate/${job.id}`}
                                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-                                onClick={() => {
-                                  // TODO: Navigate to report view
-                                  alert(`View report for job ${job.id}`);
-                                }}
                               >
                                 View Evaluation Report
-                              </button>
+                              </Link>
                             ) : isRunning ? (
                               <div className="flex items-center text-blue-600">
                                 <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

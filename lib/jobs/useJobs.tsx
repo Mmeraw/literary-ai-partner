@@ -3,6 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import type { EvaluationJobRow } from "../db/schema";
 
+/**
+ * Track C: Check if all jobs have terminal status
+ * Stops polling when no active jobs remain
+ */
+function allJobsTerminal(jobs: EvaluationJobRow[]): boolean {
+  if (jobs.length === 0) return false;
+  return jobs.every(
+    (job) =>
+      job.status === "complete" ||
+      job.status === "failed" ||
+      job.status === "canceled"
+  );
+}
+
 type JobsResponse = {
   jobs: EvaluationJobRow[];
 };
@@ -61,6 +75,14 @@ export function useJobs() {
         const data = await fetchJobs(abortRef.current.signal);
         if (mountedRef.current) {
           setJobs(data.jobs);
+          
+          // Track C: Stop polling when all jobs are terminal
+          if (allJobsTerminal(data.jobs)) {
+            if (timerRef.current !== null) {
+              window.clearInterval(timerRef.current);
+              timerRef.current = null;
+            }
+          }
         }
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
