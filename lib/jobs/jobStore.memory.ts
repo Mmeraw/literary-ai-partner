@@ -4,16 +4,20 @@ import { assertNotProductionMemoryStore } from "./guards";
 
 // Production Safety: Ensure memory store is never used in production
 // Memory store is for tests/dev only - not concurrent-safe or durable
-function initializeMemoryStore(): Map<string, Job> {
-  assertNotProductionMemoryStore(); // Guard at construction time, not import time
+// Lazy initialization prevents any side effects at import time
+let _store: Map<string, Job> | null = null;
 
+function getStore(): Map<string, Job> {
+  if (_store) return _store;
+
+  assertNotProductionMemoryStore(); // Guard runs only on first use, not at import
   const g = globalThis as unknown as { __RG_JOBS__?: Map<string, Job> };
-  return (g.__RG_JOBS__ ??= new Map<string, Job>());
+  _store = (g.__RG_JOBS__ ??= new Map<string, Job>());
+  return _store;
 }
 
-const store = initializeMemoryStore();
-
 export function createJob(input: { manuscript_id: string; job_type: JobType }): Job {
+  const store = getStore();
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
 
@@ -35,14 +39,17 @@ export function createJob(input: { manuscript_id: string; job_type: JobType }): 
 }
 
 export function getJob(id: string): Job | null {
+  const store = getStore();
   return store.get(id) ?? null;
 }
 
 export function getAllJobs(): Job[] {
+  const store = getStore();
   return Array.from(store.values());
 }
 
 export function updateJobStatus(id: string, nextStatus: JobStatus): Job | null {
+  const store = getStore();
   const job = store.get(id);
   if (!job) return null;
 
@@ -57,6 +64,7 @@ export function updateJobStatus(id: string, nextStatus: JobStatus): Job | null {
 }
 
 export function updateJob(id: string, updates: Partial<Job>): Job | null {
+  const store = getStore();
   const job = store.get(id);
   if (!job) return null;
 
