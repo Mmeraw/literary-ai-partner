@@ -1,18 +1,35 @@
-import { createJob as memCreateJob, getJob as memGetJob, getAllJobs as memGetAllJobs, updateJob as memUpdateJob } from "./jobStore.memory";
+import type { Job } from "./types";
+import {
+  createJob as memCreateJob,
+  getJob as memGetJob,
+  getAllJobs as memGetAllJobs,
+  updateJob as memUpdateJob,
+} from "./jobStore.memory";
 // import { assertValidTransition } from "./transitions"; // currently unused
 
 const USE_SUPABASE = process.env.USE_SUPABASE_JOBS === "true";
 
-let createJob,
-  getJob,
-  getAllJobs,
-  updateJob,
-  acquireLeaseForPhase1,
-  acquireLeaseForPhase2,
-  incrementCounter;
+let createJob: typeof memCreateJob,
+  getJob: typeof memGetJob,
+  getAllJobs: typeof memGetAllJobs,
+  updateJob: typeof memUpdateJob,
+  acquireLeaseForPhase1: (jobId: string, leaseId: string, ttl: number) => Promise<Job | null>,
+  acquireLeaseForPhase2: (jobId: string, leaseId: string, ttl: number) => Promise<Job | null>,
+  incrementCounter: () => Promise<number | null>;
 
 if (USE_SUPABASE) {
-  const supabaseStore = require("./jobStore.supabase");
+  // Supabase-backed job store
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const supabaseStore = require("./jobStore.supabase") as {
+    createJob: typeof memCreateJob;
+    getJob: typeof memGetJob;
+    getAllJobs: typeof memGetAllJobs;
+    updateJob: typeof memUpdateJob;
+    acquireLeaseForPhase1: (jobId: string, leaseId: string, ttl: number) => Promise<Job | null>;
+    acquireLeaseForPhase2: (jobId: string, leaseId: string, ttl: number) => Promise<Job | null>;
+    incrementCounter: () => Promise<number | null>;
+  };
+
   createJob = supabaseStore.createJob;
   getJob = supabaseStore.getJob;
   getAllJobs = supabaseStore.getAllJobs;
@@ -21,11 +38,11 @@ if (USE_SUPABASE) {
   acquireLeaseForPhase2 = supabaseStore.acquireLeaseForPhase2;
   incrementCounter = supabaseStore.incrementCounter;
 } else {
-  // In-memory store: no real leases, just return the job so workers can run.
-  createJob = async (...args) => memCreateJob(...args);
-  getJob = async (...args) => memGetJob(...args);
-  getAllJobs = async (...args) => memGetAllJobs(...args);
-  updateJob = async (...args) => memUpdateJob(...args);
+  // In-memory store: no real leases, just delegate directly.
+  createJob = memCreateJob;
+  getJob = memGetJob;
+  getAllJobs = memGetAllJobs;
+  updateJob = memUpdateJob;
 
   acquireLeaseForPhase1 = async (jobId: string, _leaseId: string, _ttl: number) =>
     memGetJob(jobId);

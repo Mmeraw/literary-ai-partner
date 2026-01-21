@@ -3,15 +3,22 @@ import { cancelJob } from "../../../../../lib/jobs/cancel";
 
 /**
  * POST /api/jobs/[id]/cancel
- * 
+ *
  * Cancel a running or queued job.
  * Sets status to "canceled" (terminal), clears leases.
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const { id } = params;
+export async function POST(request: NextRequest) {
+  // Extract the ID from the URL path
+  const { pathname } = request.nextUrl;
+  const segments = pathname.split("/");
+  const id = segments[segments.length - 2]; // "id" segment before "cancel"
+
+  if (!id) {
+    return NextResponse.json(
+      { error: "Missing job id in URL" },
+      { status: 400 },
+    );
+  }
 
   try {
     const result = await cancelJob(id);
@@ -19,16 +26,16 @@ export async function POST(
     if (!result.success) {
       return NextResponse.json(
         { error: "error" in result ? result.error : "Failed to cancel job" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     return NextResponse.json(
-      { 
+      {
         message: "Job canceled successfully",
-        job: result.job 
+        job: result.job,
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("CancelJobError", {
@@ -39,7 +46,7 @@ export async function POST(
 
     return NextResponse.json(
       { error: "Failed to cancel job" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
