@@ -4,10 +4,14 @@ import { assertNotProductionMemoryStore } from "./guards";
 
 // Production Safety: Ensure memory store is never used in production
 // Memory store is for tests/dev only - not concurrent-safe or durable
-assertNotProductionMemoryStore();
+function initializeMemoryStore(): Map<string, Job> {
+  assertNotProductionMemoryStore(); // Guard at construction time, not import time
+  
+  const g = globalThis as unknown as { __RG_JOBS__?: Map<string, Job> };
+  return (g.__RG_JOBS__ ??= new Map<string, Job>());
+}
 
-const g = globalThis as unknown as { __RG_JOBS__?: Map<string, Job> };
-const store = (g.__RG_JOBS__ ??= new Map<string, Job>());
+const store = initializeMemoryStore();
 
 export function createJob(input: { manuscript_id: string; job_type: JobType }): Job {
   const now = new Date().toISOString();
