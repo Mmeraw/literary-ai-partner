@@ -130,6 +130,7 @@ async function main() {
     const progress = job.progress || {};
     const completed_units = progress.completed_units ?? 0;
     const total_units = progress.total_units ?? 0;
+    const phase_status = progress.phase_status;
 
     // Tolerate brief window before Phase 2 counters are written
     if (status === "running" && progress.phase === "phase2") {
