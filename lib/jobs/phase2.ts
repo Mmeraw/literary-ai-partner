@@ -1,3 +1,5 @@
+import * as metrics from "./metrics";
+
 export const PHASE_2_STATES = {
   NOT_STARTED: "not_started",
   RUNNING: "running",
@@ -34,6 +36,8 @@ export function assertTransitionPhase2(
 import { getJob, updateJob } from "./store";
 
 export async function runPhase2(jobId: string): Promise<void> {
+  const phase2_start = Date.now();
+  
   let job = await getJob(jobId);
   if (!job) {
     throw new Error("Job not found");
@@ -105,6 +109,16 @@ export async function runPhase2(jobId: string): Promise<void> {
       // Invariant checks
       const currentJob = await getJob(jobId);
       if (!currentJob) return;
+
+      // Check for cancellation - exit immediately without mutating counters
+      if (currentJob.status === "canceled") {
+        console.log("Phase2Canceled", {
+          job_id: jobId,
+          phase: "phase2",
+          processed_before_cancel: processed,
+        });
+        return;
+      }
 
       const progress = currentJob.progress;
 
@@ -236,4 +250,13 @@ export async function runPhase2(jobId: string): Promise<void> {
     total_units: units.length,
     final_status,
   });
+
+  // Emit metrics
+  const phase2_duration = Date.now() - phase2_start;
+  if (final_status === "complete") {
+    metrics.onPhaseCompleted(jobId, "phase2", phase2_duration);
+    metrics.onJobCompleted(jobId, job.job_type, phase2_duration);
+  } else {
+    metrics.onJobFailed(jobId, "phase2", "Phase 2 failed");
+  }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createJob, getAllJobs } from "@/lib/jobs/store";
+import * as metrics from "@/lib/jobs/metrics";
 
 export async function POST(req: Request) {
   try {
@@ -16,6 +17,9 @@ export async function POST(req: Request) {
     }
 
     const job = await createJob({ manuscript_id, job_type });
+
+    // Emit metrics
+    metrics.onJobCreated(job.id, job_type);
 
     return NextResponse.json(
       { ok: true, job_id: job.id, status: job.status },

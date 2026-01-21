@@ -2,6 +2,8 @@
 // progress lives at job.progress.{total_units,completed_units,failed_units}
 // status transitions only in route.ts (queued→running) and terminal worker update (→complete|failed)
 
+import * as metrics from "./metrics";
+
 export const PHASE_1_STATES = {
   NOT_STARTED: "not_started",
   RUNNING: "running",
@@ -54,6 +56,8 @@ export function canRetryPhase1(options: {
 import { getJob, updateJob } from "./store";
 
 export async function runPhase1(jobId: string): Promise<void> {
+  const phase1_start = Date.now();
+  
   let job = await getJob(jobId);
   if (!job) {
     throw new Error("Job not found");
@@ -114,6 +118,16 @@ export async function runPhase1(jobId: string): Promise<void> {
       const currentJob = await getJob(jobId);
       if (!currentJob) return;
 
+      // Check for cancellation - exit immediately without mutating counters
+      if (currentJob.status === "canceled") {
+        console.log("Phase1Canceled", {
+          job_id: jobId,
+          phase: "phase1",
+          processed_before_cancel: processed,
+        });
+        return;
+      }
+
       const progress = currentJob.progress;
 
       if (progress.phase !== "phase1" || progress.phase_status !== "running") {
@@ -127,7 +141,12 @@ export async function runPhase1(jobId: string): Promise<void> {
         progress.lease_expires_at &&
         new Date(progress.lease_expires_at) <= new Date()
       ) {
-        console.log("Phase1 lease expired");
+        console.log("Phase1LeaseExpired", {
+          job_id: jobId,
+          phase: "phase1",
+          lease_id,
+          processed_units: processed,
+        });
         return;
       }
 
@@ -231,4 +250,12 @@ export async function runPhase1(jobId: string): Promise<void> {
     total_units: units.length,
     final_status,
   });
+
+  // Emit metrics
+  const phase1_duration = Date.now() - phase1_start;
+  if (final_status === "complete") {
+    metrics.onPhaseCompleted(jobId, "phase1", phase1_duration);
+  } else {
+    metrics.onJobFailed(jobId, "phase1", "Phase 1 failed - no units processed");
+  }
 }

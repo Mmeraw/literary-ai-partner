@@ -81,6 +81,18 @@ jobs:
           USE_SUPABASE_JOBS: false
           BASE_URL: http://localhost:3002
 
+      - name: Run cancellation test
+        run: npm run jobs:test:cancel
+        env:
+          USE_SUPABASE_JOBS: false
+          BASE_URL: http://localhost:3002
+
+      - name: Run retry backoff test
+        run: npm run jobs:test:retry
+
+      - name: Run metrics safety test
+        run: npm run jobs:test:metrics
+
       - name: Upload server logs on failure
         if: failure()
         uses: actions/upload-artifact@v4

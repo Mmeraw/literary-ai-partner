@@ -124,7 +124,7 @@ export function getJobDisplayInfo(job: Job): JobDisplayInfo {
 
   // Action availability
   const canRetry = status === "failed" || status === "retry_pending";
-  const canCancel = status === "running" || status === "queued";
+  const canCancel = status === "running" || status === "queued" || status === "retry_pending";
 
   return {
     badge,

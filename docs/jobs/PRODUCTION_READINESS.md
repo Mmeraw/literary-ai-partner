@@ -2,10 +2,14 @@
 
 ## Overview
 
-The job system has been enhanced with three production-grade tracks:
+The job system is production-ready with four enhancement tracks:
 1. **UI Contract** - Standardized display logic for job status
 2. **Test Fixtures** - Real vs synthetic manuscript patterns
 3. **Ops/CI** - Automated invariant validation and CI pipeline
+4. **Cancellation** - Terminal state cancellation with graceful worker exit
+5. **Retry Logic** - Exponential backoff with jitter and max retries
+6. **Metrics** - Safe no-op observability hooks
+7. **Admin UI** - Job management dashboard
 
 ---
 
@@ -210,6 +214,185 @@ gh workflow run job-system-ci.yml
 
 ---
 
+## Track 4: Job Cancellation
+
+### File: `lib/jobs/cancel.ts`
+
+Terminal state cancellation with graceful worker exit.
+
+**Functions:**
+```typescript
+cancelJob(jobId: string): Promise<CancelResult>
+canCancelJob(job: Job): boolean
+isCanceled(job: Job): boolean
+```
+
+**Semantics:**
+- `status="canceled"` is **terminal** (like `complete`/`failed`)
+- Clears `lease_id` and `lease_expires_at`
+- Preserves progress snapshot
+- Only allowed from `queued`, `running`, or `retry_pending`
+
+**Worker Integration:**
+- Workers check `status === "canceled"` before each unit
+- Exit immediately without mutating counters
+- Logs `Phase1Canceled` or `Phase2Canceled` events
+
+**API Route:** `POST /api/jobs/[id]/cancel`
+
+**Tests:** `scripts/jobs-test-cancel.mjs`
+- Cancel during Phase 1
+- Cancel during Phase 2
+- Cannot cancel terminal jobs
+
+**Run:**
+```bash
+npm run jobs:test:cancel
+```
+
+---
+
+## Track 5: Retry Logic with Exponential Backoff
+
+### File: `lib/jobs/retry.ts`
+
+Production-grade retry with backoff, jitter, and cap.
+
+**Functions:**
+```typescript
+calculateRetryDelay(retry_count: number, config?: RetryConfig): number
+scheduleRetry(jobId: string, error: string, config?: RetryConfig): Promise<{...}>
+canRetryNow(job: Job): boolean
+getRetryableJobs(): Promise<Job[]>
+```
+
+**Top-Level Fields:**
+- `retry_count` (int) - Increments on each retry
+- `next_retry_at` (timestamptz) - Calculated with backoff
+- `last_error` (text) - Error message from last attempt
+- `max_retries` (int) - Threshold for failure
+
+**Backoff Algorithm:**
+```javascript
+delay = min(max_delay_ms, base_delay_ms * 2^retry_count)
+delay = random_between(0.8 * delay, 1.2 * delay)  // jitter
+```
+
+**Transition Rules:**
+- `running` → `retry_pending` (when unit fails)
+- `retry_pending` → `running` (when `now() >= next_retry_at`)
+- `retry_pending` → `failed` (when `retry_count >= max_retries`)
+
+**Defaults:**
+- Base delay: 1 second
+- Max delay: 60 seconds
+- Max retries: 3
+
+**Tests:** `scripts/jobs-test-retry-backoff.mjs`
+- Exponential growth verification
+- Jitter verification (0.8x - 1.2x)
+- Cap enforcement
+- Custom config support
+
+**Run:**
+```bash
+npm run jobs:test:retry
+
+# Retry tick (processes retry_pending jobs)
+npm run jobs:retry-tick
+```
+
+---
+
+## Track 6: Metrics / Observability Hooks
+
+### File: `lib/jobs/metrics.ts`
+
+Safe no-op metrics hooks - never throws.
+
+**Hooks:**
+```typescript
+onJobCreated(job_id: string, job_type: string): void
+onPhaseCompleted(job_id: string, phase: string, duration_ms: number): void
+onJobFailed(job_id: string, phase: string, error: string): void
+onJobCompleted(job_id: string, job_type: string, total_duration_ms: number): void
+onJobCanceled(job_id: string, phase: string): void
+onRetryScheduled(job_id: string, retry_count: number, phase: string): void
+```
+
+**Configuration:**
+```bash
+METRICS_ENABLED=true   # Default: false (no-op)
+METRICS_BACKEND=console # Default: console (supports custom)
+```
+
+**Backend Support:**
+- Console (built-in, for development)
+- Extensible via `registerBackend(name, backend)`
+- Supports Datadog, CloudWatch, custom integrations
+
+**Safety:**
+- Never throws - all hooks wrapped in try/catch
+- No-op by default - safe for local dev
+- No vendor lock-in - pluggable backends
+
+**Integration Points:**
+- `app/api/jobs/route.ts` - Job creation
+- `lib/jobs/phase1.ts` - Phase 1 completion/failure
+- `lib/jobs/phase2.ts` - Phase 2 completion/failure
+
+**Tests:** `scripts/jobs-test-metrics.mjs`
+- No-op when disabled
+- Never throws on edge cases
+- Custom backend registration
+- Emits when configured
+
+**Run:**
+```bash
+npm run jobs:test:metrics
+
+# Enable metrics
+METRICS_ENABLED=true npm run jobs:smoke:phase2
+```
+
+---
+
+## Track 7: Admin UI Dashboard
+
+### File: `app/admin/jobs/page.tsx`
+
+Job management dashboard with real-time updates.
+
+**Features:**
+- List all jobs with filters (status, phase, date range)
+- Real-time updates (2-second polling)
+- Stats dashboard (total, running, complete, failed, retry pending, canceled)
+- Job detail view with progress snapshot
+- Cancel action (when allowed)
+- Error display
+
+**What's Included:**
+- Current job status
+- Phase and progress info
+- Timestamps (created, updated)
+- Progress snapshot (JSON)
+- Error fields (last_error, retry_count)
+
+**What's NOT Included:**
+- Persisted logs (logs are in server output, not stored)
+- Use `job_events` table for log persistence (future enhancement)
+
+**Security:**
+- TODO: Protect route with auth middleware
+- TODO: Role-based permissions for cancel/retry actions
+
+**Access:**
+```
+http://localhost:3002/admin/jobs
+```
+
+---
+
 ## Complete Command Reference
 
 ### Smoke Tests
@@ -244,14 +427,25 @@ JOBS_LOAD_N=10 npm run jobs:load
 
 # Retry mechanism
 npm run jobs:retry-tick
+
+# Cancellation test
+npm run jobs:test:cancel
+
+# Retry backoff test
+npm run jobs:test:retry
+
+# Metrics safety test
+npm run jobs:test:metrics
 ```
 
 ### Environment Variables
 ```bash
-USE_SUPABASE_JOBS=true|false  # Job store backend
+USE_SUPABASE_JOBS=true|false   # Job store backend
 BASE_URL=http://localhost:3002 # API endpoint
 MANUSCRIPT_ID=<uuid>           # For jobs:smoke:real
 JOBS_LOAD_N=5                  # For jobs:load
+METRICS_ENABLED=true|false     # Enable metrics hooks
+METRICS_BACKEND=console        # Metrics backend (console/datadog/cloudwatch/custom)
 ```
 
 ---
@@ -265,6 +459,12 @@ Before deploying job system changes:
 - [ ] Test with real manuscript: `MANUSCRIPT_ID=<uuid> npm run jobs:smoke:real`
 - [ ] Verify CI pipeline passes on PR
 - [ ] Check Supabase-backed tests on `main` branch
+- [ ] Test cancellation: `npm run jobs:test:cancel`
+- [ ] Test retry backoff: `npm run jobs:test:retry`
+- [ ] Test metrics safety: `npm run jobs:test:metrics`
+- [ ] Verify admin UI loads at `/admin/jobs`
+- [ ] Add auth middleware to admin routes (security)
+- [ ] Configure metrics backend if METRICS_ENABLED=true
 - [ ] Review server logs for any warnings
 - [ ] Confirm UI displays job status correctly
 
