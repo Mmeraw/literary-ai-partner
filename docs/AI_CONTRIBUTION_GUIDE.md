@@ -101,6 +101,25 @@ You may **ONLY**:
 
 ---
 
+## Manuscript Staging & Chunking (Design Intent)
+
+**All user text (paste or upload) must be normalized into a single `manuscripts` model.**
+
+Jobs never receive raw text directly—only `manuscript_id`.
+
+### Planned (Not Yet Implemented)
+- Large works (e.g., novels > N words) will be split into `manuscript_chunks` and processed chunk-by-chunk in Phase 1, with a convergence pass in Phase 2.
+- The Dashboard is the canonical UI surface over this staging area.
+
+### Constraints
+- **Do not introduce alternate "hidden" staging paths** that bypass the `manuscripts` model.
+- **Do not implement chunking/convergence logic without an explicit issue and tests.**
+- When future issues reference this section, respect the staging model boundary.
+
+This section exists to prevent premature or inconsistent implementations. The chunking pipeline is part of the long-term design but requires careful coordination with the locked job system.
+
+---
+
 ## Guiding Principle
 
 **Infrastructure is done.**
