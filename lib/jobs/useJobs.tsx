@@ -99,6 +99,14 @@ export function useJobs() {
     };
 
     tick();
+    // TODO: Polling Backoff for 100k-user scale
+    // Current: Fixed 2-second interval
+    // Needed: Adaptive backoff (2s → 5s → 10s) based on job age
+    // See: docs/SCALABILITY_PLAN.md - Priority 2
+    // Implementation: Use job.created_at to calculate elapsed time
+    //   - 0-30s: 2000ms (fast feedback for new jobs)
+    //   - 30s-2min: 5000ms (reduce load as job matures)
+    //   - 2min+: 10000ms (minimize API calls for long-running jobs)
     timerRef.current = window.setInterval(tick, 2000);
 
     return () => {

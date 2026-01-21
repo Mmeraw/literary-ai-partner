@@ -1,4 +1,10 @@
 import { Job, JobStatus, JobType } from "./types";
+import { debugLog } from "./logging";
+import { assertNotProductionMemoryStore } from "./guards";
+
+// Production Safety: Ensure memory store is never used in production
+// Memory store is for tests/dev only - not concurrent-safe or durable
+assertNotProductionMemoryStore();
 
 const g = globalThis as unknown as { __RG_JOBS__?: Map<string, Job> };
 const store = (g.__RG_JOBS__ ??= new Map<string, Job>());
@@ -19,7 +25,7 @@ export function createJob(input: { manuscript_id: string; job_type: JobType }): 
 
   store.set(id, job);
 
-  console.log("EvaluationJobCreated", { job_id: id, job_type: input.job_type, timestamp: now });
+  debugLog("EvaluationJobCreated", { job_id: id, job_type: input.job_type, timestamp: now });
 
   return job;
 }

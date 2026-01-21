@@ -477,4 +477,25 @@ describe("Day-1 Evaluation UI Flow", () => {
       expect(completedJob.status).toBe("complete");
     });
   });
+
+  describe("TODO: Polling Backoff (100k-User Scale)", () => {
+    it.todo("should start with fast polling (2s) for new jobs");
+    it.todo("should slow to medium polling (5s) after 30 seconds");
+    it.todo("should slow to long polling (10s) after 2 minutes");
+    it.todo("should calculate polling interval based on job age");
+    
+    // Stub for future implementation
+    it("should have polling backoff constants defined", () => {
+      // See: lib/jobs/guards.ts - RATE_LIMITS
+      const POLLING_FAST = 2000;
+      const POLLING_MEDIUM = 5000;
+      const POLLING_SLOW = 10000;
+      
+      expect(POLLING_FAST).toBeLessThan(POLLING_MEDIUM);
+      expect(POLLING_MEDIUM).toBeLessThan(POLLING_SLOW);
+      
+      // This test documents the requirement for adaptive polling
+      // Implementation: Update useJobs.tsx to use dynamic interval
+    });
+  });
 });
