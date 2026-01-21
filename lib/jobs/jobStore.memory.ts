@@ -6,7 +6,7 @@ import { assertNotProductionMemoryStore } from "./guards";
 // Memory store is for tests/dev only - not concurrent-safe or durable
 function initializeMemoryStore(): Map<string, Job> {
   assertNotProductionMemoryStore(); // Guard at construction time, not import time
-  
+
   const g = globalThis as unknown as { __RG_JOBS__?: Map<string, Job> };
   return (g.__RG_JOBS__ ??= new Map<string, Job>());
 }
