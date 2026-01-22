@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { EvaluationJobRow } from "../db/schema";
 
 /**
@@ -15,6 +15,16 @@ function allJobsTerminal(jobs: EvaluationJobRow[]): boolean {
       job.status === "failed" ||
       job.status === "canceled"
   );
+}
+
+function isTerminal(status: string) {
+  return status === "complete" || status === "failed" || status === "canceled";
+}
+
+function computePollMs(elapsedMs: number) {
+  if (elapsedMs < 30_000) return 2_000;
+  if (elapsedMs < 120_000) return 5_000;
+  return 10_000;
 }
 
 type JobsResponse = {
@@ -57,66 +67,106 @@ export function useJobs() {
   const [isRunningPhase1, setIsRunningPhase1] = useState(false);
   const [runPhase1Error, setRunPhase1Error] = useState<Error | null>(null);
 
-  const timerRef = useRef<number | null>(null);
+  // Track when we first saw each job as non-terminal (UI-local clock).
+  const firstSeenActiveAtRef = useRef<Map<string, number>>(new Map());
+
+  // One timer at a time.
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stoppedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(false);
 
-  useEffect(() => {
-    mountedRef.current = true;
+  const fetchJobsCallback = useCallback(async () => {
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
 
-    const tick = async () => {
-      abortRef.current?.abort();
-      abortRef.current = new AbortController();
+    try {
+      setIsError(false);
+      setError(null);
 
-      try {
-        setIsError(false);
-        setError(null);
+      const data = await fetchJobs(abortRef.current.signal);
 
-        const data = await fetchJobs(abortRef.current.signal);
-        if (mountedRef.current) {
-          setJobs(data.jobs);
-          
-          // Track C: Stop polling when all jobs are terminal
-          if (allJobsTerminal(data.jobs)) {
-            if (timerRef.current !== null) {
-              window.clearInterval(timerRef.current);
-              timerRef.current = null;
-            }
+      if (!mountedRef.current) return;
+
+      const now = Date.now();
+      const nextJobs: EvaluationJobRow[] = data.jobs ?? [];
+      setJobs(nextJobs);
+
+      // Update first-seen timestamps for active jobs; remove entries for terminal jobs.
+      for (const j of nextJobs) {
+        if (isTerminal(j.status)) {
+          firstSeenActiveAtRef.current.delete(j.id);
+        } else {
+          if (!firstSeenActiveAtRef.current.has(j.id)) {
+            firstSeenActiveAtRef.current.set(j.id, now);
           }
         }
-      } catch (err) {
-        if ((err as Error).name === "AbortError") return;
-
-        if (mountedRef.current) {
-          setIsError(true);
-          setError(err as Error);
-        }
-      } finally {
-        if (mountedRef.current) {
-          setIsLoading(false);
-        }
       }
+
+      // Also clean up any ids we no longer see at all (deleted / filtered / etc.).
+      const visibleIds = new Set(nextJobs.map((j) => j.id));
+      for (const id of firstSeenActiveAtRef.current.keys()) {
+        if (!visibleIds.has(id)) firstSeenActiveAtRef.current.delete(id);
+      }
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+
+      if (mountedRef.current) {
+        setIsError(true);
+        setError(err as Error);
+      }
+    } finally {
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    stoppedRef.current = false;
+
+    const tick = async () => {
+      if (stoppedRef.current) return;
+
+      await fetchJobsCallback();
+
+      if (stoppedRef.current) return;
+
+      // If everything visible is terminal (or no jobs), stop polling.
+      const activeSince = Array.from(firstSeenActiveAtRef.current.values());
+      if (activeSince.length === 0) {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = null;
+        return;
+      }
+
+      // For a jobs list, pick the fastest required interval among active jobs
+      // (i.e., the *minimum* poll delay) to stay responsive.
+      const now = Date.now();
+      let nextDelay = 10_000;
+
+      for (const startedAt of activeSince) {
+        const elapsed = now - startedAt;
+        const ms = computePollMs(elapsed);
+        if (ms < nextDelay) nextDelay = ms;
+      }
+
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(tick, nextDelay);
     };
 
+    // Start immediately.
     tick();
-    // TODO: Polling Backoff for 100k-user scale
-    // Current: Fixed 2-second interval
-    // Needed: Adaptive backoff (2s → 5s → 10s) based on job age
-    // See: docs/SCALABILITY_PLAN.md - Priority 2
-    // Implementation: Use job.created_at to calculate elapsed time
-    //   - 0-30s: 2000ms (fast feedback for new jobs)
-    //   - 30s-2min: 5000ms (reduce load as job matures)
-    //   - 2min+: 10000ms (minimize API calls for long-running jobs)
-    timerRef.current = window.setInterval(tick, 2000);
 
     return () => {
       mountedRef.current = false;
-      if (timerRef.current !== null) {
-        window.clearInterval(timerRef.current);
-      }
+      stoppedRef.current = true;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
       abortRef.current?.abort();
     };
-  }, []);
+  }, [fetchJobsCallback]);
 
   const runPhase1ForJob = async (jobId: string) => {
     try {
