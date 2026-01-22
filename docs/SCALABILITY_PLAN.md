@@ -45,7 +45,16 @@ REVISIONGRADE_DEBUG=1 npm run dev
 - 100k users → ~3,333 req/sec (manageable)
 - Zero regression on Day-1 UX
 
-**Tests:** ✅ 5/5 polling backoff tests passing
+**Implementation Details:**
+- Function: `getPollingInterval()` in `lib/jobs/useJobs.tsx`
+- Calculates oldest active job's age using `created_at` timestamps
+- Dynamically restarts timer when backoff tier changes
+- Uses `AbortController` to prevent overlapping requests
+
+**Tests:** ✅ 14/14 polling backoff tests passing
+- Test file: `tests/useJobs-polling-backoff.test.ts`
+- Covers all backoff tiers, boundary conditions, and load reduction math
+- Run: `npm test -- tests/useJobs-polling-backoff.test.ts`
 
 ---
 
