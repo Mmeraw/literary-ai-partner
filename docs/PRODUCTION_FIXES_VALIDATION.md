@@ -3,7 +3,7 @@
 ## Date: 2026-01-22
 ## Status: ✅ ALL 4 CRITICAL BUGS FIXED
 
----
+--- 
 
 ## Summary
 
@@ -29,7 +29,15 @@ export async function claimChunkForProcessing(
   maxAttempts: number = 3
 ): Promise<boolean> {
   // 1) Try RPC first (atomic server-side)
-  const { data, error } = await supabase.rpc("claim_chunk_for_processing", { chunk_id: chunkId });
+const workerId = crypto.randomUUID();
+const leaseSeconds = 60;
+
+const { data, error } = await supabase.rpc("claim_chunk_for_processing", {
+  p_chunk_id: chunkId,
+  p_worker_id: workerId,
+  p_lease_seconds: leaseSeconds,
+});
+
   if (!error) return data === true;
   
   // 2) Fallback: optimistic lock on attempt_count
