@@ -13,6 +13,7 @@
 
     "test": "jest",
     "test:ci": "jest --silent",
+    "test:polling": "jest --testPathPatterns=polling",
 
     "jobs:smoke": "node scripts/jobs-smoke.mjs",
     "jobs:smoke:phase2": "node scripts/jobs-smoke-phase2.mjs",
