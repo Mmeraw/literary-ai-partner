@@ -33,3 +33,4 @@ dist-ssr
 out
 
 .env.local
+.env.test.local
