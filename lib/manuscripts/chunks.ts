@@ -2,10 +2,11 @@
 // Database operations for manuscript chunks
 
 import { getSupabaseAdminClient } from "@/lib/supabase";
+import { randomUUID } from "crypto";
+import { chunkManuscript, ChunkSpec } from "./chunking";
 
 // Use admin client for server-side chunk operations (bypasses RLS)
 const supabase = getSupabaseAdminClient();
-import { chunkManuscript, ChunkSpec } from "./chunking";
 
 export type ChunkRow = {
   id: string;
@@ -21,6 +22,11 @@ export type ChunkRow = {
   error: string | null;
   last_error: string | null;
   attempt_count: number;
+
+  // Lease/claim tracking (present in your schema + RPC contract)
+  lease_id: string | null;
+  lease_expires_at: string | null;
+
   processing_started_at: string | null;
   result_json: any | null;
   created_at: string;
@@ -50,10 +56,9 @@ export async function getManuscriptChunks(
  * Get eligible chunks for processing (resume + skip completed)
  * Returns only chunks that are:
  * - status IN ('pending', 'failed')
- * - NOT currently processing (no active claim)
  * - attempt_count < maxAttempts
  * - NOT already succeeded (status != 'done')
- * 
+ *
  * This enables idempotent resume: never re-process 'done' chunks
  */
 export async function getEligibleChunks(
@@ -77,24 +82,21 @@ export async function getEligibleChunks(
 
 /**
  * Get eligible chunks INCLUDING stuck 'processing' chunks
- * 
+ *
  * A chunk is considered stuck if:
  * - status = 'processing'
- * - processing_started_at is older than stuckThresholdMinutes
- * 
+ * - lease_expires_at is not null
+ * - lease_expires_at is older than now (expired lease)
+ *
  * This allows recovery from worker crashes via lease timeout.
  */
 export async function getEligibleChunksWithStuckRecovery(
   manuscriptId: number,
-  maxAttempts: number = 3,
-  stuckThresholdMinutes: number = 15
+  maxAttempts: number = 3
 ): Promise<ChunkRow[]> {
-  const stuckThreshold = new Date(
-    Date.now() - stuckThresholdMinutes * 60 * 1000
-  ).toISOString();
+  const nowIso = new Date().toISOString();
 
-  // Single query: chunks that are (pending/failed) OR (processing but stuck)
-  // Uses Supabase's .or() filter for complex conditions
+  // Single query: chunks that are (pending/failed) OR (processing but lease expired)
   const { data, error } = await supabase
     .from("manuscript_chunks")
     .select("*")
@@ -102,12 +104,14 @@ export async function getEligibleChunksWithStuckRecovery(
     .lt("attempt_count", maxAttempts)
     .or(
       `status.in.(pending,failed),` +
-      `and(status.eq.processing,processing_started_at.lt.${stuckThreshold})`
+        `and(status.eq.processing,lease_expires_at.not.is.null,lease_expires_at.lt.${nowIso})`
     )
     .order("chunk_index", { ascending: true });
 
   if (error) {
-    console.error(`Failed to fetch eligible chunks with stuck recovery: ${error.message}`);
+    console.error(
+      `Failed to fetch eligible chunks with stuck recovery: ${error.message}`
+    );
     // Fallback to normal eligible chunks if complex query fails
     return getEligibleChunks(manuscriptId, maxAttempts);
   }
@@ -147,9 +151,7 @@ export async function upsertChunks(
   chunks: ChunkSpec[]
 ): Promise<void> {
   const existing = await getManuscriptChunks(manuscriptId);
-  const existingMap = new Map(
-    existing.map((c) => [c.chunk_index, c])
-  );
+  const existingMap = new Map(existing.map((c) => [c.chunk_index, c]));
 
   const toInsert: any[] = [];
   const toUpdate: any[] = [];
@@ -185,6 +187,7 @@ export async function upsertChunks(
         status: "pending",
         result_json: null,
         error: null,
+        last_error: null,
       });
     }
     // else: hash matches, no change needed
@@ -198,9 +201,7 @@ export async function upsertChunks(
 
   // Execute operations
   if (toInsert.length > 0) {
-    const { error } = await supabase
-      .from("manuscript_chunks")
-      .insert(toInsert);
+    const { error } = await supabase.from("manuscript_chunks").insert(toInsert);
 
     if (error) {
       throw new Error(`Failed to insert chunks: ${error.message}`);
@@ -234,7 +235,7 @@ export async function upsertChunks(
 
 /**
  * Mark a chunk as successfully completed
- * 
+ *
  * This is the ONLY function that writes result_json.
  * Always clears last_error and resets status to 'done'.
  */
@@ -260,7 +261,7 @@ export async function markChunkSuccess(
 
 /**
  * Mark a chunk as failed
- * 
+ *
  * CRITICAL: This function NEVER touches result_json.
  * This preserves any prior successful result through retries.
  */
@@ -286,7 +287,7 @@ export async function markChunkFailure(
 
 /**
  * @deprecated Use markChunkSuccess() or markChunkFailure() instead
- * 
+ *
  * Generic update function - kept for backward compatibility.
  * Prefer the specific functions to enforce success/failure invariants.
  */
@@ -305,7 +306,7 @@ export async function updateChunkStatus(
   const cleanUpdates = Object.fromEntries(
     Object.entries(updates).filter(([_, v]) => v !== undefined)
   );
-  
+
   const { error } = await supabase
     .from("manuscript_chunks")
     .update(cleanUpdates)
@@ -319,25 +320,36 @@ export async function updateChunkStatus(
 
 /**
  * Atomically claim a chunk for processing
- * 
+ *
  * Returns true if the chunk was successfully claimed, false otherwise.
- * Only claims chunks that are currently in 'pending' or 'failed' status.
- * 
- * This is the atomic claim operation that prevents duplicate work:
- * - Sets processing = true
- * - Increments attempt_count
- * - Clears last_error
- * - Sets processing_started_at
- * - Only succeeds if current status IN ('pending', 'failed') AND processing = false
+ *
+ * Contract-aligned eligibility (enforced by RPC):
+ * - status = 'pending'
+ * - OR status = 'failed' AND attempt_count < max_attempts
+ * - OR status = 'processing' AND lease_expires_at < now() (recovery)
+ *
+ * Hard "no" cases:
+ * - status = 'done'
+ * - attempt_count >= max_attempts
  */
 export async function claimChunkForProcessing(
   chunkId: string,
   maxAttempts: number = 3
 ): Promise<boolean> {
-  // 1) Preferred: RPC atomic claim if function exists
+  // 1) Preferred: RPC atomic claim (lease-based overload)
+  const workerId =
+    (process.env.RG_WORKER_ID as string | undefined) ?? randomUUID();
+
+  const leaseSeconds =
+    Number(process.env.RG_CHUNK_LEASE_SECONDS ?? 60) || 60;
+
   const { data: rpcData, error: rpcError } = await supabase.rpc(
     "claim_chunk_for_processing",
-    { chunk_id: chunkId }
+    {
+      p_chunk_id: chunkId,
+      p_worker_id: workerId,
+      p_lease_seconds: leaseSeconds,
+    }
   );
 
   if (!rpcError) {
@@ -359,7 +371,7 @@ export async function claimChunkForProcessing(
   // 2) Optimistic locking fallback: Read current state
   const { data: current, error: readError } = await supabase
     .from("manuscript_chunks")
-    .select("id, status, attempt_count")
+    .select("id, status, attempt_count, max_attempts, lease_expires_at")
     .eq("id", chunkId)
     .single();
 
@@ -367,25 +379,42 @@ export async function claimChunkForProcessing(
     return false;
   }
 
-  // Check eligibility
-  const eligibleStatus = current.status === "pending" || current.status === "failed";
-  if (!eligibleStatus) return false;
-  if ((current.attempt_count ?? 0) >= maxAttempts) return false;
+  const attemptCount = current.attempt_count ?? 0;
+  const maxAllowed = current.max_attempts ?? maxAttempts;
 
-  const currentAttempt = current.attempt_count ?? 0;
+  // Terminal immutability
+  if (current.status === "done") return false;
+  if (attemptCount >= maxAllowed) return false;
+
+  // Eligible states (including recovery on expired lease)
+  const now = Date.now();
+  const leaseExpired =
+    current.status === "processing" &&
+    current.lease_expires_at != null &&
+    new Date(current.lease_expires_at).getTime() < now;
+
+  const eligibleStatus =
+    current.status === "pending" ||
+    current.status === "failed" ||
+    leaseExpired;
+
+  if (!eligibleStatus) return false;
 
   // 3) Conditional update with optimistic lock on attempt_count
+  // NOTE: This is best-effort fallback; RPC remains the contract authority.
   const { data: updateData, error: updateError } = await supabase
     .from("manuscript_chunks")
     .update({
       status: "processing",
-      attempt_count: currentAttempt + 1,
+      attempt_count: attemptCount + 1,
       last_error: null,
+      lease_id: workerId,
+      lease_expires_at: new Date(Date.now() + leaseSeconds * 1000).toISOString(),
       processing_started_at: new Date().toISOString(),
     })
     .eq("id", chunkId)
-    .eq("attempt_count", currentAttempt) // Optimistic lock
-    .in("status", ["pending", "failed"])
+    .eq("attempt_count", attemptCount) // Optimistic lock
+    .neq("status", "done")
     .select("id");
 
   if (updateError) {
@@ -394,7 +423,7 @@ export async function claimChunkForProcessing(
   }
 
   // Success if exactly one row was updated
-  return updateData && updateData.length > 0;
+  return !!(updateData && updateData.length > 0);
 }
 
 /**
@@ -463,19 +492,24 @@ export async function getManuscriptText(manuscriptId: number): Promise<string> {
         .download(data.storage_path);
 
       if (downloadError) {
-        throw new Error(`Failed to download from storage: ${downloadError.message}`);
+        throw new Error(
+          `Failed to download from storage: ${downloadError.message}`
+        );
       }
 
       // Convert blob to text
       const buffer = Buffer.from(await fileData.arrayBuffer());
-      let text = buffer.toString('utf8');
-      
+      let text = buffer.toString("utf8");
+
       // Normalize line endings (CRLF → LF)
-      text = text.replace(/\r\n/g, '\n');
-      
+      text = text.replace(/\r\n/g, "\n");
+
       return text;
     } catch (storageError) {
-      console.error(`[getManuscriptText] Storage fetch failed for manuscript ${manuscriptId}:`, storageError);
+      console.error(
+        `[getManuscriptText] Storage fetch failed for manuscript ${manuscriptId}:`,
+        storageError
+      );
       // Fall through to next option
     }
   }
@@ -495,32 +529,42 @@ export async function getManuscriptText(manuscriptId: number): Promise<string> {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('text/') && !contentType.includes('application/octet-stream')) {
-        throw new Error(`Unsupported content-type: ${contentType}. Expected text/*`);
+      const contentType = response.headers.get("content-type") || "";
+      if (
+        !contentType.includes("text/") &&
+        !contentType.includes("application/octet-stream")
+      ) {
+        throw new Error(
+          `Unsupported content-type: ${contentType}. Expected text/*`
+        );
       }
 
       let text = await response.text();
-      
+
       // Normalize line endings
-      text = text.replace(/\r\n/g, '\n');
-      
+      text = text.replace(/\r\n/g, "\n");
+
       return text;
     } catch (fetchError) {
-      console.error(`[getManuscriptText] HTTP fetch failed for manuscript ${manuscriptId}:`, fetchError);
+      console.error(
+        `[getManuscriptText] HTTP fetch failed for manuscript ${manuscriptId}:`,
+        fetchError
+      );
       // Fall through to placeholder
     }
   }
 
   // Option 3: Development fallback with realistic placeholder
-  console.warn(`[getManuscriptText] No storage_path or file_url for manuscript ${manuscriptId}. Using placeholder.`);
-  
+  console.warn(
+    `[getManuscriptText] No storage_path or file_url for manuscript ${manuscriptId}. Using placeholder.`
+  );
+
   const placeholderChapters = [
     "Chapter 1: The Beginning\n\nIt was a dark and stormy night when our hero first set foot in the mysterious town. The rain pounded against the cobblestones, creating rivers that flowed down the ancient streets. In the distance, thunder rumbled like the growl of some ancient beast.",
     "Chapter 2: The Discovery\n\nThe ancient library held secrets that would change everything. Dust motes danced in the single shaft of light that pierced through the grimy windows. Our protagonist's fingers traced the spines of forgotten tomes, each one whispering promises of knowledge long lost to time.",
     "Chapter 3: The Journey\n\nAcross mountains and valleys, the quest continued with determination. Each step brought new challenges, new friends, and new enemies. The path ahead was uncertain, but the resolve in their heart remained steadfast.",
     "Chapter 4: The Revelation\n\nTruth emerged from the shadows, revealing the path forward. What had seemed like random coincidences suddenly formed a pattern, a grand design that had been invisible until this very moment. The pieces of the puzzle finally fell into place.",
-    "Chapter 5: The Conclusion\n\nIn the end, courage and wisdom prevailed over darkness. The journey that had begun on that stormy night reached its culmination, and though the path had been difficult, the destination made every trial worthwhile."
+    "Chapter 5: The Conclusion\n\nIn the end, courage and wisdom prevailed over darkness. The journey that had begun on that stormy night reached its culmination, and though the path had been difficult, the destination made every trial worthwhile.",
   ].join("\n\n");
 
   return placeholderChapters;
