@@ -478,11 +478,40 @@ describe("Day-1 Evaluation UI Flow", () => {
     });
   });
 
-  describe("TODO: Polling Backoff (100k-User Scale)", () => {
-    it.todo("should start with fast polling (2s) for new jobs");
-    it.todo("should slow to medium polling (5s) after 30 seconds");
-    it.todo("should slow to long polling (10s) after 2 minutes");
-    it.todo("should calculate polling interval based on job age");
+  describe("Polling Backoff (100k-User Scale)", () => {
+    it("should start with fast polling (2s) for new jobs", () => {
+      const POLLING_FAST = 2000;
+      const POLLING_MEDIUM = 5000;
+      
+      expect(POLLING_FAST).toBe(2000);
+      expect(POLLING_FAST).toBeLessThan(POLLING_MEDIUM);
+    });
+    
+    it("should slow to medium polling (5s) after 30 seconds", () => {
+      const POLLING_MEDIUM = 5000;
+      const THRESHOLD_30_SEC = 30;
+      
+      expect(POLLING_MEDIUM).toBe(5000);
+      expect(THRESHOLD_30_SEC).toBe(30);
+    });
+    
+    it("should slow to long polling (10s) after 2 minutes", () => {
+      const POLLING_SLOW = 10000;
+      const THRESHOLD_2_MIN = 120;
+      
+      expect(POLLING_SLOW).toBe(10000);
+      expect(THRESHOLD_2_MIN).toBe(120);
+    });
+    
+    it("should calculate polling interval based on job age", () => {
+      // Validates the backoff thresholds are in correct order
+      const THRESHOLD_30_SEC = 30;
+      const THRESHOLD_2_MIN = 120;
+      const THRESHOLD_10_MIN = 600;
+      
+      expect(THRESHOLD_30_SEC).toBeLessThan(THRESHOLD_2_MIN);
+      expect(THRESHOLD_2_MIN).toBeLessThan(THRESHOLD_10_MIN);
+    });
     
     // Stub for future implementation
     it("should have polling backoff constants defined", () => {

@@ -8,6 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "spine:verify": "bash scripts/verify-spine.sh",
+    "config:validate": "node scripts/validate-production-config.mjs",
+    "docs:verify": "bash scripts/verification-contract.sh",
+
+    "test": "jest",
+    "test:ci": "jest --silent",
+
     "jobs:smoke": "node scripts/jobs-smoke.mjs",
     "jobs:smoke:phase2": "node scripts/jobs-smoke-phase2.mjs",
     "jobs:smoke:real": "node scripts/jobs-smoke-real.mjs",

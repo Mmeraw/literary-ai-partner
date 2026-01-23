@@ -40,19 +40,24 @@ function validatePhase1Progress(job: Job): ProgressValidationError | null {
     total_units,
     completed_units,
     phase1_last_processed_index,
+    stage,
   } = job.progress || {};
 
   // During Phase 1 execution
   if (phase_status === "running") {
-    // Must have total units set and > 0
-    if (!Number.isFinite(total_units) || total_units <= 0) {
+    // Allow missing counters during initialization (queued/starting stages)
+    const isInitializing = stage === "queued" || stage === "starting";
+    
+    // Must have total units set and > 0 (unless still initializing)
+    if (!isInitializing && (!Number.isFinite(total_units) || total_units <= 0)) {
       return "counters_missing";
     }
-    // Processed must be >= 0 and <= total
+    // Processed must be >= 0 and <= total (only validate if total_units is set)
     if (
-      !Number.isFinite(completed_units) ||
-      completed_units < 0 ||
-      completed_units > total_units
+      Number.isFinite(total_units) &&
+      (!Number.isFinite(completed_units) ||
+        completed_units < 0 ||
+        completed_units > total_units)
     ) {
       return "counters_invalid";
     }

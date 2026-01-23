@@ -76,4 +76,7 @@ export type Job = {
   progress: Record<string, any>;
   created_at: string;
   updated_at: string;
+  last_heartbeat_at?: string | null;
+  last_progress_at?: string | null;
+  partial?: boolean;
 };

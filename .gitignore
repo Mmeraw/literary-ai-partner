@@ -32,3 +32,4 @@ dist-ssr
 .next
 out
 
+.env.local

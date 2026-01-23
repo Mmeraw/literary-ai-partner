@@ -54,7 +54,12 @@ export async function createJob(input: {
     manuscript_id: manuscriptId,
     job_type: JOB_TYPE_TO_DB[input.job_type] ?? input.job_type,
     status: "queued" as JobStatus,
-    progress: {},
+    progress: {
+      phase: "phase1",
+      phase_status: "not_started",
+      stage: "queued",
+      message: "Job created",
+    },
     // keep phase/phase_status only in progress JSON for consistency
     policy_family: "standard",
     voice_preservation_level: "balanced",
@@ -103,7 +108,7 @@ export async function getJob(id: string): Promise<Job | null> {
       job.progress,
     );
     // Mark job as failed and clear lease (best-effort)
-    await supabase
+    const { error: updateError } = await supabase
       .from("evaluation_jobs")
       .update({
         status: "failed",
@@ -115,12 +120,13 @@ export async function getJob(id: string): Promise<Job | null> {
         },
         updated_at: new Date().toISOString(),
       })
-      .eq("id", id)
-      .catch((e) =>
-        console.error(
-          `[ProgressValidation] Failed to mark job failed: ${e.message}`,
-        ),
+      .eq("id", id);
+    
+    if (updateError) {
+      console.error(
+        `[ProgressValidation] Failed to mark job failed: ${updateError.message}`,
       );
+    }
 
     // Do not let callers operate on a corrupted job
     return null;

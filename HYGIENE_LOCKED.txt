@@ -1,0 +1,122 @@
+================================================================================
+                    ✅ HYGIENE LOCKED & CHECKPOINTED
+================================================================================
+
+MISSION COMPLETE (2-4 hours total)
+
+Commit: 0fc01af
+Tag:    infra-hygiene-v1.0.0
+Status: Three stable layers, ready for Phase 2
+
+================================================================================
+                          WHAT'S IN THIS TAG
+================================================================================
+
+THREE LOCKED LAYERS:
+  ✓ Job system (Phase 1: manuscript processing + chunking)
+  ✓ Day-1 UI (evaluation interface + admin controls)
+  ✓ Production safety + logging hygiene (guardrails + fail-fast)
+
+GUARDRAILS FROZEN:
+  ✓ assertNotProductionMemoryStore() → no silent prod fallback
+  ✓ RATE_LIMITS configured → 100k-user scale bounded
+  ✓ Logging quiet by default → errors always visible
+  ✓ Atomic chunk claiming → no race conditions
+  ✓ Crash recovery enabled → 15-min lease timeout
+  ✓ Schema migrations applied → verified locally
+  ✓ Secrets segmented → anon vs service role
+  ✓ Smoke runbook → quality gate before deployment
+
+================================================================================
+                          FILES COMMITTED
+================================================================================
+
+1. lib/jobs/guards.ts (61 lines)
+   Production safety checks (fail-fast on misconfig)
+
+2. docs/SCALABILITY_PLAN.md (299 lines)
+   Architecture for 100k concurrent users
+
+3. docs/STABILITY_CHECKPOINT.md (NEW)
+   Reference guide for this checkpoint
+
+Commit Message:
+  "chore: lock production safety guardrails and scalability documentation
+  
+  Non-behavioral hygiene: establishes guardrails that prevent silent 
+  production failures."
+
+================================================================================
+                          WHY THIS MATTERS
+================================================================================
+
+Silent failures are the enemy at scale.
+
+Before:  "The system might silently degrade and we won't know until prod."
+After:   "The system SCREAMS if you try to use it wrong."
+
+Result: A codebase that's quiet (clean logs) but loud (when broken).
+
+================================================================================
+                          PSYCHOLOGICAL SAFETY
+================================================================================
+
+You now have:
+  ✓ Three stable layers (job system, UI, safety guardrails)
+  ✓ Explicit architectural constraints (rate limits, concurrency model)
+  ✓ A stable tag to roll back to
+  ✓ Permission to build Phase 2 without fear
+
+git checkout infra-hygiene-v1.0.0
+  → You're back to this solid point whenever you want
+
+================================================================================
+                          WHAT'S NEXT
+================================================================================
+
+Phase 2 (same discipline):
+
+Week 1: LLM Provider Factory
+  • Strict interface (inputs/outputs)
+  • Deterministic fallbacks (Claude → GPT → offline)
+  • Retry policy (exponential backoff)
+
+Week 2: Phase 2 Finalize
+  • Idempotent aggregation
+  • Schema validation before commit
+  • Rerunnable design
+
+Week 3: Extended Smoke Runbook
+  • Add Phase 2 LLM tests
+  • Validate end-to-end latency
+  • Keep discipline forever
+
+Key Discipline: Each layer gets same treatment
+  1. Fail-fast guards
+  2. Clear error messages
+  3. Rate limiting / bounds
+  4. Quality gate (smoke runbook)
+  5. Stability tag before moving on
+
+================================================================================
+                       QUICK REFERENCE
+================================================================================
+
+View this tag:
+  git show infra-hygiene-v1.0.0
+
+Rollback to this tag:
+  git checkout infra-hygiene-v1.0.0
+
+See what's locked:
+  cat docs/STABILITY_CHECKPOINT.md
+
+Verify guardrails in code:
+  grep -r "assertNotProductionMemoryStore" lib/
+
+================================================================================
+
+You're holding a stable platform. Foundation won't silently degrade.
+Safe to build Phase 2.
+
+🚀

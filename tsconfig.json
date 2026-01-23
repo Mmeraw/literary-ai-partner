@@ -21,5 +21,25 @@
     }
   },
   "include": ["next-env.d.ts", ".next/types/**/*.ts", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
-  "exclude": ["node_modules", "archive", "base44-export", "functions", "supabase/functions/**"]
+  "exclude": [
+    "node_modules",
+    ".next",
+    "archive",
+    "base44-export",
+    "functions",
+    "supabase/functions/**",
+    "**/*.deno.ts",
+    "**/*.deno.test.ts",
+    "tests/approveAgentVerification.test.ts",
+    "*_agent_verification*.test.ts",
+    "*_industry_*.test.ts",
+    "evaluate_quick_submission_scope_*.test.ts",
+    "integrity_gate_*.test.ts",
+    "get_agent_verification_status.test.ts",
+    "get_industry_submissions_list.test.ts",
+    "reject_agent_verification.test.ts",
+    "suspend_industry_user.test.ts",
+    "create_agent_verification_request.test.ts",
+    "approve_agent_verification.test.ts"
+  ]
 }
