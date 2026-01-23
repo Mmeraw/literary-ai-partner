@@ -23,7 +23,7 @@ export type ChunkRow = {
   last_error: string | null;
   attempt_count: number;
 
-  // Lease/claim tracking (present in your schema + RPC contract)
+  // Lease/claim tracking (present in schema + RPC contract)
   lease_id: string | null;
   lease_expires_at: string | null;
 
@@ -31,6 +31,9 @@ export type ChunkRow = {
   result_json: any | null;
   created_at: string;
   updated_at: string;
+
+  // Optional retry ceiling (used by contract/tests)
+  max_attempts?: number | null;
 };
 
 /**
@@ -49,17 +52,18 @@ export async function getManuscriptChunks(
     throw new Error(`Failed to fetch chunks: ${error.message}`);
   }
 
-  return data || [];
+  return (data as ChunkRow[]) || [];
 }
 
 /**
  * Get eligible chunks for processing (resume + skip completed)
+ *
  * Returns only chunks that are:
  * - status IN ('pending', 'failed')
  * - attempt_count < maxAttempts
- * - NOT already succeeded (status != 'done')
+ * - NOT 'done'
  *
- * This enables idempotent resume: never re-process 'done' chunks
+ * Enables idempotent resume: never re-process 'done' chunks.
  */
 export async function getEligibleChunks(
   manuscriptId: number,
@@ -77,7 +81,7 @@ export async function getEligibleChunks(
     throw new Error(`Failed to fetch eligible chunks: ${error.message}`);
   }
 
-  return data || [];
+  return (data as ChunkRow[]) || [];
 }
 
 /**
@@ -96,27 +100,39 @@ export async function getEligibleChunksWithStuckRecovery(
 ): Promise<ChunkRow[]> {
   const nowIso = new Date().toISOString();
 
-  // Single query: chunks that are (pending/failed) OR (processing but lease expired)
-  const { data, error } = await supabase
-    .from("manuscript_chunks")
-    .select("*")
-    .eq("manuscript_id", manuscriptId)
-    .lt("attempt_count", maxAttempts)
-    .or(
-      `status.in.(pending,failed),` +
-        `and(status.eq.processing,lease_expires_at.not.is.null,lease_expires_at.lt.${nowIso})`
-    )
-    .order("chunk_index", { ascending: true });
+  // Two-query approach to avoid subtle OR syntax errors:
+  // 1) pending/failed
+  // 2) processing + expired lease
+  const [base, stuck] = await Promise.all([
+    supabase
+      .from("manuscript_chunks")
+      .select("*")
+      .eq("manuscript_id", manuscriptId)
+      .in("status", ["pending", "failed"])
+      .lt("attempt_count", maxAttempts),
+    supabase
+      .from("manuscript_chunks")
+      .select("*")
+      .eq("manuscript_id", manuscriptId)
+      .eq("status", "processing")
+      .not("lease_expires_at", "is", null)
+      .lt("lease_expires_at", nowIso)
+      .lt("attempt_count", maxAttempts),
+  ]);
 
-  if (error) {
+  if (base.error || stuck.error) {
     console.error(
-      `Failed to fetch eligible chunks with stuck recovery: ${error.message}`
+      "Failed to fetch eligible chunks with stuck recovery",
+      base.error?.message,
+      stuck.error?.message
     );
     // Fallback to normal eligible chunks if complex query fails
     return getEligibleChunks(manuscriptId, maxAttempts);
   }
 
-  return data || [];
+  const combined = [...(base.data ?? []), ...(stuck.data ?? [])];
+  const byId = new Map((combined as any[]).map((c) => [c.id, c]));
+  return Array.from(byId.values()) as ChunkRow[];
 }
 
 /**
@@ -134,17 +150,20 @@ export async function getChunk(
     .single();
 
   if (error) {
-    if (error.code === "PGRST116") return null; // Not found
+    // PGRST116 = "Not found"
+    if ((error as any).code === "PGRST116") return null;
     throw new Error(`Failed to fetch chunk: ${error.message}`);
   }
 
-  return data;
+  return data as ChunkRow;
 }
 
 /**
  * Upsert chunks for a manuscript (idempotent)
- * If a chunk with the same (manuscript_id, chunk_index) exists and has the same content_hash,
- * it's left unchanged. If the hash differs, content is updated and status/results are reset.
+ *
+ * If a chunk with the same (manuscript_id, chunk_index) exists and has the
+ * same content_hash, it's left unchanged. If the hash differs, content is
+ * updated and status/results are reset.
  */
 export async function upsertChunks(
   manuscriptId: number,
@@ -201,7 +220,9 @@ export async function upsertChunks(
 
   // Execute operations
   if (toInsert.length > 0) {
-    const { error } = await supabase.from("manuscript_chunks").insert(toInsert);
+    const { error } = await supabase
+      .from("manuscript_chunks")
+      .insert(toInsert);
 
     if (error) {
       throw new Error(`Failed to insert chunks: ${error.message}`);
@@ -216,7 +237,9 @@ export async function upsertChunks(
         .eq("id", chunk.id);
 
       if (error) {
-        throw new Error(`Failed to update chunk ${chunk.id}: ${error.message}`);
+        throw new Error(
+          `Failed to update chunk ${chunk.id}: ${error.message}`
+        );
       }
     }
   }
@@ -237,7 +260,7 @@ export async function upsertChunks(
  * Mark a chunk as successfully completed
  *
  * This is the ONLY function that writes result_json.
- * Always clears last_error and resets status to 'done'.
+ * Always clears last_error and sets status to 'done'.
  */
 export async function markChunkSuccess(
   manuscriptId: number,
@@ -286,7 +309,7 @@ export async function markChunkFailure(
 }
 
 /**
- * @deprecated Use markChunkSuccess() or markChunkFailure() instead
+ * @deprecated Use markChunkSuccess() or markChunkFailure() instead.
  *
  * Generic update function - kept for backward compatibility.
  * Prefer the specific functions to enforce success/failure invariants.
@@ -304,7 +327,7 @@ export async function updateChunkStatus(
 ): Promise<void> {
   // Clean updates object - remove undefined values
   const cleanUpdates = Object.fromEntries(
-    Object.entries(updates).filter(([_, v]) => v !== undefined)
+    Object.entries(updates).filter(([, v]) => v !== undefined)
   );
 
   const { error } = await supabase
@@ -336,7 +359,7 @@ export async function claimChunkForProcessing(
   chunkId: string,
   maxAttempts: number = 3
 ): Promise<boolean> {
-  // 1) Preferred: RPC atomic claim (lease-based overload)
+  // 1) Preferred: RPC atomic claim (lease-based, server-side)
   const workerId =
     (process.env.RG_WORKER_ID as string | undefined) ?? randomUUID();
 
@@ -353,10 +376,10 @@ export async function claimChunkForProcessing(
   );
 
   if (!rpcError) {
+    // RPC exists and executed; treat it as contract authority.
     return rpcData === true;
   }
 
-  // If function doesn't exist, use optimistic locking fallback
   const msg = rpcError.message?.toLowerCase() ?? "";
   const canFallback =
     msg.includes("function") ||
@@ -364,7 +387,11 @@ export async function claimChunkForProcessing(
     msg.includes("schema cache");
 
   if (!canFallback) {
-    console.error(`[claimChunk] RPC error (non-fallback): ${rpcError.message}`);
+    // Real RPC error that is NOT "function missing" – do not
+    // try to emulate behavior client-side.
+    console.error(
+      `[claimChunk] RPC error (non-fallback): ${rpcError.message}`
+    );
     return false;
   }
 
@@ -379,14 +406,15 @@ export async function claimChunkForProcessing(
     return false;
   }
 
-  const attemptCount = current.attempt_count ?? 0;
-  const maxAllowed = current.max_attempts ?? maxAttempts;
+  const attemptCount: number = current.attempt_count ?? 0;
+  const maxAllowed: number =
+    current.max_attempts ?? maxAttempts;
 
   // Terminal immutability
   if (current.status === "done") return false;
   if (attemptCount >= maxAllowed) return false;
 
-  // Eligible states (including recovery on expired lease)
+  // Recovery eligibility for stuck processing
   const now = Date.now();
   const leaseExpired =
     current.status === "processing" &&
@@ -401,7 +429,6 @@ export async function claimChunkForProcessing(
   if (!eligibleStatus) return false;
 
   // 3) Conditional update with optimistic lock on attempt_count
-  // NOTE: This is best-effort fallback; RPC remains the contract authority.
   const { data: updateData, error: updateError } = await supabase
     .from("manuscript_chunks")
     .update({
@@ -409,16 +436,20 @@ export async function claimChunkForProcessing(
       attempt_count: attemptCount + 1,
       last_error: null,
       lease_id: workerId,
-      lease_expires_at: new Date(Date.now() + leaseSeconds * 1000).toISOString(),
+      lease_expires_at: new Date(
+        Date.now() + leaseSeconds * 1000
+      ).toISOString(),
       processing_started_at: new Date().toISOString(),
     })
     .eq("id", chunkId)
-    .eq("attempt_count", attemptCount) // Optimistic lock
+    .eq("attempt_count", attemptCount) // optimistic lock
     .neq("status", "done")
     .select("id");
 
   if (updateError) {
-    console.error(`[claimChunk] Optimistic update failed: ${updateError.message}`);
+    console.error(
+      `[claimChunk] Optimistic update failed: ${updateError.message}`
+    );
     return false;
   }
 
@@ -427,8 +458,8 @@ export async function claimChunkForProcessing(
 }
 
 /**
- * DEPRECATED: Use claimChunkForProcessing instead
- * Direct update approach - not atomic, kept for emergency fallback only
+ * DEPRECATED: Use claimChunkForProcessing instead.
+ * Direct update approach - not atomic, kept for emergency fallback only.
  */
 export async function unsafeClaimChunk(chunkId: string): Promise<boolean> {
   // First, read current attempt_count
@@ -460,20 +491,17 @@ export async function unsafeClaimChunk(chunkId: string): Promise<boolean> {
     return false;
   }
 
-  return updateData && updateData.length > 0;
+  return !!(updateData && updateData.length > 0);
 }
 
 /**
  * Get the manuscript text from storage or database
- * This is a placeholder - adapt to your actual manuscript storage strategy
+ *
+ * This is a placeholder - adapt to your actual manuscript storage strategy.
  */
-export async function getManuscriptText(manuscriptId: number): Promise<string> {
-  // TODO: Implement based on your actual manuscript storage
-  // Options:
-  // 1. Fetch from file_url in manuscripts table (S3/Supabase Storage)
-  // 2. Fetch from a manuscript_content table
-  // 3. Generate from staged/normalized text field
-
+export async function getManuscriptText(
+  manuscriptId: number
+): Promise<string> {
   const { data, error } = await supabase
     .from("manuscripts")
     .select("file_url, title, storage_bucket, storage_path")
@@ -572,9 +600,11 @@ export async function getManuscriptText(manuscriptId: number): Promise<string> {
 
 /**
  * Ensure chunks exist for a manuscript, creating them if needed
- * Returns the number of chunks
+ * Returns the number of chunks.
  */
-export async function ensureChunks(manuscriptId: number): Promise<number> {
+export async function ensureChunks(
+  manuscriptId: number
+): Promise<number> {
   const existing = await getManuscriptChunks(manuscriptId);
 
   // If chunks exist and are valid, return count
