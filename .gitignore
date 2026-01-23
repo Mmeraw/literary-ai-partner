@@ -34,3 +34,4 @@ out
 
 .env.local
 .env.test.local
+!.env.test.example
