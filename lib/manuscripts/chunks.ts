@@ -5,8 +5,30 @@ import { getSupabaseAdminClient } from "@/lib/supabase";
 import { randomUUID } from "crypto";
 import { chunkManuscript, ChunkSpec } from "./chunking";
 
-// Use admin client for server-side chunk operations (bypasses RLS)
-const supabase = getSupabaseAdminClient();
+// Lazy-initialized admin client - returns null when credentials missing
+let _supabase: ReturnType<typeof getSupabaseAdminClient> | undefined;
+
+/**
+ * Get Supabase client (lazy-initialized, null-safe for CI/build environments)
+ * PRODUCTION CRITICAL: Returns null when Supabase unavailable
+ */
+function getSupabase() {
+  if (_supabase === undefined) {
+    _supabase = getSupabaseAdminClient();
+  }
+  return _supabase;
+}
+
+// Module-level accessor that throws meaningful errors when Supabase required but unavailable
+const supabase = new Proxy({} as NonNullable<ReturnType<typeof getSupabaseAdminClient>>, {
+  get(_target, prop) {
+    const client = getSupabase();
+    if (!client) {
+      throw new Error(`[MANUSCRIPT-CHUNKS] Supabase unavailable - cannot access .${String(prop)}`);
+    }
+    return client[prop as keyof typeof client];
+  }
+});
 
 export type ChunkRow = {
   id: string;
@@ -366,7 +388,7 @@ export async function claimChunkForProcessing(
   const leaseSeconds =
     Number(process.env.RG_CHUNK_LEASE_SECONDS ?? 60) || 60;
 
-  const { data: rpcData, error: rpcError } = await supabase.rpc(
+  const { data: rpcData, error: rpcError} = await supabase.rpc(
     "claim_chunk_for_processing",
     {
       p_chunk_id: chunkId,
