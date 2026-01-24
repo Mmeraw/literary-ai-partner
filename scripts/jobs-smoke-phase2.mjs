@@ -34,7 +34,10 @@ async function main() {
   const createRes = await must(
     fetch(`${BASE}/api/jobs`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "x-user-id": "smoke-test-user" // Bypass auth for smoke test
+      },
       body: JSON.stringify({
         job_type: "evaluate_full",
         manuscript_id: "test-manuscript-123",
