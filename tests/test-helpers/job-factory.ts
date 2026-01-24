@@ -33,7 +33,9 @@ export function makeJobRow(overrides: JobFactoryOverrides = {}): EvaluationJobRo
 
   const status: EvaluationJobRow["status"] = overrides.status ?? "running";
 
-  return {
+  // Compile-time guard: ensures object literal exactly matches EvaluationJobRow
+  // If someone adds a non-existent field, TypeScript will error immediately
+  const row: EvaluationJobRow = {
     id: overrides.id ?? `job-${Math.random().toString(36).slice(2, 9)}`,
     manuscript_id: overrides.manuscript_id ?? 1,
     job_type: overrides.job_type ?? "evaluation",
@@ -61,6 +63,8 @@ export function makeJobRow(overrides: JobFactoryOverrides = {}): EvaluationJobRo
     phase_1_attempt_count: overrides.phase_1_attempt_count ?? null,
     phase_1_error: overrides.phase_1_error ?? null,
   };
+
+  return row;
 }
 
 /**
