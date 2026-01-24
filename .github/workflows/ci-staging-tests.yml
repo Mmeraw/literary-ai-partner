@@ -23,6 +23,7 @@ jobs:
       - name: Install
         run: npm ci
       - name: Audit (allow known tar advisory if documented)
+        shell: bash
         run: |
           set -euo pipefail
 
@@ -32,37 +33,35 @@ jobs:
             exit 0
           fi
 
-          # Otherwise, parse JSON and allow ONLY the known tar advisory (sometimes surfaced under "supabase")
-          npm audit --json | node -e '
-            const fs = require("fs");
-            const j = JSON.parse(fs.readFileSync(0, "utf8"));
-            const vulns = j.vulnerabilities || {};
-            const keys = Object.keys(vulns);
+          # If audit fails at high, allow ONLY the known tar advisory (sometimes reported under "supabase"),
+          # but ONLY when we have a note file present.
+          if [[ -f docs/NPM_AUDIT_NOTES.md ]]; then
+            npm audit --json | node -e '
+              const fs=require("fs");
+              const j=JSON.parse(fs.readFileSync(0,"utf8"));
+              const vulns=j.vulnerabilities||{};
+              const keys=Object.keys(vulns);
 
-            const allow = new Set(["tar", "supabase"]);
-            const bad = keys.filter(k => !allow.has(k));
+              const allow=new Set(["tar","supabase"]);
+              const bad=keys.filter(k=>!allow.has(k));
+              if (bad.length) {
+                console.error("Unexpected high vulns:", bad);
+                process.exit(1);
+              }
 
-            if (bad.length) {
-              console.error("Unexpected high vulns:", bad);
-              process.exit(1);
-            }
+              if (!keys.includes("tar") && !keys.includes("supabase")) {
+                console.error("High vuln present but not tar/supabase? keys:", keys);
+                process.exit(1);
+              }
 
-            if (!keys.includes("tar") && !keys.includes("supabase")) {
-              console.error("High vuln present but not tar/supabase? keys:", keys);
-              process.exit(1);
-            }
+              console.log("Only known tar advisory remains (tar via supabase); documented ✅");
+            ';
+            exit 0
+          fi
 
-            const notesPath = "docs/NPM_AUDIT_NOTES.md";
-            if (!fs.existsSync(notesPath)) {
-              console.error("Missing docs/NPM_AUDIT_NOTES.md for approved tar/supabase advisory.");
-              process.exit(1);
-            }
+          echo "High severity vulnerabilities present and not allowlisted. Failing."
+          exit 1
 
-            console.log("Only known tar advisory remains (tar via supabase); documented ✅");
-          '
-
-          # Node exited 0 => allowlisted vulnerability case is acceptable.
-          exit 0
 
 
       - name: Run staging tests (Supabase secrets)
