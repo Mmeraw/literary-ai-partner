@@ -36,13 +36,27 @@ export async function GET(req: Request) {
   }
 
   try {
-    const jobs = await getAllJobs();
+    const allJobs = await getAllJobs();
+    
+    // Filter to only eligible work (don't spam completed/failed jobs)
+    const phase1Candidates = allJobs.filter(j => j.status === "queued");
+    
+    const phase2Candidates = allJobs.filter(j => 
+      j.status === "running" &&
+      j.progress?.phase === "phase1" &&
+      j.progress?.phase_status === "complete"
+    );
 
     return NextResponse.json(
       { 
         ok: true, 
-        jobs,
-        count: jobs.length
+        phase1_candidates: phase1Candidates,
+        phase2_candidates: phase2Candidates,
+        summary: {
+          total: allJobs.length,
+          phase1_eligible: phase1Candidates.length,
+          phase2_eligible: phase2Candidates.length
+        }
       },
       { status: 200 }
     );

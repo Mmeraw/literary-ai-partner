@@ -23,6 +23,7 @@ config({ path: envPath });
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3002';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const POLL_INTERVAL_MS = parseInt(process.env.WORKER_POLL_INTERVAL_MS || '5000', 10);
+const MAX_PER_TICK = parseInt(process.env.WORKER_MAX_PER_TICK || '3', 10);
 const WORKER_ID = process.env.WORKER_ID || `worker-${process.pid}`;
 
 if (!SERVICE_KEY) {
@@ -33,6 +34,7 @@ if (!SERVICE_KEY) {
 console.log(`[${WORKER_ID}] Worker daemon started`);
 console.log(`[${WORKER_ID}] Base URL: ${BASE_URL}`);
 console.log(`[${WORKER_ID}] Poll interval: ${POLL_INTERVAL_MS}ms`);
+console.log(`[${WORKER_ID}] Max per tick: ${MAX_PER_TICK}`);
 
 console.log(`[${WORKER_ID}] Worker daemon started`);
 console.log(`[${WORKER_ID}] Base URL: ${BASE_URL}`);
@@ -56,9 +58,9 @@ process.on('SIGTERM', () => {
 });
 
 /**
- * Get all jobs via internal API
+ * Get eligible jobs via internal API (pre-filtered)
  */
-async function getAllJobs() {
+async function getEligibleJobs() {
   const response = await fetch(`${BASE_URL}/api/internal/jobs`, {
     headers: {
       'Authorization': `Bearer ${SERVICE_KEY}`,
@@ -70,7 +72,11 @@ async function getAllJobs() {
   }
   
   const data = await response.json();
-  return data.jobs || [];
+  return {
+    phase1: data.phase1_candidates || [],
+    phase2: data.phase2_candidates || [],
+    summary: data.summary || {}
+  };
 }
 
 /**
@@ -81,11 +87,7 @@ async function triggerPhase1(jobId) {
     method: 'POST',
   });
   
-  if (!response.ok && response.status !== 409) {
-    throw new Error(`Phase 1 trigger failed: ${response.status}`);
-  }
-  
-  return response.json();
+  return { status: response.status, ok: response.ok, jobId };
 }
 
 /**
@@ -96,11 +98,41 @@ async function triggerPhase2(jobId) {
     method: 'POST',
   });
   
-  if (!response.ok && response.status !== 409) {
-    throw new Error(`Phase 2 trigger failed: ${response.status}`);
+  return { status: response.status, ok: response.ok, jobId };
+}
+
+/**
+ * Handle trigger response with proper state machine
+ */
+function handleTriggerResponse(result, phase) {
+  const { status, ok, jobId } = result;
+  
+  if (ok || status === 202) {
+    console.log(`[${WORKER_ID}] ✓ ${phase} triggered for ${jobId}`);
+    return 'success';
   }
   
-  return response.json();
+  if (status === 409) {
+    // Expected: job not eligible (already claimed, wrong state, etc.)
+    // Do NOT retry immediately - this is correct behavior
+    return 'not_eligible';
+  }
+  
+  if (status === 404) {
+    // Job vanished or wrong environment - skip permanently
+    console.log(`[${WORKER_ID}] ⚠ ${phase} job ${jobId} not found (404) - skipping`);
+    return 'not_found';
+  }
+  
+  if (status >= 500) {
+    // Server error - worth retrying later
+    console.error(`[${WORKER_ID}] ✗ ${phase} server error ${status} for ${jobId}`);
+    return 'server_error';
+  }
+  
+  // Other errors (4xx)
+  console.error(`[${WORKER_ID}] ✗ ${phase} failed ${status} for ${jobId}`);
+  return 'error';
 }
 
 /**
@@ -108,57 +140,58 @@ async function triggerPhase2(jobId) {
  */
 async function processJobs() {
   try {
-    const jobs = await getAllJobs();
+    const { phase1, phase2, summary } = await getEligibleJobs();
     
-    // Priority 1: Jobs ready for Phase 2
-    const phase2Ready = jobs.filter(j => 
-      j.status === 'running' &&
-      j.progress?.phase === 'phase1' &&
-      j.progress?.phase_status === 'complete'
-    );
+    let processed = 0;
+    const seen = new Set();
     
-    // Priority 2: Queued jobs (Phase 1)
-    const queued = jobs.filter(j => j.status === 'queued');
-    
-    // Process Phase 2 first (complete existing work)
-    for (const job of phase2Ready) {
-      if (!running) break;
+    // Priority 1: Complete existing work (Phase 2)
+    for (const job of phase2) {
+      if (!running || processed >= MAX_PER_TICK) break;
+      if (seen.has(job.id)) continue;
       
-      console.log(`[${WORKER_ID}] Triggering Phase 2 for job ${job.id}`);
+      seen.add(job.id);
       currentJobId = job.id;
       
       try {
-        await triggerPhase2(job.id);
-        console.log(`[${WORKER_ID}] Phase 2 triggered for job ${job.id}`);
+        const result = await triggerPhase2(job.id);
+        const outcome = handleTriggerResponse(result, 'Phase2');
+        
+        if (outcome === 'success') {
+          processed++;
+        }
       } catch (err) {
-        console.error(`[${WORKER_ID}] Phase 2 error for job ${job.id}:`, err.message);
+        console.error(`[${WORKER_ID}] Phase2 exception for ${job.id}:`, err.message);
       }
       
       currentJobId = null;
     }
     
-    // Then process queued jobs (Phase 1)
-    for (const job of queued) {
-      if (!running) break;
+    // Priority 2: Start new work (Phase 1)
+    for (const job of phase1) {
+      if (!running || processed >= MAX_PER_TICK) break;
+      if (seen.has(job.id)) continue;
       
-      console.log(`[${WORKER_ID}] Triggering Phase 1 for job ${job.id}`);
+      seen.add(job.id);
       currentJobId = job.id;
       
       try {
-        await triggerPhase1(job.id);
-        console.log(`[${WORKER_ID}] Phase 1 triggered for job ${job.id}`);
+        const result = await triggerPhase1(job.id);
+        const outcome = handleTriggerResponse(result, 'Phase1');
+        
+        if (outcome === 'success') {
+          processed++;
+        }
       } catch (err) {
-        console.error(`[${WORKER_ID}] Phase 1 error for job ${job.id}:`, err.message);
+        console.error(`[${WORKER_ID}] Phase1 exception for ${job.id}:`, err.message);
       }
       
       currentJobId = null;
     }
     
-    // Summary
-    if (phase2Ready.length === 0 && queued.length === 0) {
-      // Silent when idle (reduce noise)
-    } else {
-      console.log(`[${WORKER_ID}] Processed ${queued.length} Phase 1, ${phase2Ready.length} Phase 2`);
+    // Summary log (only if work was available)
+    if (phase1.length > 0 || phase2.length > 0) {
+      console.log(`[${WORKER_ID}] Tick complete: ${processed} processed, ${phase1.length} P1 eligible, ${phase2.length} P2 eligible`);
     }
     
   } catch (err) {
