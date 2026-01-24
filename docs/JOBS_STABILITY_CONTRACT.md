@@ -47,11 +47,38 @@ The system guarantees:
 - No double-processing of chunks
 - No progress regression after restart
 - No silent data loss due to worker crash
+- **Exclusive job lease acquisition (proven 2026-01-24)**
+- **Atomic state transitions via optimistic locking**
 
 This holds under:
 - Multiple concurrent workers
 - Partial failures
 - Process termination mid-execution
+
+### Verification (Proven)
+**Date**: 2026-01-24  
+**Method**: Three concurrent Node workers targeting same queued job  
+**Result**: Exactly one lease acquired, two rejected  
+**Artifacts**: 
+- `scripts/test-worker-lease.mjs`
+- `scripts/test-lease-concurrency.sh`
+
+**SQL Mechanism**:
+```sql
+-- Atomic lease acquisition with optimistic lock
+UPDATE evaluation_jobs 
+SET status = 'running', 
+    progress = jsonb_set(progress, '{lease_id}', $lease_id)
+WHERE id = $1 
+  AND status = 'queued'
+  AND updated_at = $2  -- Prevents concurrent updates
+RETURNING *;
+```
+
+**Observed Behavior**:
+- Worker 1: Lost optimistic lock (updated_at changed)
+- Worker 2: Saw status ≠ 'queued' (already 'running')
+- Worker 3: ✅ Acquired lease successfully
 
 ---
 
