@@ -101,8 +101,8 @@ export async function runPhase1(jobId: string): Promise<void> {
   const chunkCount = await ensureChunks(manuscriptIdNum);
   
   // Get eligible chunks with stuck recovery (handles worker crashes)
-  // This fetches pending/failed chunks AND processing chunks stuck for >15 minutes
-  const eligibleChunks = await getEligibleChunksWithStuckRecovery(manuscriptIdNum, 3, 15);
+  // This fetches pending/failed chunks AND processing chunks with expired leases
+  const eligibleChunks = await getEligibleChunksWithStuckRecovery(manuscriptIdNum, 3);
   
   // Get all chunks for total count and reporting
   const allChunks = await getManuscriptChunks(manuscriptIdNum);

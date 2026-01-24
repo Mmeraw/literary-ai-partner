@@ -129,11 +129,10 @@ describe("Chunk Stability: Crash Recovery (Contract Test 2)", () => {
       lease_expires_at: stuckTimestamp, // Also expire the lease
     });
 
-    // PHASE 3: New worker scans for eligible chunks (stuck recovery threshold = 15 min)
+    // PHASE 3: New worker scans for eligible chunks (stuck recovery via expired leases)
     const eligibleChunks = await getEligibleChunksWithStuckRecovery(
       manuscriptId,
-      3, // maxAttempts
-      15 // stuckThresholdMinutes
+      3 // maxAttempts
     );
 
     // VERIFY: Stuck chunk is returned as eligible
@@ -174,11 +173,10 @@ describe("Chunk Stability: Crash Recovery (Contract Test 2)", () => {
     });
     // chunk2 was just claimed, so processing_started_at and lease_expires_at are recent
 
-    // EXECUTE: Query with 15-min stuck threshold
+    // EXECUTE: Query for stuck chunks (expired leases)
     const eligible = await getEligibleChunksWithStuckRecovery(
       manuscriptId,
-      3,
-      15
+      3
     );
 
     // VERIFY: Only stuck chunk (chunk1) is returned
@@ -310,7 +308,7 @@ describe("Chunk Stability: Full Crash-Recovery Cycle (Integration)", () => {
     });
 
     // PHASE 3: New worker detects stuck chunk
-    const stuck = await getEligibleChunksWithStuckRecovery(manuscriptId, 3, 15);
+    const stuck = await getEligibleChunksWithStuckRecovery(manuscriptId, 3);
     expect(stuck.map((c) => c.id)).toContain(chunk.id);
 
     // PHASE 4: Worker 2 claims and processes it
