@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createJob, getAllJobs } from "@/lib/jobs/store";
 import * as metrics from "@/lib/jobs/metrics";
 import { checkJobCreationRateLimit, checkFeatureAccess, validateManuscriptSize, type RateLimitResult } from "@/lib/jobs/rateLimiter";
-import "@/lib/jobs/config"; // Enforce production fail-safe on module load
 
 function isRateLimited(
   result: RateLimitResult

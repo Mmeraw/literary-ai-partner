@@ -106,6 +106,19 @@ jobs:
       - name: Verify zero-drift (no manual duplication)
         run: npm run verify:zero-drift
 
+      - name: Verify ALLOW_HEADER_USER_ID never in production configs
+        shell: bash
+        run: |
+          echo "🔍 Checking for ALLOW_HEADER_USER_ID in production workflow files..."
+          
+          # Check all workflow files for production deployments
+          if rg -n "ALLOW_HEADER_USER_ID.*true" .github/workflows/*.yml | grep -iE "(prod|production|deploy)" | grep -v "# Allow"; then
+            echo "❌ FAIL: Found ALLOW_HEADER_USER_ID=true in production workflow"
+            exit 1
+          fi
+          
+          echo "✅ PASS: No production workflows have auth bypass enabled"
+
       - name: Start dev server in background
         run: |
           npm run dev > /tmp/dev-server.log 2>&1 &

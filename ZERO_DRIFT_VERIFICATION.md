@@ -23,10 +23,10 @@ $ git log --oneline -n 5
 
 **Verification**:
 ```bash
-$ rg -n "ALLOW_HEADER_USER_ID" lib/jobs/rateLimiter.ts
-# Expected: Gate logic with production fail-safe
+$ rg -n "ALLOW_HEADER_USER_ID" lib/jobs/rateLimiter.ts lib/jobs/config.ts
+# Expected: Gate logic in rateLimiter.ts + fail-safe assert in config.ts
 
-$ rg -n "checkFeatureAccess" app/api lib | head -10
+$ rg -n "checkFeatureAccess\\(" app/api/jobs lib/jobs
 # Expected: All job endpoints use checkFeatureAccess()
 ```
 
@@ -70,8 +70,9 @@ $ rg -n 'USE_SUPABASE_JOBS !== "false".*process\.exit\(0\)' scripts/jobs-*.mjs
 ### ❌ No Hardcoded `x-user-id` Headers
 
 ```bash
-$ rg "x-user-id" scripts/*.mjs
+$ rg "x-user-id" scripts/jobs-*.mjs
 # Expected: 0 matches (all use jfetch which auto-adds header)
+# Note: _http.mjs contains the definition, excluded from this check
 ```
 
 ### ❌ No Manual Helper Functions
@@ -137,14 +138,15 @@ $ npm run verify:zero-drift
 **Location**: `lib/jobs/config.ts`
 
 ```typescript
-if (process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production") {
+if (process.env.NODE_ENV === "production") {
   if (process.env.ALLOW_HEADER_USER_ID === "true") {
     throw new Error("SECURITY VIOLATION: ALLOW_HEADER_USER_ID must never be enabled in production.");
   }
 }
 ```
 
-**Enforcement**: Imported by `app/api/jobs/route.ts` on module load.  
+**Enforcement**: Imported by `lib/jobs/rateLimiter.ts` on module load (top-level).  
+**Coverage**: All job endpoints import rateLimiter → all endpoints protected.  
 **Result**: Server cannot start if misconfigured.
 
 ---

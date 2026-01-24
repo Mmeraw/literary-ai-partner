@@ -8,6 +8,8 @@
  * - IP-based fallback throttling
  */
 
+import "@/lib/jobs/config"; // Production fail-safe: enforce globally on module load
+import { RateLimiterMemory } from "rate-limiter-flexible";
 import { RATE_LIMITS } from "./guards";
 import { getSupabaseClient } from "../supabase";
 

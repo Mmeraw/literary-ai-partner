@@ -2,11 +2,11 @@
  * Job System Configuration
  * 
  * Central configuration and startup validation for job system.
- * Imported by all job routes to enforce security invariants.
+ * Imported by lib/jobs/rateLimiter.ts to enforce security globally.
  */
 
 // SECURITY: Production fail-safe - prevent auth bypass in production
-if (process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production") {
+if (process.env.NODE_ENV === "production") {
   if (process.env.ALLOW_HEADER_USER_ID === "true") {
     throw new Error(
       "SECURITY VIOLATION: ALLOW_HEADER_USER_ID must never be enabled in production. " +
