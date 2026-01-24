@@ -1,0 +1,62 @@
+name: CI (staging tests)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+jobs:
+  staging-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install
+        run: npm ci
+
+      - name: Audit (allow known tar advisory if documented)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm audit --audit-level=high || true
+
+          # If audit fails at high, allow ONLY the known tar advisory when we have a note.
+          if npm audit --audit-level=high >/dev/null 2>&1; then
+            echo "npm audit (high) clean ✅"
+            exit 0
+          fi
+
+          if [[ -f docs/NPM_AUDIT_NOTES.md ]] && npm audit --json | node -e '
+            const fs=require("fs");
+            const j=JSON.parse(fs.readFileSync(0,"utf8"));
+            const vulns=j.vulnerabilities||{};
+            const keys=Object.keys(vulns);
+            // Allow only "tar" high via supabase pin. Anything else fails.
+            const bad=keys.filter(k => k !== "tar");
+            if (bad.length) { console.error("Unexpected high vulns:", bad); process.exit(1); }
+            if (!keys.includes("tar")) { console.error("High vuln present but not tar? keys:", keys); process.exit(1); }
+            console.log("Only known tar advisory remains; documented ✅");
+          '; then
+            exit 0
+          fi
+
+          echo "High severity vulnerabilities present and not allowlisted. Failing."
+          exit 1
+
+      - name: Run staging tests (Supabase secrets)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "SUPABASE_URL=$SUPABASE_URL" > .env.test.local
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY" >> .env.test.local
+          DOTENV_CONFIG_PATH=.env.test.local npm run test:staging -- --runInBand --detectOpenHandles
