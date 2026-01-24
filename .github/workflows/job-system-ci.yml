@@ -171,26 +171,38 @@ jobs:
     timeout-minutes: 10
     # Only run when Supabase credentials are configured
     # Skip in CI without secrets - prevents "Cannot read properties of null" errors
-    if: |
-      (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
-      secrets.NEXT_PUBLIC_SUPABASE_URL != '' &&
-      secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' &&
-      secrets.SUPABASE_SERVICE_ROLE_KEY != ''
+    # Note: secrets are not available in if conditions for security, so job will run but steps can check
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
     steps:
+      - name: Check for Supabase credentials
+        id: check-secrets
+        run: |
+          if [[ -z "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⚠️  Supabase credentials not configured - skipping Supabase-backed tests"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "✅ Supabase credentials available"
+          fi
+
       - name: Checkout code
+        if: steps.check-secrets.outputs.skip != 'true'
         uses: actions/checkout@v4
 
       - name: Setup Node.js
+        if: steps.check-secrets.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
+        if: steps.check-secrets.outputs.skip != 'true'
         run: npm ci
 
       - name: Audit (allow known tar advisory if documented)
+        if: steps.check-secrets.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -249,6 +261,7 @@ jobs:
           exit 0
 
       - name: Build Next.js app
+        if: steps.check-secrets.outputs.skip != 'true'
         run: npm run build
         env:
           # Use placeholder env vars - build will succeed with null-safe client
@@ -256,6 +269,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: 'placeholder-key-for-build'
 
       - name: Start dev server with Supabase backend
+        if: steps.check-secrets.outputs.skip != 'true'
         run: |
           npm run dev > /tmp/dev-server-supabase.log 2>&1 &
           echo $! > /tmp/dev-server.pid
@@ -267,21 +281,29 @@ jobs:
           USE_SUPABASE_JOBS: true
 
       - name: Run smoke tests with Supabase
+        if: steps.check-secrets.outputs.skip != 'true'
         run: |
           npm run jobs:smoke
           npm run jobs:smoke:phase2
         env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           USE_SUPABASE_JOBS: true
           BASE_URL: http://localhost:3002
 
       - name: Validate Supabase job invariants
+        if: steps.check-secrets.outputs.skip != 'true'
         run: node scripts/jobs-validate-invariants.mjs
         env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           USE_SUPABASE_JOBS: true
           BASE_URL: http://localhost:3002
 
       - name: Upload server logs on failure
-        if: failure()
+        if: failure() && steps.check-secrets.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: dev-server-supabase-logs
