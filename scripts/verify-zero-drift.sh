@@ -1,11 +1,28 @@
 #!/usr/bin/env bash
 # Drift Tripwire - Fails if banned patterns reappear in refactored scripts
 # Run this in CI to prevent regression to manual duplication
-# Only checks the 4 scripts that were refactored to use helpers
+#
+# SCOPE POLICY:
+# This script ONLY checks the 4 scripts listed below.
+# 
+# WHY ONLY 4 FILES?
+# These are the "golden path" reference implementations that were refactored
+# to use centralized helpers (_http.mjs, _skip.mjs). Other scripts in scripts/
+# directory (e.g., jobs-load.mjs, jobs-validate-invariants.mjs, jobs-smoke-real.mjs)
+# still contain manual duplication and are OUT OF SCOPE until refactored.
+#
+# ADDING NEW FILES:
+# When you refactor additional scripts to use centralized helpers:
+# 1. Add the script path to the FILES array below
+# 2. Verify it imports from _http.mjs and _skip.mjs
+# 3. Run: npm run verify:zero-drift
+# 4. Commit the updated script + this file together
+#
+# DO NOT copy patterns from out-of-scope scripts. Always use these 4 as templates.
 
 set -euo pipefail
 
-# Refactored scripts that MUST use centralized helpers
+# Refactored scripts that MUST use centralized helpers (see SCOPE POLICY above)
 FILES=(
   "scripts/jobs-smoke.mjs"
   "scripts/jobs-smoke-phase2.mjs"
