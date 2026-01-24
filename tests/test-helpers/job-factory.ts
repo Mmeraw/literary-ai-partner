@@ -6,14 +6,21 @@
 import type { EvaluationJobRow } from "../../lib/db/schema";
 
 /**
+ * Extended overrides type that includes test-only helper fields
+ */
+type JobFactoryOverrides = Partial<EvaluationJobRow> & {
+  ageMs?: number; // test-only: milliseconds in the past for created_at calculation
+};
+
+/**
  * Build a valid EvaluationJobRow with sensible defaults
  * Allows overriding specific fields while maintaining schema compliance
  *
- * @param overrides Partial EvaluationJobRow to override defaults
+ * @param overrides Partial EvaluationJobRow + test helpers to override defaults
  * @returns Complete, valid EvaluationJobRow
  */
 export function makeJobRow(
-  overrides: Partial<EvaluationJobRow> = {}
+  overrides: JobFactoryOverrides = {}
 ): EvaluationJobRow {
   const now = new Date();
   const createdAt = overrides.created_at
