@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { getBaseUrl } from "./base-url.mjs";
+import { jfetch, must, sleep } from "./_http.mjs";
+import { skipIfMemoryMode } from "./_skip.mjs";
 
 console.log("jobs-smoke-phase2 fingerprint v1", new Date().toISOString());
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function assertInvariant(condition, message) {
   if (!condition) {
@@ -11,42 +11,18 @@ function assertInvariant(condition, message) {
   }
 }
 
-async function must(res, msg) {
-  const r = await res; // works whether res is Promise<Response> or Response
-  if (!r || typeof r.ok !== "boolean") {
-    throw new Error(
-      `must() expected a fetch Response, got: ${Object.prototype.toString.call(
-        r,
-      )}`,
-    );
-  }
-  if (!r.ok) {
-    const text = await r.text().catch(() => "");
-    throw new Error(`${msg} (status=${r.status}) ${text}`);
-  }
-  return r;
-}
-
 async function main() {
   const BASE = await getBaseUrl();
 
   // Check if we're in memory mode (no Supabase worker)
-  const useSupabase = process.env.USE_SUPABASE_JOBS !== "false";
-  if (!useSupabase) {
-    console.log("⚠️  Memory mode detected (USE_SUPABASE_JOBS=false)");
-    console.log("   Phase 2 requires Supabase + background worker to complete");
-    console.log("   Skipping Phase 2 smoke test - this is expected behavior");
-    console.log("OK: Memory mode smoke check passed (skipped Phase 2 completion)");
-    process.exit(0);
-  }
+  skipIfMemoryMode("Phase 2 smoke test", "Supabase + background worker to complete Phase 1→2 transition");
 
   // 1) Create job
   const createRes = await must(
-    fetch(`${BASE}/api/jobs`, {
+    jfetch(`${BASE}/api/jobs`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
-        "x-user-id": "smoke-test-user" // Bypass auth for smoke test
       },
       body: JSON.stringify({
         job_type: "evaluate_full",
@@ -63,7 +39,7 @@ async function main() {
 
   // 2) Start Phase 1
   const run1Res = await must(
-    fetch(`${BASE}/api/jobs/${jobId}/run-phase1`, { method: "POST" }),
+    jfetch(`${BASE}/api/jobs/${jobId}/run-phase1`, { method: "POST" }),
     "Failed to start phase1",
   );
   await run1Res.json().catch(() => ({}));
@@ -124,7 +100,7 @@ async function main() {
 
   // 3) Start Phase 2
   const run2Res = await must(
-    fetch(`${BASE}/api/jobs/${jobId}/run-phase2`, { method: "POST" }),
+    jfetch(`${BASE}/api/jobs/${jobId}/run-phase2`, { method: "POST" }),
     "Failed to start phase2",
   );
   await run2Res.json().catch(() => ({}));

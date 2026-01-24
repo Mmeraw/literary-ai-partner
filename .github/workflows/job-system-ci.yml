@@ -113,6 +113,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           USE_SUPABASE_JOBS: false
+          ALLOW_HEADER_USER_ID: true  # Allow x-user-id auth bypass for CI smoke tests
 
       - name: Run Phase 1 smoke test
         run: npm run jobs:smoke

@@ -342,6 +342,9 @@ export function getFeatureRateLimit(jobType: string): {
 
 /**
  * Check if user can access a specific job type
+ * 
+ * Security: x-user-id header bypass is only honored when ALLOW_HEADER_USER_ID is explicitly enabled
+ * (CI/dev environments). In production, this must always be false or unset.
  */
 export async function checkFeatureAccess(
   userId: string | null,
@@ -350,8 +353,15 @@ export async function checkFeatureAccess(
 ): Promise<RateLimitResult> {
   const featureLimit = getFeatureRateLimit(jobType);
   
+  // Gate: Only allow header-based auth bypass in explicitly non-production environments
+  const allowHeaderUserId = process.env.ALLOW_HEADER_USER_ID === "true";
+  const isProduction = process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production";
+  
+  // Fail-safe: Never honor header bypass in production, even if misconfigured
+  const effectiveUserId = (allowHeaderUserId && !isProduction) ? userId : null;
+  
   // Check authentication requirement
-  if (featureLimit.requiresAuth && !userId) {
+  if (featureLimit.requiresAuth && !effectiveUserId) {
     return {
       allowed: false,
       reason: "Authentication required for this feature.",
