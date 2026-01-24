@@ -169,8 +169,13 @@ jobs:
     name: Supabase-Backed Job Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Only run on main branch or when explicitly triggered
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    # Only run when Supabase credentials are configured
+    # Skip in CI without secrets - prevents "Cannot read properties of null" errors
+    if: |
+      (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
+      secrets.NEXT_PUBLIC_SUPABASE_URL != '' &&
+      secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' &&
+      secrets.SUPABASE_SERVICE_ROLE_KEY != ''
 
     steps:
       - name: Checkout code
