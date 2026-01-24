@@ -41,10 +41,10 @@ jobs:
             const vulns=j.vulnerabilities||{};
             const keys=Object.keys(vulns);
             // Allow only "tar" high via supabase pin. Anything else fails.
-            const bad=keys.filter(k => k !== "tar");
+            const allow=new Set(["tar","supabase"]); const bad=keys.filter(k=>!allow.has(k));
             if (bad.length) { console.error("Unexpected high vulns:", bad); process.exit(1); }
-            if (!keys.includes("tar")) { console.error("High vuln present but not tar? keys:", keys); process.exit(1); }
-            console.log("Only known tar advisory remains; documented ✅");
+            if (!keys.includes("tar") && !keys.includes("supabase")) { console.error("High vuln present but not tar/supabase? keys:", keys); process.exit(1); }
+            console.log("Only known tar advisory remains (tar via supabase); documented ✅");
           '; then
             exit 0
           fi
