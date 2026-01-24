@@ -22,47 +22,64 @@ jobs:
 
       - name: Install
         run: npm ci
+
       - name: Audit (allow known tar advisory if documented)
         shell: bash
         run: |
           set -euo pipefail
 
-          # If npm audit at high passes, we're done.
+          # Fast path: no high vulns.
           if npm audit --audit-level=high >/dev/null 2>&1; then
             echo "npm audit (high) clean ✅"
             exit 0
           fi
 
-          # If audit fails at high, allow ONLY the known tar advisory (sometimes reported under "supabase"),
-          # but ONLY when we have a note file present.
-          if [[ -f docs/NPM_AUDIT_NOTES.md ]]; then
-            npm audit --json | node -e '
-              const fs=require("fs");
-              const j=JSON.parse(fs.readFileSync(0,"utf8"));
-              const vulns=j.vulnerabilities||{};
-              const keys=Object.keys(vulns);
+          # Controlled path: audit is failing; capture JSON but neutralize npm's exit code.
+          AUDIT_JSON="$(npm audit --json 2>/dev/null || true)"
 
-              const allow=new Set(["tar","supabase"]);
-              const bad=keys.filter(k=>!allow.has(k));
-              if (bad.length) {
-                console.error("Unexpected high vulns:", bad);
-                process.exit(1);
-              }
+          node -e '
+            const fs = require("fs");
 
-              if (!keys.includes("tar") && !keys.includes("supabase")) {
-                console.error("High vuln present but not tar/supabase? keys:", keys);
-                process.exit(1);
-              }
+            const data = fs.readFileSync(0, "utf8");
+            if (!data || !data.trim()) {
+              console.error("npm audit returned no JSON; cannot validate allowlist.");
+              process.exit(1);
+            }
 
-              console.log("Only known tar advisory remains (tar via supabase); documented ✅");
-            ';
-            exit 0
-          fi
+            let j;
+            try {
+              j = JSON.parse(data);
+            } catch (e) {
+              console.error("Failed to parse npm audit JSON:", e.message);
+              process.exit(1);
+            }
 
-          echo "High severity vulnerabilities present and not allowlisted. Failing."
-          exit 1
+            const vulns = j.vulnerabilities || {};
+            const keys = Object.keys(vulns);
 
+            const allow = new Set(["tar", "supabase"]);
+            const bad = keys.filter(k => !allow.has(k));
 
+            if (bad.length) {
+              console.error("Unexpected high vulns:", bad);
+              process.exit(1);
+            }
+
+            if (!keys.includes("tar") && !keys.includes("supabase")) {
+              console.error("High vuln present but not tar/supabase? keys:", keys);
+              process.exit(1);
+            }
+
+            const notesPath = "docs/NPM_AUDIT_NOTES.md";
+            if (!fs.existsSync(notesPath)) {
+              console.error("Missing docs/NPM_AUDIT_NOTES.md for approved tar/supabase advisory.");
+              process.exit(1);
+            }
+
+            console.log("Only known tar advisory remains (tar via supabase); documented ✅");
+          ' <<<"$AUDIT_JSON"
+
+          exit 0
 
       - name: Run staging tests (Supabase secrets)
         env:
