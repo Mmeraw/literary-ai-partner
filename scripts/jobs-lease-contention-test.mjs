@@ -9,41 +9,22 @@
  * 4. Verify the other logs "lease not acquired" and exits cleanly
  */
 import { getBaseUrl } from "./base-url.mjs";
-
-function must(promise, context) {
-  return promise.then((r) => {
-    if (!r.ok) {
-      throw new Error(`${context}: ${r.status} ${r.statusText}`);
-    }
-    return r;
-  });
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import { jfetch, must, sleep } from "./_http.mjs";
+import { skipIfMemoryMode } from "./_skip.mjs";
 
 async function main() {
   const BASE = await getBaseUrl();
   console.log(`Lease Contention Test - ${new Date().toISOString()}`);
 
   // Check if we're in memory mode (no Supabase worker)
-  const useSupabase = process.env.USE_SUPABASE_JOBS !== "false";
-  if (!useSupabase) {
-    console.log("⚠️  Memory mode detected (USE_SUPABASE_JOBS=false)");
-    console.log("   Lease contention test requires Supabase + background worker");
-    console.log("   Skipping lease contention test - this is expected behavior");
-    console.log("OK: Memory mode check passed (skipped lease test)");
-    process.exit(0);
-  }
+  skipIfMemoryMode("Lease contention test", "Supabase + background worker to complete Phase 1→2");
 
   // 1) Create job
   const createRes = await must(
-    fetch(`${BASE}/api/jobs`, {
+    jfetch(`${BASE}/api/jobs`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
-        "x-user-id": "smoke-test-user" // Bypass auth for smoke test
       },
       body: JSON.stringify({
         manuscript_id: "test-manuscript-contention",
@@ -58,9 +39,8 @@ async function main() {
 
   // 2) Run Phase 1 to completion
   const run1Res = await must(
-    fetch(`${BASE}/api/jobs/${jobId}/run-phase1`, { 
+    jfetch(`${BASE}/api/jobs/${jobId}/run-phase1`, { 
       method: "POST",
-      headers: { "x-user-id": "smoke-test-user" }
     }),
     "Failed to start phase1",
   );
@@ -90,14 +70,12 @@ async function main() {
   // 3) Start two Phase 2 workers simultaneously
   console.log("Starting two Phase 2 workers simultaneously...");
 
-  const worker1Promise = fetch(`${BASE}/api/jobs/${jobId}/run-phase2`, {
+  const worker1Promise = jfetch(`${BASE}/api/jobs/${jobId}/run-phase2`, {
     method: "POST",
-    headers: { "x-user-id": "smoke-test-user" }
   }).then((r) => ({ worker: 1, status: r.status, ok: r.ok }));
 
-  const worker2Promise = fetch(`${BASE}/api/jobs/${jobId}/run-phase2`, {
+  const worker2Promise = jfetch(`${BASE}/api/jobs/${jobId}/run-phase2`, {
     method: "POST",
-    headers: { "x-user-id": "smoke-test-user" }
   }).then((r) => ({ worker: 2, status: r.status, ok: r.ok }));
 
   const [result1, result2] = await Promise.all([

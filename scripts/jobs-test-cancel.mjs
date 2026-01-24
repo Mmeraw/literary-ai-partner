@@ -10,43 +10,24 @@
  * 5. Verify same semantics
  */
 import { getBaseUrl } from "./base-url.mjs";
-
-function must(promise, context) {
-  return promise.then((r) => {
-    if (!r.ok) {
-      throw new Error(`${context}: ${r.status} ${r.statusText}`);
-    }
-    return r;
-  });
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import { jfetch, must, sleep } from "./_http.mjs";
+import { skipIfMemoryMode } from "./_skip.mjs";
 
 async function main() {
   const BASE = await getBaseUrl();
   console.log(`Job Cancellation Test - ${new Date().toISOString()}`);
 
   // Check if we're in memory mode (no Supabase worker)
-  const useSupabase = process.env.USE_SUPABASE_JOBS !== "false";
-  if (!useSupabase) {
-    console.log("⚠️  Memory mode detected (USE_SUPABASE_JOBS=false)");
-    console.log("   Cancellation test requires Supabase + background worker");
-    console.log("   Skipping cancellation test - this is expected behavior");
-    console.log("OK: Memory mode check passed (skipped cancellation test)");
-    process.exit(0);
-  }
+  skipIfMemoryMode("Cancellation test", "Supabase + background worker for Phase 1→2 transitions");
 
   // Test 1: Cancel during Phase 1
   console.log("\n=== Test 1: Cancel Phase 1 Job ===");
   
   const createRes1 = await must(
-    fetch(`${BASE}/api/jobs`, {
+    jfetch(`${BASE}/api/jobs`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
-        "x-user-id": "smoke-test-user" // Bypass auth for smoke test
       },
       body: JSON.stringify({
         manuscript_id: "test-manuscript-cancel-1",
@@ -61,9 +42,8 @@ async function main() {
 
   // Start Phase 1
   const run1Res = await must(
-    fetch(`${BASE}/api/jobs/${jobId1}/run-phase1`, { 
+    jfetch(`${BASE}/api/jobs/${jobId1}/run-phase1`, { 
       method: "POST",
-      headers: { "x-user-id": "smoke-test-user" }
     }),
     "Failed to start phase1",
   );
@@ -75,9 +55,8 @@ async function main() {
   // Cancel it
   console.log("Canceling job...");
   const cancelRes1 = await must(
-    fetch(`${BASE}/api/jobs/${jobId1}/cancel`, { 
+    jfetch(`${BASE}/api/jobs/${jobId1}/cancel`, { 
       method: "POST",
-      headers: { "x-user-id": "smoke-test-user" }
     }),
     "Failed to cancel job",
   );
@@ -111,12 +90,9 @@ async function main() {
   console.log("\n=== Test 2: Cancel Phase 2 Job ===");
   
   const createRes2 = await must(
-    fetch(`${BASE}/api/jobs`, {
+    jfetch(`${BASE}/api/jobs`, {
       method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "x-user-id": "smoke-test-user"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         manuscript_id: "test-manuscript-cancel-2",
         job_type: "evaluate_full",
@@ -130,9 +106,8 @@ async function main() {
 
   // Run Phase 1 to completion
   const run2Phase1Res = await must(
-    fetch(`${BASE}/api/jobs/${jobId2}/run-phase1`, { 
+    jfetch(`${BASE}/api/jobs/${jobId2}/run-phase1`, { 
       method: "POST",
-      headers: { "x-user-id": "smoke-test-user" }
     }),
     "Failed to start phase1",
   );
@@ -157,9 +132,8 @@ async function main() {
 
   // Start Phase 2
   const run2Phase2Res = await must(
-    fetch(`${BASE}/api/jobs/${jobId2}/run-phase2`, { 
+    jfetch(`${BASE}/api/jobs/${jobId2}/run-phase2`, { 
       method: "POST",
-      headers: { "x-user-id": "smoke-test-user" }
     }),
     "Failed to start phase2",
   );
@@ -171,9 +145,8 @@ async function main() {
   // Cancel it
   console.log("Canceling Phase 2 job...");
   const cancelRes2 = await must(
-    fetch(`${BASE}/api/jobs/${jobId2}/cancel`, { 
+    jfetch(`${BASE}/api/jobs/${jobId2}/cancel`, { 
       method: "POST",
-      headers: { "x-user-id": "smoke-test-user" }
     }),
     "Failed to cancel job",
   );
@@ -207,11 +180,10 @@ async function main() {
   console.log("\n=== Test 3: Cannot Cancel Complete Job ===");
   
   const createRes3 = await must(
-    fetch(`${BASE}/api/jobs`, {
+    jfetch(`${BASE}/api/jobs`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
-        "x-user-id": "smoke-test-user"
       },
       body: JSON.stringify({
         manuscript_id: "test-manuscript-cancel-3",
@@ -225,9 +197,8 @@ async function main() {
 
   // Run to completion
   const run3Res = await must(
-    fetch(`${BASE}/api/jobs/${jobId3}/run-phase1`, { 
+    jfetch(`${BASE}/api/jobs/${jobId3}/run-phase1`, { 
       method: "POST",
-      headers: { "x-user-id": "smoke-test-user" }
     }),
     "Failed to start phase1",
   );
@@ -246,9 +217,8 @@ async function main() {
   }
 
   // Try to cancel complete job
-  const cancelRes3 = await fetch(`${BASE}/api/jobs/${jobId3}/cancel`, { 
+  const cancelRes3 = await jfetch(`${BASE}/api/jobs/${jobId3}/cancel`, { 
     method: "POST",
-    headers: { "x-user-id": "smoke-test-user" }
   });
   
   if (cancelRes3.ok) {

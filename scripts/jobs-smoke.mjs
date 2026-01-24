@@ -1,44 +1,23 @@
-console.log("jobs-smoke fingerprint v2", new Date().toISOString());
+#!/usr/bin/env node
 import { getBaseUrl } from "./base-url.mjs";
+import { jfetch, must, sleep } from "./_http.mjs";
+import { skipIfMemoryMode } from "./_skip.mjs";
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// Check if running in memory-only mode (no Supabase worker)
-const USE_SUPABASE_JOBS = process.env.USE_SUPABASE_JOBS === "true";
-
-async function must(res, msg) {
-  const r = await res; // works whether res is Promise<Response> or Response
-  if (!r || typeof r.ok !== "boolean") {
-    throw new Error(`must() expected a fetch Response, got: ${Object.prototype.toString.call(r)}`);
-  }
-  if (!r.ok) {
-    const text = await r.text().catch(() => "");
-    throw new Error(`${msg} (status=${r.status}) ${text}`);
-  }
-  return r;
-}
+console.log("jobs-smoke fingerprint v2", new Date().toISOString());
 
 async function main() {
   const BASE = await getBaseUrl();
 
   // In memory mode (USE_SUPABASE_JOBS=false), Phase 1 jobs stay queued forever
   // because there's no background worker to process them. This is expected.
-  // We only test job creation and transition APIs, not completion.
-  if (!USE_SUPABASE_JOBS) {
-    console.log("⚠️  Memory mode detected (USE_SUPABASE_JOBS=false)");
-    console.log("   Phase 1 requires Supabase + background worker to complete");
-    console.log("   Skipping Phase 1 smoke test - this is expected behavior");
-    console.log("OK: Memory mode smoke check passed (skipped Phase 1 completion)");
-    process.exit(0);
-  }
+  skipIfMemoryMode("Phase 1 smoke test", "Supabase + background worker to complete Phase 1");
 
   // 1) Create job (using numeric manuscript_id for validation)
   const createRes = await must(
-    fetch(`${BASE}/api/jobs`, {
+    jfetch(`${BASE}/api/jobs`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
-        "x-user-id": "smoke-test-user" // Bypass auth for smoke test
       },
       body: JSON.stringify({ job_type: "evaluate_full", manuscript_id: 1 })
     }),
@@ -50,7 +29,7 @@ async function main() {
 
   // 2) Start Phase 1
   const runRes = await must(
-    fetch(`${BASE}/api/jobs/${jobId}/run-phase1`, { method: "POST" }),
+    jfetch(`${BASE}/api/jobs/${jobId}/run-phase1`, { method: "POST" }),
     "Failed to start phase1"
   );
   await runRes.json().catch(() => ({}));
