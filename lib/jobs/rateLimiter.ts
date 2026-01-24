@@ -134,22 +134,51 @@ function checkIpRateLimit(ip: string): RateLimitResult {
 
 /**
  * Check per-user job creation rate limit
- * Queries evaluation_jobs table to count recent jobs
+ * Queries evaluation_jobs via manuscripts join to get user's jobs
+ * 
+ * CRITICAL: evaluation_jobs.manuscript_id → manuscripts.id → manuscripts.user_id
  */
 async function checkUserJobRateLimit(userId: string): Promise<RateLimitResult> {
   const supabase = getSupabaseClient();
+  
+  // Production safety: during build or when env vars missing, fail open
+  if (!supabase) {
+    console.warn("[RATE-LIMIT] Supabase client unavailable, allowing request");
+    return { allowed: true, reason: "ok" };
+  }
+
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   
   try {
-    // Count jobs created by this user in the last hour
+    // Query: Get user's manuscripts first, then count their jobs
+    // evaluation_jobs doesn't have user_id directly - must join through manuscripts
+    const { data: manuscripts, error: manuError } = await supabase
+      .from("manuscripts")
+      .select("id")
+      .eq("user_id", userId);
+
+    if (manuError) {
+      console.error("[RATE-LIMIT] Error fetching user manuscripts:", manuError);
+      // Fail open - allow request but log for monitoring
+      return { allowed: true, reason: "ok" };
+    }
+
+    if (!manuscripts || manuscripts.length === 0) {
+      // No manuscripts = no jobs possible yet, allow
+      return { allowed: true, reason: "ok" };
+    }
+
+    const manuscriptIds = manuscripts.map(m => m.id);
+
+    // Count jobs for user's manuscripts in the last hour
     const { count, error } = await supabase
       .from("evaluation_jobs")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
+      .in("manuscript_id", manuscriptIds)
       .gte("created_at", oneHourAgo);
     
     if (error) {
-      console.error("Rate limit check error:", error);
+      console.error("[RATE-LIMIT] Error counting jobs:", error);
       // Fail open on DB errors (but log for monitoring)
       return { allowed: true, reason: "ok" };
     }
@@ -164,8 +193,8 @@ async function checkUserJobRateLimit(userId: string): Promise<RateLimitResult> {
     
     return { allowed: true, reason: "ok" };
   } catch (err) {
-    console.error("Rate limit exception:", err);
-    // Fail open on exceptions
+    console.error("[RATE-LIMIT] Exception during rate check:", err);
+    // Fail open on exceptions - never block requests due to internal errors
     return { allowed: true, reason: "ok" };
   }
 }
@@ -173,20 +202,46 @@ async function checkUserJobRateLimit(userId: string): Promise<RateLimitResult> {
 /**
  * Check concurrent active jobs limit per user
  * Prevents users from queuing too many jobs at once
+ * 
+ * CRITICAL: evaluation_jobs.manuscript_id → manuscripts.id → manuscripts.user_id
  */
 async function checkConcurrentJobsLimit(userId: string): Promise<RateLimitResult> {
   const supabase = getSupabaseClient();
+  
+  // Production safety: during build or when env vars missing, fail open
+  if (!supabase) {
+    console.warn("[CONCURRENT-LIMIT] Supabase client unavailable, allowing request");
+    return { allowed: true, reason: "ok" };
+  }
+
   const MAX_CONCURRENT = 5; // Configurable based on subscription tier
   
   try {
+    // Query: Get user's manuscripts first, then count active jobs
+    const { data: manuscripts, error: manuError } = await supabase
+      .from("manuscripts")
+      .select("id")
+      .eq("user_id", userId);
+
+    if (manuError) {
+      console.error("[CONCURRENT-LIMIT] Error fetching user manuscripts:", manuError);
+      return { allowed: true, reason: "ok" };
+    }
+
+    if (!manuscripts || manuscripts.length === 0) {
+      return { allowed: true, reason: "ok" };
+    }
+
+    const manuscriptIds = manuscripts.map(m => m.id);
+
     const { count, error } = await supabase
       .from("evaluation_jobs")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
+      .in("manuscript_id", manuscriptIds)
       .in("status", ["queued", "running", "retry_pending"]);
     
     if (error) {
-      console.error("Concurrent jobs check error:", error);
+      console.error("[CONCURRENT-LIMIT] Error counting active jobs:", error);
       return { allowed: true, reason: "ok" };
     }
     
