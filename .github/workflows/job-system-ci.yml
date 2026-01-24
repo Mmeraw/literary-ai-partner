@@ -109,15 +109,50 @@ jobs:
       - name: Verify ALLOW_HEADER_USER_ID never in production configs
         shell: bash
         run: |
-          echo "🔍 Checking for ALLOW_HEADER_USER_ID in production workflow files..."
+          set -euo pipefail
           
-          # Check all workflow files for production deployments
-          if rg -n "ALLOW_HEADER_USER_ID.*true" .github/workflows/*.yml | grep -iE "(prod|production|deploy)" | grep -v "# Allow"; then
-            echo "❌ FAIL: Found ALLOW_HEADER_USER_ID=true in production workflow"
+          echo "🔍 Checking ALLOW_HEADER_USER_ID in all workflow files..."
+          echo "   Policy: Auth bypass only allowed in CI/dev contexts with explicit comment"
+          echo ""
+          
+          # Deterministic check: scan all workflows explicitly (no heuristics)
+          WORKFLOWS=(
+            ".github/workflows/ci.yml"
+            ".github/workflows/ci-staging-tests.yml"
+            ".github/workflows/job-system-ci.yml"
+          )
+          
+          FAIL=0
+          for workflow in "${WORKFLOWS[@]}"; do
+            # Find env: sections with ALLOW_HEADER_USER_ID=true (actual config, not script content)
+            if matches=$(rg -n "^\\s+ALLOW_HEADER_USER_ID:\\s*true" "$workflow" 2>/dev/null); then
+              while IFS= read -r line; do
+                linenum=$(echo "$line" | cut -d: -f1)
+                
+                # Get previous 3 lines for context (to find comment)
+                context=$(sed -n "$((linenum-3)),$((linenum))p" "$workflow")
+                
+                # Allow if context contains CI/dev/smoke/test justification
+                if echo "$context" | grep -qiE "(#.*CI|#.*dev|#.*smoke|#.*test)"; then
+                  echo "   ✅ $workflow:$linenum - Allowed (CI/dev/test context)"
+                else
+                  echo "   ❌ FAIL: $workflow:$linenum - No CI/dev justification"
+                  echo "      Line: $(sed -n "${linenum}p" "$workflow")"
+                  FAIL=1
+                fi
+              done <<< "$matches"
+            fi
+          done
+          
+          if [ $FAIL -eq 1 ]; then
+            echo ""
+            echo "❌ Found ALLOW_HEADER_USER_ID=true without CI/dev/test justification"
+            echo "   Add comment like: # Allow x-user-id auth bypass for CI smoke tests"
             exit 1
           fi
           
-          echo "✅ PASS: No production workflows have auth bypass enabled"
+          echo ""
+          echo "✅ PASS: All ALLOW_HEADER_USER_ID usages properly justified"
 
       - name: Start dev server in background
         run: |

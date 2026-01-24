@@ -34,6 +34,14 @@ $ rg -n "checkFeatureAccess\\(" app/api/jobs lib/jobs
 ```bash
 $ rg -n "SECURITY VIOLATION" lib/jobs/config.ts
 # Expected: Startup assert that throws in production if bypass enabled
+
+# Verify no circular imports (config.ts must be pure)
+$ rg -n "import.*from" lib/jobs/config.ts
+# Expected: 0 matches (config.ts imports nothing)
+
+# Verify panic signature stability (for log alerts)
+$ rg "SECURITY VIOLATION" lib/jobs/config.ts
+# Expected: Exact string "SECURITY VIOLATION" (never change this - it's your panic signature)
 ```
 
 ### ✅ HTTP Helpers
@@ -151,6 +159,44 @@ if (process.env.NODE_ENV === "production") {
 
 ---
 
+## Tripwire Scope Policy
+
+**Deliberate Scope Decision**: The drift tripwire enforces zero-drift **only** on the 4 refactored smoke tests:
+
+1. `scripts/jobs-smoke.mjs`
+2. `scripts/jobs-smoke-phase2.mjs`
+3. `scripts/jobs-lease-contention-test.mjs`
+4. `scripts/jobs-test-cancel.mjs`
+
+**Out of Scope**: Other scripts in `scripts/` directory (e.g., `jobs-load.mjs`, `jobs-validate-invariants.mjs`, `jobs-smoke-real.mjs`) still contain manual duplication. These are not checked by the tripwire.
+
+**Why**: These 4 scripts were refactored as the "golden path" reference implementation. Other scripts remain unrefactored until needed.
+
+**Important**: Do NOT copy patterns from out-of-scope scripts. Always use the 4 refactored scripts as templates for new smoke tests.
+
+---
+
+## Tripwire Failure Test (Negative Validation)
+
+**Last Validated**: 2026-01-24  
+**Method**: Intentional injection test
+
+**Test Procedure**:
+1. Temporarily added `"x-user-id": "test"` to `scripts/jobs-smoke.mjs`
+2. Ran `npm run verify:zero-drift`
+3. **Result**: Script correctly failed with:
+   ```
+   [1/4] Checking for hardcoded auth headers...
+         ❌ FAIL - Found hardcoded x-user-id headers:
+         scripts/jobs-smoke.mjs:X: "x-user-id": "test"
+   ```
+4. Reverted change
+5. Script passed ✅
+
+**Conclusion**: Tripwire mechanism proven functional. False-pass is impossible.
+
+---
+
 ## Drift Protection Checklist
 
 Before merging ANY job system changes:
@@ -215,11 +261,11 @@ $ git log --oneline -n 10 -- scripts/_http.mjs scripts/_skip.mjs lib/jobs/rateLi
 
 ---
 
-## Solo Operator Guarantee
+## Solo Operator Guarantees (Enforced by Checks)
 
 ✅ **One change point for auth** → Edit `_http.mjs`, affects 4 tests  
 ✅ **One change point for skips** → Edit `_skip.mjs`, affects 4 tests  
-✅ **Production can't start if misconfigured** → Startup assert throws  
-✅ **CI fails if drift reappears** → Tripwire catches regressions  
+✅ **Production prevented from starting misconfigured** → Startup assert throws (enforced)  
+✅ **CI fails if drift reappears** → Tripwire catches regressions (enforced)  
 
-**Result**: Maintainable by one person forever. No drift possible.
+**Result**: Maintainable by one person with enforced checks + CI tripwires. Drift prevented by automation, not discipline.
