@@ -10,6 +10,7 @@
     "spine:verify": "bash scripts/verify-spine.sh",
     "config:validate": "node scripts/validate-production-config.mjs",
     "docs:verify": "bash scripts/verification-contract.sh",
+    "verify:zero-drift": "bash scripts/verify-zero-drift.sh",
     "test": "jest",
     "test:ci": "jest --silent",
     "test:polling": "jest --testPathPatterns=polling",

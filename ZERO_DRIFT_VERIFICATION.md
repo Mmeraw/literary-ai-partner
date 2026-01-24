@@ -1,103 +1,151 @@
 # Zero-Drift Job System Verification
 
 **Status**: ✅ **LOCKED AND VERIFIED**  
-**Date**: January 24, 2026  
-**Commit**: 358d837
+**Last Verified**: Run `npm run verify:zero-drift` to re-verify  
+**Provable Commit**: Run `git rev-parse HEAD`
 
 ---
 
-## Single Source of Truth Confirmed
+## Provable Commit State
+
+```bash
+$ git rev-parse HEAD
+$ git show -s --format=fuller HEAD
+$ git log --oneline -n 5
+```
+
+---
+
+## Single Source of Truth (Provable)
 
 ### ✅ Auth Logic
 **Location**: `lib/jobs/rateLimiter.ts:checkFeatureAccess()`
-- `ALLOW_HEADER_USER_ID` gate implemented
-- Production fail-safe: `isProduction && !allowHeaderUserId`
-- Used by: ALL job endpoints
 
 **Verification**:
 ```bash
-grep -n "ALLOW_HEADER_USER_ID" lib/jobs/rateLimiter.ts
-# Returns: Lines 350-359 (gate logic)
+$ rg -n "ALLOW_HEADER_USER_ID" lib/jobs/rateLimiter.ts
+# Expected: Gate logic with production fail-safe
+
+$ rg -n "checkFeatureAccess" app/api lib | head -10
+# Expected: All job endpoints use checkFeatureAccess()
+```
+
+**Production Fail-Safe**:
+```bash
+$ rg -n "SECURITY VIOLATION" lib/jobs/config.ts
+# Expected: Startup assert that throws in production if bypass enabled
 ```
 
 ### ✅ HTTP Helpers
 **Location**: `scripts/_http.mjs`
-- `authHeaders()` - Single header definition
-- `jfetch()` - Auto-auth for POST/PUT/DELETE
-- `must()` - Response validation
-- `sleep()` - Shared utility
 
 **Verification**:
 ```bash
-grep "import.*_http" scripts/*.mjs
-# Returns: 4 scripts (smoke, phase2, contention, cancel)
+$ rg "from \"\\.\\/(_http)\\.mjs\"|import.*_http" scripts
+# Expected: 4 matches (smoke, phase2, contention, cancel)
+
+$ rg -n "^function must|^async function must" scripts/jobs-*.mjs
+# Expected: 0 matches (all import from _http.mjs)
+
+$ rg -n "^function sleep|^const sleep\s*=" scripts/jobs-*.mjs
+# Expected: 0 matches (all import from _http.mjs)
 ```
 
 ### ✅ Skip Logic
 **Location**: `scripts/_skip.mjs`
-- `skipIfMemoryMode()` - Standardized skip with audit message
-- `isMemoryMode()` - Environment detection
 
 **Verification**:
 ```bash
-grep "import.*_skip" scripts/*.mjs
-# Returns: 4 scripts (smoke, phase2, contention, cancel)
-```
+$ rg "from \"\\.\\/(_skip)\\.mjs\"|import.*_skip" scripts
+# Expected: 4 matches (smoke, phase2, contention, cancel)
 
----
-
-## Zero Manual Duplication Confirmed
-
-### ❌ No Hardcoded `x-user-id` Headers
-```bash
-cd /workspaces/literary-ai-partner
-grep -r "x-user-id" scripts/*.mjs
-# Expected: 0 matches (all use jfetch)
-```
-
-**Actual Result**: ✅ 0 matches
-
-### ❌ No Manual `must()` Functions
-```bash
-grep -n "^function must\|^async function must" scripts/jobs-*.mjs
-# Expected: 0 matches (all import from _http.mjs)
-```
-
-**Actual Result**: ✅ 0 matches
-
-### ❌ No Manual Skip Logic
-```bash
-grep -n "USE_SUPABASE_JOBS !== \"false\"\|process.exit(0)" scripts/jobs-*.mjs | grep -v skipIfMemoryMode
+$ rg -n 'USE_SUPABASE_JOBS !== "false".*process\.exit\(0\)' scripts/jobs-*.mjs
 # Expected: 0 matches (all use skipIfMemoryMode)
 ```
 
-**Actual Result**: ✅ 0 matches (only GET requests remain with plain fetch)
+---
+
+## Zero Manual Duplication (Provable)
+
+### ❌ No Hardcoded `x-user-id` Headers
+
+```bash
+$ rg "x-user-id" scripts/*.mjs
+# Expected: 0 matches (all use jfetch which auto-adds header)
+```
+
+### ❌ No Manual Helper Functions
+
+```bash
+$ rg -n "^function must|^async function must" scripts/jobs-*.mjs
+# Expected: 0 matches
+
+$ rg -n "^function sleep|^const sleep" scripts/jobs-*.mjs
+# Expected: 0 matches
+```
+
+### ❌ No Manual Skip Logic
+
+```bash
+$ rg -n "process\.exit\(0\)" scripts/jobs-*.mjs | grep -v skipIfMemoryMode
+# Expected: 0 matches
+```
 
 ---
 
-## CI Contract Verified
+## CI Contract (Provable)
 
 ### ✅ All Workflows Passing
+
 ```bash
-gh run list --repo Mmeraw/literary-ai-partner --workflow="Job System CI" --limit 3 --json conclusion,displayTitle
+$ gh run list --repo Mmeraw/literary-ai-partner \
+    --workflow="Job System CI" --limit 3 \
+    --json conclusion,displayTitle,createdAt
 ```
 
-**Results**:
-- ✅ "refactor: eliminate all auth/skip duplication" - **success**
-- ✅ "feat(ci): centralize auth bypass" - **success**
-- ✅ "docs: add 3-state CI matrix" - **success**
+### ✅ Drift Tripwire Active
 
-### ✅ Gate Active in CI
-**File**: `.github/workflows/job-system-ci.yml:120`
+**File**: `.github/workflows/job-system-ci.yml`
+
 ```yaml
-env:
-  ALLOW_HEADER_USER_ID: true  # CI bypass enabled
+- name: Verify zero-drift (no manual duplication)
+  run: npm run verify:zero-drift
 ```
 
-**File**: `.env.local:5`
+**Script**: `scripts/verify-zero-drift.sh`
+
+Checks:
+1. No hardcoded `x-user-id` headers
+2. No manual `must()` functions
+3. No manual `sleep()` functions
+4. No manual skip logic
+
+**Test locally**:
 ```bash
-ALLOW_HEADER_USER_ID=true  # Local dev bypass enabled
+$ npm run verify:zero-drift
+🔍 Drift Tripwire: Checking for banned patterns...
+  [1/4] Checking for hardcoded auth headers... ✅ PASS
+  [2/4] Checking for manual must() functions... ✅ PASS
+  [3/4] Checking for manual sleep() functions... ✅ PASS
+  [4/4] Checking for manual skip logic... ✅ PASS
+
+✅ All tripwire checks passed - no drift detected
 ```
+
+### ✅ Production Fail-Safe
+
+**Location**: `lib/jobs/config.ts`
+
+```typescript
+if (process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production") {
+  if (process.env.ALLOW_HEADER_USER_ID === "true") {
+    throw new Error("SECURITY VIOLATION: ALLOW_HEADER_USER_ID must never be enabled in production.");
+  }
+}
+```
+
+**Enforcement**: Imported by `app/api/jobs/route.ts` on module load.  
+**Result**: Server cannot start if misconfigured.
 
 ---
 
@@ -105,6 +153,7 @@ ALLOW_HEADER_USER_ID=true  # Local dev bypass enabled
 
 Before merging ANY job system changes:
 
+- [ ] Run `npm run verify:zero-drift` - must pass
 - [ ] New smoke tests import from `_http.mjs` and `_skip.mjs`
 - [ ] No new `x-user-id` headers hardcoded
 - [ ] No new `must()` or `sleep()` implementations
@@ -114,7 +163,7 @@ Before merging ANY job system changes:
 
 ---
 
-## Future Maintenance
+## Future Maintenance (Single Change Points)
 
 ### To Change Auth Header
 **Edit ONE file**: `scripts/_http.mjs:authHeaders()`
@@ -133,28 +182,42 @@ Before merging ANY job system changes:
 
 ---
 
+## Verification Commands (Run Anytime)
+
+```bash
+# Quick verification
+npm run verify:zero-drift
+
+# Full evidence collection
+git rev-parse HEAD
+git show -s --format=fuller HEAD
+rg "from \"\\.\\/(_http|_skip)" scripts
+rg "x-user-id" scripts/*.mjs
+rg -n "^function must|^function sleep" scripts/jobs-*.mjs
+gh run list --repo Mmeraw/literary-ai-partner --workflow="Job System CI" --limit 3
+```
+
+---
+
 ## Commit History (Audit Trail)
 
 ```bash
-358d837 refactor: eliminate all auth/skip duplication in job smoke tests
-31d90e3 feat(ci): centralize auth bypass with ALLOW_HEADER_USER_ID gate
-250b184 docs: add 3-state CI matrix contract
-e5efbf1 fix(ci): add x-user-id header and skip cancellation test in memory mode
-e6d930e fix(ci): add x-user-id header and skip lease test in memory mode
-7c8bcc6 fix(ci): skip Phase 2 smoke test in memory mode
+$ git log --oneline -n 10 -- scripts/_http.mjs scripts/_skip.mjs lib/jobs/rateLimiter.ts lib/jobs/config.ts
 ```
 
-**Total Lines Eliminated**: 101 (manual implementations)  
-**Total Lines Added**: 28 (imports)  
-**Net Reduction**: 73 lines of duplication
+**Key Commits**:
+- Production fail-safe assert added
+- Drift tripwire CI check added  
+- All 4 smoke tests refactored to use helpers
+- Zero-drift verification doc created
 
 ---
 
 ## Solo Operator Guarantee
 
-✅ **One change point for auth** → No scattered headers to update  
-✅ **One change point for skips** → No inconsistent CI messages  
-✅ **Production fail-safe** → Never honors bypass even if misconfigured  
-✅ **CI validates contract** → Catches regressions before merge  
+✅ **One change point for auth** → Edit `_http.mjs`, affects 4 tests  
+✅ **One change point for skips** → Edit `_skip.mjs`, affects 4 tests  
+✅ **Production can't start if misconfigured** → Startup assert throws  
+✅ **CI fails if drift reappears** → Tripwire catches regressions  
 
-**Result**: You can maintain this system alone without hiring help.
+**Result**: Maintainable by one person forever. No drift possible.

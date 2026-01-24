@@ -103,6 +103,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: 'https://placeholder.supabase.co'
           NEXT_PUBLIC_SUPABASE_ANON_KEY: 'placeholder-key-for-build'
 
+      - name: Verify zero-drift (no manual duplication)
+        run: npm run verify:zero-drift
+
       - name: Start dev server in background
         run: |
           npm run dev > /tmp/dev-server.log 2>&1 &
