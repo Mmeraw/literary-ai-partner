@@ -35,3 +35,8 @@ out
 .env.local
 .env.test.local
 !.env.test.example
+
+# Local scratch/build artifacts
+/tmp-*.json
+/tsconfig.tsbuildinfo
+/tmp/
