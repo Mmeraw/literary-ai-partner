@@ -131,7 +131,8 @@ Step 4: New lease active (29s until expiry)
 | Query performance | ~104ms (3 artifacts) | evaluation-artifacts-large-payload.test.ts |
 | Policy ceiling | 5 MB | MAX_ARTIFACT_SIZE_MB |
 | Lease TTL | 30 seconds | test-worker-lease.mjs |
-| Recovery time | 30 seconds | Test 7 verified |
+- Lease TTL (default) | 30 seconds | Test 7 verified |
+| Recovery time | ≤30s (lease expiry) | Test 7 verified |
 | Max retry attempts | 3 | Per-chunk limit |
 
 ---

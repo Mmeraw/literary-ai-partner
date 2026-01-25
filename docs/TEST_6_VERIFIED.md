@@ -111,7 +111,7 @@ if (job.status !== 'queued') {
   return false; // Not eligible
 }
 
-// 3. Attempt atomic update with optimistic lock
+// 3. Attempt atomic update with compare-and-swap
 const { data: updated } = await supabase
   .from('evaluation_jobs')
   .update({
@@ -121,7 +121,7 @@ const { data: updated } = await supabase
   })
   .eq('id', JOB_ID)
   .eq('status', 'queued')
-  .eq('updated_at', job.updated_at)  // ← Optimistic lock
+  .eq('updated_at', job.updated_at)  // ← Compare-and-swap guard
   .select('id, progress')
   .maybeSingle();
 
@@ -133,7 +133,7 @@ return updated !== null;
 - PostgreSQL enforces row-level locks on UPDATE
 - The `.eq('updated_at', job.updated_at)` condition fails for all but the first writer
 - MVCC (Multi-Version Concurrency Control) ensures losers see consistent state
-- No database-level RPC needed; application-level optimistic locking sufficient
+- Atomic single-winner semantics via compare-and-swap pattern
 
 ---
 
@@ -156,7 +156,7 @@ return updated !== null;
 **Test 6: PASS ✅**
 
 Concurrent lease contention behaves correctly:
-- Atomic acquisition via optimistic locking
+- Atomic acquisition via compare-and-swap
 - Exactly one winner per job
 - Clean failure for losers (no exceptions, no retries)
 - Database state consistent with architecture design

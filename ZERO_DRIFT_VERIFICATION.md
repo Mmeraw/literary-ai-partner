@@ -52,7 +52,8 @@
 
 **Last verification**: 2026-01-25  
 **Infrastructure checkpoint**: infra-hygiene-v1.0.0 (commit 0fc01af)  
-**Evidence documentation**: [TEST_6_VERIFIED.md](docs/TEST_6_VERIFIED.md), [TEST_7_VERIFIED.md](docs/TEST_7_VERIFIED.md)
+**Verification commit**: 662ddce (2026-01-25 19:53 UTC)  
+**Evidence docs**: [TEST_6_VERIFIED.md](docs/TEST_6_VERIFIED.md), [TEST_7_VERIFIED.md](docs/TEST_7_VERIFIED.md)
 
 **Decision**: No more infrastructure hardening unless production reality forces it.
 
@@ -136,7 +137,7 @@ return updated !== null;
 - PostgreSQL row-level locks on UPDATE
 - `.eq('updated_at', job.updated_at)` fails for all but first writer
 - MVCC ensures losers see consistent state
-- No database RPC needed; application-level optimistic locking sufficient
+- Atomic single-winner semantics via compare-and-swap pattern
 
 ### Proven Capabilities
 ✅ Remote Supabase integration works  

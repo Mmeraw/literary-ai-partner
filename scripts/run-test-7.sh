@@ -12,6 +12,35 @@ echo "TEST 7: LEASE EXPIRY RECOVERY"
 echo "==================================="
 echo ""
 
+# Preflight: Check required environment variables
+echo "[Preflight] Checking required environment variables..."
+MISSING_VARS=()
+
+if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+  MISSING_VARS+=("NEXT_PUBLIC_SUPABASE_URL")
+fi
+
+if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+  MISSING_VARS+=("SUPABASE_SERVICE_ROLE_KEY")
+fi
+
+if [ ${#MISSING_VARS[@]} -ne 0 ]; then
+  echo "❌ Missing required environment variables:"
+  for var in "${MISSING_VARS[@]}"; do
+    echo "  - $var"
+  done
+  echo ""
+  echo "Required variables:"
+  echo "  NEXT_PUBLIC_SUPABASE_URL     - Supabase project URL"
+  echo "  SUPABASE_SERVICE_ROLE_KEY    - Service role key for admin operations"
+  echo ""
+  echo "Load them with: source .env.local"
+  exit 1
+fi
+
+echo "✅ All required environment variables present"
+echo ""
+
 # Step 1: Create job and acquire initial lease
 echo "[Step 1] Creating test job and acquiring initial lease..."
 
@@ -27,16 +56,16 @@ const supabase = createClient(
 async function createAndClaimJob() {
   const jobId = randomUUID();
   
-  // Create job
+  // Create job with ALL required fields (matches check constraints)
   await supabase.from('evaluation_jobs').insert({
     id: jobId,
     manuscript_id: 2,
-    job_type: 'quick_evaluation',
+    job_type: 'quick_evaluation',       // Matches evaluation_jobs_job_type_check
     status: 'queued',
-    phase: 'phase_0',
-    policy_family: 'standard',
-    voice_preservation_level: 'balanced',
-    english_variant: 'us',
+    phase: 'phase_0',                   // Matches evaluation_jobs_phase_check
+    policy_family: 'standard',          // Matches chk_eval_jobs_policy_family
+    voice_preservation_level: 'balanced', // Matches chk_eval_jobs_voice_preservation_level
+    english_variant: 'us',              // Matches chk_eval_jobs_english_variant
     progress: { phase: 'queued', phase_status: 'pending' }
   });
   
