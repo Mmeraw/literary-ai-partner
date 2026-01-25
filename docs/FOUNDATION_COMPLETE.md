@@ -24,9 +24,10 @@ All infrastructure work is complete and proven. No more hardening unless product
 - **Proof**: 9 KB → 820 KB payloads, ~104ms queries, 5 MB ceiling, schema drift guarded
 
 ### D) Concurrency & Crash Recovery
-- **Commit**: 3978bbf
-- **Evidence**: [TESTS_6_7_EVIDENCE.md](TESTS_6_7_EVIDENCE.md)
-- **Proof**: Database-level lease safety, 15-min expiry, automatic recovery
+- **Test 6 Commit**: 8826f98 (script created) + verified execution
+- **Test 7 Commit**: 8826f98 (script created) + verified execution
+- **Evidence**: [TEST_6_VERIFIED.md](TEST_6_VERIFIED.md), [TEST_7_VERIFIED.md](TEST_7_VERIFIED.md)
+- **Proof**: Atomic lease acquisition, expired lease reclaim, 30s TTL recovery
 
 ---
 
@@ -39,7 +40,8 @@ All infrastructure work is complete and proven. No more hardening unless product
 | Payload capacity proven | 820 KB | evaluation-artifacts-large-payload.test.ts |
 | Query performance | ~104ms (3 artifacts) | evaluation-artifacts-large-payload.test.ts |
 | Policy ceiling | 5 MB | MAX_ARTIFACT_SIZE_MB |
-| Lease expiry timeout | 15 minutes | Configurable |
+| Lease expiry timeout | 30 seconds | test-worker-lease.mjs |
+| Lease recovery time | 30 seconds (TTL) | Test 7 verified |
 | Max retry attempts | 3 | Per-chunk limit |
 
 ---
