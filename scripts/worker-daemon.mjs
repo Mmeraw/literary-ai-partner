@@ -36,14 +36,10 @@ console.log(`[${WORKER_ID}] Base URL: ${BASE_URL}`);
 console.log(`[${WORKER_ID}] Poll interval: ${POLL_INTERVAL_MS}ms`);
 console.log(`[${WORKER_ID}] Max per tick: ${MAX_PER_TICK}`);
 
-console.log(`[${WORKER_ID}] Worker daemon started`);
-console.log(`[${WORKER_ID}] Base URL: ${BASE_URL}`);
-console.log(`[${WORKER_ID}] Poll interval: ${POLL_INTERVAL_MS}ms`);
-
 let running = true;
 let currentJobId = null;
 
-// Graceful shutdown
+// Graceful shutdown (signal handlers registered once)
 process.on('SIGINT', () => {
   console.log(`\n[${WORKER_ID}] Received SIGINT, shutting down gracefully...`);
   running = false;
@@ -145,29 +141,7 @@ async function processJobs() {
     let processed = 0;
     const seen = new Set();
     
-    // Priority 1: Complete existing work (Phase 2)
-    for (const job of phase2) {
-      if (!running || processed >= MAX_PER_TICK) break;
-      if (seen.has(job.id)) continue;
-      
-      seen.add(job.id);
-      currentJobId = job.id;
-      
-      try {
-        const result = await triggerPhase2(job.id);
-        const outcome = handleTriggerResponse(result, 'Phase2');
-        
-        if (outcome === 'success') {
-          processed++;
-        }
-      } catch (err) {
-        console.error(`[${WORKER_ID}] Phase2 exception for ${job.id}:`, err.message);
-      }
-      
-      currentJobId = null;
-    }
-    
-    // Priority 2: Start new work (Phase 1)
+    // Priority 1: Start new work (Phase 1) - process these first
     for (const job of phase1) {
       if (!running || processed >= MAX_PER_TICK) break;
       if (seen.has(job.id)) continue;
@@ -184,6 +158,28 @@ async function processJobs() {
         }
       } catch (err) {
         console.error(`[${WORKER_ID}] Phase1 exception for ${job.id}:`, err.message);
+      }
+      
+      currentJobId = null;
+    }
+    
+    // Priority 2: Complete existing work (Phase 2) - use remaining slots
+    for (const job of phase2) {
+      if (!running || processed >= MAX_PER_TICK) break;
+      if (seen.has(job.id)) continue;
+      
+      seen.add(job.id);
+      currentJobId = job.id;
+      
+      try {
+        const result = await triggerPhase2(job.id);
+        const outcome = handleTriggerResponse(result, 'Phase2');
+        
+        if (outcome === 'success') {
+          processed++;
+        }
+      } catch (err) {
+        console.error(`[${WORKER_ID}] Phase2 exception for ${job.id}:`, err.message);
       }
       
       currentJobId = null;

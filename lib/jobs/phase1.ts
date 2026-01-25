@@ -7,7 +7,7 @@ import * as metrics from "./metrics";
 export const PHASE_1_STATES = {
   NOT_STARTED: "not_started",
   RUNNING: "running",
-  COMPLETED: "completed",
+  COMPLETED: "complete",
   FAILED: "failed",
 } as const;
 
@@ -15,9 +15,9 @@ export type Phase1State = (typeof PHASE_1_STATES)[keyof typeof PHASE_1_STATES];
 
 const ALLOWED_TRANSITIONS: Record<Phase1State, Phase1State[]> = {
   not_started: ["running"],
-  running: ["completed", "failed"],
+  running: ["complete", "failed"],
   failed: ["running"],
-  completed: [],
+  complete: [],
 };
 
 export function canTransitionPhase1(
@@ -76,7 +76,7 @@ export async function runPhase1(jobId: string): Promise<void> {
   if (!leasedJob) {
     console.log("Phase1LeaseNotAcquired", {
       job_id: jobId,
-      phase: "phase1",
+      phase: "phase_1",
       reason: "not eligible or already running",
     });
     return;
@@ -98,7 +98,7 @@ export async function runPhase1(jobId: string): Promise<void> {
     );
   }
 
-  const chunkCount = await ensureChunks(manuscriptIdNum);
+  const chunkCount = await ensureChunks(manuscriptIdNum, jobId);  // Link chunks to job
   
   // Get eligible chunks with stuck recovery (handles worker crashes)
   // This fetches pending/failed chunks AND processing chunks with expired leases
@@ -125,12 +125,11 @@ export async function runPhase1(jobId: string): Promise<void> {
   // Set total_units based on actual chunk count, phase, phase_status
   await updateJob(jobId, {
     progress: {
-      stage: "starting",
       message: `Initializing Phase 1 - ${eligibleChunks.length} chunks to process (${doneChunks} already done)`,
       total_units: allChunks.length,
       completed_units,
       started_at,
-      phase: "phase1",
+      phase: "phase_1",
       phase_status: "running",
       phase1_last_processed_index: existing_index,
     },
@@ -156,7 +155,7 @@ export async function runPhase1(jobId: string): Promise<void> {
       if (currentJob.status === "canceled") {
         console.log("Phase1Canceled", {
           job_id: jobId,
-          phase: "phase1",
+          phase: "phase_1",
           processed_before_cancel: processed,
         });
         return;
@@ -164,7 +163,7 @@ export async function runPhase1(jobId: string): Promise<void> {
 
       const progress = currentJob.progress;
 
-      if (progress.phase !== "phase1" || progress.phase_status !== "running") {
+      if (progress.phase !== "phase_1" || progress.phase_status !== "running") {
         console.log(
           "Phase1 invariant failed: phase or phase_status mismatch",
         );
@@ -177,7 +176,7 @@ export async function runPhase1(jobId: string): Promise<void> {
       ) {
         console.log("Phase1LeaseExpired", {
           job_id: jobId,
-          phase: "phase1",
+          phase: "phase_1",
           lease_id,
           processed_units: processed,
         });
@@ -221,7 +220,7 @@ export async function runPhase1(jobId: string): Promise<void> {
 
         // Mark chunk as done with result
         // This is the ONLY place that writes result_json
-        await markChunkSuccess(manuscriptIdNum, chunk.chunk_index, result.resultJson);
+        await markChunkSuccess(manuscriptIdNum, chunk.chunk_index, result.resultJson as any, jobId);
 
         processed += 1; // Increment successful completion counter
 
@@ -259,7 +258,6 @@ export async function runPhase1(jobId: string): Promise<void> {
 
       await updateJob(jobId, {
         progress: {
-          stage: "processing",
           message: `Processed ${chunkLabel} (${currentDoneCount}/${allChunks.length} complete)`,
           completed_units: currentDoneCount,
           phase1_last_processed_index: chunk.chunk_index,
@@ -271,7 +269,7 @@ export async function runPhase1(jobId: string): Promise<void> {
   } catch (e) {
     console.error("Phase1Error", {
       job_id: jobId,
-      phase: "phase1",
+      phase: "phase_1",
       error: e instanceof Error ? e.message : String(e),
       stack: e instanceof Error ? e.stack : undefined,
       processed_before_error: processed,
@@ -345,11 +343,11 @@ export async function runPhase1(jobId: string): Promise<void> {
       await updateJob(jobId, {
         status: "retry_pending",
         progress: {
-          stage: "failed",
           message,
           finished_at,
+          phase: "phase_1",
           phase_status: final_phase_status,
-          retry_phase: "phase1",
+          retry_phase: "phase_1",
           retry_count,
           next_retry_at,
           completed_units: finalDoneCount,
@@ -360,9 +358,9 @@ export async function runPhase1(jobId: string): Promise<void> {
       await updateJob(jobId, {
         status: "failed",
         progress: {
-          stage: "failed",
           message,
           finished_at,
+          phase: "phase_1",
           phase_status: final_phase_status,
           completed_units: finalDoneCount,
         },
@@ -374,12 +372,13 @@ export async function runPhase1(jobId: string): Promise<void> {
     // Clear lease so Phase 2 can acquire immediately
     await updateJob(jobId, {
       progress: {
-        stage: "complete",
         message,
         finished_at,
-        phase: "phase1",
+        phase: "phase_1",
         phase_status: final_phase_status,
+        total_units: finalChunks.length,
         completed_units: finalDoneCount,
+        phase1_last_processed_index: finalDoneCount > 0 ? finalDoneCount - 1 : -1,
         lease_id: null,
         lease_expires_at: null,
       },
@@ -390,11 +389,12 @@ export async function runPhase1(jobId: string): Promise<void> {
     // RUNNING state - work remains, allow resume
     await updateJob(jobId, {
       progress: {
-        stage: "processing",
         message,
-        phase: "phase1",
+        phase: "phase_1",
         phase_status: final_phase_status,
+        total_units: finalChunks.length,
         completed_units: finalDoneCount,
+        phase1_last_processed_index: finalDoneCount > 0 ? finalDoneCount - 1 : -1,
         lease_id: null,
         lease_expires_at: null,
       },
@@ -414,8 +414,8 @@ export async function runPhase1(jobId: string): Promise<void> {
   // Emit metrics
   const phase1_duration = Date.now() - phase1_start;
   if (final_phase_status === PHASE_1_STATES.COMPLETED) {
-    metrics.onPhaseCompleted(jobId, "phase1", phase1_duration);
+    metrics.onPhaseCompleted(jobId, "phase_1", phase1_duration);
   } else if (final_phase_status === PHASE_1_STATES.FAILED) {
-    metrics.onJobFailed(jobId, "phase1", "Phase 1 failed - all chunks failed");
+    metrics.onJobFailed(jobId, "phase_1", "Phase 1 failed - all chunks failed");
   }
 }

@@ -64,22 +64,19 @@ export {
 
 export function canRunPhase(
   job: Job,
-  phase: "phase1" | "phase2",
+  phase: "phase_1" | "phase_2",
 ): { ok: boolean; reason?: string } {
-  if (phase === "phase1") {
+  if (phase === "phase_1") {
     if (job.status !== "queued") {
-      return { ok: false, reason: `Job not queued for phase1: ${job.status}` };
+      return { ok: false, reason: `Job not queued for phase_1: ${job.status}` };
     }
     return { ok: true };
-  } else if (phase === "phase2") {
+  } else if (phase === "phase_2") {
     if (
-      job.progress.phase !== "phase1" ||
-      job.progress.phase_status !== "complete"
-    ) {
+      job.phase !== "phase_1" || job.status !== "complete"    ) {
       return {
         ok: false,
-        reason: `Phase1 not complete: phase=${job.progress.phase}, phase_status=${job.progress.phase_status}`,
-      };
+        reason: `Phase 1 not complete: phase=${job.phase}, status=${job.status}`,      };
     }
     return { ok: true };
   }

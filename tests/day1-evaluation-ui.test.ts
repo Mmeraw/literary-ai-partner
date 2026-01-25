@@ -90,7 +90,7 @@ describe("Day-1 Evaluation UI Flow", () => {
         ...job,
         status: "complete",
         progress: {
-          phase: "phase2",
+          phase: "phase_2",
           phase_status: "complete",
           completed_units: 5,
           total_units: 5,
@@ -206,7 +206,7 @@ describe("Day-1 Evaluation UI Flow", () => {
         ...job,
         status: "running",
         progress: {
-          phase: "phase1",
+          phase: "phase_1",
           phase_status: "processing",
           completed_units: 2,
           total_units: 5,
@@ -220,7 +220,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       expect(displayInfo.progress.completed).toBe(2);
       expect(displayInfo.progress.total).toBe(5);
       expect(displayInfo.progress.percentage).toBe(40);
-      expect(displayInfo.phaseDetail.phase).toBe("phase1");
+      expect(displayInfo.phaseDetail.phase).toBe("phase_1");
       
       // UI should show:
       // - Spinning indicator
@@ -259,17 +259,17 @@ describe("Day-1 Evaluation UI Flow", () => {
 
   describe("Track C: Completion Experience", () => {
     it("should show phase-specific copy for Phase 1", () => {
-      const phaseInfo = getPhaseSpecificCopy("phase1", "processing");
+      const phaseInfo = getPhaseSpecificCopy("phase_1", "processing");
       
-      expect(phaseInfo.phase).toBe("phase1");
+      expect(phaseInfo.phase).toBe("phase_1");
       expect(phaseInfo.displayCopy).toBe("Analyzing structure and craft…");
       expect(phaseInfo.description).toContain("narrative elements");
     });
 
     it("should show phase-specific copy for Phase 2", () => {
-      const phaseInfo = getPhaseSpecificCopy("phase2", "processing");
+      const phaseInfo = getPhaseSpecificCopy("phase_2", "processing");
       
-      expect(phaseInfo.phase).toBe("phase2");
+      expect(phaseInfo.phase).toBe("phase_2");
       expect(phaseInfo.displayCopy).toBe("Generating revision guidance…");
       expect(phaseInfo.description).toContain("actionable feedback");
     });
@@ -295,7 +295,7 @@ describe("Day-1 Evaluation UI Flow", () => {
         ...job,
         status: "complete",
         progress: {
-          phase: "phase2",
+          phase: "phase_2",
           phase_status: "complete",
           completed_units: 5,
           total_units: 5,

@@ -76,7 +76,40 @@ export async function getManuscriptChunks(
 
   return (data as ChunkRow[]) || [];
 }
+/**
+ * Get chunks for a specific job (Phase-2 linkage)
+ * 
+ * Filters by manuscript_id AND job_id to ensure Phase 2 only aggregates
+ * chunks from the current job run, not stale data from previous runs.
+ * 
+ * Returns empty array if job_id is null (legacy chunks).
+ */
+export async function getChunksForJob(
+  manuscriptId: number,
+  jobId: string
+): Promise<ChunkRow[]> {
+  if (!jobId) {
+    console.warn(`[getChunksForJob] job_id is null/empty, returning empty array`);
+    return [];
+  }
 
+  const { data, error } = await supabase
+    .from("manuscript_chunks")
+    .select("*")
+    .eq("manuscript_id", manuscriptId)
+    .eq("job_id", jobId)
+    .order("chunk_index", { ascending: true });
+
+  if (error) {
+    console.error(`[getChunksForJob] FULL ERROR:`, JSON.stringify(error, null, 2));
+    console.error(`[getChunksForJob] error.message:`, error.message);
+    console.error(`[getChunksForJob] error.details:`, error.details);
+    console.error(`[getChunksForJob] error.hint:`, error.hint);
+    console.error(`[getChunksForJob] error.code:`, error.code);
+    throw new Error(`Failed to fetch chunks for job: ${error.message}`);  }
+
+  return (data as ChunkRow[]) || [];
+}
 /**
  * Get eligible chunks for processing (resume + skip completed)
  *
@@ -186,10 +219,13 @@ export async function getChunk(
  * If a chunk with the same (manuscript_id, chunk_index) exists and has the
  * same content_hash, it's left unchanged. If the hash differs, content is
  * updated and status/results are reset.
+ *
+ * @param jobId - Links chunks to the evaluation job that created them (for Phase-2 linkage)
  */
 export async function upsertChunks(
   manuscriptId: number,
-  chunks: ChunkSpec[]
+  chunks: ChunkSpec[],
+  jobId?: string
 ): Promise<void> {
   const existing = await getManuscriptChunks(manuscriptId);
   const existingMap = new Map(existing.map((c) => [c.chunk_index, c]));
@@ -212,6 +248,7 @@ export async function upsertChunks(
         content: chunk.content,
         content_hash: chunk.content_hash,
         status: "pending",
+        job_id: jobId || null,  // Link to job for Phase-2 filtering
       });
     } else if (existingChunk.content_hash !== chunk.content_hash) {
       // Content changed - update and reset status
@@ -229,6 +266,7 @@ export async function upsertChunks(
         result_json: null,
         error: null,
         last_error: null,
+        job_id: jobId || null,  // Update job linkage
       });
     }
     // else: hash matches, no change needed
@@ -287,7 +325,8 @@ export async function upsertChunks(
 export async function markChunkSuccess(
   manuscriptId: number,
   chunkIndex: number,
-  resultJson: any
+  resultJson: any,
+  jobId?: string
 ): Promise<void> {
   const { error } = await supabase
     .from("manuscript_chunks")
@@ -623,9 +662,12 @@ export async function getManuscriptText(
 /**
  * Ensure chunks exist for a manuscript, creating them if needed
  * Returns the number of chunks.
+ *
+ * @param jobId - Links chunks to the evaluation job for Phase-2 filtering
  */
 export async function ensureChunks(
-  manuscriptId: number
+  manuscriptId: number,
+  jobId?: string
 ): Promise<number> {
   const existing = await getManuscriptChunks(manuscriptId);
 
@@ -638,8 +680,8 @@ export async function ensureChunks(
   const text = await getManuscriptText(manuscriptId);
   const chunks = await chunkManuscript(text);
 
-  // Upsert chunks
-  await upsertChunks(manuscriptId, chunks);
+  // Upsert chunks (link to job)
+  await upsertChunks(manuscriptId, chunks, jobId);
 
   return chunks.length;
 }

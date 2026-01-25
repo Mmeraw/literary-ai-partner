@@ -22,9 +22,11 @@ function checkServiceRole(req: Request): boolean {
   }
   
   const authHeader = req.headers.get("authorization");
+  const serviceRoleHeader = req.headers.get("x-service-role");
   const expectedKey = `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`;
+  const expectedServiceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
   
-  return authHeader === expectedKey;
+  return authHeader === expectedKey || serviceRoleHeader === expectedServiceRole;
 }
 
 export async function GET(req: Request) {
@@ -43,8 +45,8 @@ export async function GET(req: Request) {
     
     const phase2Candidates = allJobs.filter(j => 
       j.status === "running" &&
-      j.progress?.phase === "phase1" &&
-      j.progress?.phase_status === "complete"
+      j.progress?.phase === "phase_1" &&
+      j.progress?.phase_status === "complete"  // Must match PHASE_1_STATES.COMPLETED
     );
 
     return NextResponse.json(

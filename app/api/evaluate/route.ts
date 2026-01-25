@@ -1,13 +1,11 @@
 // app/api/evaluate/route.ts
 
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(req: Request) {
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Use admin client to bypass RLS for trusted server operations
+    const supabase = createAdminClient();
 
     // Step 1: Create manuscript
     const { data: manuscript, error: manuscriptError } = await supabase

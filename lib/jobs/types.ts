@@ -73,6 +73,7 @@ export type Job = {
   manuscript_id: string;
   job_type: JobType;
   status: JobStatus;
+    phase?: string | null;
   progress: Record<string, any>;
   created_at: string;
   updated_at: string;

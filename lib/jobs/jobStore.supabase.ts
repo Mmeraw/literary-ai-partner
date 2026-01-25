@@ -14,15 +14,20 @@ function getSupabase() {
 }
 
 // Module-level accessor that throws meaningful errors when Supabase unavailable
-const supabase = new Proxy({} as NonNullable<ReturnType<typeof getSupabaseClient>>, {
-  get(_target, prop) {
-    const client = getSupabase();
-    if (!client) {
-      throw new Error(`[JOB-STORE-SUPABASE] Supabase unavailable - cannot access .${String(prop)}`);
-    }
-    return client[prop as keyof typeof client];
-  }
-});
+const supabase = new Proxy(
+  {} as NonNullable<ReturnType<typeof getSupabaseClient>>,
+  {
+    get(_target, prop) {
+      const client = getSupabase();
+      if (!client) {
+        throw new Error(
+          `[JOB-STORE-SUPABASE] Supabase unavailable - cannot access .${String(prop)}`,
+        );
+      }
+      return client[prop as keyof typeof client];
+    },
+  },
+);
 
 // Mapping between in-app job types and DB enum values
 const JOB_TYPE_TO_DB: Record<JobType, string> = {
@@ -55,6 +60,7 @@ export async function createJob(input: {
     console.warn(
       `Non-numeric manuscript_id "${input.manuscript_id}" provided; creating test manuscript`,
     );
+
     const { data: manuscript, error: manuscriptError } = await supabase
       .from("manuscripts")
       .insert({ title: `Test Manuscript ${now}` })
@@ -74,9 +80,8 @@ export async function createJob(input: {
     job_type: JOB_TYPE_TO_DB[input.job_type] ?? input.job_type,
     status: "queued" as JobStatus,
     progress: {
-      phase: "phase1",
+      phase: "phase_1",
       phase_status: "not_started",
-      stage: "queued",
       message: "Job created",
     },
     // keep phase/phase_status only in progress JSON for consistency
@@ -126,6 +131,7 @@ export async function getJob(id: string): Promise<Job | null> {
       `[ProgressValidation] error_code=${validationErr} job_id=${id}`,
       job.progress,
     );
+
     // Mark job as failed and clear lease (best-effort)
     const { error: updateError } = await supabase
       .from("evaluation_jobs")
@@ -140,7 +146,7 @@ export async function getJob(id: string): Promise<Job | null> {
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
-    
+
     if (updateError) {
       console.error(
         `[ProgressValidation] Failed to mark job failed: ${updateError.message}`,
@@ -228,10 +234,7 @@ export async function safeUpdateJobStatus(
     throw new Error(err);
   }
 
-  const progress = extraProgress
-    ? { ...job.progress, ...extraProgress }
-    : job.progress;
-
+  const progress = extraProgress ? { ...job.progress, ...extraProgress } : job.progress;
   return updateJob(id, { status: nextStatus, progress });
 }
 
@@ -244,7 +247,11 @@ export async function acquireLeaseForPhase1(
   if (!existing) return null;
 
   const now = new Date();
+
+  // Eligibility: Phase 1 only starts from queued
   if (existing.status !== "queued") return null;
+
+  // If a lease exists and is unexpired, do not steal it
   if (
     existing.progress.lease_expires_at &&
     new Date(existing.progress.lease_expires_at) > now
@@ -257,10 +264,11 @@ export async function acquireLeaseForPhase1(
     ...existing.progress,
     lease_id: leaseId,
     lease_expires_at: expiresAt,
-    phase: "phase1",
+    phase: "phase_1",
     phase_status: "running",
   };
 
+  // Optimistic concurrency: updated_at must match to prevent double-acquire
   const { data, error } = await supabase
     .from("evaluation_jobs")
     .update({
@@ -292,29 +300,43 @@ export async function acquireLeaseForPhase2(
 
   const now = new Date();
 
-  // Check eligibility based on progress
-  if (
-    existing.progress.phase !== "phase1" ||
-    existing.progress.phase_status !== "complete"
-  ) {
+  // Phase 2 runs only while the job is already running
+  if (existing.status !== "running") {
     return null;
   }
 
-  // Check if lease is held by someone else
-  const existingLeaseId = existing.progress.lease_id;
-  const leaseExpiresAt = existing.progress.lease_expires_at
-    ? new Date(existing.progress.lease_expires_at)
-    : null;
+  /**
+   * Eligibility:
+   * - Normal entry: phase1 + completed
+   * - Resume entry: phase2 + running (only if lease expired / free)
+   */
+  const isPhase1Completed =
+    existing.progress.phase === "phase_1" &&
+    existing.progress.phase_status === "complete";
 
-  const isLeaseExpired = !!leaseExpiresAt && leaseExpiresAt <= now;
+  const isPhase2Resumable =
+    existing.progress.phase === "phase_2" &&
+    existing.progress.phase_status === "running";
+
+  if (!isPhase1Completed && !isPhase2Resumable) {
+    return null;
+  }
+
+  // Lease checks
+  const existingLeaseId = existing.progress.lease_id;
+
+  // Treat missing lease_expires_at as expired if lease_id exists (prevents “stuck forever”)
+  const leaseExpiresAtRaw = existing.progress.lease_expires_at;
+  const leaseExpiresAt = leaseExpiresAtRaw ? new Date(leaseExpiresAtRaw) : null;
+
   const isLeaseFree = !existingLeaseId;
+  const isLeaseExpired =
+    !!existingLeaseId && (!leaseExpiresAt || leaseExpiresAt <= now);
 
   if (!isLeaseFree && !isLeaseExpired) {
-    // Lease is held by someone else and not expired
     return null;
   }
 
-  // Log if we're taking over an expired lease
   if (isLeaseExpired) {
     console.log(
       `[Phase2LeaseExpired] job_id=${id} old_lease_id=${existingLeaseId} resuming_from=${
@@ -324,16 +346,24 @@ export async function acquireLeaseForPhase2(
   }
 
   const expiresAt = new Date(now.getTime() + ttlSeconds * 1000).toISOString();
-  const mergedProgress = {
-    ...existing.progress,
-    lease_id: leaseId,
-    lease_expires_at: expiresAt,
-    phase: "phase2",
-    phase_status: "running",
-  };
 
-  // Phase 2 runs after Phase 1, so status must be "running" already
-  // Only update progress and updated_at, do not change status
+  // If resuming, do NOT rewrite phase/phase_status; keep them stable.
+  // If entering from phase1/completed, flip into phase2/running.
+  const mergedProgress = isPhase2Resumable
+    ? {
+        ...existing.progress,
+        lease_id: leaseId,
+        lease_expires_at: expiresAt,
+      }
+    : {
+        ...existing.progress,
+        lease_id: leaseId,
+        lease_expires_at: expiresAt,
+        phase: "phase_2",
+        phase_status: "running",
+      };
+
+  // Optimistic concurrency: prevents concurrent lease acquires / progress stomps
   const { data, error } = await supabase
     .from("evaluation_jobs")
     .update({
@@ -342,9 +372,13 @@ export async function acquireLeaseForPhase2(
     })
     .eq("id", id)
     .eq("status", "running")
-    .eq("progress->>phase", "phase1")
-    .eq("progress->>phase_status", "complete")
-    // allow takeover of expired leases; JS guard above blocks active leases
+    .eq("updated_at", existing.updated_at)
+    .or(
+      [
+        "and(progress->>phase.eq.phase_1,progress->>phase_status.eq.complete)",
+        "and(progress->>phase.eq.phase_2,progress->>phase_status.eq.running)",
+      ].join(","),
+    )
     .select("id, manuscript_id, job_type, status, progress, created_at, updated_at")
     .maybeSingle();
 
@@ -387,13 +421,26 @@ export async function incrementCounter(
   return mapDbRowToJob(data);
 }
 
+/**
+ * Backward compatibility normalizer: converts legacy "completed" to canonical "complete"
+ * Can be removed once all production data is migrated
+ */
+function normalizePhaseStatus(status?: string): string | undefined {
+  if (status === "completed") return "complete";
+  return status;
+}
+
 function mapDbRowToJob(row: any): Job {
+  const progress = row.progress || {};
   return {
     id: row.id,
     manuscript_id: String(row.manuscript_id),
     job_type: JOB_TYPE_FROM_DB[row.job_type] ?? row.job_type,
     status: row.status,
-    progress: row.progress || {},
+    progress: {
+      ...progress,
+      phase_status: normalizePhaseStatus(progress.phase_status),
+    },
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

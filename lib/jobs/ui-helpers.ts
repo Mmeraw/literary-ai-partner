@@ -16,7 +16,7 @@ import type { Job } from "./types";
 export type JobStatusBadge = "complete" | "running" | "failed" | "queued" | "retry_pending" | "canceled";
 
 export type JobPhaseDetail = {
-  phase: "phase1" | "phase2" | null;
+  phase: "phase_1" | "phase_2" | null;
   phase_status: "starting" | "processing" | "complete" | "failed" | null;
   display: string; // Human-readable: "Phase 1: Starting", "Phase 2: Complete"
 };
@@ -88,7 +88,7 @@ export function getJobDisplayInfo(job: Job): JobDisplayInfo {
   // Phase detail
   let phaseDisplay = "";
   if (phase && phase_status) {
-    const phaseNum = phase === "phase1" ? "1" : "2";
+    const phaseNum = phase === "phase_1" ? "1" : "2";
     const statusLabel =
       phase_status === "starting"
         ? "Starting"

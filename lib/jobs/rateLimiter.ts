@@ -359,8 +359,9 @@ export async function checkFeatureAccess(
   const allowHeaderUserId = process.env.ALLOW_HEADER_USER_ID === "true";
   const isProduction = process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production";
   
-  // Fail-safe: Never honor header bypass in production, even if misconfigured
-  const effectiveUserId = (allowHeaderUserId && !isProduction) ? userId : null;
+  // In production: never honor userId parameter (must come from real auth)
+  // In dev/test: accept userId parameter directly (for testing tier logic)
+  const effectiveUserId = isProduction ? null : userId;
   
   // Check authentication requirement
   if (featureLimit.requiresAuth && !effectiveUserId) {

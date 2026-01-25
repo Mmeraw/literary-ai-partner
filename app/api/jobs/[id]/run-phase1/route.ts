@@ -13,7 +13,7 @@ export async function POST(_req: Request, ctx: { params: Promise<Params> }) {
     return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
   }
 
-  const eligibility = canRunPhase(job, "phase1");
+  const eligibility = canRunPhase(job, "phase_1");
   if (!eligibility.ok) {
     return NextResponse.json({ ok: false, error: eligibility.reason }, { status: 409 });
   }
@@ -21,7 +21,14 @@ export async function POST(_req: Request, ctx: { params: Promise<Params> }) {
   console.log("Phase1Started", { job_id: id });
 
   // Fire-and-forget - worker will atomically transition queued→running via lease acquisition
-  setTimeout(() => { void runPhase1(id); }, 0);
+  setTimeout(async () => { 
+    try {
+      await runPhase1(id);
+    } catch (err) {
+      console.error(`[Phase1Route] FATAL ERROR for job ${id}:`, err);
+      console.error(`[Phase1Route] Error stack:`, err instanceof Error ? err.stack : 'no stack');
+    }
+  }, 0);
 
   return NextResponse.json(
     { ok: true, job_id: id, status: "queued" },

@@ -4,7 +4,7 @@
  */
 
 export type PhaseInfo = {
-  phase: "phase1" | "phase2" | null;
+  phase: "phase_1" | "phase_2" | null;
   displayCopy: string;
   description: string;
 };
@@ -13,7 +13,7 @@ export type PhaseInfo = {
  * Get phase-specific copy that explains what's happening
  */
 export function getPhaseSpecificCopy(
-  phase: "phase1" | "phase2" | null,
+  phase: "phase_1" | "phase_2" | null,
   phaseStatus: string | null
 ): PhaseInfo {
   if (!phase || !phaseStatus) {
@@ -24,17 +24,17 @@ export function getPhaseSpecificCopy(
     };
   }
 
-  if (phase === "phase1") {
+  if (phase === "phase_1") {
     return {
-      phase: "phase1",
+      phase: "phase_1",
       displayCopy: "Analyzing structure and craft…",
       description: "Examining narrative elements, pacing, and technical execution",
     };
   }
 
-  if (phase === "phase2") {
+  if (phase === "phase_2") {
     return {
-      phase: "phase2",
+      phase: "phase_2",
       displayCopy: "Generating revision guidance…",
       description: "Creating actionable feedback and recommendations",
     };

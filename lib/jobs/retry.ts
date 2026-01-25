@@ -96,7 +96,7 @@ export async function scheduleRetry(
       retry_count,
       next_retry_at,
       last_error: error,
-      retry_phase: job.progress?.phase || "phase1",
+      retry_phase: job.progress?.phase || "phase_1",
       lease_id: null, // Clear lease when retrying
       lease_expires_at: null,
     },
