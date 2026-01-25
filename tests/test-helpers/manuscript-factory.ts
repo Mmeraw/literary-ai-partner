@@ -23,6 +23,55 @@ export type TestChunkInfo = {
 };
 
 /**
+ * Create a minimal test manuscript (no chunks)
+ * 
+ * Use this for tests that need a manuscript but don't need chunk processing.
+ * Guarantees schema alignment across all tests.
+ * 
+ * @param options Configuration for manuscript creation
+ * @returns Manuscript ID
+ * @throws If manuscript creation fails
+ */
+export async function createTestManuscript(options: {
+  title?: string;
+  userId?: string;
+  wordCount?: number;
+}): Promise<number> {
+  const { 
+    title = "Test Manuscript", 
+    userId = "58308033-a93e-48e2-805e-0ecdc7fd157f",
+    wordCount = 50000 
+  } = options;
+
+  const { data: manuscript, error: manuscriptError } = await supabase
+    .from("manuscripts")
+    .insert({
+      title,
+      created_by: userId,
+      user_id: userId,
+      tone_context: "neutral",
+      mood_context: "calm",
+      voice_mode: "balanced",
+      word_count: wordCount,
+      source: "dashboard",
+      english_variant: "us",
+      is_final: false,
+      storygate_linked: false,
+      allow_industry_discovery: false,
+    })
+    .select()
+    .single();
+
+  if (manuscriptError || !manuscript) {
+    throw new Error(
+      `Failed to create test manuscript: ${manuscriptError?.message || "unknown error"}`
+    );
+  }
+
+  return manuscript.id;
+}
+
+/**
  * Create a test manuscript with chunks in pending state
  *
  * This function:
