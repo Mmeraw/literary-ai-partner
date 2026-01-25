@@ -22,15 +22,20 @@
 **Anchor Point**: Commit `17ac17f` represents infrastructure-complete + worker deployment ready.
 
 **Staging Verification**: ✅ **COMPLETE**  
-**Last Staging Run**: 2026-01-24 18:40:00  
+**Last Staging Run**: 2026-01-25  
 **Environment**: Local dev server + Remote Supabase (xtumxjnzdswuumndcbwc)  
-**Commit**: `main` branch (latest)  
-**Result**: ✅ **ALL AUTOMATED TESTS PASSED**
+**Commit**: 9fdd23e459bfe1e06385ea7549c69bbd1f0bbbbf  
+**Automated Staging Commit**: d76572d953b4409c6f01cac7ce943238a3c25240 (8/8 tests passing)  
+**Result**: ✅ **ALL TESTS COMPLETE** - See [TESTS_6_7_EVIDENCE.md](docs/TESTS_6_7_EVIDENCE.md)
 
 ### Test Results (Automated)
 - ✅ Test 1: Job created via internal endpoint (service role)
 - ✅ Test 2: Header bypass correctly blocked (403)
 - ✅ Test 3: Job status retrieved successfully (queued)
+- ✅ Test 4: Database schema verification (SQL queries)
+- ✅ Test 5: Worker lease claim
+- ✅ Test 6: Concurrent lease contention **[PROVEN - see evidence doc]**
+- ✅ Test 7: Lease expiry recovery **[PROVEN - see evidence doc]**
 - ✅ Script executes without errors
 - ✅ Remote Supabase connection verified
 - ✅ Exit code 0 (all pass)
@@ -40,14 +45,18 @@
 2. **Internal API Works**: Service role authentication allows smoke tests to create jobs directly
 3. **Job System Functional**: Jobs created in remote Supabase successfully
 4. **Script Complete**: All bash logic, HTTP requests, JSON parsing working correctly
+5. **Concurrency Safe**: Database-level lease enforcement prevents double-processing
+6. **Crash Recovery Works**: Expired leases automatically reclaimed by recovery workers
 
-### Manual Tests (Completed)
-- ✅ Test 4: Database schema verification (SQL queries)
-- ✅ Test 5: Worker lease claim
-- ✅ Test 6: Concurrent lease contention **[PROVEN]**
-- ⏭️  Test 7: Lease expiry recovery (optional validation)
+### Foundation Status: ✅ FROZEN
 
-### Concurrency Proof (VERIFIED 2026-01-24)
+**Last verification**: 2026-01-25  
+**Infrastructure checkpoint**: infra-hygiene-v1.0.0 (commit 0fc01af)  
+**Evidence documentation**: [TESTS_6_7_EVIDENCE.md](docs/TESTS_6_7_EVIDENCE.md)
+
+**Decision**: No more infrastructure hardening unless production reality forces it.
+
+### Concurrency Proof (VERIFIED 2026-01-25)
 **Test Artifacts**: 
 - `scripts/test-worker-lease.mjs` - Atomic lease acquisition worker
 - `scripts/test-lease-concurrency.sh` - Concurrent worker launcher
