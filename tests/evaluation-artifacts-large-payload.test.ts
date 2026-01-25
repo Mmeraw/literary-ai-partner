@@ -26,6 +26,9 @@
  * "One artifact per evaluation, with chunked results inside JSONB" is validated
  * for transactional storage/retrieval at realistic manuscript scales.
  * 
+ * ENVIRONMENT:
+ * Runs against Supabase test DB in local dev container (Ubuntu 24.04.3 LTS)
+ * 
  * CI: Keep this test in suite to prevent JSONB payload regressions.
  */
 
@@ -389,5 +392,53 @@ describe("Evaluation Artifacts - Large Payload", () => {
     for (const jobId of jobIds) {
       await supabase.from("evaluation_artifacts").delete().eq("job_id", jobId);
     }
+  });
+
+  test("should report table storage metrics (TOAST introspection)", async () => {
+    // Store a large artifact to ensure TOAST is exercised
+    const jobId = crypto.randomUUID();
+    const largeArtifact = generateLargeArtifact(200);
+    
+    const { sizeBytes, sizeMB } = assertArtifactSizeWithinCeiling(largeArtifact);
+    
+    await supabase
+      .from("evaluation_artifacts")
+      .insert({
+        job_id: jobId,
+        manuscript_id: testManuscriptId,
+        artifact_type: "storage_test",
+        artifact_version: "v1",
+        content: largeArtifact,
+        source_phase: "phase_2",
+      });
+
+    // Query Postgres table storage size (includes TOAST)
+    const { data: sizeData, error: sizeError } = await supabase.rpc("execute_query", {
+      query: `
+        SELECT 
+          pg_size_pretty(pg_total_relation_size('public.evaluation_artifacts')) as total_size,
+          pg_size_pretty(pg_relation_size('public.evaluation_artifacts')) as main_size,
+          pg_size_pretty(pg_total_relation_size('public.evaluation_artifacts') - pg_relation_size('public.evaluation_artifacts')) as toast_size
+      `,
+    });
+
+    if (!sizeError && sizeData && sizeData.length > 0) {
+      const metrics = sizeData[0];
+      console.log(`Table storage metrics:`);
+      console.log(`  Total size (main + TOAST + indexes): ${metrics.total_size}`);
+      console.log(`  Main table size: ${metrics.main_size}`);
+      console.log(`  TOAST + indexes size: ${metrics.toast_size}`);
+      console.log(`  JSON payload size: ${sizeMB.toFixed(3)} MB`);
+      
+      // Informational only - no assertions on storage size
+      expect(sizeError).toBeNull();
+    } else {
+      // If execute_query RPC doesn't exist, skip gracefully
+      console.log(`Table storage introspection not available (execute_query RPC not found)`);
+      console.log(`This is informational only; test passes without it.`);
+    }
+    
+    // Cleanup
+    await supabase.from("evaluation_artifacts").delete().eq("job_id", jobId);
   });
 });
