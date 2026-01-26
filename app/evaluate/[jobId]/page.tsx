@@ -5,7 +5,7 @@ import Link from "next/link";
 type Job = {
   id: string;
   job_type?: string;
-  status: "queued" | "running" | "retry_pending" | "failed" | "complete" | "canceled";
+  status: "queued" | "running" | "retry_pending" | "failed" | "complete" | "completed" | "canceled";
   phase?: string | null;
   phase_status?: string | null;
   total_units?: number;
@@ -34,9 +34,9 @@ async function getJob(jobId: string): Promise<Job | null> {
 export default async function EvaluationReportPage({
   params,
 }: {
-  params: Promise<{ jobId: string }>;
+  params: { jobId: string };
 }) {
-  const { jobId } = await params;
+  const { jobId } = params;
   const job = await getJob(jobId);
 
   if (!job) {
@@ -56,7 +56,7 @@ export default async function EvaluationReportPage({
     );
   }
 
-  const isComplete = job.status === "complete";
+  const isComplete = job.status === "complete" || job.status === "completed";
 
   return (
     <main className="mx-auto max-w-3xl p-6">
