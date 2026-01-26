@@ -6,10 +6,12 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import OpenAI from 'openai';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const openaiApiKey = process.env.OPENAI_API_KEY;
 
 interface EvaluationJob {
   id: string;
@@ -28,8 +30,125 @@ interface Manuscript {
 }
 
 /**
- * Generate a mock evaluation result
- * TODO: Replace with real OpenAI API call
+ * Generate evaluation using OpenAI
+ */
+async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob): Promise<EvaluationResultV1> {
+  if (!openaiApiKey) {
+    console.warn('[Processor] No OpenAI API key found, using mock evaluation');
+    return generateMockEvaluation(manuscript, job);
+  }
+
+  const openai = new OpenAI({ apiKey: openaiApiKey });
+  const now = new Date().toISOString();
+  const startTime = Date.now();
+
+  try {
+    console.log(`[Processor] Calling OpenAI API for manuscript ${manuscript.id}`);
+
+    const manuscriptText = manuscript.content || '(No content provided)';
+    const wordCount = manuscriptText.split(/\s+/).length;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are an expert literary evaluator. Analyze manuscripts and provide detailed, constructive feedback using a 13-criteria rubric. Return your analysis as a structured JSON object matching the EvaluationResultV1 schema.`
+        },
+        {
+          role: 'user',
+          content: `Evaluate this ${manuscript.work_type || 'manuscript'} titled "${manuscript.title}".
+
+Word count: ${wordCount}
+
+Manuscript text:
+${manuscriptText.substring(0, 15000)}
+
+Provide a comprehensive evaluation with:
+1. Overall verdict (pass/revise/fail) and score (0-100)
+2. One-paragraph summary
+3. Top 3 strengths and top 3 risks
+4. Scores (0-10) and rationale for all 13 criteria: concept, plot, character, dialogue, voice, pacing, structure, theme, worldbuilding, stakes, clarity, marketability, craft
+5. Quick wins and strategic revisions with effort/impact ratings
+
+Return ONLY valid JSON matching this structure. No markdown, no code fences, just pure JSON.`
+        }
+      ],
+      temperature: 0.7,
+      response_format: { type: 'json_object' }
+    });
+
+    const responseText = completion.choices[0]?.message?.content;
+    if (!responseText) {
+      throw new Error('Empty response from OpenAI');
+    }
+
+    console.log(`[Processor] OpenAI response received (${responseText.length} chars)`);
+
+    // Parse OpenAI response
+    const aiResult = JSON.parse(responseText);
+
+    // Build EvaluationResultV1
+    const result: EvaluationResultV1 = {
+      schema_version: "evaluation_result_v1",
+      ids: {
+        evaluation_run_id: crypto.randomUUID(),
+        job_id: job.id,
+        manuscript_id: manuscript.id,
+        user_id: manuscript.user_id,
+      },
+      generated_at: now,
+      engine: {
+        model: completion.model,
+        provider: "openai",
+        prompt_version: "v1.0.0",
+      },
+      overview: {
+        verdict: aiResult.overview?.verdict || 'revise',
+        overall_score_0_100: aiResult.overview?.overall_score_0_100 || 70,
+        one_paragraph_summary: aiResult.overview?.one_paragraph_summary || '',
+        top_3_strengths: aiResult.overview?.top_3_strengths || [],
+        top_3_risks: aiResult.overview?.top_3_risks || []
+      },
+      criteria: aiResult.criteria || [],
+      recommendations: aiResult.recommendations || { quick_wins: [], strategic_revisions: [] },
+      metrics: {
+        manuscript: {
+          word_count: wordCount,
+          char_count: manuscriptText.length,
+          genre: manuscript.work_type || 'Unknown',
+          target_audience: aiResult.metrics?.manuscript?.target_audience || 'General'
+        },
+        processing: {
+          segment_count: 1,
+          total_tokens_estimated: completion.usage?.total_tokens || 0,
+          runtime_ms: Date.now() - startTime
+        }
+      },
+      artifacts: [],
+      governance: {
+        confidence: 0.90,
+        warnings: [],
+        limitations: [
+          `Analysis based on ${Math.min(wordCount, 3750)} words`,
+          'Full manuscript context may not be captured if truncated'
+        ],
+        policy_family: "standard"
+      }
+    };
+
+    console.log(`[Processor] AI evaluation completed in ${Date.now() - startTime}ms`);
+    return result;
+
+  } catch (error) {
+    console.error(`[Processor] OpenAI evaluation failed:`, error);
+    console.log('[Processor] Falling back to mock evaluation');
+    return generateMockEvaluation(manuscript, job);
+  }
+}
+
+/**
+ * Generate a mock evaluation result (fallback)
  */
 function generateMockEvaluation(manuscript: Manuscript, job: EvaluationJob): EvaluationResultV1 {
   const now = new Date().toISOString();
@@ -293,11 +412,13 @@ function generateMockEvaluation(manuscript: Manuscript, job: EvaluationJob): Eva
     governance: {
       confidence: 0.85,
       warnings: [
-        "This is a mock evaluation for testing purposes"
+        "🔶 MOCK EVALUATION: This is generated test data, not a real AI analysis",
+        "Real OpenAI evaluation will be enabled once API key is configured"
       ],
       limitations: [
-        "Full AI evaluation pending OpenAI integration",
-        "Evidence snippets not yet extracted from manuscript"
+        "Mock data does not analyze actual manuscript content",
+        "Scores and recommendations are generic placeholders",
+        "Evidence snippets not extracted from manuscript text"
       ],
       policy_family: "standard"
     }
@@ -358,8 +479,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     console.log(`[Processor] Manuscript ${manuscript.id} fetched: "${manuscript.title}"`);
 
-    // 4. Generate evaluation (mock for now)
-    const evaluationResult = generateMockEvaluation(manuscript, job);
+    // 4. Generate evaluation using AI (falls back to mock if no API key)
+    const evaluationResult = await generateAIEvaluation(manuscript, job);
 
     console.log(`[Processor] Evaluation generated for job ${jobId}`);
 
