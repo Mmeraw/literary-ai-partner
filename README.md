@@ -2,7 +2,17 @@
 
 ## 🎯 Quick Start
 
-**⚠️ FIRST TIME? Start here:** [docs/QUICK_START.md](./docs/QUICK_START.md)
+### 🚀 NEXT 72 HOURS: Build Agent Proof
+**Start here:** [72HR-INDEX.md](./72HR-INDEX.md) — Complete sprint documentation hub
+
+Then choose your entry point:
+- **Quick action plan:** [START-HERE-72HR.md](./START-HERE-72HR.md)
+- **Copy-paste code:** [72-HOUR-SPRINT-QUICK-START.md](./72-HOUR-SPRINT-QUICK-START.md)
+- **Full context:** [72-HOUR-SPRINT.md](./72-HOUR-SPRINT.md)
+- **Executive summary:** [72HR-EXECUTIVE-SUMMARY.md](./72HR-EXECUTIVE-SUMMARY.md)
+
+### ⚠️ First Time Setup
+Start here:** [docs/QUICK_START.md](./docs/QUICK_START.md)
 
 ### Daily Workflow
 ```bash

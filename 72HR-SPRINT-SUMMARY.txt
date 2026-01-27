@@ -1,0 +1,141 @@
+================================================================================
+  REVISIONGRADE: 72-HOUR MARKET-PROOF SPRINT (Jan 27–30, 2026)
+================================================================================
+
+MISSION: Move from "governance-complete + technically correct"
+         → "agents using it"
+         → "market proof in hand"
+
+================================================================================
+PHASE 1: PROOF (Hours 1–6, Day 1)
+================================================================================
+
+Goal: Prove the system works on real manuscripts (end-to-end, governed path)
+
+Actions:
+  ✓ Run 15+ real evaluations (live stack, not fixtures)
+  ✓ Measure speed (target: < 5 minutes per eval)
+  ✓ Verify gates and eligibility behave as canon says
+  ✓ Capture evidence in: docs/PHASE1-EVALUATION-PROOF.md
+
+Deliverable:
+  • Quantified proof of correctness (speed + quality + gates)
+  • "System is correct on real work" – with evidence, not vibes
+
+================================================================================
+PHASE 2: SURFACE (Hours 7–14, Day 2)
+================================================================================
+
+Goal: Give agents a simple place to see their results (governed-first surface)
+
+Files to create:
+  • hooks/useAgentAuth.ts                 (API-key auth, no perfection)
+  • components/agent/AgentLogin.tsx       (minimal login form)
+  • components/agent/AgentDashboard.tsx   (scores + gates + key text)
+  • app/agent/page.tsx                    (main agent portal shell)
+  • app/api/agent/validate-key/route.ts   (auth endpoint)
+  • app/api/agent/submissions/route.ts    (list + fetch submissions)
+
+Deliverable:
+  • Live portal at /agent
+  • Agent can:
+      - Log in with an API key
+      - See their manuscript list
+      - View evaluation scores + eligibility + summary text
+
+================================================================================
+PHASE 3: SIGNAL (Hours 15–18, Day 3)
+================================================================================
+
+Goal: Get real agents using the system and reacting to it
+
+Actions:
+  ✓ Invite 5 agents with API keys (trusted, small cohort)
+  ✓ Monitor logins + basic telemetry (no fancy dashboards)
+  ✓ Collect feedback (email or tiny form)
+  ✓ Record who used it and what they said
+
+Deliverable:
+  • 3+ agents logged in and saw results
+  • 1+ agent explicitly says: "I'd pay for this"
+  • Written log of feedback + next-step hypotheses
+
+================================================================================
+SUCCESS METRICS (End of Day 3)
+================================================================================
+
+✅ Proof:
+   • 15+ real evals
+   • < 5 min average time
+   • 0 hard errors, gates behaving as expected
+
+✅ Surface:
+   • /agent live
+   • Login works with API key
+   • Dashboard shows scores, eligibility, and key text
+
+✅ Signal:
+   • 3+ agents used the portal
+   • 1+ clear "I'd pay" or "I’d use this weekly"
+
+WIN CONDITION:
+   All three boxes checked = real market proof in hand
+
+================================================================================
+WHAT NOT TO DO (SKIP THESE)
+================================================================================
+
+❌ Perfect auth system        → Basic API key + RLS is enough
+❌ Fancy UI polish            → Function > form, no design rabbit holes
+❌ More unit tests            → 98+ passing is enough for this sprint
+❌ Refactor code style        → No big cleanups, keep scope tiny
+❌ Phase-2 observability      → Dashboards are next week, not now
+❌ Change governance          → Phase-1 canon is frozen
+
+================================================================================
+DOCUMENTATION (IN YOUR REPO)
+================================================================================
+
+72HR-INDEX.md .......................... Main hub (read this first)
+START-HERE-72HR.md .................... Daily action plan
+72-HOUR-SPRINT-QUICK-START.md ........ Copy-paste ready code
+72-HOUR-SPRINT.md ..................... Full detailed plan
+STRATEGIC-ALIGNMENT-72HR.md .......... Why this sprint is correct
+72HR-EXECUTIVE-SUMMARY.md ............ Board / investor summary
+PHASE1-CLOSURE-BRIDGE.md ............. Ties sprint to Phase-1 closure
+72HR-SPRINT-SUMMARY.txt .............. This visual summary
+
+================================================================================
+QUICK START (RIGHT NOW)
+================================================================================
+
+  1. Open terminal
+  2. Run: bash scripts/pre-work-checklist.sh
+  3. Run: npm run dev
+  4. Read: 72HR-INDEX.md
+  5. Choose entry point:
+     • Quick action?     → START-HERE-72HR.md
+     • Copy-paste code?  → 72-HOUR-SPRINT-QUICK-START.md
+     • Full context?     → 72-HOUR-SPRINT.md
+
+================================================================================
+WHAT'S NEXT (AFTER THIS 72-HOUR SPRINT)
+================================================================================
+
+Week 2:   Formal Phase-1 closure (run exit tests, sign record)
+Week 3–4: Phase-2 observability (read-only dashboards)
+Week 5–6: Phase-3 calibration (gold set + thresholds)
+Week 7–8: Market scale (StoryGate + more agents)
+
+================================================================================
+STRATEGIC POSITIONING
+================================================================================
+
+BEFORE:
+  "System is correct" (governance-complete + technically correct)
+AFTER:
+  "System is correct AND agents are using it AND at least one would pay"
+
+That's the edge. That's the story. That's the win.
+
+================================================================================
