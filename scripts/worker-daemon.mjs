@@ -81,6 +81,9 @@ async function getEligibleJobs() {
 async function triggerPhase1(jobId) {
   const response = await fetch(`${BASE_URL}/api/jobs/${jobId}/run-phase1`, {
     method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SERVICE_KEY}`,
+    },
   });
   
   return { status: response.status, ok: response.ok, jobId };
@@ -92,6 +95,9 @@ async function triggerPhase1(jobId) {
 async function triggerPhase2(jobId) {
   const response = await fetch(`${BASE_URL}/api/jobs/${jobId}/run-phase2`, {
     method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SERVICE_KEY}`,
+    },
   });
   
   return { status: response.status, ok: response.ok, jobId };
@@ -152,6 +158,7 @@ async function processJobs() {
       try {
         const result = await triggerPhase1(job.id);
         const outcome = handleTriggerResponse(result, 'Phase1');
+        console.log(`[${WORKER_ID}] Phase1 trigger result for ${job.id}: HTTP ${result.status} -> ${outcome}`);
         
         if (outcome === 'success') {
           processed++;
@@ -174,6 +181,7 @@ async function processJobs() {
       try {
         const result = await triggerPhase2(job.id);
         const outcome = handleTriggerResponse(result, 'Phase2');
+        console.log(`[${WORKER_ID}] Phase2 trigger result for ${job.id}: HTTP ${result.status} -> ${outcome}`);
         
         if (outcome === 'success') {
           processed++;

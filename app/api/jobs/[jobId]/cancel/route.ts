@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cancelJob } from "../../../../../lib/jobs/cancel";
+import { checkServiceRoleAuth } from "@/lib/auth/api";
 
 /**
- * POST /api/jobs/[id]/cancel
+ * POST /api/jobs/[jobId]/cancel
  *
+ * INTERNAL ONLY: Service role auth required
  * Cancel a running or queued job.
- * Sets status to "canceled" (terminal), clears leases.
  */
 export async function POST(request: NextRequest) {
+  // GOVERNANCE: Service role only (internal/daemon use)
+  if (!checkServiceRoleAuth(request)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   // Extract the ID from the URL path
   const { pathname } = request.nextUrl;
   const segments = pathname.split("/");
@@ -33,7 +38,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         message: "Job canceled successfully",
-        job: result.job,
       },
       { status: 200 },
     );

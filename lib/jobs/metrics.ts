@@ -148,3 +148,12 @@ export function onRetryScheduled(
 export function registerBackend(name: string, backend: MetricsBackend): void {
   backends[name] = backend;
 }
+
+/**
+ * GOVERNANCE: Retrieve recent observability events (read-only stub)
+ * Returns empty array until event persistence is implemented
+ */
+export function getRecentEvents(_limit = 50): Array<{ job_id: string; event_type: string; phase?: string | null; timestamp: string; meta?: Record<string, unknown> }> {
+  // Stub: return empty until we implement event buffer or DB query
+  return [];
+}

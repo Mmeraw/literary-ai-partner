@@ -9,7 +9,9 @@
  */
 
 import { getJob, updateJob } from "./store";
+import { JOB_STATUS, PHASES } from "./types";
 import type { Job } from "./types";
+import * as metrics from "./metrics";
 
 const DEFAULT_BASE_DELAY_MS = 1000; // 1 second
 const DEFAULT_MAX_DELAY_MS = 60000; // 60 seconds
@@ -56,7 +58,11 @@ export async function scheduleRetry(
     return { success: false, error: "Job not found" };
   }
 
-  const retry_count = (job.progress?.retry_count ?? 0) + 1;
+  const prevRetryRaw = job.progress?.retry_count;
+  const prevRetry =
+    typeof prevRetryRaw === "number" && Number.isFinite(prevRetryRaw) ? prevRetryRaw : 0;
+
+  const retry_count = prevRetry + 1;
   const max_retries = config.max_retries ?? DEFAULT_MAX_RETRIES;
 
   // Check if max retries exceeded
@@ -88,15 +94,15 @@ export async function scheduleRetry(
   const delay_ms = calculateRetryDelay(retry_count, config);
   const next_retry_at = new Date(Date.now() + delay_ms).toISOString();
 
-  // Set retry_pending status
+  // Keep status as failed (CANON) but mark with next_retry_at for daemon pickup
   const updated = await updateJob(jobId, {
-    status: "retry_pending",
+    status: JOB_STATUS.FAILED,
     progress: {
       ...job.progress,
       retry_count,
       next_retry_at,
       last_error: error,
-      retry_phase: job.progress?.phase || "phase_1",
+      retry_phase: job.progress?.phase || PHASES.PHASE_1,
       lease_id: null, // Clear lease when retrying
       lease_expires_at: null,
     },
@@ -119,18 +125,19 @@ export async function scheduleRetry(
 
 /**
  * Check if a job is eligible for retry.
+ * Jobs are retry-eligible when status=failed with next_retry_at marker.
  */
 export function canRetryNow(job: Job): boolean {
-  if (job.status !== "retry_pending") {
+  if (job.status !== JOB_STATUS.FAILED || !job.progress?.next_retry_at) {
     return false;
   }
 
-  const next_retry_at = job.progress?.next_retry_at;
-  if (!next_retry_at) {
+  const nextRetryAt = job.progress.next_retry_at;
+  if (typeof nextRetryAt !== 'string') {
     return false;
   }
 
-  return new Date(next_retry_at) <= new Date();
+  return new Date(nextRetryAt) <= new Date();
 }
 
 /**

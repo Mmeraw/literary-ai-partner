@@ -3,23 +3,23 @@
 const { PHASE_1_STATES, canTransitionPhase1 } = require("./phase1");
 
 describe("Phase 1 state machine", () => {
-  const { NOT_STARTED, RUNNING, COMPLETED, FAILED } = PHASE_1_STATES;
+  const { QUEUED, RUNNING, COMPLETED, FAILED } = PHASE_1_STATES;
 
   const cases = [
     // allowed
-    [NOT_STARTED, RUNNING, true],
+    [QUEUED, RUNNING, true],
     [RUNNING, COMPLETED, true],
     [RUNNING, FAILED, true],
     [FAILED, RUNNING, true],
 
     // disallowed
-    [NOT_STARTED, COMPLETED, false],
-    [NOT_STARTED, FAILED, false],
-    [RUNNING, NOT_STARTED, false],
+    [QUEUED, COMPLETED, false],
+    [QUEUED, FAILED, false],
+    [RUNNING, QUEUED, false],
     [FAILED, COMPLETED, false],
     [COMPLETED, RUNNING, false],
     [COMPLETED, FAILED, false],
-    [COMPLETED, NOT_STARTED, false],
+    [COMPLETED, QUEUED, false],
   ];
 
   it.each(cases)(

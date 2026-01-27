@@ -5,7 +5,7 @@ import Link from "next/link";
 type Job = {
   id: string;
   job_type?: string;
-  status: "queued" | "running" | "retry_pending" | "failed" | "complete" | "completed" | "canceled";
+  status: "queued" | "running" | "failed" | "complete" | "completed";
   phase?: string | null;
   phase_status?: string | null;
   total_units?: number;

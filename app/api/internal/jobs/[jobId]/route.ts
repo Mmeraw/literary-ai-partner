@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getJob } from "@/lib/jobs/store";
+import { checkServiceRoleAuth } from "@/lib/auth/api";
+import type { NextRequest } from "next/server";
 
 /**
  * Internal job status endpoint
@@ -8,22 +10,11 @@ import { getJob } from "@/lib/jobs/store";
  * Used by staging smoke tests to check job status without user auth.
  */
 
-function checkServiceRole(req: Request): boolean {
-  if (process.env.NODE_ENV === "production") {
-    return false;
-  }
-  
-  const authHeader = req.headers.get("authorization");
-  const expectedKey = `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`;
-  
-  return authHeader === expectedKey;
-}
-
 export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: { jobId: string } }
 ) {
-  if (!checkServiceRole(req)) {
+  if (!checkServiceRoleAuth(req)) {
     return NextResponse.json(
       { ok: false, error: "Service role authentication required" },
       { status: 401 }
@@ -31,7 +22,7 @@ export async function GET(
   }
 
   try {
-    const jobId = params.id;
+    const jobId = params.jobId;
 
     if (!jobId) {
       return NextResponse.json(

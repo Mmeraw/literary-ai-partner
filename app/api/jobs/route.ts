@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server";
 import { createJob, getAllJobs } from "@/lib/jobs/store";
 import * as metrics from "@/lib/jobs/metrics";
-import { checkJobCreationRateLimit, checkFeatureAccess, validateManuscriptSize, type RateLimitResult } from "@/lib/jobs/rateLimiter";
+import {
+  checkJobCreationRateLimit,
+  checkFeatureAccess,
+  validateManuscriptSize,
+  type RateLimitResult,
+} from "@/lib/jobs/rateLimiter";
+import { JOB_TYPES, type JobType } from "@/lib/jobs/types";
 
 function isRateLimited(
   result: RateLimitResult
 ): result is { allowed: false; reason: string; retryAfter?: number } {
   return result.allowed === false;
 }
+
+const ALLOWED_JOB_TYPES = new Set<string>(Object.values(JOB_TYPES));
 
 export async function POST(req: Request) {
   try {
@@ -16,8 +24,8 @@ export async function POST(req: Request) {
     if (isRateLimited(rateLimitResult)) {
       const { reason, retryAfter } = rateLimitResult;
       return NextResponse.json(
-        { 
-          ok: false, 
+        {
+          ok: false,
           error: reason,
           retry_after: retryAfter ?? null,
         },
@@ -39,34 +47,39 @@ export async function POST(req: Request) {
       );
     }
 
+    // GOVERNANCE: job_type must be canonical (no phantom/unknown job types)
+    if (typeof job_type !== "string" || !ALLOWED_JOB_TYPES.has(job_type)) {
+      return NextResponse.json(
+        { ok: false, error: "Invalid job_type" },
+        { status: 400 }
+      );
+    }
+
+    // Type assertion after validation (safe because ALLOWED_JOB_TYPES matches JobType)
+    const validatedJobType = job_type as JobType;
+
     // Layer 2: Manuscript size validation
     if (manuscript_size && typeof manuscript_size === "number") {
       const sizeCheck = validateManuscriptSize(manuscript_size);
       if (sizeCheck.allowed === false) {
         const { reason } = sizeCheck;
-        return NextResponse.json(
-          { ok: false, error: reason },
-          { status: 413 } // Payload Too Large
-        );
+        return NextResponse.json({ ok: false, error: reason }, { status: 413 }); // Payload Too Large
       }
     }
 
     // Layer 3: Feature access control (auth + subscription tier)
-    // Extract user_id from request (to be implemented with proper auth)
-    const userId = req.headers.get("x-user-id"); // Placeholder
-    const featureAccess = await checkFeatureAccess(userId, job_type, user_tier);
+    // GOVERNANCE: do not fabricate user_id; if absent, pass null and let policy decide.
+    const userId = req.headers.get("x-user-id");
+    const featureAccess = await checkFeatureAccess(userId, validatedJobType, user_tier);
     if (featureAccess.allowed === false) {
       const { reason } = featureAccess;
-      return NextResponse.json(
-        { ok: false, error: reason },
-        { status: 403 } // Forbidden
-      );
+      return NextResponse.json({ ok: false, error: reason }, { status: 403 }); // Forbidden
     }
 
-    const job = await createJob({ manuscript_id, job_type });
+    const job = await createJob({ manuscript_id, job_type: validatedJobType });
 
     // Emit metrics
-    metrics.onJobCreated(job.id, job_type);
+    metrics.onJobCreated(job.id, validatedJobType);
 
     return NextResponse.json(
       { ok: true, job_id: job.id, status: job.status },
@@ -75,7 +88,11 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("POST /api/jobs error:", err);
     return NextResponse.json(
-      { ok: false, error: "Invalid JSON body", details: err instanceof Error ? err.message : String(err) },
+      {
+        ok: false,
+        error: "Invalid JSON body",
+        details: err instanceof Error ? err.message : String(err),
+      },
       { status: 400 }
     );
   }

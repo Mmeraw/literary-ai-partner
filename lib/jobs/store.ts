@@ -1,4 +1,5 @@
-import type { Job } from "./types";
+import type { Job, Phase } from "./types";
+import { PHASES } from "./types";
 import {
   createJob as memCreateJob,
   getJob as memGetJob,
@@ -64,19 +65,21 @@ export {
 
 export function canRunPhase(
   job: Job,
-  phase: "phase_1" | "phase_2",
+  phase: Phase,
 ): { ok: boolean; reason?: string } {
-  if (phase === "phase_1") {
+  if (phase === PHASES.PHASE_1) {
     if (job.status !== "queued") {
       return { ok: false, reason: `Job not queued for phase_1: ${job.status}` };
     }
     return { ok: true };
-  } else if (phase === "phase_2") {
+  } else if (phase === PHASES.PHASE_2) {
     if (
-      job.phase !== "phase_1" || job.status !== "complete"    ) {
+      job.progress.phase !== PHASES.PHASE_1 || job.progress.phase_status !== "complete"
+    ) {
       return {
         ok: false,
-        reason: `Phase 1 not complete: phase=${job.phase}, status=${job.status}`,      };
+        reason: `Phase 1 not complete: phase=${job.progress.phase}, phase_status=${job.progress.phase_status}`,
+      };
     }
     return { ok: true };
   }

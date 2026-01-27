@@ -25,18 +25,24 @@ echo "PHASE 2 VERTICAL SLICE PROOF"
 echo "========================================="
 echo ""
 
-# Detect port from running dev server
-DEV_PORT=3002
-if ! curl -s http://localhost:$DEV_PORT > /dev/null; then
-  DEV_PORT=3000
+# Support BASE_URL for custom ports (e.g., BASE_URL=http://localhost:3015 bash test.sh)
+if [[ -n "${BASE_URL:-}" ]]; then
+  echo "Using BASE_URL: $BASE_URL"
+else
+  # Detect port from running dev server
+  DEV_PORT=3002
   if ! curl -s http://localhost:$DEV_PORT > /dev/null; then
-    echo -e "${RED}✗ Dev server not running on port 3000 or 3002${NC}"
-    echo "Start with: npm run dev"
-    exit 1
+    DEV_PORT=3000
+    if ! curl -s http://localhost:$DEV_PORT > /dev/null; then
+      echo -e "${RED}✗ Dev server not running on port 3000 or 3002${NC}"
+      echo "Start with: npm run dev"
+      echo "Or set BASE_URL: BASE_URL=http://localhost:3015 bash $0"
+      exit 1
+    fi
   fi
+  BASE_URL="http://localhost:$DEV_PORT"
+  echo "Using dev server: $BASE_URL"
 fi
-
-echo "Using dev server on port $DEV_PORT"
 
 # Check prerequisites
 if [[ ! -f .env.local ]]; then
@@ -56,7 +62,7 @@ echo ""
 
 # Step 1: Create job
 echo "[1/8] Creating job..."
-JOB_RESPONSE=$(curl -s -X POST http://localhost:$DEV_PORT/api/internal/jobs \
+JOB_RESPONSE=$(curl -s -X POST "$BASE_URL/api/internal/jobs" \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Content-Type: application/json" \
   -d '{"manuscript_id": 1, "job_type": "full_evaluation"}')
@@ -127,7 +133,7 @@ JOB_COMPLETE=false
 for i in {1..60}; do  # 120s for Phase 2 (includes LLM time)
   sleep 2
   
-  JOB_STATUS_JSON=$(curl -s http://localhost:$DEV_PORT/api/jobs/$JOB_ID 2>/dev/null || echo '{}')
+  JOB_STATUS_JSON=$(curl -s -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" "$BASE_URL/api/internal/jobs/$JOB_ID" 2>/dev/null || echo '{}')
   JOB_STATUS=$(echo "$JOB_STATUS_JSON" | jq -r '.job.status // "unknown"')
   
   # Debug: show raw response on first check
@@ -145,7 +151,7 @@ for i in {1..60}; do  # 120s for Phase 2 (includes LLM time)
   if [[ $((i % 5)) -eq 0 ]]; then
     PHASE=$(echo "$JOB_STATUS_JSON" | jq -r '.job.progress.phase // "unknown"')
     PHASE_STATUS=$(echo "$JOB_STATUS_JSON" | jq -r '.job.progress.phase_status // "unknown"')
-    MESSAGE=$(echo "$JOB_STATUS_JSON" | jq -r '.job.progress.message // ""' | head -c 60)
+      MESSAGE=$(echo "$JOB_STATUS_JSON" | jq -r '.job.progress.message // ""')
     echo "  [${i}x2s] status: $JOB_STATUS, phase: $PHASE, phase_status: $PHASE_STATUS - $MESSAGE"
   fi
 done
@@ -156,15 +162,15 @@ if [[ "$JOB_COMPLETE" != "true" ]]; then
   echo "$JOB_STATUS_JSON" | jq '{status: .job.status, phase: .job.progress.phase, phase_status: .job.progress.phase_status, message: .job.progress.message}'
   kill $DAEMON_PID 2>/dev/null || true
   echo "Check daemon log: /tmp/daemon-$JOB_ID.log"
-  echo "Check dev server log: /tmp/dev-server.log (last 50 lines)"
-  tail -50 /tmp/dev-server.log
+  echo "Check dev server log: $(ls -1t /tmp/dev-*.log 2>/dev/null | head -1) (last 50 lines)"
+  tail -50 "$(ls -1t /tmp/dev-*.log 2>/dev/null | head -1)" 2>/dev/null || echo "No dev log found"
   exit 1
 fi
 echo ""
 
 # Step 6: Verify artifact exists via GET endpoint
 echo "[6/8] Verifying artifact via GET /api/jobs/:id/artifacts..."
-ARTIFACT_JSON=$(curl -s "http://localhost:$DEV_PORT/api/jobs/$JOB_ID/artifacts?type=one_page_summary" \
+ARTIFACT_JSON=$(curl -s "$BASE_URL/api/jobs/$JOB_ID/artifacts?type=one_page_summary" \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY")
 
 ARTIFACT_OK=$(echo "$ARTIFACT_JSON" | jq -r '.ok // false')

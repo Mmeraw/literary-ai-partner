@@ -1,0 +1,14 @@
+name: Canon Guard
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  canon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Canon Guard
+        run: bash ./scripts/canon-guard.sh

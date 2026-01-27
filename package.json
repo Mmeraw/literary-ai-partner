@@ -7,6 +7,7 @@
     "build": "npm run spine:verify && next build",
     "start": "next start",
     "lint": "next lint",
+    "canon:guard": "bash ./scripts/canon-guard.sh",
     "spine:verify": "bash scripts/verify-spine.sh",
     "config:validate": "node scripts/validate-production-config.mjs",
     "docs:verify": "bash scripts/verification-contract.sh",

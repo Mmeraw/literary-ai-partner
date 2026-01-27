@@ -1,4 +1,4 @@
-import { Job } from "./types";
+import { Job, PHASES } from "./types";
 
 /**
  * Progress validation errors that require immediate job failure.
@@ -19,15 +19,15 @@ export function validateProgressForPhase(
   const { phase, phase_status } = job.progress || {};
 
   // Unknown or missing phase
-  if (!phase || !["phase_1", "phase_2"].includes(phase)) {
+  if (!phase || (phase !== PHASES.PHASE_1 && phase !== PHASES.PHASE_2)) {
     return "phase_unknown";
   }
 
-  if (phase === "phase_1") {
+  if (phase === PHASES.PHASE_1) {
     return validatePhase1Progress(job);
   }
 
-  if (phase === "phase_2") {
+  if (phase === PHASES.PHASE_2) {
     return validatePhase2Progress(job);
   }
 
@@ -35,17 +35,16 @@ export function validateProgressForPhase(
 }
 
 function validatePhase1Progress(job: Job): ProgressValidationError | null {
-  const {
-    phase_status,
-    total_units,
-    completed_units,
-    phase1_last_processed_index,
-  } = job.progress || {};
+  const progress = job.progress;
+  const phase_status = progress?.phase_status;
+  const total_units = progress?.total_units as number | null | undefined;
+  const completed_units = progress?.completed_units as number | null | undefined;
+  const phase1_last_processed_index = (progress as any)?.phase1_last_processed_index;
 
   // During Phase 1 execution
   if (phase_status === "running") {
-    // Allow missing counters during initialization (not_started/pending phases)
-    const isInitializing = phase_status === "pending" || !total_units;
+    // Allow missing counters during initialization
+    const isInitializing = !total_units;
     
     // Must have total units set and > 0 (unless still initializing)
     if (!isInitializing && (!Number.isFinite(total_units) || total_units <= 0)) {
@@ -87,15 +86,14 @@ function validatePhase1Progress(job: Job): ProgressValidationError | null {
 }
 
 function validatePhase2Progress(job: Job): ProgressValidationError | null {
-  const {
-    phase_status,
-    total_units,
-    completed_units,
-    phase2_last_processed_index,
-  } = job.progress || {};
+  const progress = job.progress;
+  const phase_status = progress?.phase_status;
+  const total_units = progress?.total_units as number | null | undefined;
+  const completed_units = progress?.completed_units as number | null | undefined;
+  const phase2_last_processed_index = (progress as any)?.phase2_last_processed_index;
 
   // During Phase 2 execution
-  if (phase_status === "starting" || phase_status === "running") {
+  if (phase_status === "running") {
     // Must have total units set (>= 0)
     if (!Number.isFinite(total_units) || total_units < 0) {
       return "counters_missing";
@@ -138,15 +136,14 @@ function validatePhase2Progress(job: Job): ProgressValidationError | null {
  * Check if Phase 2 can start (Phase 1 must be complete).
  */
 export function canStartPhase2(job: Job): boolean {
-  const {
-    phase,
-    phase_status,
-    total_units,
-    completed_units,
-  } = job.progress || {};
+  const progress = job.progress;
+  const phase = progress?.phase;
+  const phase_status = progress?.phase_status;
+  const total_units = progress?.total_units as number | null | undefined;
+  const completed_units = progress?.completed_units as number | null | undefined;
 
   // Phase 1 must be complete
-  if (phase !== "phase_1" || phase_status !== "complete") {
+  if (phase !== PHASES.PHASE_1 || phase_status !== "complete") {
     return false;
   }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createJob, getAllJobs } from "@/lib/jobs/store";
 import * as metrics from "@/lib/jobs/metrics";
+import { PHASES } from "@/lib/jobs/types";
 
 /**
  * Internal jobs endpoint
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
     
     const phase2Candidates = allJobs.filter(j => 
       j.status === "running" &&
-      j.progress?.phase === "phase_1" &&
+      j.progress?.phase === PHASES.PHASE_1 &&
       j.progress?.phase_status === "complete"  // Must match PHASE_1_STATES.COMPLETED
     );
 

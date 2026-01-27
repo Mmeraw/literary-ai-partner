@@ -1,7 +1,11 @@
-# Test Environment Variables
+# ⚠️ TESTING ENVIRONMENT VARIABLES ⚠️
+# ❌ DO NOT USE THESE IN PRODUCTION ❌
 # Copy this to .env.test and fill in your actual values
 
-# Staging Supabase Project (ngfszuqjoyixmtlbthyv)
+# ⚠️ TESTING ONLY Supabase Project (ngfszuqjoyixmtlbthyv)
+# ⚠️ WARNING: This is NOT the production database!
+# ⚠️ This project is named "⚠️ TESTING ONLY - DO NOT USE" in Supabase Dashboard
+# Production uses: xtumxjnzdswuumndcbwc (RevisionGrade Production)
 SUPABASE_URL=https://ngfszuqjoyixmtlbthyv.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here

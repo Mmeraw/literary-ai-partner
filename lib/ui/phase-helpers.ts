@@ -3,8 +3,10 @@
  * Makes progress feel intentional, not stuck
  */
 
+import { Phase, PHASES } from "@/lib/jobs/types";
+
 export type PhaseInfo = {
-  phase: "phase_1" | "phase_2" | null;
+  phase: Phase | null;
   displayCopy: string;
   description: string;
 };
@@ -13,7 +15,7 @@ export type PhaseInfo = {
  * Get phase-specific copy that explains what's happening
  */
 export function getPhaseSpecificCopy(
-  phase: "phase_1" | "phase_2" | null,
+  phase: Phase | null,
   phaseStatus: string | null
 ): PhaseInfo {
   if (!phase || !phaseStatus) {
@@ -24,17 +26,17 @@ export function getPhaseSpecificCopy(
     };
   }
 
-  if (phase === "phase_1") {
+  if (phase === PHASES.PHASE_1) {
     return {
-      phase: "phase_1",
+      phase: PHASES.PHASE_1,
       displayCopy: "Analyzing structure and craft…",
       description: "Examining narrative elements, pacing, and technical execution",
     };
   }
 
-  if (phase === "phase_2") {
+  if (phase === PHASES.PHASE_2) {
     return {
-      phase: "phase_2",
+      phase: PHASES.PHASE_2,
       displayCopy: "Generating revision guidance…",
       description: "Creating actionable feedback and recommendations",
     };

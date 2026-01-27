@@ -3,6 +3,7 @@ import * as metrics from "./metrics";
 import { getJob, updateJob } from "./store";
 import { getChunksForJob } from "@/lib/manuscripts/chunks";
 import { createClient } from "@supabase/supabase-js";
+import { PHASES } from "./types";
 
 export const PHASE_2_STATES = {
   NOT_STARTED: "not_started",
@@ -71,9 +72,9 @@ async function validatePhase1Output(
   // 1. phase1/complete: Phase 1 just finished (rare - lease acquisition usually transitions first)
   // 2. phase2/running: Lease acquisition already transitioned from phase1/complete (normal case)
   const isValidPhase1Complete = 
-    jobProgress?.phase === "phase_1" && jobProgress?.phase_status === "complete";
+    jobProgress?.phase === PHASES.PHASE_1 && jobProgress?.phase_status === "complete";
   const isValidPhase2Starting = 
-    jobProgress?.phase === "phase_2" && jobProgress?.phase_status === "running";
+    jobProgress?.phase === PHASES.PHASE_2 && jobProgress?.phase_status === "running";
 
   if (!isValidPhase1Complete && !isValidPhase2Starting) {
     return {
@@ -85,7 +86,13 @@ async function validatePhase1Output(
     };
   }
 
-  const chunks = await getChunksForJob(manuscriptId, jobId);
+  const chunks = await getChunksForJob({
+    manuscriptId,
+    jobId,
+    phase1StartedAt: jobProgress?.started_at as string | undefined,
+    phase1FinishedAt: jobProgress?.finished_at as string | undefined,
+    expectedChunkCount: jobProgress?.total_units as number | undefined,
+  });
 
   console.log(`[Phase2Validation] v2: chunk_scan`, {
     jobId,
@@ -146,6 +153,7 @@ async function validatePhase1Output(
 async function aggregateChunkResults(
   manuscriptId: number,
   jobId: string,
+  jobProgress: any,
 ): Promise<{
   summary: string;
   overallScore: number;
@@ -153,7 +161,13 @@ async function aggregateChunkResults(
   processedCount: number;
   sourceHash: string;
 }> {
-  const chunks = await getChunksForJob(manuscriptId, jobId);
+  const chunks = await getChunksForJob({
+    manuscriptId,
+    jobId,
+    phase1StartedAt: jobProgress?.started_at as string | undefined,
+    phase1FinishedAt: jobProgress?.finished_at as string | undefined,
+    expectedChunkCount: jobProgress?.total_units as number | undefined,
+  });
   const completed = chunks.filter((c) => c.status === "done" && c.result_json);
 
   const scores = completed
@@ -253,7 +267,7 @@ async function persistOutput(
       processed_count: result.processedCount,
       generated_at: new Date().toISOString(),
     },
-    source_phase: "phase_2",
+    source_phase: PHASES.PHASE_2,
     source_hash: result.sourceHash,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -311,7 +325,7 @@ export async function runPhase2(jobId: string): Promise<void> {
   if (!leasedJob) {
     console.log("Phase2LeaseNotAcquired", {
       job_id: jobId,
-      phase: "phase_2",
+      phase: PHASES.PHASE_2,
       reason: "not eligible or already running",
     });
     return;
@@ -331,6 +345,8 @@ export async function runPhase2(jobId: string): Promise<void> {
         phase: "phase_2",
         phase_status: "failed",
         message: "v2: invalid_manuscript_id",
+        total_units: null,
+        completed_units: null,
         lease_id: null,
         lease_expires_at: null,
       },
@@ -346,20 +362,22 @@ export async function runPhase2(jobId: string): Promise<void> {
       await updateJob(jobId, {
         status: "failed",
         progress: {
-          phase: "phase_2",
+          phase: PHASES.PHASE_2,
           phase_status: "failed",
           message: `Phase 1 output not ready: ${validation.error}`,
+          total_units: null,
+          completed_units: null,
           lease_id: null,
           lease_expires_at: null,
         },
       });
 
-      metrics.onJobFailed(jobId, "phase_2", validation.error || "v2: validation_failed");
+      metrics.onJobFailed(jobId, PHASES.PHASE_2, validation.error || "v2: validation_failed");
       return;
     }
 
     // STEP 2: aggregate results
-    const result = await aggregateChunkResults(manuscriptId, jobId);
+    const result = await aggregateChunkResults(manuscriptId, jobId, job.progress);
 
     // STEP 3: persist artifact (idempotent)
     const persistResult = await persistOutput(jobId, manuscriptId, result);
@@ -368,7 +386,7 @@ export async function runPhase2(jobId: string): Promise<void> {
     await updateJob(jobId, {
       status: "complete", // CANONICAL terminal JobStatus in your repo
       progress: {
-        phase: "phase_2",
+        phase: PHASES.PHASE_2,
         phase_status: "complete",
         message: persistResult.alreadyExists
           ? "Phase 2 already complete (idempotent)"
@@ -376,6 +394,8 @@ export async function runPhase2(jobId: string): Promise<void> {
         finished_at: new Date().toISOString(),
         overall_score: result.overallScore,
         artifact_id: persistResult.artifactId ?? null,
+        total_units: result.chunkCount,
+        completed_units: result.processedCount,
         lease_id: null,
         lease_expires_at: null,
       },
@@ -393,7 +413,7 @@ export async function runPhase2(jobId: string): Promise<void> {
     });
 
     const phase2Duration = Date.now() - phase2Start;
-    metrics.onPhaseCompleted(jobId, "phase_2", phase2Duration);
+    metrics.onPhaseCompleted(jobId, PHASES.PHASE_2, phase2Duration);
     metrics.onJobCompleted(jobId, job.job_type, phase2Duration);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -408,15 +428,17 @@ export async function runPhase2(jobId: string): Promise<void> {
     await updateJob(jobId, {
       status: "failed",
       progress: {
-        phase: "phase_2",
+        phase: PHASES.PHASE_2,
         phase_status: "failed",
         message: `v2: phase2_exception: ${msg}`,
         last_error: e instanceof Error ? e.stack : msg,
+        total_units: null,
+        completed_units: null,
         lease_id: null,
         lease_expires_at: null,
       },
     });
 
-    metrics.onJobFailed(jobId, "phase_2", msg);
+    metrics.onJobFailed(jobId, PHASES.PHASE_2, msg);
   }
 }

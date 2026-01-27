@@ -22,7 +22,7 @@ function checkServiceRole(req: Request): boolean {
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { jobId: string } }
 ) {
   if (!checkServiceRole(req)) {
     return NextResponse.json(
@@ -31,7 +31,7 @@ export async function GET(
     );
   }
 
-  const jobId = params.id;
+  const jobId = params.jobId;
   const url = new URL(req.url);
   const artifactType = url.searchParams.get("type") || "one_page_summary";
 

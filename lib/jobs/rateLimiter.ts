@@ -240,7 +240,7 @@ async function checkConcurrentJobsLimit(userId: string): Promise<RateLimitResult
       .from("evaluation_jobs")
       .select("id", { count: "exact", head: true })
       .in("manuscript_id", manuscriptIds)
-      .in("status", ["queued", "running", "retry_pending"]);
+      .in("status", ["queued", "running"]);
     
     if (error) {
       console.error("[CONCURRENT-LIMIT] Error counting active jobs:", error);

@@ -5,19 +5,37 @@
  * It ensures consistent presentation across all UI components.
  *
  * Key principles:
- * 1. `status` is the primary badge (complete, running, failed, queued)
+ * 1. `status` is the primary badge (complete, running, failed, queued) - CANON only
  * 2. `phase` + `phase_status` provide granular progress detail
  * 3. Progress bars use `completed_units / total_units`
  * 4. Invariant: phase_status="complete" never coexists with status="running"
+ * 
+ * Note: UI may derive display states (like "Canceled" or "Retrying") from
+ * progress markers (canceled_at, next_retry_at) but DB status remains CANON.
  */
 
-import type { Job } from "./types";
+import type { Job, Phase, JobStatus, PhaseStatus } from "./types";
 
-export type JobStatusBadge = "complete" | "running" | "failed" | "queued" | "retry_pending" | "canceled";
+export type JobStatusBadge = JobStatus; // CANON only: queued, running, complete, failed
+
+/**
+ * Safe conversion of unknown values to display text.
+ * Use this instead of inline String() for consistent null/undefined handling.
+ */
+export function toUiText(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
+}
 
 export type JobPhaseDetail = {
-  phase: "phase_1" | "phase_2" | null;
-  phase_status: "starting" | "processing" | "complete" | "failed" | null;
+  phase: Phase | null;
+  phase_status: PhaseStatus;
   display: string; // Human-readable: "Phase 1: Starting", "Phase 2: Complete"
 };
 
@@ -45,58 +63,62 @@ export type JobDisplayInfo = {
  */
 export function getJobDisplayInfo(job: Job): JobDisplayInfo {
   const status = job.status;
-  const progress = job.progress || {};
-  const phase = progress.phase || null;
-  const phase_status = progress.phase_status || null;
-  const completed = progress.completed_units || 0;
-  const total = progress.total_units || 0;
-  const message = progress.message || "";
+  const progress = job.progress;
+  const phase = progress?.phase ?? null;
+  const phase_status = progress?.phase_status ?? null;
+  const completed = (progress?.completed_units as number | undefined) ?? 0;
+  const total = (progress?.total_units as number | undefined) ?? 0;
+  const message = (progress?.message as string | undefined) ?? "";
 
-  // Badge determination
+  // Badge determination (CANON statuses only)
   const badge: JobStatusBadge = status;
-  let badgeColor: "green" | "blue" | "red" | "gray" | "yellow";
+  let badgeColor: "green" | "blue" | "red" | "gray";
   let badgeLabel: string;
 
-  switch (status) {
-    case "complete":
-      badgeColor = "green";
-      badgeLabel = "Complete";
-      break;
-    case "running":
-      badgeColor = "blue";
-      badgeLabel = "Running";
-      break;
-    case "failed":
-      badgeColor = "red";
-      badgeLabel = "Failed";
-      break;
-    case "retry_pending":
-      badgeColor = "yellow";
-      badgeLabel = "Retry Pending";
-      break;
-    case "canceled":
-      badgeColor = "gray";
-      badgeLabel = "Canceled";
-      break;
-    case "queued":
-    default:
-      badgeColor = "gray";
-      badgeLabel = "Queued";
-      break;
+  // Check for special display cases based on progress markers
+  const isCanceled = status === "failed" && !!(progress?.canceled_at);
+  const isRetrying = status === "failed" && !!(progress?.next_retry_at);
+
+  if (isCanceled) {
+    badgeColor = "gray";
+    badgeLabel = "Canceled";
+  } else if (isRetrying) {
+    badgeColor = "gray";
+    badgeLabel = "Retrying";
+  } else {
+    switch (status) {
+      case "complete":
+        badgeColor = "green";
+        badgeLabel = "Complete";
+        break;
+      case "running":
+        badgeColor = "blue";
+        badgeLabel = "Running";
+        break;
+      case "failed":
+        badgeColor = "red";
+        badgeLabel = "Failed";
+        break;
+      case "queued":
+      default:
+        badgeColor = "gray";
+        badgeLabel = "Queued";
+        break;
+    }
   }
 
   // Phase detail
   let phaseDisplay = "";
   if (phase && phase_status) {
-    const phaseNum = phase === "phase_1" ? "1" : "2";
+    const phaseNum = phase === "phase_1" ? "1" : "2"; // Display only
     const statusLabel =
-      phase_status === "starting"
-        ? "Starting"
-        : phase_status === "processing"
-          ? "Processing"
-          : phase_status === "complete"
-            ? "Complete"
-            : "Failed";
+      phase_status === "complete"
+        ? "Complete"
+        : phase_status === "failed"
+          ? "Failed"
+          : phase_status === "running"
+            ? "Running"
+            : "Queued";
     phaseDisplay = `Phase ${phaseNum}: ${statusLabel}`;
   }
 
@@ -122,9 +144,9 @@ export function getJobDisplayInfo(job: Job): JobDisplayInfo {
     display: progressDisplay,
   };
 
-  // Action availability
-  const canRetry = status === "failed" || status === "retry_pending";
-  const canCancel = status === "running" || status === "queued" || status === "retry_pending";
+  // Action availability (based on CANON statuses)
+  const canRetry = status === "failed" && !isCanceled; // Can retry failed jobs unless canceled
+  const canCancel = status === "running" || status === "queued"; // Can cancel active jobs only
 
   return {
     badge,
@@ -151,8 +173,6 @@ export function getJobStatusBadge(status: JobStatusBadge): {
     running: { label: "Running", color: "#3b82f6", className: "bg-blue-100 text-blue-800" },
     failed: { label: "Failed", color: "#ef4444", className: "bg-red-100 text-red-800" },
     queued: { label: "Queued", color: "#6b7280", className: "bg-gray-100 text-gray-800" },
-    retry_pending: { label: "Retry Pending", color: "#f59e0b", className: "bg-yellow-100 text-yellow-800" },
-    canceled: { label: "Canceled", color: "#9ca3af", className: "bg-gray-100 text-gray-600" },
   };
 
   return colorMap[status] || colorMap.queued;
@@ -163,11 +183,11 @@ export function getJobStatusBadge(status: JobStatusBadge): {
  * Returns error message if invariant is violated, null otherwise.
  */
 export function validateJobInvariants(job: Job): string | null {
-  const progress = job.progress || {};
+  const progress = job.progress;
   const status = job.status;
-  const phase_status = progress.phase_status;
-  const completed = progress.completed_units || 0;
-  const total = progress.total_units || 0;
+  const phase_status = progress?.phase_status;
+  const completed = (progress?.completed_units as number | undefined) ?? 0;
+  const total = (progress?.total_units as number | undefined) ?? 0;
 
   // Invariant 1: phase_status="complete" should never coexist with status="running"
   if (phase_status === "complete" && status === "running") {
@@ -185,7 +205,7 @@ export function validateJobInvariants(job: Job): string | null {
   }
 
   // Invariant 4: Lease should be cleared when status="complete"
-  if (status === "complete" && (progress.lease_id || progress.lease_expires_at)) {
+  if (status === "complete" && ((progress as any)?.lease_id || (progress as any)?.lease_expires_at)) {
     return `INVARIANT VIOLATION: status="complete" but lease not cleared for job ${job.id}`;
   }
 

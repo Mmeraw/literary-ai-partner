@@ -3,9 +3,19 @@
 // status transitions only in route.ts (queued→running) and terminal worker update (→complete|failed)
 
 import * as metrics from "./metrics";
+import { PHASES, JOB_STATUS } from "./types";
+
+// Helper functions for type-safe unknown handling
+function asNumber(v: unknown, fallback: number): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+function asIsoString(v: unknown, fallback: string): string {
+  return typeof v === "string" && v.length > 0 ? v : fallback;
+}
 
 export const PHASE_1_STATES = {
-  NOT_STARTED: "not_started",
+  QUEUED: "queued",
   RUNNING: "running",
   COMPLETED: "complete",
   FAILED: "failed",
@@ -14,7 +24,7 @@ export const PHASE_1_STATES = {
 export type Phase1State = (typeof PHASE_1_STATES)[keyof typeof PHASE_1_STATES];
 
 const ALLOWED_TRANSITIONS: Record<Phase1State, Phase1State[]> = {
-  not_started: ["running"],
+  queued: ["running"],
   running: ["complete", "failed"],
   failed: ["running"],
   complete: [],
@@ -76,7 +86,7 @@ export async function runPhase1(jobId: string): Promise<void> {
   if (!leasedJob) {
     console.log("Phase1LeaseNotAcquired", {
       job_id: jobId,
-      phase: "phase_1",
+      phase: PHASES.PHASE_1,
       reason: "not eligible or already running",
     });
     return;
@@ -100,40 +110,46 @@ export async function runPhase1(jobId: string): Promise<void> {
 
   const chunkCount = await ensureChunks(manuscriptIdNum, jobId);  // Link chunks to job
   
+  // Get all chunks for total count and reporting  
+  const allChunks = await getManuscriptChunks(manuscriptIdNum);
+  
+  // VALIDATION: Verify chunks were created with job_id
+  const jobLinkedChunks = allChunks.filter(c => (c as any).job_id === jobId);
+  if (jobLinkedChunks.length === 0) {
+    console.warn(`[Phase1] WARNING: No chunks found with job_id=${jobId}. This may indicate job_id column missing or upsert failed.`);
+  } else if (jobLinkedChunks.length !== chunkCount) {
+    console.warn(`[Phase1] WARNING: Expected ${chunkCount} chunks with job_id=${jobId}, found ${jobLinkedChunks.length}`);
+  } else {
+    console.log(`[Phase1] ✓ Verified ${jobLinkedChunks.length} chunks linked to job ${jobId}`);
+  }
+  
   // Get eligible chunks with stuck recovery (handles worker crashes)
   // This fetches pending/failed chunks AND processing chunks with expired leases
   const eligibleChunks = await getEligibleChunksWithStuckRecovery(manuscriptIdNum, 3);
   
-  // Get all chunks for total count and reporting
-  const allChunks = await getManuscriptChunks(manuscriptIdNum);
-  
   console.log(`[Phase1] Processing ${eligibleChunks.length} eligible chunks (${allChunks.length} total) for manuscript ${job.manuscript_id}`);
 
-  const existing_index = job.progress.phase1_last_processed_index ?? -1;
+  const existing_index = asNumber(job.progress.phase1_last_processed_index, -1);
   const start_index = existing_index + 1;
   
   // Count how many chunks are already done
   const doneChunks = allChunks.filter(c => c.status === 'done').length;
-  const existing_completed = job.progress.completed_units ?? doneChunks;
-  const completed_units = Math.max(
-    existing_completed,
-    doneChunks,
-  );
-  const started_at =
-    job.progress.started_at ?? new Date().toISOString();
+  const existing_completed = asNumber(job.progress.completed_units, doneChunks);
+  const completed_units = Math.max(existing_completed, doneChunks);
+  const nowIso = new Date().toISOString();
+  const started_at = asIsoString(job.progress.started_at, nowIso);
 
-  // Set total_units based on actual chunk count, phase, phase_status
+  // Set total_units/completed_units (canonical keys) based on actual chunk count, phase, phase_status
   await updateJob(jobId, {
     progress: {
       message: `Initializing Phase 1 - ${eligibleChunks.length} chunks to process (${doneChunks} already done)`,
       total_units: allChunks.length,
-      completed_units,
+      completed_units: completed_units,
       started_at,
-      phase: "phase_1",
-      phase_status: "running",
+      phase: PHASES.PHASE_1,
+      phase_status: JOB_STATUS.RUNNING,
       phase1_last_processed_index: existing_index,
     },
-    last_progress_at: new Date().toISOString(),
   });
 
   let processed = doneChunks; // Start from already completed count
@@ -152,10 +168,10 @@ export async function runPhase1(jobId: string): Promise<void> {
       if (!currentJob) return;
 
       // Check for cancellation - exit immediately without mutating counters
-      if (currentJob.status === "canceled") {
+      if (currentJob.status === JOB_STATUS.FAILED && !!currentJob.progress?.canceled_at) {
         console.log("Phase1Canceled", {
           job_id: jobId,
-          phase: "phase_1",
+          phase: PHASES.PHASE_1,
           processed_before_cancel: processed,
         });
         return;
@@ -163,7 +179,7 @@ export async function runPhase1(jobId: string): Promise<void> {
 
       const progress = currentJob.progress;
 
-      if (progress.phase !== "phase_1" || progress.phase_status !== "running") {
+      if (progress.phase !== PHASES.PHASE_1 || progress.phase_status !== "running") {
         console.log(
           "Phase1 invariant failed: phase or phase_status mismatch",
         );
@@ -171,12 +187,12 @@ export async function runPhase1(jobId: string): Promise<void> {
       }
 
       if (
-        progress.lease_expires_at &&
+        typeof progress.lease_expires_at === 'string' &&
         new Date(progress.lease_expires_at) <= new Date()
       ) {
         console.log("Phase1LeaseExpired", {
           job_id: jobId,
-          phase: "phase_1",
+          phase: PHASES.PHASE_1,
           lease_id,
           processed_units: processed,
         });
@@ -184,7 +200,7 @@ export async function runPhase1(jobId: string): Promise<void> {
       }
 
       if (
-        (progress.completed_units || 0) > (progress.total_units || 0)
+        asNumber(progress.completed_units, 0) > asNumber(progress.total_units, 0)
       ) {
         console.log(
           "Phase1 invariant failed: completed_units > total_units",
@@ -205,7 +221,7 @@ export async function runPhase1(jobId: string): Promise<void> {
       // Start heartbeat timer for this chunk
       const heartbeatInterval = setInterval(async () => {
         await updateJob(jobId, {
-          last_heartbeat_at: new Date().toISOString(),
+          last_heartbeat: new Date().toISOString(),
         });
       }, 10000); // 10 seconds
 
@@ -258,18 +274,18 @@ export async function runPhase1(jobId: string): Promise<void> {
 
       await updateJob(jobId, {
         progress: {
+          ...currentJob.progress,
           message: `Processed ${chunkLabel} (${currentDoneCount}/${allChunks.length} complete)`,
           completed_units: currentDoneCount,
           phase1_last_processed_index: chunk.chunk_index,
           lease_expires_at: new_lease_expires_at,
         },
-        last_progress_at: new Date().toISOString(),
       });
     }
   } catch (e) {
     console.error("Phase1Error", {
       job_id: jobId,
-      phase: "phase_1",
+      phase: PHASES.PHASE_1,
       error: e instanceof Error ? e.message : String(e),
       stack: e instanceof Error ? e.stack : undefined,
       processed_before_error: processed,
@@ -332,7 +348,7 @@ export async function runPhase1(jobId: string): Promise<void> {
 
   // Update job based on outcome
   if (final_phase_status === PHASE_1_STATES.FAILED) {
-    const retry_count = (job.progress.retry_count || 0) + 1;
+    const retry_count = asNumber(job.progress.retry_count, 0) + 1;
     const max_retries = 3;
 
     if (retry_count <= max_retries) {
@@ -341,30 +357,30 @@ export async function runPhase1(jobId: string): Promise<void> {
       ).toISOString(); // backoff 1min, 2min, 3min
 
       await updateJob(jobId, {
-        status: "retry_pending",
+        status: JOB_STATUS.FAILED,
         progress: {
           message,
           finished_at,
-          phase: "phase_1",
+          phase: PHASES.PHASE_1,
           phase_status: final_phase_status,
-          retry_phase: "phase_1",
+          retry_phase: PHASES.PHASE_1,
           retry_count,
           next_retry_at,
+          total_units: finalChunks.length,
           completed_units: finalDoneCount,
         },
-        last_progress_at: new Date().toISOString(),
       });
     } else {
       await updateJob(jobId, {
-        status: "failed",
+        status: JOB_STATUS.FAILED,
         progress: {
           message,
           finished_at,
-          phase: "phase_1",
+          phase: PHASES.PHASE_1,
           phase_status: final_phase_status,
+          total_units: finalChunks.length,
           completed_units: finalDoneCount,
         },
-        last_progress_at: new Date().toISOString(),
       });
     }
   } else if (final_phase_status === PHASE_1_STATES.COMPLETED) {
@@ -374,23 +390,22 @@ export async function runPhase1(jobId: string): Promise<void> {
       progress: {
         message,
         finished_at,
-        phase: "phase_1",
+        phase: PHASES.PHASE_1,
         phase_status: final_phase_status,
         total_units: finalChunks.length,
         completed_units: finalDoneCount,
         phase1_last_processed_index: finalDoneCount > 0 ? finalDoneCount - 1 : -1,
         lease_id: null,
         lease_expires_at: null,
+        partial,
       },
-      partial,
-      last_progress_at: new Date().toISOString(),
     });
   } else {
     // RUNNING state - work remains, allow resume
     await updateJob(jobId, {
       progress: {
         message,
-        phase: "phase_1",
+        phase: PHASES.PHASE_1,
         phase_status: final_phase_status,
         total_units: finalChunks.length,
         completed_units: finalDoneCount,
@@ -398,7 +413,6 @@ export async function runPhase1(jobId: string): Promise<void> {
         lease_id: null,
         lease_expires_at: null,
       },
-      last_progress_at: new Date().toISOString(),
     });
   }
 
@@ -414,8 +428,8 @@ export async function runPhase1(jobId: string): Promise<void> {
   // Emit metrics
   const phase1_duration = Date.now() - phase1_start;
   if (final_phase_status === PHASE_1_STATES.COMPLETED) {
-    metrics.onPhaseCompleted(jobId, "phase_1", phase1_duration);
+    metrics.onPhaseCompleted(jobId, PHASES.PHASE_1, phase1_duration);
   } else if (final_phase_status === PHASE_1_STATES.FAILED) {
-    metrics.onJobFailed(jobId, "phase_1", "Phase 1 failed - all chunks failed");
+    metrics.onJobFailed(jobId, PHASES.PHASE_1, "Phase 1 failed - all chunks failed");
   }
 }

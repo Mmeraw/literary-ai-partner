@@ -3,14 +3,16 @@ import { Job, JobStatus } from "./types";
 /**
  * Central JobStatus transition table.
  * All status changes must be validated against this.
+ * 
+ * CANON: Only queued, running, complete, failed are valid.
+ * - "retry_pending" → JOB_STATUS.FAILED with progress.next_retry_at
+ * - "canceled" → JOB_STATUS.FAILED with progress.canceled_at
  */
 const ALLOWED_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
   queued: ["running", "failed"],
-  running: ["complete", "failed", "retry_pending"],
-  retry_pending: ["running", "failed"],
+  running: ["complete", "failed"],
   failed: [],
   complete: [],
-  canceled: [],
 };
 
 /**

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Running pre-commit checks..."
+
+# Canon guard (must pass)
+./scripts/canon-guard.sh
+
+echo "Pre-commit checks passed."

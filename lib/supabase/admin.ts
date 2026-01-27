@@ -3,6 +3,7 @@
 // Use ONLY in trusted server routes for administrative operations
 
 import { createClient } from "@supabase/supabase-js";
+import { guardSupabaseProject } from "./projectGuard";
 
 export function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -10,6 +11,9 @@ export function createAdminClient() {
 
   if (!url) throw new Error("Missing SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL");
   if (!serviceRole) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+
+  // PRODUCTION SAFETY: Verify we're not accidentally using testing database
+  guardSupabaseProject();
 
   return createClient(url, serviceRole, {
     auth: { 

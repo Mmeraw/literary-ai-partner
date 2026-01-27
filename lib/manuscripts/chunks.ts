@@ -82,24 +82,90 @@ export async function getManuscriptChunks(
  * Filters by manuscript_id AND job_id to ensure Phase 2 only aggregates
  * chunks from the current job run, not stale data from previous runs.
  * 
- * Returns empty array if job_id is null (legacy chunks).
+ * Falls back to time-bounded manuscript query if job_id column doesn't exist yet.
+ * SAFETY: Fallback validates chunk count to prevent aggregating stale/wrong chunks.
  */
-export async function getChunksForJob(
-  manuscriptId: number,
-  jobId: string
-): Promise<ChunkRow[]> {
+export async function getChunksForJob(opts: {
+  manuscriptId: number;
+  jobId: string;
+  phase1StartedAt?: string;
+  phase1FinishedAt?: string;
+  expectedChunkCount?: number;
+}): Promise<ChunkRow[]> {
+  const { manuscriptId, jobId, phase1StartedAt, phase1FinishedAt, expectedChunkCount } = opts;
+
   if (!jobId) {
-    console.warn(`[getChunksForJob] job_id is null/empty, returning empty array`);
-    return [];
+    throw new Error("[getChunksForJob] job_id is required for Phase 2 queries");
   }
 
-  const { data, error } = await supabase
+  // PRIMARY PATH: Try job-scoped query first (canonical)
+  let query = supabase
     .from("manuscript_chunks")
     .select("*")
     .eq("manuscript_id", manuscriptId)
     .eq("job_id", jobId)
     .order("chunk_index", { ascending: true });
 
+  let { data, error } = await query;
+
+  // FALLBACK PATH: If job_id column doesn't exist, use time-bounded manuscript query
+  const missingJobIdColumn = error?.message?.includes("job_id") && error?.message?.includes("does not exist");
+  
+  if (missingJobIdColumn) {
+    console.warn(`[getChunksForJob] job_id column not found, using time-bounded fallback`);
+    console.warn(`ACTION REQUIRED: Apply migration to add job_id column to manuscript_chunks`);
+    
+    if (!phase1StartedAt) {
+      throw new Error("Cannot use fallback query without phase1StartedAt timestamp");
+    }
+
+    let fallbackQuery = supabase
+      .from("manuscript_chunks")
+      .select("*")
+      .eq("manuscript_id", manuscriptId)
+      .gte("created_at", phase1StartedAt);
+    
+    if (phase1FinishedAt) {
+      fallbackQuery = fallbackQuery.lte("created_at", phase1FinishedAt);
+    }
+    
+    fallbackQuery = fallbackQuery.order("chunk_index", { ascending: true });
+
+    const fallbackResult = await fallbackQuery;
+    
+    if (fallbackResult.error) {
+      console.error(`[getChunksForJob] Fallback query error:`, fallbackResult.error);
+      throw new Error(`Failed to fetch chunks: ${fallbackResult.error.message}`);
+    }
+
+    data = fallbackResult.data;
+    
+    // SAFETY GUARD: Validate fallback chunk set
+    if (expectedChunkCount !== undefined && data && data.length !== expectedChunkCount) {
+      throw new Error(
+        `Fallback chunk set invalid: expected ${expectedChunkCount} chunks, got ${data.length}. ` +
+        `This may indicate stale/mixed chunks from prior job runs. Add job_id column to fix.`
+      );
+    }
+
+    // SAFETY GUARD: Verify chunk indexes are contiguous
+    if (data && data.length > 0) {
+      const indexes = data.map((c: any) => c.chunk_index).sort((a, b) => a - b);
+      const expectedIndexes = Array.from({ length: data.length }, (_, i) => i);
+      const indexesMatch = indexes.every((idx, i) => idx === expectedIndexes[i]);
+      
+      if (!indexesMatch) {
+        throw new Error(
+          `Fallback chunk indexes non-contiguous: ${JSON.stringify(indexes)}. ` +
+          `Expected 0..${data.length - 1}. This indicates mixed chunks from multiple job runs.`
+        );
+      }
+    }
+
+    return (data as ChunkRow[]) || [];
+  }
+
+  // PRIMARY PATH ERROR: Something other than missing job_id column
   if (error) {
     console.error(`[getChunksForJob] FULL ERROR:`, JSON.stringify(error, null, 2));
     console.error(`[getChunksForJob] error.message:`, error.message);

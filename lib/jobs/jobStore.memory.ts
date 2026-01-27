@@ -23,12 +23,22 @@ export function createJob(input: { manuscript_id: string; job_type: JobType }): 
 
   const job: Job = {
     id,
-    manuscript_id: input.manuscript_id,
+    manuscript_id: input.manuscript_id, // Keep as-is for test compatibility (string or number)
     job_type: input.job_type,
     status: "queued",
-    progress: {},
+    progress: {
+      // CANON: phase + phase_status are the stored state machine keys
+      // phase: phase_0 | phase_1 | phase_2
+      // phase_status: queued | running | complete | failed (JobStatus | null)
+      // CANON counters: total_units, completed_units (matching phase writers)
+      phase: "phase_0",
+      phase_status: "queued",
+      total_units: null,
+      completed_units: null,
+    },
     created_at: now,
     updated_at: now,
+    last_heartbeat: null,
   };
 
   store.set(id, job);

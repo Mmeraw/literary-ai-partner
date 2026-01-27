@@ -1,6 +1,7 @@
 // app/api/evaluate/route.ts
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { PHASES } from "@/lib/jobs/types";
 
 export async function POST(req: Request) {
   try {
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
       .insert({
         manuscript_id: manuscript.id,
         job_type: "full_evaluation",
-        phase: "phase_1",
+        phase: PHASES.PHASE_1,
         policy_family: "standard",
         voice_preservation_level: "balanced",
         english_variant: "us",

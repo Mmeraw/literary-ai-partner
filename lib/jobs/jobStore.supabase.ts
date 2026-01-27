@@ -1,7 +1,7 @@
 import { getSupabaseClient } from "../supabase.js";
 import { assertValidTransition, isValidTransition } from "./transitions";
 import { validateProgressForPhase } from "./validation";
-import { Job, JobStatus, JobType } from "./types";
+import { Job, JobStatus, JobType, PHASES } from "./types";
 
 // Lazy-initialized Supabase client - null-safe for CI/build environments
 let _supabase: ReturnType<typeof getSupabaseClient> | undefined;
@@ -53,35 +53,25 @@ export async function createJob(input: {
   job_type: JobType;
 }): Promise<Job> {
   const now = new Date().toISOString();
-  let manuscriptId = Number.parseInt(input.manuscript_id, 10);
-
-  // For testing: if manuscript_id is not numeric, create a test manuscript
-  if (Number.isNaN(manuscriptId)) {
-    console.warn(
-      `Non-numeric manuscript_id "${input.manuscript_id}" provided; creating test manuscript`,
+  
+  // DB GUARD: manuscript_id MUST be numeric for Supabase writes
+  // Test strings like "test_ms_..." are memory-store only
+  const parsed = Number.parseInt(input.manuscript_id, 10);
+  if (Number.isNaN(parsed) || String(parsed) !== input.manuscript_id.trim()) {
+    throw new Error(
+      `Invalid manuscript_id "${input.manuscript_id}": Database writes require numeric manuscript IDs. ` +
+      `Use memory store (TEST_MODE=true) for test strings.`
     );
-
-    const { data: manuscript, error: manuscriptError } = await supabase
-      .from("manuscripts")
-      .insert({ title: `Test Manuscript ${now}` })
-      .select()
-      .single();
-
-    if (manuscriptError) {
-      throw new Error(
-        `Failed to create test manuscript: ${manuscriptError.message}`,
-      );
-    }
-    manuscriptId = manuscript.id;
   }
+  const manuscriptId = parsed;
 
   const payload = {
     manuscript_id: manuscriptId,
     job_type: JOB_TYPE_TO_DB[input.job_type] ?? input.job_type,
     status: "queued" as JobStatus,
     progress: {
-      phase: "phase_1",
-      phase_status: "not_started",
+      phase: PHASES.PHASE_1,
+      phase_status: "queued", // CANON: aligned with JobStatus
       message: "Job created",
     },
     // keep phase/phase_status only in progress JSON for consistency
@@ -254,6 +244,7 @@ export async function acquireLeaseForPhase1(
   // If a lease exists and is unexpired, do not steal it
   if (
     existing.progress.lease_expires_at &&
+    typeof existing.progress.lease_expires_at === 'string' &&
     new Date(existing.progress.lease_expires_at) > now
   ) {
     return null;
@@ -264,7 +255,7 @@ export async function acquireLeaseForPhase1(
     ...existing.progress,
     lease_id: leaseId,
     lease_expires_at: expiresAt,
-    phase: "phase_1",
+    phase: PHASES.PHASE_1,
     phase_status: "running",
   };
 
@@ -311,11 +302,11 @@ export async function acquireLeaseForPhase2(
    * - Resume entry: phase2 + running (only if lease expired / free)
    */
   const isPhase1Completed =
-    existing.progress.phase === "phase_1" &&
+    existing.progress.phase === PHASES.PHASE_1 &&
     existing.progress.phase_status === "complete";
 
   const isPhase2Resumable =
-    existing.progress.phase === "phase_2" &&
+    existing.progress.phase === PHASES.PHASE_2 &&
     existing.progress.phase_status === "running";
 
   if (!isPhase1Completed && !isPhase2Resumable) {
@@ -327,7 +318,9 @@ export async function acquireLeaseForPhase2(
 
   // Treat missing lease_expires_at as expired if lease_id exists (prevents “stuck forever”)
   const leaseExpiresAtRaw = existing.progress.lease_expires_at;
-  const leaseExpiresAt = leaseExpiresAtRaw ? new Date(leaseExpiresAtRaw) : null;
+  const leaseExpiresAt = (leaseExpiresAtRaw && typeof leaseExpiresAtRaw === 'string') 
+    ? new Date(leaseExpiresAtRaw) 
+    : null;
 
   const isLeaseFree = !existingLeaseId;
   const isLeaseExpired =
@@ -359,7 +352,7 @@ export async function acquireLeaseForPhase2(
         ...existing.progress,
         lease_id: leaseId,
         lease_expires_at: expiresAt,
-        phase: "phase_2",
+        phase: PHASES.PHASE_2,
         phase_status: "running",
       };
 
@@ -434,7 +427,7 @@ function mapDbRowToJob(row: any): Job {
   const progress = row.progress || {};
   return {
     id: row.id,
-    manuscript_id: String(row.manuscript_id),
+    manuscript_id: Number(row.manuscript_id), // BigInt from DB → number
     job_type: JOB_TYPE_FROM_DB[row.job_type] ?? row.job_type,
     status: row.status,
     progress: {
@@ -443,5 +436,6 @@ function mapDbRowToJob(row: any): Job {
     },
     created_at: row.created_at,
     updated_at: row.updated_at,
+    last_heartbeat: row.last_heartbeat || null,
   };
 }

@@ -9,6 +9,7 @@ import { PHASE_1_STATES } from "./phase1";
  * No phantom files.
  */
 export const PHASES = {
+  PHASE_0: "phase_0",
   PHASE_1: "phase_1",
   PHASE_2: "phase_2",
 } as const;
@@ -18,8 +19,7 @@ export type Phase = (typeof PHASES)[keyof typeof PHASES];
 /**
  * Phase 1 lifecycle states (derived from implementation)
  */
-export type Phase1State =
-  (typeof PHASE_1_STATES)[keyof typeof PHASE_1_STATES];
+export type Phase1State = (typeof PHASE_1_STATES)[keyof typeof PHASE_1_STATES];
 
 /**
  * Canonical job types
@@ -42,42 +42,73 @@ export type JobType = (typeof JOB_TYPES)[keyof typeof JOB_TYPES];
  * Guards
  */
 export function isPhase1JobType(jobType: JobType): boolean {
-  return (
-    jobType === JOB_TYPES.EVALUATE_QUICK ||
-    jobType === JOB_TYPES.EVALUATE_FULL
-  );
+  return jobType === JOB_TYPES.EVALUATE_QUICK || jobType === JOB_TYPES.EVALUATE_FULL;
 }
 
-export function assertJobTypeAllowedForPhase(
-  phase: Phase,
-  jobType: JobType
-): void {
+export function assertJobTypeAllowedForPhase(phase: Phase, jobType: JobType): void {
   if (phase === PHASES.PHASE_1 && !isPhase1JobType(jobType)) {
     throw new Error(`Job type ${jobType} not allowed in Phase 1.`);
   }
 }
 
+/**
+ * JOB_CONTRACT_v1 — CANON status model (binding)
+ * Allowed values only: queued, running, complete, failed
+ */
 export const JOB_STATUS = {
   QUEUED: "queued",
   RUNNING: "running",
-  RETRY_PENDING: "retry_pending",
   FAILED: "failed",
   COMPLETE: "complete",
-  CANCELED: "canceled",
 } as const;
 
 export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS];
 
-export type Job = {
-  id: string;
-  manuscript_id: string;
-  job_type: JobType;
+/**
+ * PhaseStatus is CANON-aligned with JobStatus.
+ * All phase writers MUST use: "queued" | "running" | "complete" | "failed" | null
+ * No granular states (e.g., "processing", "starting") allowed at type level.
+ */
+export type PhaseStatus = JobStatus | null;
+
+/**
+ * JOB_CONTRACT_v1 — CANON progress shape (minimum)
+ * May include additional keys, but these keys must match meaning.
+ * 
+ * CANON keys (written by phase1.ts and phase2.ts):
+ * - total_units: total work items (chunks)
+ * - completed_units: completed work items
+ */
+export type JobProgress = {
+  phase: Phase | null;
+  phase_status: PhaseStatus;
+  total_units: number | null;
+  completed_units: number | null;
+  [k: string]: unknown;
+};
+
+export type JobRecord = {
+  id: string; // uuid
+  manuscript_id: number | string; // bigint-as-number in DB, string in tests
+  job_type: JobType; // validated at API boundary
   status: JobStatus;
-    phase?: string | null;
-  progress: Record<string, any>;
+
+  // Canon progress (truth-first)
+  progress: JobProgress | null;
+
   created_at: string;
   updated_at: string;
-  last_heartbeat_at?: string | null;
-  last_progress_at?: string | null;
-  partial?: boolean;
+
+  // JOB_CONTRACT_v1 field name
+  last_heartbeat: string | null;
+
+  // Optional/legacy helpers (do not affect canon truth)
+  last_error?: string | null;
+  retry_count?: number;
 };
+
+export type GetJobApiResponse =
+  | { ok: true; job: JobRecord }
+  | { ok: false; error: string };
+
+export type Job = JobRecord;
