@@ -45,3 +45,6 @@ out
 your-repo.git/
 revisiongrade-governance.bundle
 *.bundle
+
+# Prevent accidental nested git dirs
+**/.git/
