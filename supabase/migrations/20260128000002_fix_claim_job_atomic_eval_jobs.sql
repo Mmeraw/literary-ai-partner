@@ -1,8 +1,6 @@
 -- Migration: Align claim_job_atomic with evaluation_jobs schema
 -- Ensures RPC returns the full job row needed by workers
 
-DROP FUNCTION IF EXISTS claim_job_atomic(TEXT, TIMESTAMPTZ, INTEGER);
-
 CREATE OR REPLACE FUNCTION claim_job_atomic(
   p_worker_id TEXT,
   p_now TIMESTAMPTZ,
@@ -42,23 +40,21 @@ BEGIN
     lease_token = gen_random_uuid(),
     lease_until = p_now + make_interval(secs => p_lease_seconds),
     heartbeat_at = p_now,
-    last_heartbeat = p_now,
     started_at = COALESCE(started_at, p_now),
     updated_at = p_now
-  WHERE id = v_job_id;
+  WHERE evaluation_jobs.id = v_job_id;
 
   RETURN QUERY
-  SELECT j.id,
-         j.manuscript_id,
-         j.job_type,
-         j.policy_family,
-         j.voice_preservation_level,
-         j.english_variant,
-         j.work_type,
-         j.phase
+  SELECT
+    j.id AS id,
+    j.manuscript_id AS manuscript_id,
+    j.job_type AS job_type,
+    j.policy_family AS policy_family,
+    j.voice_preservation_level AS voice_preservation_level,
+    j.english_variant AS english_variant,
+    j.work_type AS work_type,
+    j.phase AS phase
   FROM public.evaluation_jobs j
   WHERE j.id = v_job_id;
 END;
 $$;
-
-GRANT EXECUTE ON FUNCTION claim_job_atomic(TEXT, TIMESTAMPTZ, INTEGER) TO service_role;

@@ -196,7 +196,8 @@ export async function releaseJob(jobId: string): Promise<void> {
 }
 
 /**
- * Update job heartbeat to maintain lease
+ * Update job heartbeat to maintain lease (legacy - no token verification)
+ * @deprecated Use renewLease() for Phase 2D token-verified renewal
  */
 export async function updateHeartbeat(jobId: string, workerId: string): Promise<boolean> {
     const supabase = getSupabaseClient();
@@ -216,6 +217,57 @@ export async function updateHeartbeat(jobId: string, workerId: string): Promise<
     .eq('status', 'running');
 
   return !error;
+}
+
+/**
+ * Renew job lease with token verification (Phase 2D Slice 3)
+ * Prevents lease theft by requiring matching lease_token
+ */
+export async function renewLease(
+  jobId: string,
+  workerId: string,
+  leaseToken: string,
+  leaseSeconds: number = DEFAULT_LEASE_SECONDS
+): Promise<{ success: boolean; leaseUntil?: Date; heartbeatAt?: Date }> {
+  const supabase = getSupabaseClient();
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase.rpc('renew_lease', {
+    p_job_id: jobId,
+    p_worker_id: workerId,
+    p_lease_token: leaseToken,
+    p_now: now,
+    p_lease_seconds: leaseSeconds
+  });
+
+  if (error || !data || data.length === 0) {
+    return { success: false };
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+
+  // Normalize field names (handles snake_case, camelCase, or any variation)
+  const success =
+    row?.success === true ||
+    row?.SUCCESS === true;
+
+  const leaseUntil =
+    row?.lease_until ??
+    row?.new_lease_until ??
+    row?.leaseUntil ??
+    null;
+
+  const heartbeatAt =
+    row?.heartbeat_at ??
+    row?.new_heartbeat_at ??
+    row?.heartbeatAt ??
+    null;
+
+  return {
+    success,
+    leaseUntil: leaseUntil ? new Date(leaseUntil) : undefined,
+    heartbeatAt: heartbeatAt ? new Date(heartbeatAt) : undefined
+  };
 }
 
 /**

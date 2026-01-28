@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 2D: Slice 1-2 Evidence (Atomic claim + idempotency)
+# Phase 2D: Slices 1-2 Evidence (Atomic claim + idempotency)
 # Usage: bash scripts/evidence-phase2d.sh
 # Output: Timestamped log in /tmp/phase2d-evidence-*.log
 
@@ -36,7 +36,7 @@ trap 'echo "❌ FAILED at line $LINENO: $BASH_COMMAND" >&2' ERR
 {
   cat <<'EOF'
 =========================================
-PHASE 2D SLICE 1 EVIDENCE
+PHASE 2D SLICES 1–3 EVIDENCE
 =========================================
 EOF
 
@@ -68,6 +68,7 @@ EOF
 EOF
   echo "Required columns: worker_id, lease_token, lease_until, heartbeat_at, started_at"
   echo "Required RPC: claim_job_atomic(p_worker_id, p_now, p_lease_seconds)"
+  echo "Required RPC: renew_lease(p_job_id, p_worker_id, p_lease_token, p_now, p_lease_seconds)"
   echo "Required indexes: idx_evaluation_jobs_status_lease, idx_evaluation_jobs_worker_id"
   echo "Required constraint: unique_provider_call_per_job (job_id, provider, phase)"
   echo ""
@@ -104,7 +105,7 @@ EOF
 
   cat <<'EOF'
 =========================================
-✅ PHASE 2D SLICE 3 LOCKED
+✅ PHASE 2D SLICES 1–3 LOCKED
 =========================================
 EOF
   echo "Ended: $(date -u +%Y-%m-%dT%H:%M:%SZ)"

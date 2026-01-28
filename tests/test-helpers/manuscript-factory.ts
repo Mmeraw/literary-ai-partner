@@ -13,6 +13,7 @@
 
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { ensureChunks, getManuscriptChunks } from "@/lib/manuscripts/chunks";
+import { randomUUID } from "crypto";
 
 const supabase = getSupabaseAdminClient();
 
@@ -38,7 +39,7 @@ export async function createTestManuscript(options: {
   wordCount?: number;
 }): Promise<number> {
   const { 
-    title = "Test Manuscript", 
+    title = `phase2d3:${randomUUID()}`, 
     userId = "58308033-a93e-48e2-805e-0ecdc7fd157f",
     wordCount = 50000 
   } = options;
