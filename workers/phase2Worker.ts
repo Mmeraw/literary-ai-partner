@@ -19,7 +19,7 @@
  */
 
 // Load environment variables FIRST (before any other imports)
-// Phase 2C Evidence Gate: workflow output fix proof
+// Phase 2C Evidence Gate: CI-compatible script paths proof
 import { config as dotenvConfig } from 'dotenv';
 
 dotenvConfig({
