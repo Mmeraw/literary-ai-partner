@@ -5,6 +5,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { randomUUID } from 'crypto';
 
 let supabase: SupabaseClient;
 
@@ -31,18 +32,32 @@ export interface ClaimResult {
   english_variant: string;
 }
 
+type ClaimRpcArgs = {
+  p_worker_id: string;
+  p_now: string;
+  p_lease_seconds: number;
+};
+
+const DEFAULT_LEASE_SECONDS = 5 * 60;
+
 /**
  * Atomically claim next eligible job
  * Returns job object or null if no jobs available
  */
 export async function claimNextJob(workerId: string): Promise<ClaimResult | null> {
   const supabase = getSupabaseClient();
+  const now = new Date().toISOString();
+  const leaseSeconds = DEFAULT_LEASE_SECONDS;
 
   try {
     // Atomic claim via RPC
-    const { data, error } = await supabase.rpc('claim_job_atomic', {
-      p_worker_id: workerId
-    });
+    const args: ClaimRpcArgs = {
+      p_worker_id: workerId,
+      p_now: now,
+      p_lease_seconds: leaseSeconds
+    };
+
+    const { data, error } = await supabase.rpc('claim_job_atomic', args);
 
     if (error) {
       // Fallback if RPC unavailable
@@ -88,13 +103,16 @@ export async function claimNextJob(workerId: string): Promise<ClaimResult | null
 async function fallbackClaim(workerId: string): Promise<ClaimResult | null> {
   const supabase = getSupabaseClient();
   const now = new Date().toISOString();
+  const leaseUntil = new Date(Date.now() + DEFAULT_LEASE_SECONDS * 1000).toISOString();
+  const leaseToken = randomUUID();
 
   try {
     // Find eligible job
     const { data: jobs, error: selectError } = await supabase
       .from('evaluation_jobs')
       .select('id')
-      .eq('status', 'queued')
+      .in('status', ['queued', 'failed'])
+      .or(`lease_until.is.null,lease_until.lt.${now}`)
       .order('created_at', { ascending: true })
       .limit(1);
 
@@ -115,11 +133,15 @@ async function fallbackClaim(workerId: string): Promise<ClaimResult | null> {
       .update({
         status: 'running',
         worker_id: workerId,
+        lease_token: leaseToken,
+        lease_until: leaseUntil,
+        heartbeat_at: now,
         last_heartbeat: now,
+        started_at: now,
         updated_at: now
       })
       .eq('id', jobId)
-      .eq('status', 'queued'); // Verify status hasn't changed
+      .in('status', ['queued', 'failed']); // Verify status hasn't changed
 
     if (updateError) {
       console.error('Fallback update error:', updateError);
@@ -164,7 +186,9 @@ export async function releaseJob(jobId: string): Promise<void> {
     .update({
       status: 'queued',
       worker_id: null,
+      lease_token: null,
       lease_until: null,
+      heartbeat_at: null,
       updated_at: now
     })
     .eq('id', jobId)
@@ -183,6 +207,8 @@ export async function updateHeartbeat(jobId: string, workerId: string): Promise<
     .from('evaluation_jobs')
     .update({
       lease_until: leaseTimeout,
+      heartbeat_at: now,
+      last_heartbeat: now,
       updated_at: now
     })
     .eq('id', jobId)
@@ -205,7 +231,9 @@ export async function completeJob(jobId: string, result: any): Promise<boolean> 
       status: 'complete',
       evaluation_result: result,
       updated_at: now,
-      lease_until: null
+      lease_token: null,
+      lease_until: null,
+      heartbeat_at: null
     })
     .eq('id', jobId)
     .eq('status', 'running');
@@ -226,10 +254,42 @@ export async function failJob(jobId: string, error: string): Promise<boolean> {
       status: 'failed',
       error: error,
       updated_at: now,
-      lease_until: null
+      lease_token: null,
+      lease_until: null,
+      heartbeat_at: null
     })
     .eq('id', jobId)
     .eq('status', 'running');
 
   return !updateError;
+}
+
+/**
+ * Reconcile expired leases (stuck running jobs)
+ * Returns number of jobs reclaimed
+ */
+export async function reconcileExpiredLeases(maxBatch = 50): Promise<number> {
+  const supabase = getSupabaseClient();
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('evaluation_jobs')
+    .update({
+      status: 'queued',
+      worker_id: null,
+      lease_token: null,
+      lease_until: null,
+      heartbeat_at: null,
+      updated_at: now
+    })
+    .eq('status', 'running')
+    .lt('lease_until', now)
+    .select('id');
+
+  if (error) {
+    console.error('Reconcile leases error:', error);
+    return 0;
+  }
+
+  return data?.length ?? 0;
 }
