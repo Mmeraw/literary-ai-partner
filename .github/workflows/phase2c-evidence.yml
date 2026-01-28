@@ -43,8 +43,10 @@ jobs:
       - name: Run Phase 2C Evidence
         id: evidence
         run: |
-          # Run evidence command and capture log path
-          OUTPUT=$(npm run evidence:phase2c 2>&1)
+          set +e
+          OUTPUT="$(npm run evidence:phase2c 2>&1)"
+          STATUS=$?
+          set -e
           echo "$OUTPUT"
           
           # Extract log path from output
@@ -58,6 +60,8 @@ jobs:
           else
             echo "LOG_COPIED=false" >> $GITHUB_OUTPUT
           fi
+          
+          exit $STATUS
       
       - name: Upload Evidence Artifact
         if: always() && steps.evidence.outputs.LOG_COPIED == 'true'
