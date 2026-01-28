@@ -1,6 +1,7 @@
 name: Phase 2C Evidence Gate
 
 on:
+  workflow_dispatch:  # Allow manual trigger
   pull_request:
     branches: [ main ]
     paths:
@@ -19,7 +20,6 @@ on:
       - 'phase2c4-persistence.test.ts'
       - 'tsconfig.json'
       - 'tsconfig.workers.json'
-  workflow_dispatch:  # Allow manual trigger
 
 jobs:
   evidence:
