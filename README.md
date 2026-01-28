@@ -73,6 +73,21 @@ bash scripts/verify-remote-migration.sh
 npm test
 ```
 
+### Phase 2C Evidence (TypeScript Type Verification)
+⚠️ **CRITICAL**: Evidence must be produced via `tsc -p <tsconfig>`, never single-file tsc.
+
+Single-file TypeScript compilation bypasses project configuration and surfaces spurious errors (e.g., ES2018 private field errors in ES2020+ code).
+
+```bash
+# ✅ CANONICAL (use this for evidence)
+npm run evidence:phase2c
+
+# ❌ WRONG (surfaces TS18028 errors, not in actual build)
+npx tsc --noEmit workers/phase2Evaluation.ts
+```
+
+See [docs/PERSISTENCE_CONTRACT.md](./docs/PERSISTENCE_CONTRACT.md) for Phase 2C contract.
+
 ## 📚 Documentation
 
 - **[QUICK_START.md](./docs/QUICK_START.md)** - First-time setup and daily workflow
