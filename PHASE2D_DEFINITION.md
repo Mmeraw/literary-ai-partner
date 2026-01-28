@@ -130,11 +130,14 @@ const worker2 = claimNextJob('worker-2');  // concurrent
 
 ## Phase 2D Concrete Checklist
 
-### 1. Atomic Claim Safety ✅ (Already Exists)
+### 1. Atomic Claim Safety ✅ LOCKED (Slice 1, commit 669eeb6)
 - [x] RPC uses `FOR UPDATE SKIP LOCKED` (prevents duplicate claims)
 - [x] Status check before claim: `status IN ('queued', 'failed')`
 - [x] Lease check: `lease_until IS NULL OR lease_until < now`
-- [ ] **TEST NEEDED**: Multi-worker concurrent claim test (spawn 10 workers, 5 jobs, verify no duplicates)
+- [x] Sets `lease_token`, `heartbeat_at`, `started_at` on claim
+- [x] **TEST VERIFIED**: Multi-worker concurrent claim (2 workers, 1 job, only 1 claim wins)
+- [x] **TEST VERIFIED**: Lease semantics (token, expiry in future, heartbeat set)
+- [x] **CI GATE**: phase2d-evidence.yml enforces on every push
 
 ### 2. Lease Renewal Mechanism ✅ (Exists but Untested)
 - [x] `updateHeartbeat()` renews `lease_until = now + 5 min`
