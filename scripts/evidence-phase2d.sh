@@ -60,7 +60,17 @@ EOF
     echo "❌ Missing required env: SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL" >&2
     exit 1
   fi
-  echo "✅ Supabase env present"
+  
+  # Validate URL format (must be http(s)://...)
+  URL_TO_CHECK="${SUPABASE_URL:-${NEXT_PUBLIC_SUPABASE_URL}}"
+  if [[ ! "${URL_TO_CHECK}" =~ ^https?:// ]]; then
+    echo "❌ SUPABASE_URL is invalid: '${URL_TO_CHECK}'" >&2
+    echo "   Must start with http:// or https://" >&2
+    echo "   Example: https://your-project.supabase.co" >&2
+    exit 1
+  fi
+  
+  echo "✅ Supabase env present (URL: ${URL_TO_CHECK})"
   echo ""
 
   cat <<'EOF'
