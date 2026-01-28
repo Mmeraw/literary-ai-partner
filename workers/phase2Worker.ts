@@ -14,7 +14,6 @@
  * - Exactly-once job execution
  * - Deterministic lifecycle (start/stop)
  * - Phase 2C Evidence Gate proof: CI trigger test
- */
  * - Observable state (logs, heartbeat)
  * - No silent failures
  */
