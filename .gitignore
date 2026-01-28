@@ -40,6 +40,8 @@ out
 /tmp-*.json
 /tsconfig.tsbuildinfo
 /tmp/
+*.tsbuildinfo
+dist-workers/
 
 # Local/accidental
 your-repo.git/

@@ -67,6 +67,9 @@ EOF
   echo "Required RPC: claim_job_atomic(p_worker_id, p_now, p_lease_seconds)"
   echo "Required indexes: idx_evaluation_jobs_status_lease, idx_evaluation_jobs_worker_id"
   echo "Required constraint: unique_provider_call_per_job (job_id, provider, phase)"
+  echo ""
+  echo "Git commit: $(git rev-parse HEAD 2>/dev/null || echo 'unknown')"
+  echo "Migration anchor: Latest applied migration (verify via Supabase dashboard)"
   echo "✅ Schema documented (manual verification required)"
   echo ""
 
