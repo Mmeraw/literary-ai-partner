@@ -46,6 +46,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify secrets are present
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          echo "Secret presence check:"
+          [ -n "$SUPABASE_URL" ] && echo "  ✓ SUPABASE_URL present" || echo "  ✗ SUPABASE_URL MISSING"
+          [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && echo "  ✓ NEXT_PUBLIC_SUPABASE_URL present" || echo "  ✗ NEXT_PUBLIC_SUPABASE_URL MISSING"
+          [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] && echo "  ✓ SUPABASE_SERVICE_ROLE_KEY present" || echo "  ✗ SUPABASE_SERVICE_ROLE_KEY MISSING"
+          [ -n "$SUPABASE_ANON_KEY" ] && echo "  ✓ SUPABASE_ANON_KEY present" || echo "  ✗ SUPABASE_ANON_KEY MISSING"
+          [ -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] && echo "  ✓ NEXT_PUBLIC_SUPABASE_ANON_KEY present" || echo "  ✗ NEXT_PUBLIC_SUPABASE_ANON_KEY MISSING"
+          echo ""
+          # Fail if any critical secret is missing
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "ERROR: Critical secrets are missing"
+            exit 1
+          fi
+
       - name: Run Phase 2D Evidence (Slice 1-3)
         id: evidence
         env:
