@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 2D: Slice 1 Evidence (Atomic claim + concurrency)
+# Phase 2D: Slice 1-2 Evidence (Atomic claim + idempotency)
 # Usage: bash scripts/evidence-phase2d.sh
 # Output: Timestamped log in /tmp/phase2d-evidence-*.log
 
@@ -19,9 +19,6 @@ cd "$REPO_ROOT"
 
 LOG="/tmp/phase2d-evidence-$(date +%s).log"
 
-# Error handler: print failing command before exit
-trap 'echo "❌ FAILED at step: $BASH_COMMAND" >&2' ERR
-
 require_env() {
   local var="$1"
   if [[ -z "${!var:-}" ]]; then
@@ -29,6 +26,12 @@ require_env() {
     exit 1
   fi
 }
+
+# Redirect all output to both console and log file
+exec > >(tee -a "$LOG") 2>&1
+
+# Error handler: print failing command before exit
+trap 'echo "❌ FAILED at line $LINENO: $BASH_COMMAND" >&2' ERR
 
 {
   cat <<'EOF'
@@ -94,12 +97,18 @@ EOF
   echo ""
 
   cat <<'EOF'
+4) Phase 2D-3 reconciler proof
+EOF
+  npx jest phase2d3-reconciler-proof.test.ts --no-coverage || { echo "❌ Phase 2D-3 test failed"; exit 1; }
+  echo ""
+
+  cat <<'EOF'
 =========================================
-✅ PHASE 2D SLICE 2 LOCKED
+✅ PHASE 2D SLICE 3 LOCKED
 =========================================
 EOF
   echo "Ended: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-} 2>&1 | tee "$LOG"
+}
 
 echo ""
 echo "Evidence archived: $LOG"
