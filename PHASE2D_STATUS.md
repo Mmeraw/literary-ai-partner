@@ -34,19 +34,30 @@
 
 ## 🟡 Pending: Phase 2D Migrations 2-6
 
-**Why:** These create the RPCs, tables, and constraints needed for atomic claiming, idempotency, and lease renewal.
+**Why:** These create the RPCs, tables, and constraints needed for atomic claiming, idempotency, and lease renewal. Without them, CI tests fail because the behavioral layer is incomplete.
 
-| Migration | Purpose | Status |
-|-----------|---------|--------|
-| 20260128000002 | Fix `claim_job_atomic` RPC | ⏳ Pending |
-| 20260128000003 | Create `evaluation_provider_calls` table | ⏳ Pending |
-| 20260128000004 | Add idempotency constraint | ⏳ Pending |
-| 20260128000005 | Grant RPC execute permissions | ⏳ Pending |
-| 20260128000006 | Create `renew_lease` RPC | ⏳ Pending |
+| Migration | Purpose | Status | Why Needed |
+|-----------|---------|--------|-----------|
+| 20260128000002 | Fix `claim_job_atomic` RPC | ⏳ Pending | Tests call this RPC to claim jobs |
+| 20260128000003 | Create `evaluation_provider_calls` table | ⏳ Pending | Stores provider call audit trail |
+| 20260128000004 | Add idempotency constraint | ⏳ Pending | Prevents duplicate calls on retry |
+| 20260128000005 | Grant RPC execute permissions | ⏳ Pending | Allows service_role to call RPCs |
+| 20260128000006 | Create `renew_lease` RPC | ⏳ Pending | Tests call this RPC for heartbeat renewal |
 
-### Current Blocker in `supabase db push`
+### Why CI Fails Until These Are Applied
 
-Earlier migrations (20260124000000_evaluation_artifacts.sql) have schema drift that blocks the full push. Rather than unblock, the fastest path is to apply Migrations 2-6 directly.
+The CI error message says:
+```
+Fallback select error: column evaluation_jobs.lease_until does not exist
+```
+
+**This is misleading.** The column exists (Migration 1 applied it). What's actually missing is the behavioral layer:
+- The test tries to claim a job via `claimNextJob()`, which needs the `claim_job_atomic()` RPC (Migration 2)
+- That RPC doesn't exist yet, so the test falls back to a different code path
+- The fallback fails because the full Phase 2D infrastructure isn't complete
+- Result: `claims.length === 0` and test fails
+
+The fix: Apply Migrations 2-6 to complete the behavioral layer.
 
 ---
 
@@ -54,28 +65,39 @@ Earlier migrations (20260124000000_evaluation_artifacts.sql) have schema drift t
 
 ### Step 1: Apply Phase 2D Migrations 2-6
 
-**Option A: Supabase Dashboard** (Recommended - 5 minutes)
-1. Go to https://app.supabase.com/projects
-2. Select **RevisionGrade Production** (xtumxjnzdswuumndcbwc)
-3. **SQL Editor** → **New Query**
-4. Copy SQL from `/tmp/phase2d-2-6.sql`
-5. Paste and **Run**
+**See:** [APPLY_MIGRATIONS_RUNBOOK.md](APPLY_MIGRATIONS_RUNBOOK.md) for exact commands.
 
-**Option B: Read the instructions**
-See [APPLY_PHASE2D_2-6.md](APPLY_PHASE2D_2-6.md) for detailed step-by-step guide and verification queries.
+**Quick version:**
+```bash
+cd /workspaces/literary-ai-partner
+supabase link --project-ref xtumxjnzdswuumndcbwc
+supabase db push
+```
 
-### Step 2: Trigger Phase 2D Evidence Gate Workflow
+Answer `Y` when prompted to apply migrations.
+
+### Step 2: Verify Migrations Applied
+
+Run this in Supabase SQL Editor:
+```sql
+SELECT routine_name FROM information_schema.routines
+WHERE routine_schema = 'public'
+  AND routine_name IN ('claim_job_atomic', 'renew_lease')
+ORDER BY routine_name;
+
+SELECT to_regclass('public.evaluation_provider_calls') AS table_exists;
+```
+
+Expected: 2 routine rows + table exists.
+
+### Step 3: Trigger Phase 2D Evidence Gate Workflow
 
 ```bash
-# After migrations applied, push to trigger workflow
 git commit --allow-empty -m "trigger: Phase 2D Evidence Gate workflow with all migrations applied"
 git push origin main
 
-# Monitor
 gh run list --workflow=phase2d-evidence.yml --limit=1
 ```
-
-### Step 3: Expected Results
 
 Once migrations are applied, the workflow will:
 
