@@ -66,6 +66,7 @@ EOF
   echo "Required columns: worker_id, lease_token, lease_until, heartbeat_at, started_at"
   echo "Required RPC: claim_job_atomic(p_worker_id, p_now, p_lease_seconds)"
   echo "Required indexes: idx_evaluation_jobs_status_lease, idx_evaluation_jobs_worker_id"
+  echo "Required constraint: unique_provider_call_per_job (job_id, provider, phase)"
   echo "✅ Schema documented (manual verification required)"
   echo ""
 
@@ -84,8 +85,14 @@ EOF
   echo ""
 
   cat <<'EOF'
+3) Phase 2D-2 idempotency proof
+EOF
+  npx jest phase2d2-idempotency-proof.test.ts --no-coverage || { echo "❌ Phase 2D-2 test failed"; exit 1; }
+  echo ""
+
+  cat <<'EOF'
 =========================================
-✅ PHASE 2D SLICE 1 LOCKED
+✅ PHASE 2D SLICE 2 LOCKED
 =========================================
 EOF
   echo "Ended: $(date -u +%Y-%m-%dT%H:%M:%SZ)"

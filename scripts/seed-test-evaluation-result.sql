@@ -20,8 +20,28 @@ BEGIN
     RETURNING id INTO test_manuscript_id;
     
     -- Create test evaluation job
-    INSERT INTO public.evaluation_jobs (manuscript_id, status)
-    VALUES (test_manuscript_id, 'completed')
+    -- Required NOT NULL fields: policy_family, voice_preservation_level, english_variant
+    -- Allowed values: policy_family IN ('standard','dark_fiction','trauma_memoir')
+    --                 voice_preservation_level IN ('strict','balanced','expressive')
+    --                 english_variant IN ('us','uk','ca','au')
+    INSERT INTO public.evaluation_jobs (
+      manuscript_id, 
+      status,
+      job_type,
+      phase,
+      policy_family,
+      voice_preservation_level,
+      english_variant
+    )
+    VALUES (
+      test_manuscript_id, 
+      'completed',
+      'full_evaluation',
+      'phase_1',
+      'standard',
+      'balanced',
+      'us'
+    )
     RETURNING id INTO test_job_id;
     
     RAISE NOTICE 'Created test job: %', test_job_id;

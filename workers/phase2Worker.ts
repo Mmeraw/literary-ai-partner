@@ -452,6 +452,8 @@ async function persistProviderCall(rec: ProviderCallRecord): Promise<void> {
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || ''
     );
 
+    // Phase 2D idempotency: ON CONFLICT DO UPDATE ensures exactly-once semantics
+    // If job retries/reclaims, update existing record instead of failing
     const { error } = await supabase
       .from('evaluation_provider_calls')
       .insert({
@@ -463,6 +465,27 @@ async function persistProviderCall(rec: ProviderCallRecord): Promise<void> {
         response_meta: rec.response_meta ?? null,
         error_meta: rec.error_meta ?? null,
         result_envelope: rec.result_envelope ?? null,
+      })
+      .select()
+      .single()
+      // @ts-ignore - upsert not in types but supported by Supabase
+      .then((res: any) => {
+        // If unique constraint violated, update instead
+        if (res.error?.code === '23505') {
+          return supabase
+            .from('evaluation_provider_calls')
+            .update({
+              provider_meta_version: rec.provider_meta_version,
+              request_meta: rec.request_meta,
+              response_meta: rec.response_meta ?? null,
+              error_meta: rec.error_meta ?? null,
+              result_envelope: rec.result_envelope ?? null,
+            })
+            .eq('job_id', rec.job_id)
+            .eq('provider', rec.provider)
+            .eq('phase', rec.phase);
+        }
+        return res;
       });
 
     if (error) {

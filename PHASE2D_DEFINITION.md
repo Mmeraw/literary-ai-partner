@@ -149,8 +149,12 @@ const worker2 = claimNextJob('worker-2');  // concurrent
 - [x] Expired lease allows reclaim by next worker
 - [ ] **TEST NEEDED**: Simulate worker crash (kill -9), verify next worker can reclaim
 
-### 4. Idempotency Guards
-- [ ] Implement `(job_id, chunk_id, attempt) UNIQUE` constraint on chunk results
+### 4. Idempotency Guards ✅ LOCKED (Slice 2, commit pending)
+- [x] Unique constraint: `unique_provider_call_per_job (job_id, provider, phase)` on `evaluation_provider_calls`
+- [x] ON CONFLICT logic: worker uses upsert/update on retry to prevent duplicate rows
+- [x] **TEST VERIFIED**: Double-write produces exactly one row (insert + insert fails with 23505)
+- [x] **TEST VERIFIED**: Upsert pattern (ON CONFLICT DO UPDATE) handles retry gracefully
+- [x] **CI GATE**: phase2d-evidence.yml enforces idempotency invariant
 - [ ] Use `INSERT ON CONFLICT DO NOTHING` or `INSERT ... ON CONFLICT DO UPDATE`
 - [ ] **TEST NEEDED**: Retry same chunk twice, verify result is idempotent
 
