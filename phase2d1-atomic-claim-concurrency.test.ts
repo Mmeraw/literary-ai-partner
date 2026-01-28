@@ -58,10 +58,14 @@ run("Phase 2D-1 Atomic claim concurrency", () => {
       expect(claims).toHaveLength(1);
 
       const expectedWorker = claimA?.id ? "worker-A" : "worker-B";
+      const winningClaim = claimA?.id ? claimA : claimB;
+
+      expect(winningClaim).toBeTruthy();
+      expect(winningClaim?.id).toBe(jobId);
 
       const { data: row, error: rowError } = await admin
         .from("evaluation_jobs")
-        .select("status, worker_id, lease_token, lease_until")
+        .select("status, worker_id, lease_token, lease_until, heartbeat_at, started_at")
         .eq("id", jobId)
         .single();
 
@@ -69,10 +73,25 @@ run("Phase 2D-1 Atomic claim concurrency", () => {
         throw new Error(`Failed to read job after claim: ${rowError?.message || "unknown"}`);
       }
 
+      // Mutual exclusion: exactly one worker owns the job
       expect(row.status).toBe("running");
       expect(row.worker_id).toBe(expectedWorker);
+
+      // Lease semantics: token, expiry, and heartbeat all set
       expect(row.lease_token).toBeTruthy();
+      expect(typeof row.lease_token).toBe("string");
       expect(row.lease_until).toBeTruthy();
+      expect(row.heartbeat_at).toBeTruthy();
+      expect(row.started_at).toBeTruthy();
+
+      // Lease is in the future (not expired immediately)
+      const leaseUntil = new Date(row.lease_until);
+      const now = new Date();
+      expect(leaseUntil.getTime()).toBeGreaterThan(now.getTime());
+
+      // Lease is reasonable (within 10 minutes, not indefinite)
+      const tenMinutesFromNow = new Date(now.getTime() + 10 * 60 * 1000);
+      expect(leaseUntil.getTime()).toBeLessThanOrEqual(tenMinutesFromNow.getTime());
     } finally {
       if (jobId) {
         await admin.from("evaluation_jobs").delete().eq("id", jobId);

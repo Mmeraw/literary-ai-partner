@@ -61,6 +61,15 @@ EOF
   echo ""
 
   cat <<'EOF'
+0a) Schema fingerprint
+EOF
+  echo "Required columns: worker_id, lease_token, lease_until, heartbeat_at, started_at"
+  echo "Required RPC: claim_job_atomic(p_worker_id, p_now, p_lease_seconds)"
+  echo "Required indexes: idx_evaluation_jobs_status_lease, idx_evaluation_jobs_worker_id"
+  echo "✅ Schema documented (manual verification required)"
+  echo ""
+
+  cat <<'EOF'
 1) TypeScript (main + workers)
 EOF
   npx tsc --noEmit -p tsconfig.json || { echo "❌ TypeScript main config failed"; exit 1; }
