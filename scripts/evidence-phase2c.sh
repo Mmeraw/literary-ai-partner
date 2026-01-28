@@ -13,7 +13,10 @@ if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
   return 1
 fi
 
-cd /workspaces/literary-ai-partner
+# Navigate to repo root (works in CI and locally)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$REPO_ROOT"
 
 LOG="/tmp/phase2c-evidence-$(date +%s).log"
 
