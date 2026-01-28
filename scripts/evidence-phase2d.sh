@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Phase 2D: Slices 1-2 Evidence (Atomic claim + idempotency)
+# Phase 2D: Slices 1-3 Evidence (Atomic claim + idempotency + reconciler)
 # Usage: bash scripts/evidence-phase2d.sh
 # Output: Timestamped log in /tmp/phase2d-evidence-*.log
+# Note: Requires SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
 
 set -euo pipefail
 IFS=$'\n\t'
