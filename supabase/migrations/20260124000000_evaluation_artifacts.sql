@@ -24,10 +24,21 @@ CREATE TABLE IF NOT EXISTS public.evaluation_artifacts (
   CONSTRAINT unique_job_artifact UNIQUE(job_id, artifact_type)
 );
 
--- Index for querying artifacts by manuscript
-CREATE INDEX idx_evaluation_artifacts_manuscript_id 
-  ON public.evaluation_artifacts(manuscript_id);
-
+-- Index for querying artifacts by manuscript (guarded for prod parity)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name   = 'evaluation_artifacts'
+      AND column_name  = 'manuscript_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_evaluation_artifacts_manuscript_id ON public.evaluation_artifacts(manuscript_id)';
+  ELSE
+    RAISE NOTICE 'Skipping idx_evaluation_artifacts_manuscript_id: public.evaluation_artifacts.manuscript_id does not exist';
+  END IF;
+END $$;
 -- Index for querying artifacts by type
 CREATE INDEX idx_evaluation_artifacts_type 
   ON public.evaluation_artifacts(artifact_type);
