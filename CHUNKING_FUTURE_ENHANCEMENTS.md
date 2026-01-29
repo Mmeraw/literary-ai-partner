@@ -3,6 +3,8 @@
 **Status**: Current system is production-ready at 100k+ user scale  
 **Priority**: These are nice-to-haves for future bulletproofing, not fixes
 
+> **Note**: Initial commit `e957c87` accidentally introduced an empty placeholder; commit `7149073` restores intended content.
+
 ---
 
 ## Already Solid ✅
