@@ -47,6 +47,8 @@ CREATE INDEX idx_evaluation_artifacts_type
 ALTER TABLE public.evaluation_artifacts ENABLE ROW LEVEL SECURITY;
 
 -- Service role can do anything (for worker daemon)
+DROP POLICY IF EXISTS "Service role full access" ON public.evaluation_artifacts;
+
 CREATE POLICY "Service role full access" 
   ON public.evaluation_artifacts 
   FOR ALL 
