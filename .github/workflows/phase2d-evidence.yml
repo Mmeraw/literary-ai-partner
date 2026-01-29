@@ -100,12 +100,13 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
           set +e
-          # Pass env vars through to npm script explicitly
-          SUPABASE_URL="$SUPABASE_URL" \
-          NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
-          SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
-          SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-          NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+          # Export env vars BEFORE npm to ensure they propagate to all subprocesses
+          export SUPABASE_URL="$SUPABASE_URL"
+          export NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL"
+          export SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY"
+          export SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY"
+          
           npm run evidence:phase2d > /tmp/evidence_output.log 2>&1
           STATUS=$?
           set -e
