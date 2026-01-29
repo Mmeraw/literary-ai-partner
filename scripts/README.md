@@ -28,6 +28,19 @@ This directory contains test scripts for validating database schema, integrity, 
   - Run locally/staging/nightly (not a CI gate—5MB inserts can be slow)
   - **This proves chunking handles edge cases naive implementations break on**
 
+- **`test-chunking-deterministic.sh`** 🔒 **DETERMINISTIC**
+  - Guarantees idempotent output: same input → same chunks (always)
+  - Runs chunking twice, compares fingerprints (chunk_index, content_hash, boundaries)
+  - Prevents "same manuscript, different chunks" regression bugs
+  - Validates: chunk count, index set, hash stability, boundary stability
+  - **This proves chunking is deterministic and won't regress**
+
+- **`audit-chunk-query-ordering.sh`** 🔍 **QUERY AUDIT**
+  - Scans codebase for manuscript_chunks SELECT queries
+  - Ensures all queries include ORDER BY chunk_index ASC
+  - Prevents "works locally, flakes in prod" ordering bugs
+  - **This prevents silent ordering regressions**
+
 ### Phase 2 Tests
 - **`test-phase2-vertical-slice.sh`** - End-to-end Phase 1 → Phase 2 flow
 - **`test-phase2b-chunk-fetch.sh`** - Phase 2B chunk aggregation regression test
