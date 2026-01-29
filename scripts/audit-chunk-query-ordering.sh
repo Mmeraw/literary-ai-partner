@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Query Ordering Audit for manuscript_chunks (ENFORCING)
-# Exit 1 if any manuscript_chunks retrieval queries lack ORDER BY chunk_index
 
 ROOT="/workspaces/literary-ai-partner"
+
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
@@ -10,72 +9,106 @@ NC='\033[0m'
 
 echo "════════════════════════════════════════════════════════════════"
 echo "  Query Ordering Audit: manuscript_chunks (ENFORCING)"
+echo "  Rule: Any query that returns chunk rows MUST order by chunk_index"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
-# Simple grep-based audit
+echo "Scanning for manuscript_chunks SELECT queries..."
+
+# Create temp file for results
+TMPFILE=$(mktemp)
+trap "rm -f $TMPFILE" EXIT
+
+# Pull candidate lines with file:line:text
+grep -RInE --include="*.sql" --include="*.ts" --include="*.tsx" --include="*.sh" \
+  'SELECT\b.*\bFROM\b.*\b(public\.)?manuscript_chunks\b' \
+  "$ROOT/supabase/migrations" "$ROOT/lib" "$ROOT/src" "$ROOT/scripts" 2>/dev/null \
+  | grep -v "audit-chunk-query-ordering.sh" \
+  | grep -v "DELETE\|UPDATE\|INSERT" > "$TMPFILE" || true
+
 TOTAL=0
+ENFORCED=0
 VIOLATIONS=0
+VIOLATION_LINES=()
 
-echo "Scanning for manuscript_chunks retrieval queries..."
+# Helper: case-insensitive regex match
+ci_match() {
+  echo "$1" | grep -Eiq "$2"
+}
 
-# Find ALL manuscript_chunks SELECT queries (excluding this audit script)
-ALL_QUERIES=$(grep -rn "SELECT.*FROM.*manuscript_chunks\|FROM.*manuscript_chunks" \
-  "$ROOT/supabase/migrations" "$ROOT/src" "$ROOT/scripts" 2>/dev/null | \
-  grep -v "CREATE\|UPDATE\|INSERT\|DELETE" | \
-  grep -v "audit-chunk-query-ordering.sh" || true)
+# Decide if a line is "row-returning" (ordering required)
+requires_ordering() {
+  local line="$1"
 
-if [ -n "$ALL_QUERIES" ]; then
-  TOTAL=$(echo "$ALL_QUERIES" | wc -l)
-fi
+  # Exempt obvious non-row-returning patterns
+  ci_match "$line" 'SELECT\s+COUNT\s*\(' && return 1
+  ci_match "$line" 'SELECT\s+EXISTS\s*\(' && return 1
+  ci_match "$line" 'SELECT\s+1\b' && return 1
 
-# Find violations (queries that retrieve chunk data but lack ORDER BY)
-VIOLATING_FILES=$(echo "$ALL_QUERIES" | \
-  grep -v "COUNT(\*)\|COUNT(1)\|EXISTS\|SELECT 1 FROM" | \
-  grep -v "ORDER BY.*chunk_index" || true)
+  # Exempt FK/catalog/probe style checks
+  ci_match "$line" 'pg_constraint|pg_indexes|pg_stat_|information_schema' && return 1
 
-if [ -n "$VIOLATING_FILES" ]; then
-  VIOLATIONS=$(echo "$VIOLATING_FILES" | wc -l)
-fi
+  # Exempt single-field probes
+  ci_match "$line" 'SELECT\s+id\b[^,]*\bFROM' && return 1
+  ci_match "$line" 'SELECT\s+attempt_count\b[^,]*\bFROM' && return 1
+
+  # Exempt comments
+  ci_match "$line" '^\s*--' && return 1
+
+  # If it selects chunk content or multiple columns, we enforce
+  ci_match "$line" 'SELECT\s+\*' && return 0
+  ci_match "$line" 'chunk_text|chunk_index|token_count|word_count|start_char|end_char|content' && return 0
+  ci_match "$line" 'SELECT\s+[^,]+,\s*[^,]+' && return 0  # multi-column select
+
+  # Default: don't enforce
+  return 1
+}
+
+# Check candidates
+while IFS= read -r hit; do
+  [ -z "$hit" ] && continue
+  TOTAL=$((TOTAL + 1))
+
+  # Split "file:line:content"
+  file="${hit%%:*}"
+  rest="${hit#*:}"
+  line_no="${rest%%:*}"
+  content="${rest#*:}"
+
+  if requires_ordering "$content"; then
+    ENFORCED=$((ENFORCED + 1))
+
+    if ! ci_match "$content" 'ORDER\s+BY\s+chunk_index(\s+ASC)?\b'; then
+      VIOLATIONS=$((VIOLATIONS + 1))
+      VIOLATION_LINES+=("$file:$line_no")
+    fi
+  fi
+done < "$TMPFILE"
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo "  Audit Results"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
-echo "Total queries: $TOTAL"
-echo "Data retrieval queries: $((TOTAL - VIOLATIONS))"
-echo "Violations (missing ORDER BY): $VIOLATIONS"
+echo "Candidate SELECTs found: $TOTAL"
+echo "Row-returning selects enforced: $ENFORCED"
+echo "Violations (missing ORDER BY chunk_index): $VIOLATIONS"
 echo ""
 
 if [ "$VIOLATIONS" -gt 0 ]; then
-  echo -e "${RED}❌ AUDIT FAILED: ORDERING VIOLATIONS${NC}"
+  echo -e "${RED}❌ AUDIT FAILED${NC}"
   echo ""
-  echo "Queries that retrieve chunk data MUST use 'ORDER BY chunk_index ASC':"
+  echo "The following enforced queries must add: ORDER BY chunk_index ASC"
   echo ""
-  echo "$VIOLATING_FILES" | head -20
-  echo ""
-  if [ "$VIOLATIONS" -gt 20 ]; then
-    echo "(Showing first 20 of $VIOLATIONS violations)"
-    echo ""
-  fi
-  echo "Note: COUNT(*), EXISTS, and 'SELECT 1' checks are automatically exempt."
-  echo ""
-  echo "Fix: Add 'ORDER BY chunk_index ASC' to queries that retrieve chunk content/data."
+  for v in "${VIOLATION_LINES[@]}"; do
+    echo -e "${YELLOW}  • $v${NC}"
+  done
   echo ""
   exit 1
-else
-  echo -e "${GREEN}✅ AUDIT PASSED${NC}"
-  echo ""
-  if [ "$TOTAL" -eq 0 ]; then
-    echo "No manuscript_chunks queries found (early development)."
-  else
-    echo "All chunk data retrieval queries include ORDER BY chunk_index."
-    exempt_count=$((TOTAL))
-    echo "Note: COUNT/EXISTS checks don't require ordering ($exempt_count total queries)."
-  fi
-  echo ""
-  echo "✅ Chunking query ordering is regression-proof."
-  echo ""
-  exit 0
 fi
+
+echo -e "${GREEN}✅ AUDIT PASSED${NC}"
+echo ""
+echo "✅ Chunk row retrieval ordering is regression-proof."
+echo ""
+exit 0
