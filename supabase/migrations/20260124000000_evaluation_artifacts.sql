@@ -77,6 +77,3 @@ CREATE POLICY "Authors view own artifacts"
 
 COMMENT ON TABLE public.evaluation_artifacts IS
   'Phase 2+ output artifacts with DB-level idempotency guarantee via UNIQUE(job_id, artifact_type)';
-
-COMMENT ON CONSTRAINT unique_job_artifact ON public.evaluation_artifacts IS
-  'Prevents duplicate artifacts: INSERT ... ON CONFLICT DO NOTHING enforces idempotency';
