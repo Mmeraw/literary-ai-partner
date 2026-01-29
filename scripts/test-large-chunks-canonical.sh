@@ -12,6 +12,11 @@ set -euo pipefail
 #   - Sequential indexing integrity
 #   - Boundary validation (char_start/char_end)
 #   - Query performance (<500ms local)
+# Adds:
+#   - Invariant tightenings (non-empty chunks, optional hash correctness)
+#   - Metrics footer (runtime, throughput, insert timing, MB inserted)
+# Notes:
+#   - TOTAL_WORDS_INSERTED is "approx words processed" (may overshoot per-chunk target)
 # ════════════════════════════════════════════════════════════════
 
 ROOT="/workspaces/literary-ai-partner"
@@ -23,6 +28,13 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
+
+# Metrics
+SCRIPT_START_NS=$(date +%s%N)
+INSERT_START_NS=0
+INSERT_END_NS=0
+TOTAL_BYTES_INSERTED=0
+TOTAL_WORDS_INSERTED=0
 
 # Cleanup on exit
 cleanup() {
@@ -140,6 +152,8 @@ WORDS_PER_CHUNK=2500
 
 echo -n "Creating chunks: "
 CHAR_OFFSET=0
+INSERT_START_NS=$(date +%s%N)
+
 for i in $(seq 0 $((NUM_CHUNKS - 1))); do
   # Generate chunk content (repeat paragraph to reach target word count)
   CHUNK_CONTENT=""
@@ -148,12 +162,16 @@ for i in $(seq 0 $((NUM_CHUNKS - 1))); do
     CHUNK_CONTENT="${CHUNK_CONTENT} ${PARAGRAPH}"
     CURRENT_WORDS=$((CURRENT_WORDS + $(echo "$PARAGRAPH" | wc -w)))
   done
-  
+
   CHUNK_LENGTH=$(echo -n "$CHUNK_CONTENT" | wc -c)
   CHAR_START=$CHAR_OFFSET
   CHAR_END=$((CHAR_START + CHUNK_LENGTH))
   CONTENT_HASH=$(echo -n "$CHUNK_CONTENT" | md5sum | cut -d' ' -f1)
-  
+
+  TOTAL_BYTES_INSERTED=$((TOTAL_BYTES_INSERTED + CHUNK_LENGTH))
+  # NOTE: This is "approx words processed" (may overshoot WORDS_PER_CHUNK due to paragraph repetition)
+  TOTAL_WORDS_INSERTED=$((TOTAL_WORDS_INSERTED + CURRENT_WORDS))
+
   # Insert chunk using dollar quoting to avoid escaping issues
   docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -q <<SQL 2>/dev/null
 INSERT INTO public.manuscript_chunks (
@@ -177,14 +195,16 @@ VALUES (
   '$CONTENT_HASH'
 );
 SQL
-  
+
   CHAR_OFFSET=$CHAR_END
-  
+
   # Progress indicator
   if [ $((i % 10)) -eq 9 ]; then
     echo -n "."
   fi
 done
+
+INSERT_END_NS=$(date +%s%N)
 
 echo " done"
 echo "✅ Created $NUM_CHUNKS chunks"
@@ -196,7 +216,7 @@ echo ""
 echo "[5/7] Verifying chunk integrity..."
 
 STATS=$(psqlc -t -A <<SQL
-SELECT 
+SELECT
   COUNT(*) AS chunk_count,
   SUM(LENGTH(content)) AS total_chars,
   MIN(chunk_index) AS min_index,
@@ -271,6 +291,39 @@ else
 fi
 echo ""
 
+# Additional invariants: non-empty chunks + hash correctness
+echo "Additional invariants:"
+
+EMPTY_CHUNKS=$(psqlc -t -A <<SQL
+SELECT COUNT(*)
+FROM public.manuscript_chunks
+WHERE manuscript_id = $TEST_MID AND job_id = '$JOB_ID'
+  AND LENGTH(content) = 0;
+SQL
+)
+
+if [ "$EMPTY_CHUNKS" -ne 0 ]; then
+  echo -e "${RED}❌ Found $EMPTY_CHUNKS empty chunks${NC}"
+  exit 1
+fi
+echo -e "${GREEN}✅ No empty chunks${NC}"
+
+HASH_MISMATCHES=$(psqlc -t -A <<SQL
+SELECT COUNT(*)
+FROM public.manuscript_chunks
+WHERE manuscript_id = $TEST_MID AND job_id = '$JOB_ID'
+  AND content_hash IS NOT NULL
+  AND content_hash <> md5(content);
+SQL
+)
+
+if [ "$HASH_MISMATCHES" -ne 0 ]; then
+  echo -e "${RED}❌ Found $HASH_MISMATCHES content_hash mismatches (expected md5(content))${NC}"
+  exit 1
+fi
+echo -e "${GREEN}✅ content_hash matches md5(content)${NC}"
+echo ""
+
 # ────────────────────────────────────────────────────────────────
 # Step 6: Verify chunk boundaries
 # ────────────────────────────────────────────────────────────────
@@ -300,7 +353,7 @@ SELECT COUNT(*) FROM (
   JOIN public.manuscript_chunks c2 ON c1.manuscript_id = c2.manuscript_id
     AND c1.job_id = c2.job_id
     AND c2.chunk_index = c1.chunk_index + 1
-  WHERE c1.manuscript_id = $TEST_MID 
+  WHERE c1.manuscript_id = $TEST_MID
     AND c1.job_id = '$JOB_ID'
     AND c1.char_end != c2.char_start
 ) AS boundary_check;
@@ -348,7 +401,7 @@ echo "  Full retrieval (ordered): ${DURATION_MS}ms (retrieved $LINES rows)"
 # Test 3: Aggregate stats
 START=$(date +%s%N)
 psqlc -t -A <<SQL >/dev/null
-SELECT 
+SELECT
   COUNT(*),
   SUM(LENGTH(content)),
   AVG(LENGTH(content))
@@ -365,6 +418,30 @@ if [ "$DURATION_MS" -gt 500 ]; then
 fi
 
 echo ""
+
+# ────────────────────────────────────────────────────────────────
+# Metrics Footer
+# ────────────────────────────────────────────────────────────────
+SCRIPT_END_NS=$(date +%s%N)
+
+TOTAL_MS=$(( (SCRIPT_END_NS - SCRIPT_START_NS) / 1000000 ))
+INSERT_MS=$(( (INSERT_END_NS - INSERT_START_NS) / 1000000 ))
+
+# Avoid div-by-zero
+if [ "$TOTAL_MS" -gt 0 ]; then
+  WORDS_PER_SEC=$(( (TOTAL_WORDS_INSERTED * 1000) / TOTAL_MS ))
+else
+  WORDS_PER_SEC=0
+fi
+
+if [ "$INSERT_MS" -gt 0 ]; then
+  CHUNKS_PER_SEC=$(( (NUM_CHUNKS * 1000) / INSERT_MS ))
+else
+  CHUNKS_PER_SEC=0
+fi
+
+# Bytes → MB (decimal)
+MB_INSERTED=$(awk "BEGIN { printf \"%.2f\", ${TOTAL_BYTES_INSERTED}/1000000 }")
 
 # ────────────────────────────────────────────────────────────────
 # Final Summary
@@ -389,10 +466,19 @@ echo "  ✅ All chunks linked to job via job_id UUID"
 echo "  ✅ Sequential indexing (0 to $((NUM_CHUNKS - 1)))"
 echo "  ✅ No gaps or duplicates in chunk sequence"
 echo "  ✅ Chunk boundaries valid and monotonic"
+echo "  ✅ No empty chunks"
+echo "  ✅ content_hash matches md5(content)"
 echo "  ✅ (manuscript_id, chunk_index) uniqueness enforced"
 echo ""
 echo "Performance:"
 echo "  ✅ Query performance acceptable (<500ms local)"
+echo ""
+echo "Metrics:"
+echo "  Total runtime: ${TOTAL_MS}ms"
+echo "  Insert phase: ${INSERT_MS}ms"
+echo "  Throughput (approx): ${WORDS_PER_SEC} words/sec"
+echo "  Chunk insert rate: ${CHUNKS_PER_SEC} chunks/sec"
+echo "  MB inserted (approx): ${MB_INSERTED} MB"
 echo ""
 echo -e "${GREEN}✅ CANONICAL LARGE DOCUMENT CHUNK TEST PASSED${NC}"
 echo ""

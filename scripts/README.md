@@ -14,10 +14,19 @@ This directory contains test scripts for validating database schema, integrity, 
 ### Large Document Chunking
 - **`test-large-chunks-canonical.sh`** ⭐ **CANONICAL**
   - Tests Phase 1 chunking with realistic 250k word manuscript
-  - Creates 100 chunks, validates integrity
+  - Creates 100 chunks (~1.5MB), validates integrity
   - Checks job_id linking, sequential indexing, boundaries
   - Verifies query performance (<500ms local)
-  - **This is the definitive large-doc proof test**
+  - Includes metrics: throughput (words/sec), insert timing, MB processed
+  - Validates invariants: non-empty chunks, content_hash correctness
+  - **This is the definitive large-doc proof test for audit/evidence**
+
+- **`test-chunking-pathological.sh`** 🔥 **PATHOLOGICAL**
+  - Tests worst-case text patterns (5MB single paragraph, zero-space text, Unicode edge cases)
+  - Validates invariants: no chunk exceeds max_chars, no empty chunks, contiguous indexing
+  - Generates test content inside Postgres (deterministic, no giant bash variables)
+  - Run locally/staging/nightly (not a CI gate—5MB inserts can be slow)
+  - **This proves chunking handles edge cases naive implementations break on**
 
 ### Phase 2 Tests
 - **`test-phase2-vertical-slice.sh`** - End-to-end Phase 1 → Phase 2 flow
