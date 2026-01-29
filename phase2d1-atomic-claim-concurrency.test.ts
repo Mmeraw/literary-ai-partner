@@ -26,6 +26,12 @@ run("Phase 2D-1 Atomic claim concurrency", () => {
     let manuscriptId: number | null = null;
 
     try {
+      // Clean up any stale queued/failed jobs from previous runs
+      await admin
+        .from("evaluation_jobs")
+        .delete()
+        .in("status", ["queued", "failed"]);
+
       manuscriptId = await createTestManuscript({ title: "Phase2D Atomic Claim" });
 
       const { data: job, error: jobError } = await admin
