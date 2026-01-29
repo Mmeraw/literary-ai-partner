@@ -156,6 +156,7 @@ Next Steps: None. System is production-ready.
 Evidence Generated: 2026-01-29
 Auditor: GitHub Copilot (Claude Sonnet 4.5)
 Execution Environment: GitHub Codespaces (local CLI + linked Supabase project)
+Supabase Project: xtumxjnzdswuumndcbwc
 Repository: https://github.com/Mmeraw/literary-ai-partner
 
 Verification Approach:
@@ -185,3 +186,21 @@ Direct Remote Verification (optional upgrade):
       ORDER BY tc.table_name;
     "
   Expected result: 4 rows, all showing bigint type
+
+─── Direct Remote Verification Status ───────────────────────────
+Status: Not performed in this evidence capture session
+Reason: Requires remote database credentials in execution environment
+
+Verification method available:
+  • Via Supabase CLI: supabase db query --linked (requires linked project auth)
+  • Via psql: Direct connection with DATABASE_URL from Supabase dashboard
+  • Via Supabase Studio: Manual schema inspection in web UI
+
+To complete direct remote verification:
+  1. Authenticate to Supabase project xtumxjnzdswuumndcbwc
+  2. Run the query command shown in "Direct Remote Verification" section above
+  3. Confirm output shows 4 FK columns, all with bigint type
+  4. Append output to this evidence file under new section
+
+Current proof level: Ledger-based inference (strong)
+Upgrade available: Direct query (definitive)
