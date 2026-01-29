@@ -50,3 +50,10 @@ revisiongrade-governance.bundle
 
 # Prevent accidental nested git dirs
 **/.git/
+
+# Local security remediation notes (do not commit)
+CI_SECRETS_FIX_*.md
+SECRETS_FIX_*.md
+SECURITY_*.md
+scripts/inspect-jwt.js
+scripts/verify-secrets-alignment.sh
