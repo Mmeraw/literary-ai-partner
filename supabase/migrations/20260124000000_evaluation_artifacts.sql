@@ -54,15 +54,19 @@ CREATE POLICY "Service role full access"
   FOR ALL 
   USING (true);
 
--- Authors can view their own manuscript artifacts
+-- Authors can view artifacts for jobs that belong to manuscripts they created
+DROP POLICY IF EXISTS "Authors view own artifacts" ON public.evaluation_artifacts;
+
 CREATE POLICY "Authors view own artifacts" 
   ON public.evaluation_artifacts 
   FOR SELECT 
   USING (
     (current_setting('request.jwt.claims', true)::jsonb->>'role') = 'author'
     AND EXISTS (
-      SELECT 1 FROM public.manuscripts m 
-      WHERE m.id = evaluation_artifacts.manuscript_id 
+      SELECT 1
+      FROM public.evaluation_jobs j
+      JOIN public.manuscripts m ON m.id = j.manuscript_id
+      WHERE j.id = evaluation_artifacts.job_id
         AND m.created_by = auth.uid()
     )
   );
