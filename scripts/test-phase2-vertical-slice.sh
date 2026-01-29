@@ -122,9 +122,19 @@ echo ""
 
 # Step 4: Verify Phase 1 output exists in manuscript_chunks
 echo "[4/8] Verifying Phase 1 output in manuscript_chunks..."
-# Note: Skipping chunk verification as job_id column migration may not be applied yet
-# Phase 2 eligibility counter already confirms Phase 1 completion
-echo -e "${YELLOW}⚠ Skipping chunk verification (job_id column may not exist yet)${NC}"
+CHUNK_COUNT=$(psqlc -t -A <<SQL
+SELECT COUNT(*) 
+FROM public.manuscript_chunks 
+WHERE manuscript_id = $MID AND job_id = '$JOB_ID';
+SQL
+)
+
+if [ "$CHUNK_COUNT" -gt 0 ]; then
+  echo "✅ Found $CHUNK_COUNT chunks for job $JOB_ID"
+else
+  echo -e "${RED}❌ No chunks found for job $JOB_ID${NC}"
+  exit 1
+fi
 echo ""
 
 # Step 5: Wait for Phase 2 completion
