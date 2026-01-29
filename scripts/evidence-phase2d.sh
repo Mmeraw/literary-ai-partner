@@ -13,6 +13,13 @@ if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
   return 1
 fi
 
+# Export all SUPABASE_* env vars for subprocesses (npm, jest, etc.)
+export SUPABASE_URL="${SUPABASE_URL:-}"
+export SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-}"
+export SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
+export NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-}"
+export NEXT_PUBLIC_SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}"
+
 # Navigate to repo root (works in CI and locally)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
