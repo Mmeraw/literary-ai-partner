@@ -82,7 +82,54 @@ EOF
   echo ""
 
   cat <<'EOF'
-0a) Schema fingerprint
+0b) Key fingerprint (ref match check)
+EOF
+  # Decode JWT refs to verify URL and keys are from same project
+  node - <<'NODEEOF'
+function b64urlDecode(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  return Buffer.from(s, 'base64').toString('utf8');
+}
+
+function jwtRef(jwt) {
+  if (!jwt || typeof jwt !== 'string') return null;
+  const parts = jwt.split('.');
+  if (parts.length < 2) return null;
+  try {
+    const payload = JSON.parse(b64urlDecode(parts[1]));
+    return payload.ref || null;
+  } catch {
+    return null;
+  }
+}
+
+const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const urlRef = (url.match(/https:\/\/([a-z0-9]+)\.supabase\.co/i) || [])[1] || null;
+
+const serviceRef = jwtRef(process.env.SUPABASE_SERVICE_ROLE_KEY);
+const anonRef = jwtRef(process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
+console.log("URL project ref:            " + (urlRef || "(none)"));
+console.log("Service role key ref:       " + (serviceRef || "(none)"));
+console.log("Anon key ref:               " + (anonRef || "(none)"));
+
+if (urlRef && serviceRef && urlRef !== serviceRef) {
+  console.error("\n❌ MISMATCH: SUPABASE_URL project ref (" + urlRef + ") does not match SUPABASE_SERVICE_ROLE_KEY ref (" + serviceRef + ")");
+  console.error("   → SUPABASE_SERVICE_ROLE_KEY is for a DIFFERENT Supabase project");
+  process.exit(2);
+}
+if (urlRef && anonRef && urlRef !== anonRef) {
+  console.error("\n❌ MISMATCH: SUPABASE_URL project ref (" + urlRef + ") does not match SUPABASE_ANON_KEY ref (" + anonRef + ")");
+  console.error("   → SUPABASE_ANON_KEY is for a DIFFERENT Supabase project");
+  process.exit(2);
+}
+console.log("✅ All key refs match URL project ref");
+NODEEOF
+  echo ""
+
+  cat <<'EOF'
+0c) Schema fingerprint
 EOF
   echo "Required columns: worker_id, lease_token, lease_until, heartbeat_at, started_at"
   echo "Required RPC: claim_job_atomic(p_worker_id, p_now, p_lease_seconds)"
