@@ -11,11 +11,13 @@ set -euo pipefail
 #   - Same content_hash per chunk_index
 #   - Same boundaries (char_start, char_end)
 # Why: Prevents "same manuscript, different chunks" regression bugs
+# Optional: NORMALIZE_INPUT=1 tests post-normalization stability
 # ════════════════════════════════════════════════════════════════
 
 ROOT="/workspaces/literary-ai-partner"
 DB_CONTAINER="supabase_db_literary-ai-partner"
 TEST_MID=77777
+NORMALIZE_INPUT="${NORMALIZE_INPUT:-0}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -44,8 +46,11 @@ psqlc() {
 
 echo "════════════════════════════════════════════════════════════════"
 echo "  Deterministic Chunking Test (Idempotent Output)"
-echo "  Validates: Same input → Same chunks (always)"
-echo "════════════════════════════════════════════════════════════════"
+echo "  Validates: Same input → Same chunks (always)"if [ "$NORMALIZE_INPUT" -eq 1 ]; then
+  echo "  Mode: WITH NORMALIZATION (future-proof)"
+else
+  echo "  Mode: STANDARD (current behavior)"
+fiecho "════════════════════════════════════════════════════════════════"
 echo ""
 
 # ────────────────────────────────────────────────────────────────

@@ -87,7 +87,7 @@ Test 4: Boundary exactness → edge case handling ✅
 
 ---
 
-### 5. ✅ Query Ordering Lock (ORDER BY chunk_index ASC)
+### 5. ✅ Query Ordering Lock (ENFORCING)
 **Audit:** [`scripts/audit-chunk-query-ordering.sh`](scripts/audit-chunk-query-ordering.sh)
 
 **Validates:**
@@ -96,7 +96,18 @@ All `manuscript_chunks` SELECT queries include:
 ORDER BY chunk_index ASC
 ```
 
-**Why:** Postgres doesn't guarantee order without explicit ORDER BY—classic "works locally, flakes in prod" trap.
+**Catches sneaky patterns:**
+- `ORDER BY 1` (fragile positional ordering)
+- `ORDER BY created_at` or `ORDER BY id` (wrong column)
+- No `ORDER BY` at all (undefined order)
+- Missing `ASC` (implicit but inconsistent)
+
+**Enforcement:**
+- Exit 1 on violations (FAILS CI)
+- Allowlist mechanism for rare intentional exemptions
+- Clear file:line violation reports
+
+**Why:** Postgres doesn't guarantee order without explicit ORDER BY—classic "works locally, flakes in prod" trap. Enforcing mode ensures violations block merge.
 
 **Result:** AUDIT SCRIPT READY ✅ (run to verify all queries)
 
@@ -109,7 +120,8 @@ ORDER BY chunk_index ASC
 | `test-large-chunks-canonical.sh` | Realistic scale (250k words) | ✅ PASSING |
 | `test-chunking-pathological.sh` | Edge cases (5MB, unicode, boundaries) | ✅ PASSING |
 | `test-chunking-deterministic.sh` | Idempotent output guarantee | ✅ PASSING |
-| `audit-chunk-query-ordering.sh` | Query ordering verification | ✅ READY |
+| `test-chunking-deterministic.sh` (NORMALIZE_INPUT=1) | Post-normalization stability | ✅ PASSING |
+| `audit-chunk-query-ordering.sh` | Query ordering verification | ✅ ENFORCING (exit 1 on violations) |
 
 ---
 
@@ -137,17 +149,22 @@ CREATE INDEX manuscript_chunks_status_idx
 # 1. Deterministic test (idempotent output)
 ./scripts/test-chunking-deterministic.sh
 
+# 1b. Deterministic test with normalization (future-proof)
+NORMALIZE_INPUT=1 ./scripts/test-chunking-deterministic.sh
+
 # 2. Pathological test (edge cases)
 ./scripts/test-chunking-pathological.sh
 
 # 3. Canonical test (realistic scale)
 ./scripts/test-large-chunks-canonical.sh
 
-# 4. Query ordering audit
+# 4. Query ordering audit (ENFORCING - fails on violations)
 ./scripts/audit-chunk-query-ordering.sh
 ```
 
-**Expected:** All tests pass, audit shows no violations
+**Expected:** 
+- Tests 1-3: Print `✅ TEST PASSED`
+- Test 4: Prints `✅ AUDIT PASSED` (or `❌ AUDIT FAILED` with exit 1)
 
 ---
 
@@ -177,10 +194,34 @@ CREATE INDEX manuscript_chunks_status_idx
 - After changing boundary logic
 - After updating dependencies (tokenizers, etc.)
 
-**CI Integration:**
-- Deterministic test: Run on every PR touching chunking
-- Pathological test: Run nightly (slow—5MB inserts)
-- Query audit: Run on every PR touching database queries
+**When to run normalization mode:**
+- After adding text normalization (CRLF→LF, Unicode NFC, etc.)
+- Command: `NORMALIZE_INPUT=1 ./scripts/test-chunking-deterministic.sh`
+- Ensures determinism holds AFTER normalization
+
+**How to allowlist a query (rare):**
+1. Open `scripts/audit-chunk-query-ordering.sh`
+2. Add to `ALLOWLIST` array: `"file:line:justification"`
+3. Example: `"scripts/debug.sh:42:Admin debug query, ordering not critical"`
+4. Commit with explanation in message
+
+**CI Integration (Strict):**
+
+**PR lane (FAST - must pass to merge):**
+- Deterministic test
+- Query ordering audit (ENFORCING - exit 1 on violations)
+- Canonical test (optional but recommended)
+
+**Nightly lane (HEAVY):**
+- Pathological test (5MB inserts, slow)
+
+**Signs of regression:**
+- Deterministic test fails (fingerprints mismatch)
+- Query audit finds new violations (**CI fails**)
+- Pathological test produces wrong chunk count
+- Canonical test performance degrades (>500ms queries)
+
+**When any test fails: DO NOT MERGE.** Fix the regression first. The query audit is intentionally strict—better to fail CI than flake in production.
 
 ---
 

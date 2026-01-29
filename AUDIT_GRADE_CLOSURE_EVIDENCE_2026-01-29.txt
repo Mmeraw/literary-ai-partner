@@ -8,6 +8,7 @@
 Remote: https://github.com/Mmeraw/literary-ai-partner
 Branch: main
 Latest commits:
+  434c9d5 - fix: update repository truth snapshot to current HEAD (5e26832)
   5e26832 - feat: add repository truth snapshot and CLI capability proof
   9442bad - fix: correct evidence proof level to forensically accurate wording
   4750e62 - feat: complete direct FK verification with definitive proof
@@ -137,6 +138,7 @@ Commits protected (evidence series):
   4750e62 ✅
   9442bad ✅
   5e26832 ✅
+  434c9d5 ✅
 
 ╔════════════════════════════════════════════════════════════════╗
 ║  STATUS: ALL GAPS CLOSED — PRODUCTION READY                    ║
@@ -175,23 +177,27 @@ Verification Approach:
 
 Direct Remote Verification (optional upgrade):
   To verify remote schema directly instead of via ledger inference:
-    supabase db query --linked --command "
-      SELECT tc.table_name || '.' || kcu.column_name ||
-             ' → manuscripts.id (' ||
-             pg_catalog.format_type(a.atttypid, a.atttypmod) || ')'
-      FROM information_schema.table_constraints tc
-      JOIN information_schema.key_column_usage kcu
-        ON tc.constraint_name = kcu.constraint_name
-      JOIN information_schema.constraint_column_usage ccu
-        ON ccu.constraint_name = tc.constraint_name
-      JOIN pg_attribute a
-        ON a.attname = kcu.column_name
-        AND a.attrelid = (tc.table_schema || '.' || tc.table_name)::regclass
-      WHERE tc.constraint_type = 'FOREIGN KEY'
-        AND ccu.table_name = 'manuscripts'
-        AND tc.table_schema = 'public'
-      ORDER BY tc.table_name;
-    "
+    Use DATABASE_URL from Supabase dashboard (or verify via Supabase Studio UI).
+
+    Example (psql):
+      psql "$DATABASE_URL" -c "
+        SELECT tc.table_name || '.' || kcu.column_name ||
+               ' → manuscripts.id (' ||
+               pg_catalog.format_type(a.atttypid, a.atttypmod) || ')'
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+        JOIN information_schema.constraint_column_usage ccu
+          ON ccu.constraint_name = tc.constraint_name
+        JOIN pg_attribute a
+          ON a.attname = kcu.column_name
+          AND a.attrelid = (tc.table_schema || '.' || tc.table_name)::regclass
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND ccu.table_name = 'manuscripts'
+          AND tc.table_schema = 'public'
+        ORDER BY tc.table_name;
+      "
+
   Expected result: 4 rows, all showing bigint type
 
 ─── Direct Verification Status ──────────────────────────────────
@@ -233,19 +239,20 @@ Current proof level: Definitive (local) + Strong (remote, ledger-based)
 ─── Repository Truth Snapshot (2026-01-29) ───────────────────────
 
 === HEAD + Remote Tracking ===
-Commit SHA: 5e268324b1cf119b56efad46c79417225e3c1d19
+Commit SHA: 434c9d5f68711e0d7c902c39ff5cc223ff8caa32
 Branch Status: ## main...origin/main (in sync)
 
 Latest Commit:
   Author: Mmeraw <tsavobc@hotmail.com>
-  Date: Thu Jan 29 14:05:38 2026 +0000
-  Message: feat: add repository truth snapshot and CLI capability proof
+  Date: Thu Jan 29 14:13:09 2026 +0000
+  Message: fix: update repository truth snapshot to current HEAD (5e26832)
 
 === What is on origin/main ===
-Remote SHA: 5e268324b1cf119b56efad46c79417225e3c1d19 (MATCHES local HEAD)
+Remote SHA: 434c9d5f68711e0d7c902c39ff5cc223ff8caa32 (MATCHES local HEAD)
 
 === Relevant commits in order (last 10) ===
-  5e26832 (HEAD → main, origin/main) feat: add repository truth snapshot and CLI capability proof
+  434c9d5 (HEAD → main, origin/main) fix: update repository truth snapshot to current HEAD (5e26832)
+  5e26832 feat: add repository truth snapshot and CLI capability proof
   9442bad fix: correct evidence proof level to forensically accurate wording
   4750e62 feat: complete direct FK verification with definitive proof
   e92633d feat: add pathological input test suite and chunking strategy
@@ -254,10 +261,8 @@ Remote SHA: 5e268324b1cf119b56efad46c79417225e3c1d19 (MATCHES local HEAD)
   a73d171 docs: add audit-grade closure evidence bundle
   0806cdf chore: remove obsolete manual secrets scripts
   5ecc3ac chore: clean migration scan path and ignore local security notes
-  3bac7f5 fix(db): align manuscript_chunks.manuscript_id to bigint
 
-Verification: All commits listed in this document (3bac7f5, 5ecc3ac, 0806cdf,
-a73d171, 0fa1393, 26dd890, e92633d, 4750e62, 9442bad, 5e26832) are present in git log
+Verification: All commits listed in this document are present in git log
 and pushed to origin/main.
 
 === Migration Sync Verification (supabase migration list --linked) ===
