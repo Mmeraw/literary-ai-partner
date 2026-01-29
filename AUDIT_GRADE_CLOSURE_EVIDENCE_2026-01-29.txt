@@ -189,15 +189,17 @@ Direct Remote Verification (optional upgrade):
 
 ─── Direct Verification Status ──────────────────────────────────
 Status: PERFORMED (2026-01-29)
-Method: Direct database query (local instance, post-migration sync)
+Method: Direct database query (local Supabase dev database)
 
-Note: Initial attempt via remote psql failed due to postgresql-client
-not being installed in Codespaces environment (tooling issue, not
-access/data issue). After installing postgresql-client (psql 16.11),
-performed verification via local database which is confirmed synced
-with remote via migration history ledger (26 migrations matched).
+Notes:
+  • Initial attempt failed because psql was not installed in Codespaces
+    (tooling issue, not access/data issue). postgresql-client was installed
+    afterward (psql 16.11).
+  • Attempted "supabase db query --linked" but this Supabase CLI build does
+    not include a `db query` subcommand (and `--linked` is not a valid flag
+    at `supabase db` root; it exists under `supabase db dump`).
 
-Verification Query Output (4 rows):
+Local Verification Query Output (4 rows):
 ┌────────────────────────────────────────────────────────────────┐
 │ evaluation_artifacts.manuscript_id → manuscripts.id (bigint)   │
 │ evaluation_jobs.manuscript_id → manuscripts.id (bigint)        │
@@ -205,11 +207,17 @@ Verification Query Output (4 rows):
 │ manuscript_chunks.manuscript_id → manuscripts.id (bigint)      │
 └────────────────────────────────────────────────────────────────┘
 
-Result: ✅ All 4 FK columns verified as bigint type
+Local Result: ✅ All 4 FK columns verified as bigint type
+
+Remote Proof Level:
+  • Strong (ledger-based inference): Remote migration ledger matches local
+    through latest migration(s), so remote is consistent with recorded DDL.
+  • Definitive (requires remote query output): Run the same query against
+    remote using DATABASE_URL from Supabase dashboard (or Supabase Studio UI).
 
 Alternative verification paths (for third-party auditors):
   • Direct remote: psql with DATABASE_URL from Supabase dashboard
   • Via Supabase Studio: Manual schema inspection in web UI
   • Via local sync: supabase db pull && verify locally (requires CLI auth)
 
-Current proof level: Definitive (direct query + migration history sync)
+Current proof level: Definitive (local) + Strong (remote, ledger-based)
