@@ -78,15 +78,19 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
-          # Export variables explicitly for subprocess access
-          export SUPABASE_URL NEXT_PUBLIC_SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SUPABASE_ANON_KEY NEXT_PUBLIC_SUPABASE_ANON_KEY
-          
           set +e
-          OUTPUT="$(npm run evidence:phase2d 2>&1)"
+          # Pass env vars through to npm script explicitly
+          SUPABASE_URL="$SUPABASE_URL" \
+          NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+          SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+          SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+          NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+          npm run evidence:phase2d > /tmp/evidence_output.log 2>&1
           STATUS=$?
           set -e
-          echo "$OUTPUT"
-
+          cat /tmp/evidence_output.log
+          
+          OUTPUT=$(cat /tmp/evidence_output.log)
           LOG_PATH=$(echo "$OUTPUT" | grep "Evidence archived:" | awk '{print $3}')
           mkdir -p artifacts
           if [ -n "$LOG_PATH" ] && [ -f "$LOG_PATH" ]; then
