@@ -7,11 +7,11 @@ BEGIN;
 -- Policy depends on job_id, so drop it before altering the column type
 DROP POLICY IF EXISTS "Authors view own artifacts" ON public.evaluation_artifacts;
 
--- Convert job_id from TEXT -> UUID
+-- Convert TEXT -> UUID (assumes job_id values are valid UUID strings)
 ALTER TABLE public.evaluation_artifacts
   ALTER COLUMN job_id TYPE uuid USING job_id::uuid;
 
--- Add FK to evaluation_jobs(id)
+-- Add FK (if you want CASCADE, keep it; otherwise switch to RESTRICT/NO ACTION)
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -22,13 +22,12 @@ BEGIN
   ) THEN
     ALTER TABLE public.evaluation_artifacts
       ADD CONSTRAINT evaluation_artifacts_job_id_fkey
-      FOREIGN KEY (job_id)
-      REFERENCES public.evaluation_jobs(id)
+      FOREIGN KEY (job_id) REFERENCES public.evaluation_jobs(id)
       ON DELETE CASCADE;
   END IF;
 END $$;
 
--- Recreate policy using UUID-safe comparison
+-- Recreate policy using UUID-to-UUID comparison now that types match
 CREATE POLICY "Authors view own artifacts"
   ON public.evaluation_artifacts
   FOR SELECT
