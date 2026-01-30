@@ -417,6 +417,7 @@ export async function incrementCounter(
 /**
  * Mark a job as failed with structured error envelope
  * Phase A.1: Enables bounded retry and dead-letter queue
+ * Phase A.2: Implements retry scheduling with exponential backoff
  */
 export async function setJobFailed(
   jobId: string,
@@ -432,28 +433,75 @@ export async function setJobFailed(
 ): Promise<void> {
   const now = new Date().toISOString();
   
-  // Get current job to preserve progress
+  // Get current job to check attempt count
   const job = await getJob(jobId);
   if (!job) {
     throw new Error(`Job ${jobId} not found`);
   }
   
-  const { data, error } = await supabase
+  // Fetch current attempt_count and max_attempts from DB
+  const { data: jobRow, error: fetchError } = await supabase
     .from('evaluation_jobs')
-    .update({
+    .select('attempt_count, max_attempts')
+    .eq('id', jobId)
+    .single();
+  
+  if (fetchError || !jobRow) {
+    throw new Error(`Failed to fetch job for retry check: ${fetchError?.message}`);
+  }
+  
+  const attemptCount = jobRow.attempt_count ?? 0;
+  const maxAttempts = jobRow.max_attempts ?? 3;
+  const nextAttempt = attemptCount + 1;
+  
+  // Determine if we should retry or permanently fail
+  const shouldRetry = errorEnvelope.retryable && nextAttempt <= maxAttempts;
+  
+  let updatePayload: any = {
+    last_error: JSON.stringify(errorEnvelope),
+    attempt_count: nextAttempt,
+    updated_at: now,
+  };
+  
+  if (shouldRetry) {
+    // Schedule for retry with backoff
+    const { calculateNextAttemptAt } = await import('./retryBackoff');
+    const nextAttemptAt = calculateNextAttemptAt(nextAttempt);
+    
+    updatePayload = {
+      ...updatePayload,
+      status: 'queued', // Keep as queued for retry
+      next_attempt_at: nextAttemptAt,
+      progress: {
+        ...job.progress,
+        phase_status: 'queued',
+        message: `Retry scheduled (attempt ${nextAttempt}/${maxAttempts})`,
+      },
+    };
+  } else {
+    // Permanently failed (either non-retryable or exhausted attempts)
+    updatePayload = {
+      ...updatePayload,
       status: 'failed',
-      last_error: JSON.stringify(errorEnvelope),
+      failed_at: now,
       progress: {
         ...job.progress,
         phase_status: 'failed',
         finished_at: now,
+        message: errorEnvelope.retryable
+          ? `Max retries exhausted (${maxAttempts})`
+          : 'Non-retryable error',
       },
-      updated_at: now,
-    })
+    };
+  }
+  
+  const { error } = await supabase
+    .from('evaluation_jobs')
+    .update(updatePayload)
     .eq('id', jobId);
   
   if (error) {
-    throw new Error(`Failed to mark job as failed: ${error.message}`);
+    throw new Error(`Failed to update job after failure: ${error.message}`);
   }
 }
 
