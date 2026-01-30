@@ -70,7 +70,7 @@ CREATE POLICY "Authors view own artifacts"
       SELECT 1
       FROM public.evaluation_jobs j
       JOIN public.manuscripts m ON m.id = j.manuscript_id
-      WHERE j.id = evaluation_artifacts.job_id
+      WHERE j.id = (evaluation_artifacts.job_id)::uuid
         AND m.created_by = auth.uid()
     )
   );
