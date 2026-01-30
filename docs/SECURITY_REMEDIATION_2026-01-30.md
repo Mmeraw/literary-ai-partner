@@ -94,18 +94,123 @@ Check Supabase dashboard logs for any unusual activity between exposure time and
 | **PENDING** | **All environments updated** |
 | **PENDING** | **Verification of new key** |
 
+### Remediation Checklist
+
+**Step 1: Rotate Key in Supabase Dashboard**
+- [ ] Navigate to: https://supabase.com/dashboard/project/xtumxjnzdswuumndcbwc/settings/api
+- [ ] Click "Regenerate" on Service Role Key section
+- [ ] Copy new key (starts with `eyJ...`)
+- [ ] **Timestamp completed:** `_________________` (UTC)
+
+**Step 2: Update All Environments**
+- [ ] Local `.env.local`: `SUPABASE_SERVICE_ROLE_KEY=<new_key>`
+- [ ] Vercel Production: Project Settings → Environment Variables
+- [ ] Vercel Preview (if used): Project Settings → Environment Variables
+- [ ] GitHub Actions (if used): Repository Secrets → `SUPABASE_SERVICE_ROLE_KEY`
+- [ ] **Timestamp completed:** `_________________` (UTC)
+
+**Step 3: Restart All Services**
+- [ ] Restart local dev server: `npm run dev`
+- [ ] Restart any background workers/processes
+- [ ] Clear any cached sessions/tokens
+- [ ] **Timestamp completed:** `_________________` (UTC)
+
+**Step 4: Verify New Key Works**
+
+Run verification script:
+```bash
+bash scripts/verify-key-rotation.sh
+```
+
+Expected output:
+```
+✅ Service role key authenticated successfully
+✅ TypeScript compiles cleanly
+✅ Pointing at [production/non-production] Supabase
+```
+
+Manual verification:
+```bash
+# Start dev server
+npm run dev
+
+# Test admin endpoint (in separate terminal)
+curl -H "x-admin-key: $ADMIN_API_KEY" http://localhost:3002/api/admin/diagnostics | jq '.success'
+# Should return: true
+```
+
+- [ ] Automated verification passed
+- [ ] Manual endpoint test succeeded
+- [ ] **Timestamp completed:** `_________________` (UTC)
+
+**Step 5: Audit Access Logs (Optional)**
+
+Check Supabase dashboard for any suspicious activity between exposure and rotation:
+- [ ] Reviewed API logs
+- [ ] No unusual patterns detected
+- [ ] **Timestamp completed:** `_________________` (UTC)
+
+---
+
 ### Sign-Off
 
-When remediation is complete, update this section:
+**Remediation completed by:** `_________________`  
+**Completion timestamp (UTC):** `_________________`  
+**All systems verified operational:** `[ ] YES  [ ] NO`
 
+**Notes:**
 ```
-✅ Service role key rotated: [DATE/TIME]
-✅ Local .env.local updated: [DATE/TIME]
-✅ Vercel env updated: [DATE/TIME]
-✅ GitHub Actions updated (if applicable): [DATE/TIME]
-✅ New key verified working: [DATE/TIME]
+(Add any additional context, issues encountered, or lessons learned)
+
+
+
+
+
 ```
 
 ---
 
-**Critical:** Do not commit this file until after remediation is complete and all timestamps are filled in. Once complete, this document serves as audit trail evidence of proper incident response.
+### Prevention Measures Added
+
+As part of this remediation, the following safety tooling was added to prevent future exposures:
+
+✅ **Safe Environment Inspector** (`scripts/print-env-safe.sh`)
+   - Sanitizes secret values when inspecting .env.local
+   - Shows only first 8 chars + length
+   - Use instead of `grep .env.local` or `cat .env.local`
+
+✅ **Key Rotation Verifier** (`scripts/verify-key-rotation.sh`)
+   - Tests new service role key authentication
+   - Verifies TypeScript compilation
+   - Checks dev→prod guard status
+
+✅ **Pre-Commit Secret Scanner** (`scripts/check-secrets.sh`)
+   - Scans staged changes for hardcoded secrets
+   - Detects JWT tokens, long hex keys, API keys
+   - Integrated into git pre-commit hook
+
+✅ **Git Pre-Commit Hook** (`.git/hooks/pre-commit`)
+   - Automatically runs secret scanner before every commit
+   - Blocks commits containing detected secrets
+   - Also runs canon guard checks
+
+**Usage Examples:**
+```bash
+# Safe env inspection (never prints full values)
+./scripts/print-env-safe.sh
+
+# Verify key rotation worked
+./scripts/verify-key-rotation.sh
+
+# Manual secret scan
+./scripts/check-secrets.sh --staged  # Check staged changes
+./scripts/check-secrets.sh --all     # Check all uncommitted changes
+
+# Test pre-commit hook
+git add .
+git commit -m "test"  # Will auto-scan for secrets
+```
+
+---
+
+**Critical:** This document is now part of the audit trail. Once remediation is complete with all checkboxes marked and timestamps filled in, this serves as evidence of proper incident response.
