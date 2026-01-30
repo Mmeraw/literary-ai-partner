@@ -16,7 +16,8 @@ let createJob: typeof memCreateJob,
   updateJob: typeof memUpdateJob,
   acquireLeaseForPhase1: (jobId: string, leaseId: string, ttl: number) => Promise<Job | null>,
   acquireLeaseForPhase2: (jobId: string, leaseId: string, ttl: number) => Promise<Job | null>,
-  incrementCounter: () => Promise<number | null>;
+  incrementCounter: () => Promise<number | null>,
+  setJobFailed: (jobId: string, errorEnvelope: any) => Promise<void>;
 
 if (USE_SUPABASE) {
   // Supabase-backed job store
@@ -29,6 +30,7 @@ if (USE_SUPABASE) {
     acquireLeaseForPhase1: (jobId: string, leaseId: string, ttl: number) => Promise<Job | null>;
     acquireLeaseForPhase2: (jobId: string, leaseId: string, ttl: number) => Promise<Job | null>;
     incrementCounter: () => Promise<number | null>;
+    setJobFailed: (jobId: string, errorEnvelope: any) => Promise<void>;
   };
 
   createJob = supabaseStore.createJob;
@@ -38,6 +40,7 @@ if (USE_SUPABASE) {
   acquireLeaseForPhase1 = supabaseStore.acquireLeaseForPhase1;
   acquireLeaseForPhase2 = supabaseStore.acquireLeaseForPhase2;
   incrementCounter = supabaseStore.incrementCounter;
+  setJobFailed = supabaseStore.setJobFailed;
 } else {
   // In-memory store: no real leases, just delegate directly.
   createJob = memCreateJob;
@@ -51,6 +54,11 @@ if (USE_SUPABASE) {
     memGetJob(jobId);
 
   incrementCounter = async () => null;
+  
+  // Memory store doesn't persist errors, just stub
+  setJobFailed = async (_jobId: string, _errorEnvelope: any) => {
+    console.warn('[Memory Store] setJobFailed called but not persisted in memory mode');
+  };
 }
 
 export {
@@ -61,6 +69,7 @@ export {
   acquireLeaseForPhase1,
   acquireLeaseForPhase2,
   incrementCounter,
+  setJobFailed,
 };
 
 export function canRunPhase(

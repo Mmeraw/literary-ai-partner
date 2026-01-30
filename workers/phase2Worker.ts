@@ -320,11 +320,30 @@ async function processJob(job: ClaimResult): Promise<void> {
     const errorMsg = String(err);
     log('error', 'Job processing failed', { jobId, error: errorMsg });
     
-    // Determine if retryable
-    const retryable = isRetryableError(err);
-    log('info', 'Error classification', { jobId, retryable });
+    // Phase A.1: Create structured error envelope
+    const { toErrorEnvelope } = await import('../lib/errors/errorEnvelope');
+    const { setJobFailed } = await import('../lib/jobs/store');
     
-    // Persist error to audit trail (even on crash)
+    const envelope = toErrorEnvelope(err, {
+      phase: 'phase_2',
+      jobId,
+      manuscriptId: job.manuscript_id,
+      provider: process.env.OPENAI_API_KEY ? 'openai' : undefined,
+    });
+    
+    log('info', 'Error classification', { 
+      jobId, 
+      code: envelope.code,
+      retryable: envelope.retryable 
+    });
+    
+    // Persist structured error to evaluation_jobs.last_error
+    await setJobFailed(jobId, envelope);
+    
+    // Legacy: Also persist to provider call audit trail
+    const { isRetryableError } = await import('./phase2Evaluation');
+    const retryable = isRetryableError(err);
+    
     await persistProviderCall({
       job_id: jobId,
       phase: 'phase_2',
@@ -338,16 +357,13 @@ async function processJob(job: ClaimResult): Promise<void> {
         input_chars: 0, // Unknown at error time
       },
       error_meta: {
-        code: 'worker_exception',
-        retryable,
+        code: envelope.code,
+        retryable: envelope.retryable,
         message: truncateErrorMessage(errorMsg, 512),
         error_kind: 'unknown',
       },
       result_envelope: toCanonicalEnvelope({ metadata: { simulated: false } }, { simulatedDefault: false }),
     });
-    
-    // For now, mark as failed (retry logic handled by job system)
-    await failJob(jobId, errorMsg);
   }
 }
 

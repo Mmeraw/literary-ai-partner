@@ -415,6 +415,49 @@ export async function incrementCounter(
 }
 
 /**
+ * Mark a job as failed with structured error envelope
+ * Phase A.1: Enables bounded retry and dead-letter queue
+ */
+export async function setJobFailed(
+  jobId: string,
+  errorEnvelope: {
+    code: string;
+    message: string;
+    retryable: boolean;
+    phase: string;
+    provider?: string | null;
+    context?: Record<string, unknown>;
+    occurred_at: string;
+  }
+): Promise<void> {
+  const now = new Date().toISOString();
+  
+  // Get current job to preserve progress
+  const job = await getJob(jobId);
+  if (!job) {
+    throw new Error(`Job ${jobId} not found`);
+  }
+  
+  const { data, error } = await supabase
+    .from('evaluation_jobs')
+    .update({
+      status: 'failed',
+      last_error: JSON.stringify(errorEnvelope),
+      progress: {
+        ...job.progress,
+        phase_status: 'failed',
+        finished_at: now,
+      },
+      updated_at: now,
+    })
+    .eq('id', jobId);
+  
+  if (error) {
+    throw new Error(`Failed to mark job as failed: ${error.message}`);
+  }
+}
+
+/**
  * Backward compatibility normalizer: converts legacy "completed" to canonical "complete"
  * Can be removed once all production data is migrated
  */
