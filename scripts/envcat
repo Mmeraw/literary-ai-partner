@@ -28,17 +28,34 @@ echo "  ✅ Length (for validation)"
 echo "  ✅ Hash fingerprint (non-reversible)"
 echo "  ❌ No actual secret values"
 echo ""
-echo -e "${YELLOW}Emergency bypass (local debugging only):${NC}"
-echo "  ALLOW_RAW_ENV=true ./scripts/envcat .env.local"
+echo -e "${YELLOW}Emergency bypass (local debugging only, NEVER in CI):${NC}"
+echo "  ENVCAT_I_UNDERSTAND=YES_I_WILL_EXPOSE_SECRETS ./scripts/envcat .env.local"
 echo ""
 
-# Check for emergency bypass
-if [ "$ALLOW_RAW_ENV" = "true" ]; then
-  echo -e "${YELLOW}⚠️  Emergency bypass enabled - showing raw file${NC}"
+# Check for emergency bypass (explicit and ugly)
+if [ "$ENVCAT_I_UNDERSTAND" = "YES_I_WILL_EXPOSE_SECRETS" ]; then
+  echo -e "${RED}╔════════════════════════════════════════════════════════════╗${NC}"
+  echo -e "${RED}║  🚨 EMERGENCY BYPASS ACTIVATED                             ║${NC}"
+  echo -e "${RED}║                                                            ║${NC}"
+  echo -e "${RED}║  You are about to expose raw secrets in terminal output   ║${NC}"
+  echo -e "${RED}║  This will appear in:                                     ║${NC}"
+  echo -e "${RED}║    - Terminal logs                                        ║${NC}"
+  echo -e "${RED}║    - Screenshots                                          ║${NC}"
+  echo -e "${RED}║    - Screen recordings                                    ║${NC}"
+  echo -e "${RED}║    - Chat transcripts (if you paste)                     ║${NC}"
+  echo -e "${RED}║                                                            ║${NC}"
+  echo -e "${RED}║  Any exposed secrets must be rotated immediately.         ║${NC}"
+  echo -e "${RED}╚════════════════════════════════════════════════════════════╝${NC}"
   echo ""
+  echo -e "${YELLOW}Waiting 3 seconds before exposing secrets...${NC}"
+  sleep 3
+  echo ""
+  
   FILE="${1:-.env.local}"
   if [ -f "$FILE" ]; then
     cat "$FILE"
+    echo ""
+    echo -e "${RED}⚠️  Secrets exposed. Rotate immediately if leaked.${NC}"
   else
     echo -e "${RED}❌ File not found: $FILE${NC}"
     exit 1
