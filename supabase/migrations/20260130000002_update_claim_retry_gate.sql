@@ -66,6 +66,3 @@ BEGIN
   WHERE j.id = v_job_id;
 END;
 $$;
-
--- Phase A.2 comment
-COMMENT ON FUNCTION claim_job_atomic(TEXT, TIMESTAMPTZ, INTEGER) IS 'Atomically claim a job for processing with retry backoff gate. Only claims jobs where next_attempt_at is null or in the past.';
