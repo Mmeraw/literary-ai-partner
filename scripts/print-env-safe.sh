@@ -38,16 +38,14 @@ echo ""
 
 for var in "${VARS[@]}"; do
   if grep -q "^${var}=" "$ENV_FILE"; then
-    # Extract and sanitize value
+    # Extract value for length and fingerprint
     VALUE=$(grep "^${var}=" "$ENV_FILE" | cut -d'=' -f2-)
     VALUE_LENGTH=${#VALUE}
     
-    # Show first 8 chars only (or fewer if shorter)
-    if [ $VALUE_LENGTH -gt 8 ]; then
-      PREVIEW="${VALUE:0:8}..."
-      echo -e "${GREEN}✅${NC} $var (${VALUE_LENGTH} chars): $PREVIEW"
-    elif [ $VALUE_LENGTH -gt 0 ]; then
-      echo -e "${GREEN}✅${NC} $var (${VALUE_LENGTH} chars): ***"
+    if [ $VALUE_LENGTH -gt 0 ]; then
+      # Generate non-reversible fingerprint (first 12 chars of sha256)
+      FINGERPRINT=$(echo -n "$VALUE" | sha256sum | cut -c1-12)
+      echo -e "${GREEN}✅${NC} $var (${VALUE_LENGTH} chars): sha256:$FINGERPRINT"
     else
       echo -e "${YELLOW}⚠️${NC}  $var (empty)"
     fi
@@ -70,7 +68,13 @@ fi
 
 echo ""
 echo "=== Security Notes ==="
-echo "- Never print full secret values to console/logs"
+echo "- Fingerprints are sha256 hashes (non-reversible, safe to log)"
 echo "- Use this script instead of 'grep .env.local' or 'cat .env.local'"
+echo "- Fingerprint changes after rotation (proof that key was updated)"
 echo "- Rotate keys immediately if exposed in logs/screenshots"
+echo ""
+echo "=== Advanced Usage ==="
+echo "- Compare fingerprints after rotation to confirm change"
+echo "- Log fingerprints in audit trail (safe, non-sensitive)"
+echo "- Never use --show-prefix flag in production/CI"
 echo ""

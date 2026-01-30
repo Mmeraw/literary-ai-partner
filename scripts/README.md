@@ -1,8 +1,135 @@
-# RevisionGrade Test Scripts
+# RevisionGrade Scripts
 
-This directory contains test scripts for validating database schema, integrity, and performance.
+This directory contains operational scripts for RevisionGrade: security tooling, verification, and tests.
 
-## Core Tests
+---
+
+## 🔒 Security & Safety Scripts
+
+### **`install-hooks.sh`** — Git Hooks Installer
+**Install pre-commit hooks for all contributors** (run once per machine)
+
+```bash
+./scripts/install-hooks.sh
+```
+
+**What it does:**
+- Installs `.git/hooks/pre-commit` that runs automatically on every commit
+- Blocks commits containing secrets (JWT tokens, API keys, long hex strings)
+- Integrates with canon guard checks
+
+**Why:** Git hooks in `.git/hooks/` don't propagate via git. This script installs them on new machines.
+
+---
+
+### **`print-env-safe.sh`** — Safe Environment Inspector
+**Check environment variables without exposing secrets**
+
+```bash
+# Check .env.local
+./scripts/print-env-safe.sh
+
+# Check different file
+./scripts/print-env-safe.sh .env.production
+```
+
+**Output:**
+```
+✅ SUPABASE_SERVICE_ROLE_KEY (219 chars): sha256:621ac9ecac6e
+✅ ADMIN_API_KEY (64 chars): sha256:a1c35b1f76b1
+```
+
+**Features:**
+- Shows presence/absence, length, and **non-reversible hash fingerprint**
+- **Zero secret disclosure** (no prefixes, no suffixes, no raw values)
+- Fingerprint changes after rotation (proof of update)
+- Warns if pointing at production URL
+
+**Use this instead of:** `cat .env.local`, `grep SUPABASE .env.local`
+
+---
+
+### **`envcat`** — Raw Env File Tripwire
+**Blocks raw access to .env files** (forces use of safe inspector)
+
+```bash
+# This will be blocked
+./scripts/envcat .env.local
+
+# Emergency bypass (local only, never in CI)
+ALLOW_RAW_ENV=true ./scripts/envcat .env.local
+```
+
+**Why:** Prevents accidental exposure of secrets in terminal logs, screenshots, or chat transcripts.
+
+---
+
+### **`check-secrets.sh`** — Pre-Commit Secret Scanner
+**Detects hardcoded secrets before they enter version control**
+
+```bash
+# Scan staged changes (pre-commit)
+./scripts/check-secrets.sh --staged
+
+# Scan all uncommitted changes
+./scripts/check-secrets.sh --all
+```
+
+**Detects:**
+- JWT tokens (e.g., `eyJhbGciOi...`)
+- Long hex API keys (32+ chars)
+- Hardcoded assignments: `ADMIN_API_KEY="abc123..."`
+- Supabase URLs with keys in query params
+
+**Integrated:** Runs automatically via `.git/hooks/pre-commit` (installed by `install-hooks.sh`)
+
+---
+
+### **`verify-key-rotation.sh`** — Key Rotation Verifier
+**Confirm new Supabase service role key works after rotation**
+
+```bash
+./scripts/verify-key-rotation.sh
+```
+
+**Checks:**
+1. Service role key authenticates with Supabase API
+2. TypeScript compiles cleanly
+3. Dev→prod guard status
+4. Key format validation (JWT)
+
+**Use after:** Rotating compromised keys (see `docs/SECURITY_REMEDIATION_2026-01-30.md`)
+
+---
+
+## ✅ Verification Scripts
+
+### **`verify-phase-a4.sh`** — Phase A.4 Verification
+Verifies Phase A.4 (Observability) implementation.
+
+```bash
+./scripts/verify-phase-a4.sh
+```
+
+---
+
+### **`verify-phase-a5-day1.sh`** — Phase A.5 Day 1 Verification
+Verifies Phase A.5 Day 1 (Security) implementation.
+
+```bash
+./scripts/verify-phase-a5-day1.sh
+```
+
+**Checks:**
+- Dev→prod guard in instrumentation.ts (startup-hard)
+- Admin auth on all admin endpoints
+- Rate limiting on retry endpoint
+- ADMIN_API_KEY configured
+- Production build succeeds
+
+---
+
+## 🧪 Test Scripts
 
 ### Phase 2 Schema Enforcement
 - **`verify-phase2-schema-enforcement.sh`** - Audit-grade verification of enum constraints

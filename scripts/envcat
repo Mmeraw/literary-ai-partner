@@ -1,0 +1,48 @@
+#!/bin/bash
+# Environment File Access Tripwire
+# 
+# Purpose: Prevent raw access to .env files (forces use of safe inspector)
+# Usage: ./scripts/envcat [file]
+
+# Colors
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+echo -e "${RED}🚨 BLOCKED: Raw environment file access${NC}"
+echo ""
+echo "Reason: Displaying raw .env files risks exposing secrets in:"
+echo "  - Terminal logs"
+echo "  - Screenshots"
+echo "  - Chat transcripts"
+echo "  - Screen recordings"
+echo ""
+echo -e "${GREEN}Use the safe inspector instead:${NC}"
+echo ""
+echo "  ./scripts/print-env-safe.sh"
+echo ""
+echo "This shows:"
+echo "  ✅ Presence/absence of each variable"
+echo "  ✅ Length (for validation)"
+echo "  ✅ Hash fingerprint (non-reversible)"
+echo "  ❌ No actual secret values"
+echo ""
+echo -e "${YELLOW}Emergency bypass (local debugging only):${NC}"
+echo "  ALLOW_RAW_ENV=true ./scripts/envcat .env.local"
+echo ""
+
+# Check for emergency bypass
+if [ "$ALLOW_RAW_ENV" = "true" ]; then
+  echo -e "${YELLOW}⚠️  Emergency bypass enabled - showing raw file${NC}"
+  echo ""
+  FILE="${1:-.env.local}"
+  if [ -f "$FILE" ]; then
+    cat "$FILE"
+  else
+    echo -e "${RED}❌ File not found: $FILE${NC}"
+    exit 1
+  fi
+else
+  exit 1
+fi
