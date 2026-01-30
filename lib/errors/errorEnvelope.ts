@@ -129,7 +129,7 @@ export function toErrorEnvelope(
   const errorCodeDef = ERROR_CODES[code];
   
   // Extract error message
-  let message = errorCodeDef.message;
+  let message: string = errorCodeDef.message;
   if (error instanceof Error) {
     message = `${errorCodeDef.message}: ${error.message}`;
   } else if (typeof error === 'string') {

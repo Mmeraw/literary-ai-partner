@@ -1,11 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireAdmin } from "@/lib/admin/requireAdmin";
+import { rateLimit, getClientIp } from "@/lib/rateLimit";
 
 /**
  * POST /api/admin/jobs/[jobId]/retry
  * 
  * Retry a failed job by resetting its state to queued.
- * Service role only.
+ * 
+ * **Auth:** Requires x-admin-key header (Phase A.5)
+ * **Rate limit:** 5 retries per minute per IP
  * 
  * Governance:
  * - Validates job is in 'failed' status before retrying
@@ -19,22 +23,26 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-function checkServiceRole(req: Request): boolean {
-  const authHeader = req.headers.get("authorization");
-  const expectedKey = `Bearer ${supabaseServiceKey}`;
-  
-  return authHeader === expectedKey;
-}
-
 type RouteContext = {
   params: Promise<{ jobId: string }>;
 };
 
-export async function POST(req: Request, context: RouteContext) {
-  if (!checkServiceRole(req)) {
+export async function POST(req: NextRequest, context: RouteContext) {
+  // PHASE A.5: Admin authentication
+  const denied = requireAdmin(req);
+  if (denied) return denied;
+
+  // PHASE A.5: Rate limiting (prevent retry spam)
+  const ip = getClientIp(req.headers);
+  if (!rateLimit(`admin-retry:${ip}`, 5, 60_000)) {
     return NextResponse.json(
-      { ok: false, error: "Service role authentication required" },
-      { status: 401 }
+      {
+        ok: false,
+        error: "Too many retry requests. Please wait before retrying again.",
+        code: "rate_limited",
+        retryAfter: 60,
+      },
+      { status: 429 }
     );
   }
 

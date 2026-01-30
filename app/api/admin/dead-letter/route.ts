@@ -1,14 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireAdmin } from "@/lib/admin/requireAdmin";
 
 /**
  * GET /api/admin/dead-letter
  * 
  * Lists all failed jobs (dead-letter queue).
- * Service role only.
+ * 
+ * **Auth:** Requires x-admin-key header (Phase A.5)
  * 
  * Governance:
- * - Only accessible with service role key
+ * - Only accessible with admin key
  * - Returns failed jobs with retry metadata
  * - Audit-grade: does not modify state
  */
@@ -16,20 +18,10 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-function checkServiceRole(req: Request): boolean {
-  const authHeader = req.headers.get("authorization");
-  const expectedKey = `Bearer ${supabaseServiceKey}`;
-  
-  return authHeader === expectedKey;
-}
-
-export async function GET(req: Request) {
-  if (!checkServiceRole(req)) {
-    return NextResponse.json(
-      { ok: false, error: "Service role authentication required" },
-      { status: 401 }
-    );
-  }
+export async function GET(req: NextRequest) {
+  // PHASE A.5: Admin authentication
+  const denied = requireAdmin(req);
+  if (denied) return denied;
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 

@@ -1,7 +1,8 @@
 # Phase A: Job Reliability Implementation
 
-**Status:** 🚧 In Progress  
+**Status:** ✅ Phase A.1-A.4 Complete | 🚧 A.5 Next (Production Hardening)  
 **Start Date:** 2026-01-30  
+**Current Date:** 2026-01-30  
 **Goal:** Every job either completes correctly or fails transparently
 
 ---
@@ -16,12 +17,51 @@ Agents and publishers don't forgive silent failures. This phase transforms Revis
 
 ## Implementation Order
 
-### 1. Idempotent Retries (Week 1)
+### ✅ A.1: Structured Error Envelopes (Complete)
+**Status:** Shipped 2026-01-30  
+**Doc:** [PHASE_A1_COMPLETE.md](PHASE_A1_COMPLETE.md)
 
-**Objective:** Jobs can safely retry after transient failures without duplicating work.
+- ✅ Error classification (11 error codes)
+- ✅ Retryability detection
+- ✅ `setJobFailed()` with envelope persistence
+- ✅ 16 passing tests
 
-**Deliverables:**
-- [ ] Phase 1 retry logic (chunking + embedding)
+### ✅ A.2: Retry Logic with Exponential Backoff (Complete)
+**Status:** Shipped 2026-01-30  
+**Doc:** [PHASE_A2_STATUS.md](PHASE_A2_STATUS.md)
+
+- ✅ `attempt_count`, `max_attempts` columns
+- ✅ `next_attempt_at`, `failed_at` tracking
+- ✅ `claim_job_atomic` retry gate
+- ✅ Bounded retry with backoff
+- ✅ 18 passing tests
+
+### ✅ A.3: Dead-Letter Queue + Admin Retry (Complete)
+**Status:** Shipped 2026-01-30  
+**Doc:** [PHASE_A3_DEAD_LETTER_COMPLETE.md](PHASE_A3_DEAD_LETTER_COMPLETE.md)
+
+- ✅ `admin_actions` audit table
+- ✅ `GET /api/admin/dead-letter` endpoint
+- ✅ `POST /api/admin/jobs/:jobId/retry` endpoint
+- ✅ `/admin/jobs/dead-letter` UI
+- ✅ Manual retry with audit trail
+
+### ✅ A.4: Observability & Operator Confidence (Complete)
+**Status:** Shipped 2026-01-30  
+**Doc:** [PHASE_A4_OBSERVABILITY.md](PHASE_A4_OBSERVABILITY.md)
+
+- ✅ Diagnostics query layer (`lib/jobs/diagnostics.ts`)
+- ✅ `GET /api/admin/diagnostics` endpoint
+- ✅ `/admin/diagnostics` dashboard UI
+- ✅ Real-time metrics (jobs by status, failed 24h, avg time, retry rate)
+- ✅ Phase timing (P50/P95)
+- ✅ Recent failures with error details
+
+### 🚧 A.5: Production Hardening (Next)
+**Target:** Week 2
+
+**Planned Deliverables:**
+- [ ] Rate limiting (API endpoints, provider calls)
   - Use `manuscript_chunks` lease expiry for crash recovery
   - Check `job_id` to avoid re-chunking completed manuscripts
 - [ ] Phase 2 retry logic (evaluation calls)
