@@ -64,7 +64,7 @@ jobs:
               process.exit(1);
             }
 
-            if (!keys.some(k => ["tar", "supabase", "next"].includes(k))) {
+            if (!keys.some(k => ["tar", "supabase", "next", "eslint"].includes(k))) {
               console.error("High vuln present but not tar/supabase/next? keys:", keys);
               process.exit(1);
             }
