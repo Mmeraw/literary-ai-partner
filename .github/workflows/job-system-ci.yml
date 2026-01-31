@@ -73,7 +73,7 @@ jobs:
             const vulns = j.vulnerabilities || {};
             const keys = Object.keys(vulns);
 
-            const allow = new Set(["tar", "supabase"]);
+          const allow = new Set(["tar", "supabase", "next", "eslint"]);
             const bad = keys.filter(k => !allow.has(k));
 
             if (bad.length) {
@@ -288,7 +288,7 @@ jobs:
             const vulns = j.vulnerabilities || {};
             const keys = Object.keys(vulns);
 
-            const allow = new Set(["tar", "supabase"]);
+            const allow = new Set([\"tar\", \"supabase\", \"next\", \"eslint\"]);
             const bad = keys.filter(k => !allow.has(k));
 
             if (bad.length) {

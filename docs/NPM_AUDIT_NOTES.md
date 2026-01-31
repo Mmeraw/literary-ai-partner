@@ -13,3 +13,11 @@
 - Impact: DoS vectors in self-hosted RSC server; not applicable to serverless deployment model
 - Action: upgrade next to next version with fixes; tracked separately as tech debt
 
+## eslint (ReDoS vulnerability)
+- Vuln: Multiple ReDoS (Regular Expression Denial of Service) vulnerabilities
+- Affected: eslint <9.17.0
+- Current: eslint@9.x.x (dev dependency only)
+- Impact: ReDoS vectors only exploitable during development linting, not in production runtime
+- Reason: Dev-only dependency; runtime not affected; waiting for ecosystem compatibility before upgrading
+- Action: monitor for stable release with full plugin compatibility; re-check monthly
+
