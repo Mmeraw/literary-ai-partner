@@ -7,7 +7,7 @@
  * 1. Parallel retry on same failed job → one succeeds, one no-op
  * 2. Active lease blocks retry
  * 3. Expired lease allows retry (if retryable state)
- * 4. Dead-lettered job excluded from retry
+ * 4. Dead-lettered job can be retried (atomic + idempotent)
  * 5. Completed job cannot be retried
  */
 
@@ -153,29 +153,32 @@ describe("A5: Admin retry atomicity + concurrency", () => {
     expect(job?.lease_expires_at).toBeNull();
   });
 
-  test("dead-lettered job excluded from retry", async () => {
+  test("dead-lettered job can be retried (atomic + idempotent)", async () => {
     // Set job to dead_lettered
     await supabase
       .from("evaluation_jobs")
       .update({ status: "dead_lettered" })
       .eq("id", testJobId);
 
-    // Attempt retry
+    // Attempt retry (should succeed - dead_lettered is retryable)
     const { data, error } = await supabase.rpc("admin_retry_job", {
       p_job_id: testJobId,
     });
 
     expect(error).toBeNull();
-    expect(data?.[0]?.changed).toBe(false);
+    expect(data?.[0]?.changed).toBe(true);
+    expect(data?.[0]?.status).toBe("queued");
 
-    // Status should still be 'dead_lettered'
+    // Verify final DB state
     const { data: job } = await supabase
       .from("evaluation_jobs")
-      .select("status")
+      .select("status, lease_owner, lease_expires_at")
       .eq("id", testJobId)
       .single();
 
-    expect(job?.status).toBe("dead_lettered");
+    expect(job?.status).toBe("queued");
+    expect(job?.lease_owner).toBeNull();
+    expect(job?.lease_expires_at).toBeNull();
   });
 
   test("completed job cannot be retried", async () => {
