@@ -77,8 +77,7 @@ jobs:
             }
 
             console.log("Only known tar/supabase/next advisories remain (documented in NPM_AUDIT_NOTES.md) ✅");
-          ' <<<"$AUDIT_JSON"
-
+        '
           exit 0
 
       - name: Run staging tests (Supabase secrets)
