@@ -30,6 +30,14 @@ export interface ClaimResult {
   policy_family: string;
   voice_preservation_level: string;
   english_variant: string;
+  work_type: string | null;
+  phase: string;
+  status: string;
+  lease_token: string;
+  lease_until: string;
+  attempt_count: number;
+  max_attempts: number;
+  next_attempt_at: string | null;
 }
 
 type ClaimRpcArgs = {
@@ -82,13 +90,32 @@ export async function claimNextJob(workerId: string): Promise<ClaimResult | null
       return null; // No jobs available
     }
 
+    // Belt-and-suspenders: refuse to run if invariants are broken
+    if (job.status !== 'running' || !job.lease_token || !job.lease_until) {
+      console.warn('Claimed job violates invariants; ignoring', {
+        jobId: job.id,
+        status: job.status,
+        hasLeaseToken: !!job.lease_token,
+        hasLeaseUntil: !!job.lease_until
+      });
+      return null;
+    }
+
     return {
       id: job.id,
       manuscript_id: job.manuscript_id,
       job_type: job.job_type,
       policy_family: job.policy_family,
       voice_preservation_level: job.voice_preservation_level,
-      english_variant: job.english_variant
+      english_variant: job.english_variant,
+      work_type: job.work_type ?? null,
+      phase: job.phase,
+      status: job.status,
+      lease_token: job.lease_token,
+      lease_until: job.lease_until,
+      attempt_count: job.attempt_count ?? 0,
+      max_attempts: job.max_attempts ?? 0,
+      next_attempt_at: job.next_attempt_at ?? null
     };
   } catch (err) {
     console.error('Claim exception:', err);
@@ -110,9 +137,10 @@ async function fallbackClaim(workerId: string): Promise<ClaimResult | null> {
     // Find eligible job
     const { data: jobs, error: selectError } = await supabase
       .from('evaluation_jobs')
-      .select('id')
-      .in('status', ['queued', 'failed'])
+      .select('id, status, attempt_count, max_attempts, next_attempt_at')
+      .eq('status', 'queued')
       .or(`lease_until.is.null,lease_until.lt.${now}`)
+      .or(`next_attempt_at.is.null,next_attempt_at.lte.${now}`)
       .order('created_at', { ascending: true })
       .limit(1);
 
@@ -126,6 +154,9 @@ async function fallbackClaim(workerId: string): Promise<ClaimResult | null> {
     }
 
     const jobId = jobs[0].id;
+    if ((jobs[0].attempt_count ?? 0) >= (jobs[0].max_attempts ?? 0)) {
+      return null;
+    }
 
     // Attempt to claim
     const { error: updateError } = await supabase
@@ -138,10 +169,14 @@ async function fallbackClaim(workerId: string): Promise<ClaimResult | null> {
         heartbeat_at: now,
         last_heartbeat: now,
         started_at: now,
-        updated_at: now
+        updated_at: now,
+        next_attempt_at: null,
+        attempt_count: (jobs[0].attempt_count ?? 0) + 1
       })
       .eq('id', jobId)
-      .in('status', ['queued', 'failed']); // Verify status hasn't changed
+      .eq('status', 'queued')
+      .or(`lease_until.is.null,lease_until.lt.${now}`)
+      .or(`next_attempt_at.is.null,next_attempt_at.lte.${now}`);
 
     if (updateError) {
       console.error('Fallback update error:', updateError);
@@ -151,12 +186,22 @@ async function fallbackClaim(workerId: string): Promise<ClaimResult | null> {
     // Fetch full job details
     const { data: jobData, error: fetchError } = await supabase
       .from('evaluation_jobs')
-      .select('id, manuscript_id, job_type, policy_family, voice_preservation_level, english_variant')
+      .select('id, manuscript_id, job_type, policy_family, voice_preservation_level, english_variant, work_type, phase, status, lease_token, lease_until, attempt_count, max_attempts, next_attempt_at')
       .eq('id', jobId)
       .single();
 
     if (fetchError || !jobData) {
       console.error('Fallback fetch error:', fetchError);
+      return null;
+    }
+
+    if (jobData.status !== 'running' || !jobData.lease_token || !jobData.lease_until) {
+      console.warn('Fallback claim returned invalid job; ignoring', {
+        jobId: jobData.id,
+        status: jobData.status,
+        hasLeaseToken: !!jobData.lease_token,
+        hasLeaseUntil: !!jobData.lease_until
+      });
       return null;
     }
 
@@ -166,7 +211,15 @@ async function fallbackClaim(workerId: string): Promise<ClaimResult | null> {
       job_type: jobData.job_type,
       policy_family: jobData.policy_family,
       voice_preservation_level: jobData.voice_preservation_level,
-      english_variant: jobData.english_variant
+      english_variant: jobData.english_variant,
+      work_type: jobData.work_type ?? null,
+      phase: jobData.phase,
+      status: jobData.status,
+      lease_token: jobData.lease_token,
+      lease_until: jobData.lease_until,
+      attempt_count: jobData.attempt_count ?? 0,
+      max_attempts: jobData.max_attempts ?? 0,
+      next_attempt_at: jobData.next_attempt_at ?? null
     };
   } catch (err) {
     console.error('Fallback exception:', err);
