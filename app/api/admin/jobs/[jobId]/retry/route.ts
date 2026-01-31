@@ -60,84 +60,69 @@ export async function POST(req: NextRequest, context: RouteContext) {
       // Body is optional
     }
 
-    // 1. Fetch current job state
-    const { data: job, error: fetchError } = await supabase
-      .from("evaluation_jobs")
-      .select("id, status, attempt_count, failed_at, next_attempt_at")
-      .eq("id", jobId)
-      .single();
+    // A5: Atomic retry via RPC (no read→decide→write race)
+    const { data, error: rpcError } = await supabase.rpc("admin_retry_job", {
+      p_job_id: jobId,
+    });
 
-    if (fetchError || !job) {
+    if (rpcError) {
+      console.error(`[Admin Retry] RPC error for job ${jobId}:`, rpcError);
+      return NextResponse.json(
+        { ok: false, error: "Failed to retry job", details: rpcError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!data || data.length === 0) {
       return NextResponse.json(
         { ok: false, error: "Job not found" },
         { status: 404 }
       );
     }
 
-    // 2. Validate job is in 'failed' status
-    if (job.status !== "failed") {
+    const result = data[0];
+    const changed = result.changed === true;
+
+    // If not changed, return no-op (idempotent)
+    if (!changed) {
       return NextResponse.json(
-        { 
-          ok: false, 
-          error: `Job status is '${job.status}', not 'failed'. Cannot retry.`,
-          current_status: job.status
+        {
+          ok: false,
+          changed: false,
+          error: `Job is not retryable (current status: ${result.status})`,
+          job_id: result.job_id,
+          status: result.status,
         },
-        { status: 400 }
+        { status: 409 }
       );
     }
 
+    // Success: job was retried
+    // Optionally log to audit table (non-blocking)
     const now = new Date().toISOString();
-
-    // 3. Update job to queued state (preserve attempt_count)
-    const { error: updateError } = await supabase
-      .from("evaluation_jobs")
-      .update({
-        status: "queued",
-        failed_at: null,
-        next_attempt_at: now, // Immediate retry
-        updated_at: now,
-      })
-      .eq("id", jobId);
-
-    if (updateError) {
-      console.error(`[Admin Retry] Error updating job ${jobId}:`, updateError);
-      return NextResponse.json(
-        { ok: false, error: "Failed to update job", details: updateError.message },
-        { status: 500 }
-      );
-    }
-
-    // 4. Log admin action to audit table
-    const { error: auditError } = await supabase
-      .from("admin_actions")
-      .insert({
-        action_type: "retry_job",
-        job_id: jobId,
-        performed_by: null, // TODO: Extract admin user ID from JWT if available
-        performed_at: now,
-        before_status: job.status,
-        before_attempt_count: job.attempt_count,
-        before_failed_at: job.failed_at,
-        before_next_attempt_at: job.next_attempt_at,
-        after_status: "queued",
-        after_attempt_count: job.attempt_count, // Preserved
-        after_failed_at: null,
-        after_next_attempt_at: now,
-        reason,
-      });
+    const { error: auditError } = await supabase.from("admin_actions").insert({
+      action_type: "retry_job",
+      job_id: jobId,
+      performed_by: null, // TODO: Extract admin user ID from JWT if available
+      performed_at: now,
+      before_status: "failed", // Inferred (RPC only acts on failed/dead_lettered)
+      after_status: "queued",
+      reason,
+    });
 
     if (auditError) {
-      console.error(`[Admin Retry] Error logging audit for job ${jobId}:`, auditError);
+      console.error(
+        `[Admin Retry] Error logging audit for job ${jobId}:`,
+        auditError
+      );
       // Don't fail the request; job was already updated
     }
 
     return NextResponse.json({
       ok: true,
-      job_id: jobId,
-      before_status: job.status,
-      after_status: "queued",
-      attempt_count: job.attempt_count,
-      next_attempt_at: now,
+      changed: true,
+      job_id: result.job_id,
+      status: result.status,
     });
   } catch (err) {
     console.error(`[Admin Retry] Unexpected error for job ${jobId}:`, err);
