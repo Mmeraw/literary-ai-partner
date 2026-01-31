@@ -305,7 +305,7 @@ jobs:
             }
 
             console.log("Only known tar advisory remains (tar via supabase); documented ✅");
-        '
+          '
           exit 0
 
       - name: Build Next.js app
