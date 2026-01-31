@@ -15,8 +15,8 @@ begin
     set
       status = 'queued',
       next_attempt_at = now(),
-      lease_owner = null,
-      lease_expires_at = null,
+      worker_id = null,
+      lease_until = null,
       failed_at = null,
       updated_at = now()
     where
@@ -24,7 +24,7 @@ begin
       -- Retryable terminal states
       and j.status in ('failed', 'dead_lettered')
       -- Not actively leased
-      and (j.lease_expires_at is null or j.lease_expires_at <= now())
+      and (j.lease_until is null or j.lease_until <= now())
       -- Not completed/succeeded (redundant but explicit)
       and j.status <> 'complete'
     returning j.id, j.status

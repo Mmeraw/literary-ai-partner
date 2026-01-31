@@ -28,16 +28,13 @@ describe("A5: Admin retry atomicity + concurrency", () => {
   let testJobId: string;
 
   beforeEach(async () => {
-    // Create a failed job for testing
+    // Create a failed job for testing  
     const { data, error } = await supabase
       .from("evaluation_jobs")
       .insert({
         phase: "phase_2",
         status: "failed",
         next_attempt_at: new Date().toISOString(),
-        attempt_count: 2,
-        max_attempts: 3,
-        failed_at: new Date().toISOString(),
       })
       .select("id")
       .single();
@@ -82,13 +79,13 @@ describe("A5: Admin retry atomicity + concurrency", () => {
     // Verify final DB state
     const { data: finalJob } = await supabase
       .from("evaluation_jobs")
-      .select("status, lease_owner, lease_expires_at, failed_at")
+      .select("status, worker_id, lease_until, failed_at")
       .eq("id", testJobId)
       .single();
 
     expect(finalJob?.status).toBe("queued");
-    expect(finalJob?.lease_owner).toBeNull();
-    expect(finalJob?.lease_expires_at).toBeNull();
+    expect(finalJob?.worker_id).toBeNull();
+    expect(finalJob?.lease_until).toBeNull();
     expect(finalJob?.failed_at).toBeNull();
   });
 
@@ -98,8 +95,8 @@ describe("A5: Admin retry atomicity + concurrency", () => {
     await supabase
       .from("evaluation_jobs")
       .update({
-        lease_owner: "test-worker-123",
-        lease_expires_at: future,
+        worker_id: "test-worker-123",
+        lease_until: future,
       })
       .eq("id", testJobId);
 
@@ -127,8 +124,8 @@ describe("A5: Admin retry atomicity + concurrency", () => {
     await supabase
       .from("evaluation_jobs")
       .update({
-        lease_owner: "test-worker-456",
-        lease_expires_at: past,
+        worker_id: "test-worker-456",
+        lease_until: past,
       })
       .eq("id", testJobId);
 
@@ -144,13 +141,13 @@ describe("A5: Admin retry atomicity + concurrency", () => {
     // Verify lease cleared
     const { data: job } = await supabase
       .from("evaluation_jobs")
-      .select("status, lease_owner, lease_expires_at")
+      .select("status, worker_id, lease_until")
       .eq("id", testJobId)
       .single();
 
     expect(job?.status).toBe("queued");
-    expect(job?.lease_owner).toBeNull();
-    expect(job?.lease_expires_at).toBeNull();
+    expect(job?.worker_id).toBeNull();
+    expect(job?.lease_until).toBeNull();
   });
 
   test("dead-lettered job can be retried (atomic + idempotent)", async () => {
@@ -172,13 +169,13 @@ describe("A5: Admin retry atomicity + concurrency", () => {
     // Verify final DB state
     const { data: job } = await supabase
       .from("evaluation_jobs")
-      .select("status, lease_owner, lease_expires_at")
+      .select("status, worker_id, lease_until")
       .eq("id", testJobId)
       .single();
 
     expect(job?.status).toBe("queued");
-    expect(job?.lease_owner).toBeNull();
-    expect(job?.lease_expires_at).toBeNull();
+    expect(job?.worker_id).toBeNull();
+    expect(job?.lease_until).toBeNull();
   });
 
   test("completed job cannot be retried", async () => {
