@@ -9,62 +9,52 @@
  * 3. Expired lease allows retry (if retryable state)
  * 4. Dead-lettered job can be retried (atomic + idempotent)
  * 5. Completed job cannot be retried
+ * 
+ * Uses pg (node-postgres) for DB-native testing (no Supabase client type cache)
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { Pool } from "pg";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const PG_URL =
+  process.env.PG_URL ||
+  "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error(
-    "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables"
-  );
-}
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const pool = new Pool({ connectionString: PG_URL });
 
 describe("A5: Admin retry atomicity + concurrency", () => {
   let testJobId: string;
 
   beforeEach(async () => {
-    // Create a failed job for testing  
-    const { data, error } = await supabase
-      .from("evaluation_jobs")
-      .insert({
-        phase: "phase_2",
-        status: "failed",
-        next_attempt_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (error || !data) {
-      throw new Error(`Failed to create test job: ${error?.message}`);
-    }
-
-    testJobId = data.id;
+    // Create a failed job for testing (minimal columns)
+    const result = await pool.query(
+      `INSERT INTO evaluation_jobs 
+       (manuscript_id, job_type, phase, status, next_attempt_at, policy_family, voice_preservation_level, english_variant)
+       VALUES (1, 'full_evaluation', 'phase_2', 'failed', now(), 'standard', 'balanced', 'us')
+       RETURNING id`
+    );
+    testJobId = result.rows[0].id;
   });
 
   afterEach(async () => {
     // Clean up test job
     if (testJobId) {
-      await supabase.from("evaluation_jobs").delete().eq("id", testJobId);
+      await pool.query("DELETE FROM evaluation_jobs WHERE id = $1", [testJobId]);
     }
   });
 
+  afterAll(async () => {
+    await pool.end();
+  });
+
   test("parallel retry on same failed job → exactly one winner", async () => {
-    // Fire two concurrent retries
+    // Fire two concurrent retries via RPC
     const [result1, result2] = await Promise.all([
-      supabase.rpc("admin_retry_job", { p_job_id: testJobId }),
-      supabase.rpc("admin_retry_job", { p_job_id: testJobId }),
+      pool.query("SELECT * FROM admin_retry_job($1)", [testJobId]),
+      pool.query("SELECT * FROM admin_retry_job($1)", [testJobId]),
     ]);
 
-    expect(result1.error).toBeNull();
-    expect(result2.error).toBeNull();
-
-    const data1 = result1.data?.[0];
-    const data2 = result2.data?.[0];
+    const data1 = result1.rows[0];
+    const data2 = result2.rows[0];
 
     expect(data1).toBeDefined();
     expect(data2).toBeDefined();
@@ -77,147 +67,131 @@ describe("A5: Admin retry atomicity + concurrency", () => {
     expect(winner?.status).toBe("queued");
 
     // Verify final DB state
-    const { data: finalJob } = await supabase
-      .from("evaluation_jobs")
-      .select("status, worker_id, lease_until, failed_at")
-      .eq("id", testJobId)
-      .single();
+    const finalJob = await pool.query(
+      "SELECT status, worker_id, lease_until, failed_at FROM evaluation_jobs WHERE id = $1",
+      [testJobId]
+    );
 
-    expect(finalJob?.status).toBe("queued");
-    expect(finalJob?.worker_id).toBeNull();
-    expect(finalJob?.lease_until).toBeNull();
-    expect(finalJob?.failed_at).toBeNull();
+    expect(finalJob.rows[0]?.status).toBe("queued");
+    expect(finalJob.rows[0]?.worker_id).toBeNull();
+    expect(finalJob.rows[0]?.lease_until).toBeNull();
+    expect(finalJob.rows[0]?.failed_at).toBeNull();
   });
 
   test("active lease blocks retry", async () => {
     // Set an active lease
     const future = new Date(Date.now() + 60_000).toISOString();
-    await supabase
-      .from("evaluation_jobs")
-      .update({
-        worker_id: "test-worker-123",
-        lease_until: future,
-      })
-      .eq("id", testJobId);
+    await pool.query(
+      "UPDATE evaluation_jobs SET worker_id = $1, lease_until = $2 WHERE id = $3",
+      ["test-worker-123", future, testJobId]
+    );
 
     // Attempt retry
-    const { data, error } = await supabase.rpc("admin_retry_job", {
-      p_job_id: testJobId,
-    });
+    const result = await pool.query("SELECT * FROM admin_retry_job($1)", [
+      testJobId,
+    ]);
+    const data = result.rows[0];
 
-    expect(error).toBeNull();
-    expect(data?.[0]?.changed).toBe(false);
+    expect(data?.changed).toBe(false);
 
     // Status should still be 'failed'
-    const { data: job } = await supabase
-      .from("evaluation_jobs")
-      .select("status")
-      .eq("id", testJobId)
-      .single();
-
-    expect(job?.status).toBe("failed");
+    const job = await pool.query(
+      "SELECT status FROM evaluation_jobs WHERE id = $1",
+      [testJobId]
+    );
+    expect(job.rows[0]?.status).toBe("failed");
   });
 
   test("expired lease allows retry", async () => {
     // Set an expired lease
     const past = new Date(Date.now() - 60_000).toISOString();
-    await supabase
-      .from("evaluation_jobs")
-      .update({
-        worker_id: "test-worker-456",
-        lease_until: past,
-      })
-      .eq("id", testJobId);
+    await pool.query(
+      "UPDATE evaluation_jobs SET worker_id = $1, lease_until = $2 WHERE id = $3",
+      ["test-worker-456", past, testJobId]
+    );
 
     // Attempt retry
-    const { data, error } = await supabase.rpc("admin_retry_job", {
-      p_job_id: testJobId,
-    });
+    const result = await pool.query("SELECT * FROM admin_retry_job($1)", [
+      testJobId,
+    ]);
+    const data = result.rows[0];
 
-    expect(error).toBeNull();
-    expect(data?.[0]?.changed).toBe(true);
-    expect(data?.[0]?.status).toBe("queued");
+    expect(data?.changed).toBe(true);
+    expect(data?.status).toBe("queued");
 
     // Verify lease cleared
-    const { data: job } = await supabase
-      .from("evaluation_jobs")
-      .select("status, worker_id, lease_until")
-      .eq("id", testJobId)
-      .single();
+    const job = await pool.query(
+      "SELECT status, worker_id, lease_until FROM evaluation_jobs WHERE id = $1",
+      [testJobId]
+    );
 
-    expect(job?.status).toBe("queued");
-    expect(job?.worker_id).toBeNull();
-    expect(job?.lease_until).toBeNull();
+    expect(job.rows[0]?.status).toBe("queued");
+    expect(job.rows[0]?.worker_id).toBeNull();
+    expect(job.rows[0]?.lease_until).toBeNull();
   });
 
   test("dead-lettered job can be retried (atomic + idempotent)", async () => {
     // Set job to dead_lettered
-    await supabase
-      .from("evaluation_jobs")
-      .update({ status: "dead_lettered" })
-      .eq("id", testJobId);
+    await pool.query("UPDATE evaluation_jobs SET status = $1 WHERE id = $2", [
+      "dead_lettered",
+      testJobId,
+    ]);
 
     // Attempt retry (should succeed - dead_lettered is retryable)
-    const { data, error } = await supabase.rpc("admin_retry_job", {
-      p_job_id: testJobId,
-    });
+    const result = await pool.query("SELECT * FROM admin_retry_job($1)", [
+      testJobId,
+    ]);
+    const data = result.rows[0];
 
-    expect(error).toBeNull();
-    expect(data?.[0]?.changed).toBe(true);
-    expect(data?.[0]?.status).toBe("queued");
+    expect(data?.changed).toBe(true);
+    expect(data?.status).toBe("queued");
 
     // Verify final DB state
-    const { data: job } = await supabase
-      .from("evaluation_jobs")
-      .select("status, worker_id, lease_until")
-      .eq("id", testJobId)
-      .single();
+    const job = await pool.query(
+      "SELECT status, worker_id, lease_until FROM evaluation_jobs WHERE id = $1",
+      [testJobId]
+    );
 
-    expect(job?.status).toBe("queued");
-    expect(job?.worker_id).toBeNull();
-    expect(job?.lease_until).toBeNull();
+    expect(job.rows[0]?.status).toBe("queued");
+    expect(job.rows[0]?.worker_id).toBeNull();
+    expect(job.rows[0]?.lease_until).toBeNull();
   });
 
   test("completed job cannot be retried", async () => {
     // Set job to complete
-    await supabase
-      .from("evaluation_jobs")
-      .update({
-        status: "complete",
-        failed_at: null,
-      })
-      .eq("id", testJobId);
+    await pool.query(
+      "UPDATE evaluation_jobs SET status = $1, failed_at = NULL WHERE id = $2",
+      ["complete", testJobId]
+    );
 
     // Attempt retry
-    const { data, error } = await supabase.rpc("admin_retry_job", {
-      p_job_id: testJobId,
-    });
+    const result = await pool.query("SELECT * FROM admin_retry_job($1)", [
+      testJobId,
+    ]);
+    const data = result.rows[0];
 
-    expect(error).toBeNull();
-    expect(data?.[0]?.changed).toBe(false);
+    expect(data?.changed).toBe(false);
 
     // Status should still be 'complete'
-    const { data: job } = await supabase
-      .from("evaluation_jobs")
-      .select("status")
-      .eq("id", testJobId)
-      .single();
-
-    expect(job?.status).toBe("complete");
+    const job = await pool.query(
+      "SELECT status FROM evaluation_jobs WHERE id = $1",
+      [testJobId]
+    );
+    expect(job.rows[0]?.status).toBe("complete");
   });
 
   test("retry is idempotent (no-op on already queued)", async () => {
     // First retry (should succeed)
-    const { data: result1 } = await supabase.rpc("admin_retry_job", {
-      p_job_id: testJobId,
-    });
-    expect(result1?.[0]?.changed).toBe(true);
+    const result1 = await pool.query("SELECT * FROM admin_retry_job($1)", [
+      testJobId,
+    ]);
+    expect(result1.rows[0]?.changed).toBe(true);
 
     // Second retry (should be no-op)
-    const { data: result2 } = await supabase.rpc("admin_retry_job", {
-      p_job_id: testJobId,
-    });
-    expect(result2?.[0]?.changed).toBe(false);
-    expect(result2?.[0]?.status).toBe("queued");
+    const result2 = await pool.query("SELECT * FROM admin_retry_job($1)", [
+      testJobId,
+    ]);
+    expect(result2.rows[0]?.changed).toBe(false);
+    expect(result2.rows[0]?.status).toBe("queued");
   });
 });
