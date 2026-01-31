@@ -34,10 +34,9 @@ jobs:
             exit 0
           fi
 
-          # Controlled path: audit is failing; capture JSON but neutralize npm's exit code.
-          AUDIT_JSON="$(npm audit --json 2>/dev/null || true)"
+          # Controlled path: audit is failing; pipe JSON directly to validation script.
 
-          node -e '
+          npm audit --json 2>&1 | node -e '
             const fs = require("fs");
 
             const data = fs.readFileSync(0, "utf8");
@@ -77,7 +76,7 @@ jobs:
             }
 
             console.log("Only known tar/supabase/next advisories remain (documented in NPM_AUDIT_NOTES.md) ✅");
-        '
+          '
           exit 0
 
       - name: Run staging tests (Supabase secrets)
