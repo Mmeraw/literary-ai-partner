@@ -47,6 +47,19 @@ npm run build
 # Result: WARNING-level only (non-blocking)
 ```
 
+## Local Verification (A4.1)
+
+```bash
+DOTENV_CONFIG_PATH=.env.staging.local bash ./scripts/test-worker-openai.sh
+rg -n metric_name .worker.log | head -30
+rg '"type":"metric"' .worker.log | jq -r '.metric_name' | sort | uniq -c | sort -nr
+rg '"type":"metric"' .worker.log | jq -c '.labels' | rg 'job_id|jobId|manuscript|manuscriptId|user_id|userId|email|ip'
+```
+
+## Scope Guardrails (A4.1)
+
+Out of scope: claim/retry invariants (DB migrations + concurrency enforcement) intentionally deferred to next PR.
+
 ## Security
 
 ### Build-Safe Guard (`lib/jobs/config.ts`)
