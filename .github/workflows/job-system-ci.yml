@@ -337,6 +337,7 @@ jobs:
           # CI-only Supabase project (schema aligned with code, test data only)
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
+         SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
                 SUPABASEURL: ${{ secrets.SUPABASE_URL_CI }}
           USE_SUPABASE_JOBS: true
@@ -350,6 +351,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
                 SUPABASEURL: ${{ secrets.SUPABASE_URL_CI }}
           USE_SUPABASE_JOBS: true
@@ -362,6 +364,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
                 SUPABASEURL: ${{ secrets.SUPABASE_URL_CI }}
           USE_SUPABASE_JOBS: true
