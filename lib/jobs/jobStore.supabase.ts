@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "../supabase.js";
+import { getSupabaseAdminClient } from "../supabase/admin.js";
 import { assertValidTransition, isValidTransition } from "./transitions";
 import { validateProgressForPhase } from "./validation";
 import { Job, JobStatus, JobType, PHASES } from "./types";
@@ -8,7 +8,7 @@ let _supabase: ReturnType<typeof getSupabaseClient> | undefined;
 
 function getSupabase() {
   if (_supabase === undefined) {
-    _supabase = getSupabaseClient();
+    _supabase = getSupabaseAdminClient();
   }
   return _supabase;
 }
