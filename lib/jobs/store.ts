@@ -32,14 +32,15 @@ if (USE_SUPABASE) {
     return supabaseStore;
   };
 
-  createJob = async (...args) => loadSupabaseStore().createJob(...args);
-  getJob = async (...args) => loadSupabaseStore().getJob(...args);
-  getAllJobs = async (...args) => loadSupabaseStore().getAllJobs(...args);
-  updateJob = async (...args) => loadSupabaseStore().updateJob(...args);
-  acquireLeaseForPhase1 = async (...args) => loadSupabaseStore().acquireLeaseForPhase1(...args);
-  acquireLeaseForPhase2 = async (...args) => loadSupabaseStore().acquireLeaseForPhase2(...args);
-  incrementCounter = async (...args) => loadSupabaseStore().incrementCounter(...args);
-  setJobFailed = async (...args) => loadSupabaseStore().setJobFailed(...args);
+  // Functions are already async, so call them directly (not async wrap)
+  createJob = (...args) => loadSupabaseStore().createJob(...args);
+  getJob = (...args) => loadSupabaseStore().getJob(...args);
+  getAllJobs = (...args) => loadSupabaseStore().getAllJobs(...args);
+  updateJob = (...args) => loadSupabaseStore().updateJob(...args);
+  acquireLeaseForPhase1 = (...args) => loadSupabaseStore().acquireLeaseForPhase1(...args);
+  acquireLeaseForPhase2 = (...args) => loadSupabaseStore().acquireLeaseForPhase2(...args);
+  incrementCounter = (...args) => loadSupabaseStore().incrementCounter(...args);
+  setJobFailed = (...args) => loadSupabaseStore().setJobFailed(...args);
 } else {
   // In-memory store: no real leases, just delegate directly.
   createJob = memCreateJob;
