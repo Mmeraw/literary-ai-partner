@@ -11,7 +11,8 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
 
 describe("Admin Dead-Letter Queue", () => {
-  const baseUrl = "http://localhost:3000";
+  // CI-safe: Use BASE_URL env var if present, otherwise localhost
+  const baseUrl = process.env.BASE_URL || "http://localhost:3000";
   const adminKey = process.env.ADMIN_API_KEY || "test-admin-key";
 
   describe("GET /api/admin/dead-letter", () => {

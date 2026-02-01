@@ -10,6 +10,8 @@ import { NextRequest } from "next/server";
  * Contract:
  * - Requires Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
  * - Returns boolean only (no derived truth)
+ * 
+ * SAFE FOR BUILD TIME: Only reads env when called (not at module import)
  */
 export function checkServiceRoleAuth(req: NextRequest): boolean {
   const authHeader = req.headers.get("authorization");
@@ -17,6 +19,7 @@ export function checkServiceRoleAuth(req: NextRequest): boolean {
 
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
+  // Read key at runtime, not module import time (safe for next build)
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) return false;
 

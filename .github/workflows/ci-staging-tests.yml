@@ -83,7 +83,28 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
-          echo "SUPABASE_URL=$SUPABASE_URL" > .env.test.local
-          echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY" >> .env.test.local
-          DOTENV_CONFIG_PATH=.env.test.local npm run test:staging -- --runInBand --detectOpenHandles
+          echo "Building Next.js for staging tests..."
+          npm run build
+          
+          echo "Starting Next.js server in background..."
+          npm start -- -p 3000 &
+          SERVER_PID=$!
+          
+          echo "Waiting for server to be ready..."
+          timeout 60 bash -c 'until curl -s http://127.0.0.1:3000/ > /dev/null; do sleep 1; done' || {
+            echo "Server failed to start within 60s"
+            kill $SERVER_PID 2>/dev/null || true
+            exit 1
+          }
+          
+          echo "Server ready, running tests..."
+          BASE_URL=http://127.0.0.1:3000 npm run test:staging -- --runInBand --detectOpenHandles || TEST_EXIT=$?
+          
+          echo "Stopping server..."
+          kill $SERVER_PID 2>/dev/null || true
+          
+          exit ${TEST_EXIT:-0}
