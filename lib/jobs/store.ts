@@ -20,27 +20,26 @@ let createJob: typeof memCreateJob,
   setJobFailed: (jobId: string, errorEnvelope: any) => Promise<void>;
 
 if (USE_SUPABASE) {
-  // Supabase-backed job store
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const supabaseStore = require("./jobStore.supabase") as {
-    createJob: typeof memCreateJob;
-    getJob: typeof memGetJob;
-    getAllJobs: typeof memGetAllJobs;
-    updateJob: typeof memUpdateJob;
-    acquireLeaseForPhase1: (jobId: string, leaseId: string, ttl: number) => Promise<Job | null>;
-    acquireLeaseForPhase2: (jobId: string, leaseId: string, ttl: number) => Promise<Job | null>;
-    incrementCounter: () => Promise<number | null>;
-    setJobFailed: (jobId: string, errorEnvelope: any) => Promise<void>;
+  // SAFE FOR BUILD TIME: Lazy-load Supabase store only when functions are called
+  // This avoids importing lib/supabase.js at module init during next build
+  let supabaseStore: any = null;
+  
+  const loadSupabaseStore = () => {
+    if (!supabaseStore) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      supabaseStore = require("./jobStore.supabase");
+    }
+    return supabaseStore;
   };
 
-  createJob = supabaseStore.createJob;
-  getJob = supabaseStore.getJob;
-  getAllJobs = supabaseStore.getAllJobs;
-  updateJob = supabaseStore.updateJob;
-  acquireLeaseForPhase1 = supabaseStore.acquireLeaseForPhase1;
-  acquireLeaseForPhase2 = supabaseStore.acquireLeaseForPhase2;
-  incrementCounter = supabaseStore.incrementCounter;
-  setJobFailed = supabaseStore.setJobFailed;
+  createJob = async (...args) => loadSupabaseStore().createJob(...args);
+  getJob = async (...args) => loadSupabaseStore().getJob(...args);
+  getAllJobs = async (...args) => loadSupabaseStore().getAllJobs(...args);
+  updateJob = async (...args) => loadSupabaseStore().updateJob(...args);
+  acquireLeaseForPhase1 = async (...args) => loadSupabaseStore().acquireLeaseForPhase1(...args);
+  acquireLeaseForPhase2 = async (...args) => loadSupabaseStore().acquireLeaseForPhase2(...args);
+  incrementCounter = async (...args) => loadSupabaseStore().incrementCounter(...args);
+  setJobFailed = async (...args) => loadSupabaseStore().setJobFailed(...args);
 } else {
   // In-memory store: no real leases, just delegate directly.
   createJob = memCreateJob;
