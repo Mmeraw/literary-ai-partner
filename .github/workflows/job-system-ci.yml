@@ -163,6 +163,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           USE_SUPABASE_JOBS: false
           ALLOW_HEADER_USER_ID: true  # Allow x-user-id auth bypass for CI smoke tests
+          ALLOW_DEV_PROD: I_UNDERSTAND_THE_RISK  # CI needs to test against prod Supabase
 
       - name: Run Phase 1 smoke test
         run: npm run jobs:smoke
@@ -327,6 +328,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           USE_SUPABASE_JOBS: true
+          ALLOW_DEV_PROD: I_UNDERSTAND_THE_RISK  # CI needs to test against prod Supabase
 
       - name: Run smoke tests with Supabase
         if: steps.check-secrets.outputs.skip != 'true'
