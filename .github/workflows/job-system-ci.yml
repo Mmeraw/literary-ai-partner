@@ -31,6 +31,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Debug SUPABASE_URL_CI
+        run: |
+          echo "SUPABASE_URL_CI: '${SUPABASE_URL_CI}'"
+          echo "NEXT_PUBLIC_SUPABASE_URL: '${NEXT_PUBLIC_SUPABASE_URL}'"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
