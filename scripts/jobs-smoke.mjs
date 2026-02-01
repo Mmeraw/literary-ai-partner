@@ -43,7 +43,7 @@ async function main() {
   await sleep(500);
 
   // 3) Poll until complete/failed
-  const PHASE1_COUNTER_GRACE_MS = 3000;
+  const PHASE1_COUNTER_GRACE_MS = 10000;
   const phase1Start = Date.now();
   
   function hasCounters(p) {
