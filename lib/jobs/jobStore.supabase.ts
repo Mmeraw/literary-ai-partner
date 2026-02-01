@@ -65,8 +65,8 @@ export async function createJob(input: {
   
   // Normalize: if number, use directly; if string, trim and parse
   let manuscriptId: number;
-  if (inputType === 'number') {
-    manuscriptId = input.manuscript_id as number;
+  if (typeof input.manuscript_id === 'number') {
+    manuscriptId = input.manuscript_id;
     if (!Number.isInteger(manuscriptId) || manuscriptId <= 0) {
       throw new Error(
         `Invalid manuscript_id ${input.manuscript_id}: must be positive integer`
