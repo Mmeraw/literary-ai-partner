@@ -12,14 +12,14 @@ async function main() {
   // because there's no background worker to process them. This is expected.
   skipIfMemoryMode("Phase 1 smoke test", "Supabase + background worker to complete Phase 1");
 
-  // 1) Create job (using numeric manuscript_id for validation)
+  // 1) Create job (using string manuscript_id as required by validation)
   const createRes = await must(
     jfetch(`${BASE}/api/jobs`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ job_type: "evaluate_full", manuscript_id: 1 })
+      body: JSON.stringify({ job_type: "evaluate_full", manuscript_id: "test-manuscript-1" })
     }),
     "Failed to create job"
   );
