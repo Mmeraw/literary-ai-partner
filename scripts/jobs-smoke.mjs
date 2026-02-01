@@ -29,7 +29,12 @@ async function main() {
 
   // 2) Start Phase 1
   const runRes = await must(
-    jfetch(`${BASE}/api/jobs/${jobId}/run-phase1`, { method: "POST" }),
+      jfetch(`${BASE}/api/jobs/${jobId}/run-phase1`, { 
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }),
     "Failed to start phase1"
   );
   await runRes.json().catch(() => ({}));
