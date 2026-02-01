@@ -25,9 +25,10 @@ function assertNotDevAgainstProd() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const nodeEnv = process.env.NODE_ENV || "development";
   const allow = process.env.ALLOW_DEV_PROD === "I_UNDERSTAND_THE_RISK";
+  const isCi = process.env.JOB_SYSTEM_ENV === "ci";
 
-  // Only block non-production environments
-  if (nodeEnv !== "production" && !allow) {
+  // Only block non-production environments (but allow CI with its own project)
+  if (nodeEnv !== "production" && !allow && !isCi) {
     if (url.includes(PROD_PROJECT_REF)) {
       console.error("\n" + "=".repeat(80));
       console.error("❌ CRITICAL STARTUP FAILURE: Dev→Prod Guard Triggered");
@@ -54,7 +55,8 @@ function assertNotDevAgainstProd() {
 
   // Log safe startup
   if (nodeEnv !== "production") {
-    console.log(`✅ [Startup Guard] ${nodeEnv} mode using non-prod Supabase - OK`);
+    const envLabel = isCi ? "CI" : nodeEnv;
+    console.log(`✅ [Startup Guard] ${envLabel} mode using non-prod Supabase - OK`);
   }
 }
 
