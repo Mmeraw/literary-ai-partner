@@ -60,12 +60,15 @@ BEGIN
       j.job_type,
       j.status,
       j.phase,
-      j.phase_status,
+      (j.progress ->> 'phase_status')::TEXT AS phase_status,
       j.attempt_count,
       j.max_attempts,
       j.failed_at,
       j.next_attempt_at,
-      j.last_error,
+      CASE 
+        WHEN j.last_error IS NOT NULL THEN to_jsonb(j.last_error)
+        ELSE NULL
+      END AS last_error,
       j.created_at,
       j.updated_at,
       j.work_type,

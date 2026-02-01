@@ -5,7 +5,7 @@ import { requireAdmin } from "@/lib/admin/requireAdmin";
 /**
  * GET /api/admin/dead-letter
  * 
- * Lists all failed jobs (dead-letter queue) with filtering and pagination.
+ * Lists all dead-lettered jobs (dead-letter queue) with filtering and pagination.
  * 
  * **Auth:** Requires x-admin-key header (Phase A.5)
  * 
@@ -19,7 +19,7 @@ import { requireAdmin } from "@/lib/admin/requireAdmin";
  * - limit: Page size (max 100, default 50)
  * 
  * Governance:
- * - Uses admin_list_jobs RPC with status='failed'
+ * - Uses admin_list_jobs RPC with status='dead_lettered'
  * - Keyset pagination for stable results
  * - Audit-grade: does not modify state
  */
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const { searchParams } = req.nextUrl;
 
-  // Parse filters (status is hardcoded to 'failed')
+  // Parse filters (status is hardcoded to 'dead_lettered')
   const job_type = searchParams.get("job_type");
   const phase = searchParams.get("phase");
   const policy_family = searchParams.get("policy_family");
@@ -66,9 +66,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Call admin_list_jobs RPC with status='failed'
+    // Call admin_list_jobs RPC with status='dead_lettered'
     const { data: jobs, error } = await supabase.rpc("admin_list_jobs", {
-      p_status: "failed",
+      p_status: "dead_lettered",
       p_job_type: job_type,
       p_phase: phase,
       p_policy_family: policy_family,
