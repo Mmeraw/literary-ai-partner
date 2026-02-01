@@ -56,8 +56,9 @@ export async function createJob(input: {
   
   // DB GUARD: manuscript_id MUST be numeric for Supabase writes
   // Test strings like "test_ms_..." are memory-store only
-  const parsed = Number.parseInt(input.manuscript_id, 10);
-  if (Number.isNaN(parsed) || String(parsed) !== input.manuscript_id.trim()) {
+  const inputStr = String(input.manuscript_id).trim();
+  const parsed = Number.parseInt(inputStr, 10);
+  if (Number.isNaN(parsed) || String(parsed) !== inputStr) {
     throw new Error(
       `Invalid manuscript_id "${input.manuscript_id}": Database writes require numeric manuscript IDs. ` +
       `Use memory store (TEST_MODE=true) for test strings.`
