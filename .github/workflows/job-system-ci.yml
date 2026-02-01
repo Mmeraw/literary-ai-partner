@@ -39,6 +39,7 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
       - name: Audit (allow known tar advisory if documented)
         shell: bash
         run: |
@@ -71,7 +72,7 @@ jobs:
             const vulns = j.vulnerabilities || {};
             const keys = Object.keys(vulns);
 
-          const allow = new Set(["tar", "supabase", "next", "eslint"]);
+            const allow = new Set(["tar", "supabase", "next", "eslint"]);
             const bad = keys.filter(k => !allow.has(k));
 
             if (bad.length) {
@@ -94,12 +95,13 @@ jobs:
           '
 
           exit 0
+
       - name: Build Next.js app
         run: npm run build
         env:
           # Placeholder env vars for build - actual Supabase not needed for memory store tests
-          NEXT_PUBLIC_SUPABASE_URL: 'https://placeholder.supabase.co'
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: 'placeholder-key-for-build'
+          NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key-for-build"
 
       - name: Verify zero-drift (no manual duplication)
         run: npm run verify:zero-drift
@@ -108,28 +110,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          
+
           echo "🔍 Checking ALLOW_HEADER_USER_ID in all workflow files..."
           echo "   Policy: Auth bypass only allowed in CI/dev contexts with explicit comment"
           echo ""
-          
+
           # Deterministic check: scan all workflows explicitly (no heuristics)
           WORKFLOWS=(
             ".github/workflows/ci.yml"
             ".github/workflows/ci-staging-tests.yml"
             ".github/workflows/job-system-ci.yml"
           )
-          
+
           FAIL=0
           for workflow in "${WORKFLOWS[@]}"; do
             # Find env: sections with ALLOW_HEADER_USER_ID=true (actual config, not script content)
             if matches=$(rg -n "^\\s+ALLOW_HEADER_USER_ID:\\s*true" "$workflow" 2>/dev/null); then
               while IFS= read -r line; do
                 linenum=$(echo "$line" | cut -d: -f1)
-                
+
                 # Get previous 3 lines for context (to find comment)
                 context=$(sed -n "$((linenum-3)),$((linenum))p" "$workflow")
-                
+
                 # Allow if context contains CI/dev/smoke/test justification
                 if echo "$context" | grep -qiE "(#.*CI|#.*dev|#.*smoke|#.*test)"; then
                   echo "   ✅ $workflow:$linenum - Allowed (CI/dev/test context)"
@@ -141,14 +143,14 @@ jobs:
               done <<< "$matches"
             fi
           done
-          
+
           if [ $FAIL -eq 1 ]; then
             echo ""
             echo "❌ Found ALLOW_HEADER_USER_ID=true without CI/dev/test justification"
             echo "   Add comment like: # Allow x-user-id auth bypass for CI smoke tests"
             exit 1
           fi
-          
+
           echo ""
           echo "✅ PASS: All ALLOW_HEADER_USER_ID usages properly justified"
 
@@ -159,19 +161,19 @@ jobs:
           # Wait for server to be ready
           timeout 60 bash -c 'until curl -sf http://localhost:3002/api/health; do sleep 1; done'
         env:
-      JOB_SYSTEM_ENV: ci
-      USE_SUPABASE_JOBS: true
+          JOB_SYSTEM_ENV: ci
+          USE_SUPABASE_JOBS: true
 
-      # Client-side (Next public)
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
+          # Client-side (Next public)
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
 
-      # Server-side (admin)
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
+          # Server-side (admin)
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
 
-      # CI smoke tests: allow x-user-id auth bypass
-      ALLOW_HEADER_USER_ID: true 
+          # CI smoke tests: allow x-user-id auth bypass
+          ALLOW_HEADER_USER_ID: true
 
       - name: Run Phase 1 smoke test
         run: npm run jobs:smoke
@@ -221,7 +223,7 @@ jobs:
         if: always()
         run: |
           if [ -f /tmp/dev-server.pid ]; then
-            kill $(cat /tmp/dev-server.pid) || true
+            kill "$(cat /tmp/dev-server.pid)" || true
           fi
 
   supabase-backed-tests:
@@ -238,11 +240,11 @@ jobs:
         id: check-secrets
         run: |
           if [[ -z "${{ secrets.SUPABASE_URL_CI }}" ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "⚠️  CI Supabase credentials not configured - skipping Supabase-backed tests"
             echo "   Add SUPABASE_URL_CI, SUPABASE_ANON_KEY_CI, and SUPABASE_SERVICE_ROLE_KEY_CI secrets"
           else
-            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "✅ CI Supabase credentials available"
           fi
 
@@ -274,7 +276,6 @@ jobs:
           fi
 
           # Controlled path: audit is failing; pipe JSON directly to validation script.
-
           npm audit --json 2>&1 | node -e '
             const fs = require("fs");
 
@@ -295,7 +296,7 @@ jobs:
             const vulns = j.vulnerabilities || {};
             const keys = Object.keys(vulns);
 
-            const allow = new Set(['tar', 'supabase', 'next', 'eslint']);
+            const allow = new Set(["tar", "supabase", "next", "eslint"]);
             const bad = keys.filter(k => !allow.has(k));
 
             if (bad.length) {
@@ -323,8 +324,8 @@ jobs:
         run: npm run build
         env:
           # Use placeholder env vars - build will succeed with null-safe client
-          NEXT_PUBLIC_SUPABASE_URL: 'https://placeholder.supabase.co'
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: 'placeholder-key-for-build'
+          NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key-for-build"
 
       - name: Start dev server with Supabase backend
         if: steps.check-secrets.outputs.skip != 'true'
@@ -338,7 +339,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
           USE_SUPABASE_JOBS: true
-          JOB_SYSTEM_ENV: ci  # Flag for audit logging / CI-specific behavior
+          JOB_SYSTEM_ENV: ci # Flag for audit logging / CI-specific behavior
 
       - name: Run smoke tests with Supabase
         if: steps.check-secrets.outputs.skip != 'true'
@@ -376,5 +377,5 @@ jobs:
         if: always()
         run: |
           if [ -f /tmp/dev-server.pid ]; then
-            kill $(cat /tmp/dev-server.pid) || true
+            kill "$(cat /tmp/dev-server.pid)" || true
           fi
