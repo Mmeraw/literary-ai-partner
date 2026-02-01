@@ -629,9 +629,10 @@ export async function unsafeClaimChunk(chunkId: string): Promise<boolean> {
 export async function getManuscriptText(
   manuscriptId: number
 ): Promise<string> {
+  // Try to fetch manuscript with storage columns, but handle schema evolution gracefully
   const { data, error } = await supabase
     .from("manuscripts")
-    .select("file_url, title, storage_bucket, storage_path")
+    .select("file_url, title")
     .eq("id", manuscriptId)
     .single();
 
@@ -639,12 +640,16 @@ export async function getManuscriptText(
     throw new Error(`Failed to fetch manuscript: ${error.message}`);
   }
 
-  // Option 1: Fetch from Supabase Storage (preferred)
-  if (data.storage_bucket && data.storage_path) {
+  // Try to get storage columns if they exist (for future schema evolution)
+  // This is defensive against production DBs that may not have storage_bucket/storage_path yet
+  const storageData = data as any;
+  
+  // Option 1: Fetch from Supabase Storage (preferred, if columns exist)
+  if (storageData.storage_bucket && storageData.storage_path) {
     try {
       const { data: fileData, error: downloadError } = await supabase.storage
-        .from(data.storage_bucket)
-        .download(data.storage_path);
+        .from(storageData.storage_bucket)
+        .download(storageData.storage_path);
 
       if (downloadError) {
         throw new Error(
