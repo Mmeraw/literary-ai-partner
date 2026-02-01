@@ -93,6 +93,12 @@ EOF
   cat <<'EOF'
 0b) Key fingerprint (ref match check)
 EOF
+  # DEBUG: Print key lengths to verify they're set (without leaking values)
+  echo "DEBUG: service_role key length = ${#SUPABASE_SERVICE_ROLE_KEY}"
+  echo "DEBUG: anon key length = ${#SUPABASE_ANON_KEY:-0}"
+  echo "DEBUG: service_role first 30 chars = ${SUPABASE_SERVICE_ROLE_KEY:0:30}..."
+  echo ""
+  
   # Decode JWT refs to verify URL and keys are from same project
   node - <<'NODEEOF'
 function b64urlDecode(s) {
