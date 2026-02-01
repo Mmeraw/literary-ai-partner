@@ -239,7 +239,7 @@ async function artifactExists(jobId: string): Promise<boolean> {
     throw new Error(`Failed to check existing artifact: ${error.message}`);
   }
 
-  return !!data?.id;
+  return data !== null;
 }
 
 async function persistOutput(
@@ -299,13 +299,20 @@ async function persistOutput(
     throw new Error(`Failed to persist Phase 2 artifact: ${error.message}`);
   }
 
-  if (!data?.id) {
+  if (!data) {
     // ignoreDuplicates may return null row; treat as already exists.
     return { persisted: false, alreadyExists: true };
   }
 
-  console.log(`[Phase2] Artifact persisted id=${data.id} job_id=${jobId}`);
-  return { persisted: true, alreadyExists: false, artifactId: data.id };
+  // TypeScript narrow: data is non-null here
+  const artifactId = (data as any).id;
+  if (!artifactId) {
+    // Shouldn't happen but guard against missing id
+    return { persisted: false, alreadyExists: true };
+  }
+
+  console.log(`[Phase2] Artifact persisted id=${artifactId} job_id=${jobId}`);
+  return { persisted: true, alreadyExists: false, artifactId };
 }
 
 export async function runPhase2(jobId: string): Promise<void> {
