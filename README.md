@@ -31,12 +31,6 @@ npm run dev
 - **Status**: ✅ ALL CODE POINTS HERE
 - **Used By**: Local dev, Vercel, CI/CD
 
-### Testing Project (Inactive)
-- **Name**: ⚠️ TESTING ONLY - DO NOT USE
-- **Project ID**: `ngfszuqjoyixmtlbthyv`
-- **Status**: ⚠️ MIGRATION TESTING ONLY
-- **Used By**: Nothing (keep for testing before production)
-
 **Full Details**: [docs/SUPABASE_PROJECTS.md](./docs/SUPABASE_PROJECTS.md)
 
 ## 📋 Prerequisites

@@ -1,6 +1,6 @@
 # Supabase Projects Configuration
 
-## 🎯 Canonical Projects
+## 🎯 Canonical Project
 
 ### Production: RevisionGrade Production
 - **Project ID**: `xtumxjnzdswuumndcbwc`
@@ -14,15 +14,6 @@
 - **Tier**: NANO
 - **Status**: ✅ ACTIVE
 - **Security**: RLS enabled on all tables
-
-### Testing: ⚠️ TESTING ONLY - DO NOT USE
-- **Project ID**: `ngfszuqjoyixmtlbthyv`
-- **URL**: `https://ngfszuqjoyixmtlbthyv.supabase.co`
-- **Purpose**: Migration testing and experimentation ONLY
-- **Used By**: ❌ NOTHING - Do not point your code here!
-- **Tier**: MICRO
-- **Status**: ⚠️ INACTIVE - Keep for testing migrations before applying to production
-- **Warning**: Named with ⚠️ symbol to prevent accidental usage
 
 ## 🔒 Security Configuration
 

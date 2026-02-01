@@ -4,17 +4,15 @@
 
 **Error:**
 ```
-URL ref: ngfszuqjoyixmtlbthyv
-service role ref: ngfszuqjoyixmtlbthyv
-anon ref: xtumxjnzdswuumndcbwc
 ❌ MISMATCH detected!
+Mixed project refs in GitHub secrets
 ```
 
 **Root Cause:**  
-GitHub Actions secrets pointed to mixed projects (TEST + PRODUCTION).
+GitHub Actions secrets pointed to mixed Supabase projects.
 
 **Policy:**  
-Per `docs/SUPABASE_PROJECTS.md`, "All CI/CD workflows" use **PRODUCTION** (`xtumxjnzdswuumndcbwc`).
+Per `docs/SUPABASE_PROJECTS.md`, "All CI/CD workflows" use **PRODUCTION ONLY** (`xtumxjnzdswuumndcbwc`).
 
 **Fix:**  
 Update all 5 GitHub secrets to PRODUCTION project at:  
