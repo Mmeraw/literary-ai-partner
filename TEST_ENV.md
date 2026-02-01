@@ -1,14 +1,26 @@
-# ⚠️ TESTING ENVIRONMENT VARIABLES ⚠️
-# ❌ DO NOT USE THESE IN PRODUCTION ❌
-# Copy this to .env.test and fill in your actual values
+# ⚠️⚠️⚠️ TESTING ENVIRONMENT VARIABLES ⚠️⚠️⚠️
+# ❌ NEVER USE IN CI/CD OR PRODUCTION ❌
+# ❌ LOCAL TESTING ONLY ❌
+# Copy this to .env.test (NOT COMMITTED) and fill in your actual values
 
-# ⚠️ TESTING ONLY Supabase Project (ngfszuqjoyixmtlbthyv)
-# ⚠️ WARNING: This is NOT the production database!
-# ⚠️ This project is named "⚠️ TESTING ONLY - DO NOT USE" in Supabase Dashboard
-# Production uses: xtumxjnzdswuumndcbwc (RevisionGrade Production)
+# ========================================
+# ⚠️ TESTING ONLY Supabase Project
+# ========================================
+# Project: ngfszuqjoyixmtlbthyv (⚠️ TESTING ONLY - DO NOT USE)
+# Purpose: LOCAL migration testing ONLY
+# 
+# ❌ DO NOT USE IN:
+#    - GitHub Actions CI
+#    - Vercel deployments
+#    - Any production/staging environment
+# 
+# ✅ PRODUCTION PROJECT: xtumxjnzdswuumndcbwc (RevisionGrade Production)
+# ✅ See: FIX_GITHUB_SECRETS_NOW.md for CI setup
+# ========================================
+
 SUPABASE_URL=https://ngfszuqjoyixmtlbthyv.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_testing_service_role_key_here
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_testing_anon_key_here
 
 # To run tests that need Supabase:
 # 1. Copy this file to .env.test (not committed)
