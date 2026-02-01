@@ -158,13 +158,19 @@ jobs:
           echo $! > /tmp/dev-server.pid
           # Wait for server to be ready
           timeout 60 bash -c 'until curl -sf http://localhost:3002/api/health; do sleep 1; done'
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          USE_SUPABASE_JOBS: false
-          # CI smoke tests: allow x-user-id auth bypass
-          ALLOW_HEADER_USER_ID: true
-          ALLOW_DEV_PROD: I_UNDERSTAND_THE_RISK  # CI needs to test against prod Supabase
+        env:  JOB_SYSTEM_ENV: ci
+      USE_SUPABASE_JOBS: true
+
+      # Client-side (Next public)
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
+
+      # Server-side (admin)
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
+
+      # CI smoke tests: allow x-user-id auth bypass
+      ALLOW_HEADER_USER_ID: true 
 
       - name: Run Phase 1 smoke test
         run: npm run jobs:smoke
