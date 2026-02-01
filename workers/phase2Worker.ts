@@ -321,8 +321,8 @@ async function processJob(job: ClaimResult): Promise<void> {
     log('error', 'Job processing failed', { jobId, error: errorMsg });
     
     // Phase A.1: Create structured error envelope
-    const { toErrorEnvelope } = await import('../lib/errors/errorEnvelope');
-    const { setJobFailed } = await import('../lib/jobs/store');
+    const { toErrorEnvelope } = await import('../lib/errors/errorEnvelope.js');
+    const { setJobFailed } = await import('../lib/jobs/store.js');
     
     const envelope = toErrorEnvelope(err, {
       phase: 'phase_2',
@@ -341,7 +341,7 @@ async function processJob(job: ClaimResult): Promise<void> {
     await setJobFailed(jobId, envelope);
     
     // Legacy: Also persist to provider call audit trail
-    const { isRetryableError } = await import('./phase2Evaluation');
+    const { isRetryableError } = await import('./phase2Evaluation.js');
     const retryable = isRetryableError(err);
     
     await persistProviderCall({
