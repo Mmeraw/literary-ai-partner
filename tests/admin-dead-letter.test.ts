@@ -11,27 +11,27 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
 
 describe("Admin Dead-Letter Queue", () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const baseUrl = "http://localhost:3000";
+  const adminKey = process.env.ADMIN_API_KEY || "test-admin-key";
 
   describe("GET /api/admin/dead-letter", () => {
-    it("requires service role authentication", async () => {
-      const res = await fetch(`${supabaseUrl}/api/admin/dead-letter`, {
+    it("requires admin authentication", async () => {
+      const res = await fetch(`${baseUrl}/api/admin/dead-letter`, {
         headers: {
-          Authorization: "Bearer invalid_key",
+          "x-admin-key": "invalid_key",
         },
       });
 
       expect(res.status).toBe(401);
       const data = await res.json();
-      expect(data.ok).toBe(false);
-      expect(data.error).toContain("authentication");
+      expect(data.success).toBe(false);
+      expect(data.error.message).toContain("Unauthorized");
     });
 
     it("returns only failed jobs", async () => {
-      const res = await fetch(`${supabaseUrl}/api/admin/dead-letter`, {
+      const res = await fetch(`${baseUrl}/api/admin/dead-letter`, {
         headers: {
-          Authorization: `Bearer ${serviceRoleKey}`,
+          "x-admin-key": adminKey,
         },
       });
 
@@ -47,9 +47,9 @@ describe("Admin Dead-Letter Queue", () => {
     });
 
     it("includes retry metadata for each job", async () => {
-      const res = await fetch(`${supabaseUrl}/api/admin/dead-letter`, {
+      const res = await fetch(`${baseUrl}/api/admin/dead-letter`, {
         headers: {
-          Authorization: `Bearer ${serviceRoleKey}`,
+          "x-admin-key": adminKey,
         },
       });
 
@@ -70,27 +70,27 @@ describe("Admin Dead-Letter Queue", () => {
   });
 
   describe("POST /api/admin/jobs/:jobId/retry", () => {
-    it("requires service role authentication", async () => {
+    it("requires admin authentication", async () => {
       const fakeJobId = "00000000-0000-0000-0000-000000000000";
-      const res = await fetch(`${supabaseUrl}/api/admin/jobs/${fakeJobId}/retry`, {
+      const res = await fetch(`${baseUrl}/api/admin/jobs/${fakeJobId}/retry`, {
         method: "POST",
         headers: {
-          Authorization: "Bearer invalid_key",
+          "x-admin-key": "invalid_key",
         },
       });
 
       expect(res.status).toBe(401);
       const data = await res.json();
-      expect(data.ok).toBe(false);
-      expect(data.error).toContain("authentication");
+      expect(data.success).toBe(false);
+      expect(data.error.message).toContain("Unauthorized");
     });
 
     it("rejects retry for non-existent job", async () => {
       const fakeJobId = "00000000-0000-0000-0000-000000000000";
-      const res = await fetch(`${supabaseUrl}/api/admin/jobs/${fakeJobId}/retry`, {
+      const res = await fetch(`${baseUrl}/api/admin/jobs/${fakeJobId}/retry`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${serviceRoleKey}`,
+          "x-admin-key": adminKey,
         },
       });
 

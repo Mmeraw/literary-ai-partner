@@ -3,25 +3,28 @@ import { createClient } from "@supabase/supabase-js";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 
 /**
- * GET /api/admin/dead-letter
+ * GET /api/admin/jobs
  * 
- * Lists all failed jobs (dead-letter queue) with filtering and pagination.
+ * Lists jobs with filtering and keyset pagination.
  * 
  * **Auth:** Requires x-admin-key header (Phase A.5)
  * 
- * Query parameters (same as /api/admin/jobs):
+ * Query parameters:
+ * - status: Filter by job status (queued|running|complete|failed)
  * - job_type: Filter by job type
  * - phase: Filter by phase
  * - policy_family: Filter by policy family
+ * - created_after: Filter created_at >= ISO timestamp
+ * - created_before: Filter created_at <= ISO timestamp
  * - failed_after: Filter failed_at >= ISO timestamp
  * - failed_before: Filter failed_at <= ISO timestamp
- * - cursor: Pagination cursor (base64 JSON)
+ * - cursor: Pagination cursor (base64 JSON of last item keys)
  * - limit: Page size (max 100, default 50)
  * 
  * Governance:
- * - Uses admin_list_jobs RPC with status='failed'
- * - Keyset pagination for stable results
- * - Audit-grade: does not modify state
+ * - Uses admin_list_jobs RPC for stable pagination
+ * - Keyset cursor prevents duplicates/skipping under concurrent writes
+ * - Read-only operation (does not modify state)
  */
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -41,10 +44,13 @@ export async function GET(req: NextRequest) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const { searchParams } = req.nextUrl;
 
-  // Parse filters (status is hardcoded to 'failed')
+  // Parse filters
+  const status = searchParams.get("status");
   const job_type = searchParams.get("job_type");
   const phase = searchParams.get("phase");
   const policy_family = searchParams.get("policy_family");
+  const created_after = searchParams.get("created_after");
+  const created_before = searchParams.get("created_before");
   const failed_after = searchParams.get("failed_after");
   const failed_before = searchParams.get("failed_before");
   const cursorParam = searchParams.get("cursor");
@@ -66,14 +72,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Call admin_list_jobs RPC with status='failed'
+    // Call admin_list_jobs RPC
     const { data: jobs, error } = await supabase.rpc("admin_list_jobs", {
-      p_status: "failed",
+      p_status: status,
       p_job_type: job_type,
       p_phase: phase,
       p_policy_family: policy_family,
-      p_created_after: null,
-      p_created_before: null,
+      p_created_after: created_after,
+      p_created_before: created_before,
       p_failed_after: failed_after,
       p_failed_before: failed_before,
       p_cursor_failed_at: cursor?.failed_at || null,
@@ -83,9 +89,9 @@ export async function GET(req: NextRequest) {
     });
 
     if (error) {
-      console.error("[Admin Dead-Letter] RPC error:", error);
+      console.error("[Admin Jobs] RPC error:", error);
       return NextResponse.json(
-        { ok: false, error: "Failed to fetch dead-letter jobs", details: error.message },
+        { ok: false, error: "Failed to fetch jobs", details: error.message },
         { status: 500 }
       );
     }
@@ -117,12 +123,12 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("[Admin Dead-Letter] Unexpected error:", err);
+    console.error("[Admin Jobs] Unexpected error:", err);
     return NextResponse.json(
-      { 
-        ok: false, 
-        error: "Internal server error", 
-        details: err instanceof Error ? err.message : String(err)
+      {
+        ok: false,
+        error: "Internal server error",
+        details: err instanceof Error ? err.message : String(err),
       },
       { status: 500 }
     );
