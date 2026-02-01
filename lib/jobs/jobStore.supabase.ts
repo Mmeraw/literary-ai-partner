@@ -1,21 +1,21 @@
-import { getSupabaseAdminClient } from "../supabase/admin.js";
+import { createAdminClient } from "../supabase/admin";
 import { assertValidTransition, isValidTransition } from "./transitions";
 import { validateProgressForPhase } from "./validation";
 import { Job, JobStatus, JobType, PHASES } from "./types";
 
 // Lazy-initialized Supabase client - null-safe for CI/build environments
-let _supabase: ReturnType<typeof getSupabaseClient> | undefined;
+let _supabase: ReturnType<typeof createAdminClient> | undefined;
 
 function getSupabase() {
   if (_supabase === undefined) {
-    _supabase = getSupabaseAdminClient();
+    _supabase = createAdminClient();
   }
   return _supabase;
 }
 
 // Module-level accessor that throws meaningful errors when Supabase unavailable
 const supabase = new Proxy(
-  {} as NonNullable<ReturnType<typeof getSupabaseClient>>,
+  {} as NonNullable<ReturnType<typeof createAdminClient>>,
   {
     get(_target, prop) {
       const client = getSupabase();
