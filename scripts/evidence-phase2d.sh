@@ -13,12 +13,21 @@ if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
   return 1
 fi
 
-# Export all SUPABASE_* env vars for subprocesses (npm, jest, etc.)
+# CRITICAL: Only export if not already set (preserve workflow env vars)
+# DO NOT override with empty defaults - that wipes CI secrets!
 export SUPABASE_URL="${SUPABASE_URL:-}"
 export SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-}"
 export SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
 export NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-}"
 export NEXT_PUBLIC_SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}"
+
+# Guard: Fail fast if service_role key is missing
+if [[ -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
+  echo "❌ ERROR: SUPABASE_SERVICE_ROLE_KEY is required for Phase 2D tests" >&2
+  echo "   Tests need service_role to create manuscripts and evaluation jobs" >&2
+  echo "   Set it via workflow secrets or local .env" >&2
+  exit 1
+fi
 
 # Navigate to repo root (works in CI and locally)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
