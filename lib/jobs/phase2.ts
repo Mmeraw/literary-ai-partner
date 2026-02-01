@@ -32,10 +32,17 @@ export function assertTransitionPhase2(from: Phase2State, to: Phase2State): void
   }
 }
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+// SAFE FOR BUILD TIME: Lazy-load Supabase client only when needed
+let _supabaseClient: ReturnType<typeof createClient> | null = null;
+function getSupabase() {
+  if (!_supabaseClient) {
+    _supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    );
+  }
+  return _supabaseClient;
+}
 
 interface Phase1ValidationResult {
   isValid: boolean;
@@ -221,7 +228,7 @@ Generated: ${new Date().toISOString()}
 }
 
 async function artifactExists(jobId: string): Promise<boolean> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("evaluation_artifacts")
     .select("id")
     .eq("job_id", jobId)
@@ -273,7 +280,7 @@ async function persistOutput(
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("evaluation_artifacts")
     .upsert(artifact as any, {
       onConflict: "job_id,artifact_type",
