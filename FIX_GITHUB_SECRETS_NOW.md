@@ -1,23 +1,29 @@
-# 🚨 FIX GITHUB SECRETS - PRODUCTION PROJECT ONLY
+# 🚨 FIX CI SUPABASE PROJECT MISMATCH
 
 **Date:** February 1, 2026  
-**Status:** URGENT - CI is blocked due to mixed Supabase projects
+**Status:** URGENT - CI blocked due to mixed Supabase project references
 
 ---
 
-## 🎯 The Problem
+## 🎯 The Issue
 
-Your CI is using **TWO DIFFERENT** Supabase projects:
-- ✅ `SUPABASE_SERVICE_ROLE_KEY` → `ngfszuqjoyixmtlbthyv` (TESTING)
-- ❌ `SUPABASE_ANON_KEY` → `xtumxjnzdswuumndcbwc` (PRODUCTION)
+Your CI has a **project reference mismatch**:
+- `SUPABASE_URL` → `ngfszuqjoyixmtlbthyv` (TEST)
+- `SUPABASE_SERVICE_ROLE_KEY` → `ngfszuqjoyixmtlbthyv` (TEST)
+- `SUPABASE_ANON_KEY` → `xtumxjnzdswuumndcbwc` (PRODUCTION)
 
-**This causes Phase 2D Evidence Gate to fail with project mismatch.**
+**Result:** Phase 2D Evidence Gate correctly blocks because keys are from different projects.
 
 ---
 
-## ✅ The Solution
+## ✅ The Fix (Per Documented Policy)
 
-**ALL GitHub secrets MUST use PRODUCTION project:** `xtumxjnzdswuumndcbwc`
+According to [docs/SUPABASE_PROJECTS.md](docs/SUPABASE_PROJECTS.md), your policy states:
+> "RevisionGrade Production (`xtumxjnzdswuumndcbwc`) - Used By: All CI/CD workflows"
+
+**Therefore, all CI secrets must target:** `xtumxjnzdswuumndcbwc`
+
+⚠️ **Note:** This means CI runs against production data. Best practice would be a dedicated staging/CI project, but that's your current documented policy.
 
 ---
 
@@ -48,7 +54,10 @@ Click each secret name and click "Update":
 | `SUPABASE_ANON_KEY` | `eyJhbG...` (JWT starting with eyJ) | Anon public key from dashboard |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbG...` (JWT starting with eyJ) | Same as SUPABASE_ANON_KEY |
 
-**CRITICAL:** Make sure you're copying from the **RevisionGrade Production** project (`xtumxjnzdswuumndcbwc`), NOT the "⚠️ TESTING ONLY" project.
+**CRITICAL:** 
+- ✅ Copy from **RevisionGrade Production** (`xtumxjnzdswuumndcbwc`) per documented policy
+- ❌ DO NOT use "⚠️ TESTING ONLY" (`ngfszuqjoyixmtlbthyv`)
+- ⚠️ **Policy note:** CI running against production data is risky; consider dedicated staging project
 
 ### 4. Verify After Update
 
@@ -112,4 +121,4 @@ source <(grep -v '^#' .env.test | xargs -I {} echo export {}) && npm test
 
 ---
 
-**After this fix, ALL CI workflows will use the correct production project.**
+**After this fix, CI will use PRODUCTION project per your documented policy. Consider creating a dedicated staging/CI project to avoid running tests against production data.**
