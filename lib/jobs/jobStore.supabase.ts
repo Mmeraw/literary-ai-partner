@@ -55,16 +55,37 @@ export async function createJob(input: {
   const now = new Date().toISOString();
   
   // DB GUARD: manuscript_id MUST be numeric for Supabase writes
-  // Test strings like "test_ms_..." are memory-store only
-  const inputStr = String(input.manuscript_id).trim();
-  const parsed = Number.parseInt(inputStr, 10);
-  if (Number.isNaN(parsed) || String(parsed) !== inputStr) {
+  // Accept string or number at boundary, but enforce numeric for DB FK constraints
+  const inputType = typeof input.manuscript_id;
+  if (inputType !== 'string' && inputType !== 'number') {
     throw new Error(
-      `Invalid manuscript_id "${input.manuscript_id}": Database writes require numeric manuscript IDs. ` +
-      `Use memory store (TEST_MODE=true) for test strings.`
+      `Invalid manuscript_id type: expected string or number, got ${inputType}`
     );
   }
-  const manuscriptId = parsed;
+  
+  // Normalize: if number, use directly; if string, trim and parse
+  let manuscriptId: number;
+  if (inputType === 'number') {
+    manuscriptId = input.manuscript_id as number;
+    if (!Number.isInteger(manuscriptId) || manuscriptId <= 0) {
+      throw new Error(
+        `Invalid manuscript_id ${input.manuscript_id}: must be positive integer`
+      );
+    }
+  } else {
+    const trimmed = (input.manuscript_id as string).trim();
+    if (trimmed === '') {
+      throw new Error('Invalid manuscript_id: empty string');
+    }
+    const parsed = Number.parseInt(trimmed, 10);
+    if (Number.isNaN(parsed) || String(parsed) !== trimmed) {
+      throw new Error(
+        `Invalid manuscript_id "${input.manuscript_id}": Database writes require numeric manuscript IDs. ` +
+        `Use memory store (TEST_MODE=true) for test strings.`
+      );
+    }
+    manuscriptId = parsed;
+  }
 
   const payload = {
     manuscript_id: manuscriptId,
