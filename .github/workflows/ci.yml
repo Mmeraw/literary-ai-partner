@@ -6,13 +6,28 @@ on:
 jobs:
   smoke-test:
     runs-on: ubuntu-latest
+
+    env:
+      JOBSYSTEM_ENV: ci
+
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
+
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
+
+      USE_SUPABASE_JOBS: "true"
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
+
       - run: npm ci
-      
+
       - name: Audit (allow known tar advisory if documented)
         shell: bash
         run: |
@@ -25,7 +40,6 @@ jobs:
           fi
 
           # Controlled path: audit is failing; pipe JSON directly to validation script.
-
           npm audit --json 2>&1 | node -e '
             const fs = require("fs");
 
@@ -69,8 +83,9 @@ jobs:
           '
 
           exit 0
-      
+
       - run: npm run dev &
+
       - run: |
           for i in {1..30}; do
             if curl -f http://localhost:3002/api/health; then
@@ -78,4 +93,5 @@ jobs:
             fi
             sleep 1
           done
+
       - run: BASE_URL=http://localhost:3002 npm run jobs:smoke
