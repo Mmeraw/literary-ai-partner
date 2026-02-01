@@ -12,7 +12,7 @@ import type { NextRequest } from "next/server";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
   if (!checkServiceRoleAuth(req)) {
     return NextResponse.json(
@@ -22,7 +22,7 @@ export async function GET(
   }
 
   try {
-    const jobId = params.jobId;
+    const { jobId } = await params;
 
     if (!jobId) {
       return NextResponse.json(

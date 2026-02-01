@@ -1,0 +1,31 @@
+--- lib/jobs/jobStore.supabase.ts
++++ lib/jobs/jobStore.supabase.ts
+@@ -57,21 +57,18 @@ async function createJobInSupabase(input: JobCreationInput): Promise<string> {
+     throw new Error("manuscript_id is required");
+   }
+ 
+-  const inputType = typeof input.manuscript_id;
+-  if (inputType !== 'string' && inputType !== 'number') {
+-    throw new Error(
+-      `Invalid manuscript_id type: expected string or number, got ${inputType}`
+-    );
+-  }
+-  
+   // Normalize: if number, use directly; if string, trim and parse
+   let manuscriptId: number;
+-  if (inputType === 'number') {
+-    manuscriptId = input.manuscript_id as number;
++  if (typeof input.manuscript_id === 'number') {
++    manuscriptId = input.manuscript_id;
+     if (!Number.isInteger(manuscriptId) || manuscriptId <= 0) {
+       throw new Error(
+         `Invalid manuscript_id ${input.manuscript_id}: must be positive integer`
+       );
+     }
+-  } else {
++  } else if (typeof input.manuscript_id === 'string') {
+     const trimmed = input.manuscript_id.trim();
++  } else {
++    throw new Error(
++      `Invalid manuscript_id type: expected string or number, got ${typeof input.manuscript_id}`
++    );

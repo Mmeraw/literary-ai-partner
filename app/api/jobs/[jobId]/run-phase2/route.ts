@@ -4,7 +4,7 @@ import { getJob, canRunPhase } from "@/lib/jobs/store";
 import { checkServiceRoleAuth } from "@/lib/auth/api";
 import { PHASES } from "@/lib/jobs/types";
 
-type Params = { jobId: string };
+type Params = Promise<{ jobId: string }>;
 
 /**
  * POST /api/jobs/[jobId]/run-phase2
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 
-  const { jobId } = ctx.params;
+  const { jobId } = await ctx.params;
 
   const job = await getJob(jobId);
   if (!job) {

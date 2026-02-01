@@ -8,17 +8,18 @@ import { checkServiceRoleAuth } from "@/lib/auth/api";
  * INTERNAL ONLY: Service role auth required
  * Cancel a running or queued job.
  */
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ jobId: string }> }
+) {
   // GOVERNANCE: Service role only (internal/daemon use)
   if (!checkServiceRoleAuth(request)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  // Extract the ID from the URL path
-  const { pathname } = request.nextUrl;
-  const segments = pathname.split("/");
-  const id = segments[segments.length - 2]; // "id" segment before "cancel"
 
-  if (!id) {
+  const { jobId } = await params;
+
+  if (!jobId) {
     return NextResponse.json(
       { error: "Missing job id in URL" },
       { status: 400 },
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await cancelJob(id);
+    const result = await cancelJob(jobId);
 
     if (!result.success) {
       return NextResponse.json(
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("CancelJobError", {
-      job_id: id,
+      job_id: jobId,
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
