@@ -125,7 +125,7 @@ jobs:
           FAIL=0
           for workflow in "${WORKFLOWS[@]}"; do
             # Find env: sections with ALLOW_HEADER_USER_ID=true (actual config, not script content)
-            if matches=$(rg -n "^\\s+ALLOW_HEADER_USER_ID:\\s*true" "$workflow" 2>/dev/null); then
+            if matches=$(rg -n "^\s+ALLOW_HEADER_USER_ID:\s*true" "$workflow" 2>/dev/null); then
               while IFS= read -r line; do
                 linenum=$(echo "$line" | cut -d: -f1)
 
@@ -337,9 +337,8 @@ jobs:
           # CI-only Supabase project (schema aligned with code, test data only)
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
-         SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
-                SUPABASEURL: ${{ secrets.SUPABASE_URL_CI }}
           USE_SUPABASE_JOBS: true
           JOB_SYSTEM_ENV: ci # Flag for audit logging / CI-specific behavior
 
@@ -353,7 +352,6 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
-                SUPABASEURL: ${{ secrets.SUPABASE_URL_CI }}
           USE_SUPABASE_JOBS: true
           JOB_SYSTEM_ENV: ci
           BASE_URL: http://localhost:3002
@@ -366,7 +364,6 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
-                SUPABASEURL: ${{ secrets.SUPABASE_URL_CI }}
           USE_SUPABASE_JOBS: true
           JOB_SYSTEM_ENV: ci
           BASE_URL: http://localhost:3002
