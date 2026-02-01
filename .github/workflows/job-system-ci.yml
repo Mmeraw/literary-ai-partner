@@ -230,12 +230,13 @@ jobs:
       - name: Check for Supabase credentials
         id: check-secrets
         run: |
-          if [[ -z "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" ]]; then
+          if [[ -z "${{ secrets.SUPABASE_URL_CI }}" ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
-            echo "⚠️  Supabase credentials not configured - skipping Supabase-backed tests"
+            echo "⚠️  CI Supabase credentials not configured - skipping Supabase-backed tests"
+            echo "   Add SUPABASE_URL_CI, SUPABASE_ANON_KEY_CI, and SUPABASE_SERVICE_ROLE_KEY_CI secrets"
           else
             echo "skip=false" >> $GITHUB_OUTPUT
-            echo "✅ Supabase credentials available"
+            echo "✅ CI Supabase credentials available"
           fi
 
       - name: Checkout code
@@ -325,11 +326,12 @@ jobs:
           echo $! > /tmp/dev-server.pid
           timeout 60 bash -c 'until curl -sf http://localhost:3002/api/health; do sleep 1; done'
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # CI-only Supabase project (schema aligned with code, test data only)
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
           USE_SUPABASE_JOBS: true
-          ALLOW_DEV_PROD: I_UNDERSTAND_THE_RISK  # CI needs to test against prod Supabase
+          JOB_SYSTEM_ENV: ci  # Flag for audit logging / CI-specific behavior
 
       - name: Run smoke tests with Supabase
         if: steps.check-secrets.outputs.skip != 'true'
@@ -337,20 +339,22 @@ jobs:
           npm run jobs:smoke
           npm run jobs:smoke:phase2
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
           USE_SUPABASE_JOBS: true
+          JOB_SYSTEM_ENV: ci
           BASE_URL: http://localhost:3002
 
       - name: Validate Supabase job invariants
         if: steps.check-secrets.outputs.skip != 'true'
         run: node scripts/jobs-validate-invariants.mjs
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
           USE_SUPABASE_JOBS: true
+          JOB_SYSTEM_ENV: ci
           BASE_URL: http://localhost:3002
 
       - name: Upload server logs on failure
