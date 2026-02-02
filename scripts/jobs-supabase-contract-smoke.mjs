@@ -36,9 +36,10 @@ let testJobId = null;
 /**
  * Cleanup test data (always runs, even on failure)
  * Fails if cleanup encounters errors (audit-grade guarantee)
+ * Uses stderr for reliable CI logging and explicit flush
  */
 async function cleanup() {
-  console.log("\n[CLEANUP] Removing test data...");
+  console.error("\n[CLEANUP] Removing test data...");
   
   const errors = [];
   let jobRows = 0;
@@ -52,10 +53,10 @@ async function cleanup() {
     
     if (error) {
       errors.push(`Job deletion failed: ${error.message}`);
-      console.log(`  ❌ CLEANUP ERROR: Failed to delete job ${testJobId}`);
+      console.error(`  ❌ CLEANUP ERROR: Failed to delete job ${testJobId}`);
     } else {
       jobRows = count || 0;
-      console.log(`  CLEANUP: deleted job rows=${jobRows}`);
+      console.error(`  CLEANUP: deleted job rows=${jobRows}`);
     }
   }
   
@@ -67,20 +68,23 @@ async function cleanup() {
     
     if (error) {
       errors.push(`Manuscript deletion failed: ${error.message}`);
-      console.log(`  ❌ CLEANUP ERROR: Failed to delete manuscript ${testManuscriptId}`);
+      console.error(`  ❌ CLEANUP ERROR: Failed to delete manuscript ${testManuscriptId}`);
     } else {
       manuscriptRows = count || 0;
-      console.log(`  CLEANUP: deleted manuscript rows=${manuscriptRows}`);
+      console.error(`  CLEANUP: deleted manuscript rows=${manuscriptRows}`);
     }
   }
   
   if (errors.length > 0) {
-    console.log(`  ❌ CLEANUP FAILED: ${errors.join("; ")}`);
-    console.log(`  ⚠️  Manual cleanup may be required!`);
-    process.exit(1); // Fail CI on cleanup errors (audit requirement)
+    console.error(`  ❌ CLEANUP FAILED: ${errors.join("; ")}`);
+    console.error(`  ⚠️  Manual cleanup may be required!`);
+    process.exitCode = 1; // Fail CI on cleanup errors (audit requirement)
+  } else {
+    console.error(`  CLEANUP: ok`);
   }
   
-  console.log(`  CLEANUP: ok`);
+  // Explicit flush: yield to event loop to ensure stderr/stdout flush
+  await new Promise((resolve) => setImmediate(resolve));
 }
 
 /**
@@ -455,12 +459,12 @@ async function main() {
     console.log("  ✅ ALL TESTS PASSED");
     console.log("════════════════════════════════════════════════════════\n");
 
-    process.exit(0);
+    process.exitCode = 0;
   } catch (err) {
     console.error("\n❌ TEST FAILED:");
     console.error(err.message);
     if (err.stack) console.error(err.stack);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     // Always cleanup, even on failure
     await cleanup();

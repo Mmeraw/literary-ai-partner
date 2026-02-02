@@ -267,9 +267,21 @@ jobs:
         if: steps.check-secrets.outputs.skip != 'true'
         run: npm ci
 
+      - name: Create artifacts directory
+        if: steps.check-secrets.outputs.skip != 'true'
+        run: mkdir -p scripts-artifacts
+
       - name: Run Supabase DB contract tests
         if: steps.check-secrets.outputs.skip != 'true'
-        run: npm run jobs:smoke:supabase
+        run: npm run jobs:smoke:supabase 2>&1 | tee scripts-artifacts/supabase-contract-smoke.log
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
+
+      - name: Upload Supabase contract test logs
+        if: always() && steps.check-secrets.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-contract-test-logs
+          path: scripts-artifacts/supabase-contract-smoke.log
+          retention-days: 30
