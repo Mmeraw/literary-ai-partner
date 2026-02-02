@@ -139,7 +139,7 @@ async function createFailedJob(manuscriptId) {
 /**
  * Test: RPC signature validation
  * Ensures admin_retry_job returns expected shape
- * SKIPS if RPC doesn't exist (migration not applied)
+ * FAILS HARD if RPC doesn't exist or returns wrong shape (DB drift)
  */
 async function testRpcSignature() {
   console.log("\n[TEST] RPC Signature Validation");
@@ -151,12 +151,15 @@ async function testRpcSignature() {
   });
 
   if (error) {
-    // Check if RPC doesn't exist (migration not applied)
+    // RPC doesn't exist - DB drift / migration not applied
     if (error.message && error.message.includes("function") && error.message.includes("does not exist")) {
-      console.log(`  ⚠️  SKIPPED: admin_retry_job RPC not found in database`);
-      console.log(`     Migration 20260131000000_admin_retry_job_atomic_rpc.sql not applied`);
-      console.log(`     This is expected if CI Supabase doesn't have migrations applied`);
-      return { skipped: true };
+      console.error("\n❌ CI DB DRIFT DETECTED");
+      console.error("   admin_retry_job RPC not found in database");
+      console.error("   Migration 20260131000000_admin_retry_job_atomic_rpc.sql not applied");
+      console.error("\n   CI Supabase DB is out of sync with repo migrations.");
+      console.error("   Proof gate BLOCKED until migrations are applied.");
+      console.error("\n   Resolution: Apply migrations to CI Supabase or add migration step to workflow.");
+      throw new Error("CI DB drift: admin_retry_job RPC not found (migration not applied)");
     }
     console.error(`  RPC error details:`, JSON.stringify(error, null, 2));
     throw new Error(`RPC call failed: ${error.message} (hint: ${error.hint || 'N/A'}, details: ${error.details || 'N/A'})`);
@@ -167,15 +170,18 @@ async function testRpcSignature() {
     throw new Error(`Expected array response, got: ${typeof data}`);
   }
 
-  // Should return one row even for non-existent job
+  // Should return one row even for non-existent job (right join pattern)
   if (data.length !== 1) {
-    // RPC exists but returns 0 rows - likely wrong signature/implementation
-    // This happens if CI has an old version of the RPC without right join
-    console.log(`  ⚠️  SKIPPED: admin_retry_job returns 0 rows (expected 1)`);
-    console.log(`     This means migration 20260131000000_admin_retry_job_atomic_rpc.sql`);
-    console.log(`     is not applied (old version or missing right join pattern)`);
-    console.log(`     RPC returned:`, JSON.stringify(data, null, 2));
-    return { skipped: true };
+    console.error("\n❌ CI DB DRIFT DETECTED");
+    console.error(`   admin_retry_job returned ${data.length} rows (expected 1)`);
+    console.error("   This indicates migration 20260131000000_admin_retry_job_atomic_rpc.sql");
+    console.error("   is not applied OR an old/incompatible version exists.");
+    console.error("\n   Expected behavior: RPC uses 'right join (select 1) one on true'");
+    console.error("   to guarantee 1 row even for non-existent job_id.");
+    console.error("\n   Actual result:", JSON.stringify(data, null, 2));
+    console.error("\n   CI Supabase DB is out of sync with repo migrations.");
+    console.error("   Proof gate BLOCKED until correct migration is applied.");
+    throw new Error(`CI DB drift: admin_retry_job returned ${data.length} rows (expected 1 due to right join)`);
   }
 
   // Validate shape: job_id, status, changed
@@ -190,7 +196,7 @@ async function testRpcSignature() {
   }
 
   console.log(`  ✅ RPC callable with expected parameters`);
-  console.log(`  ✅ Returns array with 1 row`);
+  console.log(`  ✅ Returns array with 1 row (right join pattern validated)`);
   console.log(`  ✅ Return shape validated (job_id, status, changed)`);
   console.log("  ✅ PASS: RPC signature validation");
   return { skipped: false };
@@ -348,22 +354,10 @@ async function main() {
   console.log("════════════════════════════════════════════════════════");
 
   try {
-    // Test RPC signature first
+    // Test RPC signature first - FAIL HARD on DB drift
     const signatureResult = await testRpcSignature();
     
-    if (signatureResult.skipped) {
-      console.log("\n════════════════════════════════════════════════════════");
-      console.log("  ⚠️  TEST SUITE SKIPPED");
-      console.log("  Reason: admin_retry_job RPC not found (migration not applied)");
-      console.log("  Status: A5 implementation exists but cannot be proven in CI");
-      console.log("  Next: Apply migration 20260131000000_admin_retry_job_atomic_rpc.sql");
-      console.log("════════════════════════════════════════════════════════\n");
-      process.exitCode = 0;
-      setImmediate(() => process.exit(0));
-      return;
-    }
-
-    // Setup
+    // If we got here, RPC is valid - proceed with concurrency tests
     console.log("\n[SETUP] Creating test data...");
     testManuscriptId = await createTestManuscript();
     console.log(`  Manuscript ID: ${testManuscriptId}`);

@@ -271,6 +271,15 @@ jobs:
         if: steps.check-secrets.outputs.skip != 'true'
         run: mkdir -p scripts-artifacts
 
+      - name: Check CI DB migrations (proof gate)
+        if: steps.check-secrets.outputs.skip != 'true'
+        run: |
+          set -o pipefail
+          npm run jobs:check-migrations 2>&1 | tee scripts-artifacts/db-migration-check.log
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
+
       - name: Run Supabase DB contract tests
         if: steps.check-secrets.outputs.skip != 'true'
         run: |

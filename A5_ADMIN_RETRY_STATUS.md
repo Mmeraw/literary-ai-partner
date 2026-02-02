@@ -1,19 +1,21 @@
 # A5: Admin Retry Atomicity — Status Report
 
-**Date**: 2026-01-31  
-**Status**: ⚠️ **Implemented, CI-Proof Blocked**
+**Date**: 2026-02-02  
+**Status**: 🔴 **CI BLOCKED - DB Drift Detected**
 
 ---
 
 ## Executive Summary
 
-The admin retry RPC (`admin_retry_job`) is fully implemented with atomic guarantees and a comprehensive concurrency test suite. However, CI validation is blocked because the RPC migration has not been applied to the CI Supabase instance.
+The admin retry RPC (`admin_retry_job`) is fully implemented with atomic guarantees and a comprehensive concurrency test suite. CI validation is **BLOCKED** because the RPC migration has not been applied to the CI Supabase instance.
+
+**This is a proof gate failure, not a skip.** The CI workflow now explicitly checks for DB drift and **fails hard** when migrations are missing.
 
 **Current State**:
 - ✅ Implementation: Complete and correct
-- ✅ Local Testing: Full concurrency proof passes
-- ⚠️ CI Validation: Skipped (RPC not found in CI database)
-- ✅ CI Truthfulness: Tests correctly skip with exit 0 and diagnostic message
+- ✅ Local Testing: Full concurrency proof passes (if migration applied)
+- 🔴 CI Validation: **BLOCKED - DB drift detected**
+- ✅ CI Truthfulness: Tests fail with explicit DB drift message (no silent skips)
 
 ---
 
@@ -91,26 +93,32 @@ run: |
 - ⚠️ Migration state: No mechanism to apply migrations to CI Supabase
 
 ### Latest CI Run
-**Run ID**: 21577532430 (after pipefail fix)
+**Run ID**: TBD (after strict DB check deployment)
 
-**Result**: ✅ Correctly skipped with exit 0
+**Expected Result**: 🔴 Fails with explicit DB drift message
 
-**Output**:
+**Expected Output**:
 ```
-[TEST] RPC Signature Validation
-  ⚠️  SKIPPED: admin_retry_job RPC not found in database
-     Migration 20260131000000_admin_retry_job_atomic_rpc.sql not applied
-     This is expected if CI Supabase doesn't have migrations applied
-     
+[CHECK] 20260131000000_admin_retry_job_atomic_rpc
+  Description: admin_retry_job RPC with atomic guarantees
+  ❌ NOT APPLIED: RPC returned 0 rows (expected 1). Missing 'right join (select 1) one on true' pattern.
+
 ════════════════════════════════════════════════════════════
-  ⚠️  TEST SUITE SKIPPED
-  Reason: admin_retry_job RPC not found (migration not applied)
-  Status: A5 implementation exists but cannot be proven in CI
-  Next: Apply migration 20260131000000_admin_retry_job_atomic_rpc.sql
+  ❌ CI DB DRIFT DETECTED
+
+  The following migrations are missing or incorrect:
+    • 20260131000000_admin_retry_job_atomic_rpc
+      RPC returned 0 rows (expected 1). Missing 'right join (select 1) one on true' pattern.
+
+  Resolution:
+    1. Apply missing migrations to CI Supabase instance, OR
+    2. Add migration apply step to CI workflow
+
+  Proof gate BLOCKED until migrations are applied.
 ════════════════════════════════════════════════════════════
 ```
 
----
+**This is correct behavior.** CI must fail when DB is out of sync with repo migrations.
 
 ## Blocking Issue
 
@@ -118,13 +126,18 @@ run: |
 
 **Evidence**:
 1. Migration file exists: `supabase/migrations/20260131000000_admin_retry_job_atomic_rpc.sql`
-2. CI workflow has no migration apply step (confirmed via grep: no "supabase migration", "db push")
-3. RPC call returns error: `function public.admin_retry_job(uuid) does not exist`
+2. CI workflow has no migration apply step
+3. RPC call returns empty array `[]` (not an error), indicating old/wrong version
+
+**Policy Decision (2026-02-02)**:
+- **NO SILENT SKIPS**: Tests now fail hard on DB drift
+- **Explicit DB Check**: New `check-ci-db-migrations.mjs` script validates migration state before running tests
+- **Audit-Grade Governance**: Green CI without proof is worse than red CI with clear error
 
 **Impact**:
-- Implementation is correct but cannot be proven in CI
-- Local development with migration applied can prove full atomicity
-- CI can validate signature/shape but not concurrency behavior
+- CI will be RED until migrations are applied
+- This is the correct behavior (proof gate enforcement)
+- Implementation is correct; CI DB is out of sync
 
 ---
 
@@ -162,17 +175,18 @@ run: |
 2. Apply migration manually: `supabase db push` or via Dashboard SQL editor
 3. Re-run CI (test should pass)
 
-### Option C: Accept Partial CI Coverage (Status Quo)
+### Option C: Accept Partial CI Coverage (❌ REJECTED)
 **Pros**:
-- Test suite already handles gracefully
+- Test suite handles gracefully
 - No CI changes needed
 - Clear diagnostic message
 
 **Cons**:
 - A5 not fully proven in CI
 - Operator confidence lower without CI validation
+- **VIOLATES AUDIT-GRADE GOVERNANCE**: Silent skips mask proof gaps
 
-**Current State**: This is where we are now
+**Status**: ❌ **REJECTED** - This violates the canonical governance model. Green CI without proof is worse than red CI.
 
 ---
 
@@ -192,34 +206,35 @@ run: |
 
 ## Recommendation
 
-**For MVP/Demo**: Option C (status quo) is acceptable
-- A5 is implemented correctly
-- Test suite documents expected behavior
-- CI skip message is clear and actionable
+**Current Stance**: 🔴 **Fail Hard on DB Drift** (implemented 2026-02-02)
 
-**For Production**: Option A (migration apply in CI) is required
-- Full validation of DB contract
-- Scalable for future migrations
-- Proves system behavior under load
+CI now:
+1. Runs explicit DB migration check (`jobs:check-migrations`)
+2. Fails hard with clear message if migrations missing
+3. Only proceeds to proof tests if DB is in sync
+
+**This blocks CI until migrations are applied, which is correct.**
+
+For unblocking:
+- **Short-term**: Option B (manual migration apply)
+- **Long-term**: Option A (automated migration apply in CI)
 
 ---
 
 ## Next Actions
 
-**Immediate** (if blocking other work):
-1. Document A5 as "Implemented, CI-proof blocked"
-2. Move to next roadmap item (A4/A5 Ops Confidence: metrics endpoint)
-3. Come back to CI migration apply when infrastructure exists
+**Immediate** (to unblock CI):
+1. Choose Option A or B based on access/urgency
+2. Apply migration `20260131000000_admin_retry_job_atomic_rpc.sql` to CI Supabase
+3. Verify with `npm run jobs:check-migrations` (should pass)
+4. Re-run CI (will be green for the right reason)
 
-**Short-term** (if unblocking A5 is priority):
-1. Choose Option A or B based on CI access/complexity
-2. Apply migration to CI Supabase
-3. Re-run CI to prove atomic behavior
-4. Update status to "Complete"
+**DO NOT**:
+- Add skip logic to mask the proof gap
+- Make CI green without actually applying migrations
+- Compromise audit-grade governance for convenience
 
-**Status Update Required**:
-- 72-HOUR-SPRINT.md: Update A5 status to "Implemented, CI-proof blocked"
-- COPILOT_NEXT_PHASE.md: Add migration apply as infrastructure task
+**Current CI State**: 🔴 **BLOCKED** (this is correct)
 
 ---
 
@@ -238,10 +253,15 @@ This work follows `docs/JOB_CONTRACT_v1.md`:
 
 ## Conclusion
 
-A5 Admin Retry Atomicity is **functionally complete** with correct implementation and comprehensive test coverage. CI validation is **blocked by missing migration state** in CI Supabase instance, not by implementation issues.
+A5 Admin Retry Atomicity is **functionally complete** with correct implementation and comprehensive test coverage. CI validation is **BLOCKED by DB drift**, and the workflow now **fails hard** with an explicit error message instead of silently skipping.
 
-The pragmatic skip-if-missing behavior ensures CI remains green while clearly documenting the validation gap. Full proof requires either manual migration apply or automated migration management in CI.
+**This is correct behavior per audit-grade governance:**
+- Green CI without proof is worse than red CI
+- Silent skips mask proof gaps
+- Explicit failures preserve contract adherence
 
-**Current Label**: ⚠️ Implemented, CI-Proof Blocked  
-**Complete Label**: ✅ When CI Supabase has migration applied and test passes
+**Current Label**: 🔴 CI BLOCKED - DB Drift  
+**Complete Label**: ✅ When CI Supabase has migration applied and all tests pass
+
+**Policy**: No silent skips. Fail hard on drift. Enforce proof gates.
 
