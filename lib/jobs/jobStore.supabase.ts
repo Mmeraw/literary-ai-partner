@@ -320,10 +320,10 @@ export async function acquireLeaseForPhase2(
 
   /**
    * Eligibility:
-   * - Normal entry: phase1 + completed
+   * - Normal entry: phase1 + complete
    * - Resume entry: phase2 + running (only if lease expired / free)
    */
-  const isPhase1Completed =
+  const isPhase1Complete =
     existing.progress.phase === PHASES.PHASE_1 &&
     existing.progress.phase_status === "complete";
 
@@ -331,7 +331,7 @@ export async function acquireLeaseForPhase2(
     existing.progress.phase === PHASES.PHASE_2 &&
     existing.progress.phase_status === "running";
 
-  if (!isPhase1Completed && !isPhase2Resumable) {
+  if (!isPhase1Complete && !isPhase2Resumable) {
     return null;
   }
 
@@ -363,7 +363,7 @@ export async function acquireLeaseForPhase2(
   const expiresAt = new Date(now.getTime() + ttlSeconds * 1000).toISOString();
 
   // If resuming, do NOT rewrite phase/phase_status; keep them stable.
-  // If entering from phase1/completed, flip into phase2/running.
+  // If entering from phase1/complete, flip into phase2/running.
   const mergedProgress = isPhase2Resumable
     ? {
         ...existing.progress,
@@ -528,11 +528,11 @@ export async function setJobFailed(
 }
 
 /**
- * Backward compatibility normalizer: converts legacy "completed" to canonical "complete"
+ * Backward compatibility normalizer: converts legacy "complete" to canonical "complete"
  * Can be removed once all production data is migrated
  */
 function normalizePhaseStatus(status?: string): string | undefined {
-  if (status === "completed") return "complete";
+  if (status === "complete") return "complete";
   return status;
 }
 
