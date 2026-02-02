@@ -98,6 +98,8 @@ async function createTestJob(manuscriptId) {
       voice_preservation_level: "balanced",
       english_variant: "us",
       status: "queued",
+      lease_until: null,
+      next_attempt_at: null,
       progress: {
         total_units: 5,
         completed_units: 0,
@@ -148,6 +150,17 @@ async function testRpcSignature() {
 async function testClaimContention(jobId) {
   console.log("\n[TEST] Claim RPC Contention");
 
+  // Verify job is in claimable state before attempting
+  const { data: preCheck, error: preError } = await supabase
+    .from("evaluation_jobs")
+    .select("status, lease_until, next_attempt_at, created_at")
+    .eq("id", jobId)
+    .single();
+
+  if (preError) throw new Error(`Failed to fetch job for pre-check: ${preError.message}`);
+  
+  console.log(`  Job pre-check: status=${preCheck.status}, lease_until=${preCheck.lease_until || 'null'}, next_attempt_at=${preCheck.next_attempt_at || 'null'}`);
+
   const now = new Date().toISOString();
 
   // Fire two parallel claims
@@ -164,10 +177,23 @@ async function testClaimContention(jobId) {
     }),
   ]);
 
+  // Debug: Check if RPC calls had errors
+  if (result1.error) console.log(`  RPC error worker-1: ${result1.error.message}`);
+  if (result2.error) console.log(`  RPC error worker-2: ${result2.error.message}`);
+
   // Exactly one should succeed
   const claims = [result1.data, result2.data].filter((d) => d && d.length > 0);
 
   if (claims.length !== 1) {
+    // Debug: Check all jobs to see what's claimable
+    const { data: allJobs, error: allError } = await supabase
+      .from("evaluation_jobs")
+      .select("id, status, lease_until, next_attempt_at")
+      .order("created_at", { ascending: true })
+      .limit(5);
+    
+    console.log(`  Debug: Recent jobs in DB:`, JSON.stringify(allJobs, null, 2));
+    
     throw new Error(
       `Expected exactly 1 claim to succeed, got ${claims.length}. ` +
       `Result1: ${JSON.stringify(result1.data)}, Result2: ${JSON.stringify(result2.data)}`
