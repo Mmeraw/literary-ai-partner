@@ -235,12 +235,9 @@ jobs:
     name: Supabase-Backed Job Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # TEMPORARILY DISABLED: Requires full manuscript infrastructure
-    # - manuscripts need file_url pointing to Supabase Storage (not body_text column)
-    # - Phase 1 worker must be running to process jobs asynchronously
-    # - Text must be chunked and stored in manuscript_chunks table
-    # TODO: Set up worker daemon + storage infrastructure, then re-enable
-    if: false # github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    # DB contract tests only - no worker/storage infrastructure required
+    # Tests: claim RPC contention, lease blocking, status transitions, progress counters
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Check for Supabase credentials
@@ -270,122 +267,9 @@ jobs:
         if: steps.check-secrets.outputs.skip != 'true'
         run: npm ci
 
-      - name: Audit (allow known tar advisory if documented)
+      - name: Run Supabase DB contract tests
         if: steps.check-secrets.outputs.skip != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          # Fast path: no high vulns.
-          if npm audit --audit-level=high >/dev/null 2>&1; then
-            echo "npm audit (high) clean ✅"
-            exit 0
-          fi
-
-          # Controlled path: audit is failing; pipe JSON directly to validation script.
-          npm audit --json 2>&1 | node -e '
-            const fs = require("fs");
-
-            const data = fs.readFileSync(0, "utf8");
-            if (!data || !data.trim()) {
-              console.error("npm audit returned no JSON; cannot validate allowlist.");
-              process.exit(1);
-            }
-
-            let j;
-            try {
-              j = JSON.parse(data);
-            } catch (e) {
-              console.error("Failed to parse npm audit JSON:", e.message);
-              process.exit(1);
-            }
-
-            const vulns = j.vulnerabilities || {};
-            const keys = Object.keys(vulns);
-
-            const allow = new Set(["tar", "supabase", "next", "eslint"]);
-            const bad = keys.filter(k => !allow.has(k));
-
-            if (bad.length) {
-              console.error("Unexpected high vulns:", bad);
-              process.exit(1);
-            }
-
-            if (!keys.includes("tar") && !keys.includes("supabase")) {
-              console.error("High vuln present but not tar/supabase? keys:", keys);
-              process.exit(1);
-            }
-
-            const notesPath = "docs/NPM_AUDIT_NOTES.md";
-            if (!fs.existsSync(notesPath)) {
-              console.error("Missing docs/NPM_AUDIT_NOTES.md for approved tar/supabase advisory.");
-              process.exit(1);
-            }
-
-            console.log("Only known tar advisory remains (tar via supabase); documented ✅");
-          '
-          exit 0
-
-      - name: Build Next.js app
-        if: steps.check-secrets.outputs.skip != 'true'
-        run: npm run build
+        run: npm run jobs:smoke:supabase
         env:
-          # Use placeholder env vars - build will succeed with null-safe client
-          NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key-for-build"
-
-      - name: Start dev server with Supabase backend
-        if: steps.check-secrets.outputs.skip != 'true'
-        run: |
-          npm run dev > /tmp/dev-server-supabase.log 2>&1 &
-          echo $! > /tmp/dev-server.pid
-          timeout 60 bash -c 'until curl -sf http://localhost:3002/api/health; do sleep 1; done'
-        env:
-          # CI-only Supabase project (schema aligned with code, test data only)
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
-          USE_SUPABASE_JOBS: true
-          JOB_SYSTEM_ENV: ci # Flag for audit logging / CI-specific behavior
-
-      - name: Run smoke tests with Supabase
-        if: steps.check-secrets.outputs.skip != 'true'
-        run: |
-          npm run jobs:smoke
-          npm run jobs:smoke:phase2
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
-          USE_SUPABASE_JOBS: true
-          JOB_SYSTEM_ENV: ci
-          BASE_URL: http://localhost:3002
-
-      - name: Validate Supabase job invariants
-        if: steps.check-secrets.outputs.skip != 'true'
-        run: node scripts/jobs-validate-invariants.mjs
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
-          USE_SUPABASE_JOBS: true
-          JOB_SYSTEM_ENV: ci
-          BASE_URL: http://localhost:3002
-
-      - name: Upload server logs on failure
-        if: failure() && steps.check-secrets.outputs.skip != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: dev-server-supabase-logs
-          path: /tmp/dev-server-supabase.log
-          retention-days: 7
-
-      - name: Cleanup
-        if: always()
-        run: |
-          if [ -f /tmp/dev-server.pid ]; then
-            kill "$(cat /tmp/dev-server.pid)" || true
-          fi

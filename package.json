@@ -20,6 +20,7 @@
     "jobs:smoke": "node scripts/jobs-smoke.mjs",
     "jobs:smoke:phase2": "node scripts/jobs-smoke-phase2.mjs",
     "jobs:smoke:real": "node scripts/jobs-smoke-real.mjs",
+    "jobs:smoke:supabase": "node scripts/jobs-supabase-contract-smoke.mjs",
     "jobs:validate": "node scripts/jobs-validate-invariants.mjs",
     "jobs:test:resume": "node scripts/jobs-phase2-resume-test.mjs",
     "jobs:test:contention": "node scripts/jobs-lease-contention-test.mjs",
