@@ -278,10 +278,17 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
 
+      - name: Run admin retry concurrency test
+        if: steps.check-secrets.outputs.skip != 'true'
+        run: npm run jobs:admin-retry:concurrency 2>&1 | tee scripts-artifacts/admin-retry-concurrency.log
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
+
       - name: Upload Supabase contract test logs
         if: always() && steps.check-secrets.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: supabase-contract-test-logs
-          path: scripts-artifacts/supabase-contract-smoke.log
+          path: scripts-artifacts/*.log
           retention-days: 30
