@@ -150,7 +150,8 @@ async function testRpcSignature() {
   });
 
   if (error) {
-    throw new Error(`RPC call failed: ${error.message}`);
+    console.error(`  RPC error details:`, JSON.stringify(error, null, 2));
+    throw new Error(`RPC call failed: ${error.message} (hint: ${error.hint || 'N/A'}, details: ${error.details || 'N/A'})`);
   }
 
   // Validate return type is array
@@ -160,7 +161,11 @@ async function testRpcSignature() {
 
   // Should return one row even for non-existent job
   if (data.length !== 1) {
-    throw new Error(`Expected 1 row, got: ${data.length}`);
+    console.error(`  RPC returned:`, JSON.stringify(data, null, 2));
+    throw new Error(
+      `Expected 1 row, got: ${data.length}. ` +
+      `This means admin_retry_job RPC either doesn't exist in CI Supabase or has wrong signature.`
+    );
   }
 
   // Validate shape: job_id, status, changed
