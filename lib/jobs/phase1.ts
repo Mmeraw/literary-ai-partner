@@ -30,10 +30,7 @@ const ALLOWED_TRANSITIONS: Record<Phase1State, Phase1State[]> = {
   complete: [],
 };
 
-export function canTransitionPhase1(
-  from: Phase1State,
-  to: Phase1State,
-): boolean {
+export function canTransitionPhase1(from: Phase1State, to: Phase1State): boolean {
   return ALLOWED_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
@@ -44,13 +41,7 @@ export function canRetryPhase1(options: {
   next_retry_at?: string | null;
   now?: Date;
 }): boolean {
-  const {
-    phase_1_status,
-    retry_count,
-    max_retries,
-    next_retry_at,
-    now = new Date(),
-  } = options;
+  const { phase_1_status, retry_count, max_retries, next_retry_at, now = new Date() } = options;
 
   if (phase_1_status !== PHASE_1_STATES.FAILED) return false;
   if (retry_count >= max_retries) return false;
@@ -64,12 +55,19 @@ export function canRetryPhase1(options: {
 }
 
 import { getJob, updateJob } from "./store";
-import { ensureChunks, getManuscriptChunks, getEligibleChunksWithStuckRecovery, claimChunkForProcessing, markChunkSuccess, markChunkFailure } from "@/lib/manuscripts/chunks";
+import {
+  ensureChunks,
+  getManuscriptChunks,
+  getEligibleChunksWithStuckRecovery,
+  claimChunkForProcessing,
+  markChunkSuccess,
+  markChunkFailure,
+} from "@/lib/manuscripts/chunks";
 import { createLlmClient } from "@/lib/llm/client";
 
 export async function runPhase1(jobId: string): Promise<void> {
   const phase1_start = Date.now();
-  
+
   let job = await getJob(jobId);
   if (!job) {
     throw new Error("Job not found");
@@ -98,64 +96,67 @@ export async function runPhase1(jobId: string): Promise<void> {
   // Ensure chunks exist for this manuscript (convert string manuscript_id to number)
   const manuscriptIdRaw = job.manuscript_id;
   const manuscriptIdNum =
-    typeof manuscriptIdRaw === "number"
-      ? manuscriptIdRaw
-      : Number.parseInt(String(manuscriptIdRaw), 10);
+    typeof manuscriptIdRaw === "number" ? manuscriptIdRaw : Number.parseInt(String(manuscriptIdRaw), 10);
 
   if (!Number.isFinite(manuscriptIdNum) || manuscriptIdNum <= 0) {
-    throw new Error(
-      `Invalid manuscript_id on job ${jobId}: ${String(job.manuscript_id)}`
-    );
+    throw new Error(`Invalid manuscript_id on job ${jobId}: ${String(job.manuscript_id)}`);
   }
 
-  const chunkCount = await ensureChunks(manuscriptIdNum, jobId);  // Link chunks to job
-  
-  // Get all chunks for total count and reporting  
+  const chunkCount = await ensureChunks(manuscriptIdNum, jobId); // Link chunks to job
+
+  // Get all chunks for total count and reporting
   const allChunks = await getManuscriptChunks(manuscriptIdNum);
-  
+
   // VALIDATION: Verify chunks were created with job_id
-  const jobLinkedChunks = allChunks.filter(c => (c as any).job_id === jobId);
+  const jobLinkedChunks = allChunks.filter((c) => (c as any).job_id === jobId);
   if (jobLinkedChunks.length === 0) {
-    console.warn(`[Phase1] WARNING: No chunks found with job_id=${jobId}. This may indicate job_id column missing or upsert failed.`);
+    console.warn(
+      `[Phase1] WARNING: No chunks found with job_id=${jobId}. This may indicate job_id column missing or upsert failed.`,
+    );
   } else if (jobLinkedChunks.length !== chunkCount) {
-    console.warn(`[Phase1] WARNING: Expected ${chunkCount} chunks with job_id=${jobId}, found ${jobLinkedChunks.length}`);
+    console.warn(
+      `[Phase1] WARNING: Expected ${chunkCount} chunks with job_id=${jobId}, found ${jobLinkedChunks.length}`,
+    );
   } else {
     console.log(`[Phase1] ✓ Verified ${jobLinkedChunks.length} chunks linked to job ${jobId}`);
   }
-  
+
   // Get eligible chunks with stuck recovery (handles worker crashes)
   // This fetches pending/failed chunks AND processing chunks with expired leases
   const eligibleChunks = await getEligibleChunksWithStuckRecovery(manuscriptIdNum, 3);
-  
-  console.log(`[Phase1] Processing ${eligibleChunks.length} eligible chunks (${allChunks.length} total) for manuscript ${job.manuscript_id}`);
+
+  console.log(
+    `[Phase1] Processing ${eligibleChunks.length} eligible chunks (${allChunks.length} total) for manuscript ${job.manuscript_id}`,
+  );
 
   const existing_index = asNumber(job.progress.phase1_last_processed_index, -1);
-  const start_index = existing_index + 1;
-  
+
   // Count how many chunks are already done
-  const doneChunks = allChunks.filter(c => c.status === 'done').length;
+  const doneChunks = allChunks.filter((c) => c.status === "done").length;
   const existing_completed = asNumber(job.progress.completed_units, doneChunks);
   const completed_units = Math.max(existing_completed, doneChunks);
   const nowIso = new Date().toISOString();
   const started_at = asIsoString(job.progress.started_at, nowIso);
 
-  // Set total_units/completed_units (canonical keys) based on actual chunk count, phase, phase_status
+  // Canonical progress init — do NOT mark the whole job COMPLETE here
+  // (lease acquire already set status="running")
   await updateJob(jobId, {
+    status: JOB_STATUS.RUNNING,
     progress: {
       message: `Initializing Phase 1 - ${eligibleChunks.length} chunks to process (${doneChunks} already done)`,
       total_units: allChunks.length,
-      completed_units: completed_units,
+      completed_units,
       started_at,
       phase: PHASES.PHASE_1,
-      phase_status: JOB_STATUS.RUNNING,
+      phase_status: PHASE_1_STATES.RUNNING,
       phase1_last_processed_index: existing_index,
     },
   });
 
   let processed = doneChunks; // Start from already completed count
-  let failedCount = allChunks.filter(c => c.status === 'failed').length;
+  let failedCount = allChunks.filter((c) => c.status === "failed").length;
   let skippedCount = 0; // Track chunks skipped due to claim failure
-  
+
   console.log(
     `[Phase1] Resume state: ${doneChunks} done, ${eligibleChunks.length} eligible, ${allChunks.length} total`,
   );
@@ -179,17 +180,12 @@ export async function runPhase1(jobId: string): Promise<void> {
 
       const progress = currentJob.progress;
 
-      if (progress.phase !== PHASES.PHASE_1 || progress.phase_status !== "running") {
-        console.log(
-          "Phase1 invariant failed: phase or phase_status mismatch",
-        );
+      if (progress.phase !== PHASES.PHASE_1 || progress.phase_status !== PHASE_1_STATES.RUNNING) {
+        console.log("Phase1 invariant failed: phase or phase_status mismatch");
         return;
       }
 
-      if (
-        typeof progress.lease_expires_at === 'string' &&
-        new Date(progress.lease_expires_at) <= new Date()
-      ) {
+      if (typeof progress.lease_expires_at === "string" && new Date(progress.lease_expires_at) <= new Date()) {
         console.log("Phase1LeaseExpired", {
           job_id: jobId,
           phase: PHASES.PHASE_1,
@@ -199,19 +195,15 @@ export async function runPhase1(jobId: string): Promise<void> {
         return;
       }
 
-      if (
-        asNumber(progress.completed_units, 0) > asNumber(progress.total_units, 0)
-      ) {
-        console.log(
-          "Phase1 invariant failed: completed_units > total_units",
-        );
+      if (asNumber(progress.completed_units, 0) > asNumber(progress.total_units, 0)) {
+        console.log("Phase1 invariant failed: completed_units > total_units");
         return;
       }
 
       // Atomically claim this chunk before processing
       // If claim fails, another worker got it or it's already done - skip it
       const claimed = await claimChunkForProcessing(chunk.id, 3);
-      
+
       if (!claimed) {
         console.log(`[Phase1] Chunk ${chunk.chunk_index} already claimed or done, skipping`);
         skippedCount += 1;
@@ -239,7 +231,6 @@ export async function runPhase1(jobId: string): Promise<void> {
         await markChunkSuccess(manuscriptIdNum, chunk.chunk_index, result.resultJson as any, jobId);
 
         processed += 1; // Increment successful completion counter
-
       } catch (chunkError) {
         // Mark chunk as failed
         // CRITICAL: This NEVER touches result_json - preserves prior success
@@ -262,15 +253,13 @@ export async function runPhase1(jobId: string): Promise<void> {
       }
 
       // Update job progress after each chunk
-      const new_lease_expires_at = new Date(
-        Date.now() + 30_000,
-      ).toISOString();
+      const new_lease_expires_at = new Date(Date.now() + 30_000).toISOString();
 
       const chunkLabel = chunk.label || `Chunk ${chunk.chunk_index + 1}`;
-      
+
       // Re-fetch current chunk status for accurate completed count
       const currentAllChunks = await getManuscriptChunks(manuscriptIdNum);
-      const currentDoneCount = currentAllChunks.filter(c => c.status === 'done').length;
+      const currentDoneCount = currentAllChunks.filter((c) => c.status === "done").length;
 
       await updateJob(jobId, {
         progress: {
@@ -291,16 +280,15 @@ export async function runPhase1(jobId: string): Promise<void> {
       processed_before_error: processed,
       total_units: allChunks.length,
     });
-    // Don't set processed = 0; let the deterministic outcome logic handle it
+    // Don’t set processed = 0; let the deterministic outcome logic handle it
   }
 
   // Deterministic job outcome based on actual chunk states
-  // Re-fetch to get the current state of all chunks
   const finalChunks = await getManuscriptChunks(manuscriptIdNum);
-  const finalDoneCount = finalChunks.filter(c => c.status === 'done').length;
-  const finalFailedCount = finalChunks.filter(c => c.status === 'failed').length;
-  const finalPendingCount = finalChunks.filter(c => c.status === 'pending').length;
-  const finalProcessingCount = finalChunks.filter(c => c.status === 'processing').length;
+  const finalDoneCount = finalChunks.filter((c) => c.status === "done").length;
+  const finalFailedCount = finalChunks.filter((c) => c.status === "failed").length;
+  const finalPendingCount = finalChunks.filter((c) => c.status === "pending").length;
+  const finalProcessingCount = finalChunks.filter((c) => c.status === "processing").length;
 
   const finished_at = new Date().toISOString();
 
@@ -315,23 +303,20 @@ export async function runPhase1(jobId: string): Promise<void> {
   let partial = false;
 
   if (finalDoneCount === finalChunks.length) {
-    // Case 1: Perfect success
     final_phase_status = PHASE_1_STATES.COMPLETED;
     message = `Phase 1 completed successfully (${finalDoneCount}/${finalChunks.length} chunks)`;
   } else if (finalDoneCount > 0 && finalPendingCount === 0 && finalProcessingCount === 0) {
-    // Case 2: Some done, some failed, nothing left to process
     final_phase_status = PHASE_1_STATES.COMPLETED;
     partial = true;
     message = `Phase 1 completed with ${finalFailedCount} failed chunks (${finalDoneCount}/${finalChunks.length} succeeded)`;
   } else if (finalDoneCount === 0 && finalFailedCount === finalChunks.length) {
-    // Case 4: Total failure
     final_phase_status = PHASE_1_STATES.FAILED;
     message = `Phase 1 failed - all ${finalChunks.length} chunks failed`;
   } else {
-    // Case 3: Work remaining (pending or processing chunks exist)
-    // This allows resume - don't mark as completed yet
     final_phase_status = PHASE_1_STATES.RUNNING;
-    message = `Phase 1 in progress: ${finalDoneCount} done, ${finalFailedCount} failed, ${finalPendingCount + finalProcessingCount} remaining`;
+    message = `Phase 1 in progress: ${finalDoneCount} done, ${finalFailedCount} failed, ${
+      finalPendingCount + finalProcessingCount
+    } remaining`;
   }
 
   console.log("Phase1Outcome", {
@@ -352,9 +337,7 @@ export async function runPhase1(jobId: string): Promise<void> {
     const max_retries = 3;
 
     if (retry_count <= max_retries) {
-      const next_retry_at = new Date(
-        Date.now() + retry_count * 60 * 1000,
-      ).toISOString(); // backoff 1min, 2min, 3min
+      const next_retry_at = new Date(Date.now() + retry_count * 60 * 1000).toISOString(); // backoff 1min, 2min, 3min
 
       await updateJob(jobId, {
         status: JOB_STATUS.FAILED,
@@ -385,8 +368,10 @@ export async function runPhase1(jobId: string): Promise<void> {
     }
   } else if (final_phase_status === PHASE_1_STATES.COMPLETED) {
     // Phase 1 completed (either fully or partially)
-    // Clear lease so Phase 2 can acquire immediately
+    // IMPORTANT: worker is done; job should not remain "running"
+    // Queue the job for Phase 2 and clear lease immediately.
     await updateJob(jobId, {
+      status: JOB_STATUS.QUEUED,
       progress: {
         message,
         finished_at,
@@ -403,6 +388,7 @@ export async function runPhase1(jobId: string): Promise<void> {
   } else {
     // RUNNING state - work remains, allow resume
     await updateJob(jobId, {
+      status: JOB_STATUS.RUNNING,
       progress: {
         message,
         phase: PHASES.PHASE_1,
