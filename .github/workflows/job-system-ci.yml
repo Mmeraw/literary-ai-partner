@@ -8,6 +8,74 @@ on:
   workflow_dispatch:
 
 jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PROOF AVAILABILITY GATE
+  # Enforces audit-grade governance: CI cannot be green when proof gates are skipped
+  # ═══════════════════════════════════════════════════════════════════════════
+  proof-availability:
+    name: Check Proof Gate Availability
+    runs-on: ubuntu-latest
+    outputs:
+      secrets_ok: ${{ steps.check.outputs.secrets_ok }}
+    steps:
+      - name: Check Supabase CI secrets present
+        id: check
+        shell: bash
+        run: |
+          missing=0
+          if [[ -z "${{ secrets.SUPABASE_URL_CI }}" ]]; then
+            echo "❌ Missing SUPABASE_URL_CI"
+            missing=1
+          fi
+          if [[ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}" ]]; then
+            echo "❌ Missing SUPABASE_SERVICE_ROLE_KEY_CI"
+            missing=1
+          fi
+          
+          if [ "$missing" -eq 1 ]; then
+            echo "secrets_ok=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️  Supabase proof gates cannot run (secrets missing)"
+          else
+            echo "secrets_ok=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Supabase proof gates can run (secrets present)"
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PROOF GATE ENFORCEMENT
+  # On main branch: FAIL if proof gates cannot run (audit-grade requirement)
+  # On PRs: Allow (forks don't have secrets, that's normal)
+  # ═══════════════════════════════════════════════════════════════════════════
+  enforce-proof-on-main:
+    name: Enforce Proof Gates on Main
+    needs: proof-availability
+    runs-on: ubuntu-latest
+    # Only enforce on push to main when secrets are missing
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.proof-availability.outputs.secrets_ok != 'true' }}
+    steps:
+      - name: Fail because proof gates cannot run
+        run: |
+          echo "════════════════════════════════════════════════════════════════"
+          echo "  ❌ PROOF GATES REQUIRED BUT UNAVAILABLE"
+          echo "════════════════════════════════════════════════════════════════"
+          echo ""
+          echo "Supabase proof gates are required on the main branch, but secrets"
+          echo "are not configured. This violates audit-grade governance:"
+          echo ""
+          echo "  • Green CI without proof is worse than red CI"
+          echo "  • Proof gates must run or explicitly fail"
+          echo "  • No silent skipping of validation"
+          echo ""
+          echo "Required secrets:"
+          echo "  • SUPABASE_URL_CI"
+          echo "  • SUPABASE_SERVICE_ROLE_KEY_CI"
+          echo ""
+          echo "Resolution:"
+          echo "  Configure these secrets in repository settings to enable"
+          echo "  DB contract validation and admin retry atomicity proof."
+          echo ""
+          echo "════════════════════════════════════════════════════════════════"
+          exit 1
+
   job-system-tests:
     name: Job System Smoke Tests & Invariants
     runs-on: ubuntu-latest
@@ -233,46 +301,31 @@ jobs:
 
   supabase-backed-tests:
     name: Supabase-Backed Job Tests
+    needs: proof-availability
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # DB contract tests only - no worker/storage infrastructure required
     # Tests: claim RPC contention, lease blocking, status transitions, progress counters
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    # Only runs if secrets are available (enforced by proof-availability gate)
+    if: ${{ needs.proof-availability.outputs.secrets_ok == 'true' }}
 
     steps:
-      - name: Check for Supabase credentials
-        id: check-secrets
-        run: |
-          if [[ -z "${{ secrets.SUPABASE_URL_CI }}" ]]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "⚠️  CI Supabase credentials not configured - skipping Supabase-backed tests"
-            echo "   Add SUPABASE_URL_CI, SUPABASE_ANON_KEY_CI, and SUPABASE_SERVICE_ROLE_KEY_CI secrets"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "✅ CI Supabase credentials available"
-          fi
-
       - name: Checkout code
-        if: steps.check-secrets.outputs.skip != 'true'
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-        if: steps.check-secrets.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
-        if: steps.check-secrets.outputs.skip != 'true'
         run: npm ci
 
       - name: Create artifacts directory
-        if: steps.check-secrets.outputs.skip != 'true'
         run: mkdir -p scripts-artifacts
 
       - name: Check CI DB migrations (proof gate)
-        if: steps.check-secrets.outputs.skip != 'true'
         run: |
           set -o pipefail
           npm run jobs:check-migrations 2>&1 | tee scripts-artifacts/db-migration-check.log
@@ -281,7 +334,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
 
       - name: Run Supabase DB contract tests
-        if: steps.check-secrets.outputs.skip != 'true'
         run: |
           set -o pipefail
           npm run jobs:smoke:supabase 2>&1 | tee scripts-artifacts/supabase-contract-smoke.log
@@ -290,7 +342,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
 
       - name: Run admin retry concurrency test
-        if: steps.check-secrets.outputs.skip != 'true'
         run: |
           set -o pipefail
           npm run jobs:admin-retry:concurrency 2>&1 | tee scripts-artifacts/admin-retry-concurrency.log
@@ -299,7 +350,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
 
       - name: Upload Supabase contract test logs
-        if: always() && steps.check-secrets.outputs.skip != 'true'
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: supabase-contract-test-logs
