@@ -25,20 +25,16 @@ async function createTestManuscript() {
     auth: { persistSession: false },
   });
 
-  // Generate ~5k words (small but realistic for smoke test)
-  const body_text = Array(200).fill(PARAGRAPH).join('\n\n');
-  const word_count = body_text.split(/\s+/).length;
+  console.log(`Creating test manuscript...`);
 
-  console.log(`Creating test manuscript (${word_count} words)...`);
-
+  // Create minimal manuscript record (file_url/storage setup happens separately)
   const { data, error } = await supabase
     .from("manuscripts")
     .insert({
       title: "CI Phase 1 Smoke Test",
-      body_text,
-      word_count,
+      word_count: 5000,
       work_type: "novel",
-      is_test: true,
+      created_by: '00000000-0000-0000-0000-000000000000',
     })
     .select("id")
     .single();
