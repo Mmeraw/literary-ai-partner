@@ -35,33 +35,52 @@ let testJobId = null;
 
 /**
  * Cleanup test data (always runs, even on failure)
+ * Fails if cleanup encounters errors (audit-grade guarantee)
  */
 async function cleanup() {
   console.log("\n[CLEANUP] Removing test data...");
   
-  let cleaned = 0;
+  const errors = [];
+  let jobRows = 0;
+  let manuscriptRows = 0;
   
   if (testJobId) {
-    const { error } = await supabase.from("evaluation_jobs").delete().eq("id", testJobId);
-    if (!error) {
-      cleaned++;
-      console.log(`  ✅ Deleted job: ${testJobId}`);
+    const { error, count } = await supabase
+      .from("evaluation_jobs")
+      .delete({ count: "exact" })
+      .eq("id", testJobId);
+    
+    if (error) {
+      errors.push(`Job deletion failed: ${error.message}`);
+      console.log(`  ❌ CLEANUP ERROR: Failed to delete job ${testJobId}`);
+    } else {
+      jobRows = count || 0;
+      console.log(`  CLEANUP: deleted job rows=${jobRows}`);
     }
   }
   
   if (testManuscriptId) {
-    const { error } = await supabase.from("manuscripts").delete().eq("id", testManuscriptId);
-    if (!error) {
-      cleaned++;
-      console.log(`  ✅ Deleted manuscript: ${testManuscriptId}`);
+    const { error, count } = await supabase
+      .from("manuscripts")
+      .delete({ count: "exact" })
+      .eq("id", testManuscriptId);
+    
+    if (error) {
+      errors.push(`Manuscript deletion failed: ${error.message}`);
+      console.log(`  ❌ CLEANUP ERROR: Failed to delete manuscript ${testManuscriptId}`);
+    } else {
+      manuscriptRows = count || 0;
+      console.log(`  CLEANUP: deleted manuscript rows=${manuscriptRows}`);
     }
   }
   
-  if (cleaned === 0 && (testJobId || testManuscriptId)) {
-    console.log("  ⚠️  Cleanup attempted but nothing deleted (may require manual cleanup)");
-  } else if (cleaned > 0) {
-    console.log(`  ✅ Cleanup complete (${cleaned} items removed)`);
+  if (errors.length > 0) {
+    console.log(`  ❌ CLEANUP FAILED: ${errors.join("; ")}`);
+    console.log(`  ⚠️  Manual cleanup may be required!`);
+    process.exit(1); // Fail CI on cleanup errors (audit requirement)
   }
+  
+  console.log(`  CLEANUP: ok`);
 }
 
 /**
@@ -117,6 +136,7 @@ async function createTestJob(manuscriptId) {
 /**
  * Test: RPC signature tripwire
  * Validates claim_job_atomic returns expected shape (detects signature drift)
+ * MUST NOT claim any work (prevents accidental test ordering regression)
  */
 async function testRpcSignature() {
   console.log("\n[TEST] RPC Signature Tripwire");
@@ -134,13 +154,23 @@ async function testRpcSignature() {
     throw new Error(`RPC call failed: ${error.message}`);
   }
 
-  // Validate return type is array (even if empty)
+  // Validate return type is array
   if (!Array.isArray(data)) {
     throw new Error(`Expected array response, got: ${typeof data}`);
   }
 
+  // CRITICAL: Tripwire must not claim work (detects test ordering regression)
+  if (data.length > 0) {
+    throw new Error(
+      `Tripwire MUST NOT claim work! Found ${data.length} claimed job(s). ` +
+      `This means test ordering is wrong or there are leftover jobs. ` +
+      `Job IDs: ${data.map(j => j.id).join(", ")}`
+    );
+  }
+
   console.log(`  ✅ RPC callable with expected parameters`);
   console.log(`  ✅ Returns array type (shape validated)`);
+  console.log(`  ✅ CRITICAL: No work claimed (test ordering verified)`);
   console.log("  ✅ PASS: RPC signature tripwire");
 }
 
@@ -362,15 +392,47 @@ async function testProgressCounters(jobId) {
 }
 
 /**
+ * CI Hygiene Check: Detect orphaned running jobs (environment drift canary)
+ */
+async function checkCiHygiene() {
+  console.log("\n[HYGIENE] Checking for orphaned running jobs...");
+  
+  const { data: orphans, error } = await supabase
+    .from("evaluation_jobs")
+    .select("id, status, lease_until, created_at")
+    .eq("status", "running")
+    .is("lease_until", null)
+    .order("created_at", { ascending: true })
+    .limit(10);
+  
+  if (error) {
+    console.log(`  ⚠️  Hygiene check query failed: ${error.message}`);
+    return;
+  }
+  
+  if (orphans && orphans.length > 0) {
+    console.log(`  ⚠️  WARNING: Found ${orphans.length} orphaned running jobs (status=running, lease_until=null)`);
+    console.log(`      This indicates prior test failures or environment drift.`);
+    console.log(`      Sample IDs: ${orphans.slice(0, 3).map(j => j.id).join(", ")}`);
+    // Don't fail CI, but log as canary for operator awareness
+  } else {
+    console.log(`  ✅ No orphaned running jobs detected`);
+  }
+}
+
+/**
  * Main test runner
  */
 async function main() {
-  console.log("════════════════════════════════════════════════════════");
+  console.log("═══════════════════════════════════════════════════════=");
   console.log("  Supabase DB Contract Smoke Test");
   console.log("  Timestamp:", new Date().toISOString());
-  console.log("════════════════════════════════════════════════════════");
+  console.log("═══════════════════════════════════════════════════════=");
 
   try {
+    // Hygiene check: detect environment drift before tests
+    await checkCiHygiene();
+    
     // Test RPC signature first (before creating test data, so no eligible jobs)
     await testRpcSignature();
 
