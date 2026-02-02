@@ -5,7 +5,7 @@ import Link from "next/link";
 type Job = {
   id: string;
   job_type?: string;
-  status: "queued" | "running" | "failed" | "complete" | "completed";
+  status: "queued" | "running" | "failed" | "complete";
   phase?: string | null;
   phase_status?: string | null;
   total_units?: number;
@@ -56,7 +56,7 @@ export default async function EvaluationReportPage({
     );
   }
 
-  const isComplete = job.status === "complete" || job.status === "completed";
+  const isComplete = job.status === "complete";
 
   return (
     <main className="mx-auto max-w-3xl p-6">

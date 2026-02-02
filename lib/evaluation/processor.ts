@@ -488,7 +488,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     const { error: updateError } = await supabase
       .from('evaluation_jobs')
       .update({
-        status: 'completed',
+        status: 'complete',
         evaluation_result: evaluationResult,
         evaluation_result_version: 'evaluation_result_v1',
         updated_at: new Date().toISOString()

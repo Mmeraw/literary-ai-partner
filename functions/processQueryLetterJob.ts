@@ -249,7 +249,7 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
 
         // Save result
         await base44.asServiceRole.entities.QueryLetterJob.update(job_id, {
-            status: 'completed',
+            status: 'complete',
             progress: 'Complete',
             completed_at: new Date().toISOString(),
             result: {
@@ -268,7 +268,7 @@ Follow industry standards: personalized opening, use the pitch paragraph as the 
 
         return Response.json({
             job_id,
-            status: 'completed',
+            status: 'complete',
             message: 'Query letter generated successfully'
         });
 

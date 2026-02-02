@@ -92,7 +92,7 @@ async function main() {
     console.log(`[${status}] ${progress.stage ?? ""} ${progress.message ?? ""} (${completed_units}/${total_units})`);
 
     // Phase 1 leaves status=running but phase_status=completed when done
-    if (phase_status === "completed") {
+    if (phase_status === "complete") {
       console.log("OK: Phase 1 completed");
       process.exit(0);
     }
