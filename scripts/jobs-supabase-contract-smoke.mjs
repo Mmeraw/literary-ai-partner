@@ -371,6 +371,9 @@ async function main() {
   console.log("════════════════════════════════════════════════════════");
 
   try {
+    // Test RPC signature first (before creating test data, so no eligible jobs)
+    await testRpcSignature();
+
     // Setup
     console.log("\n[SETUP] Creating test data...");
     testManuscriptId = await createTestManuscript();
@@ -380,7 +383,6 @@ async function main() {
     console.log(`  Job ID: ${testJobId}`);
 
     // Run tests
-    await testRpcSignature();
     await testProgressCounters(testJobId);
     const claimedJob = await testClaimContention(testJobId);
     await testAttemptCount(claimedJob);
