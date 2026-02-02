@@ -325,6 +325,27 @@ jobs:
       - name: Create artifacts directory
         run: mkdir -p scripts-artifacts
 
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Apply migrations to CI Supabase
+        run: |
+          echo "════════════════════════════════════════════════════════"
+          echo "  Applying Repo Migrations to CI Supabase"
+          echo "════════════════════════════════════════════════════════"
+          
+          # Link to CI project
+          supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF_CI }}"
+          
+          # Apply all migrations from repo
+          supabase db push
+          
+          echo "✅ Migrations applied successfully"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
       - name: Check CI DB migrations (proof gate)
         run: |
           set -o pipefail

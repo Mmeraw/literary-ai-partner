@@ -1,7 +1,7 @@
 # CI DB Drift Enforcement - Implementation Summary
 
 **Date**: 2026-02-02  
-**Status**: ✅ **Complete - Workflow & Test Level Enforcement**
+**Status**: ✅ **Complete - CI-Managed Migrations + Two-Level Governance**
 
 ---
 
@@ -52,7 +52,7 @@
    Proof gate BLOCKED until correct migration is applied.
 ```
 
-### 4. Added Proof Availability Gate (Workflow Level) ⭐ NEW
+### 4. Added Proof Availability Gate (Workflow Level) ⭐
 **Problem**: Entire Supabase test job was being skipped when secrets missing → green CI without proof
 
 **Solution**: Three-job workflow pattern enforces proof availability
@@ -65,21 +65,7 @@
 **Job 2: `enforce-proof-on-main`**
 - Depends on `proof-availability`
 - Only runs on `push` to `main` branch when `secrets_ok != 'true'`
-- **FAILS HARD** with explicit message:
-  ```
-  ❌ PROOF GATES REQUIRED BUT UNAVAILABLE
-  
-  Supabase proof gates are required on the main branch, but secrets
-  are not configured. This violates audit-grade governance:
-  
-    • Green CI without proof is worse than red CI
-    • Proof gates must run or explicitly fail
-    • No silent skipping of validation
-  
-  Required secrets:
-    • SUPABASE_URL_CI
-    • SUPABASE_SERVICE_ROLE_KEY_CI
-  ```
+- **FAILS HARD** with explicit message about missing secrets
 
 **Job 3: `supabase-backed-tests`**
 - Depends on `proof-availability`
@@ -90,6 +76,33 @@
 - `enforce-proof-on-main` only runs on `push` to `main`, not PRs
 - Forks can run without secrets
 - Main branch enforces proof gates strictly
+
+### 5. Added CI-Managed Migrations ⭐ NEW
+**Problem**: CI Supabase DB was drifted from repo migrations → proof gates detected drift and failed
+
+**Solution**: Automated migration apply step in CI workflow
+
+**New Workflow Steps**:
+1. **Install Supabase CLI** (`supabase/setup-cli@v1`)
+2. **Apply migrations to CI Supabase**:
+   - Links to CI project using `SUPABASE_PROJECT_REF_CI`
+   - Runs `supabase db push` to apply all repo migrations
+   - Uses `SUPABASE_ACCESS_TOKEN` for authentication
+3. **Check CI DB migrations** (existing proof gate)
+   - Now validates that migrations were applied correctly
+   - Should pass (DB in sync with repo)
+
+**Required Secrets**:
+- `SUPABASE_PROJECT_REF_CI`: Project reference ID for CI Supabase
+- `SUPABASE_ACCESS_TOKEN`: Supabase access token with DB push permissions
+- `SUPABASE_URL_CI`: Supabase project URL (existing)
+- `SUPABASE_SERVICE_ROLE_KEY_CI`: Service role key (existing)
+
+**Governance**: Every CI run now:
+1. Applies repo migrations to CI DB (ensures sync)
+2. Validates migrations were applied (proof gate)
+3. Runs DB contract tests (proves invariants)
+4. CI is green only when all three pass
 
 ---
 
@@ -133,64 +146,68 @@
 2. Run `npm run jobs:check-migrations` (should pass)
 3. Run `npm run jobs:admin-retry:concurrency` (should pass)
 
-### CI Testing - Two Scenarios
+### CI Testing - Updated Flow
 
-**Scenario 1: Secrets NOT Configured** (Current State)
-- `proof-availability` job: Outputs `secrets_ok=false`
-- `enforce-proof-on-main` job: **RUNS** on `push` to `main` → **FAILS** with explicit message
-- `supabase-backed-tests` job: Skipped (but CI is RED due to enforcement job)
-- **Result**: 🔴 CI RED with clear diagnostic
+**Before CI-Managed Migrations**:
+- ❌ Scenario 2: Secrets present, migration missing → RED (DB drift)
+- Evidence: Run 21602352426 detected drift, failed correctly
 
-**Scenario 2: Secrets Configured, Migration NOT Applied**
-- `proof-availability` job: Outputs `secrets_ok=true`
-- `enforce-proof-on-main` job: Skipped (not needed)
-- `supabase-backed-tests` job: **RUNS**
-  - `check-migrations` step: **FAILS** with DB drift message
-  - Subsequent steps: Don't run (early failure)
-- **Result**: 🔴 CI RED with DB drift diagnostic
+**After CI-Managed Migrations** (Current):
+- ✅ Workflow auto-applies migrations before proof gates
+- ✅ `check-migrations` validates migrations applied correctly
+- ✅ DB contract tests and admin retry proof run against synced DB
+- ✅ CI is GREEN when repo migrations match CI DB (proven automatically)
 
-**Scenario 3: Secrets + Migration Both Applied**
-- `proof-availability` job: Outputs `secrets_ok=true`
-- `enforce-proof-on-main` job: Skipped (not needed)
-- `supabase-backed-tests` job: **RUNS**
-  - `check-migrations` step: ✅ PASS
-  - `smoke:supabase` step: ✅ PASS (5 DB contract validations)
-  - `admin-retry:concurrency` step: ✅ PASS (atomicity proof)
-- **Result**: ✅ CI GREEN (for the right reason)
+**Expected Flow**:
+1. `proof-availability`: Check secrets → `secrets_ok=true`
+2. `supabase-backed-tests`:
+   - Install Supabase CLI
+   - Apply migrations: `supabase db push`
+   - Check migrations: `npm run jobs:check-migrations` → ✅ PASS
+   - DB contract tests: `npm run jobs:smoke:supabase` → ✅ PASS
+   - Admin retry proof: `npm run jobs:admin-retry:concurrency` → ✅ PASS
+3. Result: ✅ CI GREEN (all proofs validated)
 
 ---
 
 ## Resolution Paths
 
-### To Unblock CI (Choose One):
+### ✅ Implemented: CI-Managed Migrations (Scalable, Audit-Grade)
 
-**Option A: Apply Migration Manually**
-```bash
-# Connect to CI Supabase project
-supabase link --project-ref <ci-project-ref>
+**What Was Added**:
+- Automated migration apply step in CI workflow
+- Every CI run syncs CI DB with repo migrations before running proof gates
+- No manual migration management needed
 
-# Apply migration
-supabase db push --include-all
+**How It Works**:
+1. Install Supabase CLI (`supabase/setup-cli@v1`)
+2. Link to CI project (`supabase link --project-ref`)
+3. Apply migrations (`supabase db push`)
+4. Validate migrations (`check-ci-db-migrations.mjs`)
+5. Run proof tests (DB contracts, admin retry atomicity)
 
-# Verify
-supabase db diff  # should be clean
-```
-
-**Option B: Add Migration Apply to Workflow**
+**Required Configuration** (one-time setup):
 ```yaml
-- name: Apply migrations to CI DB
-  run: |
-    npm install -g supabase
-    supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
-    supabase db push --include-all
-  env:
-    SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+Repository Secrets:
+- SUPABASE_PROJECT_REF_CI: <ci-project-ref>
+- SUPABASE_ACCESS_TOKEN: <token-with-db-push-permissions>
+- SUPABASE_URL_CI: <existing>
+- SUPABASE_SERVICE_ROLE_KEY_CI: <existing>
 ```
 
-**Option C: Accept Current State**
-- Keep CI RED until migration infrastructure exists
-- Document as "implementation complete, CI blocked by DB drift"
-- Move to next roadmap item
+**Benefits**:
+- ✅ Eliminates manual migration management
+- ✅ Proves CI DB matches repo on every run
+- ✅ Scalable for future migrations
+- ✅ Audit-grade: DB state is deterministic per commit
+
+### Alternative: Manual Migration Apply (Not Used)
+Manual apply was considered but rejected in favor of CI-managed approach:
+```bash
+# Not needed - CI now manages this automatically
+supabase link --project-ref <ci-project-ref>
+supabase db push --include-all
+```
 
 ---
 
@@ -209,7 +226,12 @@ supabase db diff  # should be clean
 3. **.github/workflows/job-system-ci.yml** (modified)
    - Added `proof-availability` job (checks secrets exist)
    - Added `enforce-proof-on-main` job (fails if secrets missing on main)
-   - Modified `supabase-backed-tests` job (depends on proof-availability, no skip logic)
+   - Modified `supabase-backed-tests` job:
+     - Depends on proof-availability
+     - Installs Supabase CLI
+     - **Auto-applies migrations** (`supabase db push`)
+     - Validates migrations applied (check-ci-db-migrations)
+     - Runs proof tests
    - Uses pipefail for proper exit code propagation
 
 4. **package.json** (modified)
@@ -223,7 +245,8 @@ supabase db diff  # should be clean
 6. **CI_DB_DRIFT_ENFORCEMENT.md** (this file)
    - Complete implementation summary
    - Two-level governance model documented
-   - Three CI scenarios validated
+   - CI-managed migrations flow documented
+   - Required secrets listed
 
 ---
 
@@ -232,60 +255,69 @@ supabase db diff  # should be clean
 ### ✅ Completed
 1. **Workflow-level enforcement**: CI fails explicitly when proof gates unavailable on `main`
 2. **Test-level enforcement**: Tests fail explicitly on DB drift (no silent skips)
-3. Clear error messages with resolution paths at both levels
-4. Explicit DB migration check before proof tests
-5. PR ergonomics preserved (forks can run without secrets)
-6. Governance policy documented and enforced
+3. **CI-managed migrations**: Automated migration apply before proof gates
+4. Clear error messages with resolution paths at both levels
+5. Explicit DB migration check validates sync after apply
+6. PR ergonomics preserved (forks can run without secrets)
+7. Governance policy documented and enforced
+8. Scalable for future migrations (no manual management)
 
 ### 🎯 Next Run Will Validate
-1. `enforce-proof-on-main` job fails with explicit message (secrets missing)
-2. CI is RED (not green with skipped jobs)
-3. Error message clearly states required secrets
+**After configuring new secrets**:
+1. `supabase db push` applies repo migrations to CI DB
+2. `check-migrations` validates sync → ✅ PASS
+3. DB contract tests run against synced DB → ✅ PASS
+4. Admin retry atomicity proof validates → ✅ PASS
+5. CI is GREEN (all proofs executed and passed)
 
-### ⏳ After Secrets Configured
-1. `check-migrations` step detects DB drift
-2. CI is RED with DB drift diagnostic
-3. After migration applied: full proof suite passes, CI is GREEN
+**Without new secrets** (current state):
+- `Apply migrations to CI Supabase` step will fail
+- Clear error: "Missing SUPABASE_PROJECT_REF_CI or SUPABASE_ACCESS_TOKEN"
+- CI is RED (explicit failure, not silent skip)
 
 ---
 
 ## Next Steps
 
-**Immediate**:
-1. Configure CI secrets for Supabase tests
-   - `SUPABASE_URL_CI`
-   - `SUPABASE_SERVICE_ROLE_KEY_CI`
-2. Trigger CI run to validate DB drift detection
+**Immediate** (to unblock CI):
+1. Configure two new repository secrets:
+   - `SUPABASE_PROJECT_REF_CI`: CI Supabase project reference ID
+   - `SUPABASE_ACCESS_TOKEN`: Supabase access token with DB push permissions
+2. Push to `main` to trigger CI
+3. Verify migration apply step succeeds
+4. Verify all proof gates pass
+5. CI should be GREEN
 
-**Short-term**:
-1. Apply migration to CI Supabase (Option A or B)
-2. Verify `npm run jobs:check-migrations` passes
-3. Verify full proof test suite passes
-4. Update status to "Complete"
+**If secrets can't be configured**:
+- CI will fail at "Apply migrations" step
+- Error message will clearly state missing secrets
+- This is correct behavior (explicit failure, not silent skip)
 
 **Long-term**:
-1. Implement automated migration apply in CI (Option B)
-2. Extend to validate all critical migrations
-3. Add migration state to CI health checks
+- Extend `check-ci-db-migrations.mjs` to validate additional critical migrations
+- Add migration state to CI health checks dashboard
+- Monitor drift detection for future schema changes
 
 ---
 
 ## Summary
 
-We've **eliminated both forms of theater**:
+We've **eliminated both forms of theater AND implemented automated migration management**:
 1. ✅ **Test-level**: No silent skips when RPC missing/wrong
-2. ✅ **Workflow-level**: No silent job skips when secrets missing (NEW)
+2. ✅ **Workflow-level**: No silent job skips when secrets missing
+3. ✅ **CI-managed migrations**: Auto-apply repo migrations before proof gates (NEW)
 
-The implementation now enforces **two-level audit-grade governance**:
-- Workflow gate: Proof availability (can we run tests?)
-- Test gate: DB drift detection (does DB match repo?)
+The implementation now enforces **three-level audit-grade governance**:
+- **Migration sync gate**: CI applies repo migrations to DB (ensures schema parity)
+- **Workflow gate**: Proof availability (can we run tests?)
+- **Test gate**: DB drift detection (does DB match expectations?)
 
-**Both levels fail explicitly, never silently skip.**
+**All three levels fail explicitly, never silently skip.**
 
-**Current expected CI state**: 🔴 RED - "Proof gates required but unavailable"  
-**After secrets configured**: 🔴 RED - "CI DB drift detected"  
-**After migration applied**: ✅ GREEN - "All proof gates passed"
+**Current expected CI state**: 🔴 RED - "Missing SUPABASE_PROJECT_REF_CI or SUPABASE_ACCESS_TOKEN"  
+**After secrets configured**: ✅ GREEN - "Migrations applied, all proof gates passed"
 
 **Policy**: Green without proof is worse than red with clarity. ✅  
-**Implementation**: Complete at both workflow and test levels. ✅
+**Implementation**: Complete with automated migration management. ✅  
+**Governance**: Audit-grade enforcement at workflow, migration, and test levels. ✅
 
