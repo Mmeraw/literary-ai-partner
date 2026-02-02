@@ -2,9 +2,8 @@
 import { getBaseUrl } from "./base-url.mjs";
 import { jfetch, must, sleep } from "./_http.mjs";
 import { skipIfMemoryMode } from "./_skip.mjs";
-import { createClient } from "@supabase/supabase-js";
 
-console.log("jobs-smoke-phase2 fingerprint v2", new Date().toISOString());
+console.log("jobs-smoke-phase2 fingerprint v1", new Date().toISOString());
 
 function assertInvariant(condition, message) {
   if (!condition) {
@@ -12,62 +11,11 @@ function assertInvariant(condition, message) {
   }
 }
 
-// Sample realistic prose for manuscript generation
-const PARAGRAPH = `The morning sun broke through the eastern windows, casting long shadows across the marble floors. Eleanor stood at the threshold of her ancestral home, feeling the weight of centuries pressing down upon her shoulders.`;
-
-/**
- * Create a test manuscript in Supabase for smoke testing
- * Returns the numeric manuscript ID
- */
-async function createTestManuscript() {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY required for Supabase mode");
-  }
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-  });
-
-  console.log(`Creating test manuscript...`);
-
-  // Create minimal manuscript record (file_url/storage setup happens separately)
-  const { data, error } = await supabase
-    .from("manuscripts")
-    .insert({
-      title: "CI Phase 2 Smoke Test",
-      word_count: 5000,
-      work_type: "novel",
-      created_by: '00000000-0000-0000-0000-000000000000',
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to create test manuscript: ${error.message}`);
-  }
-
-  if (!data?.id) {
-    throw new Error("No manuscript ID returned");
-  }
-
-  console.log(`✅ Test manuscript created: ${data.id}`);
-  return data.id;
-}
-
 async function main() {
   const BASE = await getBaseUrl();
-  const useSupabase = process.env.USE_SUPABASE_JOBS === "true";
 
   // Check if we're in memory mode (no Supabase worker)
   skipIfMemoryMode("Phase 2 smoke test", "Supabase + background worker to complete Phase 1→2 transition");
-
-  // Create test manuscript if using Supabase
-  const manuscript_id = useSupabase
-    ? await createTestManuscript()
-    : "test-manuscript-123";
 
   // 1) Create job
   const createRes = await must(
@@ -78,7 +26,7 @@ async function main() {
       },
       body: JSON.stringify({
         job_type: "evaluate_full",
-        manuscript_id,
+        manuscript_id: "test-manuscript-123",
       }),
     }),
     "Failed to create job",
