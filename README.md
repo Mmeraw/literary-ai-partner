@@ -1,4 +1,4 @@
-# RevisionGrade - Literary AI Partner
+# RevisionGrade - Literary AI Partner.
 
 ## 🎯 Quick Start
 
