@@ -1,5 +1,7 @@
 # Quick Start Guide
 
+> **💻 Using GitHub Codespaces?** See [CODESPACES_SETUP.md](./CODESPACES_SETUP.md) for automatic setup with GitHub Copilot AI assistant.
+
 ## 🚀 First-Time Setup
 
 ### 1. Verify Supabase Configuration (CRITICAL)

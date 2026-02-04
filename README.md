@@ -12,7 +12,13 @@ Then choose your entry point:
 - **Executive summary:** [72HR-EXECUTIVE-SUMMARY.md](./72HR-EXECUTIVE-SUMMARY.md)
 
 ### ⚠️ First Time Setup
-Start here:** [docs/QUICK_START.md](./docs/QUICK_START.md)
+**Start here:** [docs/QUICK_START.md](./docs/QUICK_START.md)
+
+### 💻 GitHub Codespaces
+**Using Codespaces?** See [docs/CODESPACES_SETUP.md](./docs/CODESPACES_SETUP.md) for:
+- Enabling GitHub Copilot AI assistant
+- Automatic development environment setup
+- Codespace-specific configuration
 
 ### Daily Workflow
 ```bash
@@ -85,6 +91,7 @@ See [docs/PERSISTENCE_CONTRACT.md](./docs/PERSISTENCE_CONTRACT.md) for Phase 2C 
 ## 📚 Documentation
 
 - **[QUICK_START.md](./docs/QUICK_START.md)** - First-time setup and daily workflow
+- **[CODESPACES_SETUP.md](./docs/CODESPACES_SETUP.md)** - GitHub Codespaces and Copilot setup
 - **[SUPABASE_PROJECTS.md](./docs/SUPABASE_PROJECTS.md)** - Complete Supabase configuration
 - **[JOB_CONTRACT_v1.md](./docs/JOB_CONTRACT_v1.md)** - Canonical job state machine contract
 - **[DEPLOYMENT_QUICK_REFERENCE.md](./DEPLOYMENT_QUICK_REFERENCE.md)** - Deployment guide
