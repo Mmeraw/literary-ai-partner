@@ -80,30 +80,30 @@ export function shouldMarkFailed(
 /**
  * Checks if error code represents a non-retryable failure
  * 
- * Non-retryable codes from ERROR_CODES:
- * - invalid_api_key: Invalid/expired credentials
- * - model_not_found: Model not available for account
- * - content_policy_violation: Blocked by safety/policy
- * - malformed_request: Request schema/inputs invalid
- * - invalid_job_state: Internal contract violation
- * - missing_manuscript: Missing upstream data
- * - schema_validation_error: Failed validation
+ * Non-retryable codes (canonical taxonomy from lib/errors/errorEnvelope.ts):
+ * - AUTH_FAILED: Authentication/API key failure
+ * - INVALID_INPUT: Malformed request, invalid content, unsupported model
+ * - QUOTA_EXCEEDED: API quota exhausted
+ * - MANUSCRIPT_NOT_FOUND: Missing upstream manuscript data
+ * - CHUNK_MISSING: Required chunks missing
+ * - SCHEMA_VIOLATION: Database schema violation, invalid job state
+ * - UNKNOWN_ERROR: Unclassified error (fail-safe to non-retryable)
  * 
- * @param errorCode - Error code from FailureEnvelope.error_code
+ * @param errorCode - Error code string (e.g., 'AUTH_FAILED', 'INVALID_INPUT')
  * @returns true if error should cause immediate terminal failure
  */
 export function isNonRetryableError(errorCode: string): boolean {
   const nonRetryableCodes: string[] = [
-    // Provider errors (non-retryable)
-    ERROR_CODES.INVALID_API_KEY,
-    ERROR_CODES.MODEL_NOT_FOUND,
-    ERROR_CODES.CONTENT_POLICY_VIOLATION,
-    ERROR_CODES.MALFORMED_REQUEST,
+    // Provider/authentication errors (non-retryable)
+    'AUTH_FAILED',
+    'INVALID_INPUT',
+    'QUOTA_EXCEEDED',
 
-    // System errors (non-retryable)
-    ERROR_CODES.INVALID_JOB_STATE,
-    ERROR_CODES.MISSING_MANUSCRIPT,
-    ERROR_CODES.SCHEMA_VALIDATION_ERROR,
+    // System/data errors (non-retryable)
+    'MANUSCRIPT_NOT_FOUND',
+    'CHUNK_MISSING',
+    'SCHEMA_VIOLATION',
+    'UNKNOWN_ERROR',
   ];
 
   return nonRetryableCodes.includes(errorCode);

@@ -15,10 +15,10 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
     test('marks job as failed on invalid_api_key', () => {
       const envelope: FailureEnvelope = {
         provider: 'openai',
-        error_code: ERROR_CODES.INVALID_API_KEY,
+        code: 'AUTH_FAILED',
         message: 'Invalid API key',
         retryable: false,
-      };
+      } as FailureEnvelope;
       
       const decision = shouldMarkFailed('running', 1, envelope);
       
@@ -29,10 +29,10 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
     test('marks job as failed on malformed_request', () => {
       const envelope: FailureEnvelope = {
         provider: 'anthropic',
-        error_code: ERROR_CODES.MALFORMED_REQUEST,
+        code: 'INVALID_INPUT',
         message: 'Malformed prompt',
         retryable: false,
-      };
+      } as FailureEnvelope;
       
       const decision = shouldMarkFailed('running', 2, envelope);
       
@@ -42,11 +42,11 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
 
     test('marks job as failed on model_not_found', () => {
       const envelope: FailureEnvelope = {
-        provider: 'perplexity',
-        error_code: ERROR_CODES.MODEL_NOT_FOUND,
+        provider: 'openai',
+        code: 'INVALID_INPUT',
         message: 'Model not available for account',
         retryable: false,
-      };
+      } as FailureEnvelope;
       
       const decision = shouldMarkFailed('running', 1, envelope);
       
@@ -59,10 +59,10 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
     test('marks job as failed after 3 attempts (default max)', () => {
       const envelope: FailureEnvelope = {
         provider: 'openai',
-        error_code: ERROR_CODES.RATE_LIMIT,
+        code: 'RATE_LIMIT',
         message: 'Rate limit exceeded',
         retryable: true, // Still retryable, but exhausted attempts
-      };
+      } as FailureEnvelope;
       
       const decision = shouldMarkFailed('running', 3, envelope);
       
@@ -73,10 +73,10 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
     test('marks job as failed after custom max attempts', () => {
       const envelope: FailureEnvelope = {
         provider: 'anthropic',
-        error_code: ERROR_CODES.TIMEOUT,
+        code: 'TIMEOUT',
         message: 'Request timeout',
         retryable: true,
-      };
+      } as FailureEnvelope;
       
       const customMaxAttempts = 5;
       const decision = shouldMarkFailed('running', 5, envelope, customMaxAttempts);
@@ -88,10 +88,10 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
     test('allows retry when under max attempts', () => {
       const envelope: FailureEnvelope = {
         provider: 'openai',
-        error_code: ERROR_CODES.RATE_LIMIT,
+        code: 'RATE_LIMIT',
         message: 'Rate limit exceeded',
         retryable: true,
-      };
+      } as FailureEnvelope;
       
       const decision = shouldMarkFailed('running', 2, envelope, 3);
       
@@ -111,10 +111,10 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
     test('handles failed status even with retryable envelope', () => {
       const envelope: FailureEnvelope = {
         provider: 'openai',
-        error_code: ERROR_CODES.TIMEOUT,
+        code: 'TIMEOUT',
         message: 'Timeout',
         retryable: true,
-      };
+      } as FailureEnvelope;
       
       const decision = shouldMarkFailed('failed', 1, envelope);
       
@@ -127,10 +127,10 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
     test('allows retry for rate_limit under max attempts', () => {
       const envelope: FailureEnvelope = {
         provider: 'openai',
-        error_code: ERROR_CODES.RATE_LIMIT,
+        code: 'RATE_LIMIT',
         message: 'Rate limit exceeded',
         retryable: true,
-      };
+      } as FailureEnvelope;
       
       const decision = shouldMarkFailed('running', 1, envelope);
       
@@ -141,10 +141,10 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
     test('allows retry for timeout under max attempts', () => {
       const envelope: FailureEnvelope = {
         provider: 'anthropic',
-        error_code: ERROR_CODES.TIMEOUT,
+        code: 'TIMEOUT',
         message: 'Request timeout',
         retryable: true,
-      };
+      } as FailureEnvelope;
       
       const decision = shouldMarkFailed('running', 2, envelope);
       
@@ -154,11 +154,11 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
 
     test('allows retry for service_unavailable under max attempts', () => {
       const envelope: FailureEnvelope = {
-        provider: 'perplexity',
-        error_code: ERROR_CODES.SERVICE_UNAVAILABLE,
+        provider: 'openai',
+        code: 'PROVIDER_UNAVAILABLE',
         message: 'Service temporarily unavailable',
         retryable: true,
-      };
+      } as FailureEnvelope;
       
       const decision = shouldMarkFailed('running', 1, envelope);
       
@@ -177,11 +177,11 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
 
     test('handles unknown error code with retryable=false', () => {
       const envelope: FailureEnvelope = {
-        provider: 'custom',
-        error_code: 'unknown_custom_error',
+        provider: 'openai',
+        code: 'unknown_custom_error',
         message: 'Unknown failure',
         retryable: false,
-      };
+      } as FailureEnvelope;
       
       const decision = shouldMarkFailed('running', 1, envelope);
       
@@ -192,10 +192,10 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
     test('prioritizes already_failed over other conditions', () => {
       const envelope: FailureEnvelope = {
         provider: 'openai',
-        error_code: ERROR_CODES.INVALID_API_KEY,
+        code: 'AUTH_FAILED',
         message: 'Auth error',
         retryable: false,
-      };
+      } as FailureEnvelope;
       
       // Even with non-retryable error at max attempts, already_failed takes precedence
       const decision = shouldMarkFailed('failed', 3, envelope);
@@ -207,10 +207,10 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
     test('prioritizes max_attempts over non_retryable', () => {
       const envelope: FailureEnvelope = {
         provider: 'openai',
-        error_code: ERROR_CODES.RATE_LIMIT,
+        code: 'RATE_LIMIT',
         message: 'Rate limit',
         retryable: true,
-      };
+      } as FailureEnvelope;
       
       // At max attempts, should fail even though error is retryable
       const decision = shouldMarkFailed('running', 3, envelope);
@@ -223,27 +223,27 @@ describe('Dead-Letter Path — shouldMarkFailed()', () => {
 
 describe('Dead-Letter Path — isNonRetryableError()', () => {
   test('identifies invalid_api_key as non-retryable', () => {
-    expect(isNonRetryableError(ERROR_CODES.INVALID_API_KEY)).toBe(true);
+    expect(isNonRetryableError('AUTH_FAILED')).toBe(true);
   });
 
   test('identifies malformed_request as non-retryable', () => {
-    expect(isNonRetryableError(ERROR_CODES.MALFORMED_REQUEST)).toBe(true);
+    expect(isNonRetryableError('INVALID_INPUT')).toBe(true);
   });
 
   test('identifies model_not_found as non-retryable', () => {
-    expect(isNonRetryableError(ERROR_CODES.MODEL_NOT_FOUND)).toBe(true);
+    expect(isNonRetryableError('INVALID_INPUT')).toBe(true);
   });
 
   test('identifies rate_limit as retryable', () => {
-    expect(isNonRetryableError(ERROR_CODES.RATE_LIMIT)).toBe(false);
+    expect(isNonRetryableError('RATE_LIMIT')).toBe(false);
   });
 
   test('identifies timeout as retryable', () => {
-    expect(isNonRetryableError(ERROR_CODES.TIMEOUT)).toBe(false);
+    expect(isNonRetryableError('TIMEOUT')).toBe(false);
   });
 
   test('identifies service_unavailable as retryable', () => {
-    expect(isNonRetryableError(ERROR_CODES.SERVICE_UNAVAILABLE)).toBe(false);
+    expect(isNonRetryableError('PROVIDER_UNAVAILABLE')).toBe(false);
   });
 });
 
@@ -292,10 +292,10 @@ describe('Dead-Letter Path — Integration Scenarios', () => {
   test('Scenario: Worker retry loop with rate limit', () => {
     const envelope: FailureEnvelope = {
       provider: 'openai',
-      error_code: ERROR_CODES.RATE_LIMIT,
+      code: 'RATE_LIMIT',
       message: 'Rate limit exceeded',
       retryable: true,
-    };
+    } as FailureEnvelope;
 
     // Attempt 1: Should retry
     let decision = shouldMarkFailed('running', 1, envelope);
@@ -314,10 +314,10 @@ describe('Dead-Letter Path — Integration Scenarios', () => {
   test('Scenario: Immediate failure on invalid_api_key', () => {
     const envelope: FailureEnvelope = {
       provider: 'anthropic',
-      error_code: ERROR_CODES.INVALID_API_KEY,
+      code: 'AUTH_FAILED',
       message: 'Invalid API key',
       retryable: false,
-    };
+    } as FailureEnvelope;
 
     // Attempt 1: Immediate dead-letter
     const decision = shouldMarkFailed('running', 1, envelope);
@@ -328,10 +328,10 @@ describe('Dead-Letter Path — Integration Scenarios', () => {
   test('Scenario: Idempotent dead-letter check prevents re-processing', () => {
     const envelope: FailureEnvelope = {
       provider: 'openai',
-      error_code: ERROR_CODES.INVALID_API_KEY,
+      code: 'AUTH_FAILED',
       message: 'Auth failure',
       retryable: false,
-    };
+    } as FailureEnvelope;
 
     // Job already marked failed
     const decision = shouldMarkFailed('failed', 5, envelope);
