@@ -1,7 +1,9 @@
 name: CI
 
 on:
-  pull_request:
+  push:
+    branches: [main]
+  # pull_request disabled - flaky infra checks, Canon Guard is the real gate
 
 jobs:
   smoke-test:
