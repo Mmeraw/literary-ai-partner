@@ -22,7 +22,13 @@ RETURNS TABLE (
   voice_preservation_level TEXT,
   english_variant TEXT,
   work_type TEXT,
-  phase TEXT
+  phase TEXT,
+  status TEXT,
+  worker_id TEXT,
+  lease_token UUID,
+  lease_until TIMESTAMPTZ,
+  heartbeat_at TIMESTAMPTZ,
+  started_at TIMESTAMPTZ
 )
 LANGUAGE plpgsql
 AS $claim_job_atomic_v2$
@@ -69,7 +75,13 @@ BEGIN
     j.voice_preservation_level AS voice_preservation_level,
     j.english_variant AS english_variant,
     j.work_type AS work_type,
-    j.phase AS phase
+    j.phase AS phase,
+    j.status AS status,
+    j.worker_id AS worker_id,
+    j.lease_token AS lease_token,
+    j.lease_until AS lease_until,
+    j.heartbeat_at AS heartbeat_at,
+    j.started_at AS started_at
   FROM public.evaluation_jobs j
   WHERE j.id = v_job_id;
 END;

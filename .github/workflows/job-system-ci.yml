@@ -372,7 +372,7 @@ jobs:
               done
 
           echo "→ Pushing repo migrations"
-          supabase db push --include-all
+          supabase db push --include-all --yes
 
           echo "✅ Migrations applied successfully"
         env:
