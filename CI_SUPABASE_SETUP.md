@@ -194,6 +194,17 @@ If issues arise, temporarily revert to production database:
 2. Re-add `ALLOW_DEV_PROD=I_UNDERSTAND_THE_RISK` 
 3. But fix forward by completing CI project setup properly
 
+## Current Status & Known Issues
+
+The following table represents the current, audit-verified state of CI Supabase integration.
+Findings are based on executed workflows and retained artifacts.
+
+| Defect | Finding | Truth |
+|--------|---------|-------|
+| Admin Retry Atomicity Test (A5) | RPC migration not applied to CI Supabase; test cannot run | Admin retry atomicity guarantees cannot be validated until RPC overload is resolved. |
+| Database Schema Drift | CI project schema may lag behind repo migrations | In progress: migrations apply step added to workflow |
+| Secrets Configuration | All required CI secrets present to enable proof gates | Configure SUPABASE_URL_CI, SUPABASE_SERVICE_ROLE_KEY_CI, SUPABASE_PROJECT_REF_CI, SUPABASE_ACCESS_TOKEN_CI |
+
 ---
 
 **Status**: ✅ Code changes committed  

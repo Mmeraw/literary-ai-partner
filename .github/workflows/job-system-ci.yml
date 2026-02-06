@@ -23,14 +23,24 @@ jobs:
         shell: bash
         run: |
           missing=0
+
           if [[ -z "${{ secrets.SUPABASE_URL_CI }}" ]]; then
             echo "❌ Missing SUPABASE_URL_CI"
             missing=1
           fi
+
           if [[ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}" ]]; then
             echo "❌ Missing SUPABASE_SERVICE_ROLE_KEY_CI"
             missing=1
           fi
+
+          # Required for supabase link/db push in CI
+          if [[ -z "${{ secrets.SUPABASE_PROJECT_REF_CI }}" ]]; then
+            echo "❌ Missing SUPABASE_PROJECT_REF_CI"
+            missing=1
+          fi
+
+          # Required for Supabase CLI auth in CI
           if [[ -z "${{ secrets.SUPABASE_ACCESS_TOKEN_CI }}" ]]; then
             echo "❌ Missing SUPABASE_ACCESS_TOKEN_CI"
             missing=1
@@ -72,6 +82,7 @@ jobs:
           echo "Required secrets:"
           echo "  • SUPABASE_URL_CI"
           echo "  • SUPABASE_SERVICE_ROLE_KEY_CI"
+          echo "  • SUPABASE_PROJECT_REF_CI"
           echo "  • SUPABASE_ACCESS_TOKEN_CI"
           echo ""
           echo "Resolution:"
@@ -308,7 +319,7 @@ jobs:
     name: Supabase-Backed Job Tests
     needs: proof-availability
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     # DB contract tests only - no worker/storage infrastructure required
     # Tests: claim RPC contention, lease blocking, status transitions, progress counters
     # Only runs if secrets are available (enforced by proof-availability gate)
@@ -321,7 +332,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20.x"
+          node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
@@ -344,29 +355,12 @@ jobs:
           # Link to CI project
           supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF_CI }}"
 
-          # Try to apply migrations; allow graceful degradation on mismatch
-          supabase db push || {
-            EXIT_CODE=$?
-            echo ""
-            echo "⚠️  Migration push failed (code: $EXIT_CODE)"
-            echo "Attempting to fetch remote migration state to reconcile..."
-            
-            # Try to fetch remote migrations to reconcile state
-            supabase migration fetch || true
-            
-            # Try one more time
-            echo ""
-            echo "Retrying migration push with synced state..."
-            if ! supabase db push; then
-              echo "⚠️  Migration push still failing; tests may run against inconsistent schema"
-              echo "This is acceptable for CI if tests can still validate contracts"
-            fi
-          }
+          # Apply all migrations from repo
+          supabase db push
 
-          echo "✅ Database link established and migrations processed"
+          echo "✅ Migrations applied successfully"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN_CI }}
-        continue-on-error: true
 
       - name: Check CI DB migrations (proof gate)
         run: |
@@ -375,7 +369,6 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
-        continue-on-error: true
 
       - name: Run Supabase DB contract tests
         run: |
@@ -384,7 +377,6 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
-        continue-on-error: true
 
       - name: Run admin retry concurrency test
         run: |
@@ -393,7 +385,6 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
-        continue-on-error: true
 
       - name: Upload Supabase contract test logs
         if: always()
@@ -401,4 +392,5 @@ jobs:
         with:
           name: supabase-contract-test-logs
           path: scripts-artifacts/*.log
+          # retention-days: keep logs for 30 days
           retention-days: 30
