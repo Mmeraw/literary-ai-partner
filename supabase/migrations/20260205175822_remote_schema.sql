@@ -1,8 +1,8 @@
-drop policy "audit_entries_insert_service" on "public"."audit_entries";
+drop policy if exists "audit_entries_insert_service" on "public"."audit_entries";
 
-drop policy "audit_entries_read_own" on "public"."audit_entries";
+drop policy if exists "audit_entries_read_own" on "public"."audit_entries";
 
-drop policy "evaluation_jobs_insert_own" on "public"."evaluation_jobs";
+drop policy if exists "evaluation_jobs_insert_own" on "public"."evaluation_jobs";
 
 revoke delete on table "public"."audit_entries" from "anon";
 
