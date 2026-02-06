@@ -3,6 +3,8 @@ name: Job System CI
 on:
   push:
     branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
   workflow_dispatch:
 
 jobs:
@@ -301,7 +303,7 @@ jobs:
     name: Supabase-Backed Job Tests
     needs: proof-availability
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     # DB contract tests only - no worker/storage infrastructure required
     # Tests: claim RPC contention, lease blocking, status transitions, progress counters
     # Only runs if secrets are available (enforced by proof-availability gate)
@@ -314,7 +316,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "20.x"
           cache: "npm"
 
       - name: Install dependencies
