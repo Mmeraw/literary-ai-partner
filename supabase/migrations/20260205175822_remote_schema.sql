@@ -108,7 +108,7 @@ alter table "public"."evaluation_artifacts" drop column if exists "source_phase"
 
 alter table "public"."evaluation_artifacts" drop column if exists "updated_at";
 
-alter table "public"."evaluation_artifacts" add column if not exists "artifact_payload" jsonb not null;
+alter table "public"."evaluation_artifacts" add column if not exists "artifact_payload" jsonb;
 
 alter table "public"."evaluation_jobs" drop column if exists "failure_envelope";
 
@@ -132,43 +132,136 @@ alter table "public"."manuscript_chunks" add column if not exists "error" text;
 
 alter table "public"."manuscript_chunks" alter column "manuscript_id" set data type integer using "manuscript_id"::integer;
 
-alter table "public"."manuscript_chunks" alter column "max_attempts" set not null;
+CREATE INDEX IF NOT EXISTS evaluation_artifacts_job_id_idx ON public.evaluation_artifacts USING btree (job_id);
 
-CREATE INDEX evaluation_artifacts_job_id_idx ON public.evaluation_artifacts USING btree (job_id);
+CREATE INDEX IF NOT EXISTS idx_evaluation_jobs_phase_1_locked ON public.evaluation_jobs USING btree (phase_1_locked_at) WHERE (phase_1_locked_at IS NOT NULL);
 
-CREATE INDEX idx_evaluation_jobs_phase_1_locked ON public.evaluation_jobs USING btree (phase_1_locked_at) WHERE (phase_1_locked_at IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_evaluation_jobs_phase_1_status ON public.evaluation_jobs USING btree (phase_1_status);
 
-CREATE INDEX idx_evaluation_jobs_phase_1_status ON public.evaluation_jobs USING btree (phase_1_status);
+CREATE INDEX IF NOT EXISTS idx_manuscript_chunks_lease_expires_at ON public.manuscript_chunks USING btree (lease_expires_at) WHERE (status = 'processing'::public.chunk_status);
 
-CREATE INDEX idx_manuscript_chunks_lease_expires_at ON public.manuscript_chunks USING btree (lease_expires_at) WHERE (status = 'processing'::public.chunk_status);
+CREATE INDEX IF NOT EXISTS idx_manuscript_chunks_manuscript_id ON public.manuscript_chunks USING btree (manuscript_id);
 
-CREATE INDEX idx_manuscript_chunks_manuscript_id ON public.manuscript_chunks USING btree (manuscript_id);
+CREATE INDEX IF NOT EXISTS idx_manuscript_chunks_status_lease ON public.manuscript_chunks USING btree (status, lease_expires_at);
 
-CREATE INDEX idx_manuscript_chunks_status_lease ON public.manuscript_chunks USING btree (status, lease_expires_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_eval_jobs_active_phase1 ON public.evaluation_jobs USING btree (manuscript_id, job_type) WHERE ((phase = 'phase_1'::text) AND (status = ANY (ARRAY['queued'::text, 'running'::text])));
 
-CREATE UNIQUE INDEX uq_eval_jobs_active_phase1 ON public.evaluation_jobs USING btree (manuscript_id, job_type) WHERE ((phase = 'phase_1'::text) AND (status = ANY (ARRAY['queued'::text, 'running'::text])));
+CREATE UNIQUE INDEX IF NOT EXISTS uq_eval_jobs_active_phase1_worktype ON public.evaluation_jobs USING btree (manuscript_id, job_type, work_type) WHERE ((phase = 'phase_1'::text) AND (status = ANY (ARRAY['queued'::text, 'running'::text])));
 
-CREATE UNIQUE INDEX uq_eval_jobs_active_phase1_worktype ON public.evaluation_jobs USING btree (manuscript_id, job_type, work_type) WHERE ((phase = 'phase_1'::text) AND (status = ANY (ARRAY['queued'::text, 'running'::text])));
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'evaluation_jobs_phase_1_status_check'
+      and conrelid = 'public.evaluation_jobs'::regclass
+  ) then
+    alter table "public"."evaluation_jobs" add constraint "evaluation_jobs_phase_1_status_check" CHECK ((phase_1_status = ANY (ARRAY['not_started'::text, 'in_progress'::text, 'completed'::text, 'failed'::text]))) not valid;
+  end if;
+end $$;
 
-alter table "public"."evaluation_jobs" add constraint "evaluation_jobs_phase_1_status_check" CHECK ((phase_1_status = ANY (ARRAY['not_started'::text, 'in_progress'::text, 'completed'::text, 'failed'::text]))) not valid;
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'evaluation_jobs_phase_1_status_check'
+      and conrelid = 'public.evaluation_jobs'::regclass
+      and convalidated = false
+  ) then
+    alter table "public"."evaluation_jobs" validate constraint "evaluation_jobs_phase_1_status_check";
+  end if;
+end $$;
 
-alter table "public"."evaluation_jobs" validate constraint "evaluation_jobs_phase_1_status_check";
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'evaluation_jobs_phase_chk'
+      and conrelid = 'public.evaluation_jobs'::regclass
+  ) then
+    alter table "public"."evaluation_jobs" add constraint "evaluation_jobs_phase_chk" CHECK ((phase = ANY (ARRAY['phase_0'::text, 'phase_1'::text, 'phase_2'::text]))) not valid;
+  end if;
+end $$;
 
-alter table "public"."evaluation_jobs" add constraint "evaluation_jobs_phase_chk" CHECK ((phase = ANY (ARRAY['phase_0'::text, 'phase_1'::text, 'phase_2'::text]))) not valid;
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'evaluation_jobs_phase_chk'
+      and conrelid = 'public.evaluation_jobs'::regclass
+      and convalidated = false
+  ) then
+    alter table "public"."evaluation_jobs" validate constraint "evaluation_jobs_phase_chk";
+  end if;
+end $$;
 
-alter table "public"."evaluation_jobs" validate constraint "evaluation_jobs_phase_chk";
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'attempt_count_non_negative'
+      and conrelid = 'public.manuscript_chunks'::regclass
+  ) then
+    alter table "public"."manuscript_chunks" add constraint "attempt_count_non_negative" CHECK ((attempt_count >= 0)) not valid;
+  end if;
+end $$;
 
-alter table "public"."manuscript_chunks" add constraint "attempt_count_non_negative" CHECK ((attempt_count >= 0)) not valid;
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'attempt_count_non_negative'
+      and conrelid = 'public.manuscript_chunks'::regclass
+      and convalidated = false
+  ) then
+    alter table "public"."manuscript_chunks" validate constraint "attempt_count_non_negative";
+  end if;
+end $$;
 
-alter table "public"."manuscript_chunks" validate constraint "attempt_count_non_negative";
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'manuscript_chunks_attempts_check'
+      and conrelid = 'public.manuscript_chunks'::regclass
+  ) then
+    alter table "public"."manuscript_chunks" add constraint "manuscript_chunks_attempts_check" CHECK (((attempt_count >= 0) AND (max_attempts >= 1) AND (attempt_count <= 1000) AND (max_attempts <= 1000))) not valid;
+  end if;
+end $$;
 
-alter table "public"."manuscript_chunks" add constraint "manuscript_chunks_attempts_check" CHECK (((attempt_count >= 0) AND (max_attempts >= 1) AND (attempt_count <= 1000) AND (max_attempts <= 1000))) not valid;
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'manuscript_chunks_attempts_check'
+      and conrelid = 'public.manuscript_chunks'::regclass
+      and convalidated = false
+  ) then
+    alter table "public"."manuscript_chunks" validate constraint "manuscript_chunks_attempts_check";
+  end if;
+end $$;
 
-alter table "public"."manuscript_chunks" validate constraint "manuscript_chunks_attempts_check";
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'max_attempts_positive'
+      and conrelid = 'public.manuscript_chunks'::regclass
+  ) then
+    alter table "public"."manuscript_chunks" add constraint "max_attempts_positive" CHECK ((max_attempts > 0)) not valid;
+  end if;
+end $$;
 
-alter table "public"."manuscript_chunks" add constraint "max_attempts_positive" CHECK ((max_attempts > 0)) not valid;
-
-alter table "public"."manuscript_chunks" validate constraint "max_attempts_positive";
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'max_attempts_positive'
+      and conrelid = 'public.manuscript_chunks'::regclass
+      and convalidated = false
+  ) then
+    alter table "public"."manuscript_chunks" validate constraint "max_attempts_positive";
+  end if;
+end $$;
 
 set check_function_bodies = off;
 
@@ -352,50 +445,100 @@ $function$
 ;
 
 
-  create policy "Allow anon insert on evaluation_jobs"
-  on "public"."evaluation_jobs"
-  as permissive
-  for insert
-  to anon, authenticated
-with check (true);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'evaluation_jobs'
+      and policyname = 'Allow anon insert on evaluation_jobs'
+  ) then
+    create policy "Allow anon insert on evaluation_jobs"
+      on "public"."evaluation_jobs"
+      as permissive
+      for insert
+      to anon, authenticated
+    with check (true);
+  end if;
+end $$;
 
 
 
-  create policy "Enable insert for authenticated users only"
-  on "public"."evaluation_jobs"
-  as permissive
-  for insert
-  to authenticated
-with check (true);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'evaluation_jobs'
+      and policyname = 'Enable insert for authenticated users only'
+  ) then
+    create policy "Enable insert for authenticated users only"
+      on "public"."evaluation_jobs"
+      as permissive
+      for insert
+      to authenticated
+    with check (true);
+  end if;
+end $$;
 
 
 
-  create policy "Service role full access"
-  on "public"."evaluation_jobs"
-  as permissive
-  for all
-  to service_role
-using (true)
-with check (true);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'evaluation_jobs'
+      and policyname = 'Service role full access'
+  ) then
+    create policy "Service role full access"
+      on "public"."evaluation_jobs"
+      as permissive
+      for all
+      to service_role
+    using (true)
+    with check (true);
+  end if;
+end $$;
 
 
 
-  create policy "Enable insert for authenticated users only"
-  on "public"."evaluations"
-  as permissive
-  for insert
-  to authenticated
-with check (true);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'evaluations'
+      and policyname = 'Enable insert for authenticated users only'
+  ) then
+    create policy "Enable insert for authenticated users only"
+      on "public"."evaluations"
+      as permissive
+      for insert
+      to authenticated
+    with check (true);
+  end if;
+end $$;
 
 
 
-  create policy "Service role full access"
-  on "public"."manuscripts"
-  as permissive
-  for all
-  to service_role
-using (true)
-with check (true);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'manuscripts'
+      and policyname = 'Service role full access'
+  ) then
+    create policy "Service role full access"
+      on "public"."manuscripts"
+      as permissive
+      for all
+      to service_role
+    using (true)
+    with check (true);
+  end if;
+end $$;
 
 
 

@@ -372,7 +372,7 @@ jobs:
               done
 
           echo "→ Pushing repo migrations"
-          supabase db push --include-all --yes
+          supabase db push --include-all --yes 2>&1 | tee scripts-artifacts/supabase-db-push.log
 
           echo "✅ Migrations applied successfully"
         env:
