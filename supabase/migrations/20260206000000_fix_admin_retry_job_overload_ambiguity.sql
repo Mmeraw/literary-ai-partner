@@ -1,9 +1,13 @@
--- A5: Admin Retry Atomicity
--- Removes all overloads and creates one canonical signature (eliminating PostgREST ambiguity)
+-- A5: Fix admin_retry_job PostgREST ambiguity
+-- Purpose: Remove overloads entirely and create single canonical signature
+-- Root cause: Earlier migration created multiple overloads; PostgREST PGRST203 cannot disambiguate
+
+-- 1. Drop ALL existing overloads (handles any prior version)
 drop function if exists public.admin_retry_job(uuid);
 drop function if exists public.admin_retry_job(uuid, text, uuid);
+drop function if exists public.admin_retry_job cascade;
 
--- Canonical function: single signature with optional parameters for auditability
+-- 2. Create single canonical signature (no ambiguity)
 create or replace function public.admin_retry_job(
   p_job_id uuid,
   p_reason text default null,
@@ -45,3 +49,10 @@ begin
   right join (select 1) one on true;
 end;
 $$;
+
+-- Verification query (run after migration to confirm single signature):
+-- SELECT proname, oidvectortypes(proargtypes) as argtypes
+-- FROM pg_proc
+-- JOIN pg_namespace n ON n.oid = pronamespace
+-- WHERE n.nspname = 'public' AND proname = 'admin_retry_job';
+-- Expected: exactly 1 row
