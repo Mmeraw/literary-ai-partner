@@ -348,14 +348,30 @@ jobs:
 
       - name: Apply migrations to CI Supabase
         run: |
+          set -euo pipefail
+
           echo "════════════════════════════════════════════════════════"
           echo "  Applying Repo Migrations to CI Supabase"
           echo "════════════════════════════════════════════════════════"
 
           # Link to CI project
-          supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF_CI }}"
+          supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF_CI }}" --no-prompt
 
-          # Apply all migrations from repo
+          echo "→ Drift recovery: repairing remote-only migrations (test DB only)"
+          # Expected remote migration IDs are the first underscore-delimited token in filenames:
+          # e.g. 20260131000000_admin_retry_job_atomic_rpc.sql -> 20260131000000
+          # We mark any remote migration IDs not present locally as reverted.
+          supabase migration list --remote \
+            | rg -oN '20\d{12}' \
+            | sort -u \
+            | while read -r migration; do
+                if ! ls "supabase/migrations/${migration}_"*.sql >/dev/null 2>&1; then
+                  echo "Found remote-only migration ${migration} → marking reverted (CI drift recovery)"
+                  supabase migration repair --status reverted "${migration}"
+                fi
+              done
+
+          echo "→ Pushing repo migrations"
           supabase db push
 
           echo "✅ Migrations applied successfully"
