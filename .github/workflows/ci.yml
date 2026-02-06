@@ -3,10 +3,13 @@ name: CI
 on:
   push:
     branches: [main]
-  # pull_request disabled - flaky infra checks, Canon Guard is the real gate
+      pull_request:
+    branches: [main, develop]
+  # Smoke tests gated to push-to-main only (flaky infra checks)
 
 jobs:
   smoke-test:
+      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
 
     env:
