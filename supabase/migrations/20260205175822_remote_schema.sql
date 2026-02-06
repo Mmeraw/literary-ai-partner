@@ -46,19 +46,19 @@ revoke truncate on table "public"."audit_entries" from "service_role";
 
 revoke update on table "public"."audit_entries" from "service_role";
 
-alter table "public"."audit_entries" drop constraint "chk_audit_actor";
+alter table "public"."audit_entries" drop constraint if exists "chk_audit_actor";
 
-alter table "public"."audit_entries" drop constraint "chk_audit_event_type";
+alter table "public"."audit_entries" drop constraint if exists "chk_audit_event_type";
 
-alter table "public"."audit_entries" drop constraint "chk_audit_source";
+alter table "public"."audit_entries" drop constraint if exists "chk_audit_source";
 
-alter table "public"."audit_entries" drop constraint "chk_audit_status";
+alter table "public"."audit_entries" drop constraint if exists "chk_audit_status";
 
-alter table "public"."audit_entries" drop constraint "chk_audit_to_status";
+alter table "public"."audit_entries" drop constraint if exists "chk_audit_to_status";
 
-alter table "public"."evaluation_artifacts" drop constraint "evaluation_artifacts_manuscript_id_fkey";
+alter table "public"."evaluation_artifacts" drop constraint if exists "evaluation_artifacts_manuscript_id_fkey";
 
-alter table "public"."evaluation_artifacts" drop constraint "unique_job_artifact";
+alter table "public"."evaluation_artifacts" drop constraint if exists "unique_job_artifact";
 
 drop function if exists "public"."admin_list_jobs"(p_status text, p_job_type text, p_phase text, p_policy_family text, p_created_after timestamp with time zone, p_created_before timestamp with time zone, p_failed_after timestamp with time zone, p_failed_before timestamp with time zone, p_cursor_failed_at timestamp with time zone, p_cursor_created_at timestamp with time zone, p_cursor_id uuid, p_limit integer);
 
@@ -68,7 +68,7 @@ drop function if exists "public"."increment_job_attempt_count"(p_job_id uuid, p_
 
 drop function if exists "public"."claim_job_atomic"(p_worker_id text, p_now timestamp with time zone, p_lease_seconds integer);
 
-alter table "public"."audit_entries" drop constraint "audit_entries_pkey";
+alter table "public"."audit_entries" drop constraint if exists "audit_entries_pkey";
 
 drop index if exists "public"."audit_entries_pkey";
 
