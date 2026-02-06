@@ -1,5 +1,10 @@
 # CI Supabase Project Setup
 
+Type: NORMATIVE
+Status: ACTIVE
+Last Updated: 2026-02-05
+Owner: RevisionGrade Governance
+
 ## Overview
 
 Job System CI now uses a **dedicated CI-only Supabase project** to avoid schema drift issues and prevent test traffic from hitting production.
@@ -80,6 +85,12 @@ gh secret set SUPABASE_ANON_KEY_CI \
 
 gh secret set SUPABASE_SERVICE_ROLE_KEY_CI \
   --body "eyJhbGc..."  # CI project service role key
+
+gh secret set SUPABASE_PROJECT_REF_CI \
+  --body "xtumxjnzdswuumndcbwc"  # CI project short ref (NOT the URL)
+
+gh secret set SUPABASE_ACCESS_TOKEN_CI \
+  --body "sbp_..."  # Supabase personal access token for CLI
 ```
 
 ### 4. Verify Workflow Configuration
@@ -91,7 +102,18 @@ The workflow ([.github/workflows/job-system-ci.yml](.github/workflows/job-system
 ✅ Set `JOB_SYSTEM_ENV=ci` flag for audit logging  
 ✅ Remove `ALLOW_DEV_PROD` bypass (no longer needed)
 
-### 5. Test Data Setup
+### 5. Proof in Actions (Audit Evidence)
+
+On the next workflow run, verify:
+
+- **Check Proof Gate Availability** prints `secrets_ok=true`
+- **Supabase-Backed Job Tests** is not skipped
+- Logs show:
+  - `SUPABASE_URL_CI present? true`
+  - `SUPABASE_PROJECT_REF_CI present? true`
+- Artifact uploaded: `supabase-contract-test-logs`
+
+### 6. Test Data Setup
 
 Create test manuscript in CI project:
 
@@ -145,7 +167,7 @@ Code (HEAD) → CI DB (aligned schema) → CI passes ✅
 
 ### "CI Supabase credentials not configured"
 
-The workflow will skip Supabase tests if secrets aren't set. Add the three `_CI` secrets.
+The workflow will skip Supabase tests if secrets aren't set. Add all required `_CI` secrets (URL, anon key, service role key, project ref, access token).
 
 ### Schema still mismatched
 
