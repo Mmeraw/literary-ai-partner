@@ -108,27 +108,27 @@ alter table "public"."evaluation_artifacts" drop column if exists "source_phase"
 
 alter table "public"."evaluation_artifacts" drop column if exists "updated_at";
 
-alter table "public"."evaluation_artifacts" add column "artifact_payload" jsonb not null;
+alter table "public"."evaluation_artifacts" add column if not exists "artifact_payload" jsonb not null;
 
 alter table "public"."evaluation_jobs" drop column if exists "failure_envelope";
 
 alter table "public"."evaluation_jobs" drop column if exists "last_attempt_at";
 
-alter table "public"."evaluation_jobs" add column "phase_1_attempt_count" integer default 0;
+alter table "public"."evaluation_jobs" add column if not exists "phase_1_attempt_count" integer default 0;
 
-alter table "public"."evaluation_jobs" add column "phase_1_completed_at" timestamp with time zone;
+alter table "public"."evaluation_jobs" add column if not exists "phase_1_completed_at" timestamp with time zone;
 
-alter table "public"."evaluation_jobs" add column "phase_1_error" text;
+alter table "public"."evaluation_jobs" add column if not exists "phase_1_error" text;
 
-alter table "public"."evaluation_jobs" add column "phase_1_locked_at" timestamp with time zone;
+alter table "public"."evaluation_jobs" add column if not exists "phase_1_locked_at" timestamp with time zone;
 
-alter table "public"."evaluation_jobs" add column "phase_1_locked_by" text;
+alter table "public"."evaluation_jobs" add column if not exists "phase_1_locked_by" text;
 
-alter table "public"."evaluation_jobs" add column "phase_1_started_at" timestamp with time zone;
+alter table "public"."evaluation_jobs" add column if not exists "phase_1_started_at" timestamp with time zone;
 
-alter table "public"."evaluation_jobs" add column "phase_1_status" text default 'not_started'::text;
+alter table "public"."evaluation_jobs" add column if not exists "phase_1_status" text default 'not_started'::text;
 
-alter table "public"."manuscript_chunks" add column "error" text;
+alter table "public"."manuscript_chunks" add column if not exists "error" text;
 
 alter table "public"."manuscript_chunks" alter column "manuscript_id" set data type integer using "manuscript_id"::integer;
 
