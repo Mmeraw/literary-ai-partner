@@ -13,8 +13,6 @@
 --   - Retry count tracking
 --   - All transition rules (new job starts at 'queued')
 
-BEGIN;
-
 -- Drop the old version so we can change the return type safely.
 DROP FUNCTION IF EXISTS public.admin_retry_job(uuid);
 
@@ -29,7 +27,7 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $admin_retry_job$
 DECLARE
   v_original_job evaluation_jobs%ROWTYPE;
   v_new_job_id   UUID;
@@ -121,6 +119,4 @@ BEGIN
     v_retry_count + 1       AS retry_count,
     TRUE                    AS created;
 END;
-$$;
-
-COMMIT;
+$admin_retry_job$;

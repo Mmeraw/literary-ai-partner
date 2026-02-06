@@ -9,12 +9,10 @@
 --
 -- Retries now work via retry-as-new-job pattern (separate migration).
 
-BEGIN;
-
 -- Drop existing function to allow return type change
-DROP FUNCTION IF EXISTS claim_job_atomic(TEXT, TIMESTAMPTZ, INTEGER) CASCADE;
+DROP FUNCTION IF EXISTS public.claim_job_atomic(TEXT, TIMESTAMPTZ, INTEGER) CASCADE;
 
-CREATE OR REPLACE FUNCTION claim_job_atomic(
+CREATE OR REPLACE FUNCTION public.claim_job_atomic(
   p_worker_id TEXT,
   p_now TIMESTAMPTZ,
   p_lease_seconds INTEGER
@@ -30,7 +28,7 @@ RETURNS TABLE (
   phase TEXT
 )
 LANGUAGE plpgsql
-AS $$
+AS $claim_job_atomic$
 DECLARE
   v_job_id UUID;
 BEGIN
@@ -78,6 +76,4 @@ BEGIN
   FROM public.evaluation_jobs j
   WHERE j.id = v_job_id;
 END;
-$$;
-
-COMMIT;
+$claim_job_atomic$;
