@@ -96,23 +96,23 @@ drop index if exists "public"."unique_job_artifact";
 
 drop table "public"."audit_entries";
 
-alter table "public"."evaluation_artifacts" drop column "artifact_version";
+alter table "public"."evaluation_artifacts" drop column if exists "artifact_version";
 
-alter table "public"."evaluation_artifacts" drop column "content";
+alter table "public"."evaluation_artifacts" drop column if exists "content";
 
-alter table "public"."evaluation_artifacts" drop column "manuscript_id";
+alter table "public"."evaluation_artifacts" drop column if exists "manuscript_id";
 
-alter table "public"."evaluation_artifacts" drop column "source_hash";
+alter table "public"."evaluation_artifacts" drop column if exists "source_hash";
 
-alter table "public"."evaluation_artifacts" drop column "source_phase";
+alter table "public"."evaluation_artifacts" drop column if exists "source_phase";
 
-alter table "public"."evaluation_artifacts" drop column "updated_at";
+alter table "public"."evaluation_artifacts" drop column if exists "updated_at";
 
 alter table "public"."evaluation_artifacts" add column "artifact_payload" jsonb not null;
 
-alter table "public"."evaluation_jobs" drop column "failure_envelope";
+alter table "public"."evaluation_jobs" drop column if exists "failure_envelope";
 
-alter table "public"."evaluation_jobs" drop column "last_attempt_at";
+alter table "public"."evaluation_jobs" drop column if exists "last_attempt_at";
 
 alter table "public"."evaluation_jobs" add column "phase_1_attempt_count" integer default 0;
 
