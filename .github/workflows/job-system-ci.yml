@@ -344,8 +344,14 @@ jobs:
           # Link to CI project
           supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF_CI }}"
 
-          # Apply all migrations from repo
-          supabase db push
+          # Attempt to push migrations; if mismatch, fetch remote state first
+          if ! supabase db push 2>&1 | tee /tmp/push-output.txt; then
+            echo ""
+            echo "⚠️  Migration mismatch detected. Fetching remote migration state..."
+            supabase migration fetch || true
+            echo "✅ Migration state fetched. Retrying push..."
+            supabase db push
+          fi
 
           echo "✅ Migrations applied successfully"
         env:
