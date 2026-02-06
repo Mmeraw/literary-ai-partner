@@ -3,10 +3,13 @@ name: CI (staging tests)
 on:
   push:
     branches: [ "main" ]
-  # pull_request disabled - DB connectivity issues, pre-existing failures
+      pull_request:
+    branches: [ "main", "develop" ]
+  # Staging tests gated to push-to-main only (DB connectivity issues)
 
 jobs:
   staging-tests:
+      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
