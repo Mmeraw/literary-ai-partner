@@ -9,6 +9,8 @@
 --
 -- Retries now work via retry-as-new-job pattern (separate migration).
 
+BEGIN;
+
 -- Drop existing function to allow return type change
 DROP FUNCTION IF EXISTS claim_job_atomic(TEXT, TIMESTAMPTZ, INTEGER) CASCADE;
 
@@ -77,3 +79,5 @@ BEGIN
   WHERE j.id = v_job_id;
 END;
 $$;
+
+COMMIT;

@@ -13,6 +13,8 @@
 --   - Retry count tracking
 --   - All transition rules (new job starts at 'queued')
 
+BEGIN;
+
 -- Drop the old version so we can change the return type safely.
 DROP FUNCTION IF EXISTS public.admin_retry_job(uuid);
 
@@ -120,3 +122,5 @@ BEGIN
     TRUE                    AS created;
 END;
 $$;
+
+COMMIT;
