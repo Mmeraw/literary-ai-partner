@@ -31,7 +31,11 @@ jobs:
             echo "❌ Missing SUPABASE_SERVICE_ROLE_KEY_CI"
             missing=1
           fi
-          
+          if [[ -z "${{ secrets.SUPABASE_ACCESS_TOKEN_CI }}" ]]; then
+            echo "❌ Missing SUPABASE_ACCESS_TOKEN_CI"
+            missing=1
+          fi
+
           if [ "$missing" -eq 1 ]; then
             echo "secrets_ok=false" >> "$GITHUB_OUTPUT"
             echo "⚠️  Supabase proof gates cannot run (secrets missing)"
@@ -68,6 +72,7 @@ jobs:
           echo "Required secrets:"
           echo "  • SUPABASE_URL_CI"
           echo "  • SUPABASE_SERVICE_ROLE_KEY_CI"
+          echo "  • SUPABASE_ACCESS_TOKEN_CI"
           echo ""
           echo "Resolution:"
           echo "  Configure these secrets in repository settings to enable"
@@ -335,16 +340,16 @@ jobs:
           echo "════════════════════════════════════════════════════════"
           echo "  Applying Repo Migrations to CI Supabase"
           echo "════════════════════════════════════════════════════════"
-          
+
           # Link to CI project
           supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF_CI }}"
-          
+
           # Apply all migrations from repo
           supabase db push
-          
+
           echo "✅ Migrations applied successfully"
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN_CI }}
 
       - name: Check CI DB migrations (proof gate)
         run: |
