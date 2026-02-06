@@ -9,8 +9,6 @@
 --
 -- Retries now work via retry-as-new-job pattern (separate migration).
 
-DROP FUNCTION IF EXISTS public.claim_job_atomic(TEXT, TIMESTAMPTZ, INTEGER) CASCADE;
-
 CREATE OR REPLACE FUNCTION public.claim_job_atomic(
   p_worker_id TEXT,
   p_now TIMESTAMPTZ,
