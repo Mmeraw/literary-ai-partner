@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
  * Admin Retry Atomicity Concurrency Test
- * 
+ *
  * Purpose: Prove that parallel admin retry requests are race-proof
- * 
+ *
  * Tests:
  *   1. Two parallel retries → exactly one returns changed=true
  *   2. Winner gets changed=true, loser gets changed=false (409)
  *   3. Job state stays consistent (no double attempt bump)
  *   4. attempt_count preserved (not reset)
- * 
+ *
  * Pattern: Same as jobs-supabase-contract-smoke.mjs but focused on retry RPC
- * 
+ *
  * Usage:
  *   SUPABASE_URL=<url> SUPABASE_SERVICE_ROLE_KEY=<key> node scripts/jobs-admin-retry-concurrency.mjs
  */
@@ -37,17 +37,17 @@ let testJobId = null;
  */
 async function cleanup() {
   console.error("\n[CLEANUP] Removing test data...");
-  
+
   const errors = [];
   let jobRows = 0;
   let manuscriptRows = 0;
-  
+
   if (testJobId) {
     const { error, count } = await supabase
       .from("evaluation_jobs")
       .delete({ count: "exact" })
       .eq("id", testJobId);
-    
+
     if (error) {
       errors.push(`Job deletion failed: ${error.message}`);
       console.error(`  ❌ CLEANUP ERROR: Failed to delete job ${testJobId}`);
@@ -56,13 +56,13 @@ async function cleanup() {
       console.error(`  CLEANUP: deleted job rows=${jobRows}`);
     }
   }
-  
+
   if (testManuscriptId) {
     const { error, count } = await supabase
       .from("manuscripts")
       .delete({ count: "exact" })
       .eq("id", testManuscriptId);
-    
+
     if (error) {
       errors.push(`Manuscript deletion failed: ${error.message}`);
       console.error(`  ❌ CLEANUP ERROR: Failed to delete manuscript ${testManuscriptId}`);
@@ -71,7 +71,7 @@ async function cleanup() {
       console.error(`  CLEANUP: deleted manuscript rows=${manuscriptRows}`);
     }
   }
-  
+
   if (errors.length > 0) {
     console.error(`  ❌ CLEANUP FAILED: ${errors.join("; ")}`);
     console.error(`  ⚠️  Manual cleanup may be required!`);
@@ -79,7 +79,7 @@ async function cleanup() {
   } else {
     console.error(`  CLEANUP: ok`);
   }
-  
+
   // Explicit flush: yield to event loop to ensure stderr/stdout flush
   await new Promise((resolve) => setImmediate(resolve));
 }
@@ -110,6 +110,7 @@ async function createFailedJob(manuscriptId) {
     .from("evaluation_jobs")
     .insert({
       manuscript_id: manuscriptId,
+      job_type: "full_evaluation",
       phase: "phase_1",
       work_type: "novel",
       policy_family: "standard",
@@ -162,7 +163,9 @@ async function testRpcSignature() {
       throw new Error("CI DB drift: admin_retry_job RPC not found (migration not applied)");
     }
     console.error(`  RPC error details:`, JSON.stringify(error, null, 2));
-    throw new Error(`RPC call failed: ${error.message} (hint: ${error.hint || 'N/A'}, details: ${error.details || 'N/A'})`);
+    throw new Error(
+      `RPC call failed: ${error.message} (hint: ${error.hint || "N/A"}, details: ${error.details || "N/A"})`
+    );
   }
 
   // Validate return type is array
@@ -217,7 +220,7 @@ async function testRetryContention(jobId, initialAttemptCount) {
     .single();
 
   if (preError) throw new Error(`Failed to fetch job for pre-check: ${preError.message}`);
-  
+
   console.log(`  Job pre-check: status=${preCheck.status}, attempt_count=${preCheck.attempt_count}`);
 
   if (preCheck.status !== "failed") {
@@ -246,12 +249,12 @@ async function testRetryContention(jobId, initialAttemptCount) {
   const data2 = result2.data[0];
 
   // Exactly one should have changed=true
-  const changedCount = [data1.changed, data2.changed].filter(c => c === true).length;
+  const changedCount = [data1.changed, data2.changed].filter((c) => c === true).length;
 
   if (changedCount !== 1) {
     throw new Error(
       `Expected exactly 1 retry to succeed, got ${changedCount}. ` +
-      `Result1: changed=${data1.changed}, Result2: changed=${data2.changed}`
+        `Result1: changed=${data1.changed}, Result2: changed=${data2.changed}`
     );
   }
 
@@ -286,9 +289,7 @@ async function testRetryContention(jobId, initialAttemptCount) {
 
   // attempt_count should be PRESERVED (not reset)
   if (postCheck.attempt_count !== initialAttemptCount) {
-    throw new Error(
-      `Expected attempt_count preserved (${initialAttemptCount}), got: ${postCheck.attempt_count}`
-    );
+    throw new Error(`Expected attempt_count preserved (${initialAttemptCount}), got: ${postCheck.attempt_count}`);
   }
   console.log(`  ✅ attempt_count preserved: ${postCheck.attempt_count}`);
 
@@ -306,7 +307,9 @@ async function testRetryContention(jobId, initialAttemptCount) {
 
   // Lease fields should be cleared
   if (postCheck.worker_id !== null || postCheck.lease_until !== null) {
-    throw new Error(`Expected lease fields cleared, got worker_id=${postCheck.worker_id}, lease_until=${postCheck.lease_until}`);
+    throw new Error(
+      `Expected lease fields cleared, got worker_id=${postCheck.worker_id}, lease_until=${postCheck.lease_until}`
+    );
   }
   console.log(`  ✅ Lease fields cleared`);
 
@@ -321,7 +324,6 @@ async function testRetryNonRetryable(jobId) {
 
   // Job is now in 'queued' status (from previous test)
   // Trying to retry should return changed=false
-
   const { data, error } = await supabase.rpc("admin_retry_job", {
     p_job_id: jobId,
   });
@@ -355,8 +357,8 @@ async function main() {
 
   try {
     // Test RPC signature first - FAIL HARD on DB drift
-    const signatureResult = await testRpcSignature();
-    
+    await testRpcSignature();
+
     // If we got here, RPC is valid - proceed with concurrency tests
     console.log("\n[SETUP] Creating test data...");
     testManuscriptId = await createTestManuscript();
