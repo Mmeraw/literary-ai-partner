@@ -361,8 +361,8 @@ jobs:
           # Expected remote migration IDs are the first underscore-delimited token in filenames:
           # e.g. 20260131000000_admin_retry_job_atomic_rpc.sql -> 20260131000000
           # We mark any remote migration IDs not present locally as reverted.
-          supabase migration list --remote \
-            | rg -oN '20\d{12}' \
+          supabase migration list --linked \
+            | grep -oE '20[0-9]{12}' \
             | sort -u \
             | while read -r migration; do
                 if ! ls "supabase/migrations/${migration}_"*.sql >/dev/null 2>&1; then
