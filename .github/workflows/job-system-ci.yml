@@ -355,7 +355,7 @@ jobs:
           echo "════════════════════════════════════════════════════════"
 
           # Link to CI project
-          supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF_CI }}" --no-prompt
+          supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF_CI }}" --yes
 
           echo "→ Drift recovery: repairing remote-only migrations (test DB only)"
           # Expected remote migration IDs are the first underscore-delimited token in filenames:
