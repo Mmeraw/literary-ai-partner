@@ -1,15 +1,19 @@
 -- A4: claim_job_atomic PostgREST signature compatibility shim
 -- Date: 2026-02-07
 -- Purpose: PostgREST schema cache / smoke test expects:
---   claim_job_atomic(p_lease_seconds int, p_now timestamptz, p_worker_id text)
+--   claim_job_atomic(integer, timestamptz, text) signature
 -- Canonical implementation signature is:
 --   claim_job_atomic(p_worker_id text, p_now timestamptz, p_lease_seconds integer)
 -- This wrapper preserves canonical implementation while exposing the expected signature.
+-- Note: Uses c_* prefix (compat convention) to avoid named-arg ambiguity with canonical.
+
+-- Drop first to ensure migration is idempotent and avoids param rename errors
+DROP FUNCTION IF EXISTS public.claim_job_atomic(INTEGER, TIMESTAMPTZ, TEXT);
 
 CREATE OR REPLACE FUNCTION public.claim_job_atomic(
-  p_lease_seconds INTEGER,
-  p_now TIMESTAMPTZ,
-  p_worker_id TEXT
+  c_lease_seconds INTEGER,
+  c_now TIMESTAMPTZ,
+  c_worker_id TEXT
 )
 RETURNS TABLE (
   id UUID,
@@ -35,9 +39,9 @@ BEGIN
   RETURN QUERY
   SELECT *
   FROM public.claim_job_atomic(
-    p_worker_id,      -- First positional arg
-    p_now,            -- Second positional arg
-    p_lease_seconds   -- Third positional arg
+    c_worker_id,      -- First positional arg
+    c_now,            -- Second positional arg
+    c_lease_seconds   -- Third positional arg
   );
 END;
 $claim_job_atomic_compat$;
