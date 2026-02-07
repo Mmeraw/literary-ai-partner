@@ -46,6 +46,12 @@ jobs:
             missing=1
           fi
 
+          # Required for direct DB verification queries (psql)
+          if [[ -z "${{ secrets.SUPABASE_DB_URL_CI }}" ]]; then
+            echo "❌ Missing SUPABASE_DB_URL_CI"
+            missing=1
+          fi
+
           if [ "$missing" -eq 1 ]; then
             echo "secrets_ok=false" >> "$GITHUB_OUTPUT"
             echo "⚠️  Supabase proof gates cannot run (secrets missing)"
@@ -84,6 +90,7 @@ jobs:
           echo "  • SUPABASE_SERVICE_ROLE_KEY_CI"
           echo "  • SUPABASE_PROJECT_REF_CI"
           echo "  • SUPABASE_ACCESS_TOKEN_CI"
+          echo "  • SUPABASE_DB_URL_CI"
           echo ""
           echo "Resolution:"
           echo "  Configure these secrets in repository settings to enable"
@@ -396,7 +403,7 @@ jobs:
           fi
 
           echo "→ Verifying claim_job_atomic overloads exist (audit proof)"
-          supabase db query --linked --sql "
+          psql "$SUPABASE_DB_URL_CI" -v ON_ERROR_STOP=1 -c "
           SELECT
             n.nspname AS schema,
             p.proname AS name,
@@ -409,10 +416,11 @@ jobs:
           " 2>&1 | tee scripts-artifacts/claim_job_atomic_overloads.log || echo "⚠️  Query failed but continuing"
 
           echo "→ Forcing PostgREST schema cache reload"
-          supabase db query --linked --sql "NOTIFY pgrst, 'reload schema';" 2>&1 | tee -a scripts-artifacts/postgrest-reload.log || echo "⚠️  PostgREST reload skipped (not critical)"
+          psql "$SUPABASE_DB_URL_CI" -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema';" 2>&1 | tee -a scripts-artifacts/postgrest-reload.log || echo "⚠️  PostgREST reload skipped (not critical)"
           sleep 2
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN_CI }}
+          SUPABASE_DB_URL_CI: ${{ secrets.SUPABASE_DB_URL_CI }}
 
       - name: Check CI DB migrations (proof gate)
         run: |
