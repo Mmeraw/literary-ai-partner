@@ -144,7 +144,7 @@ export function canRetryNow(job: Job): boolean {
  * Get all jobs eligible for retry.
  */
 export async function getRetryableJobs(): Promise<Job[]> {
-  const { getAllJobs } = await import("./store.js");
+  const { getAllJobs } = await import("./store");
   const allJobs = await getAllJobs();
   
   return allJobs.filter(canRetryNow);
