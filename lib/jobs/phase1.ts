@@ -2,8 +2,8 @@
 // progress lives at job.progress.{total_units,completed_units,failed_units}
 // status transitions only in route.ts (queued→running) and terminal worker update (→complete|failed)
 
-import * as metrics from "./metrics.js";
-import { PHASES, JOB_STATUS } from "./types.js";
+import * as metrics from "./metrics.;
+import { PHASES, JOB_STATUS } from "./types.;
 
 // Helper functions for type-safe unknown handling
 function asNumber(v: unknown, fallback: number): number {
@@ -54,11 +54,11 @@ export function canRetryPhase1(options: {
   return scheduled.getTime() <= now.getTime();
 }
 
-import { getJob, updateJob } from "./store.js";
+import { getJob, updateJob } from "./store";
 import {
   ensureChunks,
   getManuscriptChunks,
-  getEligibleChunksWithStuckRecovery,
+  getEligibleChunksWithStuckRecove
   claimChunkForProcessing,
   markChunkSuccess,
   markChunkFailure,
@@ -77,11 +77,11 @@ export async function runPhase1(jobId: string): Promise<void> {
   const llmClient = createLlmClient();
 
   // Acquire lease atomically with eligibility check
-  const { acquireLeaseForPhase1 } = await import("./store.js");
+  const { acquireLeaseForPhase1 } = await import("./store");
   const lease_id = crypto.randomUUID();
   const leasedJob = await acquireLeaseForPhase1(jobId, lease_id, 30); // 30 seconds TTL
 
-  if (!leasedJob) {
+  if (!leasedJo{
     console.log("Phase1LeaseNotAcquired", {
       job_id: jobId,
       phase: PHASES.PHASE_1,
