@@ -6,7 +6,7 @@ import {
   migrateProgressStageToPhaseStatus,
   validateProgressSchema,
 } from "./canon";
-import { Job, JobStatus, JobType, PHASES, Phase, JOB_STATUS } from "./types";
+import { Job, JobStatus, JobType, PHASES, Phase, JOB_STATUS, JobProgress } from "./types";
 
 // Lazy-initialized Supabase client - null-safe for CI/build environments
 let _supabase: ReturnType<typeof createAdminClient> | undefined;
@@ -577,14 +577,22 @@ function mapDbRowToJob(row: any): Job {
   const progress = row.progress || {};
   const migratedPhaseStatus = migrateProgressStageToPhaseStatus(progress);
   const migratedProgress = migrateProgressPhaseToCanonical(migratedPhaseStatus);
+  
+  // Ensure all required JobProgress fields are present
+  const completeProgress: JobProgress = {
+    phase: migratedProgress.phase ?? null,
+    phase_status: migratedProgress.phase_status ?? null,
+    total_units: migratedProgress.total_units ?? null,
+    completed_units: migratedProgress.completed_units ?? null,
+    ...migratedProgress, // Preserve any additional fields from DB
+  };
+  
   return {
     id: row.id,
     manuscript_id: Number(row.manuscript_id), // BigInt from DB → number
     job_type: JOB_TYPE_FROM_DB[row.job_type] ?? row.job_type,
     status: row.status,
-    progress: {
-      ...migratedProgress,
-    },
+    progress: completeProgress,
     created_at: row.created_at,
     updated_at: row.updated_at,
     last_heartbeat: row.last_heartbeat || null,
