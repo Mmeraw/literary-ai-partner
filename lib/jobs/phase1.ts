@@ -58,11 +58,11 @@ import { getJob, updateJob } from "../store.js";
 import {
   ensureChunks,
   getManuscriptChunks,
-  getEligibleChunksWithStuckRecove
+  getEligibleChunksWithStuckRecovery,
   claimChunkForProcessing,
   markChunkSuccess,
   markChunkFailure,
-} from "@/lib/manuscripts/chunks";
+} from "@/lib/manuscripts/chunks";ry,
 import { createLlmClient } from "@/lib/llm/client";
 
 export async function runPhase1(jobId: string): Promise<void> {
