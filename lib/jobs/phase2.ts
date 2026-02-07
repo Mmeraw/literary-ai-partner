@@ -323,7 +323,7 @@ export async function runPhase2(jobId: string): Promise<void> {
     throw new Error("Job not found");
   }
 
-  const { acquireLeaseForPhase2 } = await import("./store");
+  const { acquireLeaseForPhase2 } = await import("./store.js");
   const leaseId = crypto.randomUUID();
 
   console.log(`[Phase2] Attempting lease acquire`, {
