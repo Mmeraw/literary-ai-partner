@@ -396,12 +396,14 @@ async function testProgressCounters(jobId) {
 }
 
 /**
- * CI Hygiene Check: Detect and cleanup orphaned running jobs (environment drift remediation)
+ * CI Hygiene Check: Detect and cleanup orphaned/leftover jobs (environment drift remediation)
+ * Cleans up both orphaned running jobs AND leftover queued jobs from previous test runs
  */
 async function checkCiHygiene() {
-  console.log("\n[HYGIENE] Checking for orphaned running jobs...");
+  console.log("\n[HYGIENE] Checking for orphaned/leftover jobs...");
   
-  const { data: orphans, error } = await supabase
+  // Check for orphaned running jobs (status=running, lease_until=null)
+  const { data: orphanedRunning, error: runningError } = await supabase
     .from("evaluation_jobs")
     .select("id, status, lease_until, created_at")
     .eq("status", "running")
@@ -409,14 +411,11 @@ async function checkCiHygiene() {
     .order("created_at", { ascending: true })
     .limit(10);
   
-  if (error) {
-    console.log(`  ⚠️  Hygiene check query failed: ${error.message}`);
-    return;
-  }
-  
-  if (orphans && orphans.length > 0) {
-    console.log(`  ⚠️  Found ${orphans.length} orphaned running jobs (status=running, lease_until=null)`);
-    console.log(`      Cleaning up orphaned jobs to prevent test interference...`);
+  if (runningError) {
+    console.log(`  ⚠️  Hygiene check (running) query failed: ${runningError.message}`);
+  } else if (orphanedRunning && orphanedRunning.length > 0) {
+    console.log(`  ⚠️  Found ${orphanedRunning.length} orphaned running jobs (status=running, lease_until=null)`);
+    console.log(`      Resetting orphaned running jobs to queued...`);
     
     // Reset orphaned jobs back to queued state (deterministic cleanup)
     const { error: cleanupError, count } = await supabase
@@ -432,13 +431,45 @@ async function checkCiHygiene() {
       .is("lease_until", null);
     
     if (cleanupError) {
-      console.log(`  ❌ HYGIENE CLEANUP FAILED: ${cleanupError.message}`);
-      throw new Error(`Failed to cleanup orphaned jobs: ${cleanupError.message}`);
+      console.log(`  ❌ HYGIENE CLEANUP FAILED (running): ${cleanupError.message}`);
+      throw new Error(`Failed to cleanup orphaned running jobs: ${cleanupError.message}`);
     } else {
-      console.log(`  ✅ Reset ${count} orphaned jobs back to queued state`);
+      console.log(`  ✅ Reset ${count} orphaned running jobs to queued state`);
     }
   } else {
     console.log(`  ✅ No orphaned running jobs detected`);
+  }
+  
+  // Check for leftover queued jobs (older than 5 minutes = likely from previous test run)
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const { data: leftoverQueued, error: queuedError } = await supabase
+    .from("evaluation_jobs")
+    .select("id, status, created_at")
+    .eq("status", "queued")
+    .lt("created_at", fiveMinutesAgo)
+    .order("created_at", { ascending: true })
+    .limit(10);
+  
+  if (queuedError) {
+    console.log(`  ⚠️  Hygiene check (queued) query failed: ${queuedError.message}`);
+  } else if (leftoverQueued && leftoverQueued.length > 0) {
+    console.log(`  ⚠️  Found ${leftoverQueued.length} leftover queued jobs (older than 5min)`);
+    console.log(`      Deleting leftover queued jobs...`);
+    
+    const { error: deleteError, count } = await supabase
+      .from("evaluation_jobs")
+      .delete()
+      .eq("status", "queued")
+      .lt("created_at", fiveMinutesAgo);
+    
+    if (deleteError) {
+      console.log(`  ❌ HYGIENE CLEANUP FAILED (queued): ${deleteError.message}`);
+      throw new Error(`Failed to cleanup leftover queued jobs: ${deleteError.message}`);
+    } else {
+      console.log(`  ✅ Deleted ${count} leftover queued jobs`);
+    }
+  } else {
+    console.log(`  ✅ No leftover queued jobs detected`);
   }
 }
 
