@@ -372,7 +372,8 @@ jobs:
               done
 
           echo "→ Pushing repo migrations"
-          supabase db push --include-all --yes 2>&1 | tee scripts-artifacts/supabase-db-push.log
+          # Note: --yes flag doesn't work reliably across CLI versions; pipe 'yes' for non-interactive
+          yes | supabase db push --include-all 2>&1 | tee scripts-artifacts/supabase-db-push.log
 
           echo "✅ Migrations applied successfully"
         env:
