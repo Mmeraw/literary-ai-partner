@@ -4,6 +4,7 @@
 -- The wrapper was calling itself instead of the canonical implementation
 -- Fix: Use positional arguments in canonical order (text, timestamptz, integer)
 -- Note: Keep c_* parameters (compat convention) to avoid PostgreSQL 42P13 error
+-- GOVERNANCE: Do not rename parameters across migrations. See GOV_CLOSEOUT_A4_COMPAT_CONTRACTS.md
 
 CREATE OR REPLACE FUNCTION public.claim_job_atomic(
   c_lease_seconds INTEGER,
