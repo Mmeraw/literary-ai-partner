@@ -373,15 +373,26 @@ jobs:
 
           echo "→ Pushing repo migrations"
           # Note: --yes flag doesn't work reliably across CLI versions; pipe 'yes' for non-interactive
-          # Ignore SIGPIPE from 'yes' when supabase exits (expected behavior)
-          (yes || true) | supabase db push --include-all 2>&1 | tee scripts-artifacts/supabase-db-push.log
+          # Capture supabase exit code without letting pipefail kill step before we inspect PIPESTATUS
+          : > scripts-artifacts/supabase-db-push.log
           
-          # Verify migration succeeded (not just pipe failure)
-          if grep -q "Remote database is up to date\|Applying migration" scripts-artifacts/supabase-db-push.log; then
-            echo "✅ Migrations applied successfully"
+          set +o pipefail
+          (yes || true) | supabase db push --include-all 2>&1 | tee -a scripts-artifacts/supabase-db-push.log
+          PIPESTAT=("${PIPESTATUS[@]}")
+          set -o pipefail
+          
+          # PIPESTATUS: [0]=yes exit, [1]=supabase exit, [2]=tee exit
+          # Only [1] (supabase) matters; yes dying from SIGPIPE is expected
+          SUPABASE_EXIT="${PIPESTAT[1]:-99}"
+          
+          echo "Pipeline exit codes: yes=${PIPESTAT[0]:-NA}, supabase=${SUPABASE_EXIT}, tee=${PIPESTAT[2]:-NA}"
+          
+          if [ "$SUPABASE_EXIT" -eq 0 ]; then
+            echo "✅ Migrations applied successfully (supabase exit 0)"
           else
-            echo "❌ Migration failed (see log above)"
-            exit 1
+            echo "❌ supabase db push failed (exit $SUPABASE_EXIT). Last 200 lines of log:"
+            tail -200 scripts-artifacts/supabase-db-push.log || true
+            exit "$SUPABASE_EXIT"
           fi
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN_CI }}
