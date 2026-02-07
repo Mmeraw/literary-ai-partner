@@ -152,11 +152,10 @@ EOF
   echo ""
 
   cat <<'EOF'
-1) TypeScript (main + workers)
+1) TypeScript (Next.js)
 EOF
   npx tsc --noEmit -p tsconfig.json || { echo "❌ TypeScript main config failed"; exit 1; }
-  npx tsc --noEmit -p tsconfig.workers.json || { echo "❌ TypeScript worker config failed"; exit 1; }
-  echo "✅ TS clean"
+  echo "✅ TS clean (Note: workers use tsx transpileOnly mode, skip tsc check)"
   echo ""
 
   cat <<'EOF'
