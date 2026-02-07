@@ -30,14 +30,14 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 AS $claim_job_atomic_compat$
 BEGIN
-  -- Delegate to canonical implementation using named parameters.
-  -- This preserves internal contracts while satisfying PostgREST caller expectations.
+  -- Delegate to canonical implementation (p_worker_id, p_now, p_lease_seconds).
+  -- Use positional args in canonical order to resolve correct overload.
   RETURN QUERY
   SELECT *
   FROM public.claim_job_atomic(
-    p_worker_id := p_worker_id,
-    p_now := p_now,
-    p_lease_seconds := p_lease_seconds
+    p_worker_id,      -- First positional arg
+    p_now,            -- Second positional arg
+    p_lease_seconds   -- Third positional arg
   );
 END;
 $claim_job_atomic_compat$;
