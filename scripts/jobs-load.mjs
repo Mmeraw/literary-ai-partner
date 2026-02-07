@@ -56,7 +56,7 @@ async function runLoadTest() {
       );
       const payload = await getRes.json();
       const job = payload.job;
-      if (job.status !== "complete" || job.progress.phase !== "phase1" || job.progress.phase_status !== "complete") {
+      if (job.status !== "complete" || job.progress.phase !== "phase_1" || job.progress.phase_status !== "complete") {
         allComplete = false;
         break;
       }
@@ -106,7 +106,7 @@ async function runLoadTest() {
         allComplete = false;
         continue;
       }
-      if (job.progress.phase !== "phase2" || job.progress.phase_status !== "complete") {
+      if (job.progress.phase !== "phase_2" || job.progress.phase_status !== "complete") {
         throw new Error(`Job ${jobId} phase invariant failed`);
       }
       if ((job.progress.completed_units || 0) > (job.progress.total_units || 0)) {

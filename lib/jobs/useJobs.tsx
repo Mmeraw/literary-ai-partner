@@ -11,10 +11,7 @@ import { getPollingInterval } from "./polling";
 function allJobsTerminal(jobs: EvaluationJobRow[]): boolean {
   if (jobs.length === 0) return false;
   return jobs.every(
-    (job) =>
-      job.status === "complete" ||
-      job.status === "failed" ||
-      job.status === "canceled"
+    (job) => job.status === "complete" || job.status === "failed"
   );
 }
 

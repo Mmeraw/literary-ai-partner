@@ -77,20 +77,21 @@ function validateJob(job) {
     );
   }
 
-  // Invariant 4b: Lease should be cleared when status="canceled"
+  // Invariant 4b: Lease should be cleared when job is canceled (status=failed + canceled_at)
   if (
-    status === "canceled" &&
+    status === "failed" &&
+    progress.canceled_at &&
     (progress.lease_id || progress.lease_expires_at)
   ) {
     violations.push(
-      `Invariant 4b: status="canceled" but lease not cleared (lease_id=${progress.lease_id})`,
+      `Invariant 4b: canceled job but lease not cleared (lease_id=${progress.lease_id})`,
     );
   }
 
   // Invariant 5: Phase 2 complete jobs should have phase2_last_processed_index
   if (
     status === "complete" &&
-    phase === "phase2" &&
+    phase === "phase_2" &&
     progress.phase2_last_processed_index === undefined
   ) {
     violations.push(

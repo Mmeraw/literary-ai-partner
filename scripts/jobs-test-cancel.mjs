@@ -4,7 +4,7 @@
  *
  * Tests that cancellation works correctly:
  * 1. Cancel a running Phase 1 job
- * 2. Verify status=canceled, lease cleared
+ * 2. Verify status=failed + canceled_at, lease cleared
  * 3. Verify worker exits gracefully
  * 4. Cancel a running Phase 2 job
  * 5. Verify same semantics
@@ -63,7 +63,7 @@ async function main() {
   const cancelPayload1 = await cancelRes1.json();
   console.log(`Cancel response: ${cancelPayload1.message}`);
 
-  // Verify canceled state
+  // Verify canceled state (canon: failed + canceled_at)
   const getRes1 = await must(
     fetch(`${BASE}/api/jobs/${jobId1}`),
     "Failed to get job",
@@ -74,8 +74,8 @@ async function main() {
   console.log(`Job status: ${job1.status}`);
   console.log(`Lease cleared: ${!job1.progress?.lease_id && !job1.progress?.lease_expires_at}`);
 
-  if (job1.status !== "canceled") {
-    console.error("FAIL: Expected status=canceled");
+  if (job1.status !== "failed" || !job1.progress?.canceled_at) {
+    console.error("FAIL: Expected status=failed with canceled_at set");
     process.exit(1);
   }
 
@@ -153,7 +153,7 @@ async function main() {
   const cancelPayload2 = await cancelRes2.json();
   console.log(`Cancel response: ${cancelPayload2.message}`);
 
-  // Verify canceled state
+  // Verify canceled state (canon: failed + canceled_at)
   const getRes2 = await must(
     fetch(`${BASE}/api/jobs/${jobId2}`),
     "Failed to get job",
@@ -164,8 +164,8 @@ async function main() {
   console.log(`Job status: ${job2.status}`);
   console.log(`Lease cleared: ${!job2.progress?.lease_id && !job2.progress?.lease_expires_at}`);
 
-  if (job2.status !== "canceled") {
-    console.error("FAIL: Expected status=canceled");
+  if (job2.status !== "failed" || !job2.progress?.canceled_at) {
+    console.error("FAIL: Expected status=failed with canceled_at set");
     process.exit(1);
   }
 

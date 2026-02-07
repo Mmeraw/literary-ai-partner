@@ -69,6 +69,20 @@ const LEGACY_PHASE_STATUS_ALIASES: Record<string, CanonicalPhaseStatus> = {
   'completed': CANONICAL_PHASE_STATUS.COMPLETE,
 };
 
+/**
+ * Legacy phase aliases - USE ONLY in one-off migration scripts
+ * DO NOT call from runtime storage code
+ * TODO: Remove after data migration complete (target: 2026-02-15)
+ */
+const LEGACY_PHASE_ALIASES: Record<string, CanonicalPhase> = {
+  'phase0': CANONICAL_PHASE.PHASE_0,
+  'phase1': CANONICAL_PHASE.PHASE_1,
+  'phase2': CANONICAL_PHASE.PHASE_2,
+  'p0': CANONICAL_PHASE.PHASE_0,
+  'p1': CANONICAL_PHASE.PHASE_1,
+  'p2': CANONICAL_PHASE.PHASE_2,
+};
+
 // ============================================================================
 // NORMALIZATION (legacy → canonical)
 // ============================================================================
@@ -117,6 +131,20 @@ function toCanonicalPhaseStatus(value: string): CanonicalPhaseStatus | null {
   
   // Migration aliases only
   return LEGACY_PHASE_STATUS_ALIASES[value] || null;
+}
+
+/**
+ * Normalize phase value (legacy → canonical)
+ * TODO: Remove after all data migrated (target: 2026-02-15)
+ */
+function toCanonicalPhase(value: string): CanonicalPhase | null {
+  // Already canonical
+  if (Object.values(CANONICAL_PHASE).includes(value as CanonicalPhase)) {
+    return value as CanonicalPhase;
+  }
+
+  // Migration aliases only
+  return LEGACY_PHASE_ALIASES[value] || null;
 }
 
 // ============================================================================
@@ -240,6 +268,33 @@ export function migrateProgressStageToPhaseStatus(progress: Record<string, any>)
     }
   }
   
+  return progress;
+}
+
+/**
+ * Migrate legacy progress.phase → canonical phase_*
+ * Use this during read operations until all data is migrated
+ * 
+ * Legacy input compatibility only; not persisted to storage; safe for transition period
+ */
+export function migrateProgressPhaseToCanonical(progress: Record<string, any>): Record<string, any> {
+  if (!progress) return progress;
+
+  const p = progress as Record<string, unknown>;
+  if ('phase' in p) {
+    const phaseValue = p['phase'];
+    if (typeof phaseValue === 'string') {
+      const canonical = toCanonicalPhase(phaseValue);
+      if (canonical && canonical !== phaseValue) {
+        const migrated = { ...progress, phase: canonical };
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(`[canon] Migrated progress.phase → canonical: ${phaseValue} → ${canonical}`);
+        }
+        return migrated;
+      }
+    }
+  }
+
   return progress;
 }
 
