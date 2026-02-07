@@ -396,7 +396,7 @@ async function testProgressCounters(jobId) {
 }
 
 /**
- * CI Hygiene Check: Detect orphaned running jobs (environment drift canary)
+ * CI Hygiene Check: Detect and cleanup orphaned running jobs (environment drift remediation)
  */
 async function checkCiHygiene() {
   console.log("\n[HYGIENE] Checking for orphaned running jobs...");
@@ -415,10 +415,28 @@ async function checkCiHygiene() {
   }
   
   if (orphans && orphans.length > 0) {
-    console.log(`  ⚠️  WARNING: Found ${orphans.length} orphaned running jobs (status=running, lease_until=null)`);
-    console.log(`      This indicates prior test failures or environment drift.`);
-    console.log(`      Sample IDs: ${orphans.slice(0, 3).map(j => j.id).join(", ")}`);
-    // Don't fail CI, but log as canary for operator awareness
+    console.log(`  ⚠️  Found ${orphans.length} orphaned running jobs (status=running, lease_until=null)`);
+    console.log(`      Cleaning up orphaned jobs to prevent test interference...`);
+    
+    // Reset orphaned jobs back to queued state (deterministic cleanup)
+    const { error: cleanupError, count } = await supabase
+      .from("evaluation_jobs")
+      .update({
+        status: "queued",
+        worker_id: null,
+        lease_token: null,
+        lease_until: null,
+        heartbeat_at: null
+      })
+      .eq("status", "running")
+      .is("lease_until", null);
+    
+    if (cleanupError) {
+      console.log(`  ❌ HYGIENE CLEANUP FAILED: ${cleanupError.message}`);
+      throw new Error(`Failed to cleanup orphaned jobs: ${cleanupError.message}`);
+    } else {
+      console.log(`  ✅ Reset ${count} orphaned jobs back to queued state`);
+    }
   } else {
     console.log(`  ✅ No orphaned running jobs detected`);
   }
