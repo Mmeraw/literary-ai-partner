@@ -53,7 +53,7 @@ BEGIN
     lease_token = gen_random_uuid(),
     lease_until = p_now + make_interval(secs => p_lease_seconds),
     heartbeat_at = p_now,
-    started_at = COALESCE(started_at, p_now),
+    started_at = COALESCE(evaluation_jobs.started_at, p_now),
     updated_at = p_now,
     next_attempt_at = NULL
   WHERE evaluation_jobs.id = v_job_id
