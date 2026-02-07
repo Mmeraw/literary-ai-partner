@@ -43,8 +43,7 @@ export function getPollingInterval(jobs: EvaluationJobRow[]): number {
   const activeJobs = jobs.filter(
     (job) =>
       job.status !== "complete" &&
-      job.status !== "failed" &&
-      job.status !== "canceled"
+      job.status !== "failed"
   );
 
   if (activeJobs.length === 0) return POLLING_INTERVALS.FAST;

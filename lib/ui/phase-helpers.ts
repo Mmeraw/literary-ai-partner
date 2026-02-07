@@ -53,5 +53,5 @@ export function getPhaseSpecificCopy(
  * Check if job status is terminal (no more updates expected)
  */
 export function isTerminalStatus(status: string): boolean {
-  return status === "complete" || status === "failed" || status === "canceled";
+  return status === "complete" || status === "failed";
 }

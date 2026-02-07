@@ -45,7 +45,7 @@ export function calculateRetryDelay(
 
 /**
  * Schedule a job for retry.
- * Sets status=retry_pending, calculates next_retry_at.
+ * Keeps status=failed (canonical) and sets next_retry_at marker.
  */
 export async function scheduleRetry(
   jobId: string,

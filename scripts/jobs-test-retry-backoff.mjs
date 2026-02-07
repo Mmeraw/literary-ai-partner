@@ -3,7 +3,7 @@
  * Retry Backoff Test
  *
  * Tests exponential backoff with jitter:
- * 1. Force a job to fail and enter retry_pending
+ * 1. Force a job to fail and set next_retry_at (canonical retry marker)
  * 2. Verify next_retry_at uses exponential backoff
  * 3. Verify jitter is applied (0.8x - 1.2x)
  * 4. Verify max retries threshold

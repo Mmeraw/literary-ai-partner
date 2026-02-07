@@ -96,14 +96,14 @@ async function main() {
     }
 
     console.log(
-      `[Phase1 ${status}] ${progress.stage ?? ""} ${
+      `[Phase1 ${status}] ${progress.phase_status ?? ""} ${
         progress.message ?? ""
       } (${completed_units}/${total_units})`,
     );
 
     // Phase 1 leaves status=complete, phase_status=complete when done
     if (phase_status === "complete") {
-      if (progress.phase !== "phase1" || progress.phase_status !== "complete") {
+      if (progress.phase !== "phase_1" || progress.phase_status !== "complete") {
         throw new Error(
           `Phase 1 not properly completed: phase=${progress.phase}, phase_status=${progress.phase_status}`,
         );
@@ -148,7 +148,7 @@ async function main() {
     const total_units = progress.total_units ?? 0;
 
     // Tolerate brief window before Phase 2 counters are written
-    if (status === "running" && progress.phase === "phase2") {
+    if (status === "running" && progress.phase === "phase_2") {
       if (!progress.total_units || progress.total_units === 0) {
         console.log("[Phase2 waiting] counters not ready yet");
         await sleep(500);
@@ -157,13 +157,13 @@ async function main() {
     }
 
     console.log(
-      `[Phase2 ${status}] ${progress.stage ?? ""} ${
+      `[Phase2 ${status}] ${progress.phase_status ?? ""} ${
         progress.message ?? ""
       } (${completed_units}/${total_units})`,
     );
 
     if (status === "complete") {
-      if (progress.phase !== "phase2" || progress.phase_status !== "complete") {
+      if (progress.phase !== "phase_2" || progress.phase_status !== "complete") {
         throw new Error(
           `Phase 2 not properly completed: phase=${progress.phase}, phase_status=${progress.phase_status}`,
         );

@@ -3,7 +3,7 @@ import * as metrics from "./metrics";
 import { getJob, updateJob } from "./store";
 import { getChunksForJob } from "@/lib/manuscripts/chunks";
 import { createClient } from "@supabase/supabase-js";
-import { PHASES } from "./types";
+import { JOB_STATUS, PHASES } from "./types";
 
 export const PHASE_2_STATES = {
   NOT_STARTED: "not_started",
@@ -354,10 +354,10 @@ export async function runPhase2(jobId: string): Promise<void> {
 
   if (!Number.isFinite(manuscriptId) || manuscriptId <= 0) {
     await updateJob(jobId, {
-      status: "failed",
+      status: JOB_STATUS.FAILED,
       progress: {
-        phase: "phase_2",
-        phase_status: "failed",
+        phase: PHASES.PHASE_2,
+        phase_status: JOB_STATUS.FAILED,
         message: "v2: invalid_manuscript_id",
         total_units: null,
         completed_units: null,
@@ -374,10 +374,10 @@ export async function runPhase2(jobId: string): Promise<void> {
 
     if (!validation.isValid) {
       await updateJob(jobId, {
-        status: "failed",
+        status: JOB_STATUS.FAILED,
         progress: {
           phase: PHASES.PHASE_2,
-          phase_status: "failed",
+          phase_status: JOB_STATUS.FAILED,
           message: `Phase 1 output not ready: ${validation.error}`,
           total_units: null,
           completed_units: null,
@@ -398,10 +398,10 @@ export async function runPhase2(jobId: string): Promise<void> {
 
     // STEP 4: terminal job state only after persistence (or detected existing)
     await updateJob(jobId, {
-      status: "complete", // CANONICAL terminal JobStatus in your repo
+      status: JOB_STATUS.COMPLETE,
       progress: {
         phase: PHASES.PHASE_2,
-        phase_status: "complete",
+        phase_status: JOB_STATUS.COMPLETE,
         message: persistResult.alreadyExists
           ? "Phase 2 already complete (idempotent)"
           : `Phase 2 complete: ${result.processedCount}/${result.chunkCount} chunks analyzed`,
@@ -440,10 +440,10 @@ export async function runPhase2(jobId: string): Promise<void> {
 
     // Keep Phase 2 observable and retry-safe.
     await updateJob(jobId, {
-      status: "failed",
+      status: JOB_STATUS.FAILED,
       progress: {
         phase: PHASES.PHASE_2,
-        phase_status: "failed",
+        phase_status: JOB_STATUS.FAILED,
         message: `v2: phase2_exception: ${msg}`,
         last_error: e instanceof Error ? e.stack : msg,
         total_units: null,

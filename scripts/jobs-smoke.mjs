@@ -61,9 +61,6 @@ async function main() {
     // After grace window, counters must exist if phase is running.
     if (elapsed >= PHASE1_COUNTER_GRACE_MS && p?.phase_status === "running") return true;
 
-    // If stage indicates active processing, enforce counters.
-    if (p?.stage === "processing") return true;
-
     return false;
   }
 
@@ -89,7 +86,7 @@ async function main() {
       );
     }
 
-    console.log(`[${status}] ${progress.stage ?? ""} ${progress.message ?? ""} (${completed_units}/${total_units})`);
+    console.log(`[${status}] ${progress.phase_status ?? ""} ${progress.message ?? ""} (${completed_units}/${total_units})`);
 
     // Phase 1 leaves status=running but phase_status=completed when done
     if (phase_status === "complete") {

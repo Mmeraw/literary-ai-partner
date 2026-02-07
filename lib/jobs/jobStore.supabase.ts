@@ -1,7 +1,12 @@
 import { createAdminClient } from "../supabase/admin";
 import { assertValidTransition, isValidTransition } from "./transitions";
 import { validateProgressForPhase } from "./validation";
-import { Job, JobStatus, JobType, PHASES } from "./types";
+import {
+  migrateProgressPhaseToCanonical,
+  migrateProgressStageToPhaseStatus,
+  validateProgressSchema,
+} from "./canon";
+import { Job, JobStatus, JobType, PHASES, Phase, JOB_STATUS, JobProgress } from "./types";
 
 // Lazy-initialized Supabase client - null-safe for CI/build environments
 let _supabase: ReturnType<typeof createAdminClient> | undefined;
@@ -47,6 +52,42 @@ const JOB_TYPE_FROM_DB: Record<string, JobType> = {
   query_package_generation: "query_generate",
   comparables_generation: "storygate_package",
 };
+
+const CANON_JOB_STATUS_VALUES = new Set(Object.values(JOB_STATUS));
+const CANON_PHASE_VALUES = new Set(Object.values(PHASES));
+
+function assertCanonicalStatusValue(value: string): asserts value is JobStatus {
+  if (!CANON_JOB_STATUS_VALUES.has(value as JobStatus)) {
+    throw new Error(
+      `Non-canonical job status detected: "${value}". ` +
+        `Expected: ${Object.values(JOB_STATUS).join(", ")}`,
+    );
+  }
+}
+
+function assertCanonicalPhaseValue(value: string): asserts value is Phase {
+  if (!CANON_PHASE_VALUES.has(value as Phase)) {
+    throw new Error(
+      `Non-canonical phase detected: "${value}". ` +
+        `Expected: ${Object.values(PHASES).join(", ")}`,
+    );
+  }
+}
+
+function assertCanonicalPhaseStatusValue(value: string | null | undefined): void {
+  if (value === null || value === undefined) return;
+  assertCanonicalStatusValue(value);
+}
+
+function validateProgressWrite(progress: Record<string, unknown>): void {
+  validateProgressSchema(progress);
+  if ("phase" in progress && typeof progress.phase === "string") {
+    assertCanonicalPhaseValue(progress.phase);
+  }
+  if ("phase_status" in progress) {
+    assertCanonicalPhaseStatusValue(progress.phase_status as string | null | undefined);
+  }
+}
 
 export async function createJob(input: {
   manuscript_id: string;
@@ -102,6 +143,9 @@ export async function createJob(input: {
     english_variant: "us",
   };
 
+  validateProgressWrite(payload.progress);
+  assertCanonicalStatusValue(payload.status);
+
   const { data, error } = await supabase
     .from("evaluation_jobs")
     .insert(payload)
@@ -148,7 +192,7 @@ export async function getJob(id: string): Promise<Job | null> {
     const { error: updateError } = await supabase
       .from("evaluation_jobs")
       .update({
-        status: "failed",
+        status: JOB_STATUS.FAILED,
         progress: {
           ...job.progress,
           error_code: validationErr,
@@ -193,6 +237,7 @@ export async function updateJob(
   if (!existing) return null;
 
   if (updates.status) {
+    assertCanonicalStatusValue(updates.status);
     assertValidTransition(existing, updates.status as JobStatus);
   }
 
@@ -206,6 +251,7 @@ export async function updateJob(
 
   // Always merge progress to preserve existing fields
   if (updates.progress) {
+    validateProgressWrite(updates.progress as Record<string, unknown>);
     payload.progress = { ...existing.progress, ...updates.progress };
   }
 
@@ -492,7 +538,7 @@ export async function setJobFailed(
     
     updatePayload = {
       ...updatePayload,
-      status: 'queued', // Keep as queued for retry
+      status: JOB_STATUS.QUEUED,
       next_attempt_at: nextAttemptAt,
       progress: {
         ...job.progress,
@@ -504,7 +550,7 @@ export async function setJobFailed(
     // Permanently failed (either non-retryable or exhausted attempts)
     updatePayload = {
       ...updatePayload,
-      status: 'failed',
+      status: JOB_STATUS.FAILED,
       failed_at: now,
       progress: {
         ...job.progress,
@@ -527,26 +573,26 @@ export async function setJobFailed(
   }
 }
 
-/**
- * Backward compatibility normalizer: converts legacy "complete" to canonical "complete"
- * Can be removed once all production data is migrated
- */
-function normalizePhaseStatus(status?: string): string | undefined {
-  if (status === "complete") return "complete";
-  return status;
-}
-
 function mapDbRowToJob(row: any): Job {
   const progress = row.progress || {};
+  const migratedPhaseStatus = migrateProgressStageToPhaseStatus(progress);
+  const migratedProgress = migrateProgressPhaseToCanonical(migratedPhaseStatus);
+  
+  // Ensure all required JobProgress fields are present
+  const completeProgress: JobProgress = {
+    phase: migratedProgress.phase ?? null,
+    phase_status: migratedProgress.phase_status ?? null,
+    total_units: migratedProgress.total_units ?? null,
+    completed_units: migratedProgress.completed_units ?? null,
+    ...migratedProgress, // Preserve any additional fields from DB
+  };
+  
   return {
     id: row.id,
     manuscript_id: Number(row.manuscript_id), // BigInt from DB → number
     job_type: JOB_TYPE_FROM_DB[row.job_type] ?? row.job_type,
     status: row.status,
-    progress: {
-      ...progress,
-      phase_status: normalizePhaseStatus(progress.phase_status),
-    },
+    progress: completeProgress,
     created_at: row.created_at,
     updated_at: row.updated_at,
     last_heartbeat: row.last_heartbeat || null,
