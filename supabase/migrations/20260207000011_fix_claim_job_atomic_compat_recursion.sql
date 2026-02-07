@@ -3,11 +3,12 @@
 -- Problem: Named parameters don't disambiguate PostgreSQL overloads
 -- The wrapper was calling itself instead of the canonical implementation
 -- Fix: Use positional arguments in canonical order (text, timestamptz, integer)
+-- Note: Keep c_* parameters (compat convention) to avoid PostgreSQL 42P13 error
 
 CREATE OR REPLACE FUNCTION public.claim_job_atomic(
-  p_lease_seconds INTEGER,
-  p_now TIMESTAMPTZ,
-  p_worker_id TEXT
+  c_lease_seconds INTEGER,
+  c_now TIMESTAMPTZ,
+  c_worker_id TEXT
 )
 RETURNS TABLE (
   id UUID,
@@ -33,9 +34,9 @@ BEGIN
   RETURN QUERY
   SELECT *
   FROM public.claim_job_atomic(
-    p_worker_id,      -- First positional arg (TEXT)
-    p_now,            -- Second positional arg (TIMESTAMPTZ)
-    p_lease_seconds   -- Third positional arg (INTEGER)
+    c_worker_id,      -- First positional arg (TEXT)
+    c_now,            -- Second positional arg (TIMESTAMPTZ)
+    c_lease_seconds   -- Third positional arg (INTEGER)
   );
 END;
 $claim_job_atomic_compat$;
