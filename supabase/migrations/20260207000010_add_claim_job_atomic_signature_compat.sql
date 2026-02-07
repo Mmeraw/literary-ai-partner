@@ -41,7 +41,3 @@ BEGIN
   );
 END;
 $claim_job_atomic_compat$;
-
--- Ensure PostgREST can execute this signature variant
-GRANT EXECUTE ON FUNCTION public.claim_job_atomic(INTEGER, TIMESTAMPTZ, TEXT)
-  TO anon, authenticated, service_role;
