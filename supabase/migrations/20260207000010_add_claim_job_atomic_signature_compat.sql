@@ -7,9 +7,6 @@
 -- This wrapper preserves canonical implementation while exposing the expected signature.
 -- Note: Uses c_* prefix (compat convention) to avoid named-arg ambiguity with canonical.
 
--- Drop first to ensure migration is idempotent and avoids param rename errors
-DROP FUNCTION IF EXISTS public.claim_job_atomic(INTEGER, TIMESTAMPTZ, TEXT);
-
 CREATE OR REPLACE FUNCTION public.claim_job_atomic(
   c_lease_seconds INTEGER,
   c_now TIMESTAMPTZ,
