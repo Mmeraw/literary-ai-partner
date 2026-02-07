@@ -27,7 +27,7 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $admin_retry_job$
 DECLARE
   v_original_job evaluation_jobs%ROWTYPE;
   v_new_job_id   UUID;
@@ -119,4 +119,4 @@ BEGIN
     v_retry_count + 1       AS retry_count,
     TRUE                    AS created;
 END;
-$$;
+$admin_retry_job$;

@@ -1,13 +1,8 @@
--- Fix claim_job_atomic: Only claim queued jobs (no resurrection)
--- Date: 2026-02-05
--- Contract: JOB_CONTRACT_v1 §5.1 - terminal statuses cannot transition
---
--- CRITICAL FIX: Remove 'failed' from claimable statuses
---
--- Before: WHERE j.status IN ('queued', 'failed')  -- allowed resurrection
--- After:  WHERE j.status = 'queued'               -- contract-compliant
---
--- Retries now work via retry-as-new-job pattern (separate migration).
+-- Fix "started_at is ambiguous" error in claim_job_atomic canonical function
+-- Date: 2026-02-07
+-- Purpose: Qualify RHS column references in UPDATE to resolve plpgsql variable/column conflict
+-- Context: RETURNS TABLE declares started_at as an OUT parameter, which creates ambiguity
+--          when UPDATE also references started_at. Using table alias (ej) on RHS resolves this.
 
 CREATE OR REPLACE FUNCTION public.claim_job_atomic(
   p_worker_id TEXT,
@@ -40,7 +35,7 @@ BEGIN
   -- Retries must create NEW jobs (retry-as-new-job pattern).
   SELECT j.id INTO v_job_id
   FROM public.evaluation_jobs j
-  WHERE j.status = 'queued'  -- FIXED: removed 'failed' (was resurrection)
+  WHERE j.status = 'queued'
     AND (j.lease_until IS NULL OR j.lease_until < p_now)
     AND (j.next_attempt_at IS NULL OR j.next_attempt_at <= p_now)
   ORDER BY j.created_at ASC
@@ -53,18 +48,19 @@ BEGIN
 
   -- JOB_CONTRACT_v1 §5.1: queued → running (allowed).
   -- CAS guard: only transition if still queued.
-  UPDATE public.evaluation_jobs
+  -- CRITICAL: Use alias (ej) on RHS to disambiguate from RETURNS TABLE out params
+  UPDATE public.evaluation_jobs AS ej
   SET
     status = 'running',
     worker_id = p_worker_id,
     lease_token = gen_random_uuid(),
     lease_until = p_now + make_interval(secs => p_lease_seconds),
     heartbeat_at = p_now,
-    started_at = COALESCE(started_at, p_now),
+    started_at = COALESCE(ej.started_at, p_now),
     updated_at = p_now,
     next_attempt_at = NULL
-  WHERE evaluation_jobs.id = v_job_id
-    AND evaluation_jobs.status = 'queued';
+  WHERE ej.id = v_job_id
+    AND ej.status = 'queued';
 
   RETURN QUERY
   SELECT

@@ -1,15 +1,8 @@
--- Fix claim_job_atomic: Only claim queued jobs (no resurrection)
--- Date: 2026-02-05
--- Contract: JOB_CONTRACT_v1 §5.1 - terminal statuses cannot transition
---
--- CRITICAL FIX: Remove 'failed' from claimable statuses
---
--- Before: WHERE j.status IN ('queued', 'failed')  -- allowed resurrection
--- After:  WHERE j.status = 'queued'               -- contract-compliant
---
--- Retries now work via retry-as-new-job pattern (separate migration).
+-- Phase A.4: Fix claim_job_atomic attempt_count ambiguity
+-- Date: 2026-01-31
+-- Purpose: Qualify attempt_count update to avoid PL/pgSQL ambiguity
 
-CREATE OR REPLACE FUNCTION public.claim_job_atomic(
+CREATE OR REPLACE FUNCTION claim_job_atomic(
   p_worker_id TEXT,
   p_now TIMESTAMPTZ,
   p_lease_seconds INTEGER
@@ -24,25 +17,23 @@ RETURNS TABLE (
   work_type TEXT,
   phase TEXT,
   status TEXT,
-  worker_id TEXT,
   lease_token UUID,
   lease_until TIMESTAMPTZ,
-  heartbeat_at TIMESTAMPTZ,
-  started_at TIMESTAMPTZ
+  attempt_count INTEGER,
+  max_attempts INTEGER,
+  next_attempt_at TIMESTAMPTZ
 )
 LANGUAGE plpgsql
-AS $claim_job_atomic_v2$
+AS $$
 DECLARE
   v_job_id UUID;
 BEGIN
-  -- JOB_CONTRACT_v1 §5.1: Only claim queued jobs.
-  -- Failed jobs are TERMINAL (§3.2) and cannot transition to running.
-  -- Retries must create NEW jobs (retry-as-new-job pattern).
   SELECT j.id INTO v_job_id
   FROM public.evaluation_jobs j
-  WHERE j.status = 'queued'  -- FIXED: removed 'failed' (was resurrection)
+  WHERE j.status = 'queued'
     AND (j.lease_until IS NULL OR j.lease_until < p_now)
     AND (j.next_attempt_at IS NULL OR j.next_attempt_at <= p_now)
+    AND (j.attempt_count < j.max_attempts)
   ORDER BY j.created_at ASC
   LIMIT 1
   FOR UPDATE SKIP LOCKED;
@@ -51,8 +42,6 @@ BEGIN
     RETURN;
   END IF;
 
-  -- JOB_CONTRACT_v1 §5.1: queued → running (allowed).
-  -- CAS guard: only transition if still queued.
   UPDATE public.evaluation_jobs
   SET
     status = 'running',
@@ -62,9 +51,9 @@ BEGIN
     heartbeat_at = p_now,
     started_at = COALESCE(started_at, p_now),
     updated_at = p_now,
-    next_attempt_at = NULL
-  WHERE evaluation_jobs.id = v_job_id
-    AND evaluation_jobs.status = 'queued';
+    next_attempt_at = NULL,
+    attempt_count = public.evaluation_jobs.attempt_count + 1
+  WHERE evaluation_jobs.id = v_job_id;
 
   RETURN QUERY
   SELECT
@@ -77,12 +66,12 @@ BEGIN
     j.work_type AS work_type,
     j.phase AS phase,
     j.status AS status,
-    j.worker_id AS worker_id,
     j.lease_token AS lease_token,
     j.lease_until AS lease_until,
-    j.heartbeat_at AS heartbeat_at,
-    j.started_at AS started_at
+    j.attempt_count AS attempt_count,
+    j.max_attempts AS max_attempts,
+    j.next_attempt_at AS next_attempt_at
   FROM public.evaluation_jobs j
   WHERE j.id = v_job_id;
 END;
-$claim_job_atomic_v2$;
+$$;

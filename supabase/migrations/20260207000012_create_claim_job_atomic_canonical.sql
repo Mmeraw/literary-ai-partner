@@ -1,13 +1,6 @@
--- Fix claim_job_atomic: Only claim queued jobs (no resurrection)
--- Date: 2026-02-05
--- Contract: JOB_CONTRACT_v1 §5.1 - terminal statuses cannot transition
---
--- CRITICAL FIX: Remove 'failed' from claimable statuses
---
--- Before: WHERE j.status IN ('queued', 'failed')  -- allowed resurrection
--- After:  WHERE j.status = 'queued'               -- contract-compliant
---
--- Retries now work via retry-as-new-job pattern (separate migration).
+-- Recreate canonical claim_job_atomic signature (text, timestamptz, integer)
+-- Date: 2026-02-07
+-- Purpose: Ensure canonical overload exists in CI even if earlier migration drifted
 
 CREATE OR REPLACE FUNCTION public.claim_job_atomic(
   p_worker_id TEXT,
@@ -60,7 +53,7 @@ BEGIN
     lease_token = gen_random_uuid(),
     lease_until = p_now + make_interval(secs => p_lease_seconds),
     heartbeat_at = p_now,
-    started_at = COALESCE(started_at, p_now),
+    started_at = COALESCE(evaluation_jobs.started_at, p_now),
     updated_at = p_now,
     next_attempt_at = NULL
   WHERE evaluation_jobs.id = v_job_id

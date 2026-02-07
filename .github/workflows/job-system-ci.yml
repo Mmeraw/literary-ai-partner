@@ -46,6 +46,12 @@ jobs:
             missing=1
           fi
 
+          # Required for direct DB verification queries (psql)
+          if [[ -z "${{ secrets.SUPABASE_DB_URL_CI }}" ]]; then
+            echo "❌ Missing SUPABASE_DB_URL_CI"
+            missing=1
+          fi
+
           if [ "$missing" -eq 1 ]; then
             echo "secrets_ok=false" >> "$GITHUB_OUTPUT"
             echo "⚠️  Supabase proof gates cannot run (secrets missing)"
@@ -84,6 +90,7 @@ jobs:
           echo "  • SUPABASE_SERVICE_ROLE_KEY_CI"
           echo "  • SUPABASE_PROJECT_REF_CI"
           echo "  • SUPABASE_ACCESS_TOKEN_CI"
+          echo "  • SUPABASE_DB_URL_CI"
           echo ""
           echo "Resolution:"
           echo "  Configure these secrets in repository settings to enable"
@@ -372,11 +379,62 @@ jobs:
               done
 
           echo "→ Pushing repo migrations"
-          supabase db push --include-all
+          # Note: --yes flag doesn't work reliably across CLI versions; pipe 'yes' for non-interactive
+          # Capture supabase exit code without letting pipefail kill step before we inspect PIPESTATUS
+          : > scripts-artifacts/supabase-db-push.log
+          
+          set +o pipefail
+          (yes || true) | supabase db push --include-all 2>&1 | tee -a scripts-artifacts/supabase-db-push.log
+          PIPESTAT=("${PIPESTATUS[@]}")
+          set -o pipefail
+          
+          # PIPESTATUS: [0]=yes exit, [1]=supabase exit, [2]=tee exit
+          # Only [1] (supabase) matters; yes dying from SIGPIPE is expected
+          SUPABASE_EXIT="${PIPESTAT[1]:-99}"
+          
+          echo "Pipeline exit codes: yes=${PIPESTAT[0]:-NA}, supabase=${SUPABASE_EXIT}, tee=${PIPESTAT[2]:-NA}"
+          
+          if [ "$SUPABASE_EXIT" -eq 0 ]; then
+            echo "✅ Migrations applied successfully (supabase exit 0)"
+          else
+            echo "❌ supabase db push failed (exit $SUPABASE_EXIT). Last 200 lines of log:"
+            tail -200 scripts-artifacts/supabase-db-push.log || true
+            exit "$SUPABASE_EXIT"
+          fi
 
-          echo "✅ Migrations applied successfully"
+          echo "→ Forcing PostgREST schema cache reload via SQL notification"
+          # Use SELECT pg_notify() which works better across network conditions than NOTIFY
+          if psql "$SUPABASE_DB_URL_CI" -v ON_ERROR_STOP=1 -c "SELECT pg_notify('pgrst', 'reload schema');" 2>&1 | tee scripts-artifacts/postgrest-reload.log; then
+            echo "✅ PostgREST reload notification sent"
+          else
+            echo "⚠️  PostgREST reload via psql failed; continuing (smoke tests will validate)"
+          fi
+          sleep 2
+
+          echo "→ Audit proof: claim_job_atomic function signatures"
+          # Note: Direct psql queries may fail due to network constraints in CI.
+          # Primary validation occurs in smoke tests that call RPC via PostgREST.
+          # This is informational only; test failures are authoritative.
+          psql "$SUPABASE_DB_URL_CI" -v ON_ERROR_STOP=1 -c "
+          SELECT
+            n.nspname AS schema,
+            p.proname AS function_name,
+            pg_get_function_identity_arguments(p.oid) AS type_signature,
+            array_agg(pn) FILTER (WHERE pn IS NOT NULL) AS param_names
+          FROM pg_proc p
+          JOIN pg_namespace n ON n.oid = p.pronamespace
+          CROSS JOIN LATERAL (
+            SELECT unnest(proargnames) AS pn
+            FROM pg_proc WHERE oid = p.oid
+          ) pargs
+          WHERE n.nspname = 'public'
+            AND p.proname = 'claim_job_atomic'
+          GROUP BY 1, 2, 3
+          ORDER BY type_signature;
+          " 2>&1 | tee scripts-artifacts/claim_job_atomic_overloads.log || echo "⚠️  Audit query failed; smoke tests are authoritative"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN_CI }}
+          SUPABASE_DB_URL_CI: ${{ secrets.SUPABASE_DB_URL_CI }}
 
       - name: Check CI DB migrations (proof gate)
         run: |
