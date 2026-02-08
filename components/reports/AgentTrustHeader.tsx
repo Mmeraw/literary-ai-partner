@@ -1,5 +1,6 @@
 'use client';
 
+// Mapping layer: governance.transparency (snake_case) -> UI props (camelCase)
 export default function AgentTrustHeader(props: {
   jobId: string;
   generatedAt: string;

@@ -229,24 +229,49 @@ export type EvaluationResultV1 = {
  * Validator to check if an EvaluationResultV1 has all required D2 transparency fields.
  * This is a separate check from isEvaluationResultV1 to allow backward compatibility
  * (old results without D2 fields still validate, but D2 surfaces reject them).
+ * 
+ * Enforces fail-closed validation:
+ * - Required string fields must be non-empty
+ * - criteria_plan must have R/O/NA/C as arrays of canonical criterion keys
+ * - At least one criterion key must be present across all arrays (prevents "empty arrays gaming")
  */
 export function hasD2TransparencyFields(
   result: EvaluationResultV1
 ): boolean {
   const t = result.governance?.transparency;
   if (!t) return false;
-  
-  return (
-    // All D2 fields must be present and non-empty strings
-    typeof t.final_work_type_used === 'string' &&
-    t.final_work_type_used.trim().length > 0 &&
-    typeof t.matrix_version === 'string' &&
-    t.matrix_version.trim().length > 0 &&
-    t.criteria_plan &&
-    typeof t.criteria_plan === 'object' &&
-    typeof t.repro_anchor === 'string' &&
-    t.repro_anchor.trim().length > 0
-  );
+
+  // Required string fields (fail-closed)
+  if (typeof t.final_work_type_used !== "string" || t.final_work_type_used.trim().length === 0) return false;
+  if (typeof t.matrix_version !== "string" || t.matrix_version.trim().length === 0) return false;
+  if (typeof t.repro_anchor !== "string" || t.repro_anchor.trim().length === 0) return false;
+
+  // Validate criteria_plan structure (Option B; fail-closed)
+  const cp = t.criteria_plan as unknown;
+  if (!cp || typeof cp !== "object") return false;
+
+  // Use a narrow typed view after structural checks
+  const plan = cp as { R?: unknown; O?: unknown; NA?: unknown; C?: unknown };
+
+  // All keys must exist and be arrays
+  if (!Array.isArray(plan.R) || !Array.isArray(plan.O) || !Array.isArray(plan.NA) || !Array.isArray(plan.C)) {
+    return false;
+  }
+
+  // Each element must be a non-empty string
+  const allKeys = [...plan.R, ...plan.O, ...plan.NA, ...plan.C];
+  if (!allKeys.every((k) => typeof k === "string" && k.trim().length > 0)) {
+    return false;
+  }
+
+  // Prevent "empty arrays gaming" (policy: require at least one criterion key overall)
+  if (allKeys.length === 0) return false;
+
+  // Validate against canonical criterion keys (fail-closed; prevents invalid keys)
+  const validKeys = new Set<string>(CRITERIA_KEYS);
+  if (!allKeys.every((k) => validKeys.has(k))) return false;
+
+  return true;
 }
 
 /**
