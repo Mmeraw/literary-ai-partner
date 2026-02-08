@@ -1,7 +1,7 @@
 # Governance Authority Index
 
-**Last Updated:** 2026-02-07  
-**Status:** All 4 rules complete and enforced  
+**Last Updated:** 2026-02-08  
+**Status:** All 5 rules complete and enforced  
 
 ---
 
@@ -34,6 +34,17 @@
 **PRs**: #20  
 **Rule**: All job lifecycle terminology uses canonical values (status, phase, phase_status) enforced at write boundaries.  
 **Enforcement**: `lib/jobs/canon.ts` validators + `canon-audit-banned-aliases.sh` CI gate + type system guarantees.
+
+### 5. Master Data Management (MDM) Work Type Rule
+**Status**: ✅ CLOSED  
+**Evidence**: [docs/MDM_INDEX.md](docs/MDM_INDEX.md) (Canvas Index)  
+**PRs**: #21  
+**Rule**: Every text submission must route to exactly one Work Type; that Work Type structurally determines criteria applicability (R/O/NA/C). NA criteria are hard-prohibited via named control RG-NA-001 and fail-closed enforcement gates.  
+**Canon Documents**:
+  - [docs/MDM_WORK_TYPE_CANON_v1.md](docs/MDM_WORK_TYPE_CANON_v1.md) — Invariants MDM-01 (full coverage) / MDM-02 (family dimension), control RG-NA-001 (Dirty-Data Kill Switch), R/O/NA/C semantics
+  - [docs/WORK_TYPE_REGISTRY.md](docs/WORK_TYPE_REGISTRY.md) — 25 canonical Work Types with immutable IDs, 10 families, detection policy, UI contract
+  - [docs/MDM_IMPLEMENTATION_RUNBOOK.md](docs/MDM_IMPLEMENTATION_RUNBOOK.md) — Runtime validation, NA gates (input + output), audit persistence, new-hire onboarding
+**Enforcement**: Master data path `functions/masterdata/work_type_criteria_applicability.v1.json` + `validateWorkTypeMatrix()` load-time validation + acceptance fixtures + audit-grade persistence of `criteria_plan` and NA exclusions.
 
 ---
 
@@ -81,13 +92,28 @@ This upgrades CI from advisory (logs warnings) to blocking (rejects PRs).
 With governance complete, the system moves to:
 
 - **Goal**: "Every job completes or fails transparently, and system health can be assessed in <30s"
-- **Artifacts**:
-  1. Failure envelope definition (shape for all error states)
-  2. Observability v1 (structured logs, queries, dashboards)
-  3. Retry/deadletter path formalization
-  4. Structured alerting thresholds
+- **C1 (Failure Envelope)**: ✅ CLOSED (Spec-Complete, Infra-Blocked)
+  - Evidence: [GOVERNANCE_CLOSEOUT_PHASE_C_D1_FAILURE_ENVELOPE.md](GOVERNANCE_CLOSEOUT_PHASE_C_D1_FAILURE_ENVELOPE.md)
+  - Quick Reference: [D1_CLOSURE_QUICKREF.md](D1_CLOSURE_QUICKREF.md)
+  - Specification: [docs/FAILURE_ENVELOPE_v1.md](docs/FAILURE_ENVELOPE_v1.md)
+  - Proof blocker: IPv6-only Supabase DNS meets IPv4-only GitHub runners (infrastructure, not code)
+  
+- **C2 (Observability Logging)**: ✅ CLOSED (Spec-Complete, Minimal Wiring)
+  - Evidence: [GOVERNANCE_CLOSEOUT_PHASE_C_D2_OBSERVABILITY.md](GOVERNANCE_CLOSEOUT_PHASE_C_D2_OBSERVABILITY.md)
+  - Contract: [docs/LOGGING_SCHEMA_v1.md](docs/LOGGING_SCHEMA_v1.md)
+  - Lifecycle wiring: Minimal (job.failed only); broader emissions deferred to post-C4
+  
+- **C3 (Observability Queries)**: ✅ CLOSED (Evidence-Run; Infra-Blocked)
+  - Evidence: Inline in [PHASE_C_EVIDENCE_PACK.md](PHASE_C_EVIDENCE_PACK.md) + [evidence/phase-c/d3/](evidence/phase-c/d3/)
+  - Queries: [docs/queries/OBSERVABILITY_QUERIES_v1.sql](docs/queries/OBSERVABILITY_QUERIES_v1.sql)
+  
+- **C4 (Observability Coverage)**: ✅ CLOSED (Artifact Created, Checklist Documented)
+  - Evidence: [GOVERNANCE_CLOSEOUT_PHASE_C_D4_COVERAGE.md](GOVERNANCE_CLOSEOUT_PHASE_C_D4_COVERAGE.md)
+  - Coverage: [docs/PHASE_C_D4_OBSERVABILITY_COVERAGE.md](docs/PHASE_C_D4_OBSERVABILITY_COVERAGE.md)
+  
+- **C5 (Health Dashboard)**: ⏳ PENDING
 
-**Starting Point**: [PHASE_C_RELIABILITY_ROADMAP.md](PHASE_C_RELIABILITY_ROADMAP.md) (to be created)
+**Starting Point**: [PHASE_C_EVIDENCE_PACK.md](PHASE_C_EVIDENCE_PACK.md)
 
 ---
 
@@ -95,6 +121,7 @@ With governance complete, the system moves to:
 
 - [docs/CANONICAL_VOCABULARY.md](docs/CANONICAL_VOCABULARY.md) — Vocabulary rules detail
 - [docs/JOB_CONTRACT_v1.md](docs/JOB_CONTRACT_v1.md) — RPC contract definition
+- [docs/LOGGING_SCHEMA_v1.md](docs/LOGGING_SCHEMA_v1.md) — Observability logging contract (Phase C C2)
 - [lib/jobs/canon.ts](lib/jobs/canon.ts) — Type enforcement implementation
 - [scripts/canon-audit-banned-aliases.sh](scripts/canon-audit-banned-aliases.sh) — CI gate script
 
