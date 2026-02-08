@@ -134,7 +134,7 @@
       "final_work_type_used": "mainstream_agent_ready",
       "matrix_version": "work_type_matrix.v1",
       "criteria_plan": {
-        "R": ["plot"],
+        "R": ["concept"],
         "O": [],
         "NA": [],
         "C": []

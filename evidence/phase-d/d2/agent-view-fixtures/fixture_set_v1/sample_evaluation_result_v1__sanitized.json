@@ -134,9 +134,9 @@
       "final_work_type_used": "mainstream_agent_ready",
       "matrix_version": "work_type_matrix.v1",
       "criteria_plan": {
-        "R": ["plot", "character", "voice"],
+        "R": ["concept", "narrativeDrive", "character"],
         "O": ["marketability"],
-        "NA": ["structure"],
+        "NA": ["sceneConstruction"],
         "C": []
       },
       "repro_anchor": "job_00000000-0000-0000-0000-000000000000 | 2026-02-08T00:00:00Z | work_type_matrix.v1"

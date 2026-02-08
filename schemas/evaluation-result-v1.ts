@@ -12,6 +12,8 @@
  * Created: 2026-01-25
  */
 
+import { CRITERIA_KEYS, CriterionKey } from './criteria-keys';
+
 /**
  * Main evaluation result envelope
  */
@@ -63,20 +65,7 @@ export type EvaluationResultV1 = {
   /** Detailed criteria evaluation (13 criteria rubric) */
   criteria: Array<{
     /** Criterion identifier */
-    key:
-      | "concept"
-      | "plot"
-      | "character"
-      | "dialogue"
-      | "voice"
-      | "pacing"
-      | "structure"
-      | "theme"
-      | "worldbuilding"
-      | "stakes"
-      | "clarity"
-      | "marketability"
-      | "craft";
+    key: CriterionKey;
     
     /** Score for this criterion (0-10) */
     score_0_10: number;
@@ -289,27 +278,6 @@ export function isEvaluationResultV1(obj: unknown): obj is EvaluationResultV1 {
     Array.isArray(result.artifacts)
   );
 }
-
-/**
- * Criteria keys enum for type safety
- */
-export const CRITERIA_KEYS = [
-  "concept",
-  "plot",
-  "character",
-  "dialogue",
-  "voice",
-  "pacing",
-  "structure",
-  "theme",
-  "worldbuilding",
-  "stakes",
-  "clarity",
-  "marketability",
-  "craft",
-] as const;
-
-export type CriterionKey = (typeof CRITERIA_KEYS)[number];
 
 /**
  * Helper type: minimal evaluation result for previews
