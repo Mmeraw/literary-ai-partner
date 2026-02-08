@@ -92,26 +92,26 @@ This upgrades CI from advisory (logs warnings) to blocking (rejects PRs).
 With governance complete, the system moves to:
 
 - **Goal**: "Every job completes or fails transparently, and system health can be assessed in <30s"
-- **D1 (Failure Envelope)**: ✅ CLOSED (Spec-Complete, Infra-Blocked)
+- **C1 (Failure Envelope)**: ✅ CLOSED (Spec-Complete, Infra-Blocked)
   - Evidence: [GOVERNANCE_CLOSEOUT_PHASE_C_D1_FAILURE_ENVELOPE.md](GOVERNANCE_CLOSEOUT_PHASE_C_D1_FAILURE_ENVELOPE.md)
   - Quick Reference: [D1_CLOSURE_QUICKREF.md](D1_CLOSURE_QUICKREF.md)
   - Specification: [docs/FAILURE_ENVELOPE_v1.md](docs/FAILURE_ENVELOPE_v1.md)
   - Proof blocker: IPv6-only Supabase DNS meets IPv4-only GitHub runners (infrastructure, not code)
   
-- **D2 (Observability Logging)**: ✅ CLOSED (Spec-Complete, Minimal Wiring)
+- **C2 (Observability Logging)**: ✅ CLOSED (Spec-Complete, Minimal Wiring)
   - Evidence: [GOVERNANCE_CLOSEOUT_PHASE_C_D2_OBSERVABILITY.md](GOVERNANCE_CLOSEOUT_PHASE_C_D2_OBSERVABILITY.md)
   - Contract: [docs/LOGGING_SCHEMA_v1.md](docs/LOGGING_SCHEMA_v1.md)
-  - Lifecycle wiring: Minimal (job.failed only); broader emissions deferred to post-D4
+  - Lifecycle wiring: Minimal (job.failed only); broader emissions deferred to post-C4
   
-- **D3 (Observability Queries)**: ✅ CLOSED (Evidence-Run; Infra-Blocked)
+- **C3 (Observability Queries)**: ✅ CLOSED (Evidence-Run; Infra-Blocked)
   - Evidence: Inline in [PHASE_C_EVIDENCE_PACK.md](PHASE_C_EVIDENCE_PACK.md) + [evidence/phase-c/d3/](evidence/phase-c/d3/)
   - Queries: [docs/queries/OBSERVABILITY_QUERIES_v1.sql](docs/queries/OBSERVABILITY_QUERIES_v1.sql)
   
-- **D4 (Observability Coverage)**: ✅ CLOSED (Artifact Created, Checklist Documented)
+- **C4 (Observability Coverage)**: ✅ CLOSED (Artifact Created, Checklist Documented)
   - Evidence: [GOVERNANCE_CLOSEOUT_PHASE_C_D4_COVERAGE.md](GOVERNANCE_CLOSEOUT_PHASE_C_D4_COVERAGE.md)
   - Coverage: [docs/PHASE_C_D4_OBSERVABILITY_COVERAGE.md](docs/PHASE_C_D4_OBSERVABILITY_COVERAGE.md)
   
-- **D5 (Health Dashboard)**: ⏳ PENDING
+- **C5 (Health Dashboard)**: ⏳ PENDING
 
 **Starting Point**: [PHASE_C_EVIDENCE_PACK.md](PHASE_C_EVIDENCE_PACK.md)
 
@@ -121,7 +121,7 @@ With governance complete, the system moves to:
 
 - [docs/CANONICAL_VOCABULARY.md](docs/CANONICAL_VOCABULARY.md) — Vocabulary rules detail
 - [docs/JOB_CONTRACT_v1.md](docs/JOB_CONTRACT_v1.md) — RPC contract definition
-- [docs/LOGGING_SCHEMA_v1.md](docs/LOGGING_SCHEMA_v1.md) — Observability logging contract (Phase C D2)
+- [docs/LOGGING_SCHEMA_v1.md](docs/LOGGING_SCHEMA_v1.md) — Observability logging contract (Phase C C2)
 - [lib/jobs/canon.ts](lib/jobs/canon.ts) — Type enforcement implementation
 - [scripts/canon-audit-banned-aliases.sh](scripts/canon-audit-banned-aliases.sh) — CI gate script
 

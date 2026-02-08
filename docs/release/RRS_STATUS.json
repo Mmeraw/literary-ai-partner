@@ -1,0 +1,155 @@
+{
+  "rrs_spec_version": "v1",
+  "last_updated": "2026-02-08T00:00:00Z",
+  "calculated_by": "founder",
+  "status": "ACTIVE",
+  "thresholds": {
+    "public_release_min": 85,
+    "agent_onboarding_min": 90,
+    "controlled_beta_min": 76
+  },
+  "calculation": {
+    "rule": "sum(weight where status==CLOSED and evidence_links not empty)",
+    "total_weight": 100,
+    "last_calculated_at": "2026-02-08T00:00:00Z"
+  },
+  "gates": [
+    {
+      "id": "C1",
+      "name": "Failure envelope defined",
+      "phase": "C",
+      "weight": 10,
+      "status": "CLOSED",
+      "evidence_links": [
+        "docs/GOVERNANCE_CLOSEOUT_PHASE_C_D1_FAILURE_ENVELOPE.md"
+      ],
+      "closed_date": "2026-01-29"
+    },
+    {
+      "id": "C2",
+      "name": "Observability system defined",
+      "phase": "C",
+      "weight": 10,
+      "status": "CLOSED",
+      "evidence_links": [
+        "docs/GOVERNANCE_CLOSEOUT_PHASE_C_D2_OBSERVABILITY.md"
+      ],
+      "closed_date": "2026-01-29"
+    },
+    {
+      "id": "C3",
+      "name": "Analytics proof (evidence-run)",
+      "phase": "C",
+      "weight": 10,
+      "status": "CLOSED",
+      "evidence_links": [
+        "docs/GOVERNANCE_CLOSEOUT_PHASE_C_D4_COVERAGE.md"
+      ],
+      "closed_date": "2026-01-29"
+    },
+    {
+      "id": "C4",
+      "name": "Observability coverage & completeness",
+      "phase": "C",
+      "weight": 10,
+      "status": "CLOSED",
+      "evidence_links": [
+        "docs/GOVERNANCE_CLOSEOUT_PHASE_C_D4_COVERAGE.md"
+      ],
+      "closed_date": "2026-01-29"
+    },
+    {
+      "id": "C5",
+      "name": "MDM governance canon (Work Types)",
+      "phase": "C",
+      "weight": 20,
+      "status": "CLOSED",
+      "evidence_links": [
+        "docs/release/MDM_INDEX.md",
+        "https://github.com/Mmeraw/literary-ai-partner/pull/21"
+      ],
+      "closed_date": "2026-02-08"
+    },
+    {
+      "id": "D1",
+      "name": "Public UX safety and error contracts",
+      "phase": "D",
+      "weight": 8,
+      "status": "OPEN",
+      "evidence_links": [],
+      "closed_date": null,
+      "estimated_effort_days": 5
+    },
+    {
+      "id": "D2",
+      "name": "Agent trust signals and output clarity",
+      "phase": "D",
+      "weight": 8,
+      "status": "OPEN",
+      "evidence_links": [],
+      "closed_date": null,
+      "estimated_effort_days": 4,
+      "priority": "FIRST"
+    },
+    {
+      "id": "D3",
+      "name": "Abuse, rate limiting, and cost controls",
+      "phase": "D",
+      "weight": 8,
+      "status": "OPEN",
+      "evidence_links": [],
+      "closed_date": null,
+      "estimated_effort_days": 5
+    },
+    {
+      "id": "D4",
+      "name": "Support, rollback, and incident readiness",
+      "phase": "D",
+      "weight": 8,
+      "status": "OPEN",
+      "evidence_links": [],
+      "closed_date": null,
+      "estimated_effort_days": 3
+    },
+    {
+      "id": "D5",
+      "name": "Legal, ethical, and disclosure alignment",
+      "phase": "D",
+      "weight": 8,
+      "status": "OPEN",
+      "evidence_links": [],
+      "closed_date": null,
+      "estimated_effort_days": 2
+    }
+  ],
+  "no_go_conditions_triggered": [],
+  "scores": {
+    "phase_c_total": 60,
+    "phase_c_max": 60,
+    "phase_c_percentage": 100,
+    "phase_d_total": 0,
+    "phase_d_max": 40,
+    "phase_d_percentage": 0,
+    "rrs_total": 60,
+    "rrs_max": 100,
+    "rrs_percentage": 60
+  },
+  "release_readiness": {
+    "public_release_allowed": false,
+    "public_release_reason": "RRS 60% < 85% threshold. Requires D1 + D2 closed (16 points).",
+    "agent_onboarding_allowed": false,
+    "agent_onboarding_reason": "RRS 60% < 90% threshold. Requires D1 + D2 + D3 + D4 closed (32 points).",
+    "controlled_beta_allowed": false,
+    "controlled_beta_reason": "RRS 60% < 76% threshold. Requires D1 + D2 closed (16 points)."
+  },
+  "timeline": {
+    "phase_c_completion_date": "2026-02-08",
+    "phase_c_duration_weeks": 5,
+    "phase_d_estimated_start": "2026-02-15",
+    "d2_estimated_completion": "2026-03-01",
+    "d1_estimated_completion": "2026-03-15",
+    "controlled_beta_estimated": "2026-03-22",
+    "phase_d_estimated_completion": "2026-04-19",
+    "military_grade_launch_date": "2026-04-19"
+  }
+}
