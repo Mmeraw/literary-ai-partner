@@ -202,8 +202,52 @@ export type EvaluationResultV1 = {
     
     /** Policy family used for evaluation */
     policy_family: string; // e.g., "standard", "dark_fiction", "trauma_memoir"
+    
+    /** D2 Boundary: Optional agent-facing transparency fields (required only on agent-view surfaces) */
+    transparency?: {
+      /** Work Type used in evaluation (e.g., "mainstream_agent_ready") */
+      final_work_type_used?: string;
+      
+      /** Matrix version used in evaluation (e.g., "work_type_matrix.v1") */
+      matrix_version?: string;
+      
+      /** Criteria applicability breakdown (R=Required, O=Optional, NA=Not Applicable, C=Conditional) */
+      criteria_plan?: {
+        R?: Array<string>; // Required criteria evaluated
+        O?: Array<string>; // Optional criteria evaluated
+        NA?: Array<string>; // Not applicable criteria (excluded from evaluation)
+        C?: Array<string>; // Deferred/conditional criteria
+      };
+      
+      /** Repro anchor: evaluation_id + timestamp + matrix_version (for audit trail) */
+      repro_anchor?: string;
+    };
   };
 };
+
+/**
+ * Validator to check if an EvaluationResultV1 has all required D2 transparency fields.
+ * This is a separate check from isEvaluationResultV1 to allow backward compatibility
+ * (old results without D2 fields still validate, but D2 surfaces reject them).
+ */
+export function hasD2TransparencyFields(
+  result: EvaluationResultV1
+): boolean {
+  const t = result.governance?.transparency;
+  if (!t) return false;
+  
+  return (
+    // All D2 fields must be present and non-empty strings
+    typeof t.final_work_type_used === 'string' &&
+    t.final_work_type_used.trim().length > 0 &&
+    typeof t.matrix_version === 'string' &&
+    t.matrix_version.trim().length > 0 &&
+    t.criteria_plan &&
+    typeof t.criteria_plan === 'object' &&
+    typeof t.repro_anchor === 'string' &&
+    t.repro_anchor.trim().length > 0
+  );
+}
 
 /**
  * Type guard to check if an object is a valid EvaluationResultV1

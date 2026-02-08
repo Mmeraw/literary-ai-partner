@@ -1,7 +1,13 @@
+import 'server-only';
 import { notFound } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
-import { EvaluationResultV1, isEvaluationResultV1 } from '@/schemas/evaluation-result-v1';
+import { EvaluationResultV1, isEvaluationResultV1, hasD2TransparencyFields } from '@/schemas/evaluation-result-v1';
+import AgentTrustHeader from '@/components/reports/AgentTrustHeader';
+import { scanObjectForForbiddenMarketClaims } from '@/lib/release/forbiddenMarketClaims';
 
+// D1 Boundary: This page is server-only. Service key must not leak to client.
+// 'server-only' import at top prevents accidental client-side usage.
+// If refactoring, move Supabase logic to lib/server/evaluation.ts
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
@@ -19,7 +25,7 @@ async function getEvaluationResult(jobId: string): Promise<EvaluationResultV1 | 
   }
 
   const result = job.evaluation_result as unknown;
-  
+
   if (!isEvaluationResultV1(result)) {
     console.error('Invalid evaluation result format for job:', jobId);
     return null;
@@ -35,12 +41,80 @@ export default async function ReportPage({ params }: { params: { jobId: string }
     notFound();
   }
 
+  // D2 fail-closed: block forbidden market guarantee language from rendering in agent-facing output.
+  if (scanObjectForForbiddenMarketClaims(result)) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-5xl mx-auto p-8">
+          <header className="mb-8">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              Evaluation Report
+            </h1>
+            <p className="text-gray-600">
+              Report unavailable
+            </p>
+          </header>
+
+          <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+              Compliance Hold
+            </h2>
+            <p className="text-gray-700 leading-relaxed">
+              This report is being withheld because prohibited market-claim language was detected.
+            </p>
+            <p className="text-sm text-gray-600 mt-4">
+              Repro anchor: jobId {params.jobId}
+            </p>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
   const { overview, criteria, recommendations, metrics, artifacts, governance } = result;
+
+  // D2 Transparency: validate all required fields are present before rendering agent view.
+  // If validation fails, fail-closed (do not render as "complete").
+  // This uses a separate validator from isEvaluationResultV1 to allow backward compatibility.
+  if (!hasD2TransparencyFields(result)) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-5xl mx-auto p-8">
+          <header className="mb-8">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              Evaluation Report
+            </h1>
+            <p className="text-gray-600">
+              Report unavailable
+            </p>
+          </header>
+
+          <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+              Compliance Hold
+            </h2>
+            <p className="text-gray-700 leading-relaxed">
+              This report is being withheld because required transparency fields are missing.
+            </p>
+            <p className="text-sm text-gray-600 mt-4">
+              Repro anchor: jobId {params.jobId}
+            </p>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  // D2 required fields (all validated above; safe to access now).
+  const transparency = result.governance.transparency!;
+  const finalWorkTypeUsed = transparency.final_work_type_used;
+  const matrixVersion = transparency.matrix_version;
+  const criteriaPlan = transparency.criteria_plan;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto p-8">
-        
+
         {/* Header */}
         <header className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
@@ -50,6 +124,15 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             Generated {new Date(result.generated_at).toLocaleString()}
           </p>
         </header>
+
+        {/* D2 Agent Trust Header (Required) */}
+        <AgentTrustHeader
+          jobId={params.jobId}
+          generatedAt={result.generated_at}
+          finalWorkTypeUsed={finalWorkTypeUsed}
+          matrixVersion={matrixVersion}
+          criteriaPlan={criteriaPlan}
+        />
 
         {/* Overview Section */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
@@ -68,7 +151,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               </span>
             </div>
           </div>
-          
+
           <p className="text-gray-700 mb-6 leading-relaxed">
             {overview.one_paragraph_summary}
           </p>
@@ -107,7 +190,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
         {/* Criteria Scores */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">Detailed Scores</h2>
-          
+
           <div className="grid md:grid-cols-2 gap-4">
             {criteria.map((criterion) => (
               <div key={criterion.key} className="border border-gray-200 rounded-lg p-4">
@@ -237,7 +320,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               </div>
             )}
           </div>
-          
+
           {governance.warnings.length > 0 && (
             <div className="mt-4">
               <p className="text-gray-600 mb-2">Warnings</p>
