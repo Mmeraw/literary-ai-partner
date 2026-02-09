@@ -32,24 +32,23 @@ A gate contributes its full weight **only when CLOSED with evidence**. No partia
 
 ### Current Score
 
-**As of 2026-02-08:**
+**As of 2026-02-09:**
 
 - **Phase C score:** 60 / 60 ✅ (COMPLETE)
-- **Phase D score:** 0 / 40 ⏳ (All gates OPEN)
-- **RRS total:** 60 / 100
+- **Phase D score:** 8 / 40 🔄 (D2 CLOSED; D1/D3/D4/D5 OPEN)
+- **RRS total:** 68 / 100
 
 **Status:**
-- ❌ Public release allowed: **NO**
-- ❌ Agent onboarding allowed: **NO**
+- ❌ Public release allowed: **NO** (68% < 85%)
+- ❌ Agent onboarding allowed: **NO** (68% < 90%)
+- ❌ Controlled beta allowed: **NO** (68% < 76%; requires D1 closure)
 
 ---
-**- **Phase D score:** 8 / 40 🔄 (D2 CLOSED, D1/D3/D4/D5 OPEN)
-**- **RRS total:** 68 / 100
-### Phase C Gates (60 points) — ✅ COMPLETE
 
- ❌ Public release allowed: **NO** (68% < 85%)
- ❌ Agent onboarding allowed: **NO** (68% < 90%, needs D1 + 8 more points)
- **- ✅ Controlled beta possible:** YES (68% > 76%, once D1 closes)
+### Phase C Gates (60 points) — ✅ COMPLETE
+| Gate | Description | Weight | Status | Evidence |
+|------|-------------|--------|--------|----------|
+| C1 | Failure envelope defined | 10 | ✅ CLOSED | Phase C docs |
 | C2 | Observability system defined | 10 | ✅ CLOSED | Observability schema |
 | C3 | Analytics proof (evidence-run) | 10 | ✅ CLOSED | Analytics proof |
 | C4 | Observability coverage | 10 | ✅ CLOSED | Coverage proof |
@@ -69,8 +68,7 @@ A gate contributes its full weight **only when CLOSED with evidence**. No partia
 | D4 | Support, rollback, incident readiness | 8 | ⬜ OPEN | — | 3-4 days |
 | D5 | Legal, ethical, disclosure alignment | 8 | ⬜ OPEN | — | 2-3 days |
 
-**Phase D Total:** 0 / 40
-**Phase D (Updated):** 8 / 40 (20%)
+**Phase D Total:** 8 / 40 (20%)
 
 ---
 
@@ -91,8 +89,11 @@ A release is **GO** only if **all conditions** below are satisfied.
 
 ### Product Safety Requirements (Phase D)
 
- [x] **D2 CLOSED:** Agent trust outputs include Work Type, matrix version, applicability summary
-	 [Evidence: Criteria Registry Enforcement](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21809789469)
+- [ ] **D1 CLOSED:** Public UX safety and error contracts proven with fixtures
+- [x] **D2 CLOSED:** Agent trust outputs include Work Type, matrix version, applicability summary
+  - Evidence: [Criteria Registry Enforcement](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21809789469)
+- [ ] **D3 CLOSED:** Abuse/rate limiting/cost controls proven
+- [ ] **D4 CLOSED:** Rollback + incident playbooks exist with proven drill
 - [ ] **D5 CLOSED:** Disclosures and privacy posture match reality
 
 ### Operational Requirements
@@ -156,6 +157,5 @@ Any PR that materially affects Phase D readiness must include:
 
 ---
 
-**Next Action:** Close D2 (agent trust outputs) — fastest confidence win, 4-6 days solo with AI assistance.
-**Status Update (2026-02-09):** D2 ✅ CLOSED with criteria registry enforcement and CI evidence. 
+**Status Update (2026-02-09):** D2 ✅ CLOSED with criteria registry enforcement and CI evidence.
 **Next Action:** Close D1 (public UX safety & error contracts) to unlock controlled beta (RRS 76%+).
