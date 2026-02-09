@@ -8,6 +8,7 @@
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
+import { validateEvaluationResult } from '@/schemas/evaluation-result-v1';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -53,7 +54,7 @@ async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob):
       messages: [
         {
           role: 'system',
-          content: `You are an expert literary evaluator. Analyze manuscripts and provide detailed, constructive feedback using a 13-criteria rubric. Return your analysis as a structured JSON object matching the EvaluationResultV1 schema.`
+          content: `You are an expert literary evaluator. Analyze manuscripts and provide detailed, constructive feedback using the canonical 13-criteria rubric keys. Return your analysis as a structured JSON object matching the EvaluationResultV1 schema.`
         },
         {
           role: 'user',
@@ -68,7 +69,7 @@ Provide a comprehensive evaluation with:
 1. Overall verdict (pass/revise/fail) and score (0-100)
 2. One-paragraph summary
 3. Top 3 strengths and top 3 risks
-4. Scores (0-10) and rationale for all 13 criteria: concept, plot, character, dialogue, voice, pacing, structure, theme, worldbuilding, stakes, clarity, marketability, craft
+4. Scores (0-10) and rationale for all 13 canonical criteria: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability
 5. Quick wins and strategic revisions with effort/impact ratings
 
 Return ONLY valid JSON matching this structure. No markdown, no code fences, just pure JSON.`
@@ -136,6 +137,14 @@ Return ONLY valid JSON matching this structure. No markdown, no code fences, jus
         policy_family: "standard"
       }
     };
+
+    // Validate result before returning (fail-closed governance enforcement)
+    const validation = validateEvaluationResult(result);
+    if (!validation.valid) {
+      console.error('[Processor] AI result failed canon validation:', validation.errors);
+      console.log('[Processor] Falling back to canonical mock evaluation');
+      return generateMockEvaluation(manuscript, job);
+    }
 
     console.log(`[Processor] AI evaluation completed in ${Date.now() - startTime}ms`);
     return result;
