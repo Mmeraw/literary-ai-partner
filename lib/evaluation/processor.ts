@@ -197,7 +197,7 @@ function generateMockEvaluation(manuscript: Manuscript, job: EvaluationJob): Eva
         ]
       },
       {
-        key: "plot",
+        key: "narrativeDrive",
         score_0_10: 7,
         rationale: "Solid three-act structure with clear turning points, though midpoint needs strengthening.",
         evidence: [],
@@ -262,7 +262,7 @@ function generateMockEvaluation(manuscript: Manuscript, job: EvaluationJob): Eva
         ]
       },
       {
-        key: "structure",
+        key: "sceneConstruction",
         score_0_10: 8,
         rationale: "Clear three-act structure with well-placed turning points and escalating tension.",
         evidence: [],
@@ -301,7 +301,7 @@ function generateMockEvaluation(manuscript: Manuscript, job: EvaluationJob): Eva
         ]
       },
       {
-        key: "stakes",
+        key: "narrativeClosure",
         score_0_10: 7,
         rationale: "Personal stakes are clear throughout. External stakes could be more urgent.",
         evidence: [],
@@ -314,7 +314,7 @@ function generateMockEvaluation(manuscript: Manuscript, job: EvaluationJob): Eva
         ]
       },
       {
-        key: "clarity",
+        key: "proseControl",
         score_0_10: 8,
         rationale: "Story is easy to follow. Scene goals and character motivations are generally clear.",
         evidence: [],
@@ -340,7 +340,7 @@ function generateMockEvaluation(manuscript: Manuscript, job: EvaluationJob): Eva
         ]
       },
       {
-        key: "craft",
+        key: "tone",
         score_0_10: 7,
         rationale: "Solid prose with good control of fundamentals. Some repetitive word choices.",
         evidence: [],
