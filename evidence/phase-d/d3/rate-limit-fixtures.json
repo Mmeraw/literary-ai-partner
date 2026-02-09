@@ -1,0 +1,95 @@
+{
+  "phase_d3_abuse_controls": "Rate limiting and abuse prevention test fixtures",
+  "fixtures": [
+    {
+      "id": "rl_daily_limit",
+      "scenario": "Daily rate limit enforcement",
+      "config": {
+        "limit": 100,
+        "window": "24h",
+        "per": "user"
+      },
+      "test_cases": [
+        {
+          "description": "User within limit (50/100)",
+          "submissions": 50,
+          "expected": "OK"
+        },
+        {
+          "description": "User at limit (100/100)",
+          "submissions": 100,
+          "expected": "OK"
+        },
+        {
+          "description": "User exceeds limit (101/100)",
+          "submissions": 101,
+          "expected": "REJECTED - rate limit exceeded"
+        }
+      ]
+    },
+    {
+      "id": "rl_concurrent_limit",
+      "scenario": "Concurrent evaluation limit",
+      "config": {
+        "max_concurrent": 5,
+        "per": "user"
+      },
+      "test_cases": [
+        {
+          "description": "Within concurrent limit (3/5)",
+          "concurrent": 3,
+          "expected": "OK"
+        },
+        {
+          "description": "At concurrent limit (5/5)",
+          "concurrent": 5,
+          "expected": "OK"
+        },
+        {
+          "description": "Exceeds concurrent limit (6/5)",
+          "concurrent": 6,
+          "expected": "REJECTED - concurrent limit exceeded"
+        }
+      ]
+    },
+    {
+      "id": "rl_timeout_limit",
+      "scenario": "Execution timeout enforcement",
+      "config": {
+        "max_seconds": 7200,
+        "description": "2-hour hard limit per evaluation"
+      },
+      "test_cases": [
+        {
+          "description": "Within timeout (1 hour elapsed)",
+          "elapsed_seconds": 3600,
+          "expected": "OK"
+        },
+        {
+          "description": "At timeout boundary (2 hours)",
+          "elapsed_seconds": 7200,
+          "expected": "OK"
+        },
+        {
+          "description": "Exceeds timeout (121 minutes)",
+          "elapsed_seconds": 7260,
+          "expected": "KILLED - timeout exceeded"
+        }
+      ]
+    },
+    {
+      "id": "rl_cost_tracking",
+      "scenario": "Per-evaluation cost tracking",
+      "test_cases": [
+        {
+          "description": "Cost recorded per evaluation",
+          "evaluation": "eval-001",
+          "expected": "cost_tracked: true, amount_recorded: true"
+        }
+      ]
+    }
+  ],
+  "evidence_date": "2026-02-09",
+  "authority": "Phase D Release Gates (v1)",
+  "status": "FIXTURE_READY"
+}

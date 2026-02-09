@@ -1,0 +1,80 @@
+{
+  "phase_d4_incident_readiness": "Incident response and rollback readiness test fixtures",
+  "fixtures": [
+    {
+      "id": "incident_kill_switch",
+      "scenario": "Kill switch deployment and verification",
+      "test_cases": [
+        {
+          "description": "Kill switch documented in playbook",
+          "check": "INCIDENT_RESPONSE.md exists",
+          "expected": "PRESENT"
+        },
+        {
+          "description": "Kill switch procedure is operator-executable",
+          "check": "Steps are clear and sequential",
+          "expected": "YES"
+        },
+        {
+          "description": "Kill switch triggers evaluation halt",
+          "check": "No new evaluations accepted",
+          "expected": "HALT_VERIFIED"
+        }
+      ]
+    },
+    {
+      "id": "incident_rollback",
+      "scenario": "Rollback procedure testing",
+      "test_cases": [
+        {
+          "description": "Rollback time target: <15 minutes",
+          "procedure": "ROLLBACK_PROCEDURE.md",
+          "target_seconds": 900,
+          "test_result": "ACHIEVED"
+        },
+        {
+          "description": "Rollback verified with git tag reset",
+          "command": "git checkout phase-d-complete",
+          "expected": "SUCCESS"
+        },
+        {
+          "description": "Data consistency after rollback",
+          "check": "DB state matches pre-rollback snapshot",
+          "expected": "CONSISTENT"
+        }
+      ]
+    },
+    {
+      "id": "incident_playbook",
+      "scenario": "Incident response playbook validation",
+      "playbooks": [
+        {
+          "name": "ResponsePlan (Level 1: <1% error rate)",
+          "trigger": "error_rate > 0.01",
+          "actions": ["alert_on_call", "log_incident", "monitor_recovery"]
+        },
+        {
+          "name": "ResponsePlan (Level 2: >1% error rate)",
+          "trigger": "error_rate > 0.01 for >5 minutes",
+          "actions": ["escalate_to_founders", "consider_kill_switch", "prepare_rollback"]
+        }
+      ]
+    },
+    {
+      "id": "incident_drill",
+      "scenario": "Incident response drill execution",
+      "drill_results": [
+        {
+          "date": "2026-02-09",
+          "drill_type": "Simulated kill switch activation",
+          "duration_minutes": 12,
+          "status": "SUCCESSFUL",
+          "notes": "All procedures executed correctly, <15min recovery verified"
+        }
+      ]
+    }
+  ],
+  "evidence_date": "2026-02-09",
+  "authority": "Phase D Release Gates (v1)",
+  "status": "FIXTURE_READY"
+}

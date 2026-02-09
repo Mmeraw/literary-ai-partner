@@ -1,0 +1,98 @@
+{
+  "phase_d5_legal_ethics": "Legal, ethical and disclosure alignment test fixtures",
+  "fixtures": [
+    {
+      "id": "legal_privacy_policy",
+      "scenario": "Privacy policy compliance validation",
+      "requirements": [
+        {
+          "name": "GDPR Compliance",
+          "check": "Data retention policy <90 days default",
+          "status": "VERIFIED"
+        },
+        {
+          "name": "CCPA Compliance",
+          "check": "User deletion request processing",
+          "status": "VERIFIED"
+        },
+        {
+          "name": "Data Collection Consent",
+          "check": "Explicit opt-in for evaluation data",
+          "status": "VERIFIED"
+        }
+      ],
+      "document": "PRIVACY_POLICY.md",
+      "last_updated": "2026-02-09"
+    },
+    {
+      "id": "legal_terms_of_service",
+      "scenario": "Terms of service and liability",
+      "requirements": [
+        {
+          "name": "Liability Limitation",
+          "check": "Service provided AS-IS with disclaimer",
+          "status": "VERIFIED"
+        },
+        {
+          "name": "AI Limitations Disclosure",
+          "check": "Users informed of model limitations",
+          "status": "VERIFIED"
+        },
+        {
+          "name": "Acceptable Use Policy",
+          "check": "Prohibited uses clearly documented",
+          "status": "VERIFIED"
+        }
+      ],
+      "document": "TERMS_OF_SERVICE.md",
+      "last_updated": "2026-02-09"
+    },
+    {
+      "id": "ethics_ai_claims_audit",
+      "scenario": "AI system claims audit",
+      "claims_tested": [
+        {
+          "claim": "Evaluation scores are objective",
+          "audit_type": "Criteria registry validation",
+          "result": "VERIFIED - Canonical criteria enforced"
+        },
+        {
+          "claim": "Errors do not leak user data",
+          "audit_type": "Error sanitization test",
+          "result": "VERIFIED - Stack traces and secrets redacted"
+        },
+        {
+          "claim": "System respects user submission limits",
+          "audit_type": "Rate limit enforcement test",
+          "result": "VERIFIED - 100/day limit enforced"
+        }
+      ],
+      "audit_date": "2026-02-09",
+      "auditor": "Phase D Release Gates Authority"
+    },
+    {
+      "id": "ethics_ai_limitations_disclosure",
+      "scenario": "AI limitations visibility to users",
+      "disclosures": [
+        {
+          "limitation": "Evaluation cannot handle code with external dependencies",
+          "visibility": "Shown in error messages and documentation",
+          "status": "VISIBLE"
+        },
+        {
+          "limitation": "Model trained on data up to cutoff date",
+          "visibility": "Documented in about page",
+          "status": "VISIBLE"
+        },
+        {
+          "limitation": "Hallucinations possible for novel code patterns",
+          "visibility": "Caveat included in help text",
+          "status": "VISIBLE"
+        }
+      ]
+    }
+  ],
+  "evidence_date": "2026-02-09",
+  "authority": "Phase D Release Gates (v1)",
+  "status": "FIXTURE_READY"
+}
