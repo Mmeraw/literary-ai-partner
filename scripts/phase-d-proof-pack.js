@@ -150,7 +150,7 @@ function generateReport() {
     report += `- ${file}: ${exists}\n`;
   });
 
-  // Validation Checklist
+  // Validation Checklist (FAIL-CLOSED)
   report += `\n## 6. Closure Validation Checklist\n\n`;
   const checks = [
     { name: 'All D1-D5 closure documents exist', passed: CLOSURE_FILES.every(f => fs.existsSync(f)) },
@@ -158,6 +158,13 @@ function generateReport() {
     { name: 'RRS shows 100%', passed: JSON.parse(fs.readFileSync('docs/release/RRS_STATUS.json')).scores.rrs_percentage === 100 },
     { name: 'Public release approved', passed: JSON.parse(fs.readFileSync('docs/release/RRS_STATUS.json')).release_readiness.public_release_allowed },
     { name: 'PHASE_D_RELEASE_READINESS.md is updated', passed: fs.existsSync('docs/release/PHASE_D_RELEASE_READINESS.md') },
+    { name: 'D1 evidence artifacts present', passed: fs.existsSync('evidence/phase-d/d1') },
+    { name: 'D2 evidence artifacts present', passed: fs.existsSync('evidence/phase-d/d2') },
+    { name: 'D3 evidence artifacts present', passed: fs.existsSync('evidence/phase-d/d3') },
+    { name: 'D4 evidence artifacts present', passed: fs.existsSync('evidence/phase-d/d4') },
+    { name: 'D5 evidence artifacts present', passed: fs.existsSync('evidence/phase-d/d5') },
+    { name: 'D1 test file exists', passed: fs.existsSync('__tests__/phase_d/d1_user_safe_errors.test.ts') },
+    { name: 'D3 test file exists', passed: fs.existsSync('__tests__/phase_d/d3_rate_limits.test.ts') },
   ];
 
   checks.forEach(check => {
@@ -165,23 +172,27 @@ function generateReport() {
   });
 
   const allPassed = checks.every(c => c.passed);
-  report += `\n**Overall Status:** ${allPassed ? '✅ ALL CHECKS PASSED' : '❌ SOME CHECKS FAILED'}\n`;
+  report += `\n**Validation Result:** ${allPassed ? '✅ ALL CHECKS PASSED' : '❌ VALIDATION FAILED'}\n`;
 
   // Sign-off
   report += `\n## 7. Proof Pack Sign-Off\n\n`;
   report += `Generated: ${timestamp}\n`;
   report += `Authority: Phase D Release Gates (v1) + Release Governance\n`;
-  report += `Canonical: docs/JOB_CONTRACT_v1.md + Copilot Instructions\n\n`;
-  report += `**This proof pack certifies that Phase D gates D1–D5 are CLOSED with evidence.**\n`;
+  report += `Canonical: docs/JOB_CONTRACT_v1.md + Copilot Instructions\n`;
+  report += `Validation Status: ${allPassed ? '✅ PASSED' : '❌ FAILED'}\n\n`;
+  report += `${allPassed 
+    ? '**This proof pack certifies that Phase D gates D1–D5 are CLOSED with complete evidence.**'
+    : '**This proof pack FAILED validation. Missing required evidence artifacts or test files. Cannot certify readiness.**'}\n`;
 
-  return report;
+  // Return both report and validation status
+  return { report, allPassed };
 }
 
 // Main execution
 console.log('🚀 Phase D Proof Pack Runner\n');
 console.log('Validating closure documentation...\n');
 
-const report = generateReport();
+const { report, allPassed } = generateReport();
 
 // Output
 const outputFile = process.argv.includes('--output') 
@@ -192,4 +203,12 @@ fs.writeFileSync(outputFile, report);
 console.log(`\n✅ Report generated: ${outputFile}`);
 console.log(`\n${report}`);
 
-process.exit(0);
+// Exit with status code: 0 if all passed, 2 if any failed (fail-closed)
+if (!allPassed) {
+  console.error('\n❌ VALIDATION FAILED: Phase D proof pack found missing artifacts or test files.');
+  console.error('Please ensure all evidence directories and test files are present before deployment.');
+  process.exit(2);
+} else {
+  console.log('\n✅ VALIDATION PASSED: Phase D proof pack is compliant and production-ready.');
+  process.exit(0);
+}
