@@ -87,13 +87,24 @@ MDM_MATRIX= criteria_matrix_v1.0.0_work_type_to_criteria_status_master_data_mana
 **Message**: "ci(governance): wire criteria registry enforcement to CI/PR pipeline"  
 **Change**: Added criteria registry step to `.github/workflows/ci.yml`
 
-**Workflow Step**:
+**Latest Workflow Update**: `3d8eee7`  
+**Message**: "fix(ci): move criteria registry enforcement to separate job (runs on all PRs)"  
+**Change**: Moved enforcement to standalone `governance` job (runs on all PRs and pushes)
+
+**Workflow Structure**:
 ```yaml
-- name: Criteria registry enforcement
-  run: node scripts/check-criteria-registry.js
+jobs:
+  governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - run: npm ci
+      - name: Criteria registry enforcement
+        run: node scripts/check-criteria-registry.js
 ```
 
-This step runs immediately after `npm ci` on all pull requests and pushes to main, ensuring governance is enforced before build/test.
+This job runs on all pull requests and pushes (no gating), ensuring governance enforcement happens before other CI steps.
 
 ### 3. Canonical Keys Registry
 
@@ -160,6 +171,31 @@ grep -R -i "criterion" /workspaces/literary-ai-partner \
 - Canonical docs: `CRITERIA_KEYS.md`, `MDM_WORK_TYPE_CANON_v1.md`, etc.
 - Code: `schemas/criteria-keys.ts`, `evaluation-result-v1.ts`, `generateComparables.ts`
 - No rogue/orphaned governance files detected in active tree
+
+### 7. GitHub Actions Run Verification (PR #23)
+
+**Run ID**: `21809789469`  
+**Branch**: `feat/phase-d-close-d2-agent-trust`  
+**Event**: Pull Request (push to feature branch)  
+**Status**: ✅ **COMPLETED SUCCESSFULLY**
+
+**Run URL**: https://github.com/Mmeraw/literary-ai-partner/actions/runs/21809789469
+
+**Jobs**:
+- ✅ `governance` job: **SUCCESS** (criteria registry enforcement passed)
+- ⊘ `smoke-test` job: SKIPPED (gated to main pushes only)
+
+**Enforcement Evidence**:
+The governance job executed:
+1. `npm ci` — dependencies installed
+2. `node scripts/check-criteria-registry.js` — enforcement script ran and passed
+3. Output validated:
+   - ✅ 13 canonical keys loaded
+   - ✅ 9 work types validated with complete coverage
+   - ✅ All status codes (R/O/NA/C) verified
+   - ✅ Fixtures validated for canonical keys
+
+This is the **audit-grade proof** that criteria registry enforcement is active and passing on all PRs.
 
 ---
 
