@@ -1,0 +1,147 @@
+{
+  "schema_version": "evaluation_result_v1",
+  "ids": {
+    "evaluation_run_id": "00000000-0000-0000-0000-000000000000",
+    "job_id": "00000000-0000-0000-0000-000000000000",
+    "manuscript_id": 1,
+    "user_id": "00000000-0000-0000-0000-000000000000"
+  },
+  "generated_at": "2026-02-08T00:00:00Z",
+  "engine": {
+    "model": "claude-opus",
+    "provider": "anthropic",
+    "prompt_version": "v1"
+  },
+  "overview": {
+    "one_paragraph_summary": "This manuscript demonstrates strong narrative fundamentals and confident prose.",
+    "overall_score_0_100": 78,
+    "verdict": "pass",
+    "top_3_strengths": ["Engaging plot structure", "Well-developed protagonists", "Clear narrative voice"],
+    "top_3_risks": ["Market positioning unclear", "Some pacing inconsistencies", "Secondary characters need depth"]
+  },
+  "criteria": [
+    {
+      "key": "plot",
+      "score_0_10": 8,
+      "rationale": "Story arc is compelling with clear rising action and resolution.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 7,
+      "rationale": "Protagonist is well-realized; supporting cast could be more distinct.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 6,
+      "rationale": "Conversations serve the story but could be more distinctive.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 7,
+      "rationale": "Consistent narrative voice throughout.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 6,
+      "rationale": "Generally well-paced with some slow sections.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "structure",
+      "score_0_10": 7,
+      "rationale": "Clear three-act structure.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "theme",
+      "score_0_10": 7,
+      "rationale": "Themes emerge naturally from the narrative.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 6,
+      "rationale": "Setting is clear, world details could be richer.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "stakes",
+      "score_0_10": 7,
+      "rationale": "Stakes are clear and escalate appropriately.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "clarity",
+      "score_0_10": 8,
+      "rationale": "Writing is clear and easy to follow.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 6,
+      "rationale": "Strong concept; positioning needs refinement.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "craft",
+      "score_0_10": 7,
+      "rationale": "Technical execution is solid.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "concept",
+      "score_0_10": 8,
+      "rationale": "Original and engaging concept.",
+      "evidence": [],
+      "recommendations": []
+    }
+  ],
+  "recommendations": {
+    "quick_wins": [],
+    "strategic_revisions": []
+  },
+  "metrics": {
+    "manuscript": {
+      "word_count": 78000
+    },
+    "processing": {
+      "runtime_ms": 12500
+    }
+  },
+  "artifacts": [],
+  "governance": {
+    "confidence": 0.88,
+    "warnings": [],
+    "limitations": [],
+    "policy_family": "standard",
+    "transparency": {
+      "final_work_type_used": "mainstream_agent_ready",
+      "matrix_version": "work_type_matrix.v1",
+      "criteria_plan": {
+        "R": ["concept", "narrativeDrive", "character"],
+        "O": ["marketability"],
+        "NA": ["sceneConstruction"],
+        "C": []
+      },
+      "repro_anchor": "job_00000000-0000-0000-0000-000000000000 | 2026-02-08T00:00:00Z | work_type_matrix.v1"
+    }
+  }
+}
+
+

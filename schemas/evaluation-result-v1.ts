@@ -12,6 +12,8 @@
  * Created: 2026-01-25
  */
 
+import { CRITERIA_KEYS, CriterionKey } from './criteria-keys';
+
 /**
  * Main evaluation result envelope
  */
@@ -63,20 +65,7 @@ export type EvaluationResultV1 = {
   /** Detailed criteria evaluation (13 criteria rubric) */
   criteria: Array<{
     /** Criterion identifier */
-    key:
-      | "concept"
-      | "plot"
-      | "character"
-      | "dialogue"
-      | "voice"
-      | "pacing"
-      | "structure"
-      | "theme"
-      | "worldbuilding"
-      | "stakes"
-      | "clarity"
-      | "marketability"
-      | "craft";
+    key: CriterionKey;
     
     /** Score for this criterion (0-10) */
     score_0_10: number;
@@ -202,8 +191,77 @@ export type EvaluationResultV1 = {
     
     /** Policy family used for evaluation */
     policy_family: string; // e.g., "standard", "dark_fiction", "trauma_memoir"
+    
+    /** D2 Boundary: Optional agent-facing transparency fields (required only on agent-view surfaces) */
+    transparency?: {
+      /** Work Type used in evaluation (e.g., "mainstream_agent_ready") */
+      final_work_type_used?: string;
+      
+      /** Matrix version used in evaluation (e.g., "work_type_matrix.v1") */
+      matrix_version?: string;
+      
+      /** Criteria applicability breakdown (R=Required, O=Optional, NA=Not Applicable, C=Conditional) */
+      criteria_plan?: {
+        R?: Array<string>; // Required criteria evaluated
+        O?: Array<string>; // Optional criteria evaluated
+        NA?: Array<string>; // Not applicable criteria (excluded from evaluation)
+        C?: Array<string>; // Deferred/conditional criteria
+      };
+      
+      /** Repro anchor: evaluation_id + timestamp + matrix_version (for audit trail) */
+      repro_anchor?: string;
+    };
   };
 };
+
+/**
+ * Validator to check if an EvaluationResultV1 has all required D2 transparency fields.
+ * This is a separate check from isEvaluationResultV1 to allow backward compatibility
+ * (old results without D2 fields still validate, but D2 surfaces reject them).
+ * 
+ * Enforces fail-closed validation:
+ * - Required string fields must be non-empty
+ * - criteria_plan must have R/O/NA/C as arrays of canonical criterion keys
+ * - At least one criterion key must be present across all arrays (prevents "empty arrays gaming")
+ */
+export function hasD2TransparencyFields(
+  result: EvaluationResultV1
+): boolean {
+  const t = result.governance?.transparency;
+  if (!t) return false;
+
+  // Required string fields (fail-closed)
+  if (typeof t.final_work_type_used !== "string" || t.final_work_type_used.trim().length === 0) return false;
+  if (typeof t.matrix_version !== "string" || t.matrix_version.trim().length === 0) return false;
+  if (typeof t.repro_anchor !== "string" || t.repro_anchor.trim().length === 0) return false;
+
+  // Validate criteria_plan structure (Option B; fail-closed)
+  const cp = t.criteria_plan as unknown;
+  if (!cp || typeof cp !== "object") return false;
+
+  // Use a narrow typed view after structural checks
+  const plan = cp as { R?: unknown; O?: unknown; NA?: unknown; C?: unknown };
+
+  // All keys must exist and be arrays
+  if (!Array.isArray(plan.R) || !Array.isArray(plan.O) || !Array.isArray(plan.NA) || !Array.isArray(plan.C)) {
+    return false;
+  }
+
+  // Each element must be a non-empty string
+  const allKeys = [...plan.R, ...plan.O, ...plan.NA, ...plan.C];
+  if (!allKeys.every((k) => typeof k === "string" && k.trim().length > 0)) {
+    return false;
+  }
+
+  // Prevent "empty arrays gaming" (policy: require at least one criterion key overall)
+  if (allKeys.length === 0) return false;
+
+  // Validate against canonical criterion keys (fail-closed; prevents invalid keys)
+  const validKeys = new Set<string>(CRITERIA_KEYS);
+  if (!allKeys.every((k) => validKeys.has(k))) return false;
+
+  return true;
+}
 
 /**
  * Type guard to check if an object is a valid EvaluationResultV1
@@ -220,27 +278,6 @@ export function isEvaluationResultV1(obj: unknown): obj is EvaluationResultV1 {
     Array.isArray(result.artifacts)
   );
 }
-
-/**
- * Criteria keys enum for type safety
- */
-export const CRITERIA_KEYS = [
-  "concept",
-  "plot",
-  "character",
-  "dialogue",
-  "voice",
-  "pacing",
-  "structure",
-  "theme",
-  "worldbuilding",
-  "stakes",
-  "clarity",
-  "marketability",
-  "craft",
-] as const;
-
-export type CriterionKey = (typeof CRITERIA_KEYS)[number];
 
 /**
  * Helper type: minimal evaluation result for previews

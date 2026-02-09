@@ -1,0 +1,146 @@
+{
+  "schema_version": "evaluation_result_v1",
+  "ids": {
+    "evaluation_run_id": "11111111-1111-1111-1111-111111111111",
+    "job_id": "11111111-1111-1111-1111-111111111111",
+    "manuscript_id": 2,
+    "user_id": "11111111-1111-1111-1111-111111111111"
+  },
+  "generated_at": "2026-02-08T01:00:00Z",
+  "engine": {
+    "model": "claude-opus",
+    "provider": "anthropic",
+    "prompt_version": "v1"
+  },
+  "overview": {
+    "one_paragraph_summary": "This manuscript will definitely sell. Guaranteed.",
+    "overall_score_0_100": 85,
+    "verdict": "pass",
+    "top_3_strengths": ["Strong hook", "Engaging narrative", "Clear voice"],
+    "top_3_risks": []
+  },
+  "criteria": [
+    {
+      "key": "plot",
+      "score_0_10": 8,
+      "rationale": "Compelling plot.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 7,
+      "rationale": "Well-developed.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 7,
+      "rationale": "Natural dialogue.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "Strong voice.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 7,
+      "rationale": "Good pacing.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "structure",
+      "score_0_10": 8,
+      "rationale": "Clear structure.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "theme",
+      "score_0_10": 7,
+      "rationale": "Coherent themes.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 7,
+      "rationale": "Rich world.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "stakes",
+      "score_0_10": 8,
+      "rationale": "High stakes.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "clarity",
+      "score_0_10": 8,
+      "rationale": "Crystal clear.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 9,
+      "rationale": "This will sell. Guaranteed to succeed.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "craft",
+      "score_0_10": 8,
+      "rationale": "Excellent craft.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "concept",
+      "score_0_10": 9,
+      "rationale": "Concept is a best-seller in waiting.",
+      "evidence": [],
+      "recommendations": []
+    }
+  ],
+  "recommendations": {
+    "quick_wins": [],
+    "strategic_revisions": []
+  },
+  "metrics": {
+    "manuscript": {
+      "word_count": 80000
+    },
+    "processing": {
+      "runtime_ms": 11200
+    }
+  },
+  "artifacts": [],
+  "governance": {
+    "confidence": 0.92,
+    "warnings": [],
+    "limitations": [],
+    "policy_family": "standard",
+    "transparency": {
+      "final_work_type_used": "mainstream_agent_ready",
+      "matrix_version": "work_type_matrix.v1",
+      "criteria_plan": {
+        "R": ["concept"],
+        "O": [],
+        "NA": [],
+        "C": []
+      },
+      "repro_anchor": "job_11111111-1111-1111-1111-111111111111 | 2026-02-08T01:00:00Z | work_type_matrix.v1"
+    }
+  }
+}
+
