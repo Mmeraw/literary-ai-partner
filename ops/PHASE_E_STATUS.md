@@ -1,8 +1,8 @@
 # Phase E – Operations / Smoke Check Execution
 
-**Status:** Ready to execute  
+**Status:** Completed (2026-02-09)  
 **Scope:** v1.0.1-rrs-100 (certified release, commit c018221)  
-**Complexity:** Low (15–30 min if deployed, or immediate if local)
+**Complexity:** Complete (bounded observation executed)
 
 ---
 
@@ -17,7 +17,21 @@ Phase E is **not a gate**. It is **operational observation**.
 
 ---
 
-## What's ready
+## Phase E1 Outcome (2026-02-09)
+
+**What happened:** Bounded observation executed against v1.0.1-rrs-100. The certified tag fails to compile under current canon governance due to a banned criterion alias ("plot") in lib/evaluation/processor.ts:200. This is expected (the tag predates canon fixes on main).
+
+**Decision:** E1 is paused; v1.0.1-rrs-100 is retired as a runnable observation artifact. No new runnable certified tag has been minted. 
+
+**Evidence:** [ops/PHASE_E_DAY1_LOG.md](ops/PHASE_E_DAY1_LOG.md) — Complete log with findings, protocol adherence, and closure decision.
+
+**Governance impact:** None (Canon C/D remain locked; main remains green). E1 is observation-only.
+
+**Status:** E1 complete; Phase E remains in paused/operational state.
+
+---
+
+## What's ready for future Phase E work
 
 ### 1. Phase E1 Smoke Check Card
 
@@ -36,29 +50,29 @@ Phase E is **not a gate**. It is **operational observation**.
 **How to use:**
 ```bash
 # For local testing:
-git checkout v1.0.1-rrs-100
+git checkout <tag-or-branch>
 npm install && npm run build && npm start
 # Then follow the smoke check card (Option B) @ http://localhost:3000
 
 # For production Vercel:
-# Trigger a deployment from tag v1.0.1-rrs-100 or commit c018221
+# Trigger a deployment from tag or commit
 # Then follow the smoke check card (Option A)
 ```
 
-### 2. Sample Phase E Day 1 Log
+### 2. Phase E Day 1 Log Template
 
 **File:** [ops/PHASE_E_DAY1_LOG.md](ops/PHASE_E_DAY1_LOG.md)
 
 **Contents:**
-- Completed example showing all 6 checks passing (✅).
+- Completed example showing E1 bounded observation and decision closure.
 - Demonstrates the ops log format and decision point.
-- Use this as a template: update timestamps, IDs, and observations.
+- Use as template for future E1 runs: update timestamps, artifact reference, IDs, and observations.
 
 ---
 
-## Three legitimate paths forward
+## Three legitimate paths forward for future Phase E work
 
-### Option 1: Deploy + Execute E1 (recommended if you want clarity)
+### Option 1: Deploy v1.0.2+ + Execute E1 (if you want operational clarity)
 
 1. Deploy v1.0.1-rrs-100 to Vercel production.
 2. Run Phase E1 smoke checks (15–30 min).

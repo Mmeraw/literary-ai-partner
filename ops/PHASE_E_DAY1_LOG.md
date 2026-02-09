@@ -129,3 +129,23 @@ v1.0.1-rrs-100 cannot serve as a Phase E observation target in its current form 
 - **Evidence preserved:** This log on main
 
 **Next action owner:** Phase leadership (choose artifact path and re-run if desired)
+
+---
+
+## DECISION (Final)
+
+**Phase E1 is paused.** v1.0.1-rrs-100 is treated as retired/historical; no runnable observation artifact has been minted.
+
+Reasoning:
+- Bounded observation successfully detected that v1.0.1-rrs-100 cannot build under current canon governance (banned alias "plot" at processor.ts:200)
+- This is a valid finding and is durably logged (audit trail complete)
+- No code remediation was performed during observation (protocol-adherent)
+- Future Phase E execution can mint a new certified tag (v1.0.2-rrs-100 or similar) from post-governance main if operational observation is needed
+
+**Governance closure:**
+- Main is governance-complete and canon-green
+- Canon enforcement is active (all four audit gates pass)
+- Evidence of the v1.0.1-rrs-100 blocker is durable in this log
+- No new governance work is required
+
+**Status:** E1 observation complete; no further action pending.
