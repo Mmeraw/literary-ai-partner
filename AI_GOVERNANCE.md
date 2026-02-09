@@ -25,7 +25,21 @@ This policy applies to:
 - Copilot-style tools used in this repository
 - External AI systems integrating with RevisionGrade
 
-## 4. Enforcement
+## 4. Cryptographic Signing Policy
+
+**GPG signing is NOT an approved trust mechanism for this repository.**
+
+- Commits, tags, and releases must not require or rely on GPG keys.
+- Developer GPG signatures are not part of the project's compliance or canon enforcement chain.
+- If a commit appears to be "unsigned," that is expected and correct for this project.
+
+**Enforcement:**
+- `commit.gpgsign` is disabled in repository Git configuration.
+- `tag.gpgsign` is disabled in repository Git configuration.
+- CI pipelines enforce that no `--gpg-sign` or `-S` flags are passed to Git commands.
+- Any attempt to enable GPG signing in repository config is a policy violation.
+
+## 5. Enforcement
 
 - Validators and CI checks must reject unknown or banned keys.
 - PR templates and system prompts should reference this document.
