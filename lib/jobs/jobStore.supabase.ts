@@ -8,12 +8,21 @@ import {
 } from "./canon";
 import { Job, JobStatus, JobType, PHASES, Phase, JOB_STATUS, JobProgress } from "./types";
 
-// Lazy-initialized Supabase client - null-safe for CI/build environments
-let _supabase: ReturnType<typeof createAdminClient> | undefined;
+// Lazy-initialized Supabase client
+// - In CI/build environments, createAdminClient() may throw if env is missing.
+// - We capture that and surface a meaningful error only when DB access is attempted.
+let _supabase: ReturnType<typeof createAdminClient> | null | undefined;
 
 function getSupabase() {
   if (_supabase === undefined) {
-    _supabase = createAdminClient();
+    try {
+      _supabase = createAdminClient();
+    } catch (err) {
+      _supabase = null;
+      const msg =
+        err instanceof Error ? err.message : `Unknown error: ${String(err)}`;
+      console.error(`[JOB-STORE-SUPABASE] createAdminClient() failed: ${msg}`);
+    }
   }
   return _supabase;
 }
@@ -29,7 +38,15 @@ const supabase = new Proxy(
           `[JOB-STORE-SUPABASE] Supabase unavailable - cannot access .${String(prop)}`,
         );
       }
-      return client[prop as keyof typeof client];
+
+      const value = (client as any)[prop];
+
+      // Bind functions to preserve method context (prevents subtle runtime failures)
+      if (typeof value === "function") {
+        return value.bind(client);
+      }
+
+      return value;
     },
   },
 );
@@ -89,40 +106,70 @@ function validateProgressWrite(progress: Record<string, unknown>): void {
   }
 }
 
+function toSafeIntegerOrThrow(value: unknown, label: string): number {
+  const n =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number.parseInt(value, 10)
+        : Number.NaN;
+
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
+    throw new Error(`Invalid ${label}: "${String(value)}" (expected positive integer)`);
+  }
+  if (n > Number.MAX_SAFE_INTEGER) {
+    throw new Error(
+      `Unsafe ${label}: "${String(value)}" exceeds JS MAX_SAFE_INTEGER (${Number.MAX_SAFE_INTEGER}). ` +
+        `Return IDs as strings or adjust model types.`,
+    );
+  }
+  return n;
+}
+
 export async function createJob(input: {
-  manuscript_id: string;
+  manuscript_id: string | number;
   job_type: JobType;
 }): Promise<Job> {
   const now = new Date().toISOString();
-  
+
   // DB GUARD: manuscript_id MUST be numeric for Supabase writes
   // Accept string or number at boundary, but enforce numeric for DB FK constraints
   const inputType = typeof input.manuscript_id;
-  if (inputType !== 'string' && inputType !== 'number') {
+  if (inputType !== "string" && inputType !== "number") {
     throw new Error(
-      `Invalid manuscript_id type: expected string or number, got ${inputType}`
+      `Invalid manuscript_id type: expected string or number, got ${inputType}`,
     );
   }
-  
+
   // Normalize: if number, use directly; if string, trim and parse
   let manuscriptId: number;
-  if (typeof input.manuscript_id === 'number') {
+  if (typeof input.manuscript_id === "number") {
     manuscriptId = input.manuscript_id;
     if (!Number.isInteger(manuscriptId) || manuscriptId <= 0) {
       throw new Error(
-        `Invalid manuscript_id ${input.manuscript_id}: must be positive integer`
+        `Invalid manuscript_id ${input.manuscript_id}: must be positive integer`,
+      );
+    }
+    if (manuscriptId > Number.MAX_SAFE_INTEGER) {
+      throw new Error(
+        `Unsafe manuscript_id ${input.manuscript_id}: exceeds JS MAX_SAFE_INTEGER (${Number.MAX_SAFE_INTEGER}).`,
       );
     }
   } else {
     const trimmed = (input.manuscript_id as string).trim();
-    if (trimmed === '') {
-      throw new Error('Invalid manuscript_id: empty string');
+    if (trimmed === "") {
+      throw new Error("Invalid manuscript_id: empty string");
     }
     const parsed = Number.parseInt(trimmed, 10);
     if (Number.isNaN(parsed) || String(parsed) !== trimmed) {
       throw new Error(
         `Invalid manuscript_id "${input.manuscript_id}": Database writes require numeric manuscript IDs. ` +
-        `Use memory store (TEST_MODE=true) for test strings.`
+          `Use memory store (TEST_MODE=true) for test strings.`,
+      );
+    }
+    if (parsed > Number.MAX_SAFE_INTEGER) {
+      throw new Error(
+        `Unsafe manuscript_id "${input.manuscript_id}": exceeds JS MAX_SAFE_INTEGER (${Number.MAX_SAFE_INTEGER}).`,
       );
     }
     manuscriptId = parsed;
@@ -251,8 +298,9 @@ export async function updateJob(
 
   // Always merge progress to preserve existing fields
   if (updates.progress) {
-    validateProgressWrite(updates.progress as Record<string, unknown>);
-    payload.progress = { ...existing.progress, ...updates.progress };
+    const merged = { ...existing.progress, ...updates.progress };
+    validateProgressWrite(merged as Record<string, unknown>);
+    payload.progress = merged;
   }
 
   // Nothing to update besides timestamp; return the existing job
@@ -312,7 +360,7 @@ export async function acquireLeaseForPhase1(
   // If a lease exists and is unexpired, do not steal it
   if (
     existing.progress.lease_expires_at &&
-    typeof existing.progress.lease_expires_at === 'string' &&
+    typeof existing.progress.lease_expires_at === "string" &&
     new Date(existing.progress.lease_expires_at) > now
   ) {
     return null;
@@ -386,13 +434,13 @@ export async function acquireLeaseForPhase2(
 
   // Treat missing lease_expires_at as expired if lease_id exists (prevents “stuck forever”)
   const leaseExpiresAtRaw = existing.progress.lease_expires_at;
-  const leaseExpiresAt = (leaseExpiresAtRaw && typeof leaseExpiresAtRaw === 'string') 
-    ? new Date(leaseExpiresAtRaw) 
-    : null;
+  const leaseExpiresAt =
+    leaseExpiresAtRaw && typeof leaseExpiresAtRaw === "string"
+      ? new Date(leaseExpiresAtRaw)
+      : null;
 
   const isLeaseFree = !existingLeaseId;
-  const isLeaseExpired =
-    !!existingLeaseId && (!leaseExpiresAt || leaseExpiresAt <= now);
+  const isLeaseExpired = !!existingLeaseId && (!leaseExpiresAt || leaseExpiresAt <= now);
 
   if (!isLeaseFree && !isLeaseExpired) {
     return null;
@@ -497,52 +545,54 @@ export async function setJobFailed(
     provider?: string | null;
     context?: Record<string, unknown>;
     occurred_at: string;
-  }
+  },
 ): Promise<void> {
   const now = new Date().toISOString();
-  
+
   // Get current job to check attempt count
   const job = await getJob(jobId);
   if (!job) {
     throw new Error(`Job ${jobId} not found`);
   }
-  
+
   // Fetch current attempt_count and max_attempts from DB
   const { data: jobRow, error: fetchError } = await supabase
-    .from('evaluation_jobs')
-    .select('attempt_count, max_attempts')
-    .eq('id', jobId)
+    .from("evaluation_jobs")
+    .select("attempt_count, max_attempts")
+    .eq("id", jobId)
     .single();
-  
+
   if (fetchError || !jobRow) {
-    throw new Error(`Failed to fetch job for retry check: ${fetchError?.message}`);
+    throw new Error(
+      `Failed to fetch job for retry check: ${fetchError?.message ?? "unknown error"}`,
+    );
   }
-  
+
   const attemptCount = jobRow.attempt_count ?? 0;
   const maxAttempts = jobRow.max_attempts ?? 3;
   const nextAttempt = attemptCount + 1;
-  
+
   // Determine if we should retry or permanently fail
   const shouldRetry = errorEnvelope.retryable && nextAttempt <= maxAttempts;
-  
+
   let updatePayload: any = {
     last_error: JSON.stringify(errorEnvelope),
     attempt_count: nextAttempt,
     updated_at: now,
   };
-  
+
   if (shouldRetry) {
     // Schedule for retry with backoff
-      const { calculateNextAttemptAt } = await import('./retryBackoff');
+    const { calculateNextAttemptAt } = await import("./retryBackoff");
     const nextAttemptAt = calculateNextAttemptAt(nextAttempt);
-    
+
     updatePayload = {
       ...updatePayload,
       status: JOB_STATUS.QUEUED,
       next_attempt_at: nextAttemptAt,
       progress: {
         ...job.progress,
-        phase_status: 'queued',
+        phase_status: "queued",
         message: `Retry scheduled (attempt ${nextAttempt}/${maxAttempts})`,
       },
     };
@@ -554,20 +604,17 @@ export async function setJobFailed(
       failed_at: now,
       progress: {
         ...job.progress,
-        phase_status: 'failed',
+        phase_status: "failed",
         finished_at: now,
         message: errorEnvelope.retryable
           ? `Max retries exhausted (${maxAttempts})`
-          : 'Non-retryable error',
+          : "Non-retryable error",
       },
     };
   }
-  
-  const { error } = await supabase
-    .from('evaluation_jobs')
-    .update(updatePayload)
-    .eq('id', jobId);
-  
+
+  const { error } = await supabase.from("evaluation_jobs").update(updatePayload).eq("id", jobId);
+
   if (error) {
     throw new Error(`Failed to update job after failure: ${error.message}`);
   }
@@ -577,7 +624,7 @@ function mapDbRowToJob(row: any): Job {
   const progress = row.progress || {};
   const migratedPhaseStatus = migrateProgressStageToPhaseStatus(progress);
   const migratedProgress = migrateProgressPhaseToCanonical(migratedPhaseStatus);
-  
+
   // Ensure all required JobProgress fields are present
   const completeProgress: JobProgress = {
     phase: migratedProgress.phase ?? null,
@@ -586,12 +633,23 @@ function mapDbRowToJob(row: any): Job {
     completed_units: migratedProgress.completed_units ?? null,
     ...migratedProgress, // Preserve any additional fields from DB
   };
-  
+
+  const manuscriptId = toSafeIntegerOrThrow(row.manuscript_id, "manuscript_id");
+
+  const rawStatus = row.status;
+  if (typeof rawStatus !== "string") {
+    throw new Error(`Invalid job status type from DB: ${typeof rawStatus}`);
+  }
+  assertCanonicalStatusValue(rawStatus);
+
+  const rawJobType = row.job_type;
+  const mappedJobType = JOB_TYPE_FROM_DB[rawJobType] ?? rawJobType;
+
   return {
     id: row.id,
-    manuscript_id: Number(row.manuscript_id), // BigInt from DB → number
-    job_type: JOB_TYPE_FROM_DB[row.job_type] ?? row.job_type,
-    status: row.status,
+    manuscript_id: manuscriptId,
+    job_type: mappedJobType,
+    status: rawStatus,
     progress: completeProgress,
     created_at: row.created_at,
     updated_at: row.updated_at,

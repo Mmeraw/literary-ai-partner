@@ -80,6 +80,7 @@ if (!fs.existsSync(MDM_MATRIX)) {
   console.log(`⚠️  MDM matrix not found: ${MDM_MATRIX} (skipping MDM validation)\n`);
 } else {
   console.log(`🔍 Validating MDM matrix: ${MDM_MATRIX}`);
+  console.log("MDM_MATRIX=", MDM_MATRIX);
   const matrix = loadJson(MDM_MATRIX);
 
   if (!matrix.workTypes || typeof matrix.workTypes !== "object") {

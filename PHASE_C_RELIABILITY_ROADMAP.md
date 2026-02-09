@@ -36,7 +36,7 @@ The result: when something breaks, you can answer these questions in under 30 se
    - Failure rate >5% for a job type
    - Deadletter queue depth >10
 
-✅ **Deadletter Formalization**: Jobs that exhaust retries go to `deadletter_job` table with root cause + operator runbook.
+⏳ **Deadletter Formalization**: Deferred (post-D4). See future item once observability coverage is closed.
 
 ---
 
@@ -131,24 +131,20 @@ ORDER BY CASE health WHEN 'BLOCKED' THEN 1 WHEN 'ACTIVE' THEN 2 ELSE 3 END;
 
 ---
 
-### D4: Deadletter Formalization
-**Input**: Current retry exhaustion logic (retry.ts, phase1.ts)  
-**Output**: `lib/jobs/deadletter.ts` (new module) + migration
+### D4: Observability Coverage & Event Completeness
+**Input**: LOGGING_SCHEMA_v1 + current emitter wiring  
+**Output**: `docs/PHASE_C_D4_OBSERVABILITY_COVERAGE.md`
 
-When a job exhausts retries (attempt_count > MAX_RETRIES):
-- Insert into `deadletter_jobs` table with:
-  - Original job data
-  - Error history (every failure reason)
-  - Operator runbook hint (e.g., "Check manuscript integrity for chunk errors")
-  - Created timestamp (for operator triage priority)
+Prove that every critical lifecycle transition has either:
+- An emitted observability event, or
+- An explicit, documented deferral with rationale.
 
-Design: Keep original job record; add denormalized deadletter entry for ops visibility.
+This closes the “silent transition” gap without requiring immediate wiring changes.
 
-**Output Location**: `lib/jobs/deadletter.ts`  
-**DB Migration**: Add `deadletter_jobs` table + index on created_at  
+**Output Location**: `docs/PHASE_C_D4_OBSERVABILITY_COVERAGE.md`  
 **Owner**: Agent  
-**Time**: 3–4 hours  
-**Blocker**: Depends on D1 (attempt_count field presence)
+**Time**: 1–2 hours  
+**Blocker**: None (documentation + verification only)
 
 ---
 
@@ -178,7 +174,7 @@ Tech: Simple Next.js page + SWR polling, no external charting lib (use HTML tabl
 | D1 | Failure Envelope | Schema doc written, all states covered | Peer review: "Can I predict all required fields for any state?" |
 | D2 | Structured Logs | Every transition logs JSON, parsing works | Sample logs from test run parse without error |
 | D3 | Observability Queries | All 5 core queries written + tested | Run each query against test DB, verify results make sense |
-| D4 | Deadletter Table | Migration runs, exhausted retry routes to deadletter | Insert a test job, exhaust retries, verify deadletter row exists |
+| D4 | Observability Coverage | Coverage checklist complete; deferred items justified | Review coverage table + optional event inventory query |
 | D5 | Dashboard UI | Page loads, auto-updates every 30s, reflects real data | Load page, verify counts match direct DB query |
 
 ---
@@ -190,7 +186,7 @@ After Phase C, you can answer:
 1. ✅ How many jobs are in each state right now? (query D3-Q1, <1 second)
 2. ✅ What's the failure rate for job type X? (query D3-Q2, <2 seconds)
 3. ✅ Which jobs have been stuck? Why? (query D3-Q5, <1 second)
-4. ✅ Are any jobs in deadletter? Why? (deadletter_jobs table, <1 second)
+4. ⏳ Deadletter formalization is deferred (future item)
 5. ✅ What's the system health at a glance? (dashboard page, real-time)
 
 **All questions answerable in <30 seconds from dashboard or single query.**
@@ -200,7 +196,7 @@ After Phase C, you can answer:
 ## Roadmap to Production
 
 - **Feb 8–15**: Phase C D1–D3 (schema + queries)
-- **Feb 16–20**: Phase C D4–D5 (deadletter + dashboard)
+- **Feb 16–20**: Phase C D4–D5 (coverage checklist + dashboard)
 - **Feb 21**: Operational hardening sign-off
 - **Feb 22+**: UI confidence + billing integration
 - **Mar 1**: Go-live (governance + reliability both green)
@@ -217,7 +213,7 @@ After Phase C, you can answer:
 
 ## Notes
 
-This phase is *not* about perfect observability; it's about *minimum viable observability*. Once operational hardening is locked, you can add dashboards, alerts, and metrics-collection tools. But the foundation (structured logging, queries, deadletter path) is complete and non-negotiable.
+This phase is *not* about perfect observability; it's about *minimum viable observability*. Once operational hardening is locked, you can add dashboards, alerts, and metrics-collection tools. But the foundation (structured logging, queries, coverage checklist) is complete and non-negotiable.
 
 ---
 

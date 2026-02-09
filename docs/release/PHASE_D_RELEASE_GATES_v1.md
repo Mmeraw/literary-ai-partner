@@ -6,6 +6,7 @@
 **Last Updated:** 2026-02-08  
 **Execution Model:** Solo + AI-native (GitHub Copilot, Perplexity AI, ChatGPT)
 
+**Change Control:** This document is LOCKED. No changes to gate definitions, closure requirements, weights, or No-Go conditions are permitted except via governance PR with explicit rationale. Changes to RRS formula or thresholds require board-level review.
 ---
 
 ## Executive Summary
