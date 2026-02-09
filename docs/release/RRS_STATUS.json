@@ -1,6 +1,6 @@
 {
   "rrs_spec_version": "v1",
-  "last_updated": "2026-02-08T00:00:00Z",
+  "last_updated": "2026-02-09T02:15:00Z",
   "calculated_by": "founder",
   "status": "ACTIVE",
   "thresholds": {
@@ -11,7 +11,7 @@
   "calculation": {
     "rule": "sum(weight where status==CLOSED and evidence_links not empty)",
     "total_weight": 100,
-    "last_calculated_at": "2026-02-08T00:00:00Z"
+    "last_calculated_at": "2026-02-09T02:15:00Z"
   },
   "gates": [
     {
@@ -85,9 +85,12 @@
       "name": "Agent trust signals and output clarity",
       "phase": "D",
       "weight": 8,
-      "status": "OPEN",
-      "evidence_links": [],
-      "closed_date": null,
+      "status": "CLOSED",
+      "evidence_links": [
+        "GOVERNANCE_CLOSEOUT_PHASE_D2_CRITERIA_REGISTRY.md",
+        "https://github.com/Mmeraw/literary-ai-partner/actions/runs/21809789469"
+      ],
+      "closed_date": "2026-02-09",
       "estimated_effort_days": 4,
       "priority": "FIRST"
     },
@@ -127,20 +130,20 @@
     "phase_c_total": 60,
     "phase_c_max": 60,
     "phase_c_percentage": 100,
-    "phase_d_total": 0,
+    "phase_d_total": 8,
     "phase_d_max": 40,
-    "phase_d_percentage": 0,
-    "rrs_total": 60,
+    "phase_d_percentage": 20,
+    "rrs_total": 68,
     "rrs_max": 100,
-    "rrs_percentage": 60
+    "rrs_percentage": 68
   },
   "release_readiness": {
     "public_release_allowed": false,
-    "public_release_reason": "RRS 60% < 85% threshold. Requires D1 + D2 closed (16 points).",
+    "public_release_reason": "RRS 68% < 85% threshold. D2 ✅closed. Requires D1 + more Phase D gates (17+ more points).",
     "agent_onboarding_allowed": false,
-    "agent_onboarding_reason": "RRS 60% < 90% threshold. Requires D1 + D2 + D3 + D4 closed (32 points).",
+    "agent_onboarding_reason": "RRS 68% < 90% threshold. D2 ✅closed. Requires D1, D3, D4, D5 (22 more points).",
     "controlled_beta_allowed": false,
-    "controlled_beta_reason": "RRS 60% < 76% threshold. Requires D1 + D2 closed (16 points)."
+    "controlled_beta_reason": "RRS 68% < 76% threshold. D2 ✅closed. Requires D1 closed (8 more points)."
   },
   "timeline": {
     "phase_c_completion_date": "2026-02-08",
