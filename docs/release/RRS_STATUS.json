@@ -1,6 +1,6 @@
 {
   "rrs_spec_version": "v1",
-  "last_updated": "2026-02-09T02:15:00Z",
+  "last_updated": "2026-02-09T16:45:00Z",
   "calculated_by": "founder",
   "status": "ACTIVE",
   "thresholds": {
@@ -75,9 +75,13 @@
       "name": "Public UX safety and error contracts",
       "phase": "D",
       "weight": 8,
-      "status": "OPEN",
-      "evidence_links": [],
-      "closed_date": null,
+      "status": "CLOSED",
+      "evidence_links": [
+        "GOVERNANCE_CLOSEOUT_PHASE_D1_PUBLIC_UX_SAFETY.md",
+        "evidence/phase-d/d1/http-error-fixtures.json",
+        "__tests__/phase_d/d1_user_safe_errors.test.ts"
+      ],
+      "closed_date": "2026-02-09",
       "estimated_effort_days": 5
     },
     {
@@ -99,9 +103,12 @@
       "name": "Abuse, rate limiting, and cost controls",
       "phase": "D",
       "weight": 8,
-      "status": "OPEN",
-      "evidence_links": [],
-      "closed_date": null,
+      "status": "CLOSED",
+      "evidence_links": [
+        "GOVERNANCE_CLOSEOUT_PHASE_D3_ABUSE_CONTROLS.md",
+        "__tests__/phase_d/d3_rate_limits.test.ts"
+      ],
+      "closed_date": "2026-02-09",
       "estimated_effort_days": 5
     },
     {
@@ -109,9 +116,13 @@
       "name": "Support, rollback, and incident readiness",
       "phase": "D",
       "weight": 8,
-      "status": "OPEN",
-      "evidence_links": [],
-      "closed_date": null,
+      "status": "CLOSED",
+      "evidence_links": [
+        "GOVERNANCE_CLOSEOUT_PHASE_D4_INCIDENT_READINESS.md",
+        "docs/operations/INCIDENT_RESPONSE.md",
+        "docs/operations/ROLLBACK_PROCEDURE.md"
+      ],
+      "closed_date": "2026-02-09",
       "estimated_effort_days": 3
     },
     {
@@ -119,9 +130,13 @@
       "name": "Legal, ethical, and disclosure alignment",
       "phase": "D",
       "weight": 8,
-      "status": "OPEN",
-      "evidence_links": [],
-      "closed_date": null,
+      "status": "CLOSED",
+      "evidence_links": [
+        "GOVERNANCE_CLOSEOUT_PHASE_D5_LEGAL_ETHICS.md",
+        "PRIVACY_POLICY.md",
+        "TERMS_OF_SERVICE.md"
+      ],
+      "closed_date": "2026-02-09",
       "estimated_effort_days": 2
     }
   ],
@@ -130,20 +145,20 @@
     "phase_c_total": 60,
     "phase_c_max": 60,
     "phase_c_percentage": 100,
-    "phase_d_total": 8,
+    "phase_d_total": 40,
     "phase_d_max": 40,
-    "phase_d_percentage": 20,
-    "rrs_total": 68,
+    "phase_d_percentage": 100,
+    "rrs_total": 100,
     "rrs_max": 100,
-    "rrs_percentage": 68
+    "rrs_percentage": 100
   },
   "release_readiness": {
-    "public_release_allowed": false,
-    "public_release_reason": "RRS 68% < 85% threshold. D2 ✅closed. Requires D1 + more Phase D gates (17+ more points).",
-    "agent_onboarding_allowed": false,
-    "agent_onboarding_reason": "RRS 68% < 90% threshold. D2 ✅closed. Requires D1, D3, D4, D5 (22 more points).",
-    "controlled_beta_allowed": false,
-    "controlled_beta_reason": "RRS 68% < 76% threshold. D2 ✅closed. Requires D1 closed (8 more points)."
+    "public_release_allowed": true,
+    "public_release_reason": "RRS 100% ✅ EXCEEDED threshold (85%). All Phase D gates closed with evidence.",
+    "agent_onboarding_allowed": true,
+    "agent_onboarding_reason": "RRS 100% ✅ EXCEEDED threshold (90%). All Phase D gates closed with evidence.",
+    "controlled_beta_allowed": true,
+    "controlled_beta_reason": "RRS 100% ✅ EXCEEDED threshold (76%). D1, D3, D4, D5 closed."
   },
   "timeline": {
     "phase_c_completion_date": "2026-02-08",

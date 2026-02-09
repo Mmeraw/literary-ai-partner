@@ -1,0 +1,104 @@
+[
+  {
+    "scenario": "database_constraint_violation",
+    "original_error": {
+      "code": "23505",
+      "message": "duplicate key value violates unique constraint \"evaluations_job_id_key\""
+    },
+    "expected_user_response": {
+      "ok": false,
+      "error": {
+        "code": "DUPLICATE_SUBMISSION",
+        "message": "This manuscript has already been submitted.",
+        "auditId": "evt-2026-02-09-a7b3c5"
+      }
+    },
+    "forbidden_in_response": [
+      "23505",
+      "constraint",
+      "evaluations_job_id_key",
+      "postgresql"
+    ],
+    "must_include_audit": true
+  },
+  {
+    "scenario": "network_timeout",
+    "original_error": {
+      "code": "ECONNREFUSED",
+      "message": "connect ECONNREFUSED 10.0.1.42:5432"
+    },
+    "expected_user_response": {
+      "ok": false,
+      "error": {
+        "code": "SERVICE_UNAVAILABLE",
+        "message": "Service temporarily unavailable. Please try again.",
+        "auditId": "evt-2026-02-09-b1d2e3"
+      }
+    },
+    "forbidden_in_response": [
+      "ECONNREFUSED",
+      "10.0.1.42",
+      "5432"
+    ],
+    "must_include_audit": true
+  },
+  {
+    "scenario": "internal_server_error",
+    "original_error": {
+      "code": "ERR_INTERNAL",
+      "message": "Cannot read property 'criteria' of undefined at evaluateManuscript (lib/evaluate.ts:234)"
+    },
+    "expected_user_response": {
+      "ok": false,
+      "error": {
+        "code": "EVALUATION_FAILED",
+        "message": "Evaluation could not be completed. Contact support with ID: evt-2026-02-09-c3f4g5",
+        "auditId": "evt-2026-02-09-c3f4g5"
+      }
+    },
+    "forbidden_in_response": [
+      "Cannot read property",
+      "undefined",
+      "lib/evaluate.ts:234",
+      "stack trace"
+    ],
+    "must_include_audit": true
+  },
+  {
+    "scenario": "authentication_failure",
+    "original_error": {
+      "code": "ERR_JWT_MALFORMED",
+      "message": "JWT malformed: failed to verify signature with key"
+    },
+    "expected_user_response": {
+      "ok": false,
+      "error": {
+        "code": "UNAUTHORIZED",
+        "message": "Session expired or invalid. Please sign in again.",
+        "auditId": "evt-2026-02-09-d5e6f7"
+      }
+    },
+    "forbidden_in_response": [
+      "JWT",
+      "malformed",
+      "signature",
+      "key"
+    ],
+    "must_include_audit": true
+  },
+  {
+    "scenario": "rate_limit_exceeded",
+    "original_error": "Too many requests",
+    "expected_user_response": {
+      "ok": false,
+      "error": {
+        "code": "RATE_LIMITED",
+        "message": "You've submitted too many evaluations too quickly. Please wait a few minutes and try again.",
+        "retryAfterSeconds": 300,
+        "auditId": "evt-2026-02-09-e7f8g9"
+      }
+    },
+    "forbidden_in_response": [],
+    "must_include_audit": true
+  }
+]
