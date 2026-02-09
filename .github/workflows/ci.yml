@@ -9,6 +9,17 @@ on:
   # Smoke tests gated to push-to-main only (flaky infra checks)
 
 jobs:
+  governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - name: Criteria registry enforcement
+        run: node scripts/check-criteria-registry.js
+
   smoke-test:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
@@ -33,9 +44,6 @@ jobs:
           node-version: "20"
 
       - run: npm ci
-
-      - name: Criteria registry enforcement
-        run: node scripts/check-criteria-registry.js
 
       - name: Audit (allow known tar advisory if documented)
         shell: bash
