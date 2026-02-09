@@ -34,6 +34,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Criteria registry enforcement
+        run: node scripts/check-criteria-registry.js
+
       - name: Audit (allow known tar advisory if documented)
         shell: bash
         run: |
