@@ -1,0 +1,62 @@
+{
+  "version": "v1",
+  "sources": {
+    "criteriaKeys": "schemas/criteria-keys.ts",
+    "criteriaRubric": "functions/13_STORY_CRITERIA.md.ts",
+    "mdmMatrix": "criteria_matrix_v1.0.0_work_type_to_criteria_status_master_data_management_MDM.json",
+    "mdmCanon": "docs/MDM_WORK_TYPE_CANON_v1.md",
+    "workTypeRegistry": "docs/WORK_TYPE_REGISTRY.md",
+    "waveCanon": "functions/WAVE_GUIDE.md.ts",
+    "waveTestCases": "functions/WAVE_TEST_CASES.json.ts",
+    "voiceCanon": "functions/VOICE_PRESERVATION_CANON.md.ts",
+    "schemaNaming": "docs/SCHEMA_CODE_NAMING_GOVERNANCE.md",
+    "jobContract": "docs/JOB_CONTRACT_v1.md"
+  },
+  "evaluationCriteria": {
+    "concept": { "aliases_invalid": [] },
+    "narrativeDrive": { "aliases_invalid": ["plot", "stakes", "momentum", "tensionLevel"] },
+    "character": { "aliases_invalid": ["characterArc", "protagonistDepth"] },
+    "voice": { "aliases_invalid": [] },
+    "sceneConstruction": { "aliases_invalid": ["structure", "threeAct", "beats"] },
+    "dialogue": { "aliases_invalid": [] },
+    "theme": { "aliases_invalid": [] },
+    "worldbuilding": { "aliases_invalid": [] },
+    "pacing": { "aliases_invalid": [] },
+    "proseControl": { "aliases_invalid": ["craft", "clarity", "style", "lineQuality"] },
+    "tone": { "aliases_invalid": ["authority", "mood", "vibe"] },
+    "narrativeClosure": { "aliases_invalid": ["payoff", "ending", "resolution"] },
+    "marketability": { "aliases_invalid": ["marketFit", "commercial"] }
+  },
+  "mdmCriteria": {
+    "hook": {},
+    "voice": {},
+    "character": {},
+    "conflict": {},
+    "theme": {},
+    "pacing": {},
+    "dialogue": {},
+    "worldbuilding": {},
+    "stakes": {},
+    "linePolish": {},
+    "marketFit": {},
+    "keepGoing": {},
+    "technical": {}
+  },
+  "mdmWorkTypes": [
+    "personalEssayReflection",
+    "memoirVignette",
+    "novelChapter",
+    "shortStory",
+    "featureScreenplay",
+    "scriptSceneFilmTv",
+    "flashFictionMicro",
+    "proseScene",
+    "otherUserDefined"
+  ],
+  "wave": {
+    "tiers": ["early", "mid", "late"],
+    "ids": [],
+    "item_pattern": "^W\\d+\\.[A-Z0-9_]+(\\.[A-Z0-9_]+)*$",
+    "test_case_pattern": "^WAVE-[A-Z0-9]+-\\d+$"
+  }
+}

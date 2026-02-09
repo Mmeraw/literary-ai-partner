@@ -2,6 +2,12 @@
 
 This repository is governed by explicit, versioned contracts.
 
+## AI GOVERNANCE
+- All AI assistants MUST follow `AI_GOVERNANCE.md` (binding).
+- Use only canonical identifiers from `docs/NOMENCLATURE_CANON_v1.md`.
+- Do NOT invent, rename, or infer identifiers.
+- Non-canonical identifiers are CI-failing defects.
+
 ## CANONICAL SOURCE OF TRUTH
 - `docs/JOB_CONTRACT_v1.md` is binding.
 - JobStatus is canonical and MUST be exactly:

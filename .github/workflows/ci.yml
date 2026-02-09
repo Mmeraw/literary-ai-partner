@@ -11,14 +11,16 @@ on:
 jobs:
   governance:
     runs-on: ubuntu-latest
+    env:
+      CANON_VERSION: v1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
       - run: npm ci
-      - name: Criteria registry enforcement
-        run: node scripts/check-criteria-registry.js
+      - name: Canon governance audit
+        run: ./scripts/canon-audit.sh
 
   smoke-test:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
