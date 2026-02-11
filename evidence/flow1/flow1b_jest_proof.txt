@@ -1,0 +1,17 @@
+
+> revisiongrade@1.0.0 test
+> jest tests/flow1-proof-pack.test.ts --testTimeout=180000
+
+PASS tests/flow1-proof-pack.test.ts (5.785 s)
+  Flow 1 proof pack (Must Never Fail)
+    ✓ Cross-user read is blocked (403/404) — never OK (2052 ms)
+    ✓ Evaluation result includes canonical criteria keys only (1637 ms)
+    ✓ Evaluation result returns manuscript_id and job_id (1578 ms)
+  Flow 1 proof pack prerequisites
+    ○ skipped Set FLOW1_BASE_URL and CRON_SECRET to run proof pack
+
+Test Suites: 1 passed, 1 total
+Tests:       1 skipped, 3 passed, 4 total
+Snapshots:   0 total
+Time:        5.82 s, estimated 9 s
+Ran all test suites matching tests/flow1-proof-pack.test.ts.

@@ -41,6 +41,17 @@
 **Evidence:** `scripts/flow1_proof.sh`, `evidence/flow1/flow1_proof_run.txt`  
 **Commits:** `573ebb7`, `dfd4f63`
 
+### 5. Flow 1B: Jest Proof Pack
+
+- ✅ **Cross-user isolation** — Unauthorized reads blocked (403/404)
+- ✅ **Canonical criteria validation** — All 13 criteria keys present
+- ✅ **Required IDs** — manuscript_id and job_id in responses
+- ✅ **Canon compliance** — Canon Guard passed on commit
+
+**Evidence:** `tests/flow1-proof-pack.test.ts`, `evidence/flow1/flow1b_jest_proof.txt`  
+**Test Results:** 3 passed, 1 skipped in 5.82s  
+**Commit:** (pending)
+
 ---
 
 ## 🟡 Pending: Phase 2D Migrations 2-6
