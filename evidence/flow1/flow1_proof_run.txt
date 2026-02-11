@@ -1,0 +1,297 @@
+== Health Check ==
+Testing connection to http://127.0.0.1:3002/api/health
+✓ Server is healthy
+{"ok":true,"timestamp":"2026-02-11T02:58:07.875Z","environment":"development","commit":"local-d","branch":"local","config":{"has_supabase_url":true,"has_supabase_service_key":true,"has_cron_secret":true,"has_openai_key":false}}
+
+== Create Evaluation Job ==
+{"ok":true,"job_id":"850f31e8-1dff-425e-b40f-3778cdb202ba","status":"queued"}✓ JOB_ID=850f31e8-1dff-425e-b40f-3778cdb202ba
+
+== Trigger Worker (auth via ?secret=) ==
+Response: HTTP 200
+{"success":true,"timestamp":"2026-02-11T02:58:09.357Z","duration_ms":705,"results":{"processed":1,"succeeded":1,"failed":0,"errors":[]}}
+✓ Worker executed successfully
+
+== Poll for Evaluation Result ==
+Attempt 1 => HTTP 200 ✓
+
+✅ SUCCESS: Evaluation result retrieved
+{
+  "job_id": "850f31e8-1dff-425e-b40f-3778cdb202ba",
+  "manuscript_id": 1733,
+  "status": "complete",
+  "last_error": null,
+  "result": {
+    "ids": {
+      "job_id": "850f31e8-1dff-425e-b40f-3778cdb202ba",
+      "user_id": "11111111-1111-1111-1111-111111111111",
+      "manuscript_id": 1733,
+      "evaluation_run_id": "db82e49b-23be-4763-8c6d-ddda7d840243"
+    },
+    "engine": {
+      "model": "gpt-4o-mini",
+      "provider": "openai",
+      "prompt_version": "v1.0.0"
+    },
+    "metrics": {
+      "manuscript": {
+        "genre": "Unknown",
+        "char_count": 82,
+        "word_count": 11,
+        "target_audience": "Adult Fiction"
+      },
+      "processing": {
+        "runtime_ms": 1000,
+        "segment_count": 1,
+        "total_tokens_estimated": 20
+      }
+    },
+    "criteria": [
+      {
+        "key": "concept",
+        "evidence": [],
+        "rationale": "Fresh premise with commercial appeal. The core concept is immediately graspable and has clear stakes.",
+        "score_0_10": 8,
+        "recommendations": [
+          {
+            "action": "Consider adding a unique element to differentiate from similar works in the market",
+            "priority": "medium",
+            "expected_impact": "Increases marketability and memorability"
+          }
+        ]
+      },
+      {
+        "key": "narrativeDrive",
+        "evidence": [],
+        "rationale": "Solid three-act structure with clear turning points, though midpoint needs strengthening.",
+        "score_0_10": 7,
+        "recommendations": [
+          {
+            "action": "Tighten Act 2 by removing or consolidating scenes that don't advance the central conflict",
+            "priority": "high",
+            "expected_impact": "Improves pacing and maintains reader engagement"
+          }
+        ]
+      },
+      {
+        "key": "character",
+        "evidence": [],
+        "rationale": "Protagonist is well-developed with clear wants, needs, and flaws. Supporting cast needs more distinction.",
+        "score_0_10": 8,
+        "recommendations": [
+          {
+            "action": "Give each secondary character a unique voice or mannerism",
+            "priority": "medium",
+            "expected_impact": "Makes characters more memorable and distinct"
+          }
+        ]
+      },
+      {
+        "key": "dialogue",
+        "evidence": [],
+        "rationale": "Natural and character-specific. Occasional instances of on-the-nose exposition.",
+        "score_0_10": 7,
+        "recommendations": [
+          {
+            "action": "Replace expository dialogue with actions or show-don't-tell moments",
+            "priority": "low",
+            "expected_impact": "Increases subtlety and reader engagement"
+          }
+        ]
+      },
+      {
+        "key": "voice",
+        "evidence": [],
+        "rationale": "Consistent narrative voice with good tonal control. Could be more distinctive.",
+        "score_0_10": 7,
+        "recommendations": [
+          {
+            "action": "Lean into unique stylistic choices or voice quirks",
+            "priority": "medium",
+            "expected_impact": "Creates more memorable reading experience"
+          }
+        ]
+      },
+      {
+        "key": "pacing",
+        "evidence": [],
+        "rationale": "Strong opening and climax, but middle section drags. Scene length varies appropriately.",
+        "score_0_10": 6,
+        "recommendations": [
+          {
+            "action": "Cut or consolidate scenes in Act 2 that don't advance plot or character",
+            "priority": "high",
+            "expected_impact": "Maintains narrative momentum throughout"
+          }
+        ]
+      },
+      {
+        "key": "sceneConstruction",
+        "evidence": [],
+        "rationale": "Clear three-act structure with well-placed turning points and escalating tension.",
+        "score_0_10": 8,
+        "recommendations": [
+          {
+            "action": "Consider adding a false victory before the climax",
+            "priority": "low",
+            "expected_impact": "Increases dramatic tension and stakes"
+          }
+        ]
+      },
+      {
+        "key": "theme",
+        "evidence": [],
+        "rationale": "Central theme is present and explored through character arcs, though could be more nuanced.",
+        "score_0_10": 7,
+        "recommendations": [
+          {
+            "action": "Add thematic resonance through imagery or recurring symbols",
+            "priority": "medium",
+            "expected_impact": "Deepens emotional impact and cohesion"
+          }
+        ]
+      },
+      {
+        "key": "worldbuilding",
+        "evidence": [],
+        "rationale": "Setting is clearly established with appropriate detail. Avoids info-dumps.",
+        "score_0_10": 7,
+        "recommendations": [
+          {
+            "action": "Add sensory details to make the world more immersive",
+            "priority": "low",
+            "expected_impact": "Increases reader immersion and atmosphere"
+          }
+        ]
+      },
+      {
+        "key": "narrativeClosure",
+        "evidence": [],
+        "rationale": "Personal stakes are clear throughout. External stakes could be more urgent.",
+        "score_0_10": 7,
+        "recommendations": [
+          {
+            "action": "Establish a ticking clock or deadline in Act 1",
+            "priority": "high",
+            "expected_impact": "Increases tension and reader urgency"
+          }
+        ]
+      },
+      {
+        "key": "proseControl",
+        "evidence": [],
+        "rationale": "Story is easy to follow. Scene goals and character motivations are generally clear.",
+        "score_0_10": 8,
+        "recommendations": [
+          {
+            "action": "Clarify the antagonist's plan earlier in the narrative",
+            "priority": "low",
+            "expected_impact": "Reduces reader confusion in Act 2"
+          }
+        ]
+      },
+      {
+        "key": "marketability",
+        "evidence": [],
+        "rationale": "Fits clearly into genre conventions with commercial appeal. Comp titles are identifiable.",
+        "score_0_10": 7,
+        "recommendations": [
+          {
+            "action": "Research recent successful comps and align hook/premise language",
+            "priority": "medium",
+            "expected_impact": "Improves query letter and pitch effectiveness"
+          }
+        ]
+      },
+      {
+        "key": "tone",
+        "evidence": [],
+        "rationale": "Solid prose with good control of fundamentals. Some repetitive word choices.",
+        "score_0_10": 7,
+        "recommendations": [
+          {
+            "action": "Run manuscript through ProWritingAid or similar tool to catch repetition",
+            "priority": "low",
+            "expected_impact": "Polishes prose to professional standard"
+          }
+        ]
+      }
+    ],
+    "overview": {
+      "verdict": "revise",
+      "top_3_risks": [
+        "Middle section pacing drags; Act 2 needs tighter scene-to-scene causality",
+        "Antagonist motivation needs clearer establishment earlier in the narrative",
+        "Climax resolution feels somewhat predictable; consider adding a twist or complication"
+      ],
+      "top_3_strengths": [
+        "Compelling protagonist with clear internal conflict and growth trajectory",
+        "Strong opening hook that immediately establishes stakes and tone",
+        "Authentic dialogue that reveals character while advancing plot"
+      ],
+      "overall_score_0_100": 72,
+      "one_paragraph_summary": "\"Untitled\" demonstrates strong narrative potential with compelling character dynamics and a clear story structure. The manuscript shows particular strength in its central concept and character development, though pacing in the middle section would benefit from tightening. The dialogue feels authentic and serves the story well, while the worldbuilding provides sufficient context without overwhelming the narrative. To move this manuscript toward market readiness, focus on clarifying the protagonist's arc in Act 2 and strengthening the causal connections between key plot points."
+    },
+    "artifacts": [],
+    "governance": {
+      "warnings": [
+        "🔶 MOCK EVALUATION: This is generated test data, not a real AI analysis",
+        "Real OpenAI evaluation will be enabled once API key is configured"
+      ],
+      "confidence": 0.85,
+      "limitations": [
+        "Mock data does not analyze actual manuscript content",
+        "Scores and recommendations are generic placeholders",
+        "Evidence snippets not extracted from manuscript text"
+      ],
+      "policy_family": "standard"
+    },
+    "generated_at": "2026-02-11T02:58:09.242Z",
+    "schema_version": "evaluation_result_v1",
+    "recommendations": {
+      "quick_wins": [
+        {
+          "why": "Immediately improves pacing without major restructuring",
+          "action": "Cut or consolidate 3-5 scenes in Act 2 that feel slow or repetitive",
+          "effort": "low",
+          "impact": "high"
+        },
+        {
+          "why": "Creates urgency and forward momentum",
+          "action": "Add a specific deadline or ticking clock element",
+          "effort": "low",
+          "impact": "medium"
+        },
+        {
+          "why": "Makes characters more memorable with minimal rewriting",
+          "action": "Give each secondary character one unique trait or voice quirk",
+          "effort": "low",
+          "impact": "medium"
+        }
+      ],
+      "strategic_revisions": [
+        {
+          "why": "Fundamental pacing issue that affects reader engagement",
+          "action": "Restructure Act 2 to increase scene-to-scene causality",
+          "effort": "high",
+          "impact": "high"
+        },
+        {
+          "why": "Clarifies central conflict and increases stakes",
+          "action": "Deepen the antagonist's motivation and establish it earlier",
+          "effort": "medium",
+          "impact": "high"
+        },
+        {
+          "why": "Prevents predictability and increases emotional payoff",
+          "action": "Add a complication or twist to the climax",
+          "effort": "medium",
+          "impact": "medium"
+        }
+      ]
+    }
+  },
+  "result_version": "evaluation_result_v1",
+  "created_at": "2026-02-11T02:58:08.534948+00:00",
+  "updated_at": "2026-02-11T02:58:09.348153+00:00"
+}
+
