@@ -1,0 +1,58 @@
+name: Flow 1 Proof Pack
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  flow1-proof-pack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Start Supabase (local)
+        run: supabase start
+
+      - name: Export Supabase env for CI
+        run: |
+          set -euo pipefail
+
+          supabase status -o env >> "$GITHUB_ENV"
+
+          echo "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
+
+          echo "CRON_SECRET=test-cron-secret-for-flow1-proof" >> "$GITHUB_ENV"
+
+      - name: Start Next.js server (port 3002)
+        run: |
+          set -euo pipefail
+
+          PORT=3002 npm run dev &
+          npx --yes wait-on http://127.0.0.1:3002
+
+      - name: Run Flow 1 proof pack (Jest)
+        run: npm test -- tests/flow1-proof-pack.test.ts --testTimeout=180000
+        env:
+          FLOW1_BASE_URL: http://127.0.0.1:3002
+          CRON_SECRET: test-cron-secret-for-flow1-proof
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop
