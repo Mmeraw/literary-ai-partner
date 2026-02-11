@@ -30,14 +30,24 @@ jobs:
         run: supabase start
 
       - name: Export Supabase env for CI
+              shell: bash
         run: |
           set -euo pipefail
+          
+          # 1) Get local Supabase env output
+          ENV_OUT="$(supabase status -o env)"
 
-          supabase status -o env >> "$GITHUB_ENV"
+          # 2) Persist for subsequent steps
+          echo "$ENV_OUT" >> "$GITHUB_ENV"
 
+          # 3) Also load into THIS step so we can reference variables right now
+          eval "$ENV_OUT"
+
+          # Your app expects these exact names
           echo "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL" >> "$GITHUB_ENV"
           echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
 
+          # Cron secret for proof pack
           echo "CRON_SECRET=test-cron-secret-for-flow1-proof" >> "$GITHUB_ENV"
 
       - name: Start Next.js server (port 3002)
