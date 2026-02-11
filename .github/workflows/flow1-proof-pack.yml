@@ -30,7 +30,7 @@ jobs:
         run: supabase start
 
       - name: Export Supabase env for CI
-              shell: bash
+      shell: bash
         run: |
           set -euo pipefail
           
