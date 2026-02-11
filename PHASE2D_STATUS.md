@@ -30,6 +30,17 @@
 
 **Evidence:** Perplexity confirmed successful application.
 
+### 4. Flow 1A: Local End-to-End Proof
+
+- ✅ **Health check** — Dev server connectivity verified
+- ✅ **Job creation** — Evaluation job queued successfully
+- ✅ **Worker execution** — Worker route claimed and completed job
+- ✅ **Result retrieval** — Final evaluation result persisted and readable
+- ✅ **Canon compliance** — Canon Guard passed on commit
+
+**Evidence:** `scripts/flow1_proof.sh`, `evidence/flow1/flow1_proof_run.txt`  
+**Commits:** `573ebb7`, `dfd4f63`
+
 ---
 
 ## 🟡 Pending: Phase 2D Migrations 2-6
