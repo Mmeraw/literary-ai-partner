@@ -28,6 +28,12 @@ Enforce canonical `user_id` field (mapped to `auth.uid()`) across all Row-Level 
 - Verification: RLS policy enforcement via Supabase API
 - Artifact: `phase2e-evidence-{commit}.log` (uploaded per gate run)
 
+**Run Evidence (GitHub Actions):**
+- **Latest Pass:** [Run #21938309509](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21938309509)
+- **Status:** ✅ Success (2026-02-12T08:01:25Z)
+- **Commit:** `daefcfa` (locked closure commit)
+- **Evidence Artifact:** [phase2e-evidence-daefcfad185c955deae0f6dcfcc4fb55ad78647a.zip](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21938309509/artifacts/5478732575)
+
 **How to Re-Run Verification:**
 ```bash
 # Manual trigger of Phase 2E evidence gate
@@ -37,6 +43,15 @@ gh workflow run phase2e-evidence.yml --ref main
 # - .github/workflows/phase2e-evidence.yml
 # - supabase/migrations/**
 # - PHASE2E_STATUS.md
+```
+
+**View Recent Runs:**
+```bash
+# List all Phase 2E evidence gate runs
+gh run list --workflow phase2e-evidence.yml
+
+# View specific run logs
+gh run view 21938309509 --log
 ```
 
 ## Closed
