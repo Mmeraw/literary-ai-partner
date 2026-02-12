@@ -70,6 +70,15 @@ This is the single source of truth for locked phase anchors. **DO NOT MODIFY** t
 
 **Rule:** Any commit after e7812b6 that touches Phase 2E documentation is normal maintenance and MUST NOT change these two anchor values.
 
+### Flow 1 — Upload → Evaluate → View Results (PRE-LOCK)
+
+- **Status:** 🏗️ PRE-LOCK (stabilization phase)
+- **CI Lock:** TBD (once `phase1-evidence.yml` passes reliably)
+- **Documentation Lock:** TBD (once evidence gate green in production)
+- **Target:** Lock after production smoke tests pass + CI evidence gate runs 3+ times successfully
+
+**Rule:** Do not assign anchors to Flow 1 until evidence gate is proven stable. Flow 1 remains PRE-LOCK until both production smoke + phase1-evidence.yml are consistently passing.
+
 ---
 
 ## 5. Enforcement
