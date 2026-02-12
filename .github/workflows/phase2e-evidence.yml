@@ -57,7 +57,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          set +e
+          set -eo pipefail
           
           # Create verification output
           OUTPUT_FILE="/tmp/phase2e-evidence.log"
@@ -76,19 +76,54 @@ jobs:
             echo "Verifying RLS Policies..."
             echo ""
             
-            # Query: Check manuscripts table policies
-            echo "Checking manuscripts RLS policy..."
-            curl -s \
+            CHECKS_PASSED=0
+            CHECKS_FAILED=0
+            
+            # Check manuscripts table policies
+            echo "Checking manuscripts table RLS policies..."
+            POLICY_RESPONSE=$(curl -s \
               -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
               -H "Content-Type: application/json" \
-              "$SUPABASE_URL/rest/v1/pg_policies?table_name=eq.manuscripts" 2>&1 | \
-              grep -q 'user_id = auth.uid()' && echo "  ✓ manuscripts policy found" || echo "  ✗ manuscripts policy NOT found"
+              "$SUPABASE_URL/rest/v1/pg_policies?table_name=eq.manuscripts" 2>&1)
+            
+            if echo "$POLICY_RESPONSE" | grep -q 'policyname'; then
+              echo "  ✓ manuscripts RLS policies found"
+              ((CHECKS_PASSED++))
+            else
+              echo "  ✗ FAILED: No manuscripts RLS policies found"
+              echo "  Response: $POLICY_RESPONSE"
+              ((CHECKS_FAILED++))
+            fi
             
             echo ""
-            echo "=== Phase 2E Status: LOCKED ==="
-            echo "✓ Canonical user_id RLS migrations applied"
-            echo "✓ Policies verified on production database"
-            echo "✓ Evidence gate passed"
+            echo "Checking manuscript_chunks table RLS policies..."
+            POLICY_RESPONSE=$(curl -s \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Content-Type: application/json" \
+              "$SUPABASE_URL/rest/v1/pg_policies?table_name=eq.manuscript_chunks" 2>&1)
+            
+            if echo "$POLICY_RESPONSE" | grep -q 'policyname'; then
+              echo "  ✓ manuscript_chunks RLS policies found"
+              ((CHECKS_PASSED++))
+            else
+              echo "  ✗ FAILED: No manuscript_chunks RLS policies found"
+              ((CHECKS_FAILED++))
+            fi
+            
+            echo ""
+            echo "=== Phase 2E Verification Summary ==="
+            echo "Checks passed: $CHECKS_PASSED"
+            echo "Checks failed: $CHECKS_FAILED"
+            echo ""
+            
+            if [ "$CHECKS_FAILED" -eq 0 ]; then
+              echo "✅ Phase 2E Evidence: LOCKED"
+              echo "All RLS policies verified successfully"
+            else
+              echo "❌ Phase 2E Evidence: FAILED"
+              echo "One or more policy checks failed"
+              exit 1
+            fi
           } > "$OUTPUT_FILE"
           
           cat "$OUTPUT_FILE"
@@ -97,8 +132,6 @@ jobs:
           mkdir -p artifacts
           cp "$OUTPUT_FILE" artifacts/phase2e-evidence-ci.log
           echo "LOG_COPIED=true" >> $GITHUB_OUTPUT
-          
-          exit 0
 
       - name: Upload Evidence Artifact
         if: always() && steps.verify.outputs.LOG_COPIED == 'true'

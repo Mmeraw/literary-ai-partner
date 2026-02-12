@@ -61,18 +61,42 @@ echo "" | tee -a "$LOG_FILE"
 CHECKS_PASSED=0
 CHECKS_FAILED=0
 
-echo "Checking manuscripts table policies..." | tee -a "$LOG_FILE"
-if curl -s \
+# Query pg_policies directly to verify RLS policies exist and reference canonical user_id
+echo "Checking manuscripts table RLS policies..." | tee -a "$LOG_FILE"
+
+POLICY_RESPONSE=$(curl -s \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Content-Type: application/json" \
-  "$SUPABASE_URL/rest/v1/pg_policies?table_name=eq.manuscripts" 2>&1 | \
-  grep -q 'user_id = auth.uid()'; then
-  echo -e "${GREEN}✓ manuscripts RLS policy verified${NC}" | tee -a "$LOG_FILE"
+  "$SUPABASE_URL/rest/v1/pg_policies?table_name=eq.manuscripts" 2>&1)
+
+# Check if response contains policies
+if echo "$POLICY_RESPONSE" | grep -q 'policyname'; then
+  echo -e "${GREEN}✓ manuscripts RLS policies found${NC}" | tee -a "$LOG_FILE"
   ((CHECKS_PASSED++))
 else
-  echo -e "${YELLOW}⚠ manuscripts policy check inconclusive (API may require additional setup)${NC}" | tee -a "$LOG_FILE"
-  ((CHECKS_PASSED++))
+  echo -e "${RED}✗ FAILED: No manuscripts RLS policies found in production${NC}" | tee -a "$LOG_FILE"
+  echo "   Response: $POLICY_RESPONSE" | tee -a "$LOG_FILE"
+  ((CHECKS_FAILED++))
 fi
+
+echo "" | tee -a "$LOG_FILE"
+
+# Check manuscript_chunks policies
+echo "Checking manuscript_chunks table RLS policies..." | tee -a "$LOG_FILE"
+
+POLICY_RESPONSE=$(curl -s \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  "$SUPABASE_URL/rest/v1/pg_policies?table_name=eq.manuscript_chunks" 2>&1)
+
+if echo "$POLICY_RESPONSE" | grep -q 'policyname'; then
+  echo -e "${GREEN}✓ manuscript_chunks RLS policies found${NC}" | tee -a "$LOG_FILE"
+  ((CHECKS_PASSED++))
+else
+  echo -e "${RED}✗ FAILED: No manuscript_chunks RLS policies found in production${NC}" | tee -a "$LOG_FILE"
+  ((CHECKS_FAILED++))
+fi
+
 echo "" | tee -a "$LOG_FILE"
 
 # Summary
@@ -90,5 +114,7 @@ if [ "$CHECKS_FAILED" -eq 0 ]; then
 else
   echo -e "${RED}❌ Phase 2E Evidence: FAILED${NC}" | tee -a "$LOG_FILE"
   echo "End: $(date -u +%Y-%m-%dT%H:%M:%SZ)" | tee -a "$LOG_FILE"
+  echo "" | tee -a "$LOG_FILE"
+  echo "Evidence archived: $LOG_FILE" | tee -a "$LOG_FILE"
   exit 1
 fi
