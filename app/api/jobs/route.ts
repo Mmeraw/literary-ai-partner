@@ -38,7 +38,11 @@ export async function POST(req: Request) {
     const manuscript_id = body?.manuscript_id;
     const job_type = body?.job_type;
     const manuscript_size = body?.manuscript_size; // Size in bytes
-    const user_tier = body?.user_tier as "free" | "premium" | "agent" | undefined;
+    const user_tier = body?.user_tier as
+      | "free"
+      | "premium"
+      | "agent"
+      | undefined;
 
     if (!manuscript_id || !job_type) {
       return NextResponse.json(
@@ -55,7 +59,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Type assertion after validation (safe because ALLOWED_JOB_TYPES matches JobType)
     const validatedJobType = job_type as JobType;
 
     // Layer 2: Manuscript size validation
@@ -63,20 +66,33 @@ export async function POST(req: Request) {
       const sizeCheck = validateManuscriptSize(manuscript_size);
       if (sizeCheck.allowed === false) {
         const { reason } = sizeCheck;
-        return NextResponse.json({ ok: false, error: reason }, { status: 413 }); // Payload Too Large
+        return NextResponse.json(
+          { ok: false, error: reason },
+          { status: 413 } // Payload Too Large
+        );
       }
     }
 
     // Layer 3: Feature access control (auth + subscription tier)
-    // GOVERNANCE: do not fabricate user_id; if absent, pass null and let policy decide.
     const userId = req.headers.get("x-user-id");
-    const featureAccess = await checkFeatureAccess(userId, validatedJobType, user_tier);
+    const featureAccess = await checkFeatureAccess(
+      userId,
+      validatedJobType,
+      user_tier
+    );
+
     if (featureAccess.allowed === false) {
       const { reason } = featureAccess;
-      return NextResponse.json({ ok: false, error: reason }, { status: 403 }); // Forbidden
+      return NextResponse.json(
+        { ok: false, error: reason },
+        { status: 403 } // Forbidden
+      );
     }
 
-    const job = await createJob({ manuscript_id, job_type: validatedJobType });
+    const job = await createJob({
+      manuscript_id,
+      job_type: validatedJobType,
+    });
 
     // Emit metrics
     metrics.onJobCreated(job.id, validatedJobType);
@@ -99,6 +115,18 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  const jobs = await getAllJobs();
-  return NextResponse.json({ jobs }, { status: 200 });
+  try {
+    const jobs = await getAllJobs();
+    return NextResponse.json({ jobs }, { status: 200 });
+  } catch (err) {
+    console.error("GET /api/jobs error:", err);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Jobs endpoint failure",
+        details: err instanceof Error ? err.message : String(err),
+      },
+      { status: 500 }
+    );
+  }
 }
