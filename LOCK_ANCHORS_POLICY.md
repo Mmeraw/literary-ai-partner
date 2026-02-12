@@ -57,20 +57,84 @@ Optionally, you may also list other commits with labels (e.g., "documentation in
 
 ---
 
-## 4. Enforcement
+## 4. Canonical Anchors Registry
 
-- **Code review rule**: changes to CI/Documentation Lock commit IDs in any phase doc should be rejected unless we are explicitly declaring a new phase.
+This is the single source of truth for locked phase anchors. **DO NOT MODIFY** these values unless declaring a new phase.
 
-- **Assistant/tooling rule**: assistants must not "update anchors" for an already locked phase; they may only:
-  - Read and restate existing anchors.
-  - Add new explanatory text that does not alter anchors.
+### Phase 2E — Canonical user_id RLS migrations
+
+- **CI Lock:** `811fe59` (refactor CI workflow with Python script, gate passes)
+- **Documentation Lock:** `e7812b6` (declare lock with both tables validated)
+- **Status:** ✅ LOCKED (2026-02-12)
+- **All subsequent commits** (20567a9, 761bdd9, 7197a92, 4b7ac07, adcd073, etc.): maintenance only
+
+**Rule:** Any commit after e7812b6 that touches Phase 2E documentation is normal maintenance and MUST NOT change these two anchor values.
 
 ---
 
-## Example: Phase 2E
+## 5. Enforcement
+
+### Code Review Rule
+Changes to CI/Documentation Lock commit IDs in any phase doc should be rejected unless we are explicitly declaring a new phase.
+
+### Assistant/Tooling Rule
+Assistants must not "update anchors" for an already locked phase; they may only:
+- Read and restate existing anchors
+- Add new explanatory text that does not alter anchors
+
+### CI Enforcement (Recommended)
+Add a simple grep check to prevent anchor drift:
+
+```bash
+# .github/workflows/phase2e-anchor-guard.yml
+name: Phase 2E Anchor Guard
+
+on:
+  pull_request:
+    paths:
+      - 'PHASE2E_STATUS.md'
+      - 'PHASE2E_CANONICAL_EVIDENCE.md'
+
+jobs:
+  verify-anchors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Verify CI Lock unchanged
+        run: |
+          if ! grep -q "CI Lock Commit.*811fe59" PHASE2E_STATUS.md; then
+            echo "❌ ERROR: Phase 2E CI Lock anchor changed from 811fe59"
+            exit 1
+          fi
+          
+      - name: Verify Documentation Lock unchanged
+        run: |
+          if ! grep -q "Documentation Lock Commit.*e7812b6" PHASE2E_STATUS.md; then
+            echo "❌ ERROR: Phase 2E Documentation Lock anchor changed from e7812b6"
+            exit 1
+          fi
+          
+      - name: Verify CANONICAL_EVIDENCE anchors
+        run: |
+          if ! grep -q "CI Lock Commit.*811fe59" PHASE2E_CANONICAL_EVIDENCE.md; then
+            echo "❌ ERROR: Canonical evidence CI anchor changed"
+            exit 1
+          fi
+          if ! grep -q "Documentation Lock Commit.*e7812b6" PHASE2E_CANONICAL_EVIDENCE.md; then
+            echo "❌ ERROR: Canonical evidence docs anchor changed"
+            exit 1
+          fi
+```
+
+This turns "policy promise" into "enforcement mechanism."
+
+---
+
+## 6. Example: Phase 2E
 
 - **CI Lock:** `811fe59` (refactor CI workflow, gate passes)
 - **Documentation Lock:** `e7812b6` (clarify dual commits, validate both tables)
-- **Subsequent commits:** 20567a9, 761bdd9, 7197a92, 4b7ac07 (documentation clarifications)
+- **Subsequent commits:** 20567a9, 761bdd9, 7197a92, 4b7ac07, adcd073 (documentation clarifications)
 
 The two anchors (`811fe59`, `e7812b6`) never change. Future edits to Phase 2E docs are maintenance only.
