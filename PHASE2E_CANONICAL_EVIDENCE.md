@@ -3,7 +3,8 @@
 **Generated:** 2026-02-12  
 **Status:** ✅ LOCKED  
 **CI Run:** [#21960401805](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21960401805)  
-**Commit:** [`811fe59`](https://github.com/Mmeraw/literary-ai-partner/commit/811fe59)
+**CI Lock Commit:** [`811fe59`](https://github.com/Mmeraw/literary-ai-partner/commit/811fe59) — refactor(ci): rewrite Phase 2E with proper Python script and error handling  
+**Documentation Lock Commit:** [`20567a9`](https://github.com/Mmeraw/literary-ai-partner/commit/20567a9) — docs(phase2e): update status to LOCKED with canonical evidence
 
 ---
 
@@ -70,6 +71,10 @@ Exits with code 1 if ANY check fails.
 
 ## Latest Evidence Output
 
+**Run:** [#21960401805](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21960401805)  
+**Commit:** `811fe5969c5f6715f4aa86f3693ce1a3842a2450`  
+**Timestamp:** 2026-02-12T19:05:23Z
+
 ```
 === Phase 2E Evidence Verification ===
 Timestamp: 2026-02-12T19:05:23Z
@@ -87,6 +92,12 @@ Checks failed: 0
 
 ✅ Phase 2E Evidence: LOCKED
 ```
+
+**Validated:**
+- ✅ `manuscripts` table: RLS enabled + 9 policies present
+- ✅ `manuscript_chunks` table: RLS enabled + 2 policies present
+
+**Note:** "Checks passed: 1" = one RPC function call that validates **both** `manuscripts` and `manuscript_chunks` tables. Each table's RLS status and policies are verified within this single check.
 
 **Download Full Log:**
 - [CI Artifact (90-day retention)](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21960401805/artifacts/5488261620)

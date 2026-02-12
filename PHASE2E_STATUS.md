@@ -2,9 +2,11 @@
 
 **Status:** ✅ LOCKED  
 **Date:** 2026-02-11 (original work) → 2026-02-12 (gate implementation & resolution)  
-**Evidence Anchor:** [`811fe59`](https://github.com/Mmeraw/literary-ai-partner/commit/811fe59) — refactor(ci): rewrite Phase 2E with proper Python script and error handling  
+**CI Lock Commit:** [`811fe59`](https://github.com/Mmeraw/literary-ai-partner/commit/811fe59) — refactor(ci): rewrite Phase 2E with proper Python script and error handling  
+**Documentation Lock Commit:** [`20567a9`](https://github.com/Mmeraw/literary-ai-partner/commit/20567a9) — docs(phase2e): update status to LOCKED with canonical evidence  
 **Governance:** [phase2e-evidence.yml](.github/workflows/phase2e-evidence.yml) (CI verification gate - passing)  
-**Latest CI Run:** [#21960401805](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21960401805) — ✅ SUCCESS
+**Latest CI Run:** [#21960401805](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21960401805) — ✅ SUCCESS  
+**Canonical Evidence:** [PHASE2E_CANONICAL_EVIDENCE.md](PHASE2E_CANONICAL_EVIDENCE.md)
 
 ## Scope: Canonical user_id Enforcement
 
