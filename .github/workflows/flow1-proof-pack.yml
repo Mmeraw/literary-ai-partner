@@ -33,13 +33,35 @@ jobs:
         run: |
           set -euo pipefail
 
-          ENV_OUT="$(supabase status -o env)"
+          echo "== supabase status =="
+          supabase status || true
+
+          echo "== supabase status -o env =="
+          ENV_OUT="$(supabase status -o env || true)"
+          echo "$ENV_OUT"
+
+          if [ -z "${ENV_OUT}" ]; then
+            echo "::error::supabase status -o env returned empty output. Local Supabase is not running in CI."
+            exit 1
+          fi
+
+          # Persist for subsequent steps
           echo "$ENV_OUT" >> "$GITHUB_ENV"
-          eval "$ENV_OUT"
+
+          # Load into THIS step (more reliable than eval for 'export VAR=...')
+          source <(echo "$ENV_OUT")
+
+          # Assertions (clear failure instead of 'unbound variable')
+          : "${SUPABASE_URL:?Missing SUPABASE_URL after sourcing ENV_OUT}"
+          : "${SUPABASE_ANON_KEY:?Missing SUPABASE_ANON_KEY after sourcing ENV_OUT}"
 
           echo "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> "$GITHUB_ENV"
-          echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
+
+          # Service role should come from secrets; do not depend on local status output
+          echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> "$GITHUB_ENV"
+
+          # Keep if your app expects it in both names
           echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> "$GITHUB_ENV"
 
           echo "CRON_SECRET=test-cron-secret-for-flow1-proof" >> "$GITHUB_ENV"
