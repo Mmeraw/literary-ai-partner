@@ -40,36 +40,32 @@ jobs:
           ENV_OUT="$(supabase status -o env || true)"
           echo "$ENV_OUT"
 
-          if [ -z "${ENV_OUT}" ]; then
-            echo "::error::supabase status -o env returned empty output. Local Supabase is not running in CI."
+          # Persist whatever Supabase does give us (may be empty / not include URL keys)
+          if [ -n "${ENV_OUT}" ]; then
+            echo "$ENV_OUT" >> "$GITHUB_ENV"
+            # Only source if non-empty to avoid weird parse errors
+            source <(echo "$ENV_OUT")
+          fi
+
+          # Trust GitHub Secrets for connection details instead of status -o env
+          : "${SUPABASE_URL:=${SUPABASE_URL:-${{ secrets.SUPABASE_URL }}}}"
+          : "${SUPABASE_ANON_KEY:=${SUPABASE_ANON_KEY:-${{ secrets.SUPABASE_ANON_KEY }}}}"
+
+          # Explicit failure if still missing
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "::error::SUPABASE_URL / SUPABASE_ANON_KEY are not set (neither from Supabase CLI nor from secrets)."
             exit 1
           fi
 
-          # Persist for subsequent steps
-          echo "$ENV_OUT" >> "$GITHUB_ENV"
-
-          # Load into THIS step (more reliable than eval for 'export VAR=...')
-          source <(echo "$ENV_OUT")
-
-          # Assertions (clear failure instead of 'unbound variable')
-          : "${SUPABASE_URL:?Missing SUPABASE_URL after sourcing ENV_OUT}"
-          : "${SUPABASE_ANON_KEY:?Missing SUPABASE_ANON_KEY after sourcing ENV_OUT}"
-
           echo "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> "$GITHUB_ENV"
-
-          # Service role should come from secrets; do not depend on local status output
           echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> "$GITHUB_ENV"
-
-          # Keep if your app expects it in both names
           echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> "$GITHUB_ENV"
-
           echo "CRON_SECRET=test-cron-secret-for-flow1-proof" >> "$GITHUB_ENV"
 
       - name: Start Next.js server (port 3002)
         run: |
           set -euo pipefail
-
           PORT=3002 npm run dev &
           npx --yes wait-on http://127.0.0.1:3002
 
