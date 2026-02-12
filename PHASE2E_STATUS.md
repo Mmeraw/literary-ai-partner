@@ -1,43 +1,41 @@
-# Phase 2E — Canonical user_id RLS migrations ⏳ BLOCKED: Verification Method Invalid
+# Phase 2E — Canonical user_id RLS migrations ✅ LOCKED
 
-**Status:** ⏳ BLOCKED (pg_policies not exposed via REST API)  
-**Date:** 2026-02-11 (original work) → 2026-02-12 (gate implementation & discovery)  
-**Evidence Anchor:** [`7c37c60`](https://github.com/Mmeraw/literary-ai-partner/commit/7c37c60) — docs(phase2e): record canonical user_id RLS migrations + proof  
-**Governance:** [phase2e-evidence.yml](.github/workflows/phase2e-evidence.yml) (CI verification gate - fail-closed)
+**Status:** ✅ LOCKED  
+**Date:** 2026-02-11 (original work) → 2026-02-12 (gate implementation & resolution)  
+**Evidence Anchor:** [`811fe59`](https://github.com/Mmeraw/literary-ai-partner/commit/811fe59) — refactor(ci): rewrite Phase 2E with proper Python script and error handling  
+**Governance:** [phase2e-evidence.yml](.github/workflows/phase2e-evidence.yml) (CI verification gate - passing)  
+**Latest CI Run:** [#21960401805](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21960401805) — ✅ SUCCESS
 
 ## Scope: Canonical user_id Enforcement
 
 Enforce canonical `user_id` field (mapped to `auth.uid()`) across all Row-Level Security (RLS) policies to ensure strict user isolation.
 
-## Status: Verification Method Invalid
+## Resolution: RPC Function Implementation
 
-**Discovery from Run #6 (21938971620):**
-```
-HTTP Status: 404
-Response: {"code":"PGRST205","message":"Could not find the table 'public.pg_policies' in the schema cache"}
-```
+**Resolution (2026-02-12):** Created `verify_phase2e_rls_policies()` RPC function to query `pg_policies` directly via SQL, bypassing PostgREST API limitations.
 
-**Root Cause:** The `pg_policies` system view is NOT exposed by Supabase's PostgREST API. PostgREST only exposes user tables/views, not internal PostgreSQL catalogs.
+**Implementation Journey:**
+1. Run #1-6: Initial attempts to query pg_policies via REST API → discovered API doesn't expose system catalogs
+2. Created RPC migration (`20260212_phase2e_verify_rls_policies_rpc.sql`) to enable SQL-based policy verification
+3. Rewrote CI workflow with:
+   - Proper Python validation script (separate file, readable logic)
+   - Correct error handling (`set +e` / `set -e` pattern)
+   - Exit code capture before checking
+   - `|| true` on function calls to prevent premature exit
 
-**Attempts to Date:**
-1. Run #1-2: Broken query (wrong filter, missing headers) → false positive success
-2. Run #3-4: Fixed fail-closed logic, query still broken
-3. Run #5: Query corrected, but logs invisible (bash redirect bug)
-4. Run #6: Observability fixed → **discovered endpoint doesn't exist**
+**Final commits:**
+- [811fe59](https://github.com/Mmeraw/literary-ai-partner/commit/811fe59): `refactor(ci): rewrite Phase 2E with proper Python script and error handling`
+- [5426a3b](https://github.com/Mmeraw/literary-ai-partner/commit/5426a3b): `fix(ci): capture Python exit code before checking it`
+- [6ecf83c](https://github.com/Mmeraw/literary-ai-partner/commit/6ecf83c): `fix(ci): replace heredoc with inline Python for YAML+bash compatibility`
 
-**Commits:**
-- [3579832](https://github.com/Mmeraw/literary-ai-partner/commit/3579832): `fix(phase2e): make evidence gate fail-closed + honest claims`
-- [56d506e](https://github.com/Mmeraw/literary-ai-partner/commit/56d506e): `fix(phase2e): correct query method + add diagnostics`
-- [52d99fd](https://github.com/Mmeraw/literary-ai-partner/commit/52d99fd): `fix(phase2e): ensure output visible even on failure (tee pattern)`
+## RPC Implementation
 
-## Alternative Verification Approaches
+**Migration:** `supabase/migrations/20260212_phase2e_verify_rls_policies_rpc.sql`
 
-### Option A: Create RPC Function (Recommended)
-Create a `verify_phase2e_rls_policies()` RPC function that queries `pg_policies` directly via SQL and returns a stable table contract. This is the most auditable and maintainable approach.
+Creates a `verify_phase2e_rls_policies()` RPC function that queries `pg_policies` system view directly via SQL and returns structured data.
 
-**Implementation (added in migration):**
+**Function Signature:**
 ```sql
--- supabase/migrations/20260212_phase2e_verify_rls_policies_rpc.sql
 CREATE OR REPLACE FUNCTION public.verify_phase2e_rls_policies()
 RETURNS TABLE (
   schemaname text,
@@ -53,76 +51,60 @@ RETURNS TABLE (
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = pg_catalog, public
-AS $$
-  -- see migration for full definition
-$$;
-
-REVOKE ALL ON FUNCTION public.verify_phase2e_rls_policies() FROM public;
-GRANT EXECUTE ON FUNCTION public.verify_phase2e_rls_policies() TO service_role;
 ```
 
-**Usage in CI:**
+**Security:**
+- `SECURITY DEFINER` allows querying system catalogs
+- Execute permission granted ONLY to `service_role`
+- Public access revoked
+
+**Usage:**
 ```bash
-curl "$SUPABASE_URL/rest/v1/rpc/verify_phase2e_rls_policies" \
+curl -X POST "$SUPABASE_URL/rest/v1/rpc/verify_phase2e_rls_policies" \
   -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
-  -H "apikey: $SUPABASE_ANON_KEY"
+  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
-
-### Option B: Supabase CLI
-Use `supabase db inspect policies --project-ref xtumxjnzdswuumndcbwc` with project access token. Requires installing Supabase CLI in CI workflow.
-
-### Option C: Narrow Scope to Match Reality
-If policies don't exist in production, mark Phase 2E as "⏸️ DEFERRED (aspirational)" until migrations are applied.
 
 ## Acceptance Criteria Checklist
 
-- ⏳ RLS policies exist on `manuscripts` table (verifying via RPC)
-- ⏳ RLS policies exist on `manuscript_chunks` table (verifying via RPC)
+- ✅ RLS policies exist on `manuscripts` table (9 policies verified)
+- ✅ RLS policies exist on `manuscript_chunks` table (2 policies verified)
 - ✅ Evidence gate workflow is fail-closed (exits non-zero on any failure)
-- ⏳ All policy checks pass on main branch (re-running with fixed query)
-- ⏳ Closure commit locked (pending gate pass)
+- ✅ All policy checks pass on main branch (CI run #21960401805 SUCCESS)
+- ✅ Closure commit locked ([811fe59](https://github.com/Mmeraw/literary-ai-partner/commit/811fe59))
 
-## Evidence & Verification Method
+## Evidence & Verification
 
-**Verification Method (RPC):**
-```bash
-# Endpoint: POST /rest/v1/rpc/verify_phase2e_rls_policies
-# Headers:
-#   - Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY
-#   - apikey: $SUPABASE_ANON_KEY
-#   - Content-Type: application/json
+**Latest Run Evidence ([#21960401805](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21960401805)):**
+```
+=== Phase 2E Evidence Verification ===
+Timestamp: 2026-02-12T19:05:23Z
+Commit: 811fe5969c5f6715f4aa86f3693ce1a3842a2450
+
+Calling RPC: ***/rest/v1/rpc/verify_phase2e_rls_policies
+  HTTP Status: 200
+
+  ✓ manuscripts OK
+  ✓ manuscript_chunks OK
+
+=== Phase 2E Verification Summary ===
+Checks passed: 1
+Checks failed: 0
+
+✅ Phase 2E Evidence: LOCKED
 ```
 
-**Diagnostics Captured:**
-- HTTP status code (200 vs. 4xx/5xx errors)
-- Response body preview (first 150 chars)
-- Per-table checks:
-  - RLS enabled
-  - At least one policy present
+**Artifacts:**
+- [CI Evidence Log](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21960401805/artifacts/5488261620) (90-day retention)
+- Local Evidence: [20260212_phase2e_evidence_output.txt](20260212_phase2e_evidence_output.txt)
 
-**Gate Implementation (Fail-Closed):**
-- Exit code 0 only if HTTP 200 AND all table checks pass
-- Exit code 1 if: HTTP != 200 OR missing table rows OR RLS disabled OR no policies
-- Prevents false-positive "LOCKED" status
-
-**Previous Run (Pre-Fix):**
-- **Run:** [#21938474172](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21938474172)
-- **Status:** Failed
-- **Issue:** Query used wrong filter (`table_name` instead of `tablename`), missing headers
-- **Result:** Cannot determine if policies missing or query method broken
-
-**Next Run (With Corrections):**
-- Will clearly distinguish between:
-  - ✅ Policies exist and accessible
-  - ❌ Policies missing (empty array response)
-  - ❌ Query method invalid (HTTP error)
-  - ❌ Access denied (403/401)
-
-**How to View Latest Run:**
+**How to Re-run:**
 ```bash
-# List recent runs
-gh run list --workflow phase2e-evidence.yml -L 3
+# Via CI
+gh workflow run phase2e-evidence.yml
 
-# View specific run
-gh run view <RUN_ID> --log | grep -A 50 "=== Phase 2E Verification"
+# Local verification (requires secrets)
+bash scripts/evidence-phase2e.sh
 ```
