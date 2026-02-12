@@ -114,8 +114,9 @@ jobs:
 
             # Validate JSON: check RLS+policies for manuscripts & manuscript_chunks
             echo "$BODY" | python3 -c "import json,sys;d=json.load(sys.stdin);any([sys.exit(1)if not[r for r in d if r.get('tablename')==t]or not any(r.get('rls_enabled')for r in[r for r in d if r.get('tablename')==t])or not any(r.get('policyname')for r in[r for r in d if r.get('tablename')==t])else print('  ✓',t,'OK')for t in['manuscripts','manuscript_chunks']])"
+            local PY_EXIT=$?
 
-            if [ $? -eq 0 ]; then
+            if [ $PY_EXIT -eq 0 ]; then
               ((CHECKS_PASSED++))
               return 0
             fi
