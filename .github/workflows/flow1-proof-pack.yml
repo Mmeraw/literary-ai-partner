@@ -28,42 +28,31 @@ jobs:
       - name: Start Supabase (local)
         run: supabase start
 
-      - name: Export Supabase env for CI
+      - name: Export LOCAL Supabase env for CI
         shell: bash
         run: |
           set -euo pipefail
 
           echo "== supabase status =="
-          supabase status || true
+          supabase status
 
           echo "== supabase status -o env =="
-          ENV_OUT="$(supabase status -o env || true)"
+          ENV_OUT="$(supabase status -o env)"
           echo "$ENV_OUT"
 
-          # Persist whatever Supabase does give us (may be empty / not include URL keys)
-          if [ -n "${ENV_OUT}" ]; then
-            echo "$ENV_OUT" >> "$GITHUB_ENV"
-            # Only source if non-empty to avoid weird parse errors
-            source <(echo "$ENV_OUT")
-          fi
-
-          # Trust GitHub Secrets for connection details instead of status -o env
-          : "${SUPABASE_URL:=${SUPABASE_URL:-${{ secrets.SUPABASE_URL }}}}"
-          : "${SUPABASE_ANON_KEY:=${SUPABASE_ANON_KEY:-${{ secrets.SUPABASE_ANON_KEY }}}}"
-
-          # Explicit failure if still missing
-          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
-            echo "::error::SUPABASE_URL / SUPABASE_ANON_KEY are not set (neither from Supabase CLI nor from secrets)."
+          if [ -z "${ENV_OUT}" ]; then
+            echo "::error::supabase status -o env returned empty output."
             exit 1
           fi
 
-          echo "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL" >> "$GITHUB_ENV"
-          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> "$GITHUB_ENV"
-          echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> "$GITHUB_ENV"
-          echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> "$GITHUB_ENV"
+          # Persist local env for subsequent steps
+          echo "$ENV_OUT" >> "$GITHUB_ENV"
+
+          # Optional: add CRON_SECRET for proof endpoint auth
           echo "CRON_SECRET=test-cron-secret-for-flow1-proof" >> "$GITHUB_ENV"
 
       - name: Start Next.js server (port 3002)
+        shell: bash
         run: |
           set -euo pipefail
           PORT=3002 npm run dev &
