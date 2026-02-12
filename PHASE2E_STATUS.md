@@ -2,11 +2,10 @@
 
 **Status:** ✅ LOCKED  
 **Date:** 2026-02-11 (original work) → 2026-02-12 (gate implementation & resolution)  
+
 **CI Lock Commit:** [`811fe59`](https://github.com/Mmeraw/literary-ai-partner/commit/811fe59) — refactor(ci): rewrite Phase 2E with proper Python script and error handling  
-**Documentation Lock Commit (substantive):** [`e7812b6`](https://github.com/Mmeraw/literary-ai-partner/commit/e7812b6) — docs(phase2e): clarify dual lock commits + validate both tables explicitly  
-**Metadata Correction Commit (pointer fix):** [`761bdd9`](https://github.com/Mmeraw/literary-ai-partner/commit/761bdd9) — docs(phase2e): correct final lock commit anchor to e7812b6  
-**Audit Trail Documentation Commit:** [`7197a92`](https://github.com/Mmeraw/literary-ai-partner/commit/7197a92) — docs(phase2e): add metadata correction commit 761bdd9 to audit trail  
-**Documentation (initial):** [`20567a9`](https://github.com/Mmeraw/literary-ai-partner/commit/20567a9) — docs(phase2e): update status to LOCKED with canonical evidence  
+**Documentation Lock Commit:** [`e7812b6`](https://github.com/Mmeraw/literary-ai-partner/commit/e7812b6) — docs(phase2e): clarify dual lock commits + validate both tables explicitly  
+
 **Governance:** [phase2e-evidence.yml](.github/workflows/phase2e-evidence.yml) (CI verification gate - passing)  
 **Latest CI Run:** [#21960401805](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21960401805) — ✅ SUCCESS  
 **Canonical Evidence:** [PHASE2E_CANONICAL_EVIDENCE.md](PHASE2E_CANONICAL_EVIDENCE.md)
@@ -31,10 +30,9 @@ Enforce canonical `user_id` field (mapped to `auth.uid()`) across all Row-Level 
 ## Final commits
 
 - [811fe59](https://github.com/Mmeraw/literary-ai-partner/commit/811fe59): `refactor(ci): rewrite Phase 2E with proper Python script and error handling` (CI lock)
-- [20567a9](https://github.com/Mmeraw/literary-ai-partner/commit/20567a9): `docs(phase2e): update status to LOCKED with canonical evidence` (documentation initial)
-- [e7812b6](https://github.com/Mmeraw/literary-ai-partner/commit/e7812b6): `docs(phase2e): clarify dual lock commits + validate both tables explicitly` (documentation lock, substantive)
-- [761bdd9](https://github.com/Mmeraw/literary-ai-partner/commit/761bdd9): `docs(phase2e): correct final lock commit anchor to e7812b6` (metadata correction)
-- [7197a92](https://github.com/Mmeraw/literary-ai-partner/commit/7197a92): `docs(phase2e): add metadata correction commit 761bdd9 to audit trail` (audit trail doc)
+- [e7812b6](https://github.com/Mmeraw/literary-ai-partner/commit/e7812b6): `docs(phase2e): clarify dual lock commits + validate both tables explicitly` (documentation lock)
+
+*Note: Commits 20567a9, 761bdd9, 7197a92, 4b7ac07 were subsequent documentation clarifications that do not alter the locked state.*
 
 ## RPC Implementation
 
@@ -81,8 +79,7 @@ curl -X POST "$SUPABASE_URL/rest/v1/rpc/verify_phase2e_rls_policies" \
 - ✅ RLS policies exist on `manuscript_chunks` table (2 policies verified)
 - ✅ Evidence gate workflow is fail-closed (exits non-zero on any failure)
 - ✅ All policy checks pass on main branch (CI run #21960401805 SUCCESS)
-- ✅ Closure documentation locked ([e7812b6](https://github.com/Mmeraw/literary-ai-partner/commit/e7812b6))
-- ✅ Audit trail made explicit ([7197a92](https://github.com/Mmeraw/literary-ai-partner/commit/7197a92))
+- ✅ Closure documentation locked (e7812b6)
 
 ## Evidence & Verification
 
@@ -117,3 +114,13 @@ gh workflow run phase2e-evidence.yml
 # Local verification (requires secrets)
 bash scripts/evidence-phase2e.sh
 ```
+
+---
+
+## ⚠️ IMPORTANT: NO MORE ANCHOR UPDATES
+
+These two commits are the **PERMANENT ANCHORS**:
+- **CI Lock:** 811fe59
+- **Documentation Lock:** e7812b6
+
+**Future documentation edits (typos, clarifications, formatting) should NOT change these anchors.** Phase 2E is locked. Any commit after e7812b6 is normal maintenance, not a new "lock event."
