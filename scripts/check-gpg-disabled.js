@@ -22,9 +22,24 @@ let failed = false;
 
 console.log('🔒 GPG Disabled: Checking git config...');
 
+// Helper function to safely get git config value (returns empty string if key doesn't exist)
+function getGitConfigValue(key) {
+  try {
+    return execSync(`git config --local ${key}`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+  } catch (err) {
+    // Git returns exit code 1 if config key doesn't exist; that's OK (treated as unset)
+    // Only fail if it's an unexpected error (e.g., git not available, permission denied)
+    if (err.status === 1 && err.message.includes('exit code 1')) {
+      return ''; // Key doesn't exist; treat as unset
+    }
+    // Unexpected error
+    throw err;
+  }
+}
+
 // Check git config
 try {
-  const commitSign = execSync('git config --local commit.gpgsign', { encoding: 'utf8' }).trim();
+  const commitSign = getGitConfigValue('commit.gpgsign');
   if (commitSign === 'true') {
     console.error('❌ FAIL: commit.gpgsign is set to true. Must be false.');
     failed = true;
@@ -32,7 +47,7 @@ try {
     console.log('✅ commit.gpgsign:', commitSign || '(not set)');
   }
 
-  const tagSign = execSync('git config --local tag.gpgsign', { encoding: 'utf8' }).trim();
+  const tagSign = getGitConfigValue('tag.gpgsign');
   if (tagSign === 'true') {
     console.error('❌ FAIL: tag.gpgsign is set to true. Must be false.');
     failed = true;
@@ -40,7 +55,7 @@ try {
     console.log('✅ tag.gpgsign:', tagSign || '(not set)');
   }
 
-  const signingKey = execSync('git config --local user.signingkey', { encoding: 'utf8' }).trim();
+  const signingKey = getGitConfigValue('user.signingkey');
   if (signingKey && signingKey.length > 0) {
     console.error('❌ FAIL: user.signingkey is set. Must be empty.');
     failed = true;
@@ -48,11 +63,8 @@ try {
     console.log('✅ user.signingkey:', '(empty)');
   }
 } catch (err) {
-  // Git config key not found is OK (treated as unset)
-  if (!err.message.includes('key does not contain a section')) {
-    console.error('Error reading git config:', err.message);
-    failed = true;
-  }
+  console.error('Error reading git config:', err.message);
+  failed = true;
 }
 
 // Check workflows for --gpg-sign or -S flags
