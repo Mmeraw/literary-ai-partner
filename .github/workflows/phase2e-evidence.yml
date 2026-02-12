@@ -60,101 +60,104 @@ jobs:
         run: |
           set -eo pipefail
           
-          # Create verification output
+          # Create verification output (tee to both file AND stdout)
           OUTPUT_FILE="/tmp/phase2e-evidence.log"
-          {
-            echo "=== Phase 2E Evidence Verification ==="
-            echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo "Commit: ${{ github.sha }}"
+          
+          # Use process substitution to write to file AND display - works even if script fails
+          exec > >(tee "$OUTPUT_FILE") 2>&1
+          
+          echo "=== Phase 2E Evidence Verification ==="
+          echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Commit: ${{ github.sha }}"
+          echo ""
+          
+          # Extract project ID from URL
+          PROJECT_ID=$(echo "$SUPABASE_URL" | grep -oP '(?<=https://)[^.]+' || echo "unknown")
+          echo "Project ID: $PROJECT_ID"
+          echo ""
+          
+          # Verify RLS policies via Supabase API
+          echo "=== Verifying RLS Policies ==="
+          echo ""
+          
+          CHECKS_PASSED=0
+          CHECKS_FAILED=0
+          
+          # Helper: Query pg_policies with diagnostics
+          query_policies() {
+            local table_to_check="$1"
+            local check_name="$2"
+            
+            echo "Checking $check_name table RLS policies..."
+            
+            # Capture response with HTTP status
+            local FULL_RESPONSE=$(curl -sS -w "\n__HTTP_STATUS:%{http_code}" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Content-Type: application/json" \
+              "$SUPABASE_URL/rest/v1/pg_policies?tablename=eq.$table_to_check" 2>&1)
+            
+            local HTTP_CODE=$(echo "$FULL_RESPONSE" | grep "__HTTP_STATUS" | cut -d: -f2)
+            local BODY=$(echo "$FULL_RESPONSE" | sed '/__HTTP_STATUS/d')
+            
+            echo "  HTTP Status: $HTTP_CODE"
+            echo "  Response preview: $(echo "$BODY" | head -c 150)..."
             echo ""
             
-            # Extract project ID from URL
-            PROJECT_ID=$(echo "$SUPABASE_URL" | grep -oP '(?<=https://)[^.]+' || echo "unknown")
-            echo "Project ID: $PROJECT_ID"
-            echo ""
-            
-            # Verify RLS policies via Supabase API
-            echo "=== Verifying RLS Policies ==="
-            echo ""
-            
-            CHECKS_PASSED=0
-            CHECKS_FAILED=0
-            
-            # Helper: Query pg_policies with diagnostics
-            query_policies() {
-              local table_to_check="$1"
-              local check_name="$2"
-              
-              echo "Checking $check_name table RLS policies..."
-              
-              # Capture response with HTTP status
-              local FULL_RESPONSE=$(curl -sS -w "\n__HTTP_STATUS:%{http_code}" \
-                -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-                -H "apikey: $SUPABASE_ANON_KEY" \
-                -H "Content-Type: application/json" \
-                "$SUPABASE_URL/rest/v1/pg_policies?tablename=eq.$table_to_check" 2>&1)
-              
-              local HTTP_CODE=$(echo "$FULL_RESPONSE" | grep "__HTTP_STATUS" | cut -d: -f2)
-              local BODY=$(echo "$FULL_RESPONSE" | sed '/__HTTP_STATUS/d')
-              
-              echo "  HTTP Status: $HTTP_CODE"
-              echo "  Response preview: $(echo "$BODY" | head -c 150)..."
-              echo ""
-              
-              # Check status code first
-              if [ "$HTTP_CODE" != "200" ]; then
-                echo "  ✗ FAILED: HTTP $HTTP_CODE (invalid query or access denied)"
-                echo "  Response body: $BODY"
-                ((CHECKS_FAILED++))
-                return 1
-              fi
-              
-              # Check if response is valid JSON - empty array
-              if echo "$BODY" | grep -qE '^\[\s*\]'; then
-                echo "  ✗ FAILED: No RLS policies found for $check_name table"
-                ((CHECKS_FAILED++))
-                return 1
-              fi
-              
-              # Check for policyname field (indicates policies exist)
-              if echo "$BODY" | grep -q '"policyname"'; then
-                echo "  ✓ $check_name table has RLS policies defined"
-                ((CHECKS_PASSED++))
-                return 0
-              else
-                echo "  ✗ FAILED: No policyname field in response for $check_name"
-                echo "  Likely: Endpoint not configured or policies truly missing"
-                ((CHECKS_FAILED++))
-                return 1
-              fi
-            }
-            
-            # Query both tables
-            query_policies "manuscripts" "manuscripts"
-            query_policies "manuscript_chunks" "manuscript_chunks"
-            
-            echo ""
-            echo "=== Phase 2E Verification Summary ==="
-            echo "Checks passed: $CHECKS_PASSED"
-            echo "Checks failed: $CHECKS_FAILED"
-            echo ""
-            
-            if [ "$CHECKS_FAILED" -eq 0 ]; then
-              echo "✅ Phase 2E Evidence: LOCKED"
-              echo "All RLS policies verified successfully"
-            else
-              echo "❌ Phase 2E Evidence: FAILED"
-              echo "One or more policy checks failed"
-              exit 1
+            # Check status code first
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "  ✗ FAILED: HTTP $HTTP_CODE (invalid query or access denied)"
+              echo "  Response body: $BODY"
+              ((CHECKS_FAILED++))
+              return 1
             fi
-          } > "$OUTPUT_FILE"
+            
+            # Check if response is valid JSON - empty array
+            if echo "$BODY" | grep -qE '^\[\s*\]'; then
+              echo "  ✗ FAILED: No RLS policies found for $check_name table"
+              ((CHECKS_FAILED++))
+              return 1
+            fi
+            
+            # Check for policyname field (indicates policies exist)
+            if echo "$BODY" | grep -q '"policyname"'; then
+              echo "  ✓ $check_name table has RLS policies defined"
+              ((CHECKS_PASSED++))
+              return 0
+            else
+              echo "  ✗ FAILED: No policyname field in response for $check_name"
+              echo "  Likely: Endpoint not configured or policies truly missing"
+              ((CHECKS_FAILED++))
+              return 1
+            fi
+          }
           
-          cat "$OUTPUT_FILE"
+          # Query both tables
+          query_policies "manuscripts" "manuscripts"
+          query_policies "manuscript_chunks" "manuscript_chunks"
           
-          # Copy to artifacts
-          mkdir -p artifacts
-          cp "$OUTPUT_FILE" artifacts/phase2e-evidence-ci.log
-          echo "LOG_COPIED=true" >> $GITHUB_OUTPUT
+          echo ""
+          echo "=== Phase 2E Verification Summary ==="
+          echo "Checks passed: $CHECKS_PASSED"
+          echo "Checks failed: $CHECKS_FAILED"
+          echo ""
+          
+          if [ "$CHECKS_FAILED" -eq 0 ]; then
+            echo "✅ Phase 2E Evidence: LOCKED"
+            echo "All RLS policies verified successfully"
+            # Copy to artifacts before exiting
+            mkdir -p artifacts
+            cp "$OUTPUT_FILE" artifacts/phase2e-evidence-ci.log
+            echo "LOG_COPIED=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Phase 2E Evidence: FAILED"
+            echo "One or more policy checks failed"
+            # Copy to artifacts before exiting (so we can see what failed)
+            mkdir -p artifacts
+            cp "$OUTPUT_FILE" artifacts/phase2e-evidence-ci.log 2>/dev/null || true
+            echo "LOG_COPIED=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
 
       - name: Upload Evidence Artifact
         if: always() && steps.verify.outputs.LOG_COPIED == 'true'
