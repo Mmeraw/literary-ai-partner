@@ -1,0 +1,30 @@
+=== Phase 2E Evidence Verification ===
+Start: 2026-02-12T18:08:57Z
+Log: /workspaces/literary-ai-partner/logs/phase2e-evidence_20260212_180857.log
+
+Checking environment...
+[0;32m✓ SUPABASE_URL present[0m
+[0;32m✓ SUPABASE_SERVICE_ROLE_KEY present[0m
+[0;32m✓ SUPABASE_ANON_KEY present[0m
+
+Project ID: xtumxjnzdswuumndcbwc
+
+=== Verifying RLS Policies (RPC) ===
+
+Calling RPC: https://xtumxjnzdswuumndcbwc.supabase.co/rest/v1/rpc/verify_phase2e_rls_policies
+  HTTP Status: 200
+  Response preview: [{"schemaname":"public","tablename":"manuscript_chunks","rls_enabled":true,"rls_forced":false,"policyname":"Admin: view Storygate manuscript chunks","...
+
+  ✓ manuscripts RLS enabled
+  ✓ manuscripts policies found: 9
+  ✓ manuscript_chunks RLS enabled
+  ✓ manuscript_chunks policies found: 2
+
+=== Phase 2E Verification Summary ===
+Checks passed: 1
+Checks failed: 0
+
+[0;32m✅ Phase 2E Evidence: LOCKED[0m
+End: 2026-02-12T18:08:58Z
+
+Evidence archived: /workspaces/literary-ai-partner/logs/phase2e-evidence_20260212_180857.log

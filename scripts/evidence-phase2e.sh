@@ -9,13 +9,21 @@
 # Environment variables:
 #   - SUPABASE_URL: Supabase project URL
 #   - SUPABASE_SERVICE_ROLE_KEY: Service role API key
-#   - SUPABASE_ANON_KEY: Supabase anon key (required for REST)
+#   - SUPABASE_ANON_KEY: Supabase anon key (optional; not required when using service role)
 #
 
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Auto-load .env if present (and export vars for this script process)
+if [ -f "${PROJECT_ROOT}/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${PROJECT_ROOT}/.env"
+  set +a
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -37,23 +45,27 @@ echo "" | tee -a "$LOG_FILE"
 
 # Verify environment
 echo "Checking environment..." | tee -a "$LOG_FILE"
-if [ -z "$SUPABASE_URL" ]; then
+
+if [ -z "${SUPABASE_URL:-}" ]; then
   echo -e "${RED}✗ SUPABASE_URL not set${NC}" | tee -a "$LOG_FILE"
   exit 1
 fi
 echo -e "${GREEN}✓ SUPABASE_URL present${NC}" | tee -a "$LOG_FILE"
 
-if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
   echo -e "${RED}✗ SUPABASE_SERVICE_ROLE_KEY not set${NC}" | tee -a "$LOG_FILE"
   exit 1
 fi
 echo -e "${GREEN}✓ SUPABASE_SERVICE_ROLE_KEY present${NC}" | tee -a "$LOG_FILE"
 
-if [ -z "$SUPABASE_ANON_KEY" ]; then
-  echo -e "${RED}✗ SUPABASE_ANON_KEY not set${NC}" | tee -a "$LOG_FILE"
-  exit 1
+# Keep this check in place for compatibility with other scripts/workflows, even though
+# this script uses the service role key for PostgREST.
+if [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+  echo -e "${YELLOW}⚠ SUPABASE_ANON_KEY not set (not required for service-role RPC call)${NC}" | tee -a "$LOG_FILE"
+else
+  echo -e "${GREEN}✓ SUPABASE_ANON_KEY present${NC}" | tee -a "$LOG_FILE"
 fi
-echo -e "${GREEN}✓ SUPABASE_ANON_KEY present${NC}" | tee -a "$LOG_FILE"
+
 echo "" | tee -a "$LOG_FILE"
 
 # Extract project ID
@@ -70,19 +82,24 @@ CHECKS_FAILED=0
 
 # Helper: Query RPC with diagnostics
 query_policies_rpc() {
-  local rpc_endpoint="$SUPABASE_URL/rest/v1/rpc/verify_phase2e_rls_policies"
+  local rpc_endpoint="${SUPABASE_URL}/rest/v1/rpc/verify_phase2e_rls_policies"
   echo "Calling RPC: $rpc_endpoint" | tee -a "$LOG_FILE"
 
-  local FULL_RESPONSE=$(curl -sS -w "\n__HTTP_STATUS:%{http_code}" \
+  local FULL_RESPONSE
+  FULL_RESPONSE=$(curl -sS -w "\n__HTTP_STATUS:%{http_code}" \
     -X POST \
-    -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-    -H "apikey: $SUPABASE_ANON_KEY" \
+    -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Accept: application/json" \
     -H "Content-Type: application/json" \
     -d '{}' \
     "$rpc_endpoint" 2>&1)
 
-  local HTTP_CODE=$(echo "$FULL_RESPONSE" | grep "__HTTP_STATUS" | cut -d: -f2)
-  local BODY=$(echo "$FULL_RESPONSE" | sed '/__HTTP_STATUS/d')
+  local HTTP_CODE
+  HTTP_CODE=$(echo "$FULL_RESPONSE" | grep "__HTTP_STATUS" | cut -d: -f2)
+
+  local BODY
+  BODY=$(echo "$FULL_RESPONSE" | sed '/__HTTP_STATUS/d')
 
   echo "  HTTP Status: $HTTP_CODE" | tee -a "$LOG_FILE"
   echo "  Response preview: $(echo "$BODY" | head -c 150)..." | tee -a "$LOG_FILE"
@@ -95,7 +112,7 @@ query_policies_rpc() {
     return 1
   fi
 
-  BODY="$BODY" python - <<'PY'
+  env BODY="$BODY" python3 - <<'PY'
 import json
 import os
 import sys
@@ -144,7 +161,8 @@ PY
   return 1
 }
 
-query_policies_rpc
+query_policies_rpc || true
+
 
 echo "" | tee -a "$LOG_FILE"
 
