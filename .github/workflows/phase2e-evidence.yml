@@ -40,13 +40,15 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           echo "Secret presence check:"
           [ -n "$SUPABASE_URL" ] && echo "  ✓ SUPABASE_URL present" || echo "  ✗ SUPABASE_URL MISSING"
           [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && echo "  ✓ NEXT_PUBLIC_SUPABASE_URL present" || echo "  ✗ NEXT_PUBLIC_SUPABASE_URL MISSING"
           [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] && echo "  ✓ SUPABASE_SERVICE_ROLE_KEY present" || echo "  ✗ SUPABASE_SERVICE_ROLE_KEY MISSING"
+          [ -n "$SUPABASE_ANON_KEY" ] && echo "  ✓ SUPABASE_ANON_KEY present" || echo "  ✗ SUPABASE_ANON_KEY MISSING"
           echo ""
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
             echo "ERROR: Critical secrets are missing"
             exit 1
           fi
@@ -76,65 +78,90 @@ jobs:
           echo "Project ID: $PROJECT_ID"
           echo ""
           
-          # Verify RLS policies via Supabase API
-          echo "=== Verifying RLS Policies ==="
+          # Verify RLS policies via Supabase RPC
+          echo "=== Verifying RLS Policies (RPC) ==="
           echo ""
           
           CHECKS_PASSED=0
           CHECKS_FAILED=0
           
-          # Helper: Query pg_policies with diagnostics
-          query_policies() {
-            local table_to_check="$1"
-            local check_name="$2"
-            
-            echo "Checking $check_name table RLS policies..."
-            
-            # Capture response with HTTP status
+          # Helper: Query RPC with diagnostics
+          query_policies_rpc() {
+            local rpc_endpoint="$SUPABASE_URL/rest/v1/rpc/verify_phase2e_rls_policies"
+            echo "Calling RPC: $rpc_endpoint"
+
             local FULL_RESPONSE=$(curl -sS -w "\n__HTTP_STATUS:%{http_code}" \
+              -X POST \
               -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
               -H "apikey: $SUPABASE_ANON_KEY" \
               -H "Content-Type: application/json" \
-              "$SUPABASE_URL/rest/v1/pg_policies?tablename=eq.$table_to_check" 2>&1)
-            
+              -d '{}' \
+              "$rpc_endpoint" 2>&1)
+
             local HTTP_CODE=$(echo "$FULL_RESPONSE" | grep "__HTTP_STATUS" | cut -d: -f2)
             local BODY=$(echo "$FULL_RESPONSE" | sed '/__HTTP_STATUS/d')
-            
+
             echo "  HTTP Status: $HTTP_CODE"
             echo "  Response preview: $(echo "$BODY" | head -c 150)..."
             echo ""
-            
-            # Check status code first
+
             if [ "$HTTP_CODE" != "200" ]; then
-              echo "  ✗ FAILED: HTTP $HTTP_CODE (invalid query or access denied)"
+              echo "  ✗ FAILED: HTTP $HTTP_CODE (RPC call failed)"
               echo "  Response body: $BODY"
               ((CHECKS_FAILED++))
               return 1
             fi
-            
-            # Check if response is valid JSON - empty array
-            if echo "$BODY" | grep -qE '^\[\s*\]'; then
-              echo "  ✗ FAILED: No RLS policies found for $check_name table"
-              ((CHECKS_FAILED++))
-              return 1
-            fi
-            
-            # Check for policyname field (indicates policies exist)
-            if echo "$BODY" | grep -q '"policyname"'; then
-              echo "  ✓ $check_name table has RLS policies defined"
+
+            BODY="$BODY" python - <<'PY'
+import json
+import os
+import sys
+
+body = os.environ.get("BODY", "")
+
+try:
+    data = json.loads(body)
+except Exception:
+    print("  ✗ FAILED: Response is not valid JSON")
+    sys.exit(1)
+
+expected_tables = ["manuscripts", "manuscript_chunks"]
+failed = False
+
+for table in expected_tables:
+    rows = [r for r in data if r.get("tablename") == table]
+    if not rows:
+        print(f"  ✗ FAILED: No rows returned for table {table} (table missing or RPC misconfigured)")
+        failed = True
+        continue
+
+    if any(r.get("rls_enabled") is True for r in rows):
+        print(f"  ✓ {table} RLS enabled")
+    else:
+        print(f"  ✗ FAILED: RLS not enabled for {table}")
+        failed = True
+
+    policies = [r for r in rows if r.get("policyname")]
+    if policies:
+        print(f"  ✓ {table} policies found: {len(policies)}")
+    else:
+        print(f"  ✗ FAILED: No policies found for {table}")
+        failed = True
+
+if failed:
+    sys.exit(1)
+PY
+
+            if [ $? -eq 0 ]; then
               ((CHECKS_PASSED++))
               return 0
-            else
-              echo "  ✗ FAILED: No policyname field in response for $check_name"
-              echo "  Likely: Endpoint not configured or policies truly missing"
-              ((CHECKS_FAILED++))
-              return 1
             fi
+
+            ((CHECKS_FAILED++))
+            return 1
           }
-          
-          # Query both tables
-          query_policies "manuscripts" "manuscripts"
-          query_policies "manuscript_chunks" "manuscript_chunks"
+
+          query_policies_rpc
           
           echo ""
           echo "=== Phase 2E Verification Summary ==="

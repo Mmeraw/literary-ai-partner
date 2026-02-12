@@ -33,43 +33,37 @@ Response: {"code":"PGRST205","message":"Could not find the table 'public.pg_poli
 ## Alternative Verification Approaches
 
 ### Option A: Create RPC Function (Recommended)
-Create a `verify_rls_policies()` RPC function that queries `pg_policies` directly via SQL and returns JSON. This is the most auditable and maintainable approach.
+Create a `verify_phase2e_rls_policies()` RPC function that queries `pg_policies` directly via SQL and returns a stable table contract. This is the most auditable and maintainable approach.
 
-**Implementation:**
+**Implementation (added in migration):**
 ```sql
--- supabase/migrations/YYYYMMDDHHMMSS_rls_verification_rpc.sql
-CREATE OR REPLACE FUNCTION public.verify_rls_policies()
-RETURNS jsonb
-LANGUAGE plpgsql
+-- supabase/migrations/20260212_phase2e_verify_rls_policies_rpc.sql
+CREATE OR REPLACE FUNCTION public.verify_phase2e_rls_policies()
+RETURNS TABLE (
+  schemaname text,
+  tablename text,
+  rls_enabled boolean,
+  rls_forced boolean,
+  policyname text,
+  cmd text,
+  roles name[],
+  qual text,
+  with_check text
+)
+LANGUAGE sql
 SECURITY DEFINER
+SET search_path = pg_catalog, public
 AS $$
-DECLARE
-  result jsonb;
-BEGIN
-  SELECT jsonb_agg(
-    jsonb_build_object(
-      'tablename', tablename,
-      'policyname', policyname,
-      'permissive', permissive,
-      'roles', roles,
-      'cmd', cmd
-    )
-  )
-  INTO result
-  FROM pg_policies
-  WHERE schemaname = 'public'
-    AND tablename IN ('manuscripts', 'manuscript_chunks');
-  
-  RETURN COALESCE(result, '[]'::jsonb);
-END;
+  -- see migration for full definition
 $$;
 
-GRANT EXECUTE ON FUNCTION public.verify_rls_policies() TO service_role;
+REVOKE ALL ON FUNCTION public.verify_phase2e_rls_policies() FROM public;
+GRANT EXECUTE ON FUNCTION public.verify_phase2e_rls_policies() TO service_role;
 ```
 
 **Usage in CI:**
 ```bash
-curl "$SUPABASE_URL/rest/v1/rpc/verify_rls_policies" \
+curl "$SUPABASE_URL/rest/v1/rpc/verify_phase2e_rls_policies" \
   -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
   -H "apikey: $SUPABASE_ANON_KEY"
 ```
@@ -82,19 +76,18 @@ If policies don't exist in production, mark Phase 2E as "⏸️ DEFERRED (aspira
 
 ## Acceptance Criteria Checklist
 
-- ⏳ RLS policies exist on `manuscripts` table (verifying with corrected query)
-- ⏳ RLS policies exist on `manuscript_chunks` table (verifying with corrected query)
+- ⏳ RLS policies exist on `manuscripts` table (verifying via RPC)
+- ⏳ RLS policies exist on `manuscript_chunks` table (verifying via RPC)
 - ✅ Evidence gate workflow is fail-closed (exits non-zero on any failure)
 - ⏳ All policy checks pass on main branch (re-running with fixed query)
 - ⏳ Closure commit locked (pending gate pass)
 
 ## Evidence & Verification Method
 
-**Query Method (Corrected in Latest Commit):**
+**Verification Method (RPC):**
 ```bash
-# Endpoint: GET /rest/v1/pg_policies
-# Filter: tablename=eq.{table_name}
-# Headers: 
+# Endpoint: POST /rest/v1/rpc/verify_phase2e_rls_policies
+# Headers:
 #   - Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY
 #   - apikey: $SUPABASE_ANON_KEY
 #   - Content-Type: application/json
@@ -103,11 +96,13 @@ If policies don't exist in production, mark Phase 2E as "⏸️ DEFERRED (aspira
 **Diagnostics Captured:**
 - HTTP status code (200 vs. 4xx/5xx errors)
 - Response body preview (first 150 chars)
-- Presence of `policyname` field (indicates policies exist)
+- Per-table checks:
+  - RLS enabled
+  - At least one policy present
 
 **Gate Implementation (Fail-Closed):**
-- Exit code 0 only if HTTP 200 AND response contains policy records
-- Exit code 1 if: HTTP != 200 OR response is `[]` OR `policyname` field missing
+- Exit code 0 only if HTTP 200 AND all table checks pass
+- Exit code 1 if: HTTP != 200 OR missing table rows OR RLS disabled OR no policies
 - Prevents false-positive "LOCKED" status
 
 **Previous Run (Pre-Fix):**

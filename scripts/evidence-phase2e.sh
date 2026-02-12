@@ -9,6 +9,7 @@
 # Environment variables:
 #   - SUPABASE_URL: Supabase project URL
 #   - SUPABASE_SERVICE_ROLE_KEY: Service role API key
+#   - SUPABASE_ANON_KEY: Supabase anon key (required for REST)
 #
 
 set -eo pipefail
@@ -47,6 +48,12 @@ if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
   exit 1
 fi
 echo -e "${GREEN}✓ SUPABASE_SERVICE_ROLE_KEY present${NC}" | tee -a "$LOG_FILE"
+
+if [ -z "$SUPABASE_ANON_KEY" ]; then
+  echo -e "${RED}✗ SUPABASE_ANON_KEY not set${NC}" | tee -a "$LOG_FILE"
+  exit 1
+fi
+echo -e "${GREEN}✓ SUPABASE_ANON_KEY present${NC}" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
 # Extract project ID
@@ -54,65 +61,90 @@ PROJECT_ID=$(echo "$SUPABASE_URL" | grep -oP '(?<=https://)[^.]+' || echo "unkno
 echo "Project ID: $PROJECT_ID" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
-# Verify RLS policies via Supabase API
-echo "=== Verifying RLS Policies ===" | tee -a "$LOG_FILE"
+# Verify RLS policies via Supabase RPC
+echo "=== Verifying RLS Policies (RPC) ===" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
 CHECKS_PASSED=0
 CHECKS_FAILED=0
 
-# Helper: Query pg_policies with diagnostics
-query_policies() {
-  local table_to_check="$1"
-  local check_name="$2"
-  
-  echo "Checking $check_name table RLS policies..." | tee -a "$LOG_FILE"
-  
-  # Capture response with HTTP status
+# Helper: Query RPC with diagnostics
+query_policies_rpc() {
+  local rpc_endpoint="$SUPABASE_URL/rest/v1/rpc/verify_phase2e_rls_policies"
+  echo "Calling RPC: $rpc_endpoint" | tee -a "$LOG_FILE"
+
   local FULL_RESPONSE=$(curl -sS -w "\n__HTTP_STATUS:%{http_code}" \
+    -X POST \
     -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
     -H "apikey: $SUPABASE_ANON_KEY" \
     -H "Content-Type: application/json" \
-    "$SUPABASE_URL/rest/v1/pg_policies?tablename=eq.$table_to_check" 2>&1)
-  
+    -d '{}' \
+    "$rpc_endpoint" 2>&1)
+
   local HTTP_CODE=$(echo "$FULL_RESPONSE" | grep "__HTTP_STATUS" | cut -d: -f2)
   local BODY=$(echo "$FULL_RESPONSE" | sed '/__HTTP_STATUS/d')
-  
+
   echo "  HTTP Status: $HTTP_CODE" | tee -a "$LOG_FILE"
   echo "  Response preview: $(echo "$BODY" | head -c 150)..." | tee -a "$LOG_FILE"
   echo "" | tee -a "$LOG_FILE"
-  
-  # Check status code first
+
   if [ "$HTTP_CODE" != "200" ]; then
-    echo -e "${RED}✗ FAILED: HTTP $HTTP_CODE (invalid query or access denied)${NC}" | tee -a "$LOG_FILE"
+    echo -e "${RED}✗ FAILED: HTTP $HTTP_CODE (RPC call failed)${NC}" | tee -a "$LOG_FILE"
     echo "  Response body: $BODY" | tee -a "$LOG_FILE"
     ((CHECKS_FAILED++))
     return 1
   fi
-  
-  # Check if response is valid JSON and contains policies
-  if echo "$BODY" | grep -qE '\[\s*\]'; then
-    echo -e "${RED}✗ FAILED: No RLS policies found for $check_name table${NC}" | tee -a "$LOG_FILE"
-    ((CHECKS_FAILED++))
-    return 1
-  fi
-  
-  # Check for policyname field (indicates policies exist)
-  if echo "$BODY" | grep -q '"policyname"'; then
-    echo -e "${GREEN}✓ $check_name table has RLS policies defined${NC}" | tee -a "$LOG_FILE"
+
+  BODY="$BODY" python - <<'PY'
+import json
+import os
+import sys
+
+body = os.environ.get("BODY", "")
+
+try:
+    data = json.loads(body)
+except Exception:
+    print("  ✗ FAILED: Response is not valid JSON")
+    sys.exit(1)
+
+expected_tables = ["manuscripts", "manuscript_chunks"]
+failed = False
+
+for table in expected_tables:
+    rows = [r for r in data if r.get("tablename") == table]
+    if not rows:
+        print(f"  ✗ FAILED: No rows returned for table {table} (table missing or RPC misconfigured)")
+        failed = True
+        continue
+
+    if any(r.get("rls_enabled") is True for r in rows):
+        print(f"  ✓ {table} RLS enabled")
+    else:
+        print(f"  ✗ FAILED: RLS not enabled for {table}")
+        failed = True
+
+    policies = [r for r in rows if r.get("policyname")]
+    if policies:
+        print(f"  ✓ {table} policies found: {len(policies)}")
+    else:
+        print(f"  ✗ FAILED: No policies found for {table}")
+        failed = True
+
+if failed:
+    sys.exit(1)
+PY
+
+  if [ $? -eq 0 ]; then
     ((CHECKS_PASSED++))
     return 0
-  else
-    echo -e "${RED}✗ FAILED: No policyname field in response for $check_name${NC}" | tee -a "$LOG_FILE"
-    echo "  Likely cause: Endpoint not configured or policies truly missing" | tee -a "$LOG_FILE"
-    ((CHECKS_FAILED++))
-    return 1
   fi
+
+  ((CHECKS_FAILED++))
+  return 1
 }
 
-# Query both tables
-query_policies "manuscripts" "manuscripts"
-query_policies "manuscript_chunks" "manuscript_chunks"
+query_policies_rpc
 
 echo "" | tee -a "$LOG_FILE"
 
