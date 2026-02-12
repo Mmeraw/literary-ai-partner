@@ -61,41 +61,58 @@ echo "" | tee -a "$LOG_FILE"
 CHECKS_PASSED=0
 CHECKS_FAILED=0
 
-# Query pg_policies directly to verify RLS policies exist and reference canonical user_id
-echo "Checking manuscripts table RLS policies..." | tee -a "$LOG_FILE"
+# Helper: Query pg_policies with diagnostics
+query_policies() {
+  local table_to_check="$1"
+  local check_name="$2"
+  
+  echo "Checking $check_name table RLS policies..." | tee -a "$LOG_FILE"
+  
+  # Capture response with HTTP status
+  local FULL_RESPONSE=$(curl -sS -w "\n__HTTP_STATUS:%{http_code}" \
+    -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+    -H "apikey: $SUPABASE_ANON_KEY" \
+    -H "Content-Type: application/json" \
+    "$SUPABASE_URL/rest/v1/pg_policies?tablename=eq.$table_to_check" 2>&1)
+  
+  local HTTP_CODE=$(echo "$FULL_RESPONSE" | grep "__HTTP_STATUS" | cut -d: -f2)
+  local BODY=$(echo "$FULL_RESPONSE" | sed '/__HTTP_STATUS/d')
+  
+  echo "  HTTP Status: $HTTP_CODE" | tee -a "$LOG_FILE"
+  echo "  Response preview: $(echo "$BODY" | head -c 150)..." | tee -a "$LOG_FILE"
+  echo "" | tee -a "$LOG_FILE"
+  
+  # Check status code first
+  if [ "$HTTP_CODE" != "200" ]; then
+    echo -e "${RED}✗ FAILED: HTTP $HTTP_CODE (invalid query or access denied)${NC}" | tee -a "$LOG_FILE"
+    echo "  Response body: $BODY" | tee -a "$LOG_FILE"
+    ((CHECKS_FAILED++))
+    return 1
+  fi
+  
+  # Check if response is valid JSON and contains policies
+  if echo "$BODY" | grep -qE '\[\s*\]'; then
+    echo -e "${RED}✗ FAILED: No RLS policies found for $check_name table${NC}" | tee -a "$LOG_FILE"
+    ((CHECKS_FAILED++))
+    return 1
+  fi
+  
+  # Check for policyname field (indicates policies exist)
+  if echo "$BODY" | grep -q '"policyname"'; then
+    echo -e "${GREEN}✓ $check_name table has RLS policies defined${NC}" | tee -a "$LOG_FILE"
+    ((CHECKS_PASSED++))
+    return 0
+  else
+    echo -e "${RED}✗ FAILED: No policyname field in response for $check_name${NC}" | tee -a "$LOG_FILE"
+    echo "  Likely cause: Endpoint not configured or policies truly missing" | tee -a "$LOG_FILE"
+    ((CHECKS_FAILED++))
+    return 1
+  fi
+}
 
-POLICY_RESPONSE=$(curl -s \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-  -H "Content-Type: application/json" \
-  "$SUPABASE_URL/rest/v1/pg_policies?table_name=eq.manuscripts" 2>&1)
-
-# Check if response contains policies
-if echo "$POLICY_RESPONSE" | grep -q 'policyname'; then
-  echo -e "${GREEN}✓ manuscripts RLS policies found${NC}" | tee -a "$LOG_FILE"
-  ((CHECKS_PASSED++))
-else
-  echo -e "${RED}✗ FAILED: No manuscripts RLS policies found in production${NC}" | tee -a "$LOG_FILE"
-  echo "   Response: $POLICY_RESPONSE" | tee -a "$LOG_FILE"
-  ((CHECKS_FAILED++))
-fi
-
-echo "" | tee -a "$LOG_FILE"
-
-# Check manuscript_chunks policies
-echo "Checking manuscript_chunks table RLS policies..." | tee -a "$LOG_FILE"
-
-POLICY_RESPONSE=$(curl -s \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-  -H "Content-Type: application/json" \
-  "$SUPABASE_URL/rest/v1/pg_policies?table_name=eq.manuscript_chunks" 2>&1)
-
-if echo "$POLICY_RESPONSE" | grep -q 'policyname'; then
-  echo -e "${GREEN}✓ manuscript_chunks RLS policies found${NC}" | tee -a "$LOG_FILE"
-  ((CHECKS_PASSED++))
-else
-  echo -e "${RED}✗ FAILED: No manuscript_chunks RLS policies found in production${NC}" | tee -a "$LOG_FILE"
-  ((CHECKS_FAILED++))
-fi
+# Query both tables
+query_policies "manuscripts" "manuscripts"
+query_policies "manuscript_chunks" "manuscript_chunks"
 
 echo "" | tee -a "$LOG_FILE"
 

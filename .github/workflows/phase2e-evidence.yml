@@ -56,6 +56,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           set -eo pipefail
           
@@ -73,42 +74,64 @@ jobs:
             echo ""
             
             # Verify RLS policies via Supabase API
-            echo "Verifying RLS Policies..."
+            echo "=== Verifying RLS Policies ==="
             echo ""
             
             CHECKS_PASSED=0
             CHECKS_FAILED=0
             
-            # Check manuscripts table policies
-            echo "Checking manuscripts table RLS policies..."
-            POLICY_RESPONSE=$(curl -s \
-              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-              -H "Content-Type: application/json" \
-              "$SUPABASE_URL/rest/v1/pg_policies?table_name=eq.manuscripts" 2>&1)
+            # Helper: Query pg_policies with diagnostics
+            query_policies() {
+              local table_to_check="$1"
+              local check_name="$2"
+              
+              echo "Checking $check_name table RLS policies..."
+              
+              # Capture response with HTTP status
+              local FULL_RESPONSE=$(curl -sS -w "\n__HTTP_STATUS:%{http_code}" \
+                -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "apikey: $SUPABASE_ANON_KEY" \
+                -H "Content-Type: application/json" \
+                "$SUPABASE_URL/rest/v1/pg_policies?tablename=eq.$table_to_check" 2>&1)
+              
+              local HTTP_CODE=$(echo "$FULL_RESPONSE" | grep "__HTTP_STATUS" | cut -d: -f2)
+              local BODY=$(echo "$FULL_RESPONSE" | sed '/__HTTP_STATUS/d')
+              
+              echo "  HTTP Status: $HTTP_CODE"
+              echo "  Response preview: $(echo "$BODY" | head -c 150)..."
+              echo ""
+              
+              # Check status code first
+              if [ "$HTTP_CODE" != "200" ]; then
+                echo "  ✗ FAILED: HTTP $HTTP_CODE (invalid query or access denied)"
+                echo "  Response body: $BODY"
+                ((CHECKS_FAILED++))
+                return 1
+              fi
+              
+              # Check if response is valid JSON - empty array
+              if echo "$BODY" | grep -qE '^\[\s*\]'; then
+                echo "  ✗ FAILED: No RLS policies found for $check_name table"
+                ((CHECKS_FAILED++))
+                return 1
+              fi
+              
+              # Check for policyname field (indicates policies exist)
+              if echo "$BODY" | grep -q '"policyname"'; then
+                echo "  ✓ $check_name table has RLS policies defined"
+                ((CHECKS_PASSED++))
+                return 0
+              else
+                echo "  ✗ FAILED: No policyname field in response for $check_name"
+                echo "  Likely: Endpoint not configured or policies truly missing"
+                ((CHECKS_FAILED++))
+                return 1
+              fi
+            }
             
-            if echo "$POLICY_RESPONSE" | grep -q 'policyname'; then
-              echo "  ✓ manuscripts RLS policies found"
-              ((CHECKS_PASSED++))
-            else
-              echo "  ✗ FAILED: No manuscripts RLS policies found"
-              echo "  Response: $POLICY_RESPONSE"
-              ((CHECKS_FAILED++))
-            fi
-            
-            echo ""
-            echo "Checking manuscript_chunks table RLS policies..."
-            POLICY_RESPONSE=$(curl -s \
-              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-              -H "Content-Type: application/json" \
-              "$SUPABASE_URL/rest/v1/pg_policies?table_name=eq.manuscript_chunks" 2>&1)
-            
-            if echo "$POLICY_RESPONSE" | grep -q 'policyname'; then
-              echo "  ✓ manuscript_chunks RLS policies found"
-              ((CHECKS_PASSED++))
-            else
-              echo "  ✗ FAILED: No manuscript_chunks RLS policies found"
-              ((CHECKS_FAILED++))
-            fi
+            # Query both tables
+            query_policies "manuscripts" "manuscripts"
+            query_policies "manuscript_chunks" "manuscript_chunks"
             
             echo ""
             echo "=== Phase 2E Verification Summary ==="

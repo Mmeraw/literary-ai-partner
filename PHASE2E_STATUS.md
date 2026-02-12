@@ -1,7 +1,7 @@
-# Phase 2E — Canonical user_id RLS migrations ⏳ INCOMPLETE
+# Phase 2E — Canonical user_id RLS migrations ⏳ VERIFICATION IN PROGRESS
 
-**Status:** ⏳ EVIDENCE GATE FAILED (Policies Not Found)  
-**Date:** 2026-02-11 (original work) → 2026-02-12 (gate verification)  
+**Status:** ⏳ QUERY METHOD CORRECTED (Re-running verification)  
+**Date:** 2026-02-11 (original work) → 2026-02-12 (gate implementation & correction)  
 **Evidence Anchor:** [`7c37c60`](https://github.com/Mmeraw/literary-ai-partner/commit/7c37c60) — docs(phase2e): record canonical user_id RLS migrations + proof  
 **Governance:** [phase2e-evidence.yml](.github/workflows/phase2e-evidence.yml) (CI verification gate - fail-closed)
 
@@ -9,98 +9,81 @@
 
 Enforce canonical `user_id` field (mapped to `auth.uid()`) across all Row-Level Security (RLS) policies to ensure strict user isolation.
 
-## Status: Evidence Gate Failed
+## Status: Query Method Fixed
 
-**Latest Gate Run:** [Run #21938474172](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21938474172) (2026-02-12T08:07:27Z)  
-**Conclusion:** ❌ FAILED (exit code 1)  
-**Finding:**
-```
-✗ FAILED: No manuscripts RLS policies found
-✗ FAILED: No manuscript_chunks RLS policies found
-Checks failed: 2
-❌ Phase 2E Evidence: FAILED
-```
+**Issue Found in Run #21938474172:**
+- Query was using wrong filter: `?table_name=eq.manuscripts` → should be `?tablename=eq.manuscripts`
+- Missing `apikey` header required by Supabase REST
+- Not capturing HTTP status codes, so failures were indistinguishable from empty responses
 
-**What This Means:**
-- The RLS policies claimed in commit 7c37c60 are not accessible or do not exist in production
-- The Supabase API `/rest/v1/pg_policies` endpoint returned no `policyname` field for these tables
-- The gate is now **fail-closed**: it correctly rejects incomplete or unverifiable claims
-- This is honest governance—the gate won't lie to make Phase 2E look "done"
+**Fixes Applied:**
+- ✅ Query filter corrected: `tablename` (not `table_name`)
+- ✅ HTTP status code capture added (distinguishes 404 vs. 200 vs. errors)
+- ✅ Added `apikey` header for Supabase REST authentication
+- ✅ Response diagnostics: prints first 150 chars of response body
+- ✅ Fail-closed logic: exits 1 if HTTP != 200 OR response is `[]` OR missing `policyname` field
 
-## Why This Is Actually Good Governance
+**Commits:**
+- [3579832](https://github.com/Mmeraw/literary-ai-partner/commit/3579832): `fix(phase2e): make evidence gate fail-closed + honest claims`
+- [0113095](https://github.com/Mmeraw/literary-ai-partner/commit/0113095): `docs(phase2e): record gate failure - policies not found (HONEST status)` (will be superseded)
+- Next: Updated scripts/evidence-phase2e.sh + workflow with corrected query
 
-Your evidence gate caught what the narrative hid: Phase 2E work was documented, but the actual RLS policies aren't verifiable. The gate now prevents false-positive "LOCKED" claims.
+## Expected Outcome (Next Gate Run)
 
-## Next Steps (To Actually Complete Phase 2E)
-
-1. **Verify what policies actually exist in production:**
-   ```bash
-   # Query production Supabase directly
-   curl -s \
-     -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-     -H "Content-Type: application/json" \
-     "https://xtumxjnzdswuumndcbwc.supabase.co/rest/v1/pg_policies"
-   ```
-
-2. **If policies DO exist:**
-   - Update the gate script to check for the correct policy names/tables
-   - Re-run: gate should pass, Phase 2E locks as done
-
-3. **If policies DON'T exist:**
-   - Apply the migrations described in 7c37c60
-   - Re-run gate
-   - Lock Phase 2E only after gate passes
+The corrected gate will now return one of:
+1. **✅ PASS:** If RLS policies exist and are accessible
+2. **❌ HTTP 404/403:** If endpoint not exposed or access denied (shows which)
+3. **❌ Empty array `[]`:** If table exists but has no policies (now distinguishable from query failure)
+4. **❌ No policyname field:** If response format unexpected (shows response for debugging)
 
 ## Acceptance Criteria Checklist
 
-- ❌ RLS policies exist on `manuscripts` table (FAILED: not found)
-- ❌ RLS policies exist on `manuscript_chunks` table (FAILED: not found)
-- ✅ Evidence gate workflow is fail-closed (exits non-zero on missing policies)
-- ❌ All policy checks pass on main branch 
-- ❌ Closure commit locked (BLOCKED: gate not passing)
+- ⏳ RLS policies exist on `manuscripts` table (verifying with corrected query)
+- ⏳ RLS policies exist on `manuscript_chunks` table (verifying with corrected query)
+- ✅ Evidence gate workflow is fail-closed (exits non-zero on any failure)
+- ⏳ All policy checks pass on main branch (re-running with fixed query)
+- ⏳ Closure commit locked (pending gate pass)
 
-## Evidence
+## Evidence & Verification Method
 
-**Gate Implementation (Fail-Closed):**
-- CI Workflow: `.github/workflows/phase2e-evidence.yml`
-- Verification: Supabase API `/rest/v1/pg_policies` endpoint
-- Exit code 0 only if all policy existence checks pass
-- Exit code 1 if any expected policy table lacks policies
-- Prevents "success" status when verification fails (audit-safe)
-
-**Run Evidence (GitHub Actions):**
-- **Latest Run:** [Run #21938474172](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21938474172) (2026-02-12T08:07:27Z - fail-closed)
-- **Status:** ❌ Completed with failure (exit 1)
-- **Gate Output:**
-  ```
-  Checking manuscripts table RLS policies...
-    ✗ FAILED: No manuscripts RLS policies found
-  
-  Checking manuscript_chunks table RLS policies...
-    ✗ FAILED: No manuscript_chunks RLS policies found
-  
-  === Phase 2E Verification Summary ===
-  Checks passed: 0
-  Checks failed: 2
-  ❌ Phase 2E Evidence: FAILED
-  ```
-
-**How to Verify Current Status:**
+**Query Method (Corrected in Latest Commit):**
 ```bash
-# View latest gate run
-gh run list --workflow phase2e-evidence.yml -L 1
-
-# View detailed logs
-gh run view 21938474172 --log
-
-# Run verification script locally (requires SUPABASE_URL + KEY)
-SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... ./scripts/evidence-phase2e.sh
+# Endpoint: GET /rest/v1/pg_policies
+# Filter: tablename=eq.{table_name}
+# Headers: 
+#   - Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY
+#   - apikey: $SUPABASE_ANON_KEY
+#   - Content-Type: application/json
 ```
 
-## Closed
+**Diagnostics Captured:**
+- HTTP status code (200 vs. 4xx/5xx errors)
+- Response body preview (first 150 chars)
+- Presence of `policyname` field (indicates policies exist)
 
-This phase is **BLOCKED** until the evidence gate passes. The RLS policies claimed in 7c37c60 must either be:
-1. Verified to exist in production (update gate script if needed), OR
-2. Actually applied to production (re-run migrations if needed)
+**Gate Implementation (Fail-Closed):**
+- Exit code 0 only if HTTP 200 AND response contains policy records
+- Exit code 1 if: HTTP != 200 OR response is `[]` OR `policyname` field missing
+- Prevents false-positive "LOCKED" status
 
-No Phase 2E "LOCKED" status can be claimed without the gate passing.
+**Previous Run (Pre-Fix):**
+- **Run:** [#21938474172](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21938474172)
+- **Status:** Failed
+- **Issue:** Query used wrong filter (`table_name` instead of `tablename`), missing headers
+- **Result:** Cannot determine if policies missing or query method broken
+
+**Next Run (With Corrections):**
+- Will clearly distinguish between:
+  - ✅ Policies exist and accessible
+  - ❌ Policies missing (empty array response)
+  - ❌ Query method invalid (HTTP error)
+  - ❌ Access denied (403/401)
+
+**How to View Latest Run:**
+```bash
+# List recent runs
+gh run list --workflow phase2e-evidence.yml -L 3
+
+# View specific run
+gh run view <RUN_ID> --log | grep -A 50 "=== Phase 2E Verification"
+```
