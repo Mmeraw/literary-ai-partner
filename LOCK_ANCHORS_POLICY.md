@@ -70,14 +70,21 @@ This is the single source of truth for locked phase anchors. **DO NOT MODIFY** t
 
 **Rule:** Any commit after e7812b6 that touches Phase 2E documentation is normal maintenance and MUST NOT change these two anchor values.
 
-### Flow 1 — Upload → Evaluate → View Results (PRE-LOCK)
+### Flow 1 — Upload → Evaluate → View Results
 
-- **Status:** 🏗️ PRE-LOCK (stabilization phase)
-- **CI Lock:** TBD (once `phase1-evidence.yml` passes reliably)
-- **Documentation Lock:** TBD (once evidence gate green in production)
-- **Target:** Lock after production smoke tests pass + CI evidence gate runs 3+ times successfully
+**STATUS: 🏗️ PRE-LOCK — NO ANCHORS ASSIGNED**
 
-**Rule:** Do not assign anchors to Flow 1 until evidence gate is proven stable. Flow 1 remains PRE-LOCK until both production smoke + phase1-evidence.yml are consistently passing.
+- **Currently:** Stabilization phase (production smoke tests + evidence gate not yet deployed)
+- **CI Lock Anchor:** *(does not exist yet)*
+- **Documentation Lock Anchor:** *(does not exist yet)*
+- **Requirements before locking:**
+  - Production smoke tests: all 7 items passing consistently
+  - Evidence gate (`phase1-evidence.yml`): runs reliably on workflow_dispatch
+  - Evidence gate: passes 3+ consecutive times with same codebase
+  - `FLOW1_CANONICAL_EVIDENCE.md`: populated with real evidence output
+  - Decision: promote `phase1-evidence.yml` from workflow_dispatch to push trigger
+
+**Rule:** Do NOT add anchor hashes to LOCK_ANCHORS_POLICY.md until the above requirements are met. Flow 1 has no locks yet.
 
 ---
 
