@@ -5,19 +5,19 @@ on:
   pull_request:
     branches: [ main ]
     paths:
-      - '.github/workflows/phase2e-evidence.yml'
-      - 'supabase/migrations/**'
-      - 'scripts/evidence-phase2e.sh'
-      - 'PHASE2E_STATUS.md'
-      - 'package.json'
+      - ".github/workflows/phase2e-evidence.yml"
+      - "supabase/migrations/**"
+      - "scripts/evidence-phase2e.sh"
+      - "PHASE2E_STATUS.md"
+      - "package.json"
   push:
     branches: [ main ]
     paths:
-      - '.github/workflows/phase2e-evidence.yml'
-      - 'supabase/migrations/**'
-      - 'scripts/evidence-phase2e.sh'
-      - 'PHASE2E_STATUS.md'
-      - 'package.json'
+      - ".github/workflows/phase2e-evidence.yml"
+      - "supabase/migrations/**"
+      - "scripts/evidence-phase2e.sh"
+      - "PHASE2E_STATUS.md"
+      - "package.json"
 
 jobs:
   evidence:
@@ -32,19 +32,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - name: Verify secrets are present
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           echo "Secret presence check:"
           [ -n "$SUPABASE_URL" ] && echo "  ✓ SUPABASE_URL present" || echo "  ✗ SUPABASE_URL MISSING"
-          [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && echo "  ✓ NEXT_PUBLIC_SUPABASE_URL present" || echo "  ✗ NEXT_PUBLIC_SUPABASE_URL MISSING"
           [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] && echo "  ✓ SUPABASE_SERVICE_ROLE_KEY present" || echo "  ✗ SUPABASE_SERVICE_ROLE_KEY MISSING"
           [ -n "$SUPABASE_ANON_KEY" ] && echo "  ✓ SUPABASE_ANON_KEY present" || echo "  ✗ SUPABASE_ANON_KEY MISSING"
           echo ""
@@ -52,6 +50,61 @@ jobs:
             echo "ERROR: Critical secrets are missing"
             exit 1
           fi
+
+      # OPTIONAL: You can later commit this script into the repo and delete this step.
+      - name: Prepare RLS validation script
+        run: |
+          mkdir -p scripts
+          cat > scripts/verify_phase2e_rls.py << 'EOF'
+          #!/usr/bin/env python3
+          import json
+          import sys
+
+          EXPECTED = ["manuscripts", "manuscript_chunks"]
+
+          def main() -> int:
+              try:
+                  data = json.load(sys.stdin)
+              except Exception as e:
+                  print("  ✗ FAILED: Response is not valid JSON:", e)
+                  return 1
+
+              by_table = {}
+              for row in data:
+                  t = row.get("tablename")
+                  if not t:
+                      continue
+                  by_table.setdefault(t, []).append(row)
+
+              overall_failed = False
+
+              for t in EXPECTED:
+                  rows = by_table.get(t, [])
+                  table_failed = False
+
+                  if not rows:
+                      print(f"  ✗ FAILED: No rows returned for table {t}")
+                      table_failed = True
+                  else:
+                      if not any(r.get("rls_enabled") for r in rows):
+                          print(f"  ✗ FAILED: RLS not enabled for table {t}")
+                          table_failed = True
+
+                      if not any(r.get("policyname") for r in rows):
+                          print(f"  ✗ FAILED: No policies found for table {t}")
+                          table_failed = True
+
+                  if table_failed:
+                      overall_failed = True
+                  else:
+                      print(f"  ✓ {t} OK")
+
+              return 1 if overall_failed else 0
+
+          if __name__ == "__main__":
+              sys.exit(main())
+          EOF
+          chmod +x scripts/verify_phase2e_rls.py
 
       - name: Verify Phase 2E RLS Policies
         id: verify
@@ -61,62 +114,58 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           set -eo pipefail
-          
-          # Create verification output (tee to both file AND stdout)
+
           OUTPUT_FILE="/tmp/phase2e-evidence.log"
-          
-          # Use process substitution to write to file AND display - works even if script fails
           exec > >(tee "$OUTPUT_FILE") 2>&1
-          
+
           echo "=== Phase 2E Evidence Verification ==="
           echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo "Commit: ${{ github.sha }}"
           echo ""
-          
-          # Extract project ID from URL
-          PROJECT_ID=$(echo "$SUPABASE_URL" | grep -oP '(?<=https://)[^.]+' || echo "unknown")
-          echo "Project ID: $PROJECT_ID"
-          echo ""
-          
-          # Verify RLS policies via Supabase RPC
-          echo "=== Verifying RLS Policies (RPC) ==="
-          echo ""
-          
+
           CHECKS_PASSED=0
           CHECKS_FAILED=0
-          
-          # Helper: Query RPC with diagnostics
+
           query_policies_rpc() {
             local rpc_endpoint="$SUPABASE_URL/rest/v1/rpc/verify_phase2e_rls_policies"
             echo "Calling RPC: $rpc_endpoint"
 
-            local FULL_RESPONSE=$(curl -sS -w "\n__HTTP_STATUS:%{http_code}" \
+            set +e
+            FULL_RESPONSE=$(curl -sS -w "\n__HTTP_STATUS:%{http_code}" \
               -X POST \
               -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
               -H "apikey: $SUPABASE_ANON_KEY" \
               -H "Content-Type: application/json" \
               -d '{}' \
               "$rpc_endpoint" 2>&1)
+            CURL_EXIT=$?
+            set -e
 
-            local HTTP_CODE=$(echo "$FULL_RESPONSE" | grep "__HTTP_STATUS" | cut -d: -f2)
-            local BODY=$(echo "$FULL_RESPONSE" | sed '/__HTTP_STATUS/d')
+            if [ "$CURL_EXIT" -ne 0 ]; then
+              echo "  ✗ FAILED: curl exited with $CURL_EXIT"
+              ((CHECKS_FAILED++))
+              return 1
+            fi
+
+            HTTP_CODE=$(echo "$FULL_RESPONSE" | grep "__HTTP_STATUS" | cut -d: -f2)
+            BODY=$(echo "$FULL_RESPONSE" | sed '/__HTTP_STATUS/d')
 
             echo "  HTTP Status: $HTTP_CODE"
-            echo "  Response preview: $(echo "$BODY" | head -c 150)..."
             echo ""
 
             if [ "$HTTP_CODE" != "200" ]; then
-              echo "  ✗ FAILED: HTTP $HTTP_CODE (RPC call failed)"
+              echo "  ✗ FAILED: HTTP $HTTP_CODE"
               echo "  Response body: $BODY"
               ((CHECKS_FAILED++))
               return 1
             fi
 
-            # Validate JSON: check RLS+policies for manuscripts & manuscript_chunks
-            echo "$BODY" | python3 -c "import json,sys;d=json.load(sys.stdin);any([sys.exit(1)if not[r for r in d if r.get('tablename')==t]or not any(r.get('rls_enabled')for r in[r for r in d if r.get('tablename')==t])or not any(r.get('policyname')for r in[r for r in d if r.get('tablename')==t])else print('  ✓',t,'OK')for t in['manuscripts','manuscript_chunks']])"
-            local PY_EXIT=$?
+            set +e
+            echo "$BODY" | python3 scripts/verify_phase2e_rls.py
+            PY_EXIT=$?
+            set -e
 
-            if [ $PY_EXIT -eq 0 ]; then
+            if [ "$PY_EXIT" -eq 0 ]; then
               ((CHECKS_PASSED++))
               return 0
             fi
@@ -125,28 +174,23 @@ jobs:
             return 1
           }
 
-          query_policies_rpc
-          
+          query_policies_rpc || true
+
           echo ""
           echo "=== Phase 2E Verification Summary ==="
           echo "Checks passed: $CHECKS_PASSED"
           echo "Checks failed: $CHECKS_FAILED"
           echo ""
-          
+
+          mkdir -p artifacts
+          cp "$OUTPUT_FILE" artifacts/phase2e-evidence-ci.log 2>/dev/null || true
+          echo "LOG_COPIED=true" >> "$GITHUB_OUTPUT"
+
           if [ "$CHECKS_FAILED" -eq 0 ]; then
             echo "✅ Phase 2E Evidence: LOCKED"
-            echo "All RLS policies verified successfully"
-            # Copy to artifacts before exiting
-            mkdir -p artifacts
-            cp "$OUTPUT_FILE" artifacts/phase2e-evidence-ci.log
-            echo "LOG_COPIED=true" >> $GITHUB_OUTPUT
+            exit 0
           else
             echo "❌ Phase 2E Evidence: FAILED"
-            echo "One or more policy checks failed"
-            # Copy to artifacts before exiting (so we can see what failed)
-            mkdir -p artifacts
-            cp "$OUTPUT_FILE" artifacts/phase2e-evidence-ci.log 2>/dev/null || true
-            echo "LOG_COPIED=true" >> $GITHUB_OUTPUT
             exit 1
           fi
 
@@ -161,26 +205,9 @@ jobs:
       - name: Evidence Summary
         if: success()
         run: |
-          echo "## ✅ Phase 2E Evidence: LOCKED" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:** RLS policies verified" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Reference:** [7c37c60 - docs(phase2e): record canonical user_id RLS migrations + proof](https://github.com/Mmeraw/literary-ai-partner/commit/7c37c60)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Component | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Canonical user_id RLS | ✅ Locked |" >> $GITHUB_STEP_SUMMARY
-          echo "| RLS Policy Verification | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-          echo "| Evidence Gate | ✅ Locked |" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Phase 2E Evidence: LOCKED" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Failure Summary
         if: failure()
         run: |
-          echo "## ❌ Phase 2E Evidence: FAILED" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:** Evidence verification failed" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Check the logs above for details on which verification step failed." >> $GITHUB_STEP_SUMMARY
+          echo "## ❌ Phase 2E Evidence: FAILED" >> "$GITHUB_STEP_SUMMARY"
