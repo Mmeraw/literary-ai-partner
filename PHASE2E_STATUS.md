@@ -3,7 +3,7 @@
 **Status:** ✅ LOCKED  
 **Date:** 2026-02-11 (original work) → 2026-02-12 (gate implementation & resolution)  
 **CI Lock Commit:** [`811fe59`](https://github.com/Mmeraw/literary-ai-partner/commit/811fe59) — refactor(ci): rewrite Phase 2E with proper Python script and error handling  
-**Documentation Lock Commit:** [`20567a9`](https://github.com/Mmeraw/literary-ai-partner/commit/20567a9) — docs(phase2e): update status to LOCKED with canonical evidence  
+**Documentation Lock Commit:** [`e7812b6`](https://github.com/Mmeraw/literary-ai-partner/commit/e7812b6) — docs(phase2e): clarify dual lock commits + validate both tables explicitly  
 **Governance:** [phase2e-evidence.yml](.github/workflows/phase2e-evidence.yml) (CI verification gate - passing)  
 **Latest CI Run:** [#21960401805](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21960401805) — ✅ SUCCESS  
 **Canonical Evidence:** [PHASE2E_CANONICAL_EVIDENCE.md](PHASE2E_CANONICAL_EVIDENCE.md)
@@ -29,6 +29,8 @@ Enforce canonical `user_id` field (mapped to `auth.uid()`) across all Row-Level 
 - [811fe59](https://github.com/Mmeraw/literary-ai-partner/commit/811fe59): `refactor(ci): rewrite Phase 2E with proper Python script and error handling`
 - [5426a3b](https://github.com/Mmeraw/literary-ai-partner/commit/5426a3b): `fix(ci): capture Python exit code before checking it`
 - [6ecf83c](https://github.com/Mmeraw/literary-ai-partner/commit/6ecf83c): `fix(ci): replace heredoc with inline Python for YAML+bash compatibility`
+- [20567a9](https://github.com/Mmeraw/literary-ai-partner/commit/20567a9): `docs(phase2e): update status to LOCKED with canonical evidence`
+- [e7812b6](https://github.com/Mmeraw/literary-ai-partner/commit/e7812b6): `docs(phase2e): clarify dual lock commits + validate both tables explicitly`
 
 ## RPC Implementation
 
@@ -75,7 +77,7 @@ curl -X POST "$SUPABASE_URL/rest/v1/rpc/verify_phase2e_rls_policies" \
 - ✅ RLS policies exist on `manuscript_chunks` table (2 policies verified)
 - ✅ Evidence gate workflow is fail-closed (exits non-zero on any failure)
 - ✅ All policy checks pass on main branch (CI run #21960401805 SUCCESS)
-- ✅ Closure commit locked ([811fe59](https://github.com/Mmeraw/literary-ai-partner/commit/811fe59))
+- ✅ Closure commit locked ([e7812b6](https://github.com/Mmeraw/literary-ai-partner/commit/e7812b6))
 
 ## Evidence & Verification
 
