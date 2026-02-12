@@ -112,45 +112,8 @@ jobs:
               return 1
             fi
 
-            BODY="$BODY" python - <<'PY'
-            import json
-            import os
-            import sys
-            
-            body = os.environ.get("BODY", "")
-            
-            try:
-                data = json.loads(body)
-            except Exception:
-                print("  ✗ FAILED: Response is not valid JSON")
-                sys.exit(1)
-            
-            expected_tables = ["manuscripts", "manuscript_chunks"]
-            failed = False
-            
-            for table in expected_tables:
-                rows = [r for r in data if r.get("tablename") == table]
-                if not rows:
-                    print(f"  ✗ FAILED: No rows returned for table {table} (table missing or RPC misconfigured)")
-                    failed = True
-                    continue
-            
-                if any(r.get("rls_enabled") is True for r in rows):
-                    print(f"  ✓ {table} RLS enabled")
-                else:
-                    print(f"  ✗ FAILED: RLS not enabled for {table}")
-                    failed = True
-            
-                policies = [r for r in rows if r.get("policyname")]
-                if policies:
-                    print(f"  ✓ {table} policies found: {len(policies)}")
-                else:
-                    print(f"  ✗ FAILED: No policies found for {table}")
-                    failed = True
-            
-            if failed:
-                sys.exit(1)
-            PY
+            # Validate and parse JSON response with Python
+            python -c 'import json, os, sys; body = os.environ.get("BODY", ""); data = json.loads(body) if body else sys.exit(1); [sys.exit(1) if not [r for r in data if r.get("tablename") == table] or not any(r.get("rls_enabled") for r in [r for r in data if r.get("tablename") == table]) or not [r for r in [r for r in data if r.get("tablename") == table] if r.get("policyname")] else print(f"  ✓ {table} RLS+policies OK") for table in ["manuscripts", "manuscript_chunks"]]'
 
             if [ $? -eq 0 ]; then
               ((CHECKS_PASSED++))
