@@ -92,6 +92,8 @@ Run 3: https://github.com/Mmeraw/literary-ai-partner/actions/runs/21975531680
   status=completed
   conclusion=success
   displayTitle=docs(flow1): note two-pass CI streak before final lock run
+
+Anchor validation: https://github.com/Mmeraw/literary-ai-partner/actions/runs/21975653254 (status=completed, conclusion=success, headSha=69e80f2c6dd750379d5db511b4f5f0b6acae4787)
 ```
 
 **Local run transcript (reference):**
