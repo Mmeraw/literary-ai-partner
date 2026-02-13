@@ -1,0 +1,54 @@
+name: Phase 2E Anchor Guard
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'PHASE2E_STATUS.md'
+      - 'PHASE2E_CANONICAL_EVIDENCE.md'
+      - '.github/workflows/phase2e-anchor-guard.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-anchors:
+    name: Verify Phase 2E Anchors
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify CI Lock unchanged in status doc
+        run: |
+          if ! grep -q "CI Lock Commit.*811fe59" PHASE2E_STATUS.md; then
+            echo "❌ ERROR: Phase 2E CI Lock anchor changed from 811fe59 in PHASE2E_STATUS.md"
+            exit 1
+          fi
+
+      - name: Verify Documentation Lock unchanged in status doc
+        run: |
+          if ! grep -q "Documentation Lock Commit.*e7812b6" PHASE2E_STATUS.md; then
+            echo "❌ ERROR: Phase 2E Documentation Lock anchor changed from e7812b6 in PHASE2E_STATUS.md"
+            exit 1
+          fi
+
+      - name: Verify CI Lock unchanged in canonical evidence
+        run: |
+          if ! grep -q "CI Lock Commit.*811fe59" PHASE2E_CANONICAL_EVIDENCE.md; then
+            echo "❌ ERROR: Canonical evidence CI anchor changed from 811fe59"
+            exit 1
+          fi
+
+      - name: Verify Documentation Lock unchanged in canonical evidence
+        run: |
+          if ! grep -q "Documentation Lock Commit.*e7812b6" PHASE2E_CANONICAL_EVIDENCE.md; then
+            echo "❌ ERROR: Canonical evidence documentation anchor changed from e7812b6"
+            exit 1
+          fi
+
+      - name: Anchor guard summary
+        run: |
+          echo "## ✅ Phase 2E Anchor Guard Passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "Anchors preserved: CI=811fe59, Documentation=e7812b6" >> "$GITHUB_STEP_SUMMARY"
