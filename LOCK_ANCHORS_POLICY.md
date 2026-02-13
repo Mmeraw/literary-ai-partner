@@ -72,18 +72,20 @@ This is the single source of truth for locked phase anchors. **DO NOT MODIFY** t
 
 ### Flow 1 — Upload → Evaluate → View Results
 
-**STATUS: 🔒 READY FOR LOCK — Scaffolds complete, Phase 2E proven**
+**STATUS: 🧪 PRE-LOCK — Evidence gate scaffolded, first deterministic proof captured**
 
-- **CI Lock Anchor:** TBD (first passing workflow_dispatch run)
-- **Documentation Lock Anchor:** TBD (when FLOW1_CANONICAL_EVIDENCE.md has evidence)
-- **Next step:** Local smoke tests → phase1-evidence.yml passes 3+ times consecutively → assign anchors
+- **CI Lock Anchor:** TBD (first passing GitHub Actions run for `phase1-evidence.yml`)
+- **Documentation Lock Anchor:** TBD (after CI evidence transcript + lock declaration)
+- **Current evidence:** Local deterministic pass recorded (HEALTH 200, CREATE 201, OWNER 200, OTHER 404)
+- **Next step:** Run `phase1-evidence.yml` in GitHub Actions 3+ consecutive times, then assign anchors
 
 - **Requirements before CI/Docs locks:**
   - ✅ Phase 2E RLS gate verified working (run #21964849414, 2026-02-12T21:25:20Z)
-  - ✅ Flow 1 scaffolds ready (FLOW1_STATUS.md, FLOW1_CANONICAL_EVIDENCE.md, FLOW1_SMOKE_TEST_CHECKLIST.md)
-  - ⏳ Local smoke tests: Tests 1-7 passing (waiting for your dev server + real tokens)
-  - ⏳ Evidence gate (`phase1-evidence.yml`): runs reliably on workflow_dispatch
-  - ⏳ Evidence gate: passes 3+ consecutive times with same codebase
+  - ✅ Ownership enforcement + production-path mapping fixed (`3f3d870`, `c1dd02e`)
+  - ✅ Flow 1 scaffold implemented (`phase1-evidence.yml`, `scripts/evidence-flow1.sh`)
+  - ✅ Local deterministic ownership proof passing (2026-02-13)
+  - ⏳ Evidence gate (`phase1-evidence.yml`) passing in GitHub Actions
+  - ⏳ Evidence gate passes 3+ consecutive CI runs with same codebase
 
 **Process:** Once smoke tests pass, immediately build phase1-evidence.yml CI automation, run gate 3 times, capture evidence, lock both anchors, promote to push trigger.
 

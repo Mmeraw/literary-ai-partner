@@ -1,0 +1,122 @@
+name: Flow 1 Evidence Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/phase1-evidence.yml'
+      - 'scripts/evidence-flow1.sh'
+      - 'app/api/jobs/route.ts'
+      - 'app/api/jobs/[jobId]/route.ts'
+      - 'lib/jobs/**'
+      - 'FLOW1_STATUS.md'
+      - 'FLOW1_CANONICAL_EVIDENCE.md'
+      - 'docs/JOB_CONTRACT_v1.md'
+      - 'AI_GOVERNANCE.md'
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/phase1-evidence.yml'
+      - 'scripts/evidence-flow1.sh'
+      - 'app/api/jobs/route.ts'
+      - 'app/api/jobs/[jobId]/route.ts'
+      - 'lib/jobs/**'
+      - 'FLOW1_STATUS.md'
+      - 'FLOW1_CANONICAL_EVIDENCE.md'
+      - 'docs/JOB_CONTRACT_v1.md'
+      - 'AI_GOVERNANCE.md'
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    name: Flow 1 Evidence Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify required secrets are present (no values printed)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -e
+          echo "Secret presence check:"
+          [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] && echo "  ✓ SUPABASE_SERVICE_ROLE_KEY present" || (echo "  ✗ SUPABASE_SERVICE_ROLE_KEY MISSING" && exit 1)
+          if [ -n "$SUPABASE_URL" ] || [ -n "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+            echo "  ✓ SUPABASE URL present"
+          else
+            echo "  ✗ SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL MISSING"
+            exit 1
+          fi
+
+      - name: Run Flow 1 deterministic evidence
+        id: evidence
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          FLOW1_BASE_URL: http://127.0.0.1:3002
+        run: |
+          set +e
+          npm run evidence:flow1 > /tmp/flow1_evidence_output.log 2>&1
+          STATUS=$?
+          set -e
+          cat /tmp/flow1_evidence_output.log
+
+          LOG_PATH=$(grep "Evidence archived:" /tmp/flow1_evidence_output.log | awk '{print $3}' | tail -n 1 || true)
+          mkdir -p artifacts
+          if [ -n "$LOG_PATH" ] && [ -f "$LOG_PATH" ]; then
+            cp "$LOG_PATH" artifacts/flow1-evidence-ci.log
+            echo "LOG_COPIED=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "LOG_COPIED=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          exit $STATUS
+
+      - name: Upload Evidence Artifact
+        if: always() && steps.evidence.outputs.LOG_COPIED == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow1-evidence-${{ github.sha }}
+          path: artifacts/flow1-evidence-ci.log
+          retention-days: 90
+
+      - name: Evidence Summary
+        if: success()
+        run: |
+          echo "## ✅ Flow 1 Evidence: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Commit:** \\`${{ github.sha }}\\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Branch:** \\`${{ github.ref_name }}\\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Assertions:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- create returns 201 with ok=true + job_id + canonical status" >> "$GITHUB_STEP_SUMMARY"
+          echo "- owner GET returns 200 with job.user_id = owner id" >> "$GITHUB_STEP_SUMMARY"
+          echo "- non-owner GET returns strict 404 with no existence leak" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Failure Summary
+        if: failure()
+        run: |
+          echo "## ❌ Flow 1 Evidence: FAILED" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Commit:** \\`${{ github.sha }}\\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Branch:** \\`${{ github.ref_name }}\\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Check the workflow logs for failing assertion details." >> "$GITHUB_STEP_SUMMARY"

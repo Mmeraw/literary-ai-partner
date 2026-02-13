@@ -1,12 +1,13 @@
-# Flow 1 — Upload → Evaluate → View Results 🏗️ PRE-LOCK
+# Flow 1 — Upload → Evaluate → View Results 🧪 EVIDENCE GATE SCAFFOLDED
 
-**Status:** 🏗️ PRE-LOCK (stabilization phase)  
+**Status:** 🧪 PRE-LOCK (ownership prerequisite closed; evidence gate active)  
 **Target Lock:** Phase E1 (after production smoke + evidence gate passes reliably)  
 
 **CI Lock Commit:** TBD (workflow_dispatch gate implementation)  
 **Documentation Lock Commit:** TBD (after evidence gate green in production)  
-**Governance:** [phase1-evidence.yml](.github/workflows/phase1-evidence.yml) (workflow_dispatch, not yet on push)  
-**Current CI Runs:** N/A (gate not yet production-ready)  
+**Governance:** [phase1-evidence.yml](.github/workflows/phase1-evidence.yml) + [scripts/evidence-flow1.sh](scripts/evidence-flow1.sh)  
+**Current CI Runs:** N/A (first GitHub Actions run pending)  
+**Latest Local Deterministic Run:** ✅ PASS (2026-02-13T04:41:59Z)  
 
 ---
 
@@ -70,19 +71,18 @@ Canonical job statuses: `queued`, `running`, `complete`, `failed`
 - [ ] Submission appears in evaluator queue (queued state)
 - [ ] Evaluation runs without errors (running → complete transition)
 - [ ] Results written to database and retrievable
-- [ ] Creator can view results; non-creator cannot (RLS enforced)
+- [x] Creator can view own job; non-creator receives strict `404` (ownership no-leak)
 - [ ] Job status transitions follow canonical state machine
 - [ ] No database constraints violated during job execution
 
 ### Evidence Gate Requirements (Future CI Workflow)
 
-- [ ] Seed test author via database or fixtures
-- [ ] Upload fixture submission (standard test document)
-- [ ] Trigger evaluation pipeline
-- [ ] Assert job status transitions are valid
-- [ ] Query results endpoint as creator (expect success)
-- [ ] Query results endpoint as different user (expect 403 or empty)
-- [ ] Assert evaluation results populated correctly
+- [x] Seed deterministic test manuscript in same Supabase project
+- [x] Create job as owner and assert canonical create envelope (201 + ok + job_id + status)
+- [x] Query `/api/jobs/:jobId` as owner (expect 200 + `job.user_id == owner`)
+- [x] Query `/api/jobs/:jobId` as different user (expect strict 404 no-leak)
+- [x] Assert status vocabulary is canonical (`queued|running|complete|failed`)
+- [ ] Add end-to-end upload/evaluation/results persistence assertions
 
 ### Rough Edges to Track
 
@@ -107,9 +107,9 @@ Canonical job statuses: `queued`, `running`, `complete`, `failed`
 ### In Progress (Stabilization)
 
 - 🏗️ Production smoke tests (manual verification)
-- 🏗️ End-to-end visibility verification (author sees own, others don't)
+- ✅ Ownership visibility verification complete for jobs endpoint (owner 200 / non-owner 404)
 - 🏗️ State machine hardening (catch illegal transitions)
-- 🏗️ Evidence gate scaffold (workflow_dispatch → manual trigger)
+- ✅ Evidence gate scaffold implemented and locally passing
 
 ### Future (Lock Event)
 
@@ -126,7 +126,7 @@ Canonical job statuses: `queued`, `running`, `complete`, `failed`
 - [PHASE2E_CANONICAL_EVIDENCE.md](PHASE2E_CANONICAL_EVIDENCE.md) — Evidence gate pattern reference
 - [AI_GOVERNANCE.md](AI_GOVERNANCE.md) — Job status canonical values
 - [docs/JOB_CONTRACT_v1.md](docs/JOB_CONTRACT_v1.md) — State transition rules
-- [FLOW1_CANONICAL_EVIDENCE.md](FLOW1_CANONICAL_EVIDENCE.md) — Evidence gate definition (placeholder)
+- [FLOW1_CANONICAL_EVIDENCE.md](FLOW1_CANONICAL_EVIDENCE.md) — Evidence gate definition + latest transcript
 - [LOCK_ANCHORS_POLICY.md](LOCK_ANCHORS_POLICY.md) — Lock anchor governance
 
 ---
@@ -135,11 +135,11 @@ Canonical job statuses: `queued`, `running`, `complete`, `failed`
 
 Flow 1 is ready to lock when:
 
-1. ✅ Production smoke tests green (all items checked above)
-2. ✅ CI evidence gate (`phase1-evidence.yml`) runs reliably on workflow_dispatch
-3. ✅ Evidence gate passes 3+ consecutive times
-4. ✅ FLOW1_CANONICAL_EVIDENCE.md populated with real run data
-5. ✅ Ready to add CI Lock + Docs Lock commits to registry
+1. ⏳ Production smoke tests green (all checklist items complete)
+2. ⏳ CI evidence gate (`phase1-evidence.yml`) runs reliably in GitHub Actions
+3. ⏳ Evidence gate passes 3+ consecutive CI runs
+4. ✅ FLOW1_CANONICAL_EVIDENCE.md populated with first deterministic run data
+5. ⏳ Ready to add CI Lock + Docs Lock commits to registry
 
 ```bash
 # At lock time:

@@ -32,7 +32,8 @@
     "jobs:retry-tick": "node scripts/jobs-retry-tick.mjs",
     "jobs:load": "node scripts/jobs-load.mjs",
     "evidence:phase2c": "bash scripts/evidence-phase2c.sh",
-    "evidence:phase2d": "bash scripts/evidence-phase2d.sh"
+    "evidence:phase2d": "bash scripts/evidence-phase2d.sh",
+    "evidence:flow1": "bash scripts/evidence-flow1.sh"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.3",

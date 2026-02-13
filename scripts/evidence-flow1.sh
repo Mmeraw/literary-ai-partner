@@ -1,0 +1,329 @@
+#!/usr/bin/env bash
+# Flow 1 Evidence Verification Script
+# Verifies deterministic owner/non-owner access behavior for GET /api/jobs/:jobId
+# Usage: bash scripts/evidence-flow1.sh
+
+set -euo pipefail
+IFS=$'\n\t'
+
+# Prevent accidental sourcing
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+  echo "❌ ERROR: This script must be executed, not sourced" >&2
+  return 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$REPO_ROOT"
+
+# Auto-load env for local/manual runs (CI already injects env vars)
+# Load .env first, then .env.local to preserve local override precedence.
+if [[ -f "$REPO_ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$REPO_ROOT/.env"
+  set +a
+fi
+if [[ -f "$REPO_ROOT/.env.local" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$REPO_ROOT/.env.local"
+  set +a
+fi
+
+LOG="/tmp/flow1-evidence-$(date +%s).log"
+exec > >(tee -a "$LOG") 2>&1
+
+OWNER_ID="${FLOW1_OWNER_ID:-00000000-0000-0000-0000-000000000001}"
+OTHER_ID="${FLOW1_OTHER_ID:-00000000-0000-0000-0000-000000000099}"
+BASE_URL="${FLOW1_BASE_URL:-http://127.0.0.1:3002}"
+START_SERVER="${FLOW1_START_SERVER:-1}"
+SERVER_LOG="/tmp/flow1-next-dev-$(date +%s).log"
+
+NEXT_PID=""
+cleanup() {
+  if [[ -n "$NEXT_PID" ]] && kill -0 "$NEXT_PID" >/dev/null 2>&1; then
+    kill "$NEXT_PID" >/dev/null 2>&1 || true
+    wait "$NEXT_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+
+require_env() {
+  local var="$1"
+  if [[ -z "${!var:-}" ]]; then
+    echo "❌ Missing required env: $var" >&2
+    exit 1
+  fi
+}
+
+echo "========================================="
+echo "FLOW 1 EVIDENCE"
+echo "========================================="
+echo "Started: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "Repo: $REPO_ROOT"
+echo "Commit: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+echo "BASE_URL: $BASE_URL"
+echo ""
+
+echo "0) Environment preflight"
+require_env "SUPABASE_SERVICE_ROLE_KEY"
+if [[ -z "${SUPABASE_URL:-}" && -z "${NEXT_PUBLIC_SUPABASE_URL:-}" ]]; then
+  echo "❌ Missing required env: SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL" >&2
+  exit 1
+fi
+export SUPABASE_URL="${SUPABASE_URL:-${NEXT_PUBLIC_SUPABASE_URL}}"
+
+echo "✅ Required Supabase env present"
+
+echo ""
+echo "0b) Key fingerprint (URL/service role project match)"
+node - <<'NODEEOF'
+function b64urlDecode(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  return Buffer.from(s, 'base64').toString('utf8');
+}
+
+function jwtRef(jwt) {
+  if (!jwt || typeof jwt !== 'string') return null;
+  const parts = jwt.split('.');
+  if (parts.length < 2) return null;
+  try {
+    const payload = JSON.parse(b64urlDecode(parts[1]));
+    return payload.ref || null;
+  } catch {
+    return null;
+  }
+}
+
+const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const urlRef = (url.match(/https:\/\/([a-z0-9]+)\.supabase\.co/i) || [])[1] || null;
+const serviceRef = jwtRef(process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+console.log('URL project ref:      ' + (urlRef || '(none)'));
+console.log('Service key ref:      ' + (serviceRef || '(none)'));
+
+if (urlRef && serviceRef && urlRef !== serviceRef) {
+  console.error('❌ MISMATCH: SUPABASE_URL project ref does not match SUPABASE_SERVICE_ROLE_KEY ref');
+  process.exit(2);
+}
+console.log('✅ URL/key refs aligned');
+NODEEOF
+
+echo ""
+echo "1) Ensure API is reachable"
+HEALTH_HTTP=$(curl -s -o /tmp/flow1-health.json -w "%{http_code}" "$BASE_URL/api/health" || true)
+if [[ "$HEALTH_HTTP" != "200" ]]; then
+  if [[ "$START_SERVER" != "1" ]]; then
+    echo "❌ API unavailable at $BASE_URL and FLOW1_START_SERVER=$START_SERVER" >&2
+    exit 1
+  fi
+
+  echo "Health check not ready; starting Next dev server..."
+  npm run dev > "$SERVER_LOG" 2>&1 &
+  NEXT_PID=$!
+
+  READY=0
+  for _ in $(seq 1 90); do
+    HEALTH_HTTP=$(curl -s -o /tmp/flow1-health.json -w "%{http_code}" "$BASE_URL/api/health" || true)
+    if [[ "$HEALTH_HTTP" == "200" ]]; then
+      READY=1
+      break
+    fi
+    sleep 1
+  done
+
+  if [[ "$READY" != "1" ]]; then
+    echo "❌ API did not become healthy within timeout" >&2
+    echo "Last dev server log lines:"
+    tail -n 80 "$SERVER_LOG" || true
+    exit 1
+  fi
+fi
+
+echo "✅ HEALTH_HTTP=$HEALTH_HTTP"
+
+echo ""
+echo "2) Seed manuscript in same project"
+MID=$(node - <<'NODEEOF'
+const { createClient } = require('@supabase/supabase-js');
+
+const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const owner = process.env.FLOW1_OWNER_ID || '00000000-0000-0000-0000-000000000001';
+
+if (!url || !key) {
+  console.error('SUPABASE_ENV_MISSING');
+  process.exit(1);
+}
+
+const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+
+(async () => {
+  const payload = {
+    title: 'Flow1 Evidence Seed Manuscript',
+    created_by: owner,
+    user_id: owner,
+    tone_context: 'neutral',
+    mood_context: 'calm',
+    voice_mode: 'balanced',
+    word_count: 1000,
+    source: 'dashboard',
+    english_variant: 'us',
+    is_final: false,
+    storygate_linked: false,
+    allow_industry_discovery: false,
+  };
+
+  const { data, error } = await client
+    .from('manuscripts')
+    .insert(payload)
+    .select('id,user_id')
+    .single();
+
+  if (error) {
+    console.error('INSERT_ERROR ' + error.message);
+    process.exit(1);
+  }
+
+  if (!data?.id) {
+    console.error('INSERT_ERROR missing manuscript id');
+    process.exit(1);
+  }
+
+  process.stdout.write(String(data.id));
+})();
+NODEEOF
+)
+
+echo "✅ Seed manuscript_id=$MID owner=$OWNER_ID"
+
+echo ""
+echo "3) Create job as owner"
+CREATE_HTTP=$(curl -s -o /tmp/flow1-create.json -w "%{http_code}" \
+  -H "content-type: application/json" \
+  -H "x-user-id: $OWNER_ID" \
+  -X POST "$BASE_URL/api/jobs" \
+  -d "{\"manuscript_id\":$MID,\"job_type\":\"evaluate_quick\"}" || true)
+
+echo "CREATE_HTTP=$CREATE_HTTP"
+cat /tmp/flow1-create.json
+
+action_assert_create=$(python3 - <<'PY'
+import json, sys
+
+with open('/tmp/flow1-create.json', 'r', encoding='utf-8') as f:
+    body = json.load(f)
+
+if body.get('ok') is not True:
+    print('❌ CREATE body missing ok=true')
+    sys.exit(1)
+
+job_id = body.get('job_id')
+if not isinstance(job_id, str) or not job_id.strip():
+    print('❌ CREATE body missing non-empty job_id')
+    sys.exit(1)
+
+status = body.get('status')
+allowed = {'queued', 'running', 'complete', 'failed'}
+if status not in allowed:
+    print(f'❌ CREATE body non-canonical status: {status!r}')
+    sys.exit(1)
+
+print(job_id)
+PY
+)
+
+if [[ "$CREATE_HTTP" != "201" ]]; then
+  echo "❌ Expected CREATE_HTTP=201" >&2
+  exit 1
+fi
+JOB_ID="$action_assert_create"
+echo "✅ JOB_ID=$JOB_ID"
+
+echo ""
+echo "4) Owner GET should return 200 with matching user_id"
+OWNER_HTTP=$(curl -s -o /tmp/flow1-owner.json -w "%{http_code}" \
+  -H "x-user-id: $OWNER_ID" \
+  "$BASE_URL/api/jobs/$JOB_ID" || true)
+
+echo "OWNER_HTTP=$OWNER_HTTP"
+cat /tmp/flow1-owner.json
+
+env OWNER_ID="$OWNER_ID" python3 - <<'PY'
+import json, os, sys
+
+owner_id = os.environ['OWNER_ID']
+with open('/tmp/flow1-owner.json', 'r', encoding='utf-8') as f:
+    body = json.load(f)
+
+if body.get('ok') is not True:
+    print('❌ OWNER body missing ok=true')
+    sys.exit(1)
+
+job = body.get('job')
+if not isinstance(job, dict):
+    print('❌ OWNER body missing job object')
+    sys.exit(1)
+
+if job.get('user_id') != owner_id:
+    print(f"❌ OWNER job.user_id mismatch: {job.get('user_id')!r} != {owner_id!r}")
+    sys.exit(1)
+
+status = job.get('status')
+if status not in {'queued', 'running', 'complete', 'failed'}:
+    print(f'❌ OWNER job.status non-canonical: {status!r}')
+    sys.exit(1)
+
+print('✅ OWNER body validated')
+PY
+
+if [[ "$OWNER_HTTP" != "200" ]]; then
+  echo "❌ Expected OWNER_HTTP=200" >&2
+  exit 1
+fi
+
+echo ""
+echo "5) Non-owner GET should return strict 404/no leak"
+OTHER_HTTP=$(curl -s -o /tmp/flow1-other.json -w "%{http_code}" \
+  -H "x-user-id: $OTHER_ID" \
+  "$BASE_URL/api/jobs/$JOB_ID" || true)
+
+echo "OTHER_HTTP=$OTHER_HTTP"
+cat /tmp/flow1-other.json
+
+python3 - <<'PY'
+import json, sys
+
+with open('/tmp/flow1-other.json', 'r', encoding='utf-8') as f:
+    body = json.load(f)
+
+if body.get('ok') is not False:
+    print('❌ OTHER body missing ok=false')
+    sys.exit(1)
+
+if body.get('error') != 'Job not found':
+    print(f"❌ OTHER body error mismatch: {body.get('error')!r}")
+    sys.exit(1)
+
+print('✅ OTHER body validated')
+PY
+
+if [[ "$OTHER_HTTP" != "404" ]]; then
+  echo "❌ Expected OTHER_HTTP=404" >&2
+  exit 1
+fi
+
+echo ""
+echo "========================================="
+echo "✅ FLOW 1 EVIDENCE: PASS"
+echo "========================================="
+echo "HEALTH_HTTP=$HEALTH_HTTP"
+echo "CREATE_HTTP=$CREATE_HTTP"
+echo "OWNER_HTTP=$OWNER_HTTP"
+echo "OTHER_HTTP=$OTHER_HTTP"
+echo "JOB_ID=$JOB_ID"
+echo "Ended: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo ""
+echo "Evidence archived: $LOG"

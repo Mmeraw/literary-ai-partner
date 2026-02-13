@@ -1,21 +1,22 @@
-# Flow 1: Canonical Evidence Artifact (PRE-LOCK)
+# Flow 1: Canonical Evidence Artifact
 
-**Generated:** 2026-02-12 (scaffold / placeholder)  
-**Status:** 🏗️ PRE-LOCK  
-**CI Run:** N/A (gate not yet promoted to push trigger)  
+**Generated:** 2026-02-13  
+**Status:** 🧪 EVIDENCE GATE SCAFFOLDED (PRE-LOCK)  
+**CI Run:** N/A (first GitHub Actions run pending)  
+**Local Deterministic Run:** ✅ PASS (2026-02-13T04:41:59Z)  
 
 **CI Lock Commit:** TBD  
 **Documentation Lock Commit:** TBD  
 
 ---
 
-## The Single Source of Truth (When Locked)
+## Current Source of Truth
 
-Once Flow 1 stabilizes, this document will contain the canonical proof that the "Upload → Evaluate → View Results" flow is production-ready and secure.
+This document now tracks real Flow 1 evidence artifacts while the phase remains PRE-LOCK. Lock anchors remain `TBD` until the first passing GitHub workflow runs are recorded.
 
-### Evidence Execution (Future)
+### Evidence Execution
 
-**Via CI (When Ready):**
+**Via CI:**
 ```bash
 # Trigger manual run
 gh workflow run phase1-evidence.yml
@@ -24,7 +25,7 @@ gh workflow run phase1-evidence.yml
 gh run list --workflow=phase1-evidence.yml --limit 1
 ```
 
-**Local verification (requires test fixtures + Supabase secrets):**
+**Local verification (deterministic):**
 ```bash
 bash scripts/evidence-flow1.sh
 ```
@@ -35,14 +36,12 @@ bash scripts/evidence-flow1.sh
 
 | Component | Proof Required | Status |
 |-----------|----------------|--------|
-| Author can upload | Submission created, status = `queued` | 🏗️ TODO |
-| Evaluation runs | Job status transitions `queued` → `running` → `complete` | 🏗️ TODO |
-| Results persist | Evaluation results written + readable | 🏗️ TODO |
-| Creator can view | Query returns results when queried as creator | 🏗️ TODO |
-| Non-creator cannot view | Query returns 403/empty when queried as different user | 🏗️ TODO |
-| State transitions valid | No illegal job state changes (e.g., `complete` → `running`) | 🏗️ TODO |
-| RLS enforced | Row-level security policy blocks unauthorized access | 🏗️ TODO |
-| **Total** | **All checks pass** | **🏗️ PLACEHOLDER** |
+| Job create envelope | `POST /api/jobs` returns `201` + `ok=true` + non-empty `job_id` + canonical status | ✅ PASS |
+| Creator can view | Owner `GET /api/jobs/:jobId` returns `200` + `job.user_id == owner` | ✅ PASS |
+| Non-creator cannot view | Non-owner `GET /api/jobs/:jobId` returns strict `404` + `{"ok":false,"error":"Job not found"}` | ✅ PASS |
+| Status vocabulary canonical | Returned `status` in `{queued,running,complete,failed}` only | ✅ PASS |
+| Full Upload→Evaluate→Results scope | End-to-end submission/results path assertions | 🏗️ TODO |
+| **Total (current gate scope)** | **Ownership prerequisite + canonical envelope checks** | **✅ PASS** |
 
 ---
 
@@ -61,36 +60,34 @@ bash scripts/evidence-flow1.sh
 - **Enforcement:** API rejects invalid transitions before database write
 - **Proof:** Job records show only valid state sequences
 
-### ✅ Evidence Gate (Workflow Pattern from Phase 2E)
+### ✅ Evidence Gate (Scaffolded)
 
-- **File:** `.github/workflows/phase1-evidence.yml` (to be created)
-- **Trigger:** `workflow_dispatch` (manual), later `push` to main
-- **Test Fixture:** Seeded author + sample submission
-- **Validation Script:** Python checks all items in "What Gets Locked" table
-- **Artifacts:** Evidence logs + dry-run results
+- **File:** `.github/workflows/phase1-evidence.yml`
+- **Script:** `scripts/evidence-flow1.sh`
+- **NPM hook:** `npm run evidence:flow1`
+- **Trigger:** `workflow_dispatch`, `pull_request`, `push` (path-scoped)
+- **Assertions:** deterministic create/owner/non-owner contract checks
+- **Artifacts:** `flow1-evidence-<sha>` with `flow1-evidence-ci.log`
 
 ---
 
-## Latest Evidence Output (Placeholder)
+## Latest Evidence Output
 
-**Run:** TBD  
-**Commit:** TBD  
-**Timestamp:** TBD
+**Run:** Local deterministic run (`npm run evidence:flow1`)  
+**Commit:** `c1dd02e0a83c59f6ac6c3c9abcd91b9c3b78e34f`  
+**Timestamp:** 2026-02-13T04:41:59Z
 
 ```
-=== Flow 1 Evidence Verification ===
-Timestamp: TBD
-Commit: TBD
-
-Testing end-to-end: Upload → Evaluate → View Results
-  [ ] Seed test author
-  [ ] Create submission
-  [ ] Trigger evaluation
-  [ ] Retrieve results as creator
-  [ ] Verify results inaccessible to non-creator
-  [ ] Check job state transitions
-
-Status: 🏗️ PLACEHOLDER (gate not yet deployed)
+=========================================
+FLOW 1 EVIDENCE
+=========================================
+HEALTH_HTTP=200
+CREATE_HTTP=201
+OWNER_HTTP=200
+OTHER_HTTP=404
+JOB_ID=5bc9910b-56cd-4303-a544-3e23f3edac24
+Status: ✅ PASS
+Evidence archived: /tmp/flow1-evidence-1770957718.log
 ```
 
 ---
@@ -106,10 +103,10 @@ Status: 🏗️ PLACEHOLDER (gate not yet deployed)
 
 ### Phase 2: Evidence Gate Scaffolding
 
-1. Create `phase1-evidence.yml` workflow (workflow_dispatch only)
-2. Implement Python validation script
-3. Test on branch (not main)
-4. Verify grip on state machine + RLS
+1. ✅ Create `phase1-evidence.yml` workflow
+2. ✅ Implement deterministic validation script (`scripts/evidence-flow1.sh`)
+3. ✅ Execute first deterministic local pass
+4. ⏳ Execute first GitHub Actions pass and archive artifact
 
 ### Phase 3: Lock Event
 
@@ -180,11 +177,10 @@ curl -X GET "$SUPABASE_URL/rest/v1/evaluation_results?author_id=eq.$TEST_USER_ID
 
 **This document is a scaffold for the evidence gate that will lock Flow 1.**
 
-Once the gate is stable and production-ready:
-1. Generate real evidence from CI runs
-2. Populate "Latest Evidence Output" with actual results
-3. Update "What Gets Locked" with checksums or verification data
-4. Assign CI Lock + Docs Lock commits to LOCK_ANCHORS_POLICY.md
-5. Remove this "PRE-LOCK PLACEHOLDER" section
+Before lock:
+1. Run `phase1-evidence.yml` in GitHub Actions and capture run metadata
+2. Achieve 3+ consecutive passing CI runs with stable assertions
+3. Assign CI Lock + Docs Lock commits in `LOCK_ANCHORS_POLICY.md`
+4. Promote this document from PRE-LOCK to LOCKED
 
 **No lock anchors assigned until evidence gate is proven reliable.**
