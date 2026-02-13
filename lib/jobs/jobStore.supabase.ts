@@ -8,6 +8,9 @@ import {
 } from "./canon";
 import { Job, JobStatus, JobType, PHASES, Phase, JOB_STATUS, JobProgress } from "./types";
 
+const JOB_SELECT_FIELDS =
+  "id, manuscript_id, job_type, status, progress, created_at, updated_at, last_heartbeat, manuscripts(user_id)";
+
 // Lazy-initialized Supabase client - null-safe for CI/build environments
 let _supabase: ReturnType<typeof createAdminClient> | undefined;
 
@@ -91,6 +94,7 @@ function validateProgressWrite(progress: Record<string, unknown>): void {
 
 export async function createJob(input: {
   manuscript_id: string;
+  user_id: string;
   job_type: JobType;
 }): Promise<Job> {
   const now = new Date().toISOString();
@@ -149,7 +153,7 @@ export async function createJob(input: {
   const { data, error } = await supabase
     .from("evaluation_jobs")
     .insert(payload)
-    .select()
+    .select(JOB_SELECT_FIELDS)
     .single();
 
   if (error) {
@@ -168,7 +172,7 @@ export async function createJob(input: {
 export async function getJob(id: string): Promise<Job | null> {
   const { data, error } = await supabase
     .from("evaluation_jobs")
-    .select("id, manuscript_id, job_type, status, progress, created_at, updated_at")
+    .select(JOB_SELECT_FIELDS)
     .eq("id", id)
     .maybeSingle();
 
@@ -219,7 +223,7 @@ export async function getJob(id: string): Promise<Job | null> {
 export async function getAllJobs(): Promise<Job[]> {
   const { data, error } = await supabase
     .from("evaluation_jobs")
-    .select("id, manuscript_id, job_type, status, progress, created_at, updated_at")
+    .select(JOB_SELECT_FIELDS)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -264,7 +268,7 @@ export async function updateJob(
     .from("evaluation_jobs")
     .update(payload)
     .eq("id", id)
-    .select("id, manuscript_id, job_type, status, progress, created_at, updated_at")
+    .select(JOB_SELECT_FIELDS)
     .single();
 
   if (error) {
@@ -338,7 +342,7 @@ export async function acquireLeaseForPhase1(
     .eq("id", id)
     .eq("status", "queued")
     .eq("updated_at", existing.updated_at)
-    .select("id, manuscript_id, job_type, status, progress, created_at, updated_at")
+    .select(JOB_SELECT_FIELDS)
     .maybeSingle();
 
   if (error) {
@@ -440,7 +444,7 @@ export async function acquireLeaseForPhase2(
         "and(progress->>phase.eq.phase_2,progress->>phase_status.eq.running)",
       ].join(","),
     )
-    .select("id, manuscript_id, job_type, status, progress, created_at, updated_at")
+    .select(JOB_SELECT_FIELDS)
     .maybeSingle();
 
   if (error) {
@@ -472,7 +476,7 @@ export async function incrementCounter(
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
-    .select("id, manuscript_id, job_type, status, progress, created_at, updated_at")
+    .select(JOB_SELECT_FIELDS)
     .single();
 
   if (error) {
@@ -587,8 +591,21 @@ function mapDbRowToJob(row: any): Job {
     ...migratedProgress, // Preserve any additional fields from DB
   };
   
+  const ownerUserId =
+    row?.manuscripts?.user_id ??
+    (Array.isArray(row?.manuscripts) ? row.manuscripts[0]?.user_id : null) ??
+    row?.user_id ??
+    null;
+
+  if (typeof ownerUserId !== "string" || ownerUserId.length === 0) {
+    throw new Error(
+      `[JOB-STORE-SUPABASE] Missing ownership user_id for job ${row?.id ?? "(unknown)"}`,
+    );
+  }
+
   return {
     id: row.id,
+    user_id: ownerUserId,
     manuscript_id: Number(row.manuscript_id), // BigInt from DB → number
     job_type: JOB_TYPE_FROM_DB[row.job_type] ?? row.job_type,
     status: row.status,
