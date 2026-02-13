@@ -6,6 +6,7 @@ on:
     paths:
       - 'PHASE2E_STATUS.md'
       - 'PHASE2E_CANONICAL_EVIDENCE.md'
+      - 'LOCK_ANCHORS_POLICY.md'
       - '.github/workflows/phase2e-anchor-guard.yml'
 
 permissions:
@@ -20,31 +21,70 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Verify CI Lock unchanged in status doc
+      - name: Verify anchors in PHASE2E_STATUS.md
+        shell: bash
         run: |
-          if ! grep -q "CI Lock Commit.*811fe59" PHASE2E_STATUS.md; then
-            echo "❌ ERROR: Phase 2E CI Lock anchor changed from 811fe59 in PHASE2E_STATUS.md"
+          set -euo pipefail
+          export LC_ALL=C
+
+          file="PHASE2E_STATUS.md"
+
+          # Require the CI lock label + commit to coexist on a line (order-insensitive)
+          if ! grep -Eq 'CI Lock Commit.*811fe59|811fe59.*CI Lock Commit' "$file"; then
+            echo "❌ ERROR: Expected CI Lock Commit 811fe59 in $file"
             exit 1
           fi
 
-      - name: Verify Documentation Lock unchanged in status doc
-        run: |
-          if ! grep -q "Documentation Lock Commit.*e7812b6" PHASE2E_STATUS.md; then
-            echo "❌ ERROR: Phase 2E Documentation Lock anchor changed from e7812b6 in PHASE2E_STATUS.md"
+          # Require the docs lock label + commit to coexist on a line (order-insensitive)
+          if ! grep -Eq 'Documentation Lock Commit.*e7812b6|e7812b6.*Documentation Lock Commit' "$file"; then
+            echo "❌ ERROR: Expected Documentation Lock Commit e7812b6 in $file"
             exit 1
           fi
 
-      - name: Verify CI Lock unchanged in canonical evidence
+      - name: Verify anchors in PHASE2E_CANONICAL_EVIDENCE.md
+        shell: bash
         run: |
-          if ! grep -q "CI Lock Commit.*811fe59" PHASE2E_CANONICAL_EVIDENCE.md; then
-            echo "❌ ERROR: Canonical evidence CI anchor changed from 811fe59"
+          set -euo pipefail
+          export LC_ALL=C
+
+          file="PHASE2E_CANONICAL_EVIDENCE.md"
+
+          if ! grep -Eq 'CI Lock Commit.*811fe59|811fe59.*CI Lock Commit' "$file"; then
+            echo "❌ ERROR: Expected CI Lock Commit 811fe59 in $file"
             exit 1
           fi
 
-      - name: Verify Documentation Lock unchanged in canonical evidence
+          if ! grep -Eq 'Documentation Lock Commit.*e7812b6|e7812b6.*Documentation Lock Commit' "$file"; then
+            echo "❌ ERROR: Expected Documentation Lock Commit e7812b6 in $file"
+            exit 1
+          fi
+
+      - name: Verify anchors in LOCK_ANCHORS_POLICY.md registry section
+        shell: bash
         run: |
-          if ! grep -q "Documentation Lock Commit.*e7812b6" PHASE2E_CANONICAL_EVIDENCE.md; then
-            echo "❌ ERROR: Canonical evidence documentation anchor changed from e7812b6"
+          set -euo pipefail
+          export LC_ALL=C
+
+          file="LOCK_ANCHORS_POLICY.md"
+
+          section=$(awk '
+            /^### Phase 2E — Canonical user_id RLS migrations$/ {in_section=1; next}
+            /^### / && in_section {exit}
+            in_section {print}
+          ' "$file")
+
+          if [[ -z "$section" ]]; then
+            echo "❌ ERROR: Could not locate Phase 2E registry section in $file"
+            exit 1
+          fi
+
+          if ! grep -Eq '811fe59' <<< "$section"; then
+            echo "❌ ERROR: Expected CI lock anchor 811fe59 in Phase 2E registry section of $file"
+            exit 1
+          fi
+
+          if ! grep -Eq 'e7812b6' <<< "$section"; then
+            echo "❌ ERROR: Expected documentation lock anchor e7812b6 in Phase 2E registry section of $file"
             exit 1
           fi
 
