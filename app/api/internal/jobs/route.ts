@@ -87,6 +87,10 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { manuscript_id, job_type } = body;
+    const user_id =
+      body?.user_id ??
+      req.headers.get("x-user-id") ??
+      "00000000-0000-0000-0000-000000000001";
 
     if (!manuscript_id || !job_type) {
       return NextResponse.json(
@@ -96,7 +100,7 @@ export async function POST(req: Request) {
     }
 
     // Create job directly (bypass rate limiting and auth checks)
-    const job = await createJob({ manuscript_id, job_type });
+    const job = await createJob({ manuscript_id, job_type, user_id });
 
     // Emit metrics
     metrics.onJobCreated(job.id, job_type);
@@ -108,6 +112,7 @@ export async function POST(req: Request) {
           id: job.id,
           status: job.status,
           manuscript_id: job.manuscript_id,
+          user_id: job.user_id,
           job_type: job.job_type,
           created_at: job.created_at
         }
