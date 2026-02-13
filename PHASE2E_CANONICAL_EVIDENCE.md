@@ -53,11 +53,11 @@ bash scripts/evidence-phase2e.sh
 - **File:** [.github/workflows/phase2e-evidence.yml](.github/workflows/phase2e-evidence.yml)
 - **Fail-Closed:** Exits non-zero on any check failure
 - **Python Validation:** Dedicated script validates JSON response structure
-- **Error Handling:** Proper `set +e`/`set -e` pattern, exit code capture
+- **Credential Consistency:** Uses `SUPABASE_SERVICE_ROLE_KEY` for both `Authorization` and `apikey` headers
 - **Artifacts:** Uploads evidence logs with 90-day retention
 
 ### ✅ Verification Logic
-The Python validation script ([created dynamically in workflow](.github/workflows/phase2e-evidence.yml#L54-L98)) checks:
+The Python validation script (created dynamically in the workflow) checks:
 
 1. **HTTP 200 response** from RPC endpoint
 2. **JSON structure** is valid
@@ -71,36 +71,31 @@ Exits with code 1 if ANY check fails.
 
 ## Latest Evidence Output
 
-**Run:** [#21960401805](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21960401805)  
-**Commit:** `811fe5969c5f6715f4aa86f3693ce1a3842a2450`  
-**Timestamp:** 2026-02-12T19:05:23Z
+**Run:** [#21969699718](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21969699718) (manual dispatch, 2026-02-13)  
+**Commit:** `49a395797b0c60181b58d78fd57f6fbf6e8762c0`  
+**Timestamp:** 2026-02-13T00:25:47Z
 
 ```
 === Phase 2E Evidence Verification ===
-Timestamp: 2026-02-12T19:05:23Z
-Commit: 811fe5969c5f6715f4aa86f3693ce1a3842a2450
+Timestamp: 2026-02-13T00:25:47Z
+Commit: 49a395797b0c60181b58d78fd57f6fbf6e8762c0
 
-Calling RPC: ***/rest/v1/rpc/verify_phase2e_rls_policies
+Calling RPC: https://xtumxjnzdswuumndcbwc.supabase.co/rest/v1/rpc/verify_phase2e_rls_policies
   HTTP Status: 200
 
   ✓ manuscripts OK
   ✓ manuscript_chunks OK
-
-=== Phase 2E Verification Summary ===
-Checks passed: 1
-Checks failed: 0
-
-✅ Phase 2E Evidence: LOCKED
 ```
+
+**Integrity Hash (provided):**
+`sha256:4c979f9ab1cf7cd4fe58bef91b8130d47cf5ccc7b05c5222c7d2ffc678c11d7a`
 
 **Validated:**
 - ✅ `manuscripts` table: RLS enabled + 9 policies present
 - ✅ `manuscript_chunks` table: RLS enabled + 2 policies present
 
-**Note:** "Checks passed: 1" = one RPC function call that validates **both** `manuscripts` and `manuscript_chunks` tables. Each table's RLS status and policies are verified within this single check.
-
 **Download Full Log:**
-- [CI Artifact (90-day retention)](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21960401805/artifacts/5488261620)
+- [CI Run Artifacts (90-day retention)](https://github.com/Mmeraw/literary-ai-partner/actions/runs/21969699718)
 - [Local Log Mirror](20260212_phase2e_evidence_output.txt)
 
 ---
@@ -116,8 +111,7 @@ Checks failed: 0
 
 **Key Technical Wins:**
 - Avoided YAML/heredoc/bash compatibility nightmares by writing Python script to file first
-- Used `set +e` before risky operations (curl, Python), captured exit codes immediately
-- Added `|| true` after function calls to prevent premature exit with `set -eo pipefail`
+- Standardized privileged RPC auth to service-role key for both required headers (`Authorization`, `apikey`)
 - Made validation logic readable and testable
 
 ---
@@ -125,7 +119,7 @@ Checks failed: 0
 ## Governance Compliance
 
 - ✅ **Canonical Identifier:** `user_id` field enforced across all RLS policies
-- ✅ **Evidence Gate:** CI workflow verifies on every push to main
+- ✅ **Evidence Gate:** CI workflow verifies on `workflow_dispatch` and PR changes in configured Phase 2E paths
 - ✅ **Fail-Closed:** Workflow exits non-zero if verification fails
 - ✅ **Auditability:** Evidence logs archived as CI artifacts
 - ✅ **Reproducible:** RPC function provides stable contract for verification
@@ -141,12 +135,11 @@ If policies are accidentally dropped or disabled, CI will catch it on next push 
 # 1. Set environment variables (from GitHub Secrets or .env)
 export SUPABASE_URL="https://xtumxjnzdswuumndcbwc.supabase.co"
 export SUPABASE_SERVICE_ROLE_KEY="<your-key>"
-export SUPABASE_ANON_KEY="<your-key>"
 
 # 2. Call the RPC
 curl -X POST "$SUPABASE_URL/rest/v1/rpc/verify_phase2e_rls_policies" \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Content-Type: application/json" \
   -d '{}'
 
