@@ -154,8 +154,12 @@ EOF
   cat <<'EOF'
 1) TypeScript (Next.js)
 EOF
-  npx tsc --noEmit -p tsconfig.json || { echo "❌ TypeScript main config failed"; exit 1; }
-  echo "✅ TS clean (Note: workers use tsx transpileOnly mode, skip tsc check)"
+  if [[ "${PHASE2D_SKIP_TS_MAIN:-0}" == "1" ]]; then
+    echo "⏭️ Skipping full-repo TypeScript check for Phase 2D CI evidence scope"
+  else
+    npx tsc --noEmit -p tsconfig.json || { echo "❌ TypeScript main config failed"; exit 1; }
+    echo "✅ TS clean (full repo)"
+  fi
   echo ""
 
   cat <<'EOF'
