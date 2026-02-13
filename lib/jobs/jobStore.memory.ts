@@ -53,13 +53,14 @@ function getStore(): Map<string, Job> {
   return _store;
 }
 
-export function createJob(input: { manuscript_id: string; job_type: JobType }): Job {
+export function createJob(input: { manuscript_id: string; job_type: JobType; user_id: string }): Job {
   const store = getStore();
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
 
   const job: Job = {
     id,
+    user_id: input.user_id,
     manuscript_id: input.manuscript_id, // Keep as-is for test compatibility (string or number)
     job_type: input.job_type,
     status: "queued",

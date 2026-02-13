@@ -138,6 +138,7 @@ export async function POST(req: Request) {
 
     const job = await createJob({
       manuscript_id,
+      user_id: userId,
       job_type: validatedJobType,
     });
 

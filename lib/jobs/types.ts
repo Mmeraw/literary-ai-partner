@@ -89,6 +89,7 @@ export type JobProgress = {
 
 export type JobRecord = {
   id: string; // uuid
+  user_id: string; // ownership: x-user-id from request header
   manuscript_id: number | string; // bigint-as-number in DB, string in tests
   job_type: JobType; // validated at API boundary
   status: JobStatus;
