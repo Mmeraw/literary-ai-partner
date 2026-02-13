@@ -69,6 +69,15 @@ EOF
   echo "  npm version: $(npm --version)"
   echo ""
 
+  cat <<EOF
+Scope:
+  CI evidence target: Phase 2D slices only (atomic claim, idempotency, reconciler)
+  PHASE2D_SKIP_TS_MAIN=${PHASE2D_SKIP_TS_MAIN:-0}
+  Full-repo TypeScript correctness is NOT asserted when PHASE2D_SKIP_TS_MAIN=1
+  Local strict run (full-repo TS): PHASE2D_SKIP_TS_MAIN=0 npm run evidence:phase2d
+EOF
+  echo ""
+
   cat <<'EOF'
 0) Supabase env preflight
 EOF
