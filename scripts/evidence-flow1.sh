@@ -38,6 +38,7 @@ OWNER_ID="${FLOW1_OWNER_ID:-00000000-0000-0000-0000-000000000001}"
 OTHER_ID="${FLOW1_OTHER_ID:-00000000-0000-0000-0000-000000000099}"
 BASE_URL="${FLOW1_BASE_URL:-http://127.0.0.1:3002}"
 START_SERVER="${FLOW1_START_SERVER:-1}"
+SERVER_MODE="${FLOW1_SERVER_MODE:-dev}"
 SERVER_LOG="/tmp/flow1-next-dev-$(date +%s).log"
 
 NEXT_PID=""
@@ -64,6 +65,7 @@ echo "Started: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "Repo: $REPO_ROOT"
 echo "Commit: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
 echo "BASE_URL: $BASE_URL"
+echo "SERVER_MODE: $SERVER_MODE"
 echo ""
 
 echo "0) Environment preflight"
@@ -120,8 +122,14 @@ if [[ "$HEALTH_HTTP" != "200" ]]; then
     exit 1
   fi
 
-  echo "Health check not ready; starting Next dev server..."
-  npm run dev > "$SERVER_LOG" 2>&1 &
+  if [[ "$SERVER_MODE" == "prod" ]]; then
+    echo "Health check not ready; building + starting Next production server..."
+    npm run build > "$SERVER_LOG" 2>&1
+    PORT=3002 npm run start >> "$SERVER_LOG" 2>&1 &
+  else
+    echo "Health check not ready; starting Next dev server..."
+    npm run dev > "$SERVER_LOG" 2>&1 &
+  fi
   NEXT_PID=$!
 
   READY=0

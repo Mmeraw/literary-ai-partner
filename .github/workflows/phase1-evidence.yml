@@ -65,6 +65,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           FLOW1_BASE_URL: http://127.0.0.1:3002
+          FLOW1_SERVER_MODE: prod
+          NEXT_TELEMETRY_DISABLED: '1'
         run: |
           set +e
           npm run evidence:flow1 > /tmp/flow1_evidence_output.log 2>&1
