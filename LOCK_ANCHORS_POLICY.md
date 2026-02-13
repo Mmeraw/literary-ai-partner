@@ -72,12 +72,12 @@ This is the single source of truth for locked phase anchors. **DO NOT MODIFY** t
 
 ### Flow 1 — Upload → Evaluate → View Results
 
-**STATUS: 🧪 PRE-LOCK — Evidence gate scaffolded; 3 consecutive CI passes captured**
+**STATUS: 🔒 LOCK-READY — Anchors assigned, broader production smoke scope pending**
 
-- **CI Lock Anchor:** TBD (first passing GitHub Actions run for `phase1-evidence.yml`)
-- **Documentation Lock Anchor:** TBD (after CI evidence transcript + lock declaration)
-- **Current evidence:** Local deterministic pass + 3 consecutive CI passes (`21975392316`, `21975452256`, `21975531680`)
-- **Next step:** Run `phase1-evidence.yml` in GitHub Actions 3+ consecutive times, then assign anchors
+- **CI Lock Anchor:** `d27c2b1` (first passing deterministic CI evidence run)
+- **Documentation Lock Anchor:** `a80f59a` (records 3+ consecutive CI evidence passes)
+- **Current evidence:** Local deterministic pass + 4 consecutive CI passes (`21975392316`, `21975452256`, `21975531680`, `21975582599`)
+- **Next step:** Complete remaining full Upload→Evaluate→View Results smoke scope, then promote to full LOCKED status
 
 - **Requirements before CI/Docs locks:**
   - ✅ Phase 2E RLS gate verified working (run #21964849414, 2026-02-12T21:25:20Z)
@@ -86,6 +86,7 @@ This is the single source of truth for locked phase anchors. **DO NOT MODIFY** t
   - ✅ Local deterministic ownership proof passing (2026-02-13)
   - ✅ Evidence gate (`phase1-evidence.yml`) first CI pass captured (`21975392316`)
   - ✅ Evidence gate passes 3+ consecutive CI runs with same codebase (`21975392316`, `21975452256`, `21975531680`)
+  - ✅ Flow 1 lock anchors assigned (`d27c2b1`, `a80f59a`)
 
 **Process:** Once smoke tests pass, immediately build phase1-evidence.yml CI automation, run gate 3 times, capture evidence, lock both anchors, promote to push trigger.
 

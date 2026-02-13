@@ -1,10 +1,10 @@
-# Flow 1 — Upload → Evaluate → View Results 🧪 EVIDENCE GATE SCAFFOLDED
+# Flow 1 — Upload → Evaluate → View Results 🔒 LOCK-READY
 
-**Status:** 🧪 PRE-LOCK (ownership prerequisite closed; evidence gate active)  
+**Status:** 🔒 LOCK-READY (anchors assigned; not fully LOCKED pending broader production smoke scope)  
 **Target Lock:** Phase E1 (after production smoke + evidence gate passes reliably)  
 
-**CI Lock Commit:** TBD (workflow_dispatch gate implementation)  
-**Documentation Lock Commit:** TBD (after evidence gate green in production)  
+**CI Lock Commit:** `d27c2b1` — first passing deterministic CI evidence run with canonical assertions  
+**Documentation Lock Commit:** `a80f59a` — records 3+ consecutive CI evidence passes  
 **Governance:** [phase1-evidence.yml](.github/workflows/phase1-evidence.yml) + [scripts/evidence-flow1.sh](scripts/evidence-flow1.sh)  
 **Current CI Runs:** ✅ Three consecutive passes captured (`21975392316`, `21975452256`, `21975531680`)  
 **Latest Local Deterministic Run:** ✅ PASS (2026-02-13T04:41:59Z)  
@@ -109,7 +109,7 @@ Canonical job statuses: `queued`, `running`, `complete`, `failed`
 - 🏗️ Production smoke tests (manual verification)
 - ✅ Ownership visibility verification complete for jobs endpoint (owner 200 / non-owner 404)
 - 🏗️ State machine hardening (catch illegal transitions)
-- ✅ Evidence gate scaffold implemented and CI passing (1 successful run)
+- ✅ Evidence gate scaffold implemented and CI repeatability proven
 
 ### Future (Lock Event)
 
@@ -139,7 +139,7 @@ Flow 1 is ready to lock when:
 2. ✅ CI evidence gate (`phase1-evidence.yml`) shows 3 consecutive passing runs on main
 3. ✅ Evidence gate passes 3+ consecutive CI runs
 4. ✅ FLOW1_CANONICAL_EVIDENCE.md populated with first deterministic run data
-5. ⏳ Ready to add CI Lock + Docs Lock commits to registry
+5. ✅ CI Lock + Docs Lock commits assigned in registry
 
 ```bash
 # At lock time:
@@ -150,11 +150,11 @@ git log --oneline | grep "docs(flow1).*declare"  # Docs Lock commit
 
 ---
 
-## ⚠️ PRE-LOCK STATUS
+## ⚠️ LOCK-READY (NOT FULLY LOCKED)
 
-**Flow 1 remains PRE-LOCK until:**
+**Flow 1 remains not-fully-locked until:**
 - Production smoke tests consistently pass
 - `phase1-evidence.yml` runs reliably (workflow_dispatch)
 - Evidence shows "Upload → Evaluate → View Results" end-to-end working
 
-**No lock anchors assigned yet. Do not add commit hashes to this file.**
+**Anchors are now assigned and immutable unless a new phase is declared.**

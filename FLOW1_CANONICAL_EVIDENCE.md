@@ -1,18 +1,18 @@
 # Flow 1: Canonical Evidence Artifact
 
 **Generated:** 2026-02-13  
-**Status:** 🧪 EVIDENCE GATE SCAFFOLDED (PRE-LOCK)  
+**Status:** 🔒 LOCK-READY (anchors assigned; not fully LOCKED)  
 **CI Run:** ✅ 3 consecutive PASS runs captured (2026-02-13)  
 **Local Deterministic Run:** ✅ PASS (2026-02-13T04:41:59Z)  
 
-**CI Lock Commit:** TBD  
-**Documentation Lock Commit:** TBD  
+**CI Lock Commit:** `d27c2b1`  
+**Documentation Lock Commit:** `a80f59a`  
 
 ---
 
 ## Current Source of Truth
 
-This document now tracks real Flow 1 evidence artifacts while the phase remains PRE-LOCK. Lock anchors remain `TBD` until the first passing GitHub workflow runs are recorded.
+This document tracks the lock-ready evidence set for Flow 1. Anchors are assigned and should remain immutable unless a new phase is declared.
 
 ### Evidence Execution
 
@@ -199,7 +199,7 @@ curl -X GET "$SUPABASE_URL/rest/v1/evaluation_results?author_id=eq.$TEST_USER_ID
 Before lock:
 1. ✅ Run `phase1-evidence.yml` in GitHub Actions and capture first run metadata
 2. ✅ Achieve 3+ consecutive passing CI runs with stable assertions
-3. Assign CI Lock + Docs Lock commits in `LOCK_ANCHORS_POLICY.md`
+3. ✅ Assign CI Lock + Docs Lock commits in `LOCK_ANCHORS_POLICY.md`
 4. Promote this document from PRE-LOCK to LOCKED
 
-**No lock anchors assigned until evidence gate is proven reliable.**
+**Lock-ready milestone achieved; final LOCK promotion awaits remaining broader smoke scope.**
