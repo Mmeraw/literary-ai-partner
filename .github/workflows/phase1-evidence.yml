@@ -52,24 +52,17 @@ jobs:
       - name: Verify required secrets are present (no values printed)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -e
           echo "Secret presence check:"
           [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] && echo "  ✓ SUPABASE_SERVICE_ROLE_KEY present" || (echo "  ✗ SUPABASE_SERVICE_ROLE_KEY MISSING" && exit 1)
-          if [ -n "$SUPABASE_URL" ] || [ -n "$NEXT_PUBLIC_SUPABASE_URL" ]; then
-            echo "  ✓ SUPABASE URL present"
-          else
-            echo "  ✗ SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL MISSING"
-            exit 1
-          fi
+          [ -n "$SUPABASE_URL" ] && echo "  ✓ SUPABASE_URL present" || (echo "  ✗ SUPABASE_URL MISSING" && exit 1)
 
       - name: Run Flow 1 deterministic evidence
         id: evidence
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           FLOW1_BASE_URL: http://127.0.0.1:3002
         run: |

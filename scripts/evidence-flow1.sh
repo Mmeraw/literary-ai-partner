@@ -161,29 +161,61 @@ if (!url || !key) {
 const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
 (async () => {
-  const payload = {
-    title: 'Flow1 Evidence Seed Manuscript',
-    created_by: owner,
-    user_id: owner,
-    tone_context: 'neutral',
-    mood_context: 'calm',
-    voice_mode: 'balanced',
-    word_count: 1000,
-    source: 'dashboard',
-    english_variant: 'us',
-    is_final: false,
-    storygate_linked: false,
-    allow_industry_discovery: false,
-  };
+  const payloads = [
+    {
+      title: 'Flow1 Evidence Seed Manuscript',
+      created_by: owner,
+      user_id: owner,
+      tone_context: 'neutral',
+      mood_context: 'calm',
+      voice_mode: 'balanced',
+      word_count: 1000,
+      source: 'dashboard',
+      english_variant: 'us',
+      is_final: false,
+      storygate_linked: false,
+      allow_industry_discovery: false,
+    },
+    {
+      title: 'Flow1 Evidence Seed Manuscript',
+      created_by: owner,
+      user_id: owner,
+      word_count: 1000,
+      work_type: 'novel',
+    },
+    {
+      title: 'Flow1 Evidence Seed Manuscript',
+      user_id: owner,
+      word_count: 1000,
+      work_type: 'novel',
+    },
+  ];
 
-  const { data, error } = await client
-    .from('manuscripts')
-    .insert(payload)
-    .select('id,user_id')
-    .single();
+  let data = null;
+  let lastError = null;
 
-  if (error) {
-    console.error('INSERT_ERROR ' + error.message);
+  for (const payload of payloads) {
+    const result = await client
+      .from('manuscripts')
+      .insert(payload)
+      .select('id,user_id')
+      .single();
+
+    if (!result.error && result.data?.id) {
+      data = result.data;
+      break;
+    }
+
+    lastError = result.error;
+  }
+
+  if (!data) {
+    console.error('INSERT_ERROR ' + (lastError?.message || 'unknown error'));
+    process.exit(1);
+  }
+
+  if (!data.user_id) {
+    console.error('INSERT_ERROR manuscripts.user_id missing; Flow1 ownership proof requires user_id-backed manuscript ownership');
     process.exit(1);
   }
 
