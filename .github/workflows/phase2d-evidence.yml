@@ -121,7 +121,7 @@ jobs:
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Scope Contract:** This gate is Phase 2D evidence-slice scoped and does not assert full-repo TypeScript correctness when PHASE2D_SKIP_TS_MAIN=1." >> $GITHUB_STEP_SUMMARY
-          echo "**Effective Scope Flag:** \`PHASE2D_SKIP_TS_MAIN=1\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Effective Scope Flag:** PHASE2D_SKIP_TS_MAIN=1" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Component | Result |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
@@ -139,6 +139,6 @@ jobs:
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Scope Contract:** Phase 2D evidence-slice scoped; full-repo TypeScript correctness is out of scope in CI when PHASE2D_SKIP_TS_MAIN=1." >> $GITHUB_STEP_SUMMARY
-          echo "**Effective Scope Flag:** \`PHASE2D_SKIP_TS_MAIN=1\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Effective Scope Flag:** PHASE2D_SKIP_TS_MAIN=1" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Check the logs above for details on which step failed." >> $GITHUB_STEP_SUMMARY
