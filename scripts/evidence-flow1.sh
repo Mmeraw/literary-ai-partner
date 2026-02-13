@@ -123,6 +123,7 @@ if [[ "$HEALTH_HTTP" != "200" ]]; then
   fi
 
   if [[ "$SERVER_MODE" == "prod" ]]; then
+    # CI uses prod mode to avoid dev→prod guardrails blocking startup.
     echo "Health check not ready; building + starting Next production server..."
     if ! npm run build > "$SERVER_LOG" 2>&1; then
       echo "❌ Production build failed during evidence startup"
