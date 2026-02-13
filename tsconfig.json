@@ -32,6 +32,7 @@
     "**/*.deno.test.ts",
     "tests/approveAgentVerification.test.ts",
     "*_agent_verification*.test.ts",
+    "__tests__/phase_d/**",
     "*_industry_*.test.ts",
     "evaluate_quick_submission_scope_*.test.ts",
     "integrity_gate_*.test.ts",

@@ -1,0 +1,16 @@
+# Build outputs
+.next/
+dist-workers/
+node_modules/
+
+# Supabase functions
+supabase/functions/
+functions/
+
+# Archives and exports
+archive/
+base44-export/
+
+# Scripts (complex parsing)
+scripts/
+dist-workers/

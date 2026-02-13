@@ -17,6 +17,8 @@ export default [
     ignores: [
       ".next/**",
       "node_modules/**",
+      "dist-workers/**",
+      "scripts/**",
 
       "supabase/functions/**",
       "supabase/**/functions/**",

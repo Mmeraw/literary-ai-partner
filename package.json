@@ -2,11 +2,13 @@
   "name": "revisiongrade",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev -p 3002",
     "build": "npm run spine:verify && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "canon:guard": "bash ./scripts/canon-guard.sh",
     "spine:verify": "bash scripts/verify-spine.sh",
     "config:validate": "node scripts/validate-production-config.mjs",
@@ -107,11 +109,13 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.2",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.13.5",
     "@types/pg": "^8.16.0",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
+    "@types/testing-library__react": "^10.0.1",
     "@typescript-eslint/eslint-plugin": "^8.53.0",
     "@typescript-eslint/parser": "^8.53.0",
     "autoprefixer": "^10.4.20",

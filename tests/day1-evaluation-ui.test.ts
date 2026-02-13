@@ -26,6 +26,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: manuscriptId,
         job_type: jobType,
+        user_id: "test-user",
       });
 
       expect(job).toBeDefined();
@@ -40,6 +41,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job1 = await createJob({
         manuscript_id: "ms_1",
         job_type: "evaluate_full",
+        user_id: "test-user",
       });
 
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -47,6 +49,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job2 = await createJob({
         manuscript_id: "ms_2",
         job_type: "evaluate_full",
+        user_id: "test-user",
       });
 
       const jobs = await getAllJobs();
@@ -67,6 +70,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_display",
         job_type: "evaluate_full",
+        user_id: "test-user",
       });
 
       const displayInfo = getJobDisplayInfo(job);
@@ -83,6 +87,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_complete",
         job_type: "evaluate_full",
+        user_id: "test-user",
       });
 
       // Simulate job completion (would normally happen via worker)
@@ -128,6 +133,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_queued",
         job_type: "evaluate_full",
+              user_id: "test-user",
       });
 
       const displayInfo = getJobDisplayInfo(job);
@@ -184,6 +190,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_queued_trust",
         job_type: "evaluate_full",
+              user_id: "test-user",
       });
 
       expect(job.status).toBe("queued");
@@ -199,6 +206,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_running_trust",
         job_type: "evaluate_full",
+              user_id: "test-user",
       });
 
       // Simulate running state with progress
@@ -288,6 +296,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_completion",
         job_type: "evaluate_full",
+        user_id: "test-user",
       });
 
       // Simulate completed job
@@ -315,6 +324,7 @@ describe("Day-1 Evaluation UI Flow", () => {
     it("should show completion banner for completed jobs", async () => {
       const job = await createJob({
         manuscript_id: "test_banner",
+              user_id: "test-user",
         job_type: "evaluate_full",
       });
 
@@ -335,11 +345,13 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job1 = await createJob({
         manuscript_id: "test_terminal_1",
         job_type: "evaluate_full",
+        user_id: "test-user",
       });
 
       const job2 = await createJob({
         manuscript_id: "test_terminal_2",
         job_type: "evaluate_full",
+        user_id: "test-user",
       });
 
       // Simulate both jobs being terminal
@@ -358,6 +370,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_failed",
         job_type: "evaluate_full",
+        user_id: "test-user",
       });
 
       const failedJob = {
@@ -383,6 +396,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_report_route",
         job_type: "evaluate_full",
+        user_id: "test-user",
       });
 
       // Track D: The route /evaluate/[jobId] should be accessible
@@ -397,6 +411,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_not_ready",
         job_type: "evaluate_full",
+        user_id: "test-user",
       });
 
       // Track D: If status !== "complete", report page should show:
@@ -410,6 +425,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_completed_report",
         job_type: "evaluate_full",
+        user_id: "test-user",
       });
 
       const completedJob = {
@@ -428,6 +444,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_cta_navigation",
         job_type: "evaluate_full",
+        user_id: "test-user",
       });
 
       const completedJob = {
@@ -459,6 +476,7 @@ describe("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_e2e",
         job_type: "evaluate_full",
+        user_id: "test-user",
       });
       
       // 2. Job completes → status = "complete" ✓
