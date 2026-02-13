@@ -1,93 +1,76 @@
+// app/api/jobs/[jobId]/artifacts/route.ts
+// User-facing artifact endpoint with authentication
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
-/**
- * Debug endpoint: Read Phase 2 artifacts
- * GET /api/jobs/:id/artifacts?type=one_page_summary
- * 
- * Returns 404 if missing, 200 with payload if present.
- * Service role protected.
- */
+type Params = { params: Promise<{ jobId: string }> };
 
-function checkServiceRole(req: Request): boolean {
-  if (process.env.NODE_ENV === "production") {
-    return false;
-  }
-  
-  const authHeader = req.headers.get("authorization");
-  const expectedKey = `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`;
-  
-  return authHeader === expectedKey;
-}
-
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ jobId: string }> }
-) {
-  if (!checkServiceRole(req)) {
-    return NextResponse.json(
-      { ok: false, error: "Service role authentication required" },
-      { status: 401 }
-    );
-  }
-
+export async function GET(_: Request, { params }: Params) {
   const { jobId } = await params;
-  const url = new URL(req.url);
-  const artifactType = url.searchParams.get("type") || "one_page_summary";
 
-  try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    const { data, error } = await supabase
-      .from("evaluation_artifacts")
-      .select("*")
-      .eq("job_id", jobId)
-      .eq("artifact_type", artifactType)
-      .maybeSingle();
-
-    if (error) {
-      console.error("GET /api/jobs/[id]/artifacts error:", error);
-      return NextResponse.json(
-        { ok: false, error: error.message },
-        { status: 500 }
-      );
-    }
-
-    if (!data) {
-      return NextResponse.json(
-        { ok: false, error: "Artifact not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ok: true,
-        artifact: {
-          id: data.id,
-          job_id: data.job_id,
-          manuscript_id: data.manuscript_id,
-          artifact_type: data.artifact_type,
-          artifact_version: data.artifact_version,
-          content: data.content,
-          source_hash: data.source_hash,
-          created_at: data.created_at
-        }
-      },
-      { status: 200 }
-    );
-  } catch (err) {
-    console.error("Unexpected error in GET /api/jobs/[id]/artifacts:", err);
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Internal server error",
-        details: err instanceof Error ? err.message : String(err)
-      },
-      { status: 500 }
-    );
+  if (!jobId) {
+    return NextResponse.json({ ok: false, error: "Missing jobId" }, { status: 400 });
   }
+
+  const cookieStore = await cookies();
+  
+  // Get session token from cookies
+  const accessToken = cookieStore.get('sb-access-token')?.value || 
+                      cookieStore.get('supabase-auth-token')?.value;
+  
+  if (!accessToken) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  });
+
+  // Auth
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth?.user) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Ownership check
+  const { data: job } = await supabase
+    .from("evaluation_jobs")
+    .select("id, created_by")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (!job) {
+    return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
+  }
+
+  if (job.created_by !== auth.user.id) {
+    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  }
+
+  // Fetch latest artifact
+  const { data: artifact, error } = await supabase
+    .from("evaluation_artifacts")
+    .select("id, job_id, artifact_type, content, created_at")
+    .eq("job_id", jobId)
+    // .eq("artifact_type", "one_page_summary") // enable if needed
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    artifact: artifact ?? null,
+  });
 }

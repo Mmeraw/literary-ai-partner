@@ -1,6 +1,8 @@
 // app/evaluate/[jobId]/page.tsx
 // Track D: Minimal Report Surface
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 
 type Job = {
   id: string;
@@ -16,19 +18,107 @@ type Job = {
   last_error?: string | null;
 };
 
+type ArtifactContentV1 = {
+  summary: string;
+  overall_score: number;
+  chunk_count: number;
+  processed_count: number;
+  generated_at: string;
+};
+
 async function getJob(jobId: string): Promise<Job | null> {
-  // NOTE: Use relative fetch so it works in prod too.
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/jobs/${jobId}`, {
-    // Ensure the page reflects latest status (no stale cache).
-    cache: "no-store",
+  const cookieStore = await cookies();
+  
+  // Get session token from cookies
+  const accessToken = cookieStore.get('sb-access-token')?.value || 
+                      cookieStore.get('supabase-auth-token')?.value;
+  
+  if (!accessToken) return null;
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
   });
+  
+  const { data: job, error } = await supabase
+    .from("evaluation_jobs")
+    .select("id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error")
+    .eq("id", jobId)
+    .maybeSingle();
 
-  if (!res.ok) return null;
+  if (error || !job) return null;
+  
+  return job as Job;
+}
 
-  const data = await res.json();
+async function getArtifact(jobId: string): Promise<ArtifactContentV1 | null> {
+  const cookieStore = await cookies();
+  
+  // Get session token from cookies
+  const accessToken = cookieStore.get('sb-access-token')?.value || 
+                      cookieStore.get('supabase-auth-token')?.value;
+  
+  if (!accessToken) return null;
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  });
+  
+  const { data: artifact, error } = await supabase
+    .from("evaluation_artifacts")
+    .select("id, job_id, artifact_type, content, created_at")
+    .eq("job_id", jobId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  // Support either { job: {...} } or raw job {...} depending on your API shape.
-  return (data?.job ?? data) as Job;
+  if (error || !artifact?.content) return null;
+
+  return artifact.content as ArtifactContentV1;
+}
+
+function formatScore(n: number): string {
+  return Number.isFinite(n) ? n.toFixed(2) : "N/A";
+}
+
+function extractTopRecommendations(summary: string): string[] {
+  const lines = summary
+    .split("\n")
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const bullets = lines
+    .filter(l => /^[-•*]\s+/.test(l))
+    .map(l => l.replace(/^[-•*]\s+/, ""));
+
+  if (bullets.length) return bullets.slice(0, 5);
+
+  // Fallback: split by sentences if no bullets found
+  return summary
+    .split(/(?<=[.!?])\s+/)
+    .slice(0, 5);
+}
+
+function Metric({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="rounded-md border p-3">
+      <div className="text-xs text-gray-600">{label}</div>
+      <div className="mt-1 text-sm font-semibold">{value}</div>
+    </div>
+  );
 }
 
 export default async function EvaluationReportPage({
@@ -57,6 +147,7 @@ export default async function EvaluationReportPage({
   }
 
   const isComplete = job.status === "complete";
+  const artifact = isComplete ? await getArtifact(jobId) : null;
 
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -118,41 +209,50 @@ export default async function EvaluationReportPage({
             </Link>
           </div>
         </section>
+      ) : !artifact ? (
+        <section className="mt-6 rounded-lg border p-5">
+          <h2 className="text-lg font-semibold">Report not available yet</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Job completed but no evaluation artifact was found.
+            Phase 2 may still be persisting results. Please refresh in a moment.
+          </p>
+          <div className="mt-4">
+            <Link
+              href="/evaluate"
+              className="inline-flex rounded-md border px-3 py-2 text-sm font-medium"
+            >
+              Return to job list
+            </Link>
+          </div>
+        </section>
       ) : (
         <>
           <section className="mt-6 rounded-lg border p-5">
             <h2 className="text-lg font-semibold">Overall Summary</h2>
-            <p className="mt-2 text-sm text-gray-600">
-              (Stub) This section will show a high-level assessment and the most
-              important themes detected in the manuscript/screenplay.
-            </p>
+            <pre className="mt-2 whitespace-pre-wrap text-sm text-gray-600">
+              {artifact.summary}
+            </pre>
           </section>
 
           <section className="mt-6 rounded-lg border p-5">
             <h2 className="text-lg font-semibold">Top Recommendations</h2>
             <ul className="mt-2 list-disc pl-5 text-sm text-gray-600">
-              <li>(Stub) Clarify the protagonist's objective in the opening.</li>
-              <li>(Stub) Tighten pacing in the midpoint sequence.</li>
-              <li>(Stub) Strengthen scene-to-scene causality.</li>
+              {extractTopRecommendations(artifact.summary).map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
             </ul>
           </section>
 
           <section className="mt-6 rounded-lg border p-5">
             <h2 className="text-lg font-semibold">Key Metrics</h2>
             <div className="mt-2 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-md border p-3">
-                <div className="text-xs text-gray-600">Story Criteria</div>
-                <div className="mt-1 text-sm font-semibold">(Stub) 13/13</div>
-              </div>
-              <div className="rounded-md border p-3">
-                <div className="text-xs text-gray-600">Agent Readiness</div>
-                <div className="mt-1 text-sm font-semibold">(Stub) Medium</div>
-              </div>
-              <div className="rounded-md border p-3">
-                <div className="text-xs text-gray-600">Revision Priority</div>
-                <div className="mt-1 text-sm font-semibold">(Stub) High</div>
-              </div>
+              <Metric label="Overall Score" value={formatScore(artifact.overall_score)} />
+              <Metric label="Chunks Analyzed" value={artifact.chunk_count} />
+              <Metric label="Successfully Processed" value={artifact.processed_count} />
             </div>
+            <p className="mt-3 text-xs text-gray-500">
+              Generated: {new Date(artifact.generated_at).toLocaleString()}
+            </p>
           </section>
         </>
       )}

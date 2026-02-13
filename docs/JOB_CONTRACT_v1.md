@@ -1,5 +1,100 @@
 # JOB_CONTRACT_v1
+You are advancing — your loop is just watching the wrong thing, and the run you’re staring at is failing for a different reason than the one you just fixed.
 
+Here’s the clean read.
+
+1) Why your loop looks “stuck”
+
+Your loop condition is:
+
+“Wait until the newest run is completed AND its headSha equals X”
+
+But the newest run can change while you’re polling (new pushes, reruns, or GitHub ordering quirks), and you also have a SHA mismatch between what you typed and what the run actually uses.
+
+You typed:
+
+8d17f929b90d46ec59857018f6cca3997f4256ec
+
+But the run list shows:
+
+8d17f9260dd06ef9761ab6c20ff955e0182a1f75
+
+So even if it completes, your condition can be false forever if the SHA isn’t exactly what you think.
+
+Fix: don’t poll “latest.” Poll the specific databaseId you care about.
+
+Example:
+
+RUN=21975264806
+for i in $(seq 1 60); do
+  OUT=$(GH_PAGER=cat gh run view $RUN --json status,conclusion,headSha,url)
+  echo "$OUT"
+  STATUS=$(echo "$OUT" | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')
+  [ "$STATUS" = "completed" ] && break
+  sleep 10
+done
+
+
+That removes the moving target.
+
+2) Why it’s failing (and why your “new fix” didn’t change the result you’re viewing)
+
+The failure you posted for run 21975203055 is very specific:
+
+./app/api/internal/jobs/route.ts ... createJob({ manuscript_id, job_type })
+missing user_id
+
+That is a production build typecheck failure, not a server startup issue.
+
+You already fixed that locally and pushed:
+
+fix: supply user_id in internal job creation path → commit e371066
+
+But the failing run you inspected:
+
+was on commit 8ac7bda... (older)
+
+and the later run 21975264806 is on 8d17f92... (also not e371066)
+
+So you’re not looking at the run that includes the user_id fix.
+
+3) What you should do right now to stop the confusion
+A) Identify the run for the commit that matters
+
+Get the run for e371066 (or your newest SHA) directly:
+
+GH_PAGER=cat gh run list --workflow phase1-evidence.yml --limit 20 \
+  --json databaseId,status,conclusion,headSha,displayTitle,url | \
+python3 - <<'PY'
+import json,sys
+runs=json.load(sys.stdin)
+for r in runs:
+    print(r["headSha"][:7], r["status"], r.get("conclusion",""), r["databaseId"], r["displayTitle"])
+PY
+
+
+Then pick the databaseId whose headSha starts with e371066 (or whatever is latest on main) and view that run’s failed logs:
+
+RUN=<that_databaseId>
+GH_PAGER=cat gh run view $RUN --log-failed
+
+B) If the newest run is still failing, it’ll be a new blocker
+
+Once the internal route type error is fixed, the next failure (if any) will finally be “real” for the gate.
+
+4) The underlying “why aren’t we advancing?”
+
+Because you’re mixing three different layers:
+
+CI run selection (watching the wrong run / wrong SHA)
+
+commit progression (you fixed the type error later, but you’re reading logs from before that fix)
+
+polling logic (comparing against a SHA you don’t actually have in the run list)
+
+Once you pin to a single run ID that corresponds to the commit that includes e371066, the “not advancing” feeling will disappear immediately.
+
+If you paste the output of the gh run list command (the 20-run list with headSha/status), I can tell you exactly which databaseId to open and what the next blocker is (if any).
 **Status**: CANON (binding)  
 **Version**: v1  
 **Last Updated**: 2026-01-26  
