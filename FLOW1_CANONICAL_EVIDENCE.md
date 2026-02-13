@@ -2,7 +2,7 @@
 
 **Generated:** 2026-02-13  
 **Status:** 🧪 EVIDENCE GATE SCAFFOLDED (PRE-LOCK)  
-**CI Run:** ✅ PASS — run `21975392316` (2026-02-13, commit `d27c2b11a0340b597d60fcdab8d9927844126083`)  
+**CI Run:** ✅ 3 consecutive PASS runs captured (2026-02-13)  
 **Local Deterministic Run:** ✅ PASS (2026-02-13T04:41:59Z)  
 
 **CI Lock Commit:** TBD  
@@ -73,15 +73,25 @@ bash scripts/evidence-flow1.sh
 
 ## Latest Evidence Output
 
-**Run:** GitHub Actions `phase1-evidence.yml` run `21975392316`  
-**Commit:** `d27c2b11a0340b597d60fcdab8d9927844126083`  
+**Runs (3 consecutive successes):** GitHub Actions `phase1-evidence.yml`  
+**Primary commit for gate readiness:** `d27c2b11a0340b597d60fcdab8d9927844126083`  
 **Timestamp:** 2026-02-13
 
 ```
-Run URL: https://github.com/Mmeraw/literary-ai-partner/actions/runs/21975392316
-status=completed
-conclusion=success
-displayTitle=flow1: force supabase job store in CI evidence run
+Run 1: https://github.com/Mmeraw/literary-ai-partner/actions/runs/21975392316
+  status=completed
+  conclusion=success
+  displayTitle=flow1: force supabase job store in CI evidence run
+
+Run 2: https://github.com/Mmeraw/literary-ai-partner/actions/runs/21975452256
+  status=completed
+  conclusion=success
+  displayTitle=docs(flow1): record first passing CI evidence run
+
+Run 3: https://github.com/Mmeraw/literary-ai-partner/actions/runs/21975531680
+  status=completed
+  conclusion=success
+  displayTitle=docs(flow1): note two-pass CI streak before final lock run
 ```
 
 **Local run transcript (reference):**
@@ -115,7 +125,7 @@ Evidence archived: /tmp/flow1-evidence-1770957718.log
 1. ✅ Create `phase1-evidence.yml` workflow
 2. ✅ Implement deterministic validation script (`scripts/evidence-flow1.sh`)
 3. ✅ Execute first deterministic local pass
-4. ✅ Execute first GitHub Actions pass and archive artifact
+4. ✅ Execute GitHub Actions evidence runs and capture 3 consecutive passes
 
 ### Phase 3: Lock Event
 
@@ -188,7 +198,7 @@ curl -X GET "$SUPABASE_URL/rest/v1/evaluation_results?author_id=eq.$TEST_USER_ID
 
 Before lock:
 1. ✅ Run `phase1-evidence.yml` in GitHub Actions and capture first run metadata
-2. Achieve 3+ consecutive passing CI runs with stable assertions
+2. ✅ Achieve 3+ consecutive passing CI runs with stable assertions
 3. Assign CI Lock + Docs Lock commits in `LOCK_ANCHORS_POLICY.md`
 4. Promote this document from PRE-LOCK to LOCKED
 
