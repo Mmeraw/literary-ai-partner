@@ -72,11 +72,11 @@ This is the single source of truth for locked phase anchors. **DO NOT MODIFY** t
 
 ### Flow 1 — Upload → Evaluate → View Results
 
-**STATUS: 🧪 PRE-LOCK — Evidence gate scaffolded, first deterministic proof captured**
+**STATUS: 🧪 PRE-LOCK — Evidence gate scaffolded; first CI run passing**
 
 - **CI Lock Anchor:** TBD (first passing GitHub Actions run for `phase1-evidence.yml`)
 - **Documentation Lock Anchor:** TBD (after CI evidence transcript + lock declaration)
-- **Current evidence:** Local deterministic pass recorded (HEALTH 200, CREATE 201, OWNER 200, OTHER 404)
+- **Current evidence:** Local deterministic pass + CI pass (`run 21975392316`, commit `d27c2b1`)
 - **Next step:** Run `phase1-evidence.yml` in GitHub Actions 3+ consecutive times, then assign anchors
 
 - **Requirements before CI/Docs locks:**
@@ -84,7 +84,7 @@ This is the single source of truth for locked phase anchors. **DO NOT MODIFY** t
   - ✅ Ownership enforcement + production-path mapping fixed (`3f3d870`, `c1dd02e`)
   - ✅ Flow 1 scaffold implemented (`phase1-evidence.yml`, `scripts/evidence-flow1.sh`)
   - ✅ Local deterministic ownership proof passing (2026-02-13)
-  - ⏳ Evidence gate (`phase1-evidence.yml`) passing in GitHub Actions
+  - ✅ Evidence gate (`phase1-evidence.yml`) first CI pass captured (`21975392316`)
   - ⏳ Evidence gate passes 3+ consecutive CI runs with same codebase
 
 **Process:** Once smoke tests pass, immediately build phase1-evidence.yml CI automation, run gate 3 times, capture evidence, lock both anchors, promote to push trigger.

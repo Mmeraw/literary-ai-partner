@@ -2,7 +2,7 @@
 
 **Generated:** 2026-02-13  
 **Status:** 🧪 EVIDENCE GATE SCAFFOLDED (PRE-LOCK)  
-**CI Run:** N/A (first GitHub Actions run pending)  
+**CI Run:** ✅ PASS — run `21975392316` (2026-02-13, commit `d27c2b11a0340b597d60fcdab8d9927844126083`)  
 **Local Deterministic Run:** ✅ PASS (2026-02-13T04:41:59Z)  
 
 **CI Lock Commit:** TBD  
@@ -73,9 +73,18 @@ bash scripts/evidence-flow1.sh
 
 ## Latest Evidence Output
 
-**Run:** Local deterministic run (`npm run evidence:flow1`)  
-**Commit:** `c1dd02e0a83c59f6ac6c3c9abcd91b9c3b78e34f`  
-**Timestamp:** 2026-02-13T04:41:59Z
+**Run:** GitHub Actions `phase1-evidence.yml` run `21975392316`  
+**Commit:** `d27c2b11a0340b597d60fcdab8d9927844126083`  
+**Timestamp:** 2026-02-13
+
+```
+Run URL: https://github.com/Mmeraw/literary-ai-partner/actions/runs/21975392316
+status=completed
+conclusion=success
+displayTitle=flow1: force supabase job store in CI evidence run
+```
+
+**Local run transcript (reference):**
 
 ```
 =========================================
@@ -106,7 +115,7 @@ Evidence archived: /tmp/flow1-evidence-1770957718.log
 1. ✅ Create `phase1-evidence.yml` workflow
 2. ✅ Implement deterministic validation script (`scripts/evidence-flow1.sh`)
 3. ✅ Execute first deterministic local pass
-4. ⏳ Execute first GitHub Actions pass and archive artifact
+4. ✅ Execute first GitHub Actions pass and archive artifact
 
 ### Phase 3: Lock Event
 
@@ -178,7 +187,7 @@ curl -X GET "$SUPABASE_URL/rest/v1/evaluation_results?author_id=eq.$TEST_USER_ID
 **This document is a scaffold for the evidence gate that will lock Flow 1.**
 
 Before lock:
-1. Run `phase1-evidence.yml` in GitHub Actions and capture run metadata
+1. ✅ Run `phase1-evidence.yml` in GitHub Actions and capture first run metadata
 2. Achieve 3+ consecutive passing CI runs with stable assertions
 3. Assign CI Lock + Docs Lock commits in `LOCK_ANCHORS_POLICY.md`
 4. Promote this document from PRE-LOCK to LOCKED

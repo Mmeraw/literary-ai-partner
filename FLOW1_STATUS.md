@@ -6,7 +6,7 @@
 **CI Lock Commit:** TBD (workflow_dispatch gate implementation)  
 **Documentation Lock Commit:** TBD (after evidence gate green in production)  
 **Governance:** [phase1-evidence.yml](.github/workflows/phase1-evidence.yml) + [scripts/evidence-flow1.sh](scripts/evidence-flow1.sh)  
-**Current CI Runs:** N/A (first GitHub Actions run pending)  
+**Current CI Runs:** ✅ First pass captured (`21975392316`, commit `d27c2b1`)  
 **Latest Local Deterministic Run:** ✅ PASS (2026-02-13T04:41:59Z)  
 
 ---
@@ -109,11 +109,11 @@ Canonical job statuses: `queued`, `running`, `complete`, `failed`
 - 🏗️ Production smoke tests (manual verification)
 - ✅ Ownership visibility verification complete for jobs endpoint (owner 200 / non-owner 404)
 - 🏗️ State machine hardening (catch illegal transitions)
-- ✅ Evidence gate scaffold implemented and locally passing
+- ✅ Evidence gate scaffold implemented and CI passing (1 successful run)
 
 ### Future (Lock Event)
 
-- ⏳ phase1-evidence.yml production green (CI Lock event)
+- ⏳ phase1-evidence.yml 3+ consecutive green runs (CI Lock readiness)
 - ⏳ Flow 1 documentation completion (Docs Lock event)
 - ⏳ Registry entry in [LOCK_ANCHORS_POLICY.md](LOCK_ANCHORS_POLICY.md)
 - ⏳ phase1-evidence.yml promoted to `push` trigger
@@ -136,7 +136,7 @@ Canonical job statuses: `queued`, `running`, `complete`, `failed`
 Flow 1 is ready to lock when:
 
 1. ⏳ Production smoke tests green (all checklist items complete)
-2. ⏳ CI evidence gate (`phase1-evidence.yml`) runs reliably in GitHub Actions
+2. 🟡 CI evidence gate (`phase1-evidence.yml`) has first passing run (`21975392316`); continue to 3+ consecutive passes
 3. ⏳ Evidence gate passes 3+ consecutive CI runs
 4. ✅ FLOW1_CANONICAL_EVIDENCE.md populated with first deterministic run data
 5. ⏳ Ready to add CI Lock + Docs Lock commits to registry
