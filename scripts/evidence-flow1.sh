@@ -124,7 +124,12 @@ if [[ "$HEALTH_HTTP" != "200" ]]; then
 
   if [[ "$SERVER_MODE" == "prod" ]]; then
     echo "Health check not ready; building + starting Next production server..."
-    npm run build > "$SERVER_LOG" 2>&1
+    if ! npm run build > "$SERVER_LOG" 2>&1; then
+      echo "❌ Production build failed during evidence startup"
+      echo "Last build log lines:"
+      tail -n 120 "$SERVER_LOG" || true
+      exit 1
+    fi
     PORT=3002 npm run start >> "$SERVER_LOG" 2>&1 &
   else
     echo "Health check not ready; starting Next dev server..."
