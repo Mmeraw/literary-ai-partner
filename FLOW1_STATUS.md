@@ -6,7 +6,7 @@
 **CI Lock Commit:** TBD (workflow_dispatch gate implementation)  
 **Documentation Lock Commit:** TBD (after evidence gate green in production)  
 **Governance:** [phase1-evidence.yml](.github/workflows/phase1-evidence.yml) + [scripts/evidence-flow1.sh](scripts/evidence-flow1.sh)  
-**Current CI Runs:** ✅ First pass captured (`21975392316`, commit `d27c2b1`)  
+**Current CI Runs:** 🟡 Two consecutive passes captured (`21975392316`, `21975452256`) — one more pass needed for lock-readiness threshold  
 **Latest Local Deterministic Run:** ✅ PASS (2026-02-13T04:41:59Z)  
 
 ---
