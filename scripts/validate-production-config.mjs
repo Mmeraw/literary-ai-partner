@@ -5,6 +5,9 @@
  * Ensures 100k-user scale configuration is correct before deployment
  */
 
+import fs from "node:fs";
+import path from "node:path";
+
 // Inline validation to avoid TypeScript import issues during pre-build
 function validateProductionConfig() {
   const errors = [];
@@ -27,6 +30,27 @@ function validateProductionConfig() {
   
   if (useSupabase && !process.env.SUPABASE_ANON_KEY) {
     warnings.push("SUPABASE_ANON_KEY is not set but USE_SUPABASE_JOBS=true");
+  }
+
+  // Prevent secrets in Vercel cron paths (no query-string secrets)
+  const vercelConfigPath = path.join(process.cwd(), "vercel.json");
+  if (fs.existsSync(vercelConfigPath)) {
+    try {
+      const raw = fs.readFileSync(vercelConfigPath, "utf8");
+      const parsed = JSON.parse(raw);
+      const crons = Array.isArray(parsed?.crons) ? parsed.crons : [];
+      const secretPaths = crons
+        .map((cron) => String(cron?.path ?? ""))
+        .filter((p) => /\bsecret=|\$CRON_SECRET|CRON_SECRET/i.test(p));
+
+      if (secretPaths.length > 0) {
+        errors.push(
+          `vercel.json contains cron paths with secrets in query string: ${secretPaths.join(", ")}. Remove secrets from URLs.`,
+        );
+      }
+    } catch (error) {
+      errors.push(`vercel.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   
   return {
