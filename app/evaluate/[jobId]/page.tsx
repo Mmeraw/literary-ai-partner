@@ -33,7 +33,10 @@ async function getJob(jobId: string): Promise<Job | null> {
   const accessToken = cookieStore.get('sb-access-token')?.value || 
                       cookieStore.get('supabase-auth-token')?.value;
   
-  if (!accessToken) return null;
+  if (!accessToken) {
+    console.warn(`[getJob] No access token for job ${jobId}`);
+    return null;
+  }
   
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -52,7 +55,15 @@ async function getJob(jobId: string): Promise<Job | null> {
     .eq("id", jobId)
     .maybeSingle();
 
-  if (error || !job) return null;
+  if (error) {
+    console.error(`[getJob] Supabase error for job ${jobId}:`, error);
+    return null;
+  }
+
+  if (!job) {
+    console.warn(`[getJob] Job not found in database: ${jobId}`);
+    return null;
+  }
   
   return job as Job;
 }
@@ -130,16 +141,32 @@ export default async function EvaluationReportPage({
   const job = await getJob(jobId);
 
   if (!job) {
+    // Check if it's an auth issue
+    const cookieStore = await cookies();
+    const hasAccessToken = !!( 
+      cookieStore.get('sb-access-token')?.value || 
+      cookieStore.get('supabase-auth-token')?.value
+    );
+
     return (
       <main className="mx-auto max-w-3xl p-6">
         <h1 className="text-2xl font-semibold">Evaluation Report</h1>
-        <p className="mt-3 text-sm text-gray-600">
-          We couldn't find that job.
-        </p>
+        <div className="mt-4 rounded-md bg-yellow-50 border border-yellow-200 p-4">
+          <p className="text-sm text-yellow-800 font-medium">Unable to load evaluation</p>
+          <p className="mt-2 text-sm text-yellow-700">
+            {!hasAccessToken 
+              ? "Please sign in to view your evaluation report."
+              : `We couldn't find job ${jobId}. It may have expired or been deleted.`
+            }
+          </p>
+        </div>
 
         <div className="mt-6">
-          <Link href="/evaluate" className="text-sm underline">
-            Back to Evaluate
+          <Link 
+            href={!hasAccessToken ? "/login" : "/evaluate"} 
+            className="inline-block text-sm text-blue-600 hover:text-blue-700 underline"
+          >
+            {!hasAccessToken ? "Go to Sign In" : "Back to Evaluate"}
           </Link>
         </div>
       </main>

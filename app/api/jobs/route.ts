@@ -9,6 +9,8 @@ import {
 } from "@/lib/jobs/rateLimiter";
 import { JOB_TYPES, type JobType } from "@/lib/jobs/types";
 import { generateTraceId, logger, jobLogger } from "@/lib/observability/logger";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 function isRateLimited(
   result: RateLimitResult
@@ -54,8 +56,10 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    const manuscript_id = body?.manuscript_id;
+    let manuscript_id = body?.manuscript_id;
     const job_type = body?.job_type;
+    const manuscript_text = body?.manuscript_text;
+    const manuscript_title = body?.manuscript_title;
     const manuscript_size = body?.manuscript_size; // Size in bytes
     const user_tier = body?.user_tier as
       | "free"
@@ -63,7 +67,7 @@ export async function POST(req: Request) {
       | "agent"
       | undefined;
 
-    if (!manuscript_id || !job_type) {
+    if (!manuscript_id && !manuscript_text) {
       logger.warn("Job creation validation failed", {
         trace_id,
         request_id,
@@ -71,7 +75,20 @@ export async function POST(req: Request) {
       });
 
       return NextResponse.json(
-        { ok: false, error: "Missing required fields: manuscript_id, job_type", trace_id },
+        { ok: false, error: "Missing required fields: manuscript_id or manuscript_text", trace_id },
+        { status: 400 }
+      );
+    }
+
+    if (!job_type) {
+      logger.warn("Job creation validation failed", {
+        trace_id,
+        request_id,
+        event: "api.jobs.create.validation_failed",
+      });
+
+      return NextResponse.json(
+        { ok: false, error: "Missing required fields: job_type", trace_id },
         { status: 400 }
       );
     }
@@ -93,16 +110,23 @@ export async function POST(req: Request) {
 
     const validatedJobType = job_type as JobType;
 
+    const resolvedManuscriptSize =
+      typeof manuscript_size === "number"
+        ? manuscript_size
+        : typeof manuscript_text === "string"
+          ? new TextEncoder().encode(manuscript_text).length
+          : undefined;
+
     // Layer 2: Manuscript size validation
-    if (manuscript_size && typeof manuscript_size === "number") {
-      const sizeCheck = validateManuscriptSize(manuscript_size);
+    if (resolvedManuscriptSize && typeof resolvedManuscriptSize === "number") {
+      const sizeCheck = validateManuscriptSize(resolvedManuscriptSize);
       if (sizeCheck.allowed === false) {
         const { reason } = sizeCheck;
         logger.warn("Manuscript size validation failed", {
           trace_id,
           request_id,
           event: "api.jobs.create.size_validation_failed",
-          manuscript_size,
+          manuscript_size: resolvedManuscriptSize,
           reason,
         });
         return NextResponse.json(
@@ -113,7 +137,92 @@ export async function POST(req: Request) {
     }
 
     // Layer 3: Feature access control (auth + subscription tier)
-    const userId = req.headers.get("x-user-id");
+    const authenticatedUser = await getAuthenticatedUser();
+    const userId =
+      authenticatedUser?.id ??
+      (process.env.ALLOW_HEADER_USER_ID === "true"
+        ? req.headers.get("x-user-id")
+        : null);
+
+    if (!userId) {
+      logger.warn("Job creation blocked: missing authenticated user", {
+        trace_id,
+        request_id,
+        event: "api.jobs.create.auth_missing",
+      });
+
+      return NextResponse.json(
+        { ok: false, error: "Authentication required for this feature.", trace_id },
+        { status: 401 }
+      );
+    }
+
+    if (!manuscript_id && typeof manuscript_text === "string") {
+      const trimmedText = manuscript_text.trim();
+      if (trimmedText.length === 0) {
+        return NextResponse.json(
+          { ok: false, error: "manuscript_text cannot be empty", trace_id },
+          { status: 400 }
+        );
+      }
+
+      const encodedText = encodeURIComponent(trimmedText);
+      const fileUrl = `data:text/plain;charset=utf-8,${encodedText}`;
+      const wordCount = trimmedText.split(/\s+/).filter(Boolean).length;
+      const fileSize = new TextEncoder().encode(trimmedText).length;
+
+      const supabaseAdmin = createAdminClient();
+      const { data: manuscript, error: manuscriptError } = await supabaseAdmin
+        .from("manuscripts")
+        .insert({
+          title: typeof manuscript_title === "string" && manuscript_title.trim()
+            ? manuscript_title.trim()
+            : "Untitled Manuscript",
+          user_id: userId,
+          created_by: userId,
+          file_url: fileUrl,
+          file_size: fileSize,
+          work_type: "novel",
+          tone_context: "neutral",
+          mood_context: "calm",
+          voice_mode: "balanced",
+          storygate_linked: false,
+          allow_industry_discovery: false,
+          is_final: false,
+          source: "paste",
+          english_variant: "us",
+          word_count: wordCount,
+        })
+        .select("id")
+        .single();
+
+      if (manuscriptError || !manuscript) {
+        logger.error("Failed to create manuscript", {
+          trace_id,
+          request_id,
+          event: "api.jobs.create.manuscript_error",
+          error: manuscriptError?.message,
+        });
+
+        return NextResponse.json(
+          { ok: false, error: "Failed to create manuscript", trace_id },
+          { status: 500 }
+        );
+      }
+
+      manuscript_id = manuscript.id;
+    }
+
+    if (typeof manuscript_id === "string") {
+      const trimmedId = manuscript_id.trim();
+      const parsedId = Number.parseInt(trimmedId, 10);
+      if (Number.isNaN(parsedId) || String(parsedId) !== trimmedId) {
+        return NextResponse.json(
+          { ok: false, error: "Invalid manuscript_id: must be numeric", trace_id },
+          { status: 400 }
+        );
+      }
+    }
     const featureAccess = await checkFeatureAccess(
       userId,
       validatedJobType,

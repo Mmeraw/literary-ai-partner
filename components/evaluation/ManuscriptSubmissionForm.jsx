@@ -23,6 +23,8 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
     setError(null);
 
     try {
+      const manuscriptSize = new Blob([manuscriptText]).size;
+
       // Create evaluate_full job via POST /api/jobs
       const response = await fetch("/api/jobs", {
         method: "POST",
@@ -30,17 +32,16 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          manuscript_id: `ms_${Date.now()}`, // Generate temporary ID
+          manuscript_text: manuscriptText,
+          manuscript_size: manuscriptSize,
           job_type: "evaluate_full",
         }),
       });
 
+      const data = await response.json();
       if (!response.ok) {
-        const data = await response.json();
         throw new Error(data.error || "Failed to create evaluation job");
       }
-
-      const data = await response.json();
       
       // Clear form
       setManuscriptText("");

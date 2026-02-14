@@ -79,7 +79,7 @@ export async function runPhase1(jobId: string): Promise<void> {
   // Acquire lease atomically with eligibility check
     const { acquireLeaseForPhase1 } = await import("./store");
   const lease_id = crypto.randomUUID();
-  const leasedJob = await acquireLeaseForPhase1(jobId, lease_id, 30); // 30 seconds TTL
+  const leasedJob = await acquireLeaseForPhase1(jobId, lease_id, 300); // 5 minutes TTL
 
   if (!leasedJob) {
     console.log("Phase1LeaseNotAcquired", {

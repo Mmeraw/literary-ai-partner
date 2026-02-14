@@ -30,3 +30,25 @@ export async function createClient() {
     }
   )
 }
+
+
+/**
+ * Get the authenticated user from Supabase session cookies.
+ * For use in API routes to validate authenticated requests.
+ * Returns null if no valid session exists.
+ */
+export async function getAuthenticatedUser() {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error || !user) {
+      return null;
+    }
+    
+    return user;
+  } catch (err) {
+    console.error('[getAuthenticatedUser] Error:', err);
+    return null;
+  }
+}

@@ -674,7 +674,37 @@ export async function getManuscriptText(
     }
   }
 
-  // Option 2: Fetch via HTTP from file_url (legacy)
+  // Option 2: Decode data URL directly (for pasted text)
+  if (data.file_url && data.file_url.startsWith("data:")) {
+    try {
+      const match = data.file_url.match(/^data:[^,]*;base64,(.*)$/);
+      if (match) {
+        // Base64-encoded data URL
+        const buffer = Buffer.from(match[1], "base64");
+        let text = buffer.toString("utf8");
+        text = text.replace(/\r\n/g, "\n");
+        return text;
+      }
+
+      // URL-encoded data URL (data:text/plain;charset=utf-8,...)
+      const urlEncodedMatch = data.file_url.match(/^data:[^,]*,(.*)$/);
+      if (urlEncodedMatch) {
+        let text = decodeURIComponent(urlEncodedMatch[1]);
+        text = text.replace(/\r\n/g, "\n");
+        return text;
+      }
+
+      throw new Error("Unsupported data URL format");
+    } catch (dataUrlError) {
+      console.error(
+        `[getManuscriptText] Data URL decode failed for manuscript ${manuscriptId}:`,
+        dataUrlError
+      );
+      // Fall through to next option
+    }
+  }
+
+  // Option 3: Fetch via HTTP from file_url (legacy)
   if (data.file_url) {
     try {
       const controller = new AbortController();
@@ -714,7 +744,7 @@ export async function getManuscriptText(
     }
   }
 
-  // Option 3: Development fallback with realistic placeholder
+  // Option 4: Development fallback with realistic placeholder
   console.warn(
     `[getManuscriptText] No storage_path or file_url for manuscript ${manuscriptId}. Using placeholder.`
   );
