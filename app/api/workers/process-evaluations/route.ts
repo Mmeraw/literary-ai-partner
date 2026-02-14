@@ -2,14 +2,14 @@
  * Evaluation Worker API Route
  * 
  * Endpoint to trigger evaluation job processing.
- * Can be called:
- * - Manually via curl/browser (with CRON_SECRET)
- * - Via Vercel Cron Jobs (scheduled)
- * - Via Supabase Database Webhooks
+ * Authentication methods (in order of precedence):
+ * 1. Vercel Cron: x-vercel-cron=1 + x-vercel-id (platform validation)
+ * 2. Manual trigger: Authorization: Bearer <CRON_SECRET>
+ * 3. Dev testing: ?secret=<CRON_SECRET> (NODE_ENV=development only)
  * 
  * GET /api/workers/process-evaluations
  * 
- * Security: Requires CRON_SECRET via Authorization header or query param
+ * Security: Multi-layer auth with Vercel platform verification
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -24,26 +24,32 @@ export async function GET(request: NextRequest) {
   // Security check: Verify authorized caller
   const expectedSecret = process.env.CRON_SECRET;
   if (expectedSecret) {
-    // Option 1: Vercel Cron (sets Authorization: Bearer <CRON_SECRET> automatically)
-    const authHeader = request.headers.get('authorization');
-    const providedSecret = authHeader?.replace('Bearer ', '');
+    // Method 1: Authorization Bearer token (manual triggers + Vercel Cron with CRON_SECRET env)
+    const authHeader = request.headers.get('authorization') || '';
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     
-    // Option 2: Manual trigger via query param (for testing/debugging)
+    // Method 2: Vercel Cron platform headers (primary for scheduled crons)
+    const vercelCron = request.headers.get('x-vercel-cron') === '1';
+    const vercelId = request.headers.get('x-vercel-id'); // Platform request proof
+    const isVercelCronInvocation = vercelCron && !!vercelId;
+    
+    // Method 3: Query param secret (development/testing only)
     const querySecret = request.nextUrl.searchParams.get('secret');
-    
-    // Option 3: Vercel Cron header (alternative validation)
-    const vercelCronHeader = request.headers.get('x-vercel-cron');
+    const allowQuerySecret = process.env.NODE_ENV === 'development';
     
     const isAuthorized = 
-      providedSecret === expectedSecret || 
-      querySecret === expectedSecret ||
-      vercelCronHeader === '1'; // Vercel sets this header for cron requests
+      (bearer && bearer === expectedSecret) ||           // Bearer token match
+      isVercelCronInvocation ||                          // Vercel platform cron
+      (allowQuerySecret && querySecret === expectedSecret); // Dev-only query param
     
     if (!isAuthorized) {
       console.warn('[Worker] Unauthorized access attempt', {
         hasAuthHeader: !!authHeader,
+        hasBearerToken: !!bearer,
         hasQuerySecret: !!querySecret,
-        hasVercelCronHeader: !!vercelCronHeader
+        vercelCronHeader: vercelCron,
+        vercelIdPresent: !!vercelId,
+        environment: process.env.NODE_ENV
       });
       return NextResponse.json({
         success: false,
