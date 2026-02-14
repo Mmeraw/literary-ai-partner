@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/workers/process-evaluations?secret=test-cron-secret-for-flow1-proof",
+      "path": "/api/workers/process-evaluations",
       "schedule": "*/5 * * * *"
     }
   ]

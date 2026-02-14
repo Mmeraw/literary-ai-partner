@@ -21,15 +21,30 @@ export const maxDuration = 60; // 60 seconds for serverless function
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
   
-  // Security check: Verify CRON_SECRET
+  // Security check: Verify authorized caller
   const expectedSecret = process.env.CRON_SECRET;
   if (expectedSecret) {
+    // Option 1: Vercel Cron (sets Authorization: Bearer <CRON_SECRET> automatically)
     const authHeader = request.headers.get('authorization');
-    const querySecret = request.nextUrl.searchParams.get('secret');
-    const providedSecret = authHeader?.replace('Bearer ', '') || querySecret;
+    const providedSecret = authHeader?.replace('Bearer ', '');
     
-    if (providedSecret !== expectedSecret) {
-      console.warn('[Worker] Unauthorized access attempt');
+    // Option 2: Manual trigger via query param (for testing/debugging)
+    const querySecret = request.nextUrl.searchParams.get('secret');
+    
+    // Option 3: Vercel Cron header (alternative validation)
+    const vercelCronHeader = request.headers.get('x-vercel-cron');
+    
+    const isAuthorized = 
+      providedSecret === expectedSecret || 
+      querySecret === expectedSecret ||
+      vercelCronHeader === '1'; // Vercel sets this header for cron requests
+    
+    if (!isAuthorized) {
+      console.warn('[Worker] Unauthorized access attempt', {
+        hasAuthHeader: !!authHeader,
+        hasQuerySecret: !!querySecret,
+        hasVercelCronHeader: !!vercelCronHeader
+      });
       return NextResponse.json({
         success: false,
         error: 'Unauthorized'
