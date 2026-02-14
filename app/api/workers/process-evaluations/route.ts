@@ -19,6 +19,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { processQueuedJobs } from '@/lib/evaluation/processor';
 import crypto from 'crypto';
 
+// Force Node.js runtime (required for crypto module)
+export const runtime = 'nodejs';
+
+
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
