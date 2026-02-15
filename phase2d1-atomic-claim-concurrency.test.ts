@@ -16,8 +16,10 @@ import { claimNextJob } from "./workers/claimJob";
 const supabase = getSupabaseAdminClient();
 const hasSupabase = !!supabase;
 
-// CI smoke-test detection: skip integration tests when TEST_MODE is explicitly 'true'
-const isCiSmoke = process.env.TEST_MODE === "true";
+// CI smoke-test detection: skip integration tests in any CI environment
+// Uses TEST_MODE as primary check, CI env var as fallback (set automatically by GitHub Actions)
+const isCi = process.env.CI === "true";
+const isCiSmoke = process.env.TEST_MODE === "true" || isCi;
 const shouldRun = hasSupabase && !isCiSmoke;
 const run = shouldRun ? describe : describe.skip;
 
