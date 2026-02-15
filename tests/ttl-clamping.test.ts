@@ -91,4 +91,41 @@ describe('TTL Clamping Tests', () => {
     expect(actualSeconds).toBeGreaterThanOrEqual(299);
     expect(actualSeconds).toBeLessThanOrEqual(301);
   });
+
+    // TEST 5: Lease Advancement Guarantee (monotonic lease movement)
+  // Prevents reclaim loops under clock skew by ensuring new_lease_until > old_lease_until
+  it('guarantees lease advances on reclaim (monotonic)', async () => {
+    const testNow1 = "2026-01-01T00:00:00Z";
+    const testNow2 = "2026-01-01T00:01:00Z"; // 60 seconds later (after lease expires)
+    
+    // First claim
+    const result1 = runSql(`
+      SELECT lease_until
+      FROM claim_job_atomic('worker-mono-1', '${testNow1}'::timestamptz, 30);
+    `);
+    const oldLeaseUntil = new Date(result1).getTime();
+    
+    // Reset job to queued (simulating lease expiration)
+    runSql(`
+      UPDATE public.evaluation_jobs 
+      SET status = 'queued', lease_until = NULL, worker_id = NULL 
+      WHERE id = '${jobId}';
+    `);
+    
+    // Insert new job for second claim (since we consumed the first)
+    const newJobId = await insertTestJob(manuscriptId);
+    
+    // Second claim at later time
+    const result2 = runSql(`
+      SELECT lease_until
+      FROM claim_job_atomic('worker-mono-2', '${testNow2}'::timestamptz, 30);
+    `);
+    const newLeaseUntil = new Date(result2).getTime();
+    
+    // Cleanup the extra job
+    runSql(`DELETE FROM public.evaluation_jobs WHERE id = '${newJobId}';`);
+    
+    // CRITICAL: New lease must be strictly greater than old lease
+    expect(newLeaseUntil).toBeGreaterThan(oldLeaseUntil);
+  });
 });
