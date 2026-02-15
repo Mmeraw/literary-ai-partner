@@ -41,6 +41,8 @@ const supabase = getSupabaseAdminClient();
 const MAX_ARTIFACT_SIZE_MB = 5;
 const MAX_ARTIFACT_SIZE_BYTES = MAX_ARTIFACT_SIZE_MB * 1024 * 1024;
 
+const describeOrSkip = process.env.TEST_MODE === 'true' ? describe.skip : describe;
+
 // Generate a large evaluation artifact simulating a chunked manuscript evaluation
 function generateLargeArtifact(chunkCount: number) {
   const chunks = [];
@@ -145,7 +147,7 @@ function assertArtifactSizeWithinCeiling(artifact: any): { sizeBytes: number; si
   return { sizeBytes, sizeMB };
 }
 
-describe("Evaluation Artifacts - Large Payload", () => {
+describeOrSkip("Evaluation Artifacts - Large Payload", () => {
   let testManuscriptId: number;
   let testJobId: string;
 

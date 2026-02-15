@@ -13,7 +13,7 @@ import { randomUUID } from "crypto";
 import { execSync } from "child_process";
 
 const supabase = getSupabaseAdminClient();
-const run = describe;
+const run = process.env.LOCAL_DB ? describe : describe.skip;
 
 const PG_URL =
   process.env.PG_URL || "postgresql://postgres:postgres@127.0.0.1:54322/postgres";

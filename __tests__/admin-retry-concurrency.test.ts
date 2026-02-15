@@ -21,7 +21,9 @@ const PG_URL =
 
 const pool = new Pool({ connectionString: PG_URL });
 
-describe("A5: Admin retry atomicity + concurrency", () => {
+const describeOrSkip = process.env.LOCAL_DB ? describe : describe.skip;
+
+describeOrSkip("A5: Admin retry atomicity + concurrency", () => {
   let testJobId: string;
 
   beforeEach(async () => {

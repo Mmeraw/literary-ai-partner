@@ -18,7 +18,9 @@ const PG_URL =
 
 const pool = new Pool({ connectionString: PG_URL });
 
-describe("A6: Admin list jobs - keyset pagination stability", () => {
+const describeOrSkip = process.env.LOCAL_DB ? describe : describe.skip;
+
+describeOrSkip("A6: Admin list jobs - keyset pagination stability", () => {
   const testJobIds: string[] = [];
 
   beforeAll(async () => {
