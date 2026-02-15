@@ -47,7 +47,7 @@ import {
   truncateErrorMessage,
   toCanonicalEnvelope
 } from '../types/providerCalls';
-import { createClient } from '@supabase/supabase-js';
+import { createAdminClient } from '../lib/supabase/admin';
 import { createWriteStream, WriteStream } from 'fs';
 
 // Allow WORKER_ID override for multi-worker concurrency testing
@@ -122,10 +122,7 @@ async function fetchManuscriptContent(manuscriptId: number): Promise<{
   totalChars: number;
 } | null> {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
+    const supabase = createAdminClient();
     const { data, error } = await supabase
       .from('manuscript_chunks')
       .select('id, chunk_index, content')
@@ -463,10 +460,7 @@ function log(level: 'info' | 'warn' | 'error' | 'debug', message: string, meta?:
  */
 async function persistProviderCall(rec: ProviderCallRecord): Promise<void> {
   try {
-    const supabase = createClient(
-      process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || ''
-    );
+    const supabase = createAdminClient();
 
     // Phase 2D idempotency: ON CONFLICT DO UPDATE ensures exactly-once semantics
     // If job retries/reclaims, update existing record instead of failing
