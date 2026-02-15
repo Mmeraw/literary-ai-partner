@@ -3,26 +3,14 @@
  * Implements exactly-once job execution guarantee
  */
 
-import { createClient } from '@supabase/supabase-js';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { createAdminClient } from '../lib/supabase/admin';
 import { randomUUID } from 'crypto';
 
-let supabase: SupabaseClient;
 
-function getSupabaseClient(): SupabaseClient {
-  if (!supabase) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Supabase environment variables not set');
-    }
-    
-    supabase = createClient(supabaseUrl, supabaseKey);
-  }
-  return supabase;
+// Admin client wrapper: uses centralized createAdminClient factory
+function getSupabaseClient() {
+  return createAdminClient();
 }
-
 export interface ClaimResult {
   id: string;
   manuscript_id: number;
