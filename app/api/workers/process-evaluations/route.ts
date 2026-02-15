@@ -39,17 +39,14 @@ const CONFIG = {
 // ============================================================================
 
 /**
- * Timing-safe string comparison to prevent timing attacks
+ * Timing-safe string comparison using SHA-256 digests
+ * This eliminates length mismatch timing issues entirely
  */
-function timingSafeEqual(a: string, b: string): boolean {
-  const aBuf = Buffer.from(a);
-  const bBuf = Buffer.from(b);
-  if (aBuf.length !== bBuf.length) {
-    // Still do comparison to maintain constant time
-    crypto.timingSafeEqual(aBuf, aBuf);
-    return false;
-  }
-  return crypto.timingSafeEqual(aBuf, bBuf);
+function timingSafeEqual(a?: string | null, b?: string | null): boolean {
+  if (!a || !b) return false;
+  const aHash = crypto.createHash('sha256').update(a, 'utf8').digest();
+  const bHash = crypto.createHash('sha256').update(b, 'utf8').digest();
+  return crypto.timingSafeEqual(aHash, bHash);
 }
 
 /**
@@ -120,6 +117,7 @@ function getAuthDebugContext(req: NextRequest): Record<string, unknown> {
     hasQuerySecret: !!req.nextUrl.searchParams.get('secret'),
     xVercelCron: req.headers.get('x-vercel-cron'),
     vercelIdPresent: !!req.headers.get('x-vercel-id'),
+    uaStartsWithVercelCron: req.headers.get('user-agent')?.startsWith('vercel-cron') ?? false,
   };
 }
 

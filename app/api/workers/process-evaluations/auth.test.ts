@@ -431,3 +431,42 @@ describe('QC Regression Tests', () => {
     });
   });
 });
+
+describe('QC5: timingSafeEqual Edge Cases', () => {
+  it('should return false when first argument is null', async () => {
+    process.env.CRON_SECRET = 'test';
+    delete process.env.VERCEL;
+    
+    // This tests the helper indirectly - null bearer should fail
+    const req = createMockRequest({
+      headers: { 'authorization': 'Bearer ' } // empty bearer
+    });
+    const response = await GET(req);
+    expect(response.status).toBe(401);
+  });
+
+  it('should handle unicode characters in secrets', async () => {
+    // Using ASCII-safe representation to avoid Node Headers constructor issues
+    const unicodeSecret = 'secret-with-special-chars-éñ';
+    process.env.CRON_SECRET = unicodeSecret;
+    delete process.env.VERCEL;
+    
+    const req = createMockRequest({
+      headers: { 'authorization': 'Bearer ' + unicodeSecret }
+    });
+    const response = await GET(req);
+    expect(response.status).toBe(200);
+  });
+
+  it('should handle very long secrets', async () => {
+    const longSecret = 'a'.repeat(10000);
+    process.env.CRON_SECRET = longSecret;
+    delete process.env.VERCEL;
+    
+    const req = createMockRequest({
+      headers: { 'authorization': 'Bearer ' + longSecret }
+    });
+    const response = await GET(req);
+    expect(response.status).toBe(200);
+  });
+});
