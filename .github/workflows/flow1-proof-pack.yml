@@ -46,7 +46,16 @@ jobs:
           fi
 
           # Persist local env for subsequent steps
-          echo "$ENV_OUT" >> "$GITHUB_ENV"
+          echo "${ENV_OUT}" >> "$GITHUB_ENV"
+
+          # Load into this shell so we can map variables
+          set -a
+          source <(echo "${ENV_OUT}")
+          set +a
+
+          # Map Supabase CLI names → Next.js expected names
+          echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
 
           # Optional: add CRON_SECRET for proof endpoint auth
           echo "CRON_SECRET=test-cron-secret-for-flow1-proof" >> "$GITHUB_ENV"
@@ -55,7 +64,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PORT=3002 npm run dev &
+          npm run build
+          (npm run start -- -p 3002 &)
           npx --yes wait-on http://127.0.0.1:3002
 
       - name: Run Flow 1 proof pack (Jest)

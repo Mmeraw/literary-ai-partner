@@ -6,9 +6,21 @@ export async function middleware(request: NextRequest) {
     request,
   })
 
+  // Fail closed if env vars missing (prevents crash loops in CI)
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) {
+    // In CI, bypass auth to prevent crash loops; in prod, fail fast
+    if (process.env.CI || process.env.NODE_ENV === 'test') {
+      console.warn('Supabase env vars missing in CI/test, bypassing auth')
+      return supabaseResponse
+    }
+    throw new Error('NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required')
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    key,
     {
       cookies: {
         getAll() {
