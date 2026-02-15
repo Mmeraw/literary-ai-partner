@@ -33,6 +33,21 @@ export const POLLING_THRESHOLDS = {
 } as const;
 
 /**
+ * Terminal job statuses per JOB_CONTRACT_v1 Section 3.2
+ * These jobs require no further polling
+ */
+const TERMINAL_STATUSES = ["complete", "failed"] as const;
+
+/**
+ * Check if a job status is terminal (no further processing)
+ * @param status Job status to check
+ * @returns true if status is terminal per JOB_CONTRACT_v1
+ */
+function isTerminalStatus(status: string): boolean {
+  return TERMINAL_STATUSES.includes(status as any);
+}
+
+/**
  * Determine polling interval based on oldest active job's age
  * Returns the appropriate interval to reduce server load while maintaining UX
  *
@@ -40,12 +55,10 @@ export const POLLING_THRESHOLDS = {
  * @returns Polling interval in milliseconds
  */
 export function getPollingInterval(jobs: EvaluationJobRow[]): number {
-  const activeJobs = jobs.filter(
-    (job) =>
-      job.status !== "complete" &&
-      job.status !== "failed"
-  );
+  // Filter out terminal jobs - only active jobs affect polling interval
+  const activeJobs = jobs.filter((job) => !isTerminalStatus(job.status));
 
+  // Fast polling when no active work (quick UI refresh, then settle)
   if (activeJobs.length === 0) return POLLING_INTERVALS.FAST;
 
   // Find the oldest active job to determine appropriate backoff

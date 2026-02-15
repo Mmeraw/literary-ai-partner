@@ -8,7 +8,8 @@
  * - Cost tracking per evaluation
  */
 
-const fixtures = require('../../evidence/phase-d/d3/rate-limit-fixtures.json');
+const path = require('path');
+const fixtures = require(path.join(process.cwd(), 'evidence/phase-d/d3/rate-limit-fixtures.json'));
 
 describe('D3: Abuse Prevention & Resource Controls', () => {
   

@@ -8,7 +8,8 @@
  * - Audit trail for support
  */
 
-const fixtures = require('../../evidence/phase-d/d1/http-error-fixtures.json');
+const path = require('path');
+const fixtures = require(path.join(process.cwd(), 'evidence/phase-d/d1/http-error-fixtures.json'));
 
 describe('D1: Public UX Safety — Error Contracts', () => {
   
