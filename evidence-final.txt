@@ -1,0 +1,84 @@
+=== FINAL QC EVIDENCE TRANSCRIPT ===
+Date: 2026-02-15T00:34:02Z
+
+=== A. GIT COMMIT HISTORY ===
+1cebe62 QC: max-length guard (512), secretTooLong flag, 30/30 tests pass
+0fa175f fix(security): Replace timingSafeEqual with SHA-256 digest comparison
+cb808e2 test(qc): Add 8 audit-grade regression tests
+6923639 feat(logging): Add full auth presence flags to success logs
+33c2bb8 fix(runtime): Force nodejs runtime for crypto module
+9fd5946 feat(auth): Production-grade cron worker auth system
+e3f2cae security: harden worker cron auth for Vercel
+0e0a74f fix: proper Vercel cron authentication without secrets in URLs
+0069617 fix: add CRON_SECRET to Vercel cron path for authentication
+ed41e07 feat: add Vercel cron config for automated job processing
+
+=== B. LATEST COMMIT DIFF ===
+commit 1cebe62c0b96b827730b433f103420104f4dc50e
+Author: Mmeraw <tsavobc@hotmail.com>
+Date:   Sun Feb 15 00:33:05 2026 +0000
+
+    QC: max-length guard (512), secretTooLong flag, 30/30 tests pass
+
+ app/api/workers/process-evaluations/auth.test.ts | 27 ++++++++++++-
+ app/api/workers/process-evaluations/route.ts     | 48 ++++++++++++++++++------
+ 2 files changed, 62 insertions(+), 13 deletions(-)
+
+=== C. VERCEL.JSON ===
+{
+  "crons": [
+    {
+      "path": "/api/workers/process-evaluations",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
+
+=== D. TEST RESULTS (30/30 PASS) ===
+      ✓ should return 200 with valid Vercel Cron headers on platform (108 ms)
+      ✓ should require x-vercel-id header along with x-vercel-cron (3 ms)
+    Dev Query Secret Auth
+      ✓ should return 200 with query secret in development (144 ms)
+      ✓ should return 401 with wrong query secret in development (3 ms)
+    Dry Run Mode
+      ✓ should return dry run response when dry_run=1 (3 ms)
+    Response Structure
+      ✓ should include traceId in all responses (111 ms)
+      ✓ should include timestamp in successful responses (105 ms)
+      ✓ should include durationMs in successful responses (3 ms)
+    Security Edge Cases
+      ✓ should not leak secrets in error responses (2 ms)
+      ✓ should handle empty CRON_SECRET gracefully (2 ms)
+      ✓ should handle missing CRON_SECRET env var (2 ms)
+  QC Regression Tests
+    QC1: Cron Priority Over Bearer
+      ✓ should classify as vercel_cron even when Bearer also matches (111 ms)
+    QC2: Timing-Safe Handles Length Mismatch
+      ✓ should return 401 with wrong-length token without throwing (2 ms)
+      ✓ should return 401 with very long token without throwing (3 ms)
+    QC3: Production Rejects Query Secret
+      ✓ should reject query secret in production even if correct (1 ms)
+    QC4: Fail-Closed When CRON_SECRET Missing
+      ✓ should reject bearer when CRON_SECRET is undefined (1 ms)
+      ✓ should reject bearer when CRON_SECRET is empty string (1 ms)
+      ✓ should reject query secret in dev when CRON_SECRET is undefined (2 ms)
+      ✓ should STILL allow vercel cron on platform when CRON_SECRET is undefined (111 ms)
+  QC5: timingSafeEqual Edge Cases
+    ✓ should return false when first argument is null (1 ms)
+    ✓ should handle unicode characters in secrets (109 ms)
+    ✓ should reject very long secrets (>512 chars) with secretTooLong flag (2 ms)
+    ✓ should accept secrets at exactly 512 chars (103 ms)
+    ✓ should reject secrets at 513 chars (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       30 passed, 30 total
+Snapshots:   0 total
+Time:        1.688 s, estimated 2 s
+Ran all test suites matching app/api/workers/process-evaluations/auth.test.ts.
+
+=== E. AUTH GUARD SUMMARY ===
+Max-length guard: 512 chars
+secretTooLong flag: boolean in success log
+Boolean-only debug flags: authMethod, isDryRun, nodeEnv, vercelEnv, isVercelPlatform,
+  hasExpectedSecret, hasAuthHeader, hasQuerySecret, xVercelCron, vercelIdPresent
+
