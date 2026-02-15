@@ -11,7 +11,7 @@
  * Tests:
  *   1. Claim RPC contention (parallel claims → exactly one wins)
  *   2. Lease fields set correctly
- *   3. Status transitions (queued → running)
+ *   3. Status transitions (queued → processing)
  *   4. Retry gate behavior
  * 
  * Usage:
@@ -256,10 +256,10 @@ async function testClaimContention(jobId) {
   if (error) throw new Error(`Failed to fetch job: ${error.message}`);
 
   // Verify invariants
-  if (job.status !== "running") {
-    throw new Error(`Expected status=running, got ${job.status}`);
+  if (job.status !== "processing") {
+    throw new Error(`Expected status=processing, got ${job.status}`);
   }
-  console.log(`  ✅ Status transitioned: queued → running`);
+  console.log(`  ✅ Status transitioned: queued → processing`);
 
   if (!job.lease_token) {
     throw new Error("Expected lease_token to be set");
@@ -397,25 +397,25 @@ async function testProgressCounters(jobId) {
 
 /**
  * CI Hygiene Check: Detect and cleanup orphaned/leftover jobs (environment drift remediation)
- * Cleans up both orphaned running jobs AND leftover queued jobs from previous test runs
+ * Cleans up both orphaned processing jobs AND leftover queued jobs from previous test runs
  */
 async function checkCiHygiene() {
   console.log("\n[HYGIENE] Checking for orphaned/leftover jobs...");
   
-  // Check for orphaned running jobs (status=running, lease_until=null)
+  // Check for orphaned processing jobs (status=processing, lease_until=null)
   const { data: orphanedRunning, error: runningError } = await supabase
     .from("evaluation_jobs")
     .select("id, status, lease_until, created_at")
-    .eq("status", "running")
+    .eq("status", "processing")
     .is("lease_until", null)
     .order("created_at", { ascending: true })
     .limit(10);
   
   if (runningError) {
-    console.log(`  ⚠️  Hygiene check (running) query failed: ${runningError.message}`);
+    console.log(`  ⚠️  Hygiene check (processing) query failed: ${runningError.message}`);
   } else if (orphanedRunning && orphanedRunning.length > 0) {
-    console.log(`  ⚠️  Found ${orphanedRunning.length} orphaned running jobs (status=running, lease_until=null)`);
-    console.log(`      Resetting orphaned running jobs to queued...`);
+    console.log(`  ⚠️  Found ${orphanedRunning.length} orphaned processing jobs (status=processing, lease_until=null)`);
+    console.log(`      Resetting orphaned processing jobs to queued...`);
     
     // Reset orphaned jobs back to queued state (deterministic cleanup)
     const { error: cleanupError, count } = await supabase
@@ -427,17 +427,17 @@ async function checkCiHygiene() {
         lease_until: null,
         heartbeat_at: null
       })
-      .eq("status", "running")
+      .eq("status", "processing")
       .is("lease_until", null);
     
     if (cleanupError) {
-      console.log(`  ❌ HYGIENE CLEANUP FAILED (running): ${cleanupError.message}`);
-      throw new Error(`Failed to cleanup orphaned running jobs: ${cleanupError.message}`);
+      console.log(`  ❌ HYGIENE CLEANUP FAILED (processing): ${cleanupError.message}`);
+      throw new Error(`Failed to cleanup orphaned processing jobs: ${cleanupError.message}`);
     } else {
-      console.log(`  ✅ Reset ${count} orphaned running jobs to queued state`);
+      console.log(`  ✅ Reset ${count} orphaned processing jobs to queued state`);
     }
   } else {
-    console.log(`  ✅ No orphaned running jobs detected`);
+    console.log(`  ✅ No orphaned processing jobs detected`);
   }
   
   // Check for leftover queued jobs (older than 5 minutes = likely from previous test run)
