@@ -16,7 +16,10 @@ import { claimNextJob } from "./workers/claimJob";
 const supabase = getSupabaseAdminClient();
 const hasSupabase = !!supabase;
 
-const run = (hasSupabase && process.env.TEST_MODE !== 'true') ? describe : describe.skip;
+// CI smoke-test detection: skip integration tests when TEST_MODE is explicitly 'true'
+const isCiSmoke = process.env.TEST_MODE === "true";
+const shouldRun = hasSupabase && !isCiSmoke;
+const run = shouldRun ? describe : describe.skip;
 
 run("Phase 2D-1 Atomic claim concurrency", () => {
   it("allows only one worker to claim a job", async () => {
