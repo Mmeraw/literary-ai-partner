@@ -69,7 +69,7 @@ jobs:
           npx --yes wait-on http://127.0.0.1:3002
 
       - name: Run Flow 1 proof pack (Jest)
-        run: npm test -- tests/flow1-proof-pack.test.ts --testTimeout=180000
+        run: npm test -- tests/flow1-proof-pack.test.ts --testTimeout=180000 --testPathIgnorePatterns=/node_modules/
         env:
           FLOW1_BASE_URL: http://127.0.0.1:3002
           CRON_SECRET: test-cron-secret-for-flow1-proof
