@@ -202,6 +202,8 @@ export async function GET(request: NextRequest) {
       isDryRun,
       nodeEnv: process.env.NODE_ENV,
       vercelEnv: process.env.VERCEL_ENV,
+            // Auth presence flags for audit
+      ...getAuthDebugContext(request),
     },
   });
   
