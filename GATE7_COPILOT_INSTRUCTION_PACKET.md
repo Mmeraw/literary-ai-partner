@@ -247,22 +247,23 @@ npm test -- tests/flow1-aggregation.test.ts --testTimeout=180000
 **In `lib/evaluation/phase2.ts` (top of file)**:
 ```typescript
 /**
- * PHASE2 AGGREGATION CONTRACT
+ * PHASE2 MATERIALIZATION CONTRACT
  *
- * This is the canonical aggregation point for evaluation results.
+ * This is the canonical materialization layer for evaluation results.
+ * Transforms Phase1 output into UI-ready Phase2 artifact.
  *
  * Invariants (non-negotiable):
  * - Must be idempotent (safe to run multiple times, same result)
  * - Must produce exactly ONE canonical phase2_output artifact per job
  * - Must tolerate concurrent execution (atomic upsert)
- * - Must NOT rely on worker timing (use completion-count gating)
+ * - Reads from: evaluation_jobs.evaluation_result (Phase1 output)
+ * - Writes to: evaluation_artifacts (phase2_output)
  * - Serialization must be deterministic (normalized before JSON)
  *
  * Failure Class Prevention:
- * - Class 1 (Too Early): Gated by completion-count check in worker
- * - Class 2 (Duplicates): Atomic upsert with unique constraint
+ * - Class 2 (Duplicates): Atomic upsert with UNIQUE(job_id, artifact_type)
  * - Class 3 (Wrong Source): Report page queries ONLY this table
- * - Class 4 (Serialization): normalize() called before aggregation
+ * - Class 4 (Serialization): normalize() called before transform
  * - Class 6 (Zombie): marked as failed on error, not left in processing
  *
  * Report page reads ONLY this artifact. No other source is canonical.
@@ -325,24 +326,26 @@ Report page and all SSR routes use user-scoped server client (inherits session).
 
 ### Landmine 3: Idempotency Isn't Just `.upsert()` — **PATTERN LOCK**
 
-**Problem**: Copilot implements `.upsert()` but rechecks "ready state" not-atomically. Race wins.  
-**Result if pattern wrong**: Concurrent workers both decide "ready" and run Phase2 twice (or zombie job if first crashes).
+**Problem**: Copilot implements `.upsert()` but forgets error handling. Job stuck forever.  
+**Result if pattern wrong**: Zombie job (status='processing' forever) if Phase2 crashes.
 
 **Requirement**:
-- [ ] Implement completion-check pattern as shown in Task 2 (non-negotiable)
-- [ ] Recheck count just before Phase2 runs (not in separate transaction)
+- [ ] Phase2 is safe to retry (idempotent via DB constraint)
 - [ ] Wrap in try/catch with explicit "mark failed" (no zombies)
+- [ ] Never leave job in "processing" state on error
 
 **Copilot instruction** (copy to Task 2 comment):
 ```
 IDEMPOTENCY PATTERN (non-negotiable):
 
-1. Check: count pending child jobs → if count > 0, return (not ready)
-2. Run: Phase2 aggregation (inside try)
-3. Update: mark parent job.status = "complete" OR "failed" (must happen)
-4. Never: leave job in "processing" state on error (zombie prevention)
+1. Trigger: job completes Phase1 → run Phase2
+2. Execute: runPhase2Aggregation(job.id) inside try/catch
+3. Success: log completion (job already marked complete)
+4. Failure: mark job.status = "failed" + log error
+5. Never: leave job in "processing" state on error (zombie prevention)
 
-Pattern must tolerate: concurrent workers, network retries, partial failures.
+Pattern must tolerate: network retries, partial failures, duplicate calls.
+DB constraint handles duplicate writes (UNIQUE job_id, artifact_type).
 ```
 
 ---
@@ -360,7 +363,7 @@ Pattern must tolerate: concurrent workers, network retries, partial failures.
 
 #### Changes to Job Lifecycle / Status Semantics
 **Status**: BLOCKED until code review  
-**Files**: Anything touching `marking jobs complete/failed`, parent-child relationships, worker dispatch  
+**Files**: Anything touching `marking jobs complete/failed`, worker dispatch  
 **Why**: Could break existing Gates 1–6 if not carefully integrated
 
 **Required Before Implementation**:
