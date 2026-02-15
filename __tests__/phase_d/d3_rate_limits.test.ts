@@ -8,7 +8,7 @@
  * - Cost tracking per evaluation
  */
 
-const fixtures = require('../../../evidence/phase-d/d3/rate-limit-fixtures.json');
+const fixtures = require('../../evidence/phase-d/d3/rate-limit-fixtures.json');
 
 describe('D3: Abuse Prevention & Resource Controls', () => {
   

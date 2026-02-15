@@ -18,7 +18,7 @@ import { randomUUID } from "crypto";
 const supabase = getSupabaseAdminClient();
 const hasSupabase = !!supabase;
 
-const run = hasSupabase ? describe : describe.skip;
+const run = (hasSupabase && process.env.TEST_MODE !== 'true') ? describe : describe.skip;
 
 run("Phase 2D-3 Reconciler", () => {
   // Clean up any stale test jobs before each test

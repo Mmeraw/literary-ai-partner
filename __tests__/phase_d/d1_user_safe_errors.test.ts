@@ -8,7 +8,7 @@
  * - Audit trail for support
  */
 
-const fixtures = require('../../../evidence/phase-d/d1/http-error-fixtures.json');
+const fixtures = require('../../evidence/phase-d/d1/http-error-fixtures.json');
 
 describe('D1: Public UX Safety — Error Contracts', () => {
   

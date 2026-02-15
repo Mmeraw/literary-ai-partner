@@ -101,7 +101,7 @@ describe("Polling Backoff Strategy", () => {
       const jobs = [
         makeJobRowWithAge(100000, "complete"),
         makeJobRowWithAge(50000, "failed"),
-        makeJobRowWithAge(30000, "canceled"),
+        makeJobRowWithAge(30000, "complete"), // changed from "canceled" (non-canonical)
       ];
 
       expect(getPollingInterval(jobs)).toBe(POLLING_INTERVALS.FAST);

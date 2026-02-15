@@ -44,9 +44,8 @@ describe('D2 agent trust header', () => {
   it('displays the Repro anchor with all components', () => {
     render(<AgentTrustHeader {...defaultProps} />);
     expect(screen.getByText(/Repro anchor/)).toBeTruthy();
-    expect(screen.getByText(/jobId job-123/)).toBeTruthy();
-    expect(screen.getByText(/2026-02-08T00:00:00Z/)).toBeTruthy();
-    expect(screen.getByText(/work_type_matrix.v1/)).toBeTruthy();
+    // Query for the composite text that includes all three components
+    expect(screen.getByText(/jobId job-123 · 2026-02-08T00:00:00Z · work_type_matrix\.v1/)).toBeTruthy();
   });
 
   it('displays the NA exclusion language explicitly', () => {
