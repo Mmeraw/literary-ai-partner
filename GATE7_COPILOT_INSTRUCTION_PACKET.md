@@ -11,15 +11,15 @@
 
 These are not suggestions. They encode the failure modes. Copilot must follow exactly.
 
-1. **Phase2 aggregates CHILD phase1_output artifacts**
-   - Fetch all child jobs where `parent_job_id = parentJobId`
-   - Fetch their `phase1_output` artifacts
-   - Aggregate into ONE `phase2_output` for the parent job
-   - NOT: reading from the same job_id (that's single-job, not aggregation)
+1. **Phase2 aggregates Phase1 results for a single job**
+   - Current Phase1 results stored in: `evaluation_jobs.evaluation_result` (JSONB column)
+   - Phase2 reads from that single job: `SELECT evaluation_result FROM evaluation_jobs WHERE id = jobId`
+   - Aggregates into ONE canonical `phase2_output` artifact
+   - Writes to: `evaluation_artifacts` with `job_id = jobId, artifact_type = "phase2_output"`
 
-2. **Exactly ONE phase2_output exists per parent job**
-   - Upsert with `onConflict: "parent_job_id,artifact_type"`
-   - If this constraint doesn't exist in schema, halt and notify
+2. **Exactly ONE phase2_output exists per job**
+   - Upsert with `onConflict: "job_id,artifact_type"` (this constraint already exists on DB)
+   - Single atomic write; safe to retry
 
 3. **Worker/Phase2 uses admin/service-role Supabase client**
    - NOT `createClient()` (that's session/cookie-based, fails in worker)
@@ -38,14 +38,13 @@ These are not suggestions. They encode the failure modes. Copilot must follow ex
 ### Task 1: Implement Phase2 Aggregation Engine
 **File**: `lib/evaluation/phase2.ts`  
 **Priority**: P0  
-**Depends on**: Nothing (existing phase1_output artifacts already in DB)
+**Depends on**: Nothing (existing evaluation_result already in evaluation_jobs table)
 
 **Implementation Requirements**:
-- Fetch all CHILD jobs where `parent_job_id = parentJobId`
-- Fetch THEIR `phase1_output` artifacts (not job_id = parentJobId)
-- Normalize artifacts (handle inconsistent shapes from Phase1 workers)
-- Compute aggregated result (merge scores, summaries, error states)
-- Upsert single canonical `phase2_output` artifact **atomically** with `onConflict: "parent_job_id,artifact_type"`
+- Read `evaluation_result` JSONB from `evaluation_jobs` where `id = jobId`
+- Normalize artifact payload (handle inconsistent shapes, null checks)
+- Compute aggregated result (consolidate scores, summaries, error states)
+- Upsert single canonical `phase2_output` artifact **atomically** with `onConflict: "job_id,artifact_type"`
 - Use **admin/service-role Supabase client** (not session client)
 - Return typed result; no schema changes
 - Add guard-rail comment block (see below)
@@ -54,8 +53,17 @@ These are not suggestions. They encode the failure modes. Copilot must follow ex
 - [ ] Function is `async`, typed with TypeScript
 - [ ] Upsert is atomic (single DB call)
 - [ ] Running twice produces identical state (idempotent)
-- [ ] Throws on missing phase1 artifacts
+- [ ] Throws on missing evaluation_result
 - [ ] No DB schema changes
+
+**Example Signature**:
+```typescript
+export async function runPhase2Aggregation(jobId: string) {
+  // 1. fetch evaluation_result from evaluation_jobs
+  // 2. normalize payload
+  // 3. upsert to evaluation_artifacts with job_id, artifact_type="phase2_output"
+}
+```
 
 **Test Locally Before Commit**:
 ```bash
@@ -70,32 +78,18 @@ npm test -- phase2.test.ts --testPathPattern="aggregation"
 **Depends on**: Task 1 complete
 
 **Implementation Requirements**:
-- When a Phase1 job completes, check: are ALL child jobs for this parent complete?
-- Use completion-count pattern (mandatory, not optional):
-  ```typescript
-  // CRITICAL: Recheck just before Phase2 runs
-  const { count } = await supabase
-    .from("evaluation_jobs")
-    .select("*", { count: "exact", head: true })
-    .eq("parent_job_id", parentJobId)
-    .neq("status", "complete");
-  
-  if (count > 0) {
-    console.log(`Phase2 not ready: ${count} child jobs still pending`);
-    return; // NOT READY
-  }
-  ```
+- After a job completes Phase1, check its own state: is `status = "complete"`?
+- When job transitions to complete, call `await runPhase2Aggregation(job.id)`
 - **Use admin/service-role client** (not session/cookie client)
   ```typescript
   const adminClient = createClient({ admin: true }); // or supabase.from() with RLS disabled
   ```
-- When all child jobs complete, call `await runPhase2Aggregation(parentJobId)`
 - Wrap in try/catch; on error, mark job as `"failed"` (NEVER leave in `"processing"` — zombie prevention)
+- Ensure Phase2 is idempotent (safe to run multiple times)
 - Log aggregation start/completion (use existing logger)
 
 **Acceptance Criteria**:
-- [ ] Phase2 ONLY runs when ALL child jobs are complete
-- [ ] Completion check is done TWICE (once initial, re-check just before Phase2)
+- [ ] Phase2 runs AFTER Phase1 completes (on job completion transition)
 - [ ] Idempotent (safe to call multiple times on same job)
 - [ ] Admin/service-role client is used (not session client)
 - [ ] Error handling marks job as failed (no zombies)
@@ -113,7 +107,7 @@ npm test -- phase2.test.ts --testPathPattern="aggregation"
 
 **Implementation Requirements**:
 - Server-side (SSR) fetch from `evaluation_artifacts` table
-- Query: `artifact_type = "phase2_output"` AND `job_id = params.jobId`
+- Query: `job_id = params.jobId AND artifact_type = "phase2_output"`
 - If artifact found: render JSON (minimal; no styling yet)
 - If artifact not found: show "Processing…" message (no crash, no error)
 - Use Supabase server client
@@ -124,6 +118,22 @@ npm test -- phase2.test.ts --testPathPattern="aggregation"
 - [ ] Query is server-side only (no client-side Supabase calls)
 - [ ] JSON rendering works (use `<pre>` + `JSON.stringify`)
 - [ ] Artifact table query works (tested locally)
+
+**Example Query**:
+```typescript
+const { data } = await supabase
+  .from("evaluation_artifacts")
+  .select("content, created_at")
+  .eq("job_id", params.jobId)
+  .eq("artifact_type", "phase2_output")
+  .single();
+
+if (!data) {
+  return <p>Processing…</p>;
+}
+
+return <pre>{JSON.stringify(data.content, null, 2)}</pre>;
+```
 
 **Guard Rail**: UX polish (styling, interactivity) deferred until after core loop proven.
 
@@ -137,16 +147,16 @@ npm test -- phase2.test.ts --testPathPattern="aggregation"
 **Implementation Requirements**:
 - Create new test file (separate from existing flow1-proof-pack.test.ts)
 - Test flow:
-  1. Submit job (create parent)
+  1. Submit job (via API)
   2. Poll for phase2_output artifact with **backoff pattern** (NOT sleep):
      ```typescript
-     async function waitForArtifact(parentJobId: string, timeout = 180000) {
+     async function waitForArtifact(jobId: string, timeout = 180000) {
        const start = Date.now();
        while (Date.now() - start < timeout) {
          const { data } = await supabase
            .from("evaluation_artifacts")
            .select("content")
-           .eq("parent_job_id", parentJobId)
+           .eq("job_id", jobId)
            .eq("artifact_type", "phase2_output")
            .single();
          
@@ -156,8 +166,8 @@ npm test -- phase2.test.ts --testPathPattern="aggregation"
        throw new Error("Timeout waiting for phase2_output");
      }
      ```
-  3. Assert artifact exists and `content.summary` contains expected string
-  4. Fetch report page SSR (GET /evaluate/[parentJobId]/report)
+  3. Assert artifact exists and `content` contains expected result
+  4. Fetch report page SSR (GET /evaluate/[jobId]/report)
   5. Assert status 200 and response contains artifact data (or JSON marker)
 - Timeout: 180 seconds (allow time for Phase1 + Phase2)
 - Use admin/service-role client for artifact checks (same as worker)
@@ -261,20 +271,8 @@ npm test -- tests/flow1-aggregation.test.ts --testTimeout=180000
 
 **In worker (before Phase2 call)**:
 ```typescript
-// CRITICAL: Phase2 only runs when ALL Phase1 jobs for this parent are complete.
-// This prevents the "too early" failure class.
-const { count } = await supabase
-  .from("evaluation_jobs")
-  .select("*", { count: "exact", head: true })
-  .eq("parent_job_id", jobId)
-  .neq("status", "complete");
-
-if (count > 0) {
-  console.log(`[Phase2] Waiting: ${count} Phase1 jobs still pending.`);
-  return; // NOT READY
-}
-
-// All Phase1 complete. Proceed with aggregation.
+// CRITICAL: Phase2 only runs when job is transitioning to complete status.
+// Use try/catch to prevent zombie jobs (status = "processing" forever).
 try {
   await runPhase2Aggregation(jobId);
   await markJobComplete(jobId);
@@ -294,30 +292,14 @@ try {
 
 ## 🚨 THREE CRITICAL LANDMINES (Copilot Will Guess Wrong Without These)
 
-### Landmine 1: jobId Ambiguity (Parent vs Child) — **CLARIFY BEFORE STARTING**
+### Landmine 1: Data Model Clarity (RESOLVED) — ✅ CONFIRMED
 
-**Problem**: Copilot will guess whether Phase1 artifacts are stored on parent jobs or child jobs.  
-**Result if guessed wrong**: "No phase1 artifacts found" — gates passes but system doesn't work.
+**This has been verified**. Your schema uses:
+- Phase1 results stored in: `evaluation_jobs.evaluation_result` (JSONB column)
+- Phase2 writes to: `evaluation_artifacts` with `job_id, artifact_type = "phase2_output"`
+- Single job aggregation (not parent-child jobs)
 
-**Decision Required**:
-- [ ] **Confirm your data model**: Are Phase1 results stored on child jobs with `parent_job_id` reference?
-  - If YES: Phase2 must fetch child jobs by `parent_job_id = parentJobId`, then their artifacts
-  - If NO (all on same job): Phase2 fetches by `job_id = jobId`
-
-**Copilot instruction** (use your answer):
-
-If **Model A** (child jobs + parent aggregation):
-```
-All references "job_id" in Phase1 query context actually mean "child job_id."
-Parent job is the aggregation target.
-Phase2 query: parent_job_id = parentJobId. Do NOT query job_id = parentJobId.
-```
-
-If **Model B** (single job, no children):
-```
-All Phase1 artifacts are on the same job_id.
-Phase2 aggregates artifacts on job_id = jobId (same job, different artifact types).
-```
+**No guessing needed**. Phase2 reads from the SAME job_id it writes to.
 
 ---
 
@@ -369,26 +351,10 @@ Pattern must tolerate: concurrent workers, network retries, partial failures.
 
 ### DO NOT IMPLEMENT yet:
 
-#### Schema Change: UNIQUE(parent_job_id, artifact_type) Constraint
-**Status**: BLOCKED pending schema design review  
-**Why**: This is critical for idempotency but should be explicit migration, not inferred.
-
-**Required Before Implementation Starts**:
-- [ ] Confirm schema already enforces `UNIQUE(parent_job_id, artifact_type)` constraint on evaluation_artifacts
-- [ ] If constraint already exists: Task 1/2 can proceed (no migration needed)
-- [ ] If constraint does NOT exist: **STOP** — create explicit migration first (do not auto-generate)
-
-**If Migration Required**:
-- Create migration: `migrations/[timestamp]-add-phase2-idempotency-constraint.sql`
-- Migration MUST set `ON CONFLICT DO UPDATE` semantics (explicit, not inferred)
-- Test locally against test DB first
-- Ensure no existing rows violate constraint before applying
-
-**Responsible Party**: DevOps / Schema Maintainer  
-**Action Item**: 
-1. Check if constraint exists: `SELECT constraint_name FROM information_schema.table_constraints WHERE table_name = 'evaluation_artifacts' AND constraint_type = 'UNIQUE';`
-2. If missing: create blocker issue "Schema: Add UNIQUE(parent_job_id, artifact_type) for Phase2 idempotency"
-3. Do NOT proceed with Tasks 1/2 until confirmed
+#### Schema Verification: UNIQUE(job_id, artifact_type) Constraint
+**Status**: ✅ ALREADY EXISTS  
+**Constraint**: `unique_job_artifact` on `evaluation_artifacts(job_id, artifact_type)`  
+**Result**: No migration needed. Task 1 can use `.upsert(..., { onConflict: "job_id,artifact_type" })` as-is.
 
 ---
 
