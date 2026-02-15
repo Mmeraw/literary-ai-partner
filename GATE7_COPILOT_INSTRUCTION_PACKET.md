@@ -22,8 +22,8 @@ These are not suggestions. They encode the failure modes. Copilot must follow ex
    - Single atomic write; safe to retry
 
 3. **Worker/Phase2 uses admin/service-role Supabase client**
-   - NOT `createClient()` (that's session/cookie-based, fails in worker)
-   - Must be: `createClient({ admin: true })` or equivalent
+   - Use `getSupabaseAdminClient()` from `lib/supabase.js` (bypasses RLS, returns null if missing)
+   - NOT bare `createClient()` (session-based, fails in worker)
    - Phase2 runs asynchronously with NO authenticated user
 
 4. **Report page reads phase2_output and never crashes**
@@ -35,8 +35,8 @@ These are not suggestions. They encode the failure modes. Copilot must follow ex
 
 ## 🚀 EXECUTE NOW (No Schema/Infra Changes Required)
 
-### Task 1: Implement Phase2 Aggregation Engine
-**File**: `lib/evaluation/phase2.ts`  
+### Task 1: Extend Phase2 Aggregation for Gate 7
+**File**: `lib/jobs/phase2.ts` (extend existing 458-line engine)  
 **Priority**: P0  
 **Depends on**: Nothing (existing evaluation_result already in evaluation_jobs table)
 
@@ -45,7 +45,7 @@ These are not suggestions. They encode the failure modes. Copilot must follow ex
 - Normalize artifact payload (handle inconsistent shapes, null checks)
 - Compute aggregated result (consolidate scores, summaries, error states)
 - Upsert single canonical `phase2_output` artifact **atomically** with `onConflict: "job_id,artifact_type"`
-- Use **admin/service-role Supabase client** (not session client)
+- Use `getSupabaseAdminClient()` from `lib/supabase.js` (NOT bare createClient)
 - Return typed result; no schema changes
 - Add guard-rail comment block (see below)
 
@@ -80,9 +80,11 @@ npm test -- phase2.test.ts --testPathPattern="aggregation"
 **Implementation Requirements**:
 - After a job completes Phase1, check its own state: is `status = "complete"`?
 - When job transitions to complete, call `await runPhase2Aggregation(job.id)`
-- **Use admin/service-role client** (not session/cookie client)
+- **Use admin client from lib/supabase.js** (not session/cookie client)
   ```typescript
-  const adminClient = createClient({ admin: true }); // or supabase.from() with RLS disabled
+  import { getSupabaseAdminClient } from "@/lib/supabase";
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) throw new Error("Admin client unavailable");
   ```
 - Wrap in try/catch; on error, mark job as `"failed"` (NEVER leave in `"processing"` — zombie prevention)
 - Ensure Phase2 is idempotent (safe to run multiple times)
@@ -96,7 +98,7 @@ npm test -- phase2.test.ts --testPathPattern="aggregation"
 - [ ] No changes to existing Phase1 workers
 - [ ] No changes to `claim_job_atomic()` semantics
 
-**Guard Rail**: Do NOT use `createClient()` without `{ admin: true }` in background Worker. Do NOT change job lifecycle semantics.
+**Guard Rail**: Use `getSupabaseAdminClient()` from `lib/supabase.js` in worker/Phase2 code. Do NOT use bare `createClient()` (session-based). Do NOT change job lifecycle semantics.
 
 ---
 
@@ -239,12 +241,12 @@ npm test -- tests/flow1-aggregation.test.ts --testTimeout=180000
 ---
 
 ### Task 6: Add Guard-Rail Comments and Contracts
-**Files**: `lib/evaluation/phase2.ts`, worker file, tests  
+**Files**: `lib/jobs/phase2.ts`, worker file, tests  
 **Priority**: P2 (can follow after implementation)
 
 **Implementation Requirements**:
 
-**In `lib/evaluation/phase2.ts` (top of file)**:
+**In `lib/jobs/phase2.ts` (extend existing file with contract comment)**:
 ```typescript
 /**
  * PHASE2 MATERIALIZATION CONTRACT
@@ -310,14 +312,14 @@ try {
 **Result if guessed wrong**: Worker/Phase2 runs but gets permission errors or empty reads.
 
 **Requirement**:
-- [ ] Confirm your Supabase instance supports admin/service-role clients in background workers
-- [ ] Confirm you have a mechanism to pass credentials to workers (env vars, etc.)
+- [x] Admin client exists at `lib/supabase.js` as `getSupabaseAdminClient()` (lazy singleton, uses SUPABASE_SERVICE_ROLE_KEY)
+- [x] Returns null when credentials missing (safe for CI/build)
 
 **Copilot instruction** (use as-is):
 ```
-Phase2 and all worker queries must use admin/service-role client, NOT session client.
-- Correct: createClient({ admin: true }) or supabase with RLS disabled
-- Wrong: createClient() (this is session-based, fails in background)
+Phase2 and all worker queries must use getSupabaseAdminClient() from lib/supabase.js.
+- Correct: import { getSupabaseAdminClient } from "@/lib/supabase"; const supabase = getSupabaseAdminClient();
+- Wrong: createClient() or createClient({ admin: true }) (not how repo implements admin access)
 
 Report page and all SSR routes use user-scoped server client (inherits session).
 ```
@@ -481,15 +483,15 @@ Before you (Copilot) start, confirm:
 
 Gate 7 closes ONLY when ALL of the following are true:
 
-1. **Phase2 aggregation engine exists** (`lib/evaluation/phase2.ts`)
-   - Fetches phase1 artifacts
+1. **Phase2 aggregation extended in `lib/jobs/phase2.ts`**
+   - Materializes single job's evaluation_result → phase2_output artifact
    - Normalizes data
-   - Upserts atomically
-   - Idempotent
+   - Upserts atomically with `onConflict: "job_id,artifact_type"`
+   - Idempotent (Model B: single job, not parent-child)
    - Typed
 
 2. **Worker trigger implemented** (worker.ts)
-   - Gated by completion-count (not single-job completion)
+   - Runs on single job completion (status="complete")
    - Error handling marks failed jobs
    - No zombie jobs possible
 
