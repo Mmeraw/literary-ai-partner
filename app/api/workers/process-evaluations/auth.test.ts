@@ -13,16 +13,26 @@
 import { NextRequest } from 'next/server';
 import { GET } from './route';
 
-// Mock environment variables
-const originalEnv = process.env;
+// Jest-safe environment setter (bypasses TypeScript read-only NODE_ENV at compile time)
+const setEnv = (key: string, value: string | undefined) => {
+  (process.env as Record<string, string | undefined>)[key] = value;
+};
+
+const originalEnv = { ...process.env };
 
 beforeEach(() => {
-  jest.resetModules();
-  process.env = { ...originalEnv };
+  // Reset to clean state
+  Object.keys(process.env).forEach(key => {
+    if (!(key in originalEnv)) delete (process.env as any)[key];
+  });
 });
 
-afterAll(() => {
-  process.env = originalEnv;
+afterEach(() => {
+  // Restore original environment
+  Object.assign(process.env, originalEnv);
+  Object.keys(process.env).forEach(key => {
+    if (!(key in originalEnv)) delete (process.env as any)[key];
+  });
 });
 
 // Helper to create mock NextRequest
@@ -46,8 +56,8 @@ function createMockRequest(options: {
 describe('Process Evaluations Worker Auth', () => {
   describe('Unauthorized Access', () => {
     it('should return 401 with no headers or credentials', async () => {
-      process.env.CRON_SECRET = 'test-secret-123';
-      process.env.NODE_ENV = 'production';
+      (process.env as any).CRON_SECRET = 'test-secret-123';
+      (process.env as any).NODE_ENV = 'production';
       delete process.env.VERCEL;
       delete process.env.VERCEL_ENV;
       
@@ -62,8 +72,8 @@ describe('Process Evaluations Worker Auth', () => {
     });
 
     it('should return 401 with wrong bearer token', async () => {
-      process.env.CRON_SECRET = 'correct-secret';
-      process.env.NODE_ENV = 'production';
+      (process.env as any).CRON_SECRET = 'correct-secret';
+      (process.env as any).NODE_ENV = 'production';
       
       const req = createMockRequest({
         headers: { 'authorization': 'Bearer wrong-secret' }
@@ -91,8 +101,8 @@ describe('Process Evaluations Worker Auth', () => {
     });
 
     it('should return 401 with query secret in production', async () => {
-      process.env.CRON_SECRET = 'test-secret';
-      process.env.NODE_ENV = 'production';
+      setEnv('CRON_SECRET', 'test-secret');
+      setEnv('NODE_ENV', 'production');
       
       const req = createMockRequest({
         searchParams: { secret: 'test-secret' }
@@ -105,8 +115,8 @@ describe('Process Evaluations Worker Auth', () => {
 
   describe('Bearer Token Auth', () => {
     it('should return 200 with correct bearer token', async () => {
-      process.env.CRON_SECRET = 'valid-secret-456';
-      process.env.NODE_ENV = 'production';
+      setEnv('CRON_SECRET', 'valid-secret-456');
+      setEnv('NODE_ENV', 'production');
       
       const req = createMockRequest({
         headers: { 'authorization': 'Bearer valid-secret-456' }
@@ -167,8 +177,8 @@ describe('Process Evaluations Worker Auth', () => {
 
   describe('Dev Query Secret Auth', () => {
     it('should return 200 with query secret in development', async () => {
-      process.env.CRON_SECRET = 'dev-secret';
-      process.env.NODE_ENV = 'development';
+      setEnv('CRON_SECRET', 'dev-secret');
+      setEnv('NODE_ENV', 'development');
       
       const req = createMockRequest({
         searchParams: { secret: 'dev-secret' }
@@ -181,8 +191,8 @@ describe('Process Evaluations Worker Auth', () => {
     });
 
     it('should return 401 with wrong query secret in development', async () => {
-      process.env.CRON_SECRET = 'correct-secret';
-      process.env.NODE_ENV = 'development';
+      setEnv('CRON_SECRET', 'correct-secret');
+      setEnv('NODE_ENV', 'development');
       
       const req = createMockRequest({
         searchParams: { secret: 'wrong-secret' }
@@ -302,9 +312,9 @@ describe('QC Regression Tests', () => {
   describe('QC1: Cron Priority Over Bearer', () => {
     it('should classify as vercel_cron even when Bearer also matches', async () => {
       // This is the key invariant: cron headers take priority over bearer
-      process.env.CRON_SECRET = 'test-secret';
-      process.env.VERCEL = '1';
-      process.env.VERCEL_ENV = 'production';
+      setEnv('CRON_SECRET', 'test-secret');
+      setEnv('VERCEL', '1');
+      setEnv('VERCEL_ENV', 'production');
       
       const req = createMockRequest({
         headers: {
@@ -324,9 +334,9 @@ describe('QC Regression Tests', () => {
 
   describe('QC2: Timing-Safe Handles Length Mismatch', () => {
     it('should return 401 with wrong-length token without throwing', async () => {
-      process.env.CRON_SECRET = 'correct-secret-here';
-      process.env.NODE_ENV = 'production';
-      delete process.env.VERCEL;
+      setEnv('CRON_SECRET', 'correct-secret-here');
+      setEnv('NODE_ENV', 'production');
+      setEnv('VERCEL', undefined);
       
       // Short token (length mismatch)
       const req = createMockRequest({
@@ -341,9 +351,9 @@ describe('QC Regression Tests', () => {
     });
 
     it('should return 401 with very long token without throwing', async () => {
-      process.env.CRON_SECRET = 'short';
-      process.env.NODE_ENV = 'production';
-      delete process.env.VERCEL;
+      setEnv('CRON_SECRET', 'short');
+      setEnv('NODE_ENV', 'production');
+      setEnv('VERCEL', undefined);
       
       // Very long token (length mismatch)
       const req = createMockRequest({
@@ -359,8 +369,8 @@ describe('QC Regression Tests', () => {
 
   describe('QC3: Production Rejects Query Secret', () => {
     it('should reject query secret in production even if correct', async () => {
-      process.env.CRON_SECRET = 'prod-secret';
-      process.env.NODE_ENV = 'production';
+      setEnv('CRON_SECRET', 'prod-secret');
+      setEnv('NODE_ENV', 'production');
       
       const req = createMockRequest({
         searchParams: { secret: 'prod-secret' } // Correct secret!
@@ -373,9 +383,9 @@ describe('QC Regression Tests', () => {
 
   describe('QC4: Fail-Closed When CRON_SECRET Missing', () => {
     it('should reject bearer when CRON_SECRET is undefined', async () => {
-      delete process.env.CRON_SECRET;
-      process.env.NODE_ENV = 'production';
-      delete process.env.VERCEL;
+      setEnv('CRON_SECRET', undefined);
+      setEnv('NODE_ENV', 'production');
+      setEnv('VERCEL', undefined);
       
       const req = createMockRequest({
         headers: { 'authorization': 'Bearer anything' }
@@ -386,9 +396,9 @@ describe('QC Regression Tests', () => {
     });
 
     it('should reject bearer when CRON_SECRET is empty string', async () => {
-      process.env.CRON_SECRET = '';
-      process.env.NODE_ENV = 'production';
-      delete process.env.VERCEL;
+      setEnv('CRON_SECRET', '');
+      setEnv('NODE_ENV', 'production');
+      setEnv('VERCEL', undefined);
       
       const req = createMockRequest({
         headers: { 'authorization': 'Bearer ' } // Empty bearer to match empty secret
@@ -399,9 +409,9 @@ describe('QC Regression Tests', () => {
     });
 
     it('should reject query secret in dev when CRON_SECRET is undefined', async () => {
-      delete process.env.CRON_SECRET;
-      process.env.NODE_ENV = 'development';
-      delete process.env.VERCEL;
+      setEnv('CRON_SECRET', undefined);
+      setEnv('NODE_ENV', 'development');
+      setEnv('VERCEL', undefined);
       
       const req = createMockRequest({
         searchParams: { secret: 'anything' }

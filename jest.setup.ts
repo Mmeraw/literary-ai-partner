@@ -19,3 +19,17 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_URL) {
 if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY && process.env.SUPABASE_ANON_KEY) {
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 }
+
+// Map database URLs for TTL/concurrency tests (psql CLI integration tests)
+// Tries multiple common env var names in priority order
+if (!process.env.PG_URL) {
+  const dbUrl = 
+    process.env.DATABASE_URL ||
+    process.env.SUPABASE_DB_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.DATABASE_URL_UNPROTECTED;
+  
+  if (dbUrl) {
+    (process.env as any).PG_URL = dbUrl;
+  }
+}
