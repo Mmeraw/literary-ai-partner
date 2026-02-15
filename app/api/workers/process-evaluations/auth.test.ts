@@ -293,3 +293,141 @@ describe('Process Evaluations Worker Auth', () => {
     });
   });
 });
+
+// =============================================================================
+// QC REGRESSION TESTS (required for audit-grade approval)
+// =============================================================================
+
+describe('QC Regression Tests', () => {
+  describe('QC1: Cron Priority Over Bearer', () => {
+    it('should classify as vercel_cron even when Bearer also matches', async () => {
+      // This is the key invariant: cron headers take priority over bearer
+      process.env.CRON_SECRET = 'test-secret';
+      process.env.VERCEL = '1';
+      process.env.VERCEL_ENV = 'production';
+      
+      const req = createMockRequest({
+        headers: {
+          'x-vercel-cron': '1',
+          'x-vercel-id': 'iad1::abc123',
+          'authorization': 'Bearer test-secret' // Both cron AND valid bearer
+        }
+      });
+      const response = await GET(req);
+      
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      // MUST be vercel_cron, not bearer
+      expect(body.authMethod).toBe('vercel_cron');
+    });
+  });
+
+  describe('QC2: Timing-Safe Handles Length Mismatch', () => {
+    it('should return 401 with wrong-length token without throwing', async () => {
+      process.env.CRON_SECRET = 'correct-secret-here';
+      process.env.NODE_ENV = 'production';
+      delete process.env.VERCEL;
+      
+      // Short token (length mismatch)
+      const req = createMockRequest({
+        headers: { 'authorization': 'Bearer x' }
+      });
+      const response = await GET(req);
+      
+      expect(response.status).toBe(401);
+      // Should not throw - verify we got a proper JSON response
+      const body = await response.json();
+      expect(body.error).toBe('Unauthorized');
+    });
+
+    it('should return 401 with very long token without throwing', async () => {
+      process.env.CRON_SECRET = 'short';
+      process.env.NODE_ENV = 'production';
+      delete process.env.VERCEL;
+      
+      // Very long token (length mismatch)
+      const req = createMockRequest({
+        headers: { 'authorization': 'Bearer ' + 'x'.repeat(10000) }
+      });
+      const response = await GET(req);
+      
+      expect(response.status).toBe(401);
+      const body = await response.json();
+      expect(body.error).toBe('Unauthorized');
+    });
+  });
+
+  describe('QC3: Production Rejects Query Secret', () => {
+    it('should reject query secret in production even if correct', async () => {
+      process.env.CRON_SECRET = 'prod-secret';
+      process.env.NODE_ENV = 'production';
+      
+      const req = createMockRequest({
+        searchParams: { secret: 'prod-secret' } // Correct secret!
+      });
+      const response = await GET(req);
+      
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe('QC4: Fail-Closed When CRON_SECRET Missing', () => {
+    it('should reject bearer when CRON_SECRET is undefined', async () => {
+      delete process.env.CRON_SECRET;
+      process.env.NODE_ENV = 'production';
+      delete process.env.VERCEL;
+      
+      const req = createMockRequest({
+        headers: { 'authorization': 'Bearer anything' }
+      });
+      const response = await GET(req);
+      
+      expect(response.status).toBe(401);
+    });
+
+    it('should reject bearer when CRON_SECRET is empty string', async () => {
+      process.env.CRON_SECRET = '';
+      process.env.NODE_ENV = 'production';
+      delete process.env.VERCEL;
+      
+      const req = createMockRequest({
+        headers: { 'authorization': 'Bearer ' } // Empty bearer to match empty secret
+      });
+      const response = await GET(req);
+      
+      expect(response.status).toBe(401);
+    });
+
+    it('should reject query secret in dev when CRON_SECRET is undefined', async () => {
+      delete process.env.CRON_SECRET;
+      process.env.NODE_ENV = 'development';
+      delete process.env.VERCEL;
+      
+      const req = createMockRequest({
+        searchParams: { secret: 'anything' }
+      });
+      const response = await GET(req);
+      
+      expect(response.status).toBe(401);
+    });
+
+    it('should STILL allow vercel cron on platform when CRON_SECRET is undefined', async () => {
+      delete process.env.CRON_SECRET;
+      process.env.VERCEL = '1';
+      process.env.VERCEL_ENV = 'production';
+      
+      const req = createMockRequest({
+        headers: {
+          'x-vercel-cron': '1',
+          'x-vercel-id': 'iad1::abc123'
+        }
+      });
+      const response = await GET(req);
+      
+      // Cron header auth should work even without CRON_SECRET
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.authMethod).toBe('vercel_cron');
+    });
+  });
+});
