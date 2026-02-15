@@ -38,15 +38,25 @@ const CONFIG = {
 // AUTH UTILITIES (Production-grade, timing-safe)
 // ============================================================================
 
+// Max secret length to prevent CPU burn attacks
+const MAX_SECRET_LENGTH = 512;
+
 /**
  * Timing-safe string comparison using SHA-256 digests
  * This eliminates length mismatch timing issues entirely
+ * Returns { equal: boolean, secretTooLong: boolean }
  */
-function timingSafeEqual(a?: string | null, b?: string | null): boolean {
-  if (!a || !b) return false;
+function timingSafeEqual(a?: string | null, b?: string | null): { equal: boolean; secretTooLong: boolean } {
+  if (!a || !b) return { equal: false, secretTooLong: false };
+  
+  // Guard against CPU burn attacks with oversized secrets
+  if (a.length > MAX_SECRET_LENGTH || b.length > MAX_SECRET_LENGTH) {
+    return { equal: false, secretTooLong: true };
+  }
+  
   const aHash = crypto.createHash('sha256').update(a, 'utf8').digest();
   const bHash = crypto.createHash('sha256').update(b, 'utf8').digest();
-  return crypto.timingSafeEqual(aHash, bHash);
+  return { equal: crypto.timingSafeEqual(aHash, bHash), secretTooLong: false };
 }
 
 /**
@@ -79,29 +89,41 @@ function isVercelCronInvocation(req: NextRequest): boolean {
  * Main authorization check
  * Returns: { authorized: boolean, method: string }
  */
-function checkAuthorization(req: NextRequest): { authorized: boolean; method: string } {
+function checkAuthorization(req: NextRequest): { authorized: boolean; method: string; secretTooLong: boolean } {
   const expectedSecret = process.env.CRON_SECRET || '';
   
   // Method 1: Vercel Cron invocation (highest trust)
   if (isVercelCronInvocation(req)) {
-    return { authorized: true, method: 'vercel_cron' };
+    return { authorized: true, method: 'vercel_cron', secretTooLong: false };
   }
   
   // Method 2: Bearer token (manual/admin trigger)
   const bearer = extractBearer(req.headers.get('authorization'));
-  if (expectedSecret && bearer && timingSafeEqual(bearer, expectedSecret)) {
-    return { authorized: true, method: 'bearer' };
+  if (expectedSecret && bearer) {
+    const result = timingSafeEqual(bearer, expectedSecret);
+    if (result.secretTooLong) {
+      return { authorized: false, method: 'bearer_rejected', secretTooLong: true };
+    }
+    if (result.equal) {
+      return { authorized: true, method: 'bearer', secretTooLong: false };
+    }
   }
   
   // Method 3: Query secret (development only)
   if (process.env.NODE_ENV === 'development') {
     const querySecret = req.nextUrl.searchParams.get('secret');
-    if (expectedSecret && querySecret && timingSafeEqual(querySecret, expectedSecret)) {
-      return { authorized: true, method: 'dev_query' };
+    if (expectedSecret && querySecret) {
+      const result = timingSafeEqual(querySecret, expectedSecret);
+      if (result.secretTooLong) {
+        return { authorized: false, method: 'dev_query_rejected', secretTooLong: true };
+      }
+      if (result.equal) {
+        return { authorized: true, method: 'dev_query', secretTooLong: false };
+      }
     }
   }
   
-  return { authorized: false, method: 'none' };
+  return { authorized: false, method: 'none', secretTooLong: false };
 }
 
 /**
@@ -115,8 +137,9 @@ function getAuthDebugContext(req: NextRequest): Record<string, unknown> {
     hasExpectedSecret: !!process.env.CRON_SECRET,
     hasAuthHeader: !!req.headers.get('authorization'),
     hasQuerySecret: !!req.nextUrl.searchParams.get('secret'),
-    xVercelCron: req.headers.get('x-vercel-cron'),
-    vercelIdPresent: !!req.headers.get('x-vercel-id'),
+    hasXVercelCron: !!req.headers.get('x-vercel-cron'),
+    xVercelCronIs1: req.headers.get('x-vercel-cron') === '1',
+    hasXVercelId: !!req.headers.get('x-vercel-id'),
     uaStartsWithVercelCron: req.headers.get('user-agent')?.startsWith('vercel-cron') ?? false,
   };
 }
@@ -197,6 +220,7 @@ export async function GET(request: NextRequest) {
     message: 'Worker invoked',
     data: {
       authMethod: auth.method,
+      secretTooLong: auth.secretTooLong,
       isDryRun,
       nodeEnv: process.env.NODE_ENV,
       vercelEnv: process.env.VERCEL_ENV,

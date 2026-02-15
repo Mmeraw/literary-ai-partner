@@ -458,7 +458,7 @@ describe('QC5: timingSafeEqual Edge Cases', () => {
     expect(response.status).toBe(200);
   });
 
-  it('should handle very long secrets', async () => {
+  it('should reject very long secrets (>512 chars) with secretTooLong flag', async () => {
     const longSecret = 'a'.repeat(10000);
     process.env.CRON_SECRET = longSecret;
     delete process.env.VERCEL;
@@ -467,6 +467,31 @@ describe('QC5: timingSafeEqual Edge Cases', () => {
       headers: { 'authorization': 'Bearer ' + longSecret }
     });
     const response = await GET(req);
+    // Must reject to prevent CPU burn attacks
+    expect(response.status).toBe(401);
+  });
+
+  it('should accept secrets at exactly 512 chars', async () => {
+    const maxSecret = 'a'.repeat(512);
+    process.env.CRON_SECRET = maxSecret;
+    delete process.env.VERCEL;
+    
+    const req = createMockRequest({
+      headers: { 'authorization': 'Bearer ' + maxSecret }
+    });
+    const response = await GET(req);
     expect(response.status).toBe(200);
+  });
+
+  it('should reject secrets at 513 chars', async () => {
+    const tooLongSecret = 'a'.repeat(513);
+    process.env.CRON_SECRET = tooLongSecret;
+    delete process.env.VERCEL;
+    
+    const req = createMockRequest({
+      headers: { 'authorization': 'Bearer ' + tooLongSecret }
+    });
+    const response = await GET(req);
+    expect(response.status).toBe(401);
   });
 });
