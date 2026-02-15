@@ -8,6 +8,9 @@ const customJestConfig = {
   testEnvironment: "node",
   testMatch: ["**/?(*.)+(test).[tj]s?(x)"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
+  moduleNameMapper: {
+    "^@/(.*)$": "<rootDir>/$1",
+  },
   setupFiles: ["<rootDir>/jest.setup.ts"],
   testPathIgnorePatterns: [
     "/node_modules/",

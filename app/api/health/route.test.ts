@@ -4,13 +4,16 @@
  * Tests both tiers:
  * 1. Unauthenticated: verify liveness only, no queue data
  * 2. Authenticated: verify queue diagnostics included
- *
- * Note: These tests verify the auth layering and response structure.
- * The queueHealth helper is tested separately in queueHealth.test.ts.
  */
 
 import { NextRequest } from 'next/server';
 import { GET } from './route';
+import type { QueueHealthMetrics } from '@/lib/monitoring/healthThresholds';
+
+// Mock the queue health helper
+jest.mock('@/lib/monitoring/queueHealth');
+
+const mockQueueHealth = require('@/lib/monitoring/queueHealth').getQueueHealth as jest.Mock;
 
 /**
  * Helper to set environment variables (works around TS2540 read-only error)
@@ -38,6 +41,10 @@ function createRequest(options: {
 }
 
 describe('GET /api/health', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   // ============================================================================
   // UNAUTHENTICATED TIER
   // ============================================================================
@@ -55,6 +62,13 @@ describe('GET /api/health', () => {
       expect(json.env).toMatch(/^(prod|preview|dev)$/);
       // Should NOT have queue data
       expect(json.queue).toBeUndefined();
+    });
+
+    it('should never call getQueueHealth when unauthenticated', async () => {
+      const req = createRequest({});
+      await GET(req);
+
+      expect(mockQueueHealth).not.toHaveBeenCalled();
     });
 
     it('should include git_sha if available', async () => {
@@ -95,6 +109,88 @@ describe('GET /api/health', () => {
   });
 
   // ============================================================================
+  // AUTHENTICATED TIER (Bearer)
+  // ============================================================================
+
+  describe('Authenticated (Bearer)', () => {
+    beforeEach(() => {
+      process.env.CRON_SECRET = 'test-secret-xyz';
+    });
+
+    afterEach(() => {
+      delete process.env.CRON_SECRET;
+    });
+
+    it('should include queue data with valid Bearer token', async () => {
+      const mockMetrics: QueueHealthMetrics = {
+        queued_count: 2,
+        running_count: 1,
+        failed_last_hour: 0,
+        oldest_queued_seconds: 150,
+        failure_rate_last_hour: 0.0,
+        stuck_running_count: 0,
+        stuck_running_oldest_seconds: null,
+      };
+
+      mockQueueHealth.mockResolvedValue({
+        metrics: mockMetrics,
+        classification: { health: 'healthy', reasons: ['Queue is processing normally'] },
+      });
+
+      const req = createRequest({
+        headers: {
+          authorization: 'Bearer test-secret-xyz',
+        },
+      });
+
+      const response = await GET(req);
+      const json = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(json.ok).toBe(true);
+      expect(json.queue).toBeDefined();
+      expect(json.queue.metrics.queued_count).toBe(2);
+      expect(json.queue.health).toBe('healthy');
+      expect(json.queue.reasons).toEqual(['Queue is processing normally']);
+      expect(mockQueueHealth).toHaveBeenCalledTimes(1);
+    });
+
+    it('should NOT include queue data with invalid Bearer token', async () => {
+      const req = createRequest({
+        headers: {
+          authorization: 'Bearer wrong-secret',
+        },
+      });
+
+      const response = await GET(req);
+      const json = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(json.queue).toBeUndefined();
+      expect(mockQueueHealth).not.toHaveBeenCalled();
+    });
+
+    it('should handle queue health fetch errors gracefully', async () => {
+      mockQueueHealth.mockRejectedValue(new Error('Database connection failed'));
+
+      const req = createRequest({
+        headers: {
+          authorization: 'Bearer test-secret-xyz',
+        },
+      });
+
+      const response = await GET(req);
+      const json = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(json.ok).toBe(true);
+      expect(json.queue).toBeDefined();
+      expect(json.queue.health).toBe('unknown');
+      expect(json.queue.reasons[0]).toContain('Queue diagnostics unavailable');
+    });
+  });
+
+  // ============================================================================
   // RESPONSE STRUCTURE TESTS
   // ============================================================================
 
@@ -123,6 +219,20 @@ describe('GET /api/health', () => {
 
       const json = await response.json();
       expect(json).toBeTruthy();
+    });
+
+    it('should NOT leak queue metrics in unauthenticated response', async () => {
+      const req = createRequest({});
+      const response = await GET(req);
+      const json = await response.json();
+
+      // Verify NO queue-related fields in public response
+      expect(json.queue).toBeUndefined();
+      expect(json.queued_count).toBeUndefined();
+      expect(json.running_count).toBeUndefined();
+      expect(json.failed_last_hour).toBeUndefined();
+      expect(json.health).toBeUndefined();
+      expect(json.metrics).toBeUndefined();
     });
   });
 
