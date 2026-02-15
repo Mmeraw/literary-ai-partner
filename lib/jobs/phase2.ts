@@ -2,7 +2,7 @@
 import * as metrics from "./metrics";
 import { getJob, updateJob } from "./store";
 import { getChunksForJob } from "@/lib/manuscripts/chunks";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { JOB_STATUS, PHASES } from "./types";
 
 export const PHASE_2_STATES = {
@@ -32,16 +32,9 @@ export function assertTransitionPhase2(from: Phase2State, to: Phase2State): void
   }
 }
 
-// SAFE FOR BUILD TIME: Lazy-load Supabase client only when needed
-let _supabaseClient: ReturnType<typeof createClient> | null = null;
+// Admin client wrapper: uses centralized createAdminClient factory
 function getSupabase() {
-  if (!_supabaseClient) {
-    _supabaseClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    );
-  }
-  return _supabaseClient;
+  return createAdminClient();
 }
 
 interface Phase1ValidationResult {
