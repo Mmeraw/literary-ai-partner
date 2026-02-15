@@ -300,31 +300,57 @@ export async function safeUpdateJobStatus(
   return updateJob(id, { status: nextStatus, progress });
 }
 
-/**
- * QC Gate 2: DB-Atomic Claim for Phase 1
- * Uses RPC for atomic eligibility check + claim in single SQL UPDATE.
- * HARD RULE: NO FALLBACK to SDK update - fail-closed if RPC unavailable.
- * Includes PHASE GUARD: cannot steal Phase 2+ jobs with expired leases.
- */
 export async function acquireLeaseForPhase1(
   id: string,
   leaseId: string,
   ttlSeconds = 300,
 ): Promise<Job | null> {
-  const { data, error } = await supabase.rpc("claim_evaluation_job_phase1", {
-    p_job_id: id,
-    p_lease_id: leaseId,
-    p_ttl_seconds: ttlSeconds,
-  });
+  const existing = await getJob(id);
+  if (!existing) return null;
 
-  if (error) {
-    // Fail-closed: do NOT fall back to SDK update.
-    // This ensures Gate 2 is truly closed.
-    throw new Error(`claim_evaluation_job_phase1 RPC failed: ${error.message}`);
+  const now = new Date();
+
+  // Eligibility: Phase 1 only starts from queued
+  if (existing.status !== "queued") return null;
+
+  // If a lease exists and is unexpired, do not steal it
+  if (
+    existing.progress.lease_expires_at &&
+    typeof existing.progress.lease_expires_at === 'string' &&
+    new Date(existing.progress.lease_expires_at) > now
+  ) {
+    return null;
   }
 
-  if (!data || data.length === 0) return null;
-  return mapDbRowToJob(data[0]);
+  const expiresAt = new Date(now.getTime() + ttlSeconds * 1000).toISOString();
+  const mergedProgress = {
+    ...existing.progress,
+    lease_id: leaseId,
+    lease_expires_at: expiresAt,
+    phase: PHASES.PHASE_1,
+    phase_status: "running",
+  };
+
+  // Optimistic concurrency: updated_at must match to prevent double-acquire
+  const { data, error } = await supabase
+    .from("evaluation_jobs")
+    .update({
+      progress: mergedProgress,
+      status: "running",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("status", "queued")
+    .eq("updated_at", existing.updated_at)
+    .select(JOB_SELECT_FIELDS)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to acquire phase1 lease: ${error.message}`);
+  }
+
+  if (!data) return null;
+  return mapDbRowToJob(data);
 }
 
 export async function acquireLeaseForPhase2(
