@@ -1,23 +1,37 @@
 import 'server-only';
+import { unstable_noStore as noStore } from 'next/cache';
 import { notFound } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { createClient as createSSRClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { EvaluationResultV1, isEvaluationResultV1, hasD2TransparencyFields } from '@/schemas/evaluation-result-v1';
 import AgentTrustHeader from '@/components/reports/AgentTrustHeader';
 import { scanObjectForForbiddenMarketClaims } from '@/lib/release/forbiddenMarketClaims';
 
-// D1 Boundary: This page is server-only. Service key must not leak to client.
-// 'server-only' import at top prevents accidental client-side usage.
-// If refactoring, move Supabase logic to lib/server/evaluation.ts
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// D1 Boundary: server-only. Service key must not leak to client.
+// Hybrid owner-gate: SSR client for auth identity, admin client for
+// privileged read scoped to (jobId + manuscript owner = auth.uid()).
+// Ownership chain: evaluation_jobs.manuscript_id -> manuscripts.user_id
+// TODO(gate7): migrate to full RLS once evaluation_jobs has user_id column.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-async function getEvaluationResult(jobId: string): Promise<EvaluationResultV1 | null> {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+async function getEvaluationResult(jobId: string, userId: string): Promise<EvaluationResultV1 | null> {
+  noStore();
 
-  const { data: job, error } = await supabase
+  const admin = createAdminClient();
+
+  // Owner-gated read: join through manuscripts FK to verify ownership.
+  // evaluation_jobs has no user_id column; ownership traces through:
+  // evaluation_jobs.manuscript_id -> manuscripts.id -> manuscripts.user_id
+  const { data: job, error } = await admin
     .from('evaluation_jobs')
-    .select('evaluation_result, status')
+    .select(`
+      evaluation_result,
+      status,
+      manuscripts!inner(user_id)
+    `)
     .eq('id', jobId)
+    .eq('manuscripts.user_id', userId)
     .single();
 
   if (error || !job || !job.evaluation_result) {
@@ -35,7 +49,16 @@ async function getEvaluationResult(jobId: string): Promise<EvaluationResultV1 | 
 }
 
 export default async function ReportPage({ params }: { params: { jobId: string } }) {
-  const result = await getEvaluationResult(params.jobId);
+  // Step 1: Get authenticated user via cookie-scoped SSR client
+  const ssrSupabase = await createSSRClient();
+  const { data: { user } } = await ssrSupabase.auth.getUser();
+
+  if (!user) {
+    notFound(); // Unauthenticated users see 404, not a login redirect
+  }
+
+  // Step 2: Owner-gated privileged read
+  const result = await getEvaluationResult(params.jobId, user.id);
 
   if (!result) {
     notFound();
@@ -54,7 +77,6 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               Report unavailable
             </p>
           </header>
-
           <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
             <h2 className="text-2xl font-semibold text-gray-900 mb-3">
               Compliance Hold
@@ -74,8 +96,6 @@ export default async function ReportPage({ params }: { params: { jobId: string }
   const { overview, criteria, recommendations, metrics, artifacts, governance } = result;
 
   // D2 Transparency: validate all required fields are present before rendering agent view.
-  // If validation fails, fail-closed (do not render as "complete").
-  // This uses a separate validator from isEvaluationResultV1 to allow backward compatibility.
   if (!hasD2TransparencyFields(result)) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -88,7 +108,6 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               Report unavailable
             </p>
           </header>
-
           <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
             <h2 className="text-2xl font-semibold text-gray-900 mb-3">
               Compliance Hold
@@ -114,7 +133,6 @@ export default async function ReportPage({ params }: { params: { jobId: string }
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto p-8">
-
         {/* Header */}
         <header className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
@@ -151,15 +169,13 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               </span>
             </div>
           </div>
-
           <p className="text-gray-700 mb-6 leading-relaxed">
             {overview.one_paragraph_summary}
           </p>
-
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-green-600">✓</span>
+                <span className="text-green-600">{"\u2713"}</span>
                 Top Strengths
               </h3>
               <ul className="space-y-2">
@@ -170,10 +186,9 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                 ))}
               </ul>
             </div>
-
             <div>
               <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-amber-600">⚠</span>
+                <span className="text-amber-600">{"\u26A0"}</span>
                 Top Risks
               </h3>
               <ul className="space-y-2">
@@ -190,7 +205,6 @@ export default async function ReportPage({ params }: { params: { jobId: string }
         {/* Criteria Scores */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">Detailed Scores</h2>
-
           <div className="grid md:grid-cols-2 gap-4">
             {criteria.map((criterion) => (
               <div key={criterion.key} className="border border-gray-200 rounded-lg p-4">
@@ -217,12 +231,11 @@ export default async function ReportPage({ params }: { params: { jobId: string }
         {/* Recommendations */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">Action Items</h2>
-
           {/* Quick Wins */}
           {recommendations.quick_wins.length > 0 && (
             <div className="mb-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <span className="text-blue-600">⚡</span>
+                <span className="text-blue-600">{"\u26A1"}</span>
                 Quick Wins
               </h3>
               <div className="space-y-3">
@@ -243,12 +256,11 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               </div>
             </div>
           )}
-
           {/* Strategic Revisions */}
           {recommendations.strategic_revisions.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <span className="text-purple-600">📊</span>
+                <span className="text-purple-600">{"\uD83D\uDCCA"}</span>
                 Strategic Revisions
               </h3>
               <div className="space-y-3">
@@ -320,19 +332,17 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               </div>
             )}
           </div>
-
           {governance.warnings.length > 0 && (
             <div className="mt-4">
               <p className="text-gray-600 mb-2">Warnings</p>
               <ul className="space-y-1">
                 {governance.warnings.map((warning, idx) => (
-                  <li key={idx} className="text-sm text-amber-700">⚠ {warning}</li>
+                  <li key={idx} className="text-sm text-amber-700">{"\u26A0"} {warning}</li>
                 ))}
               </ul>
             </div>
           )}
         </section>
-
       </div>
     </div>
   );
