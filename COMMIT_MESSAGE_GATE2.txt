@@ -1,0 +1,32 @@
+QC Gate 2: DB-Atomic Claim RPC + TTL Hardening
+
+## Summary
+Hardened claim_evaluation_job_phase1 RPC with:
+- Phase guard: WHERE clauses prevent phase 2+ job theft
+- TTL clamping: GREATEST(30, LEAST(p_ttl_seconds, 900))
+- SECURITY DEFINER + SET search_path = public for privilege control
+- Controlled timestamp format (ISO 8601 with milliseconds)
+
+## Test Coverage
+- ttl-clamping.test.ts: 5 unit tests (graceful skip when psql missing)
+- auth.test.ts: 32 tests covering Vercel Cron, Bearer, dev query, dry-run, edge cases
+- jest.setup.ts: Environment mapping for test isolation
+
+## Migrations
+supabase/migrations/20260214180000_claim_evaluation_job_rpc.sql
+- RPC with deterministic behavior
+- Privilege locked to service_role
+- TTL bounds guarantee: 30s ≤ TTL ≤ 900s
+
+## Audit Evidence
+All changes verified via:
+- git show 6f61de3 (commit contents)
+- npx jest auth.test.ts (32/32 passing)
+- npx jest ttl-clamping.test.ts (5/5 graceful skip)
+- npx tsc --noEmit --skipLibCheck (clean compilation)
+
+## References
+- Gate 1: updated_at bump on job creation (earlier)
+- Gate 2: Claim atomicity (this commit + 918f367, 28ea5ff, c002570, daf6e57)
+- Gate 3-5: Artifact idempotency, lease TTL, retry jitter (earlier commits)
+- Gate 6: Observability /api/health endpoint (next)
