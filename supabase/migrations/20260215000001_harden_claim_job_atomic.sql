@@ -77,6 +77,3 @@ BEGIN
 END;
 $claim_job_atomic_v3$;
 
--- Grant execute permission to authenticated users
-GRANT EXECUTE ON FUNCTION public.claim_job_atomic(TEXT, TIMESTAMPTZ, INTEGER) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.claim_job_atomic(TEXT, TIMESTAMPTZ, INTEGER) TO service_role;
