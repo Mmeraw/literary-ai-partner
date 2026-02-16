@@ -31,15 +31,15 @@ if (USE_SUPABASE) {
     return supabaseStore;
   };
 
-  // Functions are already async, so call them directly (not async wrap)
-  createJob = async (...args) => (await loadSupabaseStore()).createJob(...args);
-  getJob = async (...args) => (await loadSupabaseStore()).getJob(...args);
-  getAllJobs = async (...args) => (await loadSupabaseStore()).getAllJobs(...args);
-  updateJob = async (...args) => (await loadSupabaseStore()).updateJob(...args);
-  acquireLeaseForPhase1 = async (...args) => (await loadSupabaseStore()).acquireLeaseForPhase1(...args);
-  acquireLeaseForPhase2 = async (...args) => (await loadSupabaseStore()).acquireLeaseForPhase2(...args);
-  incrementCounter = async (...args) => (await loadSupabaseStore()).incrementCounter(...args);
-  setJobFailed = async (...args) => (await loadSupabaseStore()).setJobFailed(...args);
+  // Use .then() to avoid double-Promise wrapping from async
+  createJob = (...args) => loadSupabaseStore().then((s: any) => s.createJob(...args));
+  getJob = (...args) => loadSupabaseStore().then((s: any) => s.getJob(...args));
+  getAllJobs = (...args) => loadSupabaseStore().then((s: any) => s.getAllJobs(...args));
+  updateJob = (...args) => loadSupabaseStore().then((s: any) => s.updateJob(...args));
+  acquireLeaseForPhase1 = (...args) => loadSupabaseStore().then((s: any) => s.acquireLeaseForPhase1(...args));
+  acquireLeaseForPhase2 = (...args) => loadSupabaseStore().then((s: any) => s.acquireLeaseForPhase2(...args));
+  incrementCounter = (...args) => loadSupabaseStore().then((s: any) => s.incrementCounter(...args));
+  setJobFailed = (...args) => loadSupabaseStore().then((s: any) => s.setJobFailed(...args));
 } else {
   // In-memory store: no real leases, just delegate directly.
   createJob = memCreateJob;
