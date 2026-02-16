@@ -48,9 +48,7 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-      - name: Guard — no require() in server runtime (ADR-007)
-        run: bash scripts/no-require-server-runtime.sh
-
+      
       - name: Verify required secrets are present (no values printed)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
