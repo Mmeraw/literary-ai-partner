@@ -53,17 +53,27 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
           set -e
           echo "Secret presence check:"
           [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] && echo "  ✓ SUPABASE_SERVICE_ROLE_KEY present" || (echo "  ✗ SUPABASE_SERVICE_ROLE_KEY MISSING" && exit 1)
           [ -n "$SUPABASE_URL" ] && echo "  ✓ SUPABASE_URL present" || (echo "  ✗ SUPABASE_URL MISSING" && exit 1)
+          [ -n "$SUPABASE_ANON_KEY" ] && echo "  ✓ SUPABASE_ANON_KEY present" || (echo "  ✗ SUPABASE_ANON_KEY MISSING" && exit 1)
+          # Optional-but-safe: only fail if your repo truly requires these in the evidence run.
+          [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && echo "  ✓ NEXT_PUBLIC_SUPABASE_URL present" || echo "  ⚠ NEXT_PUBLIC_SUPABASE_URL not set"
+          [ -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] && echo "  ✓ NEXT_PUBLIC_SUPABASE_ANON_KEY present" || echo "  ⚠ NEXT_PUBLIC_SUPABASE_ANON_KEY not set"
 
       - name: Run Flow 1 deterministic evidence
         id: evidence
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           FLOW1_BASE_URL: http://127.0.0.1:3002
           FLOW1_SERVER_MODE: prod
           USE_SUPABASE_JOBS: 'true'
@@ -99,8 +109,8 @@ jobs:
         run: |
           echo "## ✅ Flow 1 Evidence: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Commit:** \\`${{ github.sha }}\\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Branch:** \\`${{ github.ref_name }}\\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Commit:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Assertions:" >> "$GITHUB_STEP_SUMMARY"
           echo "- create returns 201 with ok=true + job_id + canonical status" >> "$GITHUB_STEP_SUMMARY"
@@ -112,7 +122,7 @@ jobs:
         run: |
           echo "## ❌ Flow 1 Evidence: FAILED" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Commit:** \\`${{ github.sha }}\\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Branch:** \\`${{ github.ref_name }}\\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Commit:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Check the workflow logs for failing assertion details." >> "$GITHUB_STEP_SUMMARY"
