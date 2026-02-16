@@ -77,6 +77,7 @@ jobs:
           FLOW1_BASE_URL: http://127.0.0.1:3002
           FLOW1_SERVER_MODE: prod
           USE_SUPABASE_JOBS: 'true'
+          ALLOW_HEADER_USER_ID: 'true'
           NEXT_TELEMETRY_DISABLED: '1'
         run: |
           set +e
