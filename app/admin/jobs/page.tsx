@@ -9,9 +9,11 @@ interface EvaluationJob {
   status: string;
   created_at: string;
   updated_at: string;
-  user_id: string;
+  manuscript_id: number;
   phase: string | null;
-  retry_count: number;
+  phase_status: string | null;
+  attempt_count: number;
+  max_attempts: number;
   last_error: string | null;
 }
 
@@ -36,10 +38,15 @@ export default function AdminJobsPage() {
         return res.json();
       })
       .then((data) => {
-        if (data?.success) {
-          setJobs(data.data?.jobs ?? data.data ?? []);
-        } else if (data) {
-          setError(data.error?.message ?? "Failed to load jobs");
+        if (!data) return;
+        if (data.ok && Array.isArray(data.jobs)) {
+          setJobs(data.jobs);
+        } else if (data.success && data.data) {
+          setJobs(Array.isArray(data.data) ? data.data : data.data.jobs ?? []);
+        } else if (data.error) {
+          setError(data.error?.message ?? JSON.stringify(data.error));
+        } else {
+          setJobs([]);
         }
       })
       .catch((err) => setError(err.message))
@@ -74,7 +81,7 @@ export default function AdminJobsPage() {
       </div>
       <h1 className="text-2xl font-semibold mb-4">Evaluation Jobs</h1>
 
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 flex gap-2 flex-wrap">
         {["all", "queued", "running", "complete", "failed", "cancelled"].map((s) => (
           <button
             key={s}
@@ -90,8 +97,10 @@ export default function AdminJobsPage() {
         ))}
       </div>
 
+      <p className="text-sm text-gray-500 mb-4">{jobs.length} job(s) found</p>
+
       {jobs.length === 0 ? (
-        <p className="text-gray-500">No jobs found.</p>
+        <p className="text-gray-500">No jobs found for this filter.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm border border-gray-200">
@@ -100,7 +109,7 @@ export default function AdminJobsPage() {
                 <th className="px-3 py-2 text-left font-medium text-gray-600">ID</th>
                 <th className="px-3 py-2 text-left font-medium text-gray-600">Status</th>
                 <th className="px-3 py-2 text-left font-medium text-gray-600">Phase</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Retries</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">Attempts</th>
                 <th className="px-3 py-2 text-left font-medium text-gray-600">Created</th>
                 <th className="px-3 py-2 text-left font-medium text-gray-600">Last Error</th>
               </tr>
@@ -118,6 +127,8 @@ export default function AdminJobsPage() {
                           ? "bg-red-100 text-red-800"
                           : job.status === "running"
                           ? "bg-blue-100 text-blue-800"
+                          : job.status === "cancelled"
+                          ? "bg-yellow-100 text-yellow-800"
                           : "bg-gray-100 text-gray-800"
                       }`}
                     >
@@ -125,7 +136,7 @@ export default function AdminJobsPage() {
                     </span>
                   </td>
                   <td className="px-3 py-2">{job.phase ?? "-"}</td>
-                  <td className="px-3 py-2">{job.retry_count}</td>
+                  <td className="px-3 py-2">{job.attempt_count}/{job.max_attempts}</td>
                   <td className="px-3 py-2 text-xs">
                     {new Date(job.created_at).toLocaleString()}
                   </td>
