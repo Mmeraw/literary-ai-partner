@@ -31,11 +31,12 @@ if (USE_SUPABASE) {
     return supabaseStore;
   };
 
-  // Use .then() to avoid double-Promise wrapping from async
-  createJob = (...args) => loadSupabaseStore().then((s: any) => s.createJob(...args));
-  getJob = (...args) => loadSupabaseStore().then((s: any) => s.getJob(...args));
-  getAllJobs = (...args) => loadSupabaseStore().then((s: any) => s.getAllJobs(...args));
-  updateJob = (...args) => loadSupabaseStore().then((s: any) => s.updateJob(...args));
+  // Use .then() for lazy-load; callers always await these so Promise return is safe
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (createJob as any) = (...args: any[]) => loadSupabaseStore().then((s: any) => s.createJob(...args));
+  (getJob as any) = (...args: any[]) => loadSupabaseStore().then((s: any) => s.getJob(...args));
+  (getAllJobs as any) = (...args: any[]) => loadSupabaseStore().then((s: any) => s.getAllJobs(...args));
+  (updateJob as any) = (...args: any[]) => loadSupabaseStore().then((s: any) => s.updateJob(...args));
   acquireLeaseForPhase1 = (...args) => loadSupabaseStore().then((s: any) => s.acquireLeaseForPhase1(...args));
   acquireLeaseForPhase2 = (...args) => loadSupabaseStore().then((s: any) => s.acquireLeaseForPhase2(...args));
   incrementCounter = (...args) => loadSupabaseStore().then((s: any) => s.incrementCounter(...args));
