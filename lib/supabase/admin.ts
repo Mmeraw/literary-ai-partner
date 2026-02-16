@@ -2,7 +2,7 @@
 // Server-side admin client that bypasses RLS (Row Level Security)
 // Use ONLY in trusted server routes for administrative operations
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { guardSupabaseProject } from "./projectGuard";
 
 /**
@@ -27,10 +27,10 @@ type CreateAdminClientOptions = {
   nullable?: boolean;
 };
 
-export function createAdminClient(): ReturnType<typeof createClient>;
+export function createAdminClient(): SupabaseClient;
 export function createAdminClient(
   options: { nullable: true }
-): ReturnType<typeof createClient> | null;
+): SupabaseClient | null;
 export function createAdminClient(
   options: CreateAdminClientOptions = {}
 ) {
