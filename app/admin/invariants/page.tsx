@@ -1,14 +1,7 @@
+// app/admin/invariants/page.tsx
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-
-/**
- * A4.3 — Invariants Dashboard Page
- *
- * Fetches /api/admin/invariants and renders invariants table.
- * Handles 200/401/403/500 with appropriate messages.
- * No service role client in browser.
- */
 
 type InvariantRow = {
   id: string;
@@ -17,7 +10,6 @@ type InvariantRow = {
   severity: "high" | "medium" | "low";
   observed_count: number;
   sample_job_ids: string[];
-  threshold_seconds?: number;
 };
 
 type OkResponse = {
@@ -26,15 +18,17 @@ type OkResponse = {
   invariants: InvariantRow[];
 };
 
+type ErrResponse = { ok: false; error: string; details?: string };
+
 export default function InvariantsPage() {
   const [loading, setLoading] = useState(false);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [rows, setRows] = useState<InvariantRow[]>([]);
-  const [errorText, setErrorText] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setErrorText(null);
+    setMessage(null);
 
     try {
       const res = await fetch("/api/admin/invariants", { method: "GET" });
@@ -42,39 +36,39 @@ export default function InvariantsPage() {
       if (res.status === 401) {
         setRows([]);
         setGeneratedAt(null);
-        setErrorText("Unauthorized");
+        setMessage("Unauthorized");
         return;
       }
 
       if (res.status === 403) {
         setRows([]);
         setGeneratedAt(null);
-        setErrorText("Forbidden");
+        setMessage("Forbidden");
         return;
       }
 
       if (!res.ok) {
         setRows([]);
         setGeneratedAt(null);
-        setErrorText("Error loading invariants");
+        setMessage("Error loading invariants");
         return;
       }
 
-      const data = await res.json();
+      const data = (await res.json()) as OkResponse | ErrResponse;
 
-      if (data.ok === true) {
-        setGeneratedAt((data as OkResponse).generated_at);
-        setRows((data as OkResponse).invariants);
+      if (data.ok) {
+        setGeneratedAt(data.generated_at);
+        setRows(data.invariants);
         return;
       }
 
       setRows([]);
       setGeneratedAt(null);
-      setErrorText("Error loading invariants");
+      setMessage("Error loading invariants");
     } catch {
       setRows([]);
       setGeneratedAt(null);
-      setErrorText("Error loading invariants");
+      setMessage("Error loading invariants");
     } finally {
       setLoading(false);
     }
@@ -84,18 +78,11 @@ export default function InvariantsPage() {
     void load();
   }, [load]);
 
-  const statusColor = (s: string) => {
-    if (s === "pass") return "#16a34a";
-    if (s === "fail") return "#dc2626";
-    if (s === "warn") return "#ca8a04";
-    return "#6b7280";
-  };
-
   return (
     <div style={{ padding: 24 }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Invariants</h1>
 
-      <div style={{ marginBottom: 12, color: "#6b7280" }}>
+      <div style={{ marginBottom: 12 }}>
         Generated at: {generatedAt ?? "\u2014"}
       </div>
 
@@ -105,55 +92,52 @@ export default function InvariantsPage() {
           onClick={() => void load()}
           disabled={loading}
           style={{
-            padding: "8px 16px",
+            padding: "8px 12px",
             borderRadius: 6,
-            border: "1px solid #d1d5db",
-            background: loading ? "#e5e7eb" : "#4f46e5",
-            color: loading ? "#6b7280" : "#ffffff",
+            border: "1px solid #ccc",
             cursor: loading ? "not-allowed" : "pointer",
-            fontWeight: 500,
           }}
         >
           {loading ? "Refreshing\u2026" : "Refresh"}
         </button>
       </div>
 
-      {errorText ? (
-        <div style={{ color: "#dc2626", fontWeight: 500 }}>{errorText}</div>
+      {message ? (
+        <div>{message}</div>
       ) : (
         <table
           style={{
             width: "100%",
             borderCollapse: "collapse",
-            border: "1px solid #e5e7eb",
+            border: "1px solid #ddd",
           }}
         >
           <thead>
-            <tr style={{ background: "#f9fafb" }}>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>ID</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Name</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Status</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Severity</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Observed Count</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Sample Job IDs</th>
+            <tr>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>ID</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Name</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Status</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Severity</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Observed Count</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Sample Job IDs</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id}>
-                <td style={{ borderBottom: "1px solid #f3f4f6", padding: 8, fontFamily: "monospace", fontSize: 13 }}>{r.id}</td>
-                <td style={{ borderBottom: "1px solid #f3f4f6", padding: 8 }}>{r.name}</td>
-                <td style={{ borderBottom: "1px solid #f3f4f6", padding: 8, color: statusColor(r.status), fontWeight: 600 }}>{r.status}</td>
-                <td style={{ borderBottom: "1px solid #f3f4f6", padding: 8 }}>{r.severity}</td>
-                <td style={{ borderBottom: "1px solid #f3f4f6", padding: 8 }}>{r.observed_count}</td>
-                <td style={{ borderBottom: "1px solid #f3f4f6", padding: 8, fontFamily: "monospace", fontSize: 12 }}>
+                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.id}</td>
+                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.name}</td>
+                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.status}</td>
+                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.severity}</td>
+                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.observed_count}</td>
+                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>
                   {r.sample_job_ids?.length ? r.sample_job_ids.join(", ") : "\u2014"}
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && !errorText ? (
+            {rows.length === 0 ? (
               <tr>
-                <td style={{ padding: 8, color: "#9ca3af" }} colSpan={6}>
+                <td style={{ padding: 8 }} colSpan={6}>
                   No invariants to display.
                 </td>
               </tr>
