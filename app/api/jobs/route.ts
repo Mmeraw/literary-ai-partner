@@ -11,6 +11,7 @@ import { JOB_TYPES, type JobType } from "@/lib/jobs/types";
 import { generateTraceId, logger, jobLogger } from "@/lib/observability/logger";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { backpressureGuard } from "@/lib/jobs/backpressure";
 
 function isRateLimited(
   result: RateLimitResult
@@ -242,6 +243,27 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { ok: false, error: reason, trace_id },
         { status: 403 } // Forbidden
+      );
+    }
+
+    // Layer 4: Backpressure check (Day 2 A5)
+    const backpressureBlock = await backpressureGuard();
+    if (backpressureBlock) {
+      logger.warn("Job creation blocked by backpressure", {
+        trace_id,
+        request_id,
+        event: "api.jobs.create.backpressure_blocked",
+        queue_depth: backpressureBlock.queueDepth,
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: backpressureBlock.error,
+          code: backpressureBlock.code,
+          retry_after: backpressureBlock.retryAfter,
+          trace_id,
+        },
+        { status: 503 } // Service Unavailable
       );
     }
 

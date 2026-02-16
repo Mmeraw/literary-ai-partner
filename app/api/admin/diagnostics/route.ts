@@ -12,6 +12,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDiagnosticsSnapshot, getJobStatusDetails, getPhaseTimingMetrics, getRecentFailedJobs } from "@/lib/jobs/diagnostics";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
+import { checkBackpressure } from "@/lib/jobs/backpressure";
+import { getCostSnapshot } from "@/lib/jobs/cost";
 
 /**
  * GET /api/admin/diagnostics
@@ -23,6 +25,8 @@ import { requireAdmin } from "@/lib/admin/requireAdmin";
  * - Retry success rate
  * - Phase timing metrics
  * - Recent failed jobs
+ * - Backpressure status (Day 2 A5)
+ * - Cost snapshot (Day 2 A5)
  * 
  * **Auth:** Requires admin session (Phase A.5)
  * 
@@ -38,17 +42,21 @@ export async function GET(request: NextRequest) {
     console.log("[diagnostics] Fetching diagnostics snapshot...");
 
     // Fetch all diagnostic data in parallel
-    const [snapshot, statusDetails, phaseMetrics, recentFailures] = await Promise.all([
+    const [snapshot, statusDetails, phaseMetrics, recentFailures, backpressure, costSnapshot] = await Promise.all([
       getDiagnosticsSnapshot(),
       getJobStatusDetails(),
       getPhaseTimingMetrics(),
       getRecentFailedJobs(10),
+      checkBackpressure(),
+      getCostSnapshot(),
     ]);
 
     console.log("[diagnostics] Snapshot complete:", {
       totalJobs: snapshot.totalJobs,
       failedLast24h: snapshot.failedJobsLast24h,
       avgProcessingTimeMs: snapshot.avgProcessingTimeMs,
+      backpressureLevel: backpressure.level,
+      queueDepth: backpressure.queueDepth,
     });
 
     return NextResponse.json({
@@ -58,6 +66,8 @@ export async function GET(request: NextRequest) {
         statusDetails,
         phaseMetrics,
         recentFailures,
+        backpressure,
+        cost: costSnapshot,
       },
       meta: {
         fetchedAt: new Date().toISOString(),
