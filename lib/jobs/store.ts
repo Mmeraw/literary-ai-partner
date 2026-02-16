@@ -23,38 +23,35 @@ if (USE_SUPABASE) {
   // SAFE FOR BUILD TIME: Lazy-load Supabase store only when functions are called
   // This avoids importing lib/supabase.js at module init during next build
   let supabaseStore: any = null;
-  
-  const loadSupabaseStore = () => {
+
+  const loadSupabaseStore = async () => {
     if (!supabaseStore) {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      supabaseStore = require("./jobStore.supabase");
+      supabaseStore = await import("./jobStore.supabase");
     }
     return supabaseStore;
   };
 
   // Functions are already async, so call them directly (not async wrap)
-  createJob = (...args) => loadSupabaseStore().createJob(...args);
-  getJob = (...args) => loadSupabaseStore().getJob(...args);
-  getAllJobs = (...args) => loadSupabaseStore().getAllJobs(...args);
-  updateJob = (...args) => loadSupabaseStore().updateJob(...args);
-  acquireLeaseForPhase1 = (...args) => loadSupabaseStore().acquireLeaseForPhase1(...args);
-  acquireLeaseForPhase2 = (...args) => loadSupabaseStore().acquireLeaseForPhase2(...args);
-  incrementCounter = (...args) => loadSupabaseStore().incrementCounter(...args);
-  setJobFailed = (...args) => loadSupabaseStore().setJobFailed(...args);
+  createJob = async (...args) => (await loadSupabaseStore()).createJob(...args);
+  getJob = async (...args) => (await loadSupabaseStore()).getJob(...args);
+  getAllJobs = async (...args) => (await loadSupabaseStore()).getAllJobs(...args);
+  updateJob = async (...args) => (await loadSupabaseStore()).updateJob(...args);
+  acquireLeaseForPhase1 = async (...args) => (await loadSupabaseStore()).acquireLeaseForPhase1(...args);
+  acquireLeaseForPhase2 = async (...args) => (await loadSupabaseStore()).acquireLeaseForPhase2(...args);
+  incrementCounter = async (...args) => (await loadSupabaseStore()).incrementCounter(...args);
+  setJobFailed = async (...args) => (await loadSupabaseStore()).setJobFailed(...args);
 } else {
   // In-memory store: no real leases, just delegate directly.
   createJob = memCreateJob;
   getJob = memGetJob;
   getAllJobs = memGetAllJobs;
   updateJob = memUpdateJob;
-
   acquireLeaseForPhase1 = async (jobId: string, _leaseId: string, _ttl: number) =>
     memGetJob(jobId);
   acquireLeaseForPhase2 = async (jobId: string, _leaseId: string, _ttl: number) =>
     memGetJob(jobId);
-
   incrementCounter = async () => null;
-  
+
   // Memory store doesn't persist errors, just stub
   setJobFailed = async (_jobId: string, _errorEnvelope: any) => {
     console.warn('[Memory Store] setJobFailed called but not persisted in memory mode');
