@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { 
   EvaluationResultV1, 
   isEvaluationResultV1, 
   validateEvaluationResult 
 } from '@/schemas/evaluation-result-v1';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export async function GET(
   request: NextRequest,
@@ -26,7 +23,7 @@ export async function GET(
     }
 
     // Create Supabase client (server-side with service role)
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createAdminClient();
 
     // Fetch job with evaluation result
     const { data: job, error } = await supabase

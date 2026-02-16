@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * GET /api/admin/dead-letter
  * 
  * Lists all dead-lettered jobs (dead-letter queue) with filtering and pagination.
  * 
- * **Auth:** Requires x-admin-key header (Phase A.5)
+ * **Auth:** Requires admin session (Phase A.5)
  * 
  * Query parameters (same as /api/admin/jobs):
  * - job_type: Filter by job type
@@ -24,9 +24,6 @@ import { requireAdmin } from "@/lib/admin/requireAdmin";
  * - Audit-grade: does not modify state
  */
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
 type PaginationCursor = {
   failed_at: string | null;
   created_at: string;
@@ -35,10 +32,10 @@ type PaginationCursor = {
 
 export async function GET(req: NextRequest) {
   // PHASE A.5: Admin authentication
-  const denied = requireAdmin(req);
+  const denied = await requireAdmin(req);
   if (denied) return denied;
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = createAdminClient();
   const { searchParams } = req.nextUrl;
 
   // Parse filters (status is hardcoded to 'dead_lettered')

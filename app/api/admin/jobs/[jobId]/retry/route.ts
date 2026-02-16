@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { rateLimit, getClientIp } from "@/lib/rateLimit";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * POST /api/admin/jobs/[jobId]/retry
  * 
  * Retry a failed job by resetting its state to queued.
  * 
- * **Auth:** Requires x-admin-key header (Phase A.5)
+ * **Auth:** Requires admin session (Phase A.5)
  * **Rate limit:** 5 retries per minute per IP
  * 
  * Governance:
@@ -20,16 +20,13 @@ import { rateLimit, getClientIp } from "@/lib/rateLimit";
  * - Returns error if job state is invalid
  */
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
 type RouteContext = {
   params: Promise<{ jobId: string }>;
 };
 
 export async function POST(req: NextRequest, context: RouteContext) {
   // PHASE A.5: Admin authentication
-  const denied = requireAdmin(req);
+  const denied = await requireAdmin(req);
   if (denied) return denied;
 
   // PHASE A.5: Rate limiting (prevent retry spam)
@@ -48,7 +45,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
   const { jobId } = await context.params;
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = createAdminClient();
 
   try {
     // Parse optional request body (reason for retry)

@@ -36,16 +36,7 @@ export default function DeadLetterQueuePage() {
     setError(null);
 
     try {
-      const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
-      if (!serviceKey) {
-        throw new Error("Service role key not configured");
-      }
-
-      const res = await fetch("/api/admin/dead-letter", {
-        headers: {
-          Authorization: `Bearer ${serviceKey}`,
-        },
-      });
+      const res = await fetch("/api/admin/dead-letter");
 
       if (!res.ok) {
         const errData = await res.json();
@@ -66,16 +57,10 @@ export default function DeadLetterQueuePage() {
     setRetryingJobs((prev) => new Set(prev).add(jobId));
 
     try {
-      const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
-      if (!serviceKey) {
-        throw new Error("Service role key not configured");
-      }
-
       const res = await fetch(`/api/admin/jobs/${jobId}/retry`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${serviceKey}`,
         },
         body: JSON.stringify({ reason }),
       });

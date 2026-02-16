@@ -24,13 +24,13 @@ import { requireAdmin } from "@/lib/admin/requireAdmin";
  * - Phase timing metrics
  * - Recent failed jobs
  * 
- * **Auth:** Requires x-admin-key header (Phase A.5)
+ * **Auth:** Requires admin session (Phase A.5)
  * 
  * @returns {Promise<NextResponse>} JSON with diagnostics data
  */
 export async function GET(request: NextRequest) {
   // PHASE A.5: Admin authentication
-  const denied = requireAdmin(request);
+  const denied = await requireAdmin(request);
   if (denied) return denied;
 
   try {
