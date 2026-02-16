@@ -31,19 +31,19 @@ function isoMinutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60 * 1000).toISOString();
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 async function countAndSample(
-  buildQuery: () => ReturnType<ReturnType<typeof createAdminClient>["from"]>
+  buildQuery: () => any
 ): Promise<{ observed_count: number; sample_job_ids: string[] }> {
-  const countRes = await (buildQuery() as any).select("id", { count: "exact", head: true });
+  const countRes = await buildQuery().select("id", { count: "exact", head: true });
   const observed_count: number = countRes.count ?? 0;
-
-  const sampleRes = await (buildQuery() as any).select("id").limit(10);
+  const sampleRes = await buildQuery().select("id").limit(10);
   const sample_job_ids: string[] = Array.isArray(sampleRes.data)
     ? sampleRes.data.map((r: { id: string }) => r.id)
     : [];
-
   return { observed_count, sample_job_ids };
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export async function GET(request: NextRequest) {
   // Must call requireAdmin first; preserves 401 vs 403
@@ -52,7 +52,6 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = createAdminClient();
-
     const nowIso = new Date().toISOString();
     const cutoff30mIso = isoMinutesAgo(30);
     const cutoff24hIso = isoMinutesAgo(24 * 60);
