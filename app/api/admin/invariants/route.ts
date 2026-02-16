@@ -1,12 +1,4 @@
-/**
- * A4.3 — Invariants API
- *
- * Returns real-time invariant check results by querying evaluation_jobs.
- * Admin-gated via requireAdmin. Computes INV-001..INV-005.
- *
- * Auth: requireAdmin(req) first; preserves 401 vs 403.
- * Method: GET only.
- */
+// app/api/admin/invariants/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -14,56 +6,63 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 type InvariantStatus = "pass" | "fail" | "warn";
-type InvariantSeverity = "high" | "medium" | "low";
+type Severity = "high" | "medium" | "low";
 
-interface Invariant {
-  id: string;
+type Invariant = {
+  id: "INV-001" | "INV-002" | "INV-003" | "INV-004" | "INV-005";
   name: string;
   status: InvariantStatus;
-  severity: InvariantSeverity;
+  severity: Severity;
   description: string;
   observed_count: number;
   sample_job_ids: string[];
   threshold_seconds?: number;
-}
+};
 
 function isoMinutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60 * 1000).toISOString();
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 async function countAndSample(
+  supabase: ReturnType<typeof createAdminClient>,
   buildQuery: () => any
 ): Promise<{ observed_count: number; sample_job_ids: string[] }> {
   const countRes = await buildQuery().select("id", { count: "exact", head: true });
-  const observed_count: number = countRes.count ?? 0;
+  if (countRes.error) throw countRes.error;
+
+  const observed_count = countRes.count ?? 0;
+
   const sampleRes = await buildQuery().select("id").limit(10);
-  const sample_job_ids: string[] = Array.isArray(sampleRes.data)
+  if (sampleRes.error) throw sampleRes.error;
+
+  const sample_job_ids = Array.isArray(sampleRes.data)
     ? sampleRes.data.map((r: { id: string }) => r.id)
     : [];
+
   return { observed_count, sample_job_ids };
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export async function GET(request: NextRequest) {
-  // Must call requireAdmin first; preserves 401 vs 403
+  // Must call requireAdmin(req) immediately; deny must preserve 401/403.
   const denied = await requireAdmin(request);
   if (denied) return denied;
 
   try {
     const supabase = createAdminClient();
-    const nowIso = new Date().toISOString();
-    const cutoff30mIso = isoMinutesAgo(30);
-    const cutoff24hIso = isoMinutesAgo(24 * 60);
 
-    // INV-001: No stuck processing jobs
-    const inv001 = await countAndSample(() =>
+    const nowIso = new Date().toISOString();
+    const cutoff30m = isoMinutesAgo(30);
+    const cutoff24h = isoMinutesAgo(24 * 60);
+
+    // INV-001 — No stuck processing jobs
+    const inv001 = await countAndSample(supabase, () =>
       supabase
         .from("evaluation_jobs")
         .select()
         .eq("status", "processing")
-        .lt("heartbeat_at", cutoff30mIso)
+        .lt("heartbeat_at", cutoff30m)
     );
+
     const inv001Obj: Invariant = {
       id: "INV-001",
       name: "No stuck processing jobs",
@@ -75,14 +74,15 @@ export async function GET(request: NextRequest) {
       sample_job_ids: inv001.sample_job_ids,
     };
 
-    // INV-002: No expired leases
-    const inv002 = await countAndSample(() =>
+    // INV-002 — No expired leases
+    const inv002 = await countAndSample(supabase, () =>
       supabase
         .from("evaluation_jobs")
         .select()
         .in("status", ["queued", "processing"])
         .lt("lease_until", nowIso)
     );
+
     const inv002Obj: Invariant = {
       id: "INV-002",
       name: "No expired leases",
@@ -93,14 +93,15 @@ export async function GET(request: NextRequest) {
       sample_job_ids: inv002.sample_job_ids,
     };
 
-    // INV-003: No infinite retries
-    const inv003 = await countAndSample(() =>
+    // INV-003 — No infinite retries
+    const inv003 = await countAndSample(supabase, () =>
       supabase
         .from("evaluation_jobs")
         .select()
         .gte("attempts", 10)
         .not("status", "in", '("completed","failed","cancelled")')
     );
+
     const inv003Obj: Invariant = {
       id: "INV-003",
       name: "No infinite retries",
@@ -111,14 +112,15 @@ export async function GET(request: NextRequest) {
       sample_job_ids: inv003.sample_job_ids,
     };
 
-    // INV-004: Completed jobs must have results
-    const inv004 = await countAndSample(() =>
+    // INV-004 — Completed jobs must have results
+    const inv004 = await countAndSample(supabase, () =>
       supabase
         .from("evaluation_jobs")
         .select()
         .eq("status", "completed")
         .is("evaluation_result", null)
     );
+
     const inv004Obj: Invariant = {
       id: "INV-004",
       name: "Completed jobs must have results",
@@ -129,14 +131,15 @@ export async function GET(request: NextRequest) {
       sample_job_ids: inv004.sample_job_ids,
     };
 
-    // INV-005: Dead-letter daily volume sanity
-    const inv005 = await countAndSample(() =>
+    // INV-005 — Dead-letter daily volume sanity
+    const inv005 = await countAndSample(supabase, () =>
       supabase
         .from("evaluation_jobs")
         .select()
         .eq("status", "dead_lettered")
-        .gte("created_at", cutoff24hIso)
+        .gte("created_at", cutoff24h)
     );
+
     const inv005Obj: Invariant = {
       id: "INV-005",
       name: "Dead-letter daily volume sanity",
