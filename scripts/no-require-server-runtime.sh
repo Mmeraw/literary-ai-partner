@@ -1,29 +1,32 @@
 #!/usr/bin/env bash
-# ADR-007 enforcement: no require() in server runtime paths
-# See docs/ARCHITECTURE_DECISIONS/ADR-007-esm-dynamic-imports.md
-set -e
+set -euo pipefail
 
 echo "Checking for forbidden require() in server runtime..."
 
-# Search app/ and lib/ for require() calls in .ts/.tsx files
-# Exclude: test files, .bak/.orig files, node_modules
-HITS=$(
-  grep -rn 'require(' app/ lib/ \
-    --include='*.ts' --include='*.tsx' \
-    --exclude='*.test.ts' --exclude='*.test.tsx' \
-    --exclude='*.bak' --exclude='*.orig' --exclude='*.rej' \
-    | grep -v 'node_modules' \
-    | grep -v '// .*require' \
-    | grep -v 'eslint-disable' \
-    || true
-)
+# We only scan app/ and lib/ (not scripts/, not repo-wide).
+# Exclusions:
+# - test files
+# - createRequire( and require.resolve(
+# - any require() that is preceded by '.' (covers '.require(' patterns)
+#
+# Note: We intentionally flag plain `require(` usage.
 
-if [ -n "$HITS" ]; then
-  echo "$HITS"
-  echo ""
-  echo "FAIL: require() detected in server runtime paths (app/, lib/)"
-  echo "Use await import() instead. See ADR-007."
+matches="$(rg -n \
+  --glob '!**/*.test.*' \
+  --glob '!scripts/**' \
+  '(?<!\.)\brequire\(' \
+  app lib || true)"
+
+# Filter out known allowed patterns that might still match:
+matches="$(printf "%s\n" "$matches" \
+  | rg -v 'createRequire\(' \
+  | rg -v 'require\.resolve\(' \
+  || true)"
+
+if [[ -n "${matches}" ]]; then
+  echo "❌ require() detected in server runtime:"
+  echo "${matches}"
   exit 1
 fi
 
-echo "PASS: No forbidden require() usage in server runtime"
+echo "✅ No forbidden require() usage"
