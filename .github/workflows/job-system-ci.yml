@@ -138,6 +138,8 @@ jobs:
           node-version: "24"
           cache: "npm"
 
+      - name: Enforce ESM runtime rules
+        run: bash scripts/no-require-server-runtime.sh
       - name: Install dependencies
         run: npm ci
 
