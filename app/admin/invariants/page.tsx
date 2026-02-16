@@ -1,170 +1,166 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /**
- * A4.3 — Basic Invariant Dashboard
+ * A4.3 — Invariants Dashboard Page
  *
- * Displays real-time invariant check results:
- *   - Claim attempts vs successes vs empty claims
- *   - Retry attempts vs retry-changed
- *   - Lease expired total over time
- *   - Running jobs vs completed/failed
- *   - Displayed invariants (pass/fail/warn)
- *
- * No advanced alerting or SLOs — just a consumable operator view.
+ * Fetches /api/admin/invariants and renders invariants table.
+ * Handles 200/401/403/500 with appropriate messages.
+ * No service role client in browser.
  */
 
-interface InvariantCheck {
+type InvariantRow = {
+  id: string;
   name: string;
-  status: "pass" | "fail" | "warn" | "info";
-  detail: string;
-  violations: string[];
-}
-
-interface InvariantData {
-  checked_at: string;
-  overall_status: string;
-  summary: {
-    total_jobs: number;
-    status_counts: Record<string, number>;
-    running: number;
-    completed: number;
-    failed: number;
-    retried: number;
-    stale_running: number;
-  };
-  invariants: InvariantCheck[];
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  pass: "bg-green-100 text-green-800 border-green-300",
-  fail: "bg-red-100 text-red-800 border-red-300",
-  warn: "bg-yellow-100 text-yellow-800 border-yellow-300",
-  info: "bg-blue-100 text-blue-800 border-blue-300",
+  status: "pass" | "fail" | "warn";
+  severity: "high" | "medium" | "low";
+  observed_count: number;
+  sample_job_ids: string[];
+  threshold_seconds?: number;
 };
 
-export default function InvariantDashboardPage() {
-  const [data, setData] = useState<InvariantData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+type OkResponse = {
+  ok: true;
+  generated_at: string;
+  invariants: InvariantRow[];
+};
 
-  async function fetchInvariants() {
+export default function InvariantsPage() {
+  const [loading, setLoading] = useState(false);
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  const [rows, setRows] = useState<InvariantRow[]>([]);
+  const [errorText, setErrorText] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
     setLoading(true);
+    setErrorText(null);
+
     try {
-      const res = await fetch("/api/admin/invariants");
-      const json = await res.json();
-      if (json.success) {
-        setData(json.data);
-        setError(null);
-      } else {
-        setError(json.error?.message ?? "Unknown error");
+      const res = await fetch("/api/admin/invariants", { method: "GET" });
+
+      if (res.status === 401) {
+        setRows([]);
+        setGeneratedAt(null);
+        setErrorText("Unauthorized");
+        return;
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Fetch failed");
+
+      if (res.status === 403) {
+        setRows([]);
+        setGeneratedAt(null);
+        setErrorText("Forbidden");
+        return;
+      }
+
+      if (!res.ok) {
+        setRows([]);
+        setGeneratedAt(null);
+        setErrorText("Error loading invariants");
+        return;
+      }
+
+      const data = await res.json();
+
+      if (data.ok === true) {
+        setGeneratedAt((data as OkResponse).generated_at);
+        setRows((data as OkResponse).invariants);
+        return;
+      }
+
+      setRows([]);
+      setGeneratedAt(null);
+      setErrorText("Error loading invariants");
+    } catch {
+      setRows([]);
+      setGeneratedAt(null);
+      setErrorText("Error loading invariants");
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    fetchInvariants();
-    const interval = setInterval(fetchInvariants, 30000);
-    return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const statusColor = (s: string) => {
+    if (s === "pass") return "#16a34a";
+    if (s === "fail") return "#dc2626";
+    if (s === "warn") return "#ca8a04";
+    return "#6b7280";
+  };
+
   return (
-    <main className="p-6 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold">Invariant Dashboard</h1>
+    <div style={{ padding: 24 }}>
+      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Invariants</h1>
+
+      <div style={{ marginBottom: 12, color: "#6b7280" }}>
+        Generated at: {generatedAt ?? "\u2014"}
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
         <button
-          onClick={fetchInvariants}
-          className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          type="button"
+          onClick={() => void load()}
+          disabled={loading}
+          style={{
+            padding: "8px 16px",
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            background: loading ? "#e5e7eb" : "#4f46e5",
+            color: loading ? "#6b7280" : "#ffffff",
+            cursor: loading ? "not-allowed" : "pointer",
+            fontWeight: 500,
+          }}
         >
-          Refresh
+          {loading ? "Refreshing\u2026" : "Refresh"}
         </button>
       </div>
 
-      {loading && !data && <p className="text-slate-500">Loading invariant checks...</p>}
-      {error && <p className="text-red-600 mb-4">Error: {error}</p>}
-
-      {data && (
-        <>
-          <div className="mb-6 p-4 rounded-lg border border-slate-200 bg-slate-50">
-            <div className="flex items-center gap-3 mb-3">
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                data.overall_status === "healthy"
-                  ? "bg-green-100 text-green-800"
-                  : "bg-yellow-100 text-yellow-800"
-              }`}>
-                {data.overall_status === "healthy" ? "Healthy" : "Attention Needed"}
-              </span>
-              <span className="text-sm text-slate-500">
-                Checked: {new Date(data.checked_at).toLocaleString()}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold">{data.summary.total_jobs}</div>
-                <div className="text-sm text-slate-600">Total Jobs</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{data.summary.running}</div>
-                <div className="text-sm text-slate-600">Running</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{data.summary.completed}</div>
-                <div className="text-sm text-slate-600">Completed</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">{data.summary.failed}</div>
-                <div className="text-sm text-slate-600">Failed</div>
-              </div>
-            </div>
-          </div>
-
-          <h2 className="text-lg font-semibold mb-3">Invariant Checks</h2>
-          <div className="space-y-3 mb-6">
-            {data.invariants.map((inv) => (
-              <div
-                key={inv.name}
-                className={`p-4 rounded-lg border ${STATUS_COLORS[inv.status] ?? "bg-slate-100"}`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{inv.name.replace(/_/g, " ")}</span>
-                  <span className="text-xs font-mono uppercase">{inv.status}</span>
-                </div>
-                <p className="text-sm mt-1">{inv.detail}</p>
-                {inv.violations.length > 0 && (
-                  <details className="mt-2">
-                    <summary className="text-xs cursor-pointer">
-                      {inv.violations.length} violation(s)
-                    </summary>
-                    <ul className="text-xs mt-1 space-y-1 font-mono">
-                      {inv.violations.map((v) => (
-                        <li key={v}>{v}</li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </div>
+      {errorText ? (
+        <div style={{ color: "#dc2626", fontWeight: 500 }}>{errorText}</div>
+      ) : (
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            border: "1px solid #e5e7eb",
+          }}
+        >
+          <thead>
+            <tr style={{ background: "#f9fafb" }}>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>ID</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Name</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Status</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Severity</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Observed Count</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: 8 }}>Sample Job IDs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td style={{ borderBottom: "1px solid #f3f4f6", padding: 8, fontFamily: "monospace", fontSize: 13 }}>{r.id}</td>
+                <td style={{ borderBottom: "1px solid #f3f4f6", padding: 8 }}>{r.name}</td>
+                <td style={{ borderBottom: "1px solid #f3f4f6", padding: 8, color: statusColor(r.status), fontWeight: 600 }}>{r.status}</td>
+                <td style={{ borderBottom: "1px solid #f3f4f6", padding: 8 }}>{r.severity}</td>
+                <td style={{ borderBottom: "1px solid #f3f4f6", padding: 8 }}>{r.observed_count}</td>
+                <td style={{ borderBottom: "1px solid #f3f4f6", padding: 8, fontFamily: "monospace", fontSize: 12 }}>
+                  {r.sample_job_ids?.length ? r.sample_job_ids.join(", ") : "\u2014"}
+                </td>
+              </tr>
             ))}
-          </div>
-
-          <h2 className="text-lg font-semibold mb-3">Additional Stats</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 rounded-lg border border-slate-200">
-              <div className="text-sm text-slate-600">Retried Jobs</div>
-              <div className="text-xl font-bold">{data.summary.retried}</div>
-            </div>
-            <div className="p-4 rounded-lg border border-slate-200">
-              <div className="text-sm text-slate-600">Stale Running</div>
-              <div className="text-xl font-bold">{data.summary.stale_running}</div>
-            </div>
-          </div>
-        </>
+            {rows.length === 0 && !errorText ? (
+              <tr>
+                <td style={{ padding: 8, color: "#9ca3af" }} colSpan={6}>
+                  No invariants to display.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
       )}
-    </main>
+    </div>
   );
 }
