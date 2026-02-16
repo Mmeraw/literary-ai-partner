@@ -1,147 +1,166 @@
 /**
- * A4.3 — Invariant Dashboard API
+ * A4.3 — Invariants API
  *
  * Returns real-time invariant check results by querying evaluation_jobs.
- * Checks:
- *   1. successes <= attempts (claim success never exceeds claim attempts)
- *   2. exactly one successful claimant per eligible job
- *   3. empty claims > 0 under contention (informational)
- *   4. no overlapping leases for same job_id
+ * Admin-gated via requireAdmin. Computes INV-001..INV-005.
  *
- * Also returns summary stats: running vs completed vs failed counts,
- * and retry/lease metrics.
+ * Auth: requireAdmin(req) first; preserves 401 vs 403.
+ * Method: GET only.
  */
-
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin/requireAdmin";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-async function getAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error("Missing Supabase credentials");
-  }
-  return createClient(url, key);
+type InvariantStatus = "pass" | "fail" | "warn";
+type InvariantSeverity = "high" | "medium" | "low";
+
+interface Invariant {
+  id: string;
+  name: string;
+  status: InvariantStatus;
+  severity: InvariantSeverity;
+  description: string;
+  observed_count: number;
+  sample_job_ids: string[];
+  threshold_seconds?: number;
 }
 
-export async function GET() {
+function isoMinutesAgo(minutes: number): string {
+  return new Date(Date.now() - minutes * 60 * 1000).toISOString();
+}
+
+async function countAndSample(
+  buildQuery: () => ReturnType<ReturnType<typeof createAdminClient>["from"]>
+): Promise<{ observed_count: number; sample_job_ids: string[] }> {
+  const countRes = await (buildQuery() as any).select("id", { count: "exact", head: true });
+  const observed_count: number = countRes.count ?? 0;
+
+  const sampleRes = await (buildQuery() as any).select("id").limit(10);
+  const sample_job_ids: string[] = Array.isArray(sampleRes.data)
+    ? sampleRes.data.map((r: { id: string }) => r.id)
+    : [];
+
+  return { observed_count, sample_job_ids };
+}
+
+export async function GET(request: NextRequest) {
+  // Must call requireAdmin first; preserves 401 vs 403
+  const denied = await requireAdmin(request);
+  if (denied) return denied;
+
   try {
-    const supabase = await getAdminClient();
+    const supabase = createAdminClient();
 
-    // Fetch all jobs for invariant checks
-    const { data: jobs, error } = await supabase
-      .from("evaluation_jobs")
-      .select("id, status, progress, created_at, updated_at, attempt_count, max_attempts")
-      .order("created_at", { ascending: false })
-      .limit(500);
+    const nowIso = new Date().toISOString();
+    const cutoff30mIso = isoMinutesAgo(30);
+    const cutoff24hIso = isoMinutesAgo(24 * 60);
 
-    if (error) {
-      return NextResponse.json(
-        { success: false, error: { code: "db_error", message: error.message } },
-        { status: 500 },
-      );
-    }
-
-    const allJobs = jobs ?? [];
-
-    // ── Status summary ──────────────────────────────────────
-    const statusCounts: Record<string, number> = {};
-    for (const job of allJobs) {
-      statusCounts[job.status] = (statusCounts[job.status] ?? 0) + 1;
-    }
-
-    // ── Invariant 1: Running jobs vs completed/failed ───────
-    const runningJobs = allJobs.filter((j) => j.status === "running");
-    const completedJobs = allJobs.filter((j) => j.status === "complete");
-    const failedJobs = allJobs.filter((j) => j.status === "failed");
-
-    // ── Invariant 2: No overlapping leases ──────────────────
-    const leaseMap = new Map<string, { lease_id: string; lease_expires_at: string }[]>();
-    for (const job of runningJobs) {
-      const progress = job.progress as Record<string, unknown> | null;
-      if (progress?.lease_id && progress?.lease_expires_at) {
-        const existing = leaseMap.get(job.id) ?? [];
-        existing.push({
-          lease_id: String(progress.lease_id),
-          lease_expires_at: String(progress.lease_expires_at),
-        });
-        leaseMap.set(job.id, existing);
-      }
-    }
-
-    const overlappingLeases: string[] = [];
-    for (const [jobId, leases] of leaseMap) {
-      if (leases.length > 1) {
-        overlappingLeases.push(jobId);
-      }
-    }
-
-    // ── Invariant 3: Retry stats ────────────────────────────
-    const retriedJobs = allJobs.filter((j) => (j.attempt_count ?? 0) > 1);
-    const exhaustedRetries = allJobs.filter(
-      (j) => j.status === "failed" && (j.attempt_count ?? 0) >= (j.max_attempts ?? 3),
+    // INV-001: No stuck processing jobs
+    const inv001 = await countAndSample(() =>
+      supabase
+        .from("evaluation_jobs")
+        .select()
+        .eq("status", "processing")
+        .lt("heartbeat_at", cutoff30mIso)
     );
+    const inv001Obj: Invariant = {
+      id: "INV-001",
+      name: "No stuck processing jobs",
+      status: inv001.observed_count > 0 ? "fail" : "pass",
+      severity: "high",
+      description: "Jobs should not remain in processing beyond the threshold.",
+      threshold_seconds: 1800,
+      observed_count: inv001.observed_count,
+      sample_job_ids: inv001.sample_job_ids,
+    };
 
-    // ── Invariant 4: Stale running jobs (no heartbeat) ──────
-    const now = new Date();
-    const staleThresholdMs = 10 * 60 * 1000; // 10 minutes
-    const staleRunningJobs = runningJobs.filter((j) => {
-      const updatedAt = new Date(j.updated_at);
-      return now.getTime() - updatedAt.getTime() > staleThresholdMs;
-    });
+    // INV-002: No expired leases
+    const inv002 = await countAndSample(() =>
+      supabase
+        .from("evaluation_jobs")
+        .select()
+        .in("status", ["queued", "processing"])
+        .lt("lease_until", nowIso)
+    );
+    const inv002Obj: Invariant = {
+      id: "INV-002",
+      name: "No expired leases",
+      status: inv002.observed_count > 0 ? "fail" : "pass",
+      severity: "high",
+      description: "Queued/processing jobs should not have an expired lease.",
+      observed_count: inv002.observed_count,
+      sample_job_ids: inv002.sample_job_ids,
+    };
 
-    // ── Build response ──────────────────────────────────────
-    const invariants = [
-      {
-        name: "no_overlapping_leases",
-        status: overlappingLeases.length === 0 ? "pass" : "fail",
-        detail: overlappingLeases.length === 0
-          ? "No overlapping leases detected"
-          : `Overlapping leases on job_ids: ${overlappingLeases.join(", ")}`,
-        violations: overlappingLeases,
-      },
-      {
-        name: "no_stale_running_jobs",
-        status: staleRunningJobs.length === 0 ? "pass" : "warn",
-        detail: staleRunningJobs.length === 0
-          ? "All running jobs have recent activity"
-          : `${staleRunningJobs.length} job(s) running with no update in 10+ minutes`,
-        violations: staleRunningJobs.map((j) => j.id),
-      },
-      {
-        name: "retries_within_bounds",
-        status: exhaustedRetries.length === 0 ? "pass" : "info",
-        detail: `${retriedJobs.length} retried, ${exhaustedRetries.length} exhausted max attempts`,
-        violations: exhaustedRetries.map((j) => j.id),
-      },
-    ];
+    // INV-003: No infinite retries
+    const inv003 = await countAndSample(() =>
+      supabase
+        .from("evaluation_jobs")
+        .select()
+        .gte("attempts", 10)
+        .not("status", "in", '("completed","failed","cancelled")')
+    );
+    const inv003Obj: Invariant = {
+      id: "INV-003",
+      name: "No infinite retries",
+      status: inv003.observed_count > 0 ? "fail" : "pass",
+      severity: "medium",
+      description: "Jobs should not exceed max attempts without reaching a terminal status.",
+      observed_count: inv003.observed_count,
+      sample_job_ids: inv003.sample_job_ids,
+    };
 
-    const allPass = invariants.every((i) => i.status === "pass");
+    // INV-004: Completed jobs must have results
+    const inv004 = await countAndSample(() =>
+      supabase
+        .from("evaluation_jobs")
+        .select()
+        .eq("status", "completed")
+        .is("evaluation_result", null)
+    );
+    const inv004Obj: Invariant = {
+      id: "INV-004",
+      name: "Completed jobs must have results",
+      status: inv004.observed_count > 0 ? "fail" : "pass",
+      severity: "high",
+      description: "Completed jobs should always persist an evaluation_result.",
+      observed_count: inv004.observed_count,
+      sample_job_ids: inv004.sample_job_ids,
+    };
+
+    // INV-005: Dead-letter daily volume sanity
+    const inv005 = await countAndSample(() =>
+      supabase
+        .from("evaluation_jobs")
+        .select()
+        .eq("status", "dead_lettered")
+        .gte("created_at", cutoff24hIso)
+    );
+    const inv005Obj: Invariant = {
+      id: "INV-005",
+      name: "Dead-letter daily volume sanity",
+      status: inv005.observed_count > 50 ? "warn" : "pass",
+      severity: "low",
+      description: "Dead-letter volume in the last 24 hours should remain within normal bounds.",
+      observed_count: inv005.observed_count,
+      sample_job_ids: inv005.sample_job_ids,
+    };
 
     return NextResponse.json({
-      success: true,
-      data: {
-        checked_at: now.toISOString(),
-        overall_status: allPass ? "healthy" : "attention_needed",
-        summary: {
-          total_jobs: allJobs.length,
-          status_counts: statusCounts,
-          running: runningJobs.length,
-          completed: completedJobs.length,
-          failed: failedJobs.length,
-          retried: retriedJobs.length,
-          stale_running: staleRunningJobs.length,
-        },
-        invariants,
-      },
+      ok: true,
+      generated_at: new Date().toISOString(),
+      invariants: [inv001Obj, inv002Obj, inv003Obj, inv004Obj, inv005Obj],
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
-      { success: false, error: { code: "invariant_check_error", message } },
-      { status: 500 },
+      {
+        ok: false,
+        error: "Failed to compute invariants",
+        details: err instanceof Error ? err.message : "Unknown error",
+      },
+      { status: 500 }
     );
   }
 }
