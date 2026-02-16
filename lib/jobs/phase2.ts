@@ -4,6 +4,7 @@ import { getJob, updateJob } from "./store";
 import { getChunksForJob } from "@/lib/manuscripts/chunks";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { JOB_STATUS, PHASES } from "./types";
+import { writeArtifact, ARTIFACT_TYPES } from "@/lib/artifacts/writeArtifact";
 
 export const PHASE_2_STATES = {
   NOT_STARTED: "not_started",
@@ -254,58 +255,29 @@ async function persistOutput(
   }
 
   // DB-level idempotency: UNIQUE(job_id, artifact_type)
-  // Use upsert with ignoreDuplicates so we don't create dupes.
-  const artifact = {
-    job_id: jobId,
-    manuscript_id: manuscriptId,
-    artifact_type: "one_page_summary",
-    artifact_version: "v1",
-    content: {
-      summary: result.summary,
-      overall_score: result.overallScore,
-      chunk_count: result.chunkCount,
-      processed_count: result.processedCount,
-      generated_at: new Date().toISOString(),
-    },
-    source_phase: PHASES.PHASE_2,
-    source_hash: result.sourceHash,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+    // Delegate to authoritative artifact writer (last-write-wins)
+    const artifactId = await writeArtifact({
+      job_id: jobId,
+      manuscript_id: manuscriptId,
+      artifact_type: ARTIFACT_TYPES.ONE_PAGE_SUMMARY,
+      artifact_version: "v1",
+      content: {
+        summary: result.summary,
+        overall_score: result.overallScore,
+        chunk_count: result.chunkCount,
+        processed_count: result.processedCount,
+        generated_at: new Date().toISOString(),
+      },
+      source_phase: PHASES.PHASE_2,
+      source_hash: result.sourceHash,
+    });
 
-  const { data, error } = await getSupabase()
-    .from("evaluation_artifacts")
-    .upsert(artifact as any, {
-      onConflict: "job_id,artifact_type",
-      ignoreDuplicates: true,
-    })
-    .select("id")
-    .maybeSingle();
-
-  if (error) {
-    // If Supabase still surfaces unique conflicts differently, treat as already done.
-    const code = (error as any)?.code;
-    if (code === "23505") {
-      console.log(`[Phase2] Artifact already exists (unique constraint) job_id=${jobId}`);
+    if (!artifactId) {
       return { persisted: false, alreadyExists: true };
     }
-    throw new Error(`Failed to persist Phase 2 artifact: ${error.message}`);
-  }
 
-  if (!data) {
-    // ignoreDuplicates may return null row; treat as already exists.
-    return { persisted: false, alreadyExists: true };
-  }
-
-  // TypeScript narrow: data is non-null here
-  const artifactId = (data as any).id;
-  if (!artifactId) {
-    // Shouldn't happen but guard against missing id
-    return { persisted: false, alreadyExists: true };
-  }
-
-  console.log(`[Phase2] Artifact persisted id=${artifactId} job_id=${jobId}`);
-  return { persisted: true, alreadyExists: false, artifactId };
+    console.log(`[Phase2] Artifact persisted id=${artifactId} job_id=${jobId}`);
+    return { persisted: true, alreadyExists: false, artifactId };
 }
 
 export async function runPhase2(jobId: string): Promise<void> {
