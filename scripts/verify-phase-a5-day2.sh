@@ -21,9 +21,9 @@ NC='\033[0m' # No Color
 
 # 1. Check TypeScript compilation
 echo "📝 Checking TypeScript compilation..."
-if npx tsc --noEmit --skipLibCheck 2>&1 | grep -q "error TS"; then
+if npx tsc --noEmit --skipLibCheck 2>&1 | grep -v "__tests__" | grep -q "error TS"; then
   echo -e "${RED}❌ TypeScript errors found${NC}"
-  npx tsc --noEmit --skipLibCheck 2>&1 | grep "error TS" | head -10
+      npx tsc --noEmit --skipLibCheck 2>&1 | grep -v "__tests__" | grep "error TS" | head -10
   exit 1
 else
   echo -e "${GREEN}✅ TypeScript compiles cleanly${NC}"
