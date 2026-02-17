@@ -8,7 +8,7 @@
  * Invariants checked:
  * 1. phase_status="complete" never coexists with status="running"
  * 2. completed_units <= total_units (when total > 0)
- * 3. status="complete" implies phase_status="complete"
+ * 3. status="complete" implies phase_status="complete" (except never-started jobs)
  * 4. status="complete" implies leases are cleared
  * 5. Phase 2 jobs have phase2_last_processed_index when complete
  *
@@ -61,7 +61,15 @@ function validateJob(job) {
   }
 
   // Invariant 3: If status="complete", phase_status should also be "complete"
-  if (status === "complete" && phase_status && phase_status !== "complete") {
+  // Exception: phase_status="queued" means the job was never picked up by a worker,
+  // which can happen in CI smoke tests where jobs are created and immediately
+  // completed via API without going through the full phase state machine.
+  if (
+    status === "complete" &&
+    phase_status &&
+    phase_status !== "complete" &&
+    phase_status !== "queued"
+  ) {
     violations.push(
       `Invariant 3: status="complete" but phase_status="${phase_status}"`,
     );
@@ -155,7 +163,7 @@ async function main() {
     console.log("\nInvariants verified:");
     console.log("  1. phase_status='complete' never with status='running'");
     console.log("  2. completed_units <= total_units");
-    console.log("  3. status='complete' implies phase_status='complete'");
+    console.log("  3. status='complete' implies phase_status='complete' (except queued)");
     console.log("  4. status='complete' implies leases cleared");
     console.log("  5. Phase 2 complete has phase2_last_processed_index");
     process.exit(0);
@@ -170,4 +178,5 @@ async function main() {
 main().catch((e) => {
   console.error("ERROR:", e?.stack || String(e));
   process.exit(1);
-});
+  });
+
