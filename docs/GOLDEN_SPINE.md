@@ -13,7 +13,7 @@ Canonical index of all phase gates. Each closed gate links to its evidence file.
 | Gate A4 | Observability + invariants (A4.1 + A4.3) | CLOSED | 2026-02-15 | docs/GATE_A4_CLOSURE.md @ `5023186` |
 | Gate A5 | Flow 1 — End-to-End evaluation loop | CLOSED | 2026-02-17 | docs/GATE_A5_CLOSURE.md @ `f9defe4` |
 | Gate A6 | Report Credibility Layer | CLOSED | 2026-02-17 | docs/GATE_A6_CLOSURE.md @ `c77420a` |
-| Gate A7 | StoryGate Studio / Shareable Reports | CI-VERIFIED (Runtime Pending) | 2026-02-17 | docs/GATE_A7_CLOSURE.md @ `e8fda20` |
+| Gate A7 | StoryGate Studio / Shareable Reports | CI-VERIFIED + DB APPLIED | 2026-02-17 | docs/GATE_A7_CLOSURE.md @ `1c6046b` |
 | Gate A8 | Artifact Index & Discovery | PLANNED | 2026-02-17 | docs/GATE_A8_SYSTEM_SPEC.md |
 | Phase A.5 | Production hardening + rate limiting | IN PROGRESS | | docs/PHASE_A5_72HR_PLAN.md |
 | Phase D | Release gates (public + agent exposure) | IN PROGRESS | | docs/release/PHASE_D_RELEASE_GATES_v1.md |
@@ -28,3 +28,4 @@ Canonical index of all phase gates. Each closed gate links to its evidence file.
 | A4 (closed) | Operational observability |
 | A5 (closed) | Product proof / user loop validation |
 | Next | Market risk / value delivery |
+
