@@ -183,8 +183,8 @@ The guiding principle: **optimize for user value, not system safety** (safety is
 
 - Planning doc: [docs/GATE_A5_FLOW1.md](./GATE_A5_FLOW1.md)
 - Closure doc: this file
-- Golden Spine entry: [docs/GOLDEN_SPINE.md](./GOLDEN_SPINE.md) `[TO BE UPDATED]`
-- Evidence log: `[CI ARTIFACT LINK]`
+- Golden Spine entry: [docs/GOLDEN_SPINE.md](./GOLDEN_SPINE.md) @ `4eeba9d` (CLOSED 2026-02-17)
+- Evidence artifact: [flow1-evidence-5e2eaf96adda67e1605844217989c4f9730a5397](https://github.com/Mmeraw/literary-ai-partner/actions/runs/22084689705) (90-day retention)
 
 ---
 
