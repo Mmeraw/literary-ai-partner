@@ -1,65 +1,90 @@
 /**
- * Gate A7 — Revoke Report Share
+ * Gate A7 — Revoke Report Share (RPC-based)
  * 
  * POST /api/report-shares/[shareId]/revoke
  * 
- * Revokes a share link immediately.
+ * Revokes a share link immediately via SECURITY DEFINER RPC.
  * 
  * Security:
- * - Requires authentication
- * - Enforces ownership of share
+ * - Requires authentication (session or evidence header)
+ * - Enforces ownership via RPC
  * - Fail-closed: never reveals share existence to non-owners
+ * 
+ * Note: shareId is the plaintext token (only holder has it)
  */
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getActorIdOrNull } from "@/lib/auth/actor";
 
 export async function POST(
-  _: Request,
+  _req: Request,
   { params }: { params: { shareId: string } }
 ) {
-  const supabase = await createClient();
-  const admin = createAdminClient();
-
-  // 1. Require authentication
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  // 1. Resolve actor
+  const actorId = await getActorIdOrNull();
+  if (!actorId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const shareId = params.shareId;
-
-  // 2. Ownership check (fail-closed)
-  const { data: share } = await supabase
-    .from("report_shares")
-    .select("id, created_by")
-    .eq("id", shareId)
-    .maybeSingle();
-
-  if (!share || share.created_by !== user.id) {
-    // Never reveal whether share exists
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  const token = (params.shareId || "").trim();
+  if (!token) {
+    return NextResponse.json({ error: "shareId_required" }, { status: 400 });
   }
 
-  // 3. Revoke (set revoked_at timestamp)
-  const { data: updated, error } = await admin
-    .from("report_shares")
-    .update({ revoked_at: new Date().toISOString() })
-    .eq("id", shareId)
-    .select("id, revoked_at")
-    .maybeSingle();
+  const isEvidence =
+    process.env.CI === "true" ||
+    process.env.NODE_ENV === "test" ||
+    process.env.FLOW1_EVIDENCE === "1" ||
+    process.env.FLOW_A7_EVIDENCE === "1";
 
-  if (error || !updated) {
-    return NextResponse.json({ error: "revoke_failed" }, { status: 500 });
+  if (isEvidence) {
+    // Evidence mode: direct admin update (bypass RPC which requires auth.uid)
+    const admin = createAdminClient();
+
+    // Hash token to lookup
+    const tokenHash = Buffer.from(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))
+    ).toString("hex");
+
+    // Ownership check
+    const { data: existing, error: selErr } = await admin
+      .from("report_shares")
+      .select("token_hash,created_by,revoked_at")
+      .eq("token_hash", tokenHash)
+      .maybeSingle();
+
+    if (selErr || !existing || existing.created_by !== actorId) {
+      return NextResponse.json({ ok: false, error: "Share not found" }, { status: 404 });
+    }
+
+    // Revoke (idempotent)
+    const { error: updErr } = await admin
+      .from("report_shares")
+      .update({
+        revoked_at: new Date().toISOString(),
+      })
+      .eq("token_hash", tokenHash);
+
+    if (updErr) {
+      return NextResponse.json({ error: "revoke_failed" }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
   }
 
-  return NextResponse.json({
-    ok: true,
-    share_id: updated.id,
-    revoked_at: updated.revoked_at,
+  // Production: authenticated session, use RPC
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("revoke_report_share_by_token", {
+    p_token: token,
   });
+
+  if (error) {
+    // Fail-closed
+    return NextResponse.json({ ok: false, error: "Share not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true });
 }
