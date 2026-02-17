@@ -5,6 +5,7 @@
  *  - last write wins
  *  - NEVER ignoreDuplicates
  */
+
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /** Canonical artifact_type constants. Every writer MUST use these. */
@@ -12,7 +13,8 @@ export const ARTIFACT_TYPES = {
   ONE_PAGE_SUMMARY: "one_page_summary",
 } as const;
 
-export type ArtifactType = (typeof ARTIFACT_TYPES)[keyof typeof ARTIFACT_TYPES];
+export type ArtifactType =
+  (typeof ARTIFACT_TYPES)[keyof typeof ARTIFACT_TYPES];
 
 export type ArtifactInput = {
   job_id: string;
@@ -24,9 +26,17 @@ export type ArtifactInput = {
   source_hash?: string | null;
 };
 
-export async function writeArtifact(input: ArtifactInput): Promise<string | null> {
+export async function writeArtifact(
+  input: ArtifactInput
+): Promise<string | null> {
   const now = new Date().toISOString();
 
+  /**
+   * IMPORTANT:
+   * - created_at is NOT supplied here.
+   * - DB default handles initial insert timestamp.
+   * - updated_at advances on every write.
+   */
   const artifact = {
     job_id: input.job_id,
     manuscript_id: input.manuscript_id,
@@ -35,7 +45,6 @@ export async function writeArtifact(input: ArtifactInput): Promise<string | null
     content: input.content,
     source_phase: input.source_phase ?? "phase_2",
     source_hash: input.source_hash ?? null,
-    created_at: now,
     updated_at: now,
   };
 
@@ -52,7 +61,7 @@ export async function writeArtifact(input: ArtifactInput): Promise<string | null
 
   if (error) {
     throw new Error(
-      "Failed to persist artifact (job=" + input.job_id + ", type=" + input.artifact_type + "): " + error.message
+      `Failed to persist artifact (job=${input.job_id}, type=${input.artifact_type}): ${error.message}`
     );
   }
 
