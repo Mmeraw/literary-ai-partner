@@ -1,7 +1,7 @@
 # Gate A7 — StoryGate Studio / Shareable Report Preview
 Closure Evidence
 
-Status: CLOSED  
+Status: CLOSED (CI VERIFIED) — Runtime Evidence Pending  
 Closed Date: 2026-02-17 UTC  
 Owner: Founder / Architect  
 Preconditions: A5 CLOSED, A6 CLOSED
@@ -158,8 +158,8 @@ A7 implementation spans 8 commits on main branch:
 
 **Production Required:**
 - `REPORT_SHARE_HMAC_SECRET` — HMAC-SHA256 secret for token hashing (high-entropy, rotate per policy)
-  - **Note:** Superseded by RPC migration which uses PostgreSQL's digest function (SHA-256)
-  - Legacy implementations still use this for HMAC
+  - **Status:** Deprecated in production path; retained for CI/test fallback compatibility
+  - RPC migration uses PostgreSQL's digest function (SHA-256) for production hashing
 - `NEXT_PUBLIC_APP_URL` — Base URL for share link generation (e.g., `https://revisiongrade.com`)
 
 **System Baseline:**
@@ -202,3 +202,54 @@ Gate A7 marked **CLOSED** in [docs/GOLDEN_SPINE.md](docs/GOLDEN_SPINE.md):
 - Evidence script ready for deployment verification
 - Migration ready for database application
 - Ready for Gate A8 (Flow 2: batch/multi-submission)
+
+---
+
+## 9. Runtime Evidence Seal
+
+Runtime verification confirms SECURITY DEFINER RPC behavior and fail-closed guarantees against the deployed environment.
+
+**Required Execution:**
+```bash
+bash scripts/evidence-a7.sh
+```
+
+**Target Environment:**  
+Production or staging deployment using deployed Supabase instance.
+
+**Runtime Evidence Must Demonstrate:**
+- ✅ Owner creates share → 200 + shareUrl
+- ✅ Non-owner create → 404 (fail-closed)
+- ✅ Anonymous view → 200 + HTML markers
+- ✅ Revoked share → 404 (fail-closed)
+- ✅ Expired token → 404 (fail-closed)
+- ✅ Invalid token → 404 (fail-closed)
+
+**Closure Upgrade Rule:**  
+Gate A7 transitions from **CI-verified closure** to **fully sealed closure** once runtime evidence output is recorded here with:
+- Deployment URL (target environment)
+- Executed commit SHA
+- Timestamp (UTC)
+- Summarized results or attached log reference
+
+**Status:** PENDING  
+**Reason:** Migrations not yet applied to deployed database; RPC functions unavailable in runtime environment.
+
+---
+
+### Runtime Evidence Output
+
+_(To be filled after deployment verification)_
+
+**Deployment URL:** [TO BE FILLED]  
+**Commit SHA:** [TO BE FILLED]  
+**Timestamp:** [TO BE FILLED]  
+**Environment:** [TO BE FILLED: production|staging]
+
+**Verification Results:**
+```
+[Paste evidence-a7.sh output or reference log file]
+```
+
+**Final Seal:**  
+Once runtime evidence is complete, update status line to: `Status: CLOSED (FULLY SEALED)`
