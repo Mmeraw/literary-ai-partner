@@ -1,7 +1,7 @@
 # Gate A6 — Report Credibility Layer
 **Closure Evidence**
 
-**Status:** `[TO BE FILLED WHEN CLOSED]`  
+**Status:** `CLOSED — 2026-02-17`  
 **Owner:** Founder / Architect
 
 ---
@@ -54,17 +54,25 @@ Renders:
 
 ## 4. CI Evidence
 
-**Workflow:** `.github/workflows/<workflow>.yml`
+**Workflow:** `.github/workflows/flow1-evidence-gate.yml`
 
 **Representative successful run:**
 
-```
-A6 aggregation tests ........ OK
-A6 credibility validation ... OK
-A6 report rendering ......... OK
-```
+Flow 1 Evidence Gate passed with all 6 steps validated:
 
-**CI Run URL:** `[TO BE FILLED]`
+- ✅ Step 1: Health check
+- ✅ Step 2: Seed industry data
+- ✅ Step 3: Create evaluation job
+- ✅ Step 4: Job owner can view report
+- ✅ Step 5: Non-owner gets 404
+- ✅ Step 6: Report HTML rendered with credibility (NEW)
+
+**CI Run URL:** https://github.com/Mmeraw/literary-ai-partner/actions/runs/22086384908
+
+**Commits:**
+- Types & Phase 2: `814315e`
+- Report UI: `41967d9`
+- Documentation: `c77420a`
 
 ---
 
@@ -96,4 +104,4 @@ Canonical artifacts now contain explainable credibility metadata and reports ren
 ## 7. Approval
 
 **Approved by:** Michael Meraw  
-**Date:** `[TO BE FILLED]`
+**Date:** 2026-02-17
