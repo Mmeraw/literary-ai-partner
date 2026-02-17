@@ -4,9 +4,6 @@
 
 begin;
 
--- Ensure pgcrypto is available (needed for gen_random_bytes + digest)
-create extension if not exists pgcrypto;
-
 -- ---------------------------------------------------------------------------
 -- Helper: generate a URL-safe token (base64-ish, no + / =)
 -- ---------------------------------------------------------------------------
@@ -15,7 +12,7 @@ returns text
 language sql
 stable
 as $$
-  select translate(encode(gen_random_bytes(24), 'base64'), '+/=', '___');
+  select translate(encode(extensions.gen_random_bytes(24), 'base64'), '+/=', '___');
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -53,7 +50,7 @@ begin
   v_expires := now() + make_interval(hours => v_hours);
 
   -- Fail-closed: check ownership
-    select m.user_id into v_owner
+  select m.user_id into v_owner
   from public.evaluation_jobs j
   join public.manuscripts m on m.id = j.manuscript_id
   where j.id = p_job_id;
@@ -61,7 +58,6 @@ begin
   if v_owner is null then
     raise exception 'job_not_found';
   end if;
-
   if v_owner <> v_uid then
     raise exception 'job_not_found'; -- fail-closed (no leak)
   end if;
@@ -77,7 +73,7 @@ begin
   v_token := public._rg_generate_share_token();
   
   -- Hash token for storage (using PostgreSQL's digest function)
-  v_token_hash := encode(digest(v_token, 'sha256'), 'hex');
+  v_token_hash := encode(extensions.digest(v_token, 'sha256'), 'hex');
 
   -- Insert share record with hash
   insert into public.report_shares (token_hash, job_id, created_by, expires_at)
@@ -113,7 +109,7 @@ begin
   end if;
 
   -- Hash the provided token to lookup
-  v_token_hash := encode(digest(p_token, 'sha256'), 'hex');
+  v_token_hash := encode(extensions.digest(p_token, 'sha256'), 'hex');
 
   -- Check ownership
   select created_by into v_owner
@@ -146,7 +142,7 @@ create or replace function public.get_public_report_share(
 returns table (
   job_id uuid,
   artifact_type text,
-      artifact_version text,
+  artifact_version text,
   content jsonb,
   updated_at timestamptz,
   source_hash text,
@@ -160,7 +156,7 @@ declare
   v_token_hash text;
 begin
   -- Hash the provided token
-  v_token_hash := encode(digest(p_token, 'sha256'), 'hex');
+  v_token_hash := encode(extensions.digest(p_token, 'sha256'), 'hex');
 
   -- Return artifact if share is valid
   return query
