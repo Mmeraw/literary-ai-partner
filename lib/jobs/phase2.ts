@@ -5,6 +5,7 @@ import { getJob, updateJob } from "./store";
 import { getChunksForJob } from "@/lib/manuscripts/chunks";
 import { JOB_STATUS, PHASES } from "./types";
 import { writeArtifact, ARTIFACT_TYPES } from "@/lib/artifacts/writeArtifact";
+import type { ReportContent, Credibility, RubricAxis } from "@/lib/evaluation/report-types";
 
 export const PHASE_2_STATES = {
   NOT_STARTED: "not_started",
@@ -218,12 +219,59 @@ ${
 Generated: ${generatedAt}
 `;
 
-  const artifactContent = {
+  // Gate A6: Compute credibility metadata from chunk data
+  const rubricBreakdown: RubricAxis[] = [
+    {
+      key: "overall_quality",
+      label: "Overall Quality",
+      score: avgScore,
+      explanation: `Based on ${completed.length} evaluated chunks with an average score of ${avgScore.toFixed(2)}/10`,
+    },
+  ];
+
+  // Coverage ratio: what fraction of chunks completed?
+  const coverageRatio = chunks.length > 0 ? completed.length / chunks.length : 0;
+
+  // Variance stability: how consistent are the scores? (1 = perfectly consistent)
+  let varianceStability = 1.0;
+  if (scores.length > 1) {
+    const mean = avgScore;
+    const variance = scores.reduce((acc, s) => acc + Math.pow(s - mean, 2), 0) / scores.length;
+    const stdDev = Math.sqrt(variance);
+    // Normalize to 0-1 scale (lower variance = higher stability)
+    varianceStability = mean > 0 ? Math.max(0, 1 - stdDev / mean) : 1;
+  }
+
+  // Confidence: conservative minimum of coverage and stability
+  const confidence = Math.min(coverageRatio, varianceStability);
+
+  // Validate credibility invariants (per GATE_A6_REPORT_CREDIBILITY.md section 6)
+  if (confidence < 0 || confidence > 1) {
+    throw new Error(`Credibility confidence out of range: ${confidence}`);
+  }
+  if (coverageRatio < 0 || coverageRatio > 1) {
+    throw new Error(`Coverage ratio out of range: ${coverageRatio}`);
+  }
+  if (varianceStability < 0 || varianceStability > 1) {
+    throw new Error(`Variance stability out of range: ${varianceStability}`);
+  }
+
+  const credibility: Credibility = {
+    rubricBreakdown,
+    confidence,
+    evidenceCount: completed.length,
+    coverageRatio,
+    varianceStability,
+    modelVersion: process.env.EVAL_MODEL_VERSION ?? "v1.0-gate-a6",
+  };
+
+  const artifactContent: ReportContent = {
     summary,
     overall_score: avgScore,
     chunk_count: chunks.length,
     processed_count: completed.length,
     generated_at: generatedAt,
+    credibility, // Gate A6: credibility metadata
   };
 
   // Deterministic source hash for Evidence Gate (DB → UI proof)
