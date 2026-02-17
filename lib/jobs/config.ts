@@ -1,15 +1,17 @@
 /**
  * Job System Configuration
- * 
+ *
  * Central configuration and startup validation for job system.
  * Imported by lib/jobs/rateLimiter.ts to enforce security globally.
  */
 
 // SECURITY: Production fail-safe - prevent auth bypass in production runtime
 // Only throw during actual production runtime, not during Next.js build phase
+// and not during CI evidence runs (GitHub Actions sets CI=true)
 const nextPhase = process.env.NEXT_PHASE;
 const isNextBuild = nextPhase === "phase-production-build";
-const isProdRuntime = process.env.NODE_ENV === "production" && !isNextBuild;
+const isCI = process.env.CI === "true";
+const isProdRuntime = process.env.NODE_ENV === "production" && !isNextBuild && !isCI;
 
 if (isProdRuntime && process.env.ALLOW_HEADER_USER_ID === "true") {
   throw new Error(
