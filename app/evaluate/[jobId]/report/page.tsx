@@ -1,29 +1,89 @@
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 
 const ARTIFACT_TYPE = "one_page_summary";
+
+type ReportContent = {
+  summary?: string;
+  overall_score?: number | string;
+  chunk_count?: number | string;
+  processed_count?: number | string;
+  generated_at?: string;
+};
 
 export default async function ReportPage({
   params,
 }: {
-  params: Promise<{ jobId: string }>;
+  params: { jobId: string };
 }) {
-  const { jobId } = await params;
+  const { jobId } = params;
+
   const supabase = await createClient();
 
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth?.user) redirect("/login");
+  /**
+   * ---------------------------------------------------------------------------
+   * 1. Require authenticated user
+   * ---------------------------------------------------------------------------
+   */
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const { data: artifact, error } = await supabase
+  if (!user) {
+    redirect("/login");
+  }
+
+  /**
+   * ---------------------------------------------------------------------------
+   * 2. Verify ownership of the job
+   *    (Gate A5 requirement: report must enforce ownership)
+   * ---------------------------------------------------------------------------
+   */
+  const { data: job, error: jobError } = await supabase
+    .from("evaluation_jobs")
+    .select("id, user_id, status")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (jobError) {
+    console.error("ReportPage job lookup failed:", jobError);
+    notFound();
+  }
+
+  if (!job || job.user_id !== user.id) {
+    // Prevent information leakage
+    notFound();
+  }
+
+  /**
+   * ---------------------------------------------------------------------------
+   * 3. Load canonical artifact (SOURCE OF TRUTH)
+   *    Report Authority Lock:
+   *    - Reads ONLY from evaluation_artifacts
+   *    - Never recomputes
+   * ---------------------------------------------------------------------------
+   */
+  const { data: artifact, error: artifactError } = await supabase
     .from("evaluation_artifacts")
     .select(
-      "job_id, artifact_type, artifact_version, content, created_at, updated_at, source_hash, source_phase"
+      `
+        job_id,
+        artifact_type,
+        artifact_version,
+        content,
+        created_at,
+        updated_at,
+        source_hash,
+        source_phase
+      `
     )
     .eq("job_id", jobId)
     .eq("artifact_type", ARTIFACT_TYPE)
     .maybeSingle();
 
-  if (error) {
+  if (artifactError) {
+    console.error("ReportPage artifact load failed:", artifactError);
+
     return (
       <main className="p-8">
         <h1 className="text-2xl font-bold">Report</h1>
@@ -34,6 +94,11 @@ export default async function ReportPage({
     );
   }
 
+  /**
+   * ---------------------------------------------------------------------------
+   * 4. Artifact not yet generated
+   * ---------------------------------------------------------------------------
+   */
   if (!artifact) {
     return (
       <main className="p-8">
@@ -46,11 +111,23 @@ export default async function ReportPage({
     );
   }
 
-  const c = artifact.content as Record<string, unknown> ?? {};
+  /**
+   * ---------------------------------------------------------------------------
+   * 5. Typed artifact content
+   * ---------------------------------------------------------------------------
+   */
+  const content: ReportContent =
+    (artifact.content as ReportContent | null) ?? {};
 
+  /**
+   * ---------------------------------------------------------------------------
+   * 6. Render authoritative persisted report
+   * ---------------------------------------------------------------------------
+   */
   return (
     <main className="p-8">
       <h1 className="text-2xl font-bold">Evaluation Report</h1>
+
       <p className="text-sm text-gray-500">Job: {artifact.job_id}</p>
       <p className="text-sm text-gray-500">
         Updated: {artifact.updated_at}
@@ -58,22 +135,24 @@ export default async function ReportPage({
 
       <section className="mt-6">
         <h2 className="text-xl font-semibold">Summary</h2>
-        <p className="mt-2">{String(c.summary ?? "(no summary available)")}</p>
+        <p className="mt-2">
+          {content.summary ?? "(no summary available)"}
+        </p>
       </section>
 
       <section className="mt-6">
         <h2 className="text-xl font-semibold">Overall Score</h2>
         <p className="mt-2 text-3xl font-bold">
-          {String(c.overall_score ?? "--")}
+          {content.overall_score ?? "--"}
         </p>
       </section>
 
       <section className="mt-6">
         <h2 className="text-xl font-semibold">Processing Details</h2>
         <ul className="mt-2 list-disc pl-6">
-          <li>Chunks: {String(c.chunk_count ?? "--")}</li>
-          <li>Processed: {String(c.processed_count ?? "--")}</li>
-          <li>Generated: {String(c.generated_at ?? "--")}</li>
+          <li>Chunks: {content.chunk_count ?? "--"}</li>
+          <li>Processed: {content.processed_count ?? "--"}</li>
+          <li>Generated: {content.generated_at ?? "--"}</li>
         </ul>
       </section>
     </main>
