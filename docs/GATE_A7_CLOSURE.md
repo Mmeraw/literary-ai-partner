@@ -1,7 +1,7 @@
 # Gate A7 — StoryGate Studio / Shareable Report Preview
 Closure Evidence
 
-Status: CLOSED (CI VERIFIED) — Runtime Evidence Pending  
+Status: CLOSED (CI VERIFIED + DB APPLIED) — Runtime Script Execution Pending
 Closed Date: 2026-02-17 UTC  
 Owner: Founder / Architect  
 Preconditions: A5 CLOSED, A6 CLOSED
@@ -232,23 +232,43 @@ Gate A7 transitions from **CI-verified closure** to **fully sealed closure** onc
 - Timestamp (UTC)
 - Summarized results or attached log reference
 
-**Status:** PENDING  
-**Reason:** Migrations not yet applied to deployed database; RPC functions unavailable in runtime environment.
+**Status:** DB MIGRATIONS APPLIED — Runtime Script Execution Pending
+**Reason:** Migrations applied to production DB. All 8 DB verification checks PASS. Awaiting `evidence-a7.sh` execution against deployed app.
 
 ---
 
 ### Runtime Evidence Output
 
-_(To be filled after deployment verification)_
+_Database-level verification completed. Full runtime script pending app deployment._
 
-**Deployment URL:** [TO BE FILLED]  
-**Commit SHA:** [TO BE FILLED]  
-**Timestamp:** [TO BE FILLED]  
-**Environment:** [TO BE FILLED: production|staging]
+**Deployment URL:** https://supabase.com/dashboard/project/xtumxjnzdswuumndcbwc (Supabase Production)
+**Commit SHA:** e8fda20 (RPC upgrade)
+**Timestamp:** 2026-02-17 UTC (DB migration application)
+**Environment:** production (Supabase project: xtumxjnzdswuumndcbwc)
 
 **Verification Results:**
 ```
-[Paste evidence-a7.sh output or reference log file]
+DB MIGRATION VERIFICATION (Supabase SQL Editor)
+================================================
+report_shares_table:      PASS
+rls_enabled:              PASS
+select_policy:            PASS
+update_policy:            PASS
+fn_create_report_share:   PASS
+fn_revoke_report_share:   PASS
+fn_get_public_report_share: PASS
+fn_generate_share_token:  PASS
+
+Security Definer Verification:
+_rg_generate_share_token:       false (helper, correct)
+create_report_share:            true  (SECURITY DEFINER)
+get_public_report_share:        true  (SECURITY DEFINER)
+revoke_report_share_by_token:   true  (SECURITY DEFINER)
+
+Schema Fix Applied: ownership check via manuscripts.user_id join
+(evaluation_jobs has manuscript_id, not user_id directly)
+
+NOTE: Full evidence-a7.sh script execution pending app deployment.
 ```
 
 **Final Seal:**  
