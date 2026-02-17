@@ -16,9 +16,8 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------------
--- RPC: create_report_share
 -- - Auth required (auth.uid())
--- - Enforces job ownership (evaluation_jobs.user_id = auth.uid())
+-- - Enforces job ownership via manuscripts join (evaluation_jobs.manuscript_id -> manuscripts.user_id = auth.uid())
 -- - Creates token + expiry
 -- - Returns plaintext token (only time it's visible)
 -- ---------------------------------------------------------------------------
@@ -51,9 +50,10 @@ begin
   v_expires := now() + make_interval(hours => v_hours);
 
   -- Fail-closed: check ownership
-  select user_id into v_owner
-  from public.evaluation_jobs
-  where id = p_job_id;
+    select m.user_id into v_owner
+  from public.evaluation_jobs j
+  join public.manuscripts m on m.id = j.manuscript_id
+  where j.id = p_job_id;
 
   if v_owner is null then
     raise exception 'job_not_found';
@@ -143,7 +143,7 @@ create or replace function public.get_public_report_share(
 returns table (
   job_id uuid,
   artifact_type text,
-  artifact_version int,
+      artifact_version text,
   content jsonb,
   updated_at timestamptz,
   source_hash text,
