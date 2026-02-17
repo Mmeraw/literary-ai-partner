@@ -11,6 +11,7 @@ import { JOB_TYPES, type JobType } from "@/lib/jobs/types";
 import { generateTraceId, logger, jobLogger } from "@/lib/observability/logger";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { backpressureGuard } from "@/lib/jobs/backpressure";
 
 function isRateLimited(
   result: RateLimitResult
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
     const rateLimitResult = await checkJobCreationRateLimit(req);
     if (isRateLimited(rateLimitResult)) {
       const { reason, retryAfter } = rateLimitResult;
-      
+
       logger.warn("Job creation rate limited", {
         trace_id,
         request_id,
@@ -61,11 +62,7 @@ export async function POST(req: Request) {
     const manuscript_text = body?.manuscript_text;
     const manuscript_title = body?.manuscript_title;
     const manuscript_size = body?.manuscript_size; // Size in bytes
-    const user_tier = body?.user_tier as
-      | "free"
-      | "premium"
-      | "agent"
-      | undefined;
+    const user_tier = body?.user_tier as "free" | "premium" | "agent" | undefined;
 
     if (!manuscript_id && !manuscript_text) {
       logger.warn("Job creation validation failed", {
@@ -75,7 +72,11 @@ export async function POST(req: Request) {
       });
 
       return NextResponse.json(
-        { ok: false, error: "Missing required fields: manuscript_id or manuscript_text", trace_id },
+        {
+          ok: false,
+          error: "Missing required fields: manuscript_id or manuscript_text",
+          trace_id,
+        },
         { status: 400 }
       );
     }
@@ -114,8 +115,8 @@ export async function POST(req: Request) {
       typeof manuscript_size === "number"
         ? manuscript_size
         : typeof manuscript_text === "string"
-          ? new TextEncoder().encode(manuscript_text).length
-          : undefined;
+        ? new TextEncoder().encode(manuscript_text).length
+        : undefined;
 
     // Layer 2: Manuscript size validation
     if (resolvedManuscriptSize && typeof resolvedManuscriptSize === "number") {
@@ -129,10 +130,7 @@ export async function POST(req: Request) {
           manuscript_size: resolvedManuscriptSize,
           reason,
         });
-        return NextResponse.json(
-          { ok: false, error: reason, trace_id },
-          { status: 413 } // Payload Too Large
-        );
+        return NextResponse.json({ ok: false, error: reason, trace_id }, { status: 413 }); // Payload Too Large
       }
     }
 
@@ -175,9 +173,10 @@ export async function POST(req: Request) {
       const { data: manuscript, error: manuscriptError } = await supabaseAdmin
         .from("manuscripts")
         .insert({
-          title: typeof manuscript_title === "string" && manuscript_title.trim()
-            ? manuscript_title.trim()
-            : "Untitled Manuscript",
+          title:
+            typeof manuscript_title === "string" && manuscript_title.trim()
+              ? manuscript_title.trim()
+              : "Untitled Manuscript",
           user_id: userId,
           created_by: userId,
           file_url: fileUrl,
@@ -223,11 +222,8 @@ export async function POST(req: Request) {
         );
       }
     }
-    const featureAccess = await checkFeatureAccess(
-      userId,
-      validatedJobType,
-      user_tier
-    );
+
+    const featureAccess = await checkFeatureAccess(userId, validatedJobType, user_tier);
 
     if (featureAccess.allowed === false) {
       const { reason } = featureAccess;
@@ -239,9 +235,30 @@ export async function POST(req: Request) {
         job_type: validatedJobType,
         reason,
       });
+      return NextResponse.json({ ok: false, error: reason, trace_id }, { status: 403 }); // Forbidden
+    }
+
+    // Layer 4: Backpressure check (Day 2 A5)
+    const backpressureBlock = await backpressureGuard();
+    if (backpressureBlock) {
+      logger.warn("Job creation blocked by backpressure", {
+        trace_id,
+        request_id,
+        event: "api.jobs.create.backpressure_blocked",
+        queue_depth: backpressureBlock.queueDepth,
+      });
       return NextResponse.json(
-        { ok: false, error: reason, trace_id },
-        { status: 403 } // Forbidden
+        {
+          ok: false,
+          error: backpressureBlock.error,
+          code: backpressureBlock.code,
+          retry_after: backpressureBlock.retryAfter,
+          trace_id,
+        },
+        {
+          status: 503, // Service Unavailable
+          headers: { "retry-after": String(backpressureBlock.retryAfter) },
+        }
       );
     }
 

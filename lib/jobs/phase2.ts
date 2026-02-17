@@ -1,9 +1,10 @@
 // lib/jobs/phase2.ts
+import crypto from "crypto";
 import * as metrics from "./metrics";
 import { getJob, updateJob } from "./store";
 import { getChunksForJob } from "@/lib/manuscripts/chunks";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { JOB_STATUS, PHASES } from "./types";
+import { writeArtifact, ARTIFACT_TYPES } from "@/lib/artifacts/writeArtifact";
 
 export const PHASE_2_STATES = {
   NOT_STARTED: "not_started",
@@ -32,11 +33,6 @@ export function assertTransitionPhase2(from: Phase2State, to: Phase2State): void
   }
 }
 
-// Admin client wrapper: uses centralized createAdminClient factory
-function getSupabase() {
-  return createAdminClient();
-}
-
 interface Phase1ValidationResult {
   isValid: boolean;
   error?: string;
@@ -46,11 +42,20 @@ interface Phase1ValidationResult {
 }
 
 /**
+ * Stable hash marker for Evidence Gate (DB → UI proof).
+ * We hash the exact artifact content we persist.
+ */
+function sha256Json(input: unknown): string {
+  const json = JSON.stringify(input);
+  return crypto.createHash("sha256").update(json).digest("hex");
+}
+
+/**
  * FAIL-FAST: Validate Phase 1 output is stable and ready for Phase 2
  *
  * Canon contract for Phase 2 input:
- * - job.progress.phase === "phase_1"
- * - job.progress.phase_status === "complete"
+ * - job.progress.phase === "phase_1" AND phase_status === "complete"
+ *   OR job.progress.phase === "phase_2" AND phase_status === "running" (normal lease transition)
  * - chunks exist for (manuscript_id, job_id)
  * - no chunks are "processing"
  * - at least one chunk is "done" with result_json
@@ -58,9 +63,8 @@ interface Phase1ValidationResult {
 async function validatePhase1Output(
   manuscriptId: number,
   jobId: string,
-  jobProgress: any,
+  jobProgress: any
 ): Promise<Phase1ValidationResult> {
-  // Distinctive proof marker: if you don’t see this, you’re not running the new code.
   console.log(`[Phase2Validation] v2: running validatePhase1Output`, {
     jobId,
     manuscriptId,
@@ -68,12 +72,9 @@ async function validatePhase1Output(
     phase_status: jobProgress?.phase_status,
   });
 
-  // Accept two valid states:
-  // 1. phase1/complete: Phase 1 just finished (rare - lease acquisition usually transitions first)
-  // 2. phase2/running: Lease acquisition already transitioned from phase1/complete (normal case)
-  const isValidPhase1Complete = 
+  const isValidPhase1Complete =
     jobProgress?.phase === PHASES.PHASE_1 && jobProgress?.phase_status === "complete";
-  const isValidPhase2Starting = 
+  const isValidPhase2Starting =
     jobProgress?.phase === PHASES.PHASE_2 && jobProgress?.phase_status === "running";
 
   if (!isValidPhase1Complete && !isValidPhase2Starting) {
@@ -153,13 +154,20 @@ async function validatePhase1Output(
 async function aggregateChunkResults(
   manuscriptId: number,
   jobId: string,
-  jobProgress: any,
+  jobProgress: any
 ): Promise<{
   summary: string;
   overallScore: number;
   chunkCount: number;
   processedCount: number;
   sourceHash: string;
+  artifactContent: {
+    summary: string;
+    overall_score: number;
+    chunk_count: number;
+    processed_count: number;
+    generated_at: string;
+  };
 }> {
   const chunks = await getChunksForJob({
     manuscriptId,
@@ -168,6 +176,7 @@ async function aggregateChunkResults(
     phase1FinishedAt: jobProgress?.finished_at as string | undefined,
     expectedChunkCount: jobProgress?.total_units as number | undefined,
   });
+
   const completed = chunks.filter((c) => c.status === "done" && c.result_json);
 
   const scores = completed
@@ -176,6 +185,8 @@ async function aggregateChunkResults(
 
   const avgScore =
     scores.length > 0 ? scores.reduce((sum, s) => sum + s, 0) / scores.length : 0;
+
+  const generatedAt = new Date().toISOString();
 
   const summary = `EVALUATION SUMMARY
 
@@ -204,12 +215,24 @@ ${
       : "Significant development needed. Major revision required."
 }
 
-Generated: ${new Date().toISOString()}
+Generated: ${generatedAt}
 `;
 
-  const sourceHash = `v2:${manuscriptId}:${jobId}:${completed.length}:${chunks.length}:${avgScore.toFixed(
-    2,
-  )}`;
+  const artifactContent = {
+    summary,
+    overall_score: avgScore,
+    chunk_count: chunks.length,
+    processed_count: completed.length,
+    generated_at: generatedAt,
+  };
+
+  // Deterministic source hash for Evidence Gate (DB → UI proof)
+  const sourceHash = `sha256:${sha256Json({
+    manuscript_id: manuscriptId,
+    job_id: jobId,
+    artifact_type: ARTIFACT_TYPES.ONE_PAGE_SUMMARY,
+    content: artifactContent,
+  })}`;
 
   return {
     summary,
@@ -217,95 +240,47 @@ Generated: ${new Date().toISOString()}
     chunkCount: chunks.length,
     processedCount: completed.length,
     sourceHash,
+    artifactContent,
   };
-}
-
-async function artifactExists(jobId: string): Promise<boolean> {
-  const { data, error } = await getSupabase()
-    .from("evaluation_artifacts")
-    .select("id")
-    .eq("job_id", jobId)
-    .eq("artifact_type", "one_page_summary")
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`Failed to check existing artifact: ${error.message}`);
-  }
-
-  return data !== null;
 }
 
 async function persistOutput(
   jobId: string,
   manuscriptId: number,
   result: {
-    summary: string;
-    overallScore: number;
-    chunkCount: number;
-    processedCount: number;
     sourceHash: string;
-  },
-): Promise<{ persisted: boolean; alreadyExists: boolean; artifactId?: string }> {
-  // Code-level idempotency check (fast exit)
-  const exists = await artifactExists(jobId);
-  if (exists) {
-    console.log(`[Phase2] Artifact already exists (precheck) job_id=${jobId}`);
-    return { persisted: false, alreadyExists: true };
+    artifactContent: {
+      summary: string;
+      overall_score: number;
+      chunk_count: number;
+      processed_count: number;
+      generated_at: string;
+    };
   }
-
-  // DB-level idempotency: UNIQUE(job_id, artifact_type)
-  // Use upsert with ignoreDuplicates so we don't create dupes.
-  const artifact = {
+): Promise<{ persisted: boolean; artifactId?: string | null }> {
+  /**
+   * Report Authority Lock:
+   * - NO pre-check for existence.
+   * - Canonical output is ONE row per (job_id, artifact_type).
+   * - DB uniqueness + upsert = idempotent and last-write-wins.
+   */
+  const artifactId = await writeArtifact({
     job_id: jobId,
     manuscript_id: manuscriptId,
-    artifact_type: "one_page_summary",
+    artifact_type: ARTIFACT_TYPES.ONE_PAGE_SUMMARY,
     artifact_version: "v1",
-    content: {
-      summary: result.summary,
-      overall_score: result.overallScore,
-      chunk_count: result.chunkCount,
-      processed_count: result.processedCount,
-      generated_at: new Date().toISOString(),
-    },
+    content: result.artifactContent,
     source_phase: PHASES.PHASE_2,
     source_hash: result.sourceHash,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+  });
 
-  const { data, error } = await getSupabase()
-    .from("evaluation_artifacts")
-    .upsert(artifact as any, {
-      onConflict: "job_id,artifact_type",
-      ignoreDuplicates: true,
-    })
-    .select("id")
-    .maybeSingle();
-
-  if (error) {
-    // If Supabase still surfaces unique conflicts differently, treat as already done.
-    const code = (error as any)?.code;
-    if (code === "23505") {
-      console.log(`[Phase2] Artifact already exists (unique constraint) job_id=${jobId}`);
-      return { persisted: false, alreadyExists: true };
-    }
-    throw new Error(`Failed to persist Phase 2 artifact: ${error.message}`);
-  }
-
-  if (!data) {
-    // ignoreDuplicates may return null row; treat as already exists.
-    return { persisted: false, alreadyExists: true };
-  }
-
-  // TypeScript narrow: data is non-null here
-  const artifactId = (data as any).id;
   if (!artifactId) {
-    // Shouldn't happen but guard against missing id
-    return { persisted: false, alreadyExists: true };
+    console.log(`[Phase2] Artifact not persisted (writer returned null) job_id=${jobId}`);
+    return { persisted: false, artifactId: null };
   }
 
   console.log(`[Phase2] Artifact persisted id=${artifactId} job_id=${jobId}`);
-  return { persisted: true, alreadyExists: false, artifactId };
+  return { persisted: true, artifactId };
 }
 
 export async function runPhase2(jobId: string): Promise<void> {
@@ -316,7 +291,7 @@ export async function runPhase2(jobId: string): Promise<void> {
     throw new Error("Job not found");
   }
 
-    const { acquireLeaseForPhase2 } = await import("./store");
+  const { acquireLeaseForPhase2 } = await import("./store");
   const leaseId = crypto.randomUUID();
 
   console.log(`[Phase2] Attempting lease acquire`, {
@@ -343,7 +318,9 @@ export async function runPhase2(jobId: string): Promise<void> {
 
   const manuscriptIdRaw = job.manuscript_id;
   const manuscriptId =
-    typeof manuscriptIdRaw === "number" ? manuscriptIdRaw : Number.parseInt(String(manuscriptIdRaw), 10);
+    typeof manuscriptIdRaw === "number"
+      ? manuscriptIdRaw
+      : Number.parseInt(String(manuscriptIdRaw), 10);
 
   if (!Number.isFinite(manuscriptId) || manuscriptId <= 0) {
     await updateJob(jobId, {
@@ -386,18 +363,19 @@ export async function runPhase2(jobId: string): Promise<void> {
     // STEP 2: aggregate results
     const result = await aggregateChunkResults(manuscriptId, jobId, job.progress);
 
-    // STEP 3: persist artifact (idempotent)
-    const persistResult = await persistOutput(jobId, manuscriptId, result);
+    // STEP 3: persist canonical artifact (idempotent via upsert)
+    const persistResult = await persistOutput(jobId, manuscriptId, {
+      sourceHash: result.sourceHash,
+      artifactContent: result.artifactContent,
+    });
 
-    // STEP 4: terminal job state only after persistence (or detected existing)
+    // STEP 4: terminal job state only after persistence attempt
     await updateJob(jobId, {
       status: JOB_STATUS.COMPLETE,
       progress: {
         phase: PHASES.PHASE_2,
         phase_status: JOB_STATUS.COMPLETE,
-        message: persistResult.alreadyExists
-          ? "Phase 2 already complete (idempotent)"
-          : `Phase 2 complete: ${result.processedCount}/${result.chunkCount} chunks analyzed`,
+        message: `Phase 2 complete: ${result.processedCount}/${result.chunkCount} chunks analyzed`,
         finished_at: new Date().toISOString(),
         overall_score: result.overallScore,
         artifact_id: persistResult.artifactId ?? null,
@@ -415,7 +393,6 @@ export async function runPhase2(jobId: string): Promise<void> {
       total_chunks: result.chunkCount,
       overall_score: result.overallScore,
       artifact_persisted: persistResult.persisted,
-      artifact_already_exists: persistResult.alreadyExists,
       source_hash: result.sourceHash,
     });
 
@@ -431,7 +408,6 @@ export async function runPhase2(jobId: string): Promise<void> {
       stack: e instanceof Error ? e.stack : undefined,
     });
 
-    // Keep Phase 2 observable and retry-safe.
     await updateJob(jobId, {
       status: JOB_STATUS.FAILED,
       progress: {
