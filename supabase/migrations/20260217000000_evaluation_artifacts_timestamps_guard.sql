@@ -7,8 +7,6 @@
 --   - updated_at: always bumped on any update
 --   - Prevents regression if code accidentally sends created_at in upsert
 
-begin;
-
 -- ─────────────────────────────────────────────────────────────────────────────
 -- UPDATE guard: preserve created_at, always bump updated_at
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -16,6 +14,8 @@ begin;
 create or replace function public.evaluation_artifacts_timestamps_guard()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 begin
   -- created_at should never change once set
@@ -43,6 +43,8 @@ execute function public.evaluation_artifacts_timestamps_guard();
 create or replace function public.evaluation_artifacts_timestamps_insert()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 begin
   if new.created_at is null then
@@ -64,5 +66,3 @@ create trigger trg_evaluation_artifacts_timestamps_insert
 before insert on public.evaluation_artifacts
 for each row
 execute function public.evaluation_artifacts_timestamps_insert();
-
-commit;
