@@ -379,8 +379,10 @@ echo "REPORT_HTTP=$REPORT_HTTP"
 
 # Detect login redirect pattern in HTML (defensive: Next may return 200 with login HTML)
 if grep -qiE "login|sign in" /tmp/flow1-report.html; then
+  REPORT_AUTH_PROTECTED="true"
   echo "REPORT_AUTH_PROTECTED=true"
 else
+  REPORT_AUTH_PROTECTED="false"
   echo "REPORT_AUTH_PROTECTED=false"
 fi
 
@@ -396,8 +398,10 @@ if [[ "$REPORT_HTTP" != "200" ]]; then
 fi
 
 if [[ "$(grep -cqiE "Evaluation Report" /tmp/flow1-report.html && echo yes || echo no)" == "yes" ]]; then
+  REPORT_RENDERED="true"
   echo "REPORT_RENDERED=true"
 else
+  REPORT_RENDERED="false"
   echo "REPORT_RENDERED=false"
 fi
 
