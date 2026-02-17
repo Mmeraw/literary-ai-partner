@@ -11,7 +11,7 @@ Canonical index of all phase gates. Each closed gate links to its evidence file.
 | Phase A.2 | Job reliability + queue hardening | CLOSED | 2026-01 | docs/PHASE_A2_STATUS.md |
 | Phase A.3 | Dead-letter queue + admin retry | CLOSED | 2026-01 | docs/PHASE_A3_DEAD_LETTER_COMPLETE.md |
 | Gate A4 | Observability + invariants (A4.1 + A4.3) | CLOSED | 2026-02-15 | docs/GATE_A4_CLOSURE.md @ `5023186` |
-| Gate A5 | Flow 1 — End-to-End evaluation loop | IN PROGRESS | | docs/GATE_A5_FLOW1.md |
+| Gate A5 | Flow 1 — End-to-End evaluation loop | CLOSED | 2026-02-17 | docs/GATE_A5_CLOSURE.md @ `f9defe4` |
 | Phase A.5 | Production hardening + rate limiting | IN PROGRESS | | docs/PHASE_A5_72HR_PLAN.md |
 | Phase D | Release gates (public + agent exposure) | IN PROGRESS | | docs/release/PHASE_D_RELEASE_GATES_v1.md |
 
@@ -23,5 +23,5 @@ Canonical index of all phase gates. Each closed gate links to its evidence file.
 |---|---|
 | Gates 1–6 | Infrastructure correctness |
 | A4 (closed) | Operational observability |
-| A5 (in progress) | Product proof / user loop validation |
+| A5 (closed) | Product proof / user loop validation |
 | Next | Market risk / value delivery |

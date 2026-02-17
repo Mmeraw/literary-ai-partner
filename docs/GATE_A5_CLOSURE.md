@@ -8,10 +8,10 @@
 - **Gate:** A5 — Flow 1 End-to-End User Evaluation Loop
 - **Scope thesis:** Report Authority Lock (canonical artifact, ownership, no recompute)
 - **Status:** ✅ CLOSED
-- **Closed on:** `[TO BE FILLED WHEN CI PASSES]`
+- **Closed on:** 2026-02-17
 - **Environment:** Production
-- **Repo commit:** `[TO BE FILLED]`
-- **CI Run:** `[TO BE FILLED]`
+- **Repo commit:** `f9defe4368ca06e908670662f125ae5bf2a17fe1`
+- **CI Run:** [#22084689705](https://github.com/Mmeraw/literary-ai-partner/actions/runs/22084689705)
 
 ---
 
@@ -31,18 +31,23 @@
 
 ## 3. CI Evidence (Flow 1 Evidence Gate)
 
-**[TO BE FILLED WHEN CI PASSES]**
+**Evidence from successful CI run:**
 
-Expected evidence markers:
 ```
-STEP 6 — Verify report renders canonical artifact
-REPORT_HTTP=200
-REPORT_CONTENT_PRESENT=true (or REPORT_AUTH_PROTECTED=true)
 ✅ FLOW 1 EVIDENCE: PASS
+=========================================
+HEALTH_HTTP=200
+CREATE_HTTP=201
+OWNER_HTTP=200
+OTHER_HTTP=404
+REPORT_HTTP=200
+JOB_ID=43c56fc9-72d6-4ac1-91e2-528af96adb58
+Ended: 2026-02-17T03:17:17Z
 ```
 
-CI workflow: `.github/workflows/flow1-proof-packed.yml`  
-Run URL: `[LINK TO CI RUN]`
+**CI workflow:** `.github/workflows/flow1-proof-packed.yml`  
+**Run URL:** https://github.com/Mmeraw/literary-ai-partner/actions/runs/22084689705  
+**Evidence artifact:** `flow1-evidence-5e2eaf96adda67e1605844217989c4f9730a5397` (90-day retention)
 
 ---
 
@@ -117,8 +122,8 @@ Run URL: `[LINK TO CI RUN]`
 | Requirement | Status |
 |-------------|--------|
 | `/evaluate/[jobId]/report` renders canonical artifact for completed job | ✅ |
-| CI (including Flow 1 Evidence) green | ✅ `[VERIFY WHEN RUNS]` |
-| Vercel deployment status: Ready | ✅ `[VERIFY]` |
+| CI (including Flow 1 Evidence) green | ✅ Run #22084689705 |
+| Vercel deployment status: Ready | ✅ Production |
 
 **Decision:** Gate A5 is closed; move roadmap focus to next gate.
 
