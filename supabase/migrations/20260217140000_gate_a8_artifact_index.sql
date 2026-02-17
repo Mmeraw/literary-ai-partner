@@ -148,13 +148,13 @@ CREATE TABLE IF NOT EXISTS public.collection_shares (
   
   -- Usage tracking
   view_count int NOT NULL DEFAULT 0,
-  last_viewed_at timestamptz,
-  
-  -- Only one active share per collection
-  CONSTRAINT unique_active_collection_share 
-    UNIQUE NULLS NOT DISTINCT (collection_id, revoked_at)
-    WHERE (revoked_at IS NULL)
+  last_viewed_at timestamptz
 );
+
+-- Only one active share per collection (partial unique index)
+CREATE UNIQUE INDEX IF NOT EXISTS unique_active_collection_share
+  ON public.collection_shares(collection_id)
+  WHERE (revoked_at IS NULL);
 
 CREATE INDEX IF NOT EXISTS idx_collection_shares_token_hash 
   ON public.collection_shares(token_hash);
