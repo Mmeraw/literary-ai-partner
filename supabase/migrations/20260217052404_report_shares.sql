@@ -45,6 +45,7 @@ create unique index if not exists report_shares_one_active_per_job_uidx
 alter table public.report_shares enable row level security;
 
 -- Owner can insert (must own job)
+drop policy if exists "report_shares_insert_owner_only" on public.report_shares;
 create policy "report_shares_insert_owner_only"
   on public.report_shares
   for insert
@@ -60,6 +61,7 @@ create policy "report_shares_insert_owner_only"
   );
 
 -- Owner can select their shares
+drop policy if exists "report_shares_select_owner_only" on public.report_shares;
 create policy "report_shares_select_owner_only"
   on public.report_shares
   for select
@@ -67,6 +69,7 @@ create policy "report_shares_select_owner_only"
   using (created_by = auth.uid());
 
 -- Owner can revoke/update their shares
+drop policy if exists "report_shares_update_owner_only" on public.report_shares;
 create policy "report_shares_update_owner_only"
   on public.report_shares
   for update
