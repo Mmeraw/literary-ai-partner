@@ -125,6 +125,10 @@ if [[ "$HEALTH_HTTP" != "200" ]]; then
   if [[ "$SERVER_MODE" == "prod" ]]; then
     # CI uses prod mode to avoid dev→prod guardrails blocking startup.
     echo "Health check not ready; building + starting Next production server..."
+          # Ensure NEXT_PUBLIC_* vars are set for Next.js build prerendering
+      # (matches job-system-ci.yml pattern — use real values if available, placeholders if not)
+      export NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-${SUPABASE_URL:-https://placeholder.supabase.co}}"
+      export NEXT_PUBLIC_SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-${SUPABASE_ANON_KEY:-placeholder-key-for-build}}"
     if ! npm run build > "$SERVER_LOG" 2>&1; then
       echo "❌ Production build failed during evidence startup"
       echo "Last build log lines:"
