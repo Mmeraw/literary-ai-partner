@@ -9,24 +9,39 @@
 -- - Ownership derived via: evaluation_jobs -> manuscripts -> created_by
 
 --------------------------------------------------------------------------------
--- 1. QUERY INDEXES ON EVALUATION_JOBS
+-- 1. QUERY INDEXES (OWNERSHIP CHAIN + JOB LISTING)
 --------------------------------------------------------------------------------
 
--- Index for owner-based listing with status filter
--- Supports: WHERE m.created_by = auth.uid() AND ej.status = 'complete' ORDER BY ej.created_at DESC
-CREATE INDEX IF NOT EXISTS idx_jobs_manuscript_status_created
+-- 1A. Ownership chain acceleration
+-- Critical for: JOIN manuscripts WHERE created_by = auth.uid()
+CREATE INDEX IF NOT EXISTS idx_manuscripts_created_by
+  ON manuscripts(created_by, id);
+
+COMMENT ON INDEX idx_manuscripts_created_by IS
+  'A8: Accelerates ownership chain lookup (manuscripts.created_by -> job filtering)';
+
+-- 1B. Job listing acceleration (owner → manuscripts → jobs)
+-- Supports: JOIN evaluation_jobs ON manuscript_id WHERE m.created_by = ...
+CREATE INDEX IF NOT EXISTS idx_eval_jobs_manuscript_created
+  ON evaluation_jobs(manuscript_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_eval_jobs_manuscript_status_created
   ON evaluation_jobs(manuscript_id, status, created_at DESC);
 
--- Index for temporal queries (completed jobs)
--- Supports: WHERE m.created_by = auth.uid() AND ej.updated_at >= '...' ORDER BY ej.updated_at DESC
-CREATE INDEX IF NOT EXISTS idx_jobs_manuscript_updated
-  ON evaluation_jobs(manuscript_id, updated_at DESC);
+COMMENT ON INDEX idx_eval_jobs_manuscript_created IS
+  'A8: Owner artifact listing (base case, no status filter)';
 
-COMMENT ON INDEX idx_jobs_manuscript_status_created IS
+COMMENT ON INDEX idx_eval_jobs_manuscript_status_created IS
   'A8: Owner artifact listing with status filter';
 
-COMMENT ON INDEX idx_jobs_manuscript_updated IS
-  'A8: Temporal queries over user artifacts';
+-- 1C. Canonical artifact join acceleration
+-- Note: UNIQUE(job_id, artifact_type) already provides btree index for ea.job_id = ej.id::text
+-- This index supports fallback listing patterns via manuscript_id
+CREATE INDEX IF NOT EXISTS idx_eval_artifacts_manuscript_type_updated
+  ON evaluation_artifacts(manuscript_id, artifact_type, updated_at DESC);
+
+COMMENT ON INDEX idx_eval_artifacts_manuscript_type_updated IS
+  'A8: Fallback artifact listing via manuscript (alternative to job join)';
 
 --------------------------------------------------------------------------------
 -- 2. ARTIFACT_COLLECTIONS TABLE
@@ -171,57 +186,95 @@ CREATE POLICY "Service role: full access"
 CREATE OR REPLACE FUNCTION list_my_artifacts(
   p_status text DEFAULT NULL,
   p_since timestamptz DEFAULT NULL,
-  p_limit int DEFAULT 50
+  p_limit int DEFAULT 50,
+  p_policy_family text DEFAULT NULL,
+  p_voice_preservation_level text DEFAULT NULL,
+  p_english_variant text DEFAULT NULL
 )
 RETURNS TABLE (
   job_id uuid,
   manuscript_id bigint,
-  work_title text,
+  manuscript_title text,
+  job_type text,
   status text,
   created_at timestamptz,
   updated_at timestamptz,
+  
+  -- Job configuration (A8: full metadata for dashboard filtering)
+  policy_family text,
+  voice_preservation_level text,
+  english_variant text,
+  work_type text,
+  
+  -- Canonical artifact metadata
+  artifact_type text,
+  artifact_version text,
+  artifact_updated_at timestamptz,
+  source_phase text,
+  source_hash text,
+  
+  -- Artifact payload (GOVERNANCE: Consider splitting to separate function for performance)
   overall_score numeric,
   credibility_valid boolean,
-  artifact_updated_at timestamptz
+  artifact_content jsonb
 )
 LANGUAGE plpgsql
 SECURITY INVOKER  -- ← GOVERNANCE: Owner queries use RLS, not privilege escalation
 STABLE
 AS $$
 BEGIN
-  -- Validate limit
-  IF p_limit < 1 OR p_limit > 1000 THEN
-    RAISE EXCEPTION 'p_limit must be between 1 and 1000';
+  -- Validate limit (cap at 200 to prevent abuse)
+  IF p_limit < 1 OR p_limit > 200 THEN
+    RAISE EXCEPTION 'p_limit must be between 1 and 200';
   END IF;
 
   RETURN QUERY
   SELECT 
     ej.id,
     ej.manuscript_id,
-    m.title AS work_title,
+    m.title AS manuscript_title,
+    ej.job_type,
     ej.status,
     ej.created_at,
     ej.updated_at,
+    
+    -- Configuration
+    ej.policy_family,
+    ej.voice_preservation_level,
+    ej.english_variant,
+    ej.work_type,
+    
+    -- Artifact metadata
+    ea.artifact_type,
+    ea.artifact_version,
+    ea.updated_at AS artifact_updated_at,
+    ea.source_phase,
+    ea.source_hash,
+    
+    -- Artifact content (extracted fields for convenience)
     (ea.content->>'overall_score')::numeric AS overall_score,
     (ea.content->'credibility_metrics'->>'valid')::boolean AS credibility_valid,
-    ea.updated_at AS artifact_updated_at
+    ea.content AS artifact_content
   FROM evaluation_jobs ej
   JOIN manuscripts m ON m.id = ej.manuscript_id
   -- GOVERNANCE: Deterministic canonical artifact selection
   LEFT JOIN evaluation_artifacts ea 
-    ON ea.job_id = ej.id::text 
+    ON ea.job_id = ej.id::text  -- ← Correct: TEXT job_id requires UUID->TEXT cast
     AND ea.artifact_type = 'one_page_summary'  -- ← Canonical type only
   WHERE 
-    m.created_by = auth.uid()  -- ← RLS enforcement (INVOKER mode relies on this)
+    m.created_by = auth.uid()  -- ← Ownership chain (no evaluation_jobs.created_by exists)
     AND (p_status IS NULL OR ej.status = p_status)
     AND (p_since IS NULL OR ej.created_at >= p_since)
+    AND (p_policy_family IS NULL OR ej.policy_family = p_policy_family)
+    AND (p_voice_preservation_level IS NULL OR ej.voice_preservation_level = p_voice_preservation_level)
+    AND (p_english_variant IS NULL OR ej.english_variant = p_english_variant)
   ORDER BY ej.created_at DESC
   LIMIT p_limit;
 END;
 $$;
 
 COMMENT ON FUNCTION list_my_artifacts IS
-  'A8: List owner artifacts with filters. SECURITY INVOKER (RLS-based). Canonical artifact type: one_page_summary.';
+  'A8: List owner artifacts with filters. SECURITY INVOKER (RLS-based). Ownership via manuscripts.created_by. Canonical artifact: one_page_summary.';
 
 -- ============================================================================
 -- 5B. CREATE_ARTIFACT_COLLECTION (SECURITY INVOKER)

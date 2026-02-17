@@ -70,15 +70,49 @@ A8 organizes them into a queryable platform.
 
 ## 4. Schema Design
 
-### 4.1 Query Indexes (evaluation_jobs)
-```sql
--- Owner listing with status filter
-CREATE INDEX idx_jobs_manuscript_status_created
-  ON evaluation_jobs(manuscript_id, status, created_at DESC);
+### 4.0 Schema Realities (Governance Critical)
 
--- Temporal queries
-CREATE INDEX idx_jobs_manuscript_updated
-  ON evaluation_jobs(manuscript_id, updated_at DESC);
+**Ownership Chain:**
+- ❌ `evaluation_jobs` has NO `created_by` column
+- ✅ Ownership derived via: `evaluation_jobs.manuscript_id → manuscripts.created_by`
+- All ownership validation MUST go through this chain
+
+**Type System:**
+- ⚠️ `evaluation_artifacts.job_id` is **TEXT** (not UUID)
+- ✅ Joins require explicit cast: `ea.job_id = ej.id::text`
+- Index-friendly: PostgreSQL will use `UNIQUE(job_id, artifact_type)` btree index
+- Future normalization: TEXT→UUID migration deferred to later gate (out of scope for A8)
+
+**Canonical Artifact Type:**
+- Single source of truth: `artifact_type = 'one_page_summary'`
+- All A8 queries MUST filter on this type for deterministic results
+- Multiple artifacts per job possible; canonical selection required
+
+### 4.1 Query Indexes
+
+**Ownership Chain Acceleration:**
+```sql
+-- Critical: manuscripts ownership lookup
+CREATE INDEX idx_manuscripts_created_by
+  ON manuscripts(created_by, id);
+```
+
+**Job Listing Acceleration:**
+```sql
+-- Base case (no status filter)
+CREATE INDEX idx_eval_jobs_manuscript_created
+  ON evaluation_jobs(manuscript_id, created_at DESC);
+
+-- With status filter
+CREATE INDEX idx_eval_jobs_manuscript_status_created
+  ON evaluation_jobs(manuscript_id, status, created_at DESC);
+```
+
+**Artifact Listing (Fallback Pattern):**
+```sql
+-- Alternative to job join (via manuscript_id directly)
+CREATE INDEX idx_eval_artifacts_manuscript_type_updated
+  ON evaluation_artifacts(manuscript_id, artifact_type, updated_at DESC);
 ```
 
 ### 4.2 artifact_collections
