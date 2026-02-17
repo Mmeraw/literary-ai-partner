@@ -4,6 +4,9 @@
 
 begin;
 
+-- Ensure pgcrypto is available (needed for gen_random_bytes + digest)
+create extension if not exists pgcrypto;
+
 -- ---------------------------------------------------------------------------
 -- Helper: generate a URL-safe token (base64-ish, no + / =)
 -- ---------------------------------------------------------------------------
