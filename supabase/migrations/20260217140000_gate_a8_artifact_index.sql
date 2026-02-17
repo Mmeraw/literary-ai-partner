@@ -15,7 +15,7 @@
 -- 1A. Ownership chain acceleration
 -- Critical for: JOIN manuscripts WHERE created_by = auth.uid()
 CREATE INDEX IF NOT EXISTS idx_manuscripts_created_by
-  ON manuscripts(created_by, id);
+  ON public.manuscripts(created_by, id);
 
 COMMENT ON INDEX idx_manuscripts_created_by IS
   'A8: Accelerates ownership chain lookup (manuscripts.created_by -> job filtering)';
@@ -23,10 +23,10 @@ COMMENT ON INDEX idx_manuscripts_created_by IS
 -- 1B. Job listing acceleration (owner → manuscripts → jobs)
 -- Supports: JOIN evaluation_jobs ON manuscript_id WHERE m.created_by = ...
 CREATE INDEX IF NOT EXISTS idx_eval_jobs_manuscript_created
-  ON evaluation_jobs(manuscript_id, created_at DESC);
+  ON public.evaluation_jobs(manuscript_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_eval_jobs_manuscript_status_created
-  ON evaluation_jobs(manuscript_id, status, created_at DESC);
+  ON public.evaluation_jobs(manuscript_id, status, created_at DESC);
 
 COMMENT ON INDEX idx_eval_jobs_manuscript_created IS
   'A8: Owner artifact listing (base case, no status filter)';
@@ -38,7 +38,7 @@ COMMENT ON INDEX idx_eval_jobs_manuscript_status_created IS
 -- Note: UNIQUE(job_id, artifact_type) already provides btree index for ea.job_id = ej.id::text
 -- This index supports fallback listing patterns via manuscript_id
 CREATE INDEX IF NOT EXISTS idx_eval_artifacts_manuscript_type_updated
-  ON evaluation_artifacts(manuscript_id, artifact_type, updated_at DESC);
+  ON public.evaluation_artifacts(manuscript_id, artifact_type, updated_at DESC);
 
 COMMENT ON INDEX idx_eval_artifacts_manuscript_type_updated IS
   'A8: Fallback artifact listing via manuscript (alternative to job join)';
@@ -47,7 +47,7 @@ COMMENT ON INDEX idx_eval_artifacts_manuscript_type_updated IS
 -- 2. ARTIFACT_COLLECTIONS TABLE
 --------------------------------------------------------------------------------
 
-CREATE TABLE artifact_collections (
+CREATE TABLE IF NOT EXISTS public.artifact_collections (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL CHECK (char_length(name) >= 1 AND char_length(name) <= 200),
   description text,
@@ -64,7 +64,8 @@ CREATE TABLE artifact_collections (
   CONSTRAINT artifact_collections_name_not_empty CHECK (trim(name) <> '')
 );
 
-CREATE INDEX idx_collections_created_by ON artifact_collections(created_by, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_collections_created_by 
+  ON public.artifact_collections(created_by, created_at DESC);
 
 COMMENT ON TABLE artifact_collections IS
   'A8: User-organized collections of evaluation artifacts. Shares are separate resources in collection_shares.';
@@ -87,7 +88,7 @@ CREATE POLICY "Service role: full access"
 -- 3. COLLECTION_ARTIFACTS JUNCTION TABLE
 --------------------------------------------------------------------------------
 
-CREATE TABLE collection_artifacts (
+CREATE TABLE IF NOT EXISTS public.collection_artifacts (
   collection_id uuid REFERENCES artifact_collections(id) ON DELETE CASCADE NOT NULL,
   job_id uuid REFERENCES evaluation_jobs(id) ON DELETE CASCADE NOT NULL,
   added_at timestamptz NOT NULL DEFAULT now(),
@@ -96,7 +97,8 @@ CREATE TABLE collection_artifacts (
   PRIMARY KEY (collection_id, job_id)
 );
 
-CREATE INDEX idx_collection_artifacts_job ON collection_artifacts(job_id);
+CREATE INDEX IF NOT EXISTS idx_collection_artifacts_job 
+  ON public.collection_artifacts(job_id);
 
 COMMENT ON TABLE collection_artifacts IS
   'A8: Junction table for artifacts in collections. No artifact mutation—read-only projection.';
@@ -131,7 +133,7 @@ CREATE POLICY "Service role: full access"
 -- 4. COLLECTION_SHARES TABLE (A7 PATTERN)
 --------------------------------------------------------------------------------
 
-CREATE TABLE collection_shares (
+CREATE TABLE IF NOT EXISTS public.collection_shares (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   collection_id uuid REFERENCES artifact_collections(id) ON DELETE CASCADE NOT NULL,
   
@@ -154,9 +156,12 @@ CREATE TABLE collection_shares (
     WHERE (revoked_at IS NULL)
 );
 
-CREATE INDEX idx_collection_shares_token_hash ON collection_shares(token_hash);
-CREATE INDEX idx_collection_shares_collection ON collection_shares(collection_id);
-CREATE INDEX idx_collection_shares_created_by ON collection_shares(created_by);
+CREATE INDEX IF NOT EXISTS idx_collection_shares_token_hash 
+  ON public.collection_shares(token_hash);
+CREATE INDEX IF NOT EXISTS idx_collection_shares_collection 
+  ON public.collection_shares(collection_id);
+CREATE INDEX IF NOT EXISTS idx_collection_shares_created_by 
+  ON public.collection_shares(created_by);
 
 COMMENT ON TABLE collection_shares IS
   'A8: Share tokens for public collection access (extends A7 pattern). Token stored as SHA-256 hash.';
@@ -344,6 +349,7 @@ CREATE OR REPLACE FUNCTION share_artifact_collection(
 RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER  -- ← GOVERNANCE: Token creation requires privilege to write hash
+SET search_path = public  -- ← GOVERNANCE: Prevent schema hijacking
 AS $$
 DECLARE
   v_token text;
@@ -410,6 +416,7 @@ CREATE OR REPLACE FUNCTION revoke_collection_share_by_token(
 RETURNS boolean
 LANGUAGE plpgsql
 SECURITY DEFINER  -- ← GOVERNANCE: Token lookup requires privilege
+SET search_path = public  -- ← GOVERNANCE: Prevent schema hijacking
 AS $$
 DECLARE
   v_token_hash bytea;
@@ -451,6 +458,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER  -- ← GOVERNANCE: Anon access requires privilege bypass
+SET search_path = public  -- ← GOVERNANCE: Prevent schema hijacking
 AS $$
 DECLARE
   v_token_hash bytea;
