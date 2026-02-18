@@ -9,6 +9,7 @@ type Ok = {
   job_id: string;
   status: string;
   evaluation_result: unknown;
+  source: "artifact" | "inline_job_result";
 };
 
 type Err = {
@@ -90,7 +91,14 @@ export async function GET(
 
 
     // 6) Fall back to evaluation_result on evaluation_jobs if no artifact found
-    const evaluationResult = artifact?.content ?? job.evaluation_result ?? null;
+    // Determine source: artifact is canonical, inline is fallback
+    const fromArtifact = !artifactError && artifact?.content;
+    const evaluationResult = fromArtifact
+      ? artifact.content
+      : (job.evaluation_result ?? null);
+    const source: "artifact" | "inline_job_result" = fromArtifact
+      ? "artifact"
+      : "inline_job_result";
 
     if (!evaluationResult) {
       const payload: Err = {
@@ -106,6 +114,7 @@ export async function GET(
       job_id: job.id,
       status: job.status,
       evaluation_result: evaluationResult,
+      source,
     };
     return NextResponse.json(payload, { status: 200 });
   } catch (err) {

@@ -70,7 +70,12 @@ async function getJob(jobId: string): Promise<Job | null> {
   }
 }
 
-async function getArtifact(jobId: string): Promise<ArtifactContentV1 | null> {
+type ArtifactResult = {
+  data: ArtifactContentV1;
+  source: "artifact" | "inline_job_result";
+} | null;
+
+async function getArtifact(jobId: string): Promise<ArtifactResult> {
   try {
     const supabase = await createClient();
 
@@ -84,7 +89,7 @@ async function getArtifact(jobId: string): Promise<ArtifactContentV1 | null> {
       .maybeSingle();
 
     if (!error && artifact?.content) {
-      return artifact.content as ArtifactContentV1;
+      return { data: artifact.content as ArtifactContentV1, source: "artifact" };
     }
 
     // Fallback: read evaluation_result from evaluation_jobs
@@ -95,7 +100,7 @@ async function getArtifact(jobId: string): Promise<ArtifactContentV1 | null> {
       .maybeSingle();
 
     if (!jobError && job?.evaluation_result) {
-      return job.evaluation_result as ArtifactContentV1;
+      return { data: job.evaluation_result as ArtifactContentV1, source: "inline_job_result" };
     }
 
     return null;
@@ -176,7 +181,9 @@ export default async function EvaluationReportPage({
   }
 
   const isComplete = job.status === "complete";
-  const artifact = isComplete ? await getArtifact(jobId) : null;
+  const artifactResult = isComplete ? await getArtifact(jobId) : null;
+  const artifact = artifactResult?.data ?? null;
+  const artifactSource = artifactResult?.source ?? null;
 
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -256,6 +263,16 @@ export default async function EvaluationReportPage({
         </section>
       ) : (
         <>
+          {artifactSource === "inline_job_result" && (
+            <div className="mt-4 rounded-md bg-amber-50 border border-amber-300 p-4">
+              <p className="text-sm font-medium text-amber-800">
+                ⚠️ Showing Phase 1 inline output. Phase 2 artifact not yet persisted.
+              </p>
+              <p className="mt-1 text-xs text-amber-700">
+                This is an interim result from evaluation_jobs.evaluation_result, not the canonical evaluation_artifacts row.
+              </p>
+            </div>
+          )}
           <section className="mt-6 rounded-lg border p-5">
             <h2 className="text-lg font-semibold">Overall Summary</h2>
             <pre className="mt-2 whitespace-pre-wrap text-sm text-gray-600">

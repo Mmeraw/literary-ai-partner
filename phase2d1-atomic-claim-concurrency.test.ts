@@ -85,7 +85,7 @@ run("Phase 2D-1 Atomic claim concurrency", () => {
       }
 
       // Mutual exclusion: exactly one worker owns the job
-      expect(row.status).toBe("processing");
+      expect(row.status).toBe("running");
       expect(["worker-A", "worker-B"]).toContain(row.worker_id);
 
       // Lease semantics: token, expiry, and heartbeat all set

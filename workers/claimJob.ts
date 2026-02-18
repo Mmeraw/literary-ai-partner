@@ -281,17 +281,29 @@ export async function renewLease(
     p_lease_seconds: leaseSeconds
   });
 
-  if (error || !data || data.length === 0) {
+  // Fallback if RPC unavailable (migration not applied to test DB)
+  if (error) {
+    const msg = error.message || '';
+    if (
+      msg.includes('function') ||
+      msg.includes('schema cache') ||
+      msg.includes('does not exist') ||
+      error.code === 'PGRST202'
+    ) {
+      return fallbackRenewLease(jobId, workerId, leaseToken, leaseSeconds);
+    }
+    // Unexpected error
+    console.error('[renewLease] RPC error:', error);
+    return { success: false };
+  }
+
+  if (!data || (Array.isArray(data) && data.length === 0)) {
     return { success: false };
   }
 
   const row = Array.isArray(data) ? data[0] : data;
 
-  // Normalize field names (handles snake_case, camelCase, or any variation)
-  const success =
-    row?.success === true ||
-    row?.SUCCESS === true;
-
+  // Extract timestamps first (needed for fallback success detection)
   const leaseUntil =
     row?.lease_until ??
     row?.new_lease_until ??
@@ -304,11 +316,96 @@ export async function renewLease(
     row?.heartbeatAt ??
     null;
 
+  // Robust success normalization: support multiple RPC return shapes
+  const success =
+    // Explicit boolean fields
+    row?.success === true ||
+    row?.SUCCESS === true ||
+    row?.ok === true ||
+    row?.OK === true ||
+    row?.updated === true ||
+    row?.UPDATED === true ||
+
+    // Numeric rowcount patterns (some RPCs return affected rows)
+    row?.rowcount === 1 ||
+    row?.ROWCOUNT === 1 ||
+    row?.count === 1 ||
+
+    // RPC might return boolean/number directly (not wrapped in object)
+    data === true ||
+    data === 1 ||
+
+    // Last resort: if we got both timestamps back, renewal succeeded
+    (!!leaseUntil && !!heartbeatAt);
+
   return {
     success,
     leaseUntil: leaseUntil ? new Date(leaseUntil) : undefined,
     heartbeatAt: heartbeatAt ? new Date(heartbeatAt) : undefined
   };
+}
+
+/**
+ * Fallback lease renewal if RPC not available
+ * Uses direct SQL with token verification (less efficient but functional)
+ */
+async function fallbackRenewLease(
+  jobId: string,
+  workerId: string,
+  leaseToken: string,
+  leaseSeconds: number = DEFAULT_LEASE_SECONDS
+): Promise<{ success: boolean; leaseUntil?: Date; heartbeatAt?: Date }> {
+  const supabase = getSupabaseClient();
+  const now = new Date();
+  const newLeaseUntil = new Date(now.getTime() + leaseSeconds * 1000);
+
+  try {
+    // Verify token matches before updating
+    const { data: current, error: selectError } = await supabase
+      .from('evaluation_jobs')
+      .select('lease_token, worker_id, status')
+      .eq('id', jobId)
+      .single();
+
+    if (selectError || !current) {
+      return { success: false };
+    }
+
+    // Verify all conditions match (same as RPC WHERE clause)
+    if (
+      current.worker_id !== workerId ||
+      current.status !== 'running' ||
+      current.lease_token !== leaseToken
+    ) {
+      return { success: false };
+    }
+
+    // Update lease with verified token
+    const { error: updateError } = await supabase
+      .from('evaluation_jobs')
+      .update({
+        lease_until: newLeaseUntil.toISOString(),
+        heartbeat_at: now.toISOString(),
+        updated_at: now.toISOString()
+      })
+      .eq('id', jobId)
+      .eq('worker_id', workerId)
+      .eq('status', 'running')
+      .eq('lease_token', leaseToken);
+
+    if (updateError) {
+      return { success: false };
+    }
+
+    return {
+      success: true,
+      leaseUntil: newLeaseUntil,
+      heartbeatAt: now
+    };
+  } catch (err) {
+    console.error('[renewLease] Fallback error:', err);
+    return { success: false };
+  }
 }
 
 /**

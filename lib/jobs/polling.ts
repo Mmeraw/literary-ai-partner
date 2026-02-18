@@ -36,7 +36,7 @@ export const POLLING_THRESHOLDS = {
  * Terminal job statuses per JOB_CONTRACT_v1 Section 3.2
  * These jobs require no further polling
  */
-const TERMINAL_STATUSES = ["complete", "failed"] as const;
+const TERMINAL_STATUSES = ["complete", "failed", "canceled"] as const;
 
 /**
  * Check if a job status is terminal (no further processing)
