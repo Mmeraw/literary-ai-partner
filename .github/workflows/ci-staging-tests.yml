@@ -40,7 +40,7 @@ jobs:
 
           # Controlled path: audit is failing; pipe JSON directly to validation script.
 
-          npm audit --json 2>&1 | node -e '
+          (npm audit --json 2>&1 || true) | node -e '
             const fs = require("fs");
 
             const data = fs.readFileSync(0, "utf8");

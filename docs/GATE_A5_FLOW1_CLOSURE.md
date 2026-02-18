@@ -1,9 +1,9 @@
 # Gate A5 -- Flow 1 Closure
 
-**Status**: **CLOSED** (Product Proof Complete + Actor Header Pattern Verified)
-**Date**: 2026-02-18 (initial), 2026-02-19 (actor header hardening)
-**Closure Commits**: `6d73c19` through `a11125` (11 commits)
-**CI Status**: Pending verification after actor header commits
+**Status**: ✅ **FUNCTIONALLY CLOSED** — CI Exception Pending Verification  
+**Date**: 2026-02-18 (initial), 2026-02-19 (actor header hardening)  
+**Closure Commits**: `6d73c19` through `a47ce62` (11 commits)  
+**CI Status**: ⚠️ Mixed — see CI Exception section below
 
 ---
 
@@ -18,6 +18,25 @@ This is the milestone that converts "great systems" into "working product."
 **Implementation Strategy**: Option 2 (admin trigger) chosen for minimal surface area proof.
 
 **Actor Header Hardening** (2026-02-19): All endpoints now support the centralized `getDevHeaderActor()` pattern for test-mode identity, gated by `TEST_MODE=true` AND `ALLOW_HEADER_USER_ID=true`. No production auth was loosened.
+
+---
+
+## CI Exception (Unblocked by Commit TBD)
+
+**Issue**: `ci.yml` and `ci-staging-tests.yml` audit steps failing despite allowlisted vulnerabilities being acceptable.
+
+**Root Cause**: `npm audit --json` returns exit code 1 when vulnerabilities exist. Under `set -e` + `pipefail`, the pipeline fails before the Node.js allowlist validator can bless the known advisories.
+
+**Evidence**:
+- ✅ **job-system-ci.yml**: Green (already using `|| true` pattern)
+- ❌ **ci.yml**: Failing (pipeline exit semantics issue)
+- ❌ **ci-staging-tests.yml**: Failing (pipeline exit semantics issue)
+
+**Fix Applied**: Standardized `(npm audit --json 2>&1 || true) | node -e '...'` pattern across all three workflows.
+
+**Verification Pending**: CI runs on commit containing the workflow fixes must show all three workflows green.
+
+**Gate Closure Condition**: Once all CI workflows are green, this section will be removed and status will flip to "CLOSED ✅".
 
 ---
 
