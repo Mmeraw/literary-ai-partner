@@ -368,11 +368,11 @@ BEGIN
   END IF;
   
   -- Generate token (32 bytes, URL-safe base64)
-  v_token := encode(gen_random_bytes(32), 'base64');
+  v_token := encode(extensions.gen_random_bytes(32), 'base64');
   v_token := replace(replace(replace(v_token, '+', '-'), '/', '_'), '=', '');
   
   -- Hash token (SHA-256)
-  v_token_hash := digest(v_token, 'sha256');
+  v_token_hash := extensions.digest(v_token, 'sha256');
   
   -- Calculate expiry
   IF p_expires_hours IS NOT NULL THEN
@@ -424,7 +424,7 @@ DECLARE
   v_rows_updated int;
 BEGIN
   v_user_id := auth.uid();
-  v_token_hash := digest(p_token, 'sha256');
+  v_token_hash := extensions.digest(p_token, 'sha256');
   
   -- Revoke share (owner-only)
   UPDATE collection_shares cs
@@ -468,7 +468,7 @@ DECLARE
   v_collection_description text;
   v_artifacts jsonb;
 BEGIN
-  v_token_hash := digest(p_token, 'sha256');
+  v_token_hash := extensions.digest(p_token, 'sha256');
   
   -- Lookup share (fail-closed: must be active, not expired, not revoked)
   SELECT 
