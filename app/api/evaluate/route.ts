@@ -2,11 +2,33 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PHASES } from "@/lib/jobs/types";
+import { getDevHeaderActor } from "@/lib/auth/devHeaderActor";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
 
 export async function POST(req: Request) {
   try {
     // Use admin client to bypass RLS for trusted server operations
     const supabase = createAdminClient();
+
+    // 1) Auth: dev header actor (test-mode only) OR production session
+    const actor = getDevHeaderActor(req);
+    let userId: string | null = null;
+
+    if (actor) {
+      // Dev-only user identity from x-user-id header
+      userId = actor.userId;
+    } else {
+      // Production path: Supabase session cookie
+      const user = await getAuthenticatedUser();
+      userId = user?.id ?? null;
+    }
+
+    if (!userId) {
+      return Response.json(
+        { ok: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
 
     // Step 1: Create manuscript
     const { data: manuscript, error: manuscriptError } = await supabase
@@ -23,7 +45,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Step 2: Create evaluation job
+    // Step 2: Create evaluation job with created_by
     const { data, error } = await supabase
       .from("evaluation_jobs")
       .insert({
@@ -33,6 +55,7 @@ export async function POST(req: Request) {
         policy_family: "standard",
         voice_preservation_level: "balanced",
         english_variant: "us",
+        created_by: userId,
       })
       .select()
       .single();
@@ -45,7 +68,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ This return MUST be inside the POST function
+    // This return MUST be inside the POST function
     return Response.json(
       {
         ok: true,
@@ -59,6 +82,7 @@ export async function POST(req: Request) {
           policy_family: data.policy_family,
           voice_preservation_level: data.voice_preservation_level,
           english_variant: data.english_variant,
+          created_by: data.created_by,
         },
       },
       { status: 200 }
