@@ -46,7 +46,7 @@ export async function GET(
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id,status,created_by")
+      .select("id,status,created_by,evaluation_result")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -71,7 +71,7 @@ export async function GET(
     }
 
     // 4) Completion enforcement
-    if (job.status !== "completed") {
+    if (job.status !== "complete") {
       const payload: Err = { ok: false, error: "Evaluation not completed" };
       return NextResponse.json(payload, { status: 409 });
     }
@@ -85,19 +85,18 @@ export async function GET(
       .maybeSingle();
 
     if (artifactError) {
-      const payload: Err = {
-        ok: false,
-        error: "Failed to load artifact",
-        details: artifactError.message,
-      };
-      return NextResponse.json(payload, { status: 500 });
+      console.warn(`[evaluations/${jobId}] artifact lookup error:`, artifactError.message);
     }
 
-    if (!artifact) {
+
+    // 6) Fall back to evaluation_result on evaluation_jobs if no artifact found
+    const evaluationResult = artifact?.content ?? job.evaluation_result ?? null;
+
+    if (!evaluationResult) {
       const payload: Err = {
         ok: false,
-        error: "Evaluation artifact not found",
-        details: "Job completed but one_page_summary artifact is missing.",
+        error: "Evaluation result not found",
+        details: "Job completed but no evaluation result or artifact is available.",
       };
       return NextResponse.json(payload, { status: 404 });
     }
@@ -106,7 +105,7 @@ export async function GET(
       ok: true,
       job_id: job.id,
       status: job.status,
-      evaluation_result: artifact.content,
+      evaluation_result: evaluationResult,
     };
     return NextResponse.json(payload, { status: 200 });
   } catch (err) {

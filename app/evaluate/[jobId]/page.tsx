@@ -1,8 +1,7 @@
 // app/evaluate/[jobId]/page.tsx
 // Track D: Minimal Report Surface
 import Link from "next/link";
-import { cookies } from "next/headers";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
 
 type Job = {
   id: string;
@@ -19,86 +18,91 @@ type Job = {
 };
 
 type ArtifactContentV1 = {
-  summary: string;
-  overall_score: number;
-  chunk_count: number;
-  processed_count: number;
-  generated_at: string;
+  // Shape A: from evaluation_artifacts
+  summary?: string;
+  overall_score?: number;
+  chunk_count?: number;
+  processed_count?: number;
+  generated_at?: string;
+  // Shape B: from evaluation_jobs.evaluation_result (EvaluationResultV1)
+  overview?: {
+    verdict?: string;
+    overall_score_0_100?: number;
+    one_paragraph_summary?: string;
+    top_3_strengths?: string[];
+    top_3_risks?: string[];
+  };
+  criteria?: Array<{ key: string; score_0_10: number; rationale?: string }>;
+  recommendations?: {
+    quick_wins?: Array<{ action: string; why?: string; effort?: string; impact?: string }>;
+    strategic_revisions?: Array<{ action: string; why?: string; effort?: string; impact?: string }>;
+  };
+  metrics?: {
+    manuscript?: { word_count?: number; char_count?: number; genre?: string };
+    processing?: { segment_count?: number; total_tokens_estimated?: number; runtime_ms?: number };
+  };
+  governance?: { confidence?: number; warnings?: string[]; limitations?: string[] };
 };
 
 async function getJob(jobId: string): Promise<Job | null> {
-  const cookieStore = await cookies();
-  
-  // Get session token from cookies
-  const accessToken = cookieStore.get('sb-access-token')?.value || 
-                      cookieStore.get('supabase-auth-token')?.value;
-  
-  if (!accessToken) {
-    console.warn(`[getJob] No access token for job ${jobId}`);
-    return null;
-  }
-  
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-  });
-  
-  const { data: job, error } = await supabase
-    .from("evaluation_jobs")
-    .select("id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error")
-    .eq("id", jobId)
-    .maybeSingle();
+  try {
+    const supabase = await createClient();
 
-  if (error) {
-    console.error(`[getJob] Supabase error for job ${jobId}:`, error);
-    return null;
-  }
+    const { data: job, error } = await supabase
+      .from("evaluation_jobs")
+      .select("id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error")
+      .eq("id", jobId)
+      .maybeSingle();
 
-  if (!job) {
-    console.warn(`[getJob] Job not found in database: ${jobId}`);
+    if (error) {
+      console.error(`[getJob] Supabase error for job ${jobId}:`, error);
+      return null;
+    }
+    if (!job) {
+      console.warn(`[getJob] Job not found in database: ${jobId}`);
+      return null;
+    }
+
+    return job as Job;
+  } catch (err) {
+    console.error(`[getJob] Unexpected error:`, err);
     return null;
   }
-  
-  return job as Job;
 }
 
 async function getArtifact(jobId: string): Promise<ArtifactContentV1 | null> {
-  const cookieStore = await cookies();
-  
-  // Get session token from cookies
-  const accessToken = cookieStore.get('sb-access-token')?.value || 
-                      cookieStore.get('supabase-auth-token')?.value;
-  
-  if (!accessToken) return null;
-  
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-  });
-  
-  const { data: artifact, error } = await supabase
-    .from("evaluation_artifacts")
-    .select("id, job_id, artifact_type, content, created_at")
-    .eq("job_id", jobId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  try {
+    const supabase = await createClient();
 
-  if (error || !artifact?.content) return null;
+    // Try evaluation_artifacts first (canonical)
+    const { data: artifact, error } = await supabase
+      .from("evaluation_artifacts")
+      .select("id, job_id, artifact_type, content, created_at")
+      .eq("job_id", jobId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  return artifact.content as ArtifactContentV1;
+    if (!error && artifact?.content) {
+      return artifact.content as ArtifactContentV1;
+    }
+
+    // Fallback: read evaluation_result from evaluation_jobs
+    const { data: job, error: jobError } = await supabase
+      .from("evaluation_jobs")
+      .select("evaluation_result")
+      .eq("id", jobId)
+      .maybeSingle();
+
+    if (!jobError && job?.evaluation_result) {
+      return job.evaluation_result as ArtifactContentV1;
+    }
+
+    return null;
+  } catch (err) {
+    console.error(`[getArtifact] Unexpected error:`, err);
+    return null;
+  }
 }
 
 function formatScore(n: number): string {
@@ -142,11 +146,9 @@ export default async function EvaluationReportPage({
 
   if (!job) {
     // Check if it's an auth issue
-    const cookieStore = await cookies();
-    const hasAccessToken = !!( 
-      cookieStore.get('sb-access-token')?.value || 
-      cookieStore.get('supabase-auth-token')?.value
-    );
+    // Auth is handled by the server client; if job is null, 
+    // it may be auth failure or job not found
+    const hasAccessToken = true; // Server client handles auth transparently
 
     return (
       <main className="mx-auto max-w-3xl p-6">
@@ -257,14 +259,14 @@ export default async function EvaluationReportPage({
           <section className="mt-6 rounded-lg border p-5">
             <h2 className="text-lg font-semibold">Overall Summary</h2>
             <pre className="mt-2 whitespace-pre-wrap text-sm text-gray-600">
-              {artifact.summary}
+              {artifact.summary || artifact.overview?.one_paragraph_summary || "No summary available"}
             </pre>
           </section>
 
           <section className="mt-6 rounded-lg border p-5">
             <h2 className="text-lg font-semibold">Top Recommendations</h2>
             <ul className="mt-2 list-disc pl-5 text-sm text-gray-600">
-              {extractTopRecommendations(artifact.summary).map((r, i) => (
+              {extractTopRecommendations(artifact.summary || artifact.overview?.one_paragraph_summary || "").map((r, i) => (
                 <li key={i}>{r}</li>
               ))}
             </ul>
@@ -273,12 +275,12 @@ export default async function EvaluationReportPage({
           <section className="mt-6 rounded-lg border p-5">
             <h2 className="text-lg font-semibold">Key Metrics</h2>
             <div className="mt-2 grid gap-3 sm:grid-cols-3">
-              <Metric label="Overall Score" value={formatScore(artifact.overall_score)} />
-              <Metric label="Chunks Analyzed" value={artifact.chunk_count} />
-              <Metric label="Successfully Processed" value={artifact.processed_count} />
+              <Metric label="Overall Score" value={formatScore(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0)} />
+              <Metric label="Chunks Analyzed" value={artifact.chunk_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"} />
+              <Metric label="Successfully Processed" value={artifact.processed_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"} />
             </div>
             <p className="mt-3 text-xs text-gray-500">
-              Generated: {new Date(artifact.generated_at).toLocaleString()}
+              Generated: {artifact.generated_at ? new Date(artifact.generated_at).toLocaleString() : "N/A"}
             </p>
           </section>
         </>
