@@ -1,8 +1,8 @@
 // lib/evaluation/phase2.ts
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-type Phase2Ok = { ok: true };
-type Phase2Err = { ok: false; error: string; details?: string };
+export type Phase2Ok = { ok: true };
+export type Phase2Err = { ok: false; error: string; details?: string };
 
 /**
  * Gate A5 (Flow 1): Produce ONE canonical evaluation_result and persist it.

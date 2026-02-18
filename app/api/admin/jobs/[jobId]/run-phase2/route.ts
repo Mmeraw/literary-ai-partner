@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { runPhase2Aggregation } from "@/lib/evaluation/phase2";
+import { runPhase2Aggregation, type Phase2Err } from "@/lib/evaluation/phase2";
 
 type Ok = { ok: true; job_id: string; phase2: "persisted" };
 type Err = { ok: false; error: string; details?: string };
@@ -25,7 +25,7 @@ export async function POST(
       const payload: Err = {
         ok: false,
         error: "Failed to run phase2",
-        details: result.details ?? result.error,
+        details: (result as Phase2Err).details ?? (result as Phase2Err).error,
       };
       return NextResponse.json(payload, { status: 500 });
     }
