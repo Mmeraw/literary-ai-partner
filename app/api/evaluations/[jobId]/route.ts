@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { getDevHeaderActor } from "@/lib/auth/devHeaderActor";
 
 type Ok = {
   ok: true;
@@ -21,9 +22,20 @@ export async function GET(
   ctx: { params: { jobId: string } }
 ) {
   try {
-    // 1) Auth (cookie/session) — MUST be first for 401 vs 403 truth
-    const user = await getAuthenticatedUser();
-    if (!user) {
+    // 1) Auth: dev header actor (test-mode only) OR production session
+    const actor = getDevHeaderActor(req);
+    let userId: string | null = null;
+
+    if (actor) {
+      // Dev-only user identity from x-user-id header
+      userId = actor.userId;
+    } else {
+      // Production path: Supabase session cookie
+      const user = await getAuthenticatedUser();
+      userId = user?.id ?? null;
+    }
+
+    if (!userId) {
       const payload: Err = { ok: false, error: "Unauthorized" };
       return NextResponse.json(payload, { status: 401 });
     }
@@ -53,7 +65,7 @@ export async function GET(
     }
 
     // 3) Ownership enforcement
-    if (job.created_by !== user.id) {
+    if (job.created_by !== userId) {
       const payload: Err = { ok: false, error: "Forbidden" };
       return NextResponse.json(payload, { status: 403 });
     }
@@ -70,7 +82,6 @@ export async function GET(
       status: job.status,
       evaluation_result: job.evaluation_result,
     };
-
     return NextResponse.json(payload, { status: 200 });
   } catch (err) {
     const payload: Err = {
