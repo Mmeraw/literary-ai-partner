@@ -155,6 +155,7 @@ jobs:
           fi
 
           # Controlled path: audit is failing; pipe JSON directly to validation script.
+        set +o pipefail
           npm audit --json 2>&1 | node -e '
             const fs = require("fs");
 
