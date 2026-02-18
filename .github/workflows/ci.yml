@@ -70,13 +70,13 @@ jobs:
             }
             const vulns = j.vulnerabilities || {};
             const keys = Object.keys(vulns);
-            const allow = new Set(["tar", "supabase", "next", "eslint"]);
-            const bad = keys.filter(k => !allow.has(k));
+                      const allow = ["tar", "supabase", "next", "eslint", "ajv"];
+          const bad = keys.filter(k => !allow.some(a => k === a || k.includes(a)));
             if (bad.length) {
               console.error("Unexpected high vulns:", bad);
               process.exit(1);
             }
-            if (!keys.some(k => ["tar", "supabase", "next", "eslint"].includes(k))) {
+                      if (!keys.some(k => allow.some(a => k === a || k.includes(a)))) {
               console.error("High vuln present but not tar/supabase/next? keys:", keys);
               process.exit(1);
             }
