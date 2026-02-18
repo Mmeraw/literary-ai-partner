@@ -22,10 +22,13 @@ export async function POST(
     const result = await runPhase2Aggregation(supabase, jobId);
 
     if (!result.ok) {
+      // TypeScript doesn't narrow unions properly here, so we cast
+      const err = result as Phase2Err;
+      const details = err.details ?? err.error;
       const payload: Err = {
         ok: false,
         error: "Failed to run phase2",
-        details: (result as Phase2Err).details ?? (result as Phase2Err).error,
+        details,
       };
       return NextResponse.json(payload, { status: 500 });
     }
