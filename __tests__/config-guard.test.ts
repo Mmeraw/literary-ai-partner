@@ -20,7 +20,7 @@ afterEach(() => {
 
 describe("config.ts production guard", () => {
   it("throws when ALLOW_HEADER_USER_ID=true in prod runtime (not CI, not build)", () => {
-    process.env.NODE_ENV = "production";
+    (process.env as any).NODE_ENV = "production";
     process.env.ALLOW_HEADER_USER_ID = "true";
     delete process.env.NEXT_PHASE;
     delete process.env.CI;
@@ -33,7 +33,7 @@ describe("config.ts production guard", () => {
   });
 
   it("does NOT throw when CI=true (even with prod + allow header)", () => {
-    process.env.NODE_ENV = "production";
+    (process.env as any).NODE_ENV = "production";
     process.env.ALLOW_HEADER_USER_ID = "true";
     process.env.CI = "true";
     delete process.env.NEXT_PHASE;
@@ -46,7 +46,7 @@ describe("config.ts production guard", () => {
   });
 
   it("does NOT throw during Next.js build phase", () => {
-    process.env.NODE_ENV = "production";
+    (process.env as any).NODE_ENV = "production";
     process.env.ALLOW_HEADER_USER_ID = "true";
     process.env.NEXT_PHASE = "phase-production-build";
     delete process.env.CI;
@@ -59,7 +59,7 @@ describe("config.ts production guard", () => {
   });
 
   it("does NOT throw in development mode", () => {
-    process.env.NODE_ENV = "development";
+    (process.env as any).NODE_ENV = "development";
     process.env.ALLOW_HEADER_USER_ID = "true";
     delete process.env.CI;
     delete process.env.NEXT_PHASE;
@@ -72,7 +72,7 @@ describe("config.ts production guard", () => {
   });
 
   it("does NOT throw when ALLOW_HEADER_USER_ID is not set", () => {
-    process.env.NODE_ENV = "production";
+    (process.env as any).NODE_ENV = "production";
     delete process.env.ALLOW_HEADER_USER_ID;
     delete process.env.CI;
     delete process.env.NEXT_PHASE;
@@ -85,7 +85,7 @@ describe("config.ts production guard", () => {
   });
 
   it("exports correct _test values in CI environment", () => {
-    process.env.NODE_ENV = "production";
+    (process.env as any).NODE_ENV = "production";
     process.env.CI = "true";
     delete process.env.NEXT_PHASE;
 
@@ -101,7 +101,7 @@ describe("config.ts production guard", () => {
   });
 
   it("error message includes diagnostic env values when thrown", () => {
-    process.env.NODE_ENV = "production";
+    (process.env as any).NODE_ENV = "production";
     process.env.ALLOW_HEADER_USER_ID = "true";
     delete process.env.NEXT_PHASE;
     delete process.env.CI;
