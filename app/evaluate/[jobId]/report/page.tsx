@@ -60,10 +60,6 @@ export default function ReportPage({ params }: { params: { jobId: string } }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.jobId]);
 
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.jobId]);
 
   return (
     <div style={{ padding: 24 }}>

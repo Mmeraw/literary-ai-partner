@@ -323,8 +323,8 @@ async function persistOutput(
   });
 
   if (!artifactId) {
-    console.log(`[Phase2] Artifact not persisted (writer returned null) job_id=${jobId}`);
-    return { persisted: false, artifactId: null };
+    // Fail-closed: artifact MUST exist after Phase 2 persistence attempt
+    throw new Error(`[Phase2] Fail-closed: writeArtifact returned null for job_id=${jobId}. Artifact persistence failed.`);
   }
 
   console.log(`[Phase2] Artifact persisted id=${artifactId} job_id=${jobId}`);

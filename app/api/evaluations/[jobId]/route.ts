@@ -46,7 +46,7 @@ export async function GET(
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id,status,created_by,evaluation_result")
+      .select("id,status,created_by")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -76,11 +76,37 @@ export async function GET(
       return NextResponse.json(payload, { status: 409 });
     }
 
+    // 5) Read from evaluation_artifacts (canonical source for Flow 1)
+    const { data: artifact, error: artifactError } = await supabase
+      .from("evaluation_artifacts")
+      .select("content")
+      .eq("job_id", jobId)
+      .eq("artifact_type", "one_page_summary")
+      .maybeSingle();
+
+    if (artifactError) {
+      const payload: Err = {
+        ok: false,
+        error: "Failed to load artifact",
+        details: artifactError.message,
+      };
+      return NextResponse.json(payload, { status: 500 });
+    }
+
+    if (!artifact) {
+      const payload: Err = {
+        ok: false,
+        error: "Evaluation artifact not found",
+        details: "Job completed but one_page_summary artifact is missing.",
+      };
+      return NextResponse.json(payload, { status: 404 });
+    }
+
     const payload: Ok = {
       ok: true,
       job_id: job.id,
       status: job.status,
-      evaluation_result: job.evaluation_result,
+      evaluation_result: artifact.content,
     };
     return NextResponse.json(payload, { status: 200 });
   } catch (err) {
