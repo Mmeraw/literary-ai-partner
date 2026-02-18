@@ -256,6 +256,9 @@ jobs:
           echo ""
           echo "✅ PASS: All ALLOW_HEADER_USER_ID usages properly justified"
 
+      - name: Verify Phase A5 Day 2 (backpressure + cost)
+        run: bash scripts/verify-phase-a5-day2.sh
+
       - name: Start dev server in background
         run: |
           npm run dev > /tmp/dev-server.log 2>&1 &
