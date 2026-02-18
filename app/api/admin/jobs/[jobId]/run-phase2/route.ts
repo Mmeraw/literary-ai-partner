@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runPhase2Aggregation, isPhase2Err } from "@/lib/evaluation/phase2";
+import { getDevHeaderActor } from "@/lib/auth/devHeaderActor";
 
 type Ok = { ok: true; job_id: string; phase2: "persisted" };
 type Err = { ok: false; error: string; details?: string };
@@ -11,9 +12,16 @@ export async function POST(
   req: NextRequest,
   ctx: { params: { jobId: string } }
 ) {
-  // 1) Admin gate must be first
-  const denied = await requireAdmin(req);
-  if (denied) return denied;
+  // 1) Admin gate: dev header actor (test-mode only) OR production auth
+  const actor = getDevHeaderActor(req);
+  if (actor?.isAdmin) {
+    // Dev-only admin bypass: TEST_MODE + ALLOW_HEADER_USER_ID are both true
+    // and actor has admin signal — continue to phase2 logic
+  } else {
+    // Production path: require real Supabase session + admin role
+    const denied = await requireAdmin(req);
+    if (denied) return denied;
+  }
 
   try {
     const supabase = createAdminClient();
