@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { runPhase2Aggregation, type Phase2Err } from "@/lib/evaluation/phase2";
+import { runPhase2Aggregation, isPhase2Err } from "@/lib/evaluation/phase2";
 
 type Ok = { ok: true; job_id: string; phase2: "persisted" };
 type Err = { ok: false; error: string; details?: string };
@@ -21,14 +21,12 @@ export async function POST(
 
     const result = await runPhase2Aggregation(supabase, jobId);
 
-    if (!result.ok) {
-      // TypeScript doesn't narrow unions properly here, so we cast
-      const err = result as Phase2Err;
-      const details = err.details ?? err.error;
+    if (isPhase2Err(result)) {
+      // Type guard narrows result to Phase2Err
       const payload: Err = {
         ok: false,
         error: "Failed to run phase2",
-        details,
+        details: result.details ?? result.error,
       };
       return NextResponse.json(payload, { status: 500 });
     }

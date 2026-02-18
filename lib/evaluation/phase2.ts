@@ -3,6 +3,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type Phase2Ok = { ok: true };
 export type Phase2Err = { ok: false; error: string; details?: string };
+export type Phase2Result = Phase2Ok | Phase2Err;
+
+/**
+ * Type guard to narrow Phase2Result to the error variant
+ */
+export function isPhase2Err(r: Phase2Result): r is Phase2Err {
+  return r.ok === false;
+}
 
 /**
  * Gate A5 (Flow 1): Produce ONE canonical evaluation_result and persist it.
@@ -16,7 +24,7 @@ export type Phase2Err = { ok: false; error: string; details?: string };
 export async function runPhase2Aggregation(
   supabase: SupabaseClient,
   jobId: string
-): Promise<Phase2Ok | Phase2Err> {
+): Promise<Phase2Result> {
   try {
     // (Optional) Read minimal phase-1 signal if you have an artifacts table.
     // DO NOT fetch full rows. Keep it light and safe if table differs.
