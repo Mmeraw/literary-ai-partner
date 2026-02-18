@@ -3,6 +3,12 @@
 
 import { useEffect, useState } from "react";
 
+/**
+ * Canonical artifact type for Flow 1 one-page summary.
+ * Governance: This page must reference the contract-defined artifact type.
+ */
+const REPORT_ARTIFACT_TYPE = "one_page_summary";
+
 type Ok = {
   ok: true;
   job_id: string;
