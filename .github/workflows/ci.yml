@@ -47,7 +47,7 @@ jobs:
       - name: Audit (allow known tar advisory if documented)
         shell: bash
         run: |
-          set -euo pipefail
+          set -eu
           # Fast path: no high vulns.
           if npm audit --audit-level=high >/dev/null 2>&1; then
             echo "npm audit (high) clean ✅"
