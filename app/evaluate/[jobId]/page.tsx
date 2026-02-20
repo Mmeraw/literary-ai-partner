@@ -93,10 +93,10 @@ async function getArtifact(jobId: string): Promise<ArtifactResult> {
       return { data: artifact.content as ArtifactContentV1, source: "artifact" };
     }
 
-    // Production must fail-closed if canonical artifact is missing.
-    if (process.env.NODE_ENV === "production") {
-      return null;
-    }
+// TEMP:     // Production must fail-closed if canonical artifact is missing.
+// TEMP:     if (process.env.NODE_ENV === "production") {
+// TEMP:       return null;
+// TEMP:     }
 
     // Fallback: read evaluation_result from evaluation_jobs
     const { data: job, error: jobError } = await supabase
