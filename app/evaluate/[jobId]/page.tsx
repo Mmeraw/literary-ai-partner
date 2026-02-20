@@ -84,12 +84,18 @@ async function getArtifact(jobId: string): Promise<ArtifactResult> {
       .from("evaluation_artifacts")
       .select("id, job_id, artifact_type, content, created_at")
       .eq("job_id", jobId)
+      .eq("artifact_type", "one_page_summary")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (!error && artifact?.content) {
       return { data: artifact.content as ArtifactContentV1, source: "artifact" };
+    }
+
+    // Production must fail-closed if canonical artifact is missing.
+    if (process.env.NODE_ENV === "production") {
+      return null;
     }
 
     // Fallback: read evaluation_result from evaluation_jobs
@@ -184,6 +190,7 @@ export default async function EvaluationReportPage({
   const artifactResult = isComplete ? await getArtifact(jobId) : null;
   const artifact = artifactResult?.data ?? null;
   const artifactSource = artifactResult?.source ?? null;
+  const isProduction = process.env.NODE_ENV === "production";
 
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -247,23 +254,26 @@ export default async function EvaluationReportPage({
         </section>
       ) : !artifact ? (
         <section className="mt-6 rounded-lg border p-5">
-          <h2 className="text-lg font-semibold">Report not available yet</h2>
+          <h2 className="text-lg font-semibold">
+            {isProduction ? "Report integrity check failed" : "Report not available yet"}
+          </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Job completed but no evaluation artifact was found.
-            Phase 2 may still be persisting results. Please refresh in a moment.
+            {isProduction
+              ? "Job is marked complete but canonical artifact one_page_summary is missing. This indicates an invariant violation; please re-run evaluation from the Evaluate page."
+              : "Job completed but no evaluation artifact was found. Phase 2 may still be persisting results. Please refresh in a moment."}
           </p>
           <div className="mt-4">
             <Link
               href="/evaluate"
               className="inline-flex rounded-md border px-3 py-2 text-sm font-medium"
             >
-              Return to job list
+              {isProduction ? "Re-run evaluation" : "Return to job list"}
             </Link>
           </div>
         </section>
       ) : (
         <>
-          {artifactSource === "inline_job_result" && (
+          {!isProduction && artifactSource === "inline_job_result" && (
             <div className="mt-4 rounded-md bg-amber-50 border border-amber-300 p-4">
               <p className="text-sm font-medium text-amber-800">
                 ⚠️ Showing Phase 1 inline output. Phase 2 artifact not yet persisted.
@@ -288,6 +298,51 @@ export default async function EvaluationReportPage({
               ))}
             </ul>
           </section>
+
+              {/* ── 13 Story Criteria Scores ── */}
+              {artifact.criteria && artifact.criteria.length > 0 && (
+                <section className="mt-6 rounded-lg border p-5">
+                  <h2 className="text-lg font-semibold">Story Criteria Scores</h2>
+                  <div className="mt-3 space-y-4">
+                    {artifact.criteria.map((c: any, i: number) => (
+                      <div key={c.key || i} className="rounded-md border p-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-medium capitalize">
+                            {c.key?.replace(/([A-Z])/g, ' $1').trim()}
+                          </h3>
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            (c.score_0_10 ?? 0) >= 8 ? 'bg-green-100 text-green-800' :
+                            (c.score_0_10 ?? 0) >= 6 ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {c.score_0_10 ?? '—'} / 10
+                          </span>
+                        </div>
+                        {c.rationale && (
+                          <p className="mt-2 text-sm text-gray-600">{c.rationale}</p>
+                        )}
+                        {c.recommendations && c.recommendations.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-gray-500">Recommendations:</p>
+                            <ul className="mt-1 list-disc pl-5 text-xs text-gray-600">
+                              {c.recommendations.map((r: any, ri: number) => (
+                                <li key={ri}>
+                                  <span className="font-medium">{r.action}</span>
+                                  {r.priority && <span className={`ml-1 text-xs ${
+                                    r.priority === 'high' ? 'text-red-600' :
+                                    r.priority === 'medium' ? 'text-amber-600' : 'text-gray-500'
+                                  }`}>({r.priority})</span>}
+                                  {r.expected_impact && <span className="ml-1 text-gray-400">— {r.expected_impact}</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
 
           <section className="mt-6 rounded-lg border p-5">
             <h2 className="text-lg font-semibold">Key Metrics</h2>
