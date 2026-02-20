@@ -45,7 +45,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Step 2: Create evaluation job with created_by
+    // Step 2: Create evaluation job
     const { data, error } = await supabase
       .from("evaluation_jobs")
       .insert({
@@ -55,7 +55,6 @@ export async function POST(req: Request) {
         policy_family: "standard",
         voice_preservation_level: "balanced",
         english_variant: "us",
-        created_by: userId,
       })
       .select()
       .single();
@@ -82,7 +81,6 @@ export async function POST(req: Request) {
           policy_family: data.policy_family,
           voice_preservation_level: data.voice_preservation_level,
           english_variant: data.english_variant,
-          created_by: data.created_by,
         },
       },
       { status: 200 }

@@ -47,7 +47,7 @@ export async function GET(
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id,status,created_by,evaluation_result")
+      .select("id,status,evaluation_result")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -65,11 +65,7 @@ export async function GET(
       return NextResponse.json(payload, { status: 404 });
     }
 
-    // 3) Ownership enforcement
-    if (job.created_by !== userId) {
-      const payload: Err = { ok: false, error: "Forbidden" };
-      return NextResponse.json(payload, { status: 403 });
-    }
+    // 3) Ownership: enforced by Supabase RLS via manuscripts.created_by JOIN
 
     // 4) Completion enforcement
     if (job.status !== "complete") {
