@@ -1,7 +1,7 @@
 // app/evaluate/[jobId]/page.tsx
 // Track D: Minimal Report Surface
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type Job = {
   id: string;
@@ -46,7 +46,7 @@ type ArtifactContentV1 = {
 
 async function getJob(jobId: string): Promise<Job | null> {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
@@ -77,7 +77,7 @@ type ArtifactResult = {
 
 async function getArtifact(jobId: string): Promise<ArtifactResult> {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // Try evaluation_artifacts first (canonical)
     const { data: artifact, error } = await supabase
