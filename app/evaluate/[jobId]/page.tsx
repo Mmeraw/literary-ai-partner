@@ -2,6 +2,11 @@
 // Track D: Minimal Report Surface
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  CRITERIA_KEYS,
+  CRITERIA_METADATA,
+  type CriterionKey,
+} from "@/schemas/criteria-keys";
 
 type Job = {
   id: string;
@@ -32,7 +37,16 @@ type ArtifactContentV1 = {
     top_3_strengths?: string[];
     top_3_risks?: string[];
   };
-  criteria?: Array<{ key: string; score_0_10: number; rationale?: string }>;
+  criteria?: Array<{
+    key: string;
+    score_0_10: number;
+    rationale?: string;
+    recommendations?: Array<{
+      action: string;
+      priority?: "high" | "medium" | "low";
+      expected_impact?: string;
+    }>;
+  }>;
   recommendations?: {
     quick_wins?: Array<{ action: string; why?: string; effort?: string; impact?: string }>;
     strategic_revisions?: Array<{ action: string; why?: string; effort?: string; impact?: string }>;
@@ -93,10 +107,10 @@ async function getArtifact(jobId: string): Promise<ArtifactResult> {
       return { data: artifact.content as ArtifactContentV1, source: "artifact" };
     }
 
-// TEMP:     // Production must fail-closed if canonical artifact is missing.
-// TEMP:     if (process.env.NODE_ENV === "production") {
-// TEMP:       return null;
-// TEMP:     }
+    // Production must fail-closed if canonical artifact is missing.
+    if (process.env.NODE_ENV === "production") {
+      return null;
+    }
 
     // Fallback: read evaluation_result from evaluation_jobs
     const { data: job, error: jobError } = await supabase
@@ -118,6 +132,10 @@ async function getArtifact(jobId: string): Promise<ArtifactResult> {
 
 function formatScore(n: number): string {
   return Number.isFinite(n) ? n.toFixed(2) : "N/A";
+}
+
+function isCriterionKey(key: string): key is CriterionKey {
+  return (CRITERIA_KEYS as readonly string[]).includes(key);
 }
 
 function extractTopRecommendations(summary: string): string[] {
@@ -191,6 +209,16 @@ export default async function EvaluationReportPage({
   const artifact = artifactResult?.data ?? null;
   const artifactSource = artifactResult?.source ?? null;
   const isProduction = process.env.NODE_ENV === "production";
+  const artifactCriteria = artifact?.criteria ?? [];
+  const criteriaByKey = new Map<CriterionKey, NonNullable<ArtifactContentV1["criteria"]>[number]>();
+  for (const criterion of artifactCriteria) {
+    if (criterion?.key && isCriterionKey(criterion.key)) {
+      criteriaByKey.set(criterion.key, criterion);
+    }
+  }
+  const orderedCriteria = CRITERIA_KEYS
+    .map((key) => criteriaByKey.get(key))
+    .filter((criterion): criterion is NonNullable<ArtifactContentV1["criteria"]>[number] => Boolean(criterion));
 
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -300,22 +328,22 @@ export default async function EvaluationReportPage({
           </section>
 
               {/* ── 13 Story Criteria Scores ── */}
-              {artifact.criteria && artifact.criteria.length > 0 && (
+              {orderedCriteria.length > 0 && (
                 <section className="mt-6 rounded-lg border p-5">
                   <h2 className="text-lg font-semibold">Story Criteria Scores</h2>
                   <div className="mt-3 space-y-4">
-                    {artifact.criteria.map((c: any, i: number) => (
-                      <div key={c.key || i} className="rounded-md border p-4">
+                    {orderedCriteria.map((c) => (
+                      <div key={c.key} className="rounded-md border p-4">
                         <div className="flex items-center justify-between">
-                          <h3 className="font-medium capitalize">
-                            {c.key?.replace(/([A-Z])/g, ' $1').trim()}
+                          <h3 className="font-medium">
+                            {isCriterionKey(c.key) ? CRITERIA_METADATA[c.key].label : c.key}
                           </h3>
                           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            (c.score_0_10 ?? 0) >= 8 ? 'bg-green-100 text-green-800' :
-                            (c.score_0_10 ?? 0) >= 6 ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
+                            (c.score_0_10 ?? 0) >= 8 ? "bg-green-100 text-green-800" :
+                            (c.score_0_10 ?? 0) >= 6 ? "bg-yellow-100 text-yellow-800" :
+                            "bg-red-100 text-red-800"
                           }`}>
-                            {c.score_0_10 ?? '—'} / 10
+                            {c.score_0_10 ?? "—"} / 10
                           </span>
                         </div>
                         {c.rationale && (
@@ -325,12 +353,12 @@ export default async function EvaluationReportPage({
                           <div className="mt-2">
                             <p className="text-xs font-medium text-gray-500">Recommendations:</p>
                             <ul className="mt-1 list-disc pl-5 text-xs text-gray-600">
-                              {c.recommendations.map((r: any, ri: number) => (
+                              {c.recommendations.map((r, ri) => (
                                 <li key={ri}>
                                   <span className="font-medium">{r.action}</span>
                                   {r.priority && <span className={`ml-1 text-xs ${
-                                    r.priority === 'high' ? 'text-red-600' :
-                                    r.priority === 'medium' ? 'text-amber-600' : 'text-gray-500'
+                                    r.priority === "high" ? "text-red-600" :
+                                    r.priority === "medium" ? "text-amber-600" : "text-gray-500"
                                   }`}>({r.priority})</span>}
                                   {r.expected_impact && <span className="ml-1 text-gray-400">— {r.expected_impact}</span>}
                                 </li>
