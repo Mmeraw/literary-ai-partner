@@ -23,21 +23,45 @@ export function isPhase2Err(r: Phase2Result): r is Phase2Err {
  * - Must never throw (return { ok:false } on failure)
  * - Must use the passed-in Supabase client
  * - Writes to evaluation_artifacts table (canonical source of truth)
+ *
+ * @param supabase - Supabase client
+ * @param jobId - Job ID to persist artifact for
+ * @param evaluationResult - Optional. When provided (normal flow), persists directly.
+ *   When omitted (admin retry), reads evaluation_result from evaluation_jobs row first.
  */
 export async function runPhase2Aggregation(
   supabase: SupabaseClient,
   jobId: string,
-  evaluationResult: EvaluationResultV1
+  evaluationResult?: EvaluationResultV1
 ): Promise<Phase2Result> {
   try {
+    // If no evaluationResult provided (admin retry), read from evaluation_jobs
+    let result = evaluationResult;
+    if (!result) {
+      const { data, error } = await supabase
+        .from("evaluation_jobs")
+        .select("evaluation_result")
+        .eq("id", jobId)
+        .single();
+
+      if (error || !data?.evaluation_result) {
+        return {
+          ok: false,
+          error: "No evaluation_result found on job row",
+          details: error?.message ?? "evaluation_result is null",
+        };
+      }
+      result = data.evaluation_result as EvaluationResultV1;
+    }
+
     // Compute stable source hash for idempotency
     const sourceHash = sha256Hex(
       JSON.stringify({
         jobId,
-        manuscriptId: evaluationResult.ids.manuscript_id,
-        userId: evaluationResult.ids.user_id,
-        model: evaluationResult.engine.model,
-        promptVersion: evaluationResult.engine.prompt_version,
+        manuscriptId: result.ids?.manuscript_id,
+        userId: result.ids?.user_id,
+        model: result.engine?.model,
+        promptVersion: result.engine?.prompt_version,
       })
     );
 
@@ -46,7 +70,7 @@ export async function runPhase2Aggregation(
       supabase,
       jobId,
       artifactType: "evaluation_result_v1",
-      content: evaluationResult,
+      content: result,
       sourceHash,
       artifactVersion: "evaluation_result_v1",
     });
