@@ -3,12 +3,67 @@
  * 
  * Core logic for processing evaluation jobs.
  * Replaces Base44 workflow with Next.js/Vercel implementation.
+ * 
+ * ─────────────────────────────────────────────────────────────────────
+ * GOVERNANCE AUTHORITY CHAIN
+ * ─────────────────────────────────────────────────────────────────────
+ * 
+ * This processor enforces the WAVE Revision Guide canonical authority
+ * as defined in docs/WAVE_REVISION_GUIDE_CANON.md.
+ * 
+ * Authority Chain:
+ * 1. WAVE Revision Guide (docs/WAVE_REVISION_GUIDE_CANON.md) — canonical
+ * 2. 13 Criteria Registry (schemas/criteria-keys.ts) — WAVE tiers
+ * 3. Evaluation Processor (this file) — enforcement logic
+ * 4. Phase 2 (lib/evaluation/phase2.ts) — artifact persistence
+ * 5. Report UI — canonical output
+ * 
+ * If this processor's output conflicts with WAVE canon, the processor is wrong.
+ * 
+ * ─────────────────────────────────────────────────────────────────────
+ * OPERATIONAL MODES
+ * ─────────────────────────────────────────────────────────────────────
+ * 
+ * Real AI Evaluation (OPENAI_API_KEY configured):
+ * • Calls OpenAI gpt-4o-mini with manuscript content
+ * • Returns structured EvaluationResultV1 with criterion-specific analysis
+ * • Marks governance.warnings with "Real AI analysis" only
+ * 
+ * Mock Evaluation Fallback (no API key or validation failure):
+ * • Returns structurally valid EvaluationResultV1
+ * • Marks governance.warnings with "MOCK EVALUATION" flag
+ * • Used for testing, demos, and CI/CD environments
+ * • Must ALWAYS be marked as mock in governance field (fail-open honesty)
+ * 
+ * ─────────────────────────────────────────────────────────────────────
+ * 13 CRITERIA ENFORCEMENT
+ * ─────────────────────────────────────────────────────────────────────
+ * 
+ * All evaluation results must include all 13 criteria from CRITERIA_KEYS:
+ * 1. concept
+ * 2. narrativeDrive
+ * 3. character
+ * 4. voice
+ * 5. sceneConstruction
+ * 6. dialogue
+ * 7. theme
+ * 8. worldbuilding
+ * 9. pacing
+ * 10. proseControl
+ * 11. tone
+ * 12. narrativeClosure
+ * 13. marketability
+ * 
+ * Any result missing or inventing criteria fails validation.
+ * ─────────────────────────────────────────────────────────────────────
  */
 
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { validateEvaluationResult } from '@/schemas/evaluation-result-v1';
+import { WAVE_GUIDE_SUMMARY, WAVE_GUIDE_VERSION } from './WAVE_GUIDE';
+import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistence';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -54,7 +109,15 @@ async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob):
       messages: [
         {
           role: 'system',
-          content: `You are an expert literary evaluator. Analyze manuscripts and provide detailed, constructive feedback using the canonical 13-criteria rubric keys. Return your analysis as a structured JSON object matching the EvaluationResultV1 schema.`
+          content: [
+            `You are an expert literary evaluator.`,
+            `You MUST follow the WAVE Revision Guide below as the governing evaluation authority.`,
+            `You MUST use the canonical 13-criteria rubric keys exactly: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability.`,
+            `Return ONLY valid JSON matching the EvaluationResultV1 schema. No markdown, no code fences, just pure JSON.`,
+            ``,
+            `WAVE GUIDE (CANONICAL):`,
+            WAVE_GUIDE_SUMMARY,
+          ].join('\n')
         },
         {
           role: 'user',
@@ -102,7 +165,7 @@ Return ONLY valid JSON matching this structure. No markdown, no code fences, jus
       engine: {
         model: completion.model,
         provider: "openai",
-        prompt_version: "v1.0.0",
+        prompt_version: WAVE_GUIDE_VERSION,
       },
       overview: {
         verdict: aiResult.overview?.verdict || 'revise',
@@ -493,18 +556,79 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     console.log(`[Processor] Evaluation generated for job ${jobId}`);
 
-    // 5. Store evaluation result in the job
+    const completionTime = new Date().toISOString();
+    const existingProgress =
+      job.progress && typeof job.progress === 'object' ? job.progress : {};
+
+    // 5. Persist canonical artifact with idempotent upsert (fail-closed)
+    const manuscriptText = manuscript.content || '(No content provided)';
+    const model = evaluationResult.engine?.model || 'unknown-model';
+    const promptVersion = evaluationResult.engine?.prompt_version || 'unknown-prompt';
+
+    const sourceHash = stableSourceHash({
+      manuscriptId: manuscript.id,
+      jobId: job.id,
+      userId: manuscript.user_id,
+      manuscriptText,
+      promptVersion,
+      model,
+    });
+
+    try {
+      const artifactId = await upsertEvaluationArtifact({
+        supabase,
+        jobId: job.id,
+        artifactType: 'evaluation_result_v1',
+        content: evaluationResult,
+        sourceHash,
+        artifactVersion: 'evaluation_result_v1',
+      });
+
+      console.log(`[Processor] Canonical artifact upserted: ${artifactId}`);
+    } catch (artifactError) {
+      const errorMsg = artifactError instanceof Error ? artifactError.message : String(artifactError);
+      await supabase
+        .from('evaluation_jobs')
+        .update({
+          status: 'failed',
+          last_error: `Artifact persistence failed: ${errorMsg}`,
+          updated_at: completionTime
+        })
+        .eq('id', jobId);
+
+      return { success: false, error: `Artifact persistence failed: ${errorMsg}` };
+    }
+
+    // 6. Store evaluation result and mark complete only after artifact exists
     const { error: updateError } = await supabase
       .from('evaluation_jobs')
       .update({
         status: 'complete',
+        phase: 'phase_2',
+        progress: {
+          ...existingProgress,
+          phase: 'phase_2',
+          phase_status: 'complete',
+          message: 'Evaluation completed',
+          finished_at: completionTime
+        },
         evaluation_result: evaluationResult,
         evaluation_result_version: 'evaluation_result_v1',
-        updated_at: new Date().toISOString()
+        last_error: null,
+        updated_at: completionTime
       })
       .eq('id', jobId);
 
     if (updateError) {
+      await supabase
+        .from('evaluation_jobs')
+        .update({
+          status: 'failed',
+          last_error: `Completion update failed: ${updateError.message}`,
+          updated_at: completionTime
+        })
+        .eq('id', jobId);
+
       console.error(`[Processor] Failed to update job ${jobId}:`, updateError);
       return { success: false, error: `Failed to store result: ${updateError.message}` };
     }
