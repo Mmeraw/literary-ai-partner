@@ -311,6 +311,27 @@ export default async function EvaluationReportPage({
               </p>
             </div>
           )}
+
+          {/* ── Governance Warnings (Mock Detection) ── */}
+          {artifact.governance?.warnings && artifact.governance.warnings.length > 0 && (
+            <div className="mt-4 rounded-md bg-red-50 border-2 border-red-400 p-4">
+              <p className="text-sm font-bold text-red-900">
+                ⚠️ EVALUATION INTEGRITY WARNING
+              </p>
+              <div className="mt-2 space-y-1">
+                {artifact.governance.warnings.map((warning, i) => (
+                  <p key={i} className="text-sm text-red-800 font-medium">
+                    {warning}
+                  </p>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-red-700">
+                This evaluation did not use real AI analysis. Scores and recommendations are generic placeholders.
+                To get a real evaluation, ensure OPENAI_API_KEY is configured in Vercel environment variables.
+              </p>
+            </div>
+          )}
+
           <section className="mt-6 rounded-lg border p-5">
             <h2 className="text-lg font-semibold">Overall Summary</h2>
             <pre className="mt-2 whitespace-pre-wrap text-sm text-gray-600">
@@ -382,6 +403,41 @@ export default async function EvaluationReportPage({
             <p className="mt-3 text-xs text-gray-500">
               Generated: {artifact.generated_at ? new Date(artifact.generated_at).toLocaleString() : "N/A"}
             </p>
+          </section>
+
+          {/* ── Evaluation Provenance ── */}
+          <section className="mt-6 rounded-lg border p-5 bg-gray-50">
+            <h2 className="text-lg font-semibold">Evaluation Provenance</h2>
+            <div className="mt-3 space-y-2 text-sm">
+              <div>
+                <span className="text-gray-600">Engine:</span>{" "}
+                <span className="font-mono">{(artifact as any).engine?.model || "unknown"}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Provider:</span>{" "}
+                <span className="font-mono">{(artifact as any).engine?.provider || "unknown"}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Prompt Version:</span>{" "}
+                <span className="font-mono">{(artifact as any).engine?.prompt_version || "unknown"}</span>
+              </div>
+              {artifact.governance?.confidence && (
+                <div>
+                  <span className="text-gray-600">Confidence:</span>{" "}
+                  <span className="font-medium">{(artifact.governance.confidence * 100).toFixed(0)}%</span>
+                </div>
+              )}
+              {artifact.governance?.limitations && artifact.governance.limitations.length > 0 && (
+                <div className="mt-3 pt-3 border-t">
+                  <p className="text-xs font-medium text-gray-500 mb-1">Limitations:</p>
+                  <ul className="list-disc pl-5 text-xs text-gray-600 space-y-1">
+                    {artifact.governance.limitations.map((limitation, i) => (
+                      <li key={i}>{limitation}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           </section>
         </>
       )}
