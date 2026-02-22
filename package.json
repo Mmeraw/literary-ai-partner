@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "pretest": "node scripts/guard-critical-tests.mjs",
     "dev": "next dev -p 3002",
     "build": "npm run spine:verify && next build",
     "start": "next start",
