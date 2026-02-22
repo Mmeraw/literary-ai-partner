@@ -65,10 +65,20 @@ export async function runPhase2Aggregation(
       })
     );
 
+    const manuscriptId = result.ids?.manuscript_id;
+    if (!Number.isFinite(manuscriptId) || manuscriptId <= 0) {
+      return {
+        ok: false,
+        error: "Phase 2 aggregation failed",
+        details: `Missing or invalid manuscript_id for job ${jobId}`,
+      };
+    }
+
     // Persist to evaluation_artifacts via canonical upsert
     const artifactId = await upsertEvaluationArtifact({
       supabase,
       jobId,
+      manuscriptId,
       artifactType: "evaluation_result_v1",
       content: result,
       sourceHash,

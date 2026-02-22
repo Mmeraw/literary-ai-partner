@@ -67,16 +67,24 @@ export function stableSourceHash(params: {
 export async function upsertEvaluationArtifact(params: {
   supabase: SupabaseClient;
   jobId: string;
+  manuscriptId: number;
   artifactType: ArtifactType;
   content: unknown; // jsonb
   sourceHash: string;
   artifactVersion: string; // e.g. "evaluation_result_v1"
 }): Promise<string> {
+  if (!Number.isFinite(params.manuscriptId) || params.manuscriptId <= 0) {
+    throw new Error(
+      `[ArtifactPersistence] Upsert aborted for job_id=${params.jobId}: invalid manuscriptId=${params.manuscriptId}`,
+    );
+  }
+
   const { data, error } = await params.supabase
     .from("evaluation_artifacts")
     .upsert(
       {
         job_id: params.jobId,
+        manuscript_id: params.manuscriptId,
         artifact_type: params.artifactType,
         content: params.content,
         source_hash: params.sourceHash,

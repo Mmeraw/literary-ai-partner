@@ -1274,10 +1274,25 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       model,
     });
 
+    if (!Number.isFinite(job.manuscript_id) || job.manuscript_id <= 0) {
+      const invalidManuscriptIdError = `Invalid job.manuscript_id for artifact persistence: ${job.manuscript_id}`;
+      await supabase
+        .from('evaluation_jobs')
+        .update({
+          status: 'failed',
+          last_error: invalidManuscriptIdError,
+          updated_at: completionTime,
+        })
+        .eq('id', jobId);
+
+      return { success: false, error: invalidManuscriptIdError };
+    }
+
     try {
       const artifactId = await upsertEvaluationArtifact({
         supabase,
         jobId: job.id,
+        manuscriptId: job.manuscript_id,
         artifactType: 'evaluation_result_v1',
         content: evaluationResult,
         sourceHash,
