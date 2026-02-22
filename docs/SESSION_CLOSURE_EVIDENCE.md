@@ -1,15 +1,20 @@
-# Session Closure Evidence — 2026-02-22
+# SESSION_CLOSURE_EVIDENCE — RevisionGrade Flow 1 (Evaluation Artifact Persistence)
 
-## Scope
+Date: 2026-02-22
+Repo: Mmeraw/literary-ai-partner
+Branch: main
+HEAD: 71ae01866c108371fc6fb51353e968190fd1a69f
 
-Debugging and stabilization of the RevisionGrade evaluation pipeline.
-All findings are anchored to commit hashes, code line numbers, SQL results, and Vercel production logs.
+## 1) Scope of closure (what this evidence is asserting)
+- Claim A: `evaluation_artifacts` rows are persisted with correct `manuscript_id` linkage.
+- Claim B: evaluation job processor code path passes `manuscript_id` into persistence layer.
+- Claim C: production data demonstrates non-null `manuscript_id` on recent artifacts (or backfill applied).
+- Claim D (optional): worker runtime timeout configuration is sufficient for OpenAI calls.
 
----
-
-## 1. Commit Chain (HEAD = bbe7c37)
-
-```
+## 2) Evidence — Commit chain (verbatim)
+```text
+71ae018 (HEAD -> main, origin/main, origin/HEAD) fix(worker): add maxDuration=300 to prevent function timeout during OpenAI calls
+c24e76b docs: session closure evidence - audit-grade stabilization summary
 bbe7c37 fix(evaluation): remove mock fallback - fail-closed on all AI evaluation errors
 8b163e3 test(artifacts): cover manuscript_id fail-closed upsert behavior
 de310b0 fix(artifacts): persist manuscript_id with fail-closed guards
@@ -20,109 +25,205 @@ c12be01 feat(evaluation): add calibration profiles and quality-signal confidence
 dc982b7 test+perf(evaluation): lock diagnostics aggregation and text-threshold safeguards
 5c0850a perf(evaluation): add min-text guard and aggregate normalization diagnostics
 dcc7bbb test(integration): require RUN_REAL_AI_TESTS=1 for real-AI anti-mock check
-fde5431 chore(docs/tests): finalize evidence notes and integration helpers
-8d14534 fix: chunk read logs and hard-fail on chunk read errors
 ```
 
----
+## 3) Evidence — Code: processor.ts (lines 540–760)
+```text
+Captured via: nl -ba lib/evaluation/processor.ts | sed -n '540,760p'
+   540            };
+   541          })
+   542      : [];
+   543
+   544    evalDebugLog(
+   545      `[Processor] normalizeCriterionEntry key=${key} recordKeys=${Object.keys(record).join(',')} score_0_10=${record.score_0_10} score=${(record as any).score}`,
+   546    );
+   547
+   548    const canonicalScore = toFiniteNumber(record.score_0_10);
+   549    const legacyScore = toFiniteNumber((record as any).score);
+   550    const scoreSource =
+   ...
+   700  async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob): Promise<EvaluationResultV1> {
+   701    if (!openaiApiKey) {
+   702      throw new Error('[Processor] OPENAI_API_KEY is not configured (fail-closed, no mock fallback)');
+   703    }
+   ...
+   760        response_format: { type: 'json_object' }
+```
 
-## 2. Issues Fixed
+## 4) Evidence — Code: artifactPersistence.ts (verbatim)
+```typescript
+/**
+ * Artifact Persistence
+ * 
+ * Canonical artifact storage with idempotent writes and fail-closed enforcement.
+ */
+import crypto from "crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-### 2a. NULL manuscript_id on evaluation_artifacts
+export type ArtifactType = "evaluation_result_v1";
 
-**Root cause:** `upsertEvaluationArtifact()` did not accept or write `manuscript_id`.
+export function sha256Hex(input: string): string {
+  return crypto.createHash("sha256").update(input, "utf8").digest("hex");
+}
 
-**Fix (de310b0):**
-- `artifactPersistence.ts` line 70: added `manuscriptId: number` to params type
-- `artifactPersistence.ts` line 72-75: fail-closed guard (`!Number.isFinite || <= 0` throws)
-- `artifactPersistence.ts` line 87: writes `manuscript_id: params.manuscriptId` in upsert payload
-- `processor.ts` line 1293: passes `manuscriptId: job.manuscript_id` at call site
-- `processor.ts` line 1275: caller-side guard throws on invalid `job.manuscript_id`
+export function stableSourceHash(params: {
+  manuscriptId: number;
+  jobId: string;
+  userId: string;
+  manuscriptText: string;
+  promptVersion: string;
+  model: string;
+}) {
+  const payload = JSON.stringify({
+    manuscriptId: params.manuscriptId,
+    jobId: params.jobId,
+    userId: params.userId,
+    manuscriptText: params.manuscriptText,
+    promptVersion: params.promptVersion,
+    model: params.model,
+  });
+  return sha256Hex(payload);
+}
 
-**SQL backfill (executed 2026-02-22):**
+export async function upsertEvaluationArtifact(params: {
+  supabase: SupabaseClient;
+  jobId: string;
+  manuscriptId: number;
+  artifactType: ArtifactType;
+  content: unknown;
+  sourceHash: string;
+  artifactVersion: string;
+}): Promise<string> {
+  if (!Number.isFinite(params.manuscriptId) || params.manuscriptId <= 0) {
+    throw new Error(
+      `[ArtifactPersistence] Upsert aborted for job_id=${params.jobId}: invalid manuscriptId=${params.manuscriptId}`,
+    );
+  }
+
+  const { data, error } = await params.supabase
+    .from("evaluation_artifacts")
+    .upsert(
+      {
+        job_id: params.jobId,
+        manuscript_id: params.manuscriptId,
+        artifact_type: params.artifactType,
+        content: params.content,
+        source_hash: params.sourceHash,
+        artifact_version: params.artifactVersion,
+      },
+      {
+        onConflict: "job_id,artifact_type",
+        ignoreDuplicates: false,
+      }
+    )
+    .select("id")
+    .single();
+
+  if (error) {
+    throw new Error(`[ArtifactPersistence] Upsert failed for job_id=${params.jobId}: ${error.message}`);
+  }
+
+  if (!data?.id) {
+    throw new Error(`[ArtifactPersistence] Upsert returned null for job_id=${params.jobId}`);
+  }
+
+  return data.id as string;
+}
+```
+
+## 5) Evidence — Callsite linkage proof
+### 5.1 manuscript_id propagation (search output)
+```text
+lib/evaluation/processor.ts
+1002:    if (!Number.isFinite(job.manuscript_id) || job.manuscript_id <= 0) {
+1020:        manuscriptId: job.manuscript_id,
+
+lib/evaluation/artifactPersistence.ts
+87:        manuscript_id: params.manuscriptId,
+
+lib/evaluation/phase2.ts
+81:      manuscriptId,
+```
+
+### 5.2 upsertEvaluationArtifact callsites (search output)
+```text
+lib/evaluation/processor.ts
+1017:      const artifactId = await upsertEvaluationArtifact({
+
+lib/evaluation/phase2.ts
+78:    const artifactId = await upsertEvaluationArtifact({
+```
+
+## 6) Evidence — Database remediation SQL (if used)
+### 6.1 Backfill NULL manuscript_id (executed? yes/no)
+Status in this session: **not executed** (SQL preserved for runbook use).
+
 ```sql
-UPDATE evaluation_artifacts ea
+UPDATE public.evaluation_artifacts ea
 SET manuscript_id = ej.manuscript_id
-FROM evaluation_jobs ej
+FROM public.evaluation_jobs ej
 WHERE ea.job_id = ej.id
   AND ea.manuscript_id IS NULL
   AND ej.manuscript_id IS NOT NULL;
 ```
 
-### 2b. Paste submissions not resolving manuscript text
+### 6.2 Requeue stuck job(s) (executed? yes/no)
+Status in this session: **not executed** (SQL preserved for runbook use).
 
-**Root cause:** Manuscripts submitted via paste store content as `data:` URIs in `file_url`. Processor only handled HTTP URLs.
-
-**Fix (46abfef):** Added data URI decoding path in text resolution.
-
-### 2c. Mock fallback silently replacing real evaluations
-
-**Root cause:** Three catch/fallback paths in `generateAIEvaluation()` returned `generateMockEvaluation()` on any error, persisting fake data as real artifacts.
-
-**Fix (bbe7c37):**
-- Path 1 (no API key): now `throw new Error(...)` instead of mock return
-- Path 2 (validation failure): now `throw new Error(...)` with validation details
-- Path 3 (OpenAI errors): now `throw error` to re-throw to caller
-- Call sites to `generateMockEvaluation`: **0** (verified via `grep -c`)
-
-### 2d. Manuscript 3985 stuck in failed state with mock artifact
-
-**Root cause:** First attempt hit JSON parse error (`SyntaxError: Unterminated string at position 30205`), fell back to mock, persisted mock artifact.
-
-**Fix:** Deleted mock artifact, requeued job. Re-evaluated successfully under fail-closed code.
-
----
-
-## 3. Production Verification (2026-02-22)
-
-### Verification query:
 ```sql
-SELECT id, manuscript_id, content->'overview'->>'verdict' as verdict,
-       content->'overview'->>'overall_score_0_100' as score
-FROM evaluation_artifacts
-ORDER BY created_at DESC LIMIT 5;
+SELECT column_name
+FROM information_schema.columns
+WHERE table_schema='public'
+  AND table_name='evaluation_jobs'
+  AND column_name IN ('status','updated_at','last_heartbeat','last_error','manuscript_id');
 ```
 
-### Results:
-| manuscript_id | verdict | score |
-|---|---|---|
-| 3985 | pass | 82 |
-| 3988 | revise | 75 |
-| 3968 | revise | 70 |
-| 3961 | revise | 70 |
-| 3956 | revise | 72 |
+Requeue statement actually executed:
 
-**All rows have non-NULL manuscript_id, real scores, and real verdicts.**
-
----
-
-## 4. Test Results
-
-```
-Test Suites: 29 passed, 29 of 34 total (5 skipped)
-Tests:       380 passed, 380 of 400 total (20 skipped)
-TypeScript:  clean compile (npx tsc --noEmit)
-Pre-commit:  Canon Guard passed
+```sql
+UPDATE public.evaluation_jobs
+SET
+  status = 'queued',
+  updated_at = now(),
+  last_heartbeat = NULL
+  -- last_error = NULL  (include only if column exists)
+WHERE manuscript_id = <ID>
+  AND status = 'failed';
 ```
 
----
+## 7) Evidence — Post-run verification queries
 
-## 5. Remaining (Non-Breaking)
+Jobs:
+```sql
+SELECT id, manuscript_id, status, updated_at, last_heartbeat
+FROM public.evaluation_jobs
+WHERE manuscript_id IN (<IDs>)
+ORDER BY updated_at DESC;
+```
 
-| Item | Priority | Type |
-|---|---|---|
-| Delete dead `generateMockEvaluation` function (~160 lines) | Low | Cleanup |
-| Upgrade OpenAI SDK to remove `url.parse()` DEP0169 warning | Low | Maintenance |
-| Structured Judgment Engine architecture | Roadmap | Feature |
+Artifacts:
+```sql
+SELECT id, manuscript_id, job_id, artifact_type, created_at
+FROM public.evaluation_artifacts
+WHERE manuscript_id IN (<IDs>)
+ORDER BY created_at DESC
+LIMIT 50;
+```
 
----
+## 8) Acceptance criteria (pass/fail)
 
-## 6. Acceptance Criteria (Before vs After)
+AC1: New artifacts created after <timestamp> have manuscript_id NOT NULL. **UNVERIFIED IN THIS SESSION**
 
-| Criterion | Before | After |
-|---|---|---|
-| `evaluation_artifacts.manuscript_id` populated | NULL on all rows | Non-NULL on all rows |
-| Paste submissions evaluated | Failed (no text) | Succeeds (data URI decoded) |
-| AI failure handling | Silent mock fallback | Fail-closed (job marked failed) |
-| Manuscript 3985 | Stuck failed / mock artifact | Real evaluation: score 82, pass |
-| Mock call sites in processor | 3 active paths | 0 (dead code only) |
+AC2: For a processed job, evaluation_artifacts.job_id references the correct evaluation_jobs.id. **UNVERIFIED IN THIS SESSION**
+
+AC3: Processor code path passes job.manuscript_id (or equivalent) into persistence payload. **PASS**
+
+AC4 (optional): Worker route configuration allows completion under worst-case latency (e.g., maxDuration set appropriately). **PASS** (`app/api/workers/process-evaluations/route.ts` line 25: `maxDuration = 300`)
+
+## 9) Residual risk / follow-ups (non-blocking)
+
+Dead code / mock fallback cleanup: **completed in this session** (`generateMockEvaluation` removed from `lib/evaluation/processor.ts`).
+
+SDK warning cleanup (`url.parse` deprecation): pending.
+
+Roadmap: Structured Judgment Engine: pending.
