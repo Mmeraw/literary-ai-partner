@@ -69,6 +69,7 @@ import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistenc
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const openaiApiKey = process.env.OPENAI_API_KEY;
+const evalDebugEnabled = process.env.EVAL_DEBUG === '1';
 
 interface EvaluationJob {
   id: string;
@@ -90,6 +91,20 @@ type CriterionEntry = EvaluationResultV1['criteria'][number];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function evalDebugLog(message: string, ...args: unknown[]): void {
+  if (!evalDebugEnabled) {
+    return;
+  }
+  console.log(message, ...args);
+}
+
+function evalDebugWarn(message: string, ...args: unknown[]): void {
+  if (!evalDebugEnabled) {
+    return;
+  }
+  console.warn(message, ...args);
 }
 
 function toFiniteNumber(value: unknown): number | undefined {
@@ -271,8 +286,9 @@ async function resolveManuscriptText(
     .order('chunk_index', { ascending: true });
 
   if (chunkError) {
-    console.error(`[Processor] Failed to load manuscript chunks for manuscript ${manuscript.id}:`, chunkError);
-    return '';
+    throw new Error(
+      `Failed to load manuscript chunks for manuscript ${manuscript.id}: ${chunkError.message}`,
+    );
   }
 
   if (!chunks || chunks.length === 0) {
@@ -285,7 +301,7 @@ async function resolveManuscriptText(
     .join('\n');
 
   if (reconstructed.length > 0) {
-    console.warn(
+    evalDebugWarn(
       `[Processor] manuscript ${manuscript.id} missing manuscripts.content; reconstructed text from ${chunks.length} chunk(s)`,
     );
   }
@@ -348,7 +364,7 @@ function normalizeCriterionEntry(key: CriterionKey, raw: unknown): CriterionEntr
         })
     : [];
 
-  console.log(
+  evalDebugLog(
     `[Processor] normalizeCriterionEntry key=${key} recordKeys=${Object.keys(record).join(',')} score_0_10=${record.score_0_10} score=${(record as any).score}`,
   );
 
@@ -360,13 +376,13 @@ function normalizeCriterionEntry(key: CriterionKey, raw: unknown): CriterionEntr
   const normalizedScore = clamp(rawScore, 0, 10);
 
   if (scoreSource === 'score') {
-    console.warn(`[Processor] Criterion ${key} used legacy score field; normalizing score -> score_0_10`);
+    evalDebugWarn(`[Processor] Criterion ${key} used legacy score field; normalizing score -> score_0_10`);
   }
   if (scoreSource === 'default_0') {
-    console.warn(`[Processor] Criterion ${key} missing numeric score; defaulting score_0_10 to 0`);
+    evalDebugWarn(`[Processor] Criterion ${key} missing numeric score; defaulting score_0_10 to 0`);
   }
   if (normalizedScore !== rawScore) {
-    console.warn(
+    evalDebugWarn(
       `[Processor] Criterion ${key} score out of range (${rawScore}); clamped to ${normalizedScore}`,
     );
   }
@@ -441,7 +457,7 @@ export function normalizeCriteria(aiCriteria: unknown): EvaluationResultV1['crit
   }
 
   const normalized = CRITERIA_KEYS.map((key) => normalizeCriterionEntry(key, byKey[key]));
-  console.log(`[Processor] Criteria normalization success (${normalized.length} canonical keys)`);
+  evalDebugLog(`[Processor] Criteria normalization success (${normalized.length} canonical keys)`);
   return normalized;
 }
 
@@ -469,7 +485,7 @@ function extractCriteriaFromAIResult(aiResult: Record<string, unknown>): unknown
     }
   }
   if (foundCount >= 5) { // At least 5 criteria found at top level
-    console.log(`[Processor] Extracted ${foundCount} criteria from top-level keys`);
+    evalDebugLog(`[Processor] Extracted ${foundCount} criteria from top-level keys`);
     return topLevelCriteria;
   }
 
@@ -478,7 +494,7 @@ function extractCriteriaFromAIResult(aiResult: Record<string, unknown>): unknown
   if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
     const nestedObj = nested as Record<string, unknown>;
     if (nestedObj.criteria !== undefined) {
-      console.log('[Processor] Extracted criteria from nested evaluation object');
+      evalDebugLog('[Processor] Extracted criteria from nested evaluation object');
       return nestedObj.criteria;
     }
   }
@@ -555,12 +571,12 @@ Return ONLY valid JSON with this exact structure (no markdown, no code fences):
       throw new Error('Empty response from OpenAI');
     }
 
-    console.log(`[Processor] OpenAI response received (${responseText.length} chars)`);
+    evalDebugLog(`[Processor] OpenAI response received (${responseText.length} chars)`);
 
     // Parse OpenAI response
     const aiResult = JSON.parse(responseText);
-    console.log("[Processor] AI response keys:", Object.keys(aiResult), "criteria type:", typeof aiResult.criteria, "isArray:", Array.isArray(aiResult.criteria));
-    console.log("[Processor] AI response preview:", responseText.substring(0, 500));
+    evalDebugLog("[Processor] AI response keys:", Object.keys(aiResult), "criteria type:", typeof aiResult.criteria, "isArray:", Array.isArray(aiResult.criteria));
+    evalDebugLog("[Processor] AI response preview:", responseText.substring(0, 500));
 
     // Build EvaluationResultV1
     const result: EvaluationResultV1 = {
