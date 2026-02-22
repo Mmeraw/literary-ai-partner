@@ -57,9 +57,16 @@ fi
 
 # 4) Enforce canonical artifact identity in runtime code paths.
 # Explicit allowlist scope:
-# - Enforced paths: app/, lib/
+# - Enforced paths: app/, lib/, src/ (when present)
 # - Allowed legacy references elsewhere: docs/, __tests__/, historical migrations
-RUNTIME_PATHS=("$ROOT/app" "$ROOT/lib")
+RUNTIME_PATHS=()
+[[ -d "$ROOT/app" ]] && RUNTIME_PATHS+=("$ROOT/app")
+[[ -d "$ROOT/lib" ]] && RUNTIME_PATHS+=("$ROOT/lib")
+[[ -d "$ROOT/src" ]] && RUNTIME_PATHS+=("$ROOT/src")
+
+if [[ ${#RUNTIME_PATHS[@]} -eq 0 ]]; then
+  fail "No runtime paths found for canonical artifact guard (expected app/, lib/, or src/)."
+fi
 RUNTIME_GLOBS=(
   "--glob" "**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}"
   "--glob" "!**/*.test.*"
@@ -70,14 +77,14 @@ RUNTIME_GLOBS=(
 if rg -n --hidden "${RUNTIME_GLOBS[@]}" "one_page_summary" "${RUNTIME_PATHS[@]}" >/dev/null 2>&1; then
   echo "Detected forbidden runtime token references:" >&2
   rg -n --hidden "${RUNTIME_GLOBS[@]}" "one_page_summary" "${RUNTIME_PATHS[@]}" >&2 || true
-  fail "Runtime canonical drift: found one_page_summary in app/lib. Use evaluation_result_v1 only."
+  fail "Runtime canonical drift: found one_page_summary in runtime paths (${RUNTIME_PATHS[*]}). Use evaluation_result_v1 only."
 fi
 
 # 4b) Artifact-type assignment/query ban (operator-proof semantic check)
 if rg -n --hidden "${RUNTIME_GLOBS[@]}" "artifact_type[^\n]*one_page_summary|eq\(\s*[\"']artifact_type[\"']\s*,\s*[\"']one_page_summary[\"']\s*\)" "${RUNTIME_PATHS[@]}" >/dev/null 2>&1; then
   echo "Detected forbidden artifact_type canonical assignments/queries:" >&2
   rg -n --hidden "${RUNTIME_GLOBS[@]}" "artifact_type[^\n]*one_page_summary|eq\(\s*[\"']artifact_type[\"']\s*,\s*[\"']one_page_summary[\"']\s*\)" "${RUNTIME_PATHS[@]}" >&2 || true
-  fail "Runtime canonical drift: artifact_type must never use one_page_summary in app/lib."
+  fail "Runtime canonical drift: artifact_type must never use one_page_summary in runtime paths (${RUNTIME_PATHS[*]})."
 fi
 
 echo "✅ Canon Guard passed."
