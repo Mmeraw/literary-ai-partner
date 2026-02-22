@@ -221,6 +221,47 @@ export function normalizeCriteria(aiCriteria: unknown): EvaluationResultV1['crit
   return normalized;
 }
 
+
+/**
+ * Extract criteria data from AI response, handling multiple response formats.
+ * The AI may return criteria as:
+ * 1. aiResult.criteria (object or array)
+ * 2. Top-level keys matching CRITERIA_KEYS
+ * 3. Nested under aiResult.evaluation.criteria
+ */
+function extractCriteriaFromAIResult(aiResult: Record<string, unknown>): unknown {
+  // Case 1: criteria field exists
+  if (aiResult.criteria !== undefined && aiResult.criteria !== null) {
+    return aiResult.criteria;
+  }
+
+  // Case 2: criteria keys are at the top level of the response
+  const topLevelCriteria: Record<string, unknown> = {};
+  let foundCount = 0;
+  for (const key of CRITERIA_KEYS) {
+    if (key in aiResult && typeof aiResult[key] === 'object' && aiResult[key] !== null) {
+      topLevelCriteria[key] = aiResult[key];
+      foundCount++;
+    }
+  }
+  if (foundCount >= 5) { // At least 5 criteria found at top level
+    console.log(`[Processor] Extracted ${foundCount} criteria from top-level keys`);
+    return topLevelCriteria;
+  }
+
+  // Case 3: nested under evaluation or results
+  const nested = aiResult.evaluation || aiResult.results || aiResult.result;
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    const nestedObj = nested as Record<string, unknown>;
+    if (nestedObj.criteria !== undefined) {
+      console.log('[Processor] Extracted criteria from nested evaluation object');
+      return nestedObj.criteria;
+    }
+  }
+
+  console.warn('[Processor] Could not find criteria in AI response. Keys:', Object.keys(aiResult));
+  return undefined;
+}
 /**
  * Generate evaluation using OpenAI
  */
@@ -271,7 +312,11 @@ Provide a comprehensive evaluation with:
 4. Scores (0-10) and rationale for all 13 canonical criteria: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability
 5. Quick wins and strategic revisions with effort/impact ratings
 
-Return ONLY valid JSON matching this structure. No markdown, no code fences, just pure JSON.`
+Return ONLY valid JSON with this exact structure (no markdown, no code fences):
+{"verdict": "pass|revise|fail", "overall_score_0_100": <number>, "overview": "<summary>",
+"strengths": ["..."], "risks": ["..."],
+"criteria": {"concept": {"score": <0-10>, "label": "<label>", "commentary": "<text>"}, "narrativeDrive": {...}, ...all 13 keys},
+"recommendations": {"quick_wins": [{"suggestion": "...", "effort": "low|medium|high", "impact": "low|medium|high"}], "strategic_revisions": [...]}}`
         }
       ],
       temperature: 0.7,
@@ -312,7 +357,7 @@ Return ONLY valid JSON matching this structure. No markdown, no code fences, jus
         top_3_strengths: aiResult.overview?.top_3_strengths || [],
         top_3_risks: aiResult.overview?.top_3_risks || []
       },
-      criteria: normalizeCriteria(aiResult.criteria),
+      criteria: normalizeCriteria(extractCriteriaFromAIResult(aiResult)),
       recommendations: aiResult.recommendations || { quick_wins: [], strategic_revisions: [] },
       metrics: {
         manuscript: {
