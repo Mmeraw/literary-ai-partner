@@ -87,6 +87,7 @@ interface Manuscript {
   id: number;
   title: string;
   content?: string | null;
+  file_url?: string | null;
   work_type: string | null;
   user_id: string;
 }
@@ -416,11 +417,13 @@ async function resolveManuscriptText(
   supabase: any,
   manuscript: Manuscript,
 ): Promise<string> {
+  // Priority 1: Direct content column
   const directContent = typeof manuscript.content === 'string' ? manuscript.content.trim() : '';
   if (directContent.length > 0) {
     return directContent;
   }
 
+  // Priority 2: Reconstruct from manuscript_chunks
   const { data: chunks, error: chunkError } = await supabase
     .from('manuscript_chunks')
     .select('chunk_index, content')
@@ -433,22 +436,44 @@ async function resolveManuscriptText(
     );
   }
 
-  if (!chunks || chunks.length === 0) {
-    return '';
+  if (chunks && chunks.length > 0) {
+    const reconstructed = (chunks as Array<{ content?: unknown }>)
+      .map((chunk) => (typeof chunk.content === 'string' ? chunk.content.trim() : ''))
+      .filter((part) => part.length > 0)
+      .join('\n');
+
+    if (reconstructed.length > 0) {
+      evalDebugWarn(
+        `[Processor] manuscript ${manuscript.id} missing manuscripts.content; reconstructed text from ${chunks.length} chunk(s)`,
+      );
+      return reconstructed;
+    }
   }
 
-  const reconstructed = (chunks as Array<{ content?: unknown }>)
-    .map((chunk) => (typeof chunk.content === 'string' ? chunk.content.trim() : ''))
-    .filter((part) => part.length > 0)
-    .join('\n');
-
-  if (reconstructed.length > 0) {
-    evalDebugWarn(
-      `[Processor] manuscript ${manuscript.id} missing manuscripts.content; reconstructed text from ${chunks.length} chunk(s)`,
-    );
+  // Priority 3: Decode data URI from file_url (paste submissions store text here)
+  const fileUrl = typeof manuscript.file_url === 'string' ? manuscript.file_url : '';
+  if (fileUrl.startsWith('data:text/plain')) {
+    try {
+      const commaIndex = fileUrl.indexOf(',');
+      if (commaIndex >= 0) {
+        const encoded = fileUrl.substring(commaIndex + 1);
+        const decoded = decodeURIComponent(encoded);
+        if (decoded.trim().length > 0) {
+          console.log(
+            `[Processor] manuscript ${manuscript.id} resolved text from file_url data URI (${decoded.length} chars)`,
+          );
+          return decoded;
+        }
+      }
+    } catch (decodeError) {
+      console.warn(
+        `[Processor] manuscript ${manuscript.id} file_url data URI decode failed:`,
+        decodeError,
+      );
+    }
   }
 
-  return reconstructed;
+  return '';
 }
 
 export function isManuscriptTextLongEnough(
