@@ -149,7 +149,8 @@ function normalizeCriterionEntry(key: CriterionKey, raw: unknown): CriterionEntr
 
   return {
     key,
-    score_0_10: typeof record.score_0_10 === 'number' ? record.score_0_10 : 0,
+    console.log(`[Processor] normalizeCriterionEntry key=${key} recordKeys=${Object.keys(record).join(",")} score_0_10=${record.score_0_10} score=${(record as any).score}`);
+    score_0_10: typeof record.score_0_10 === 'number' ? record.score_0_10 : typeof (record as any).score === 'number' ? Math.min(10, Math.max(0, (record as any).score)) : 0,
     rationale: typeof record.rationale === 'string' ? record.rationale : '',
     evidence,
     recommendations,
@@ -291,6 +292,8 @@ async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob):
             `You MUST follow the WAVE Revision Guide below as the governing evaluation authority.`,
             `You MUST use the canonical 13-criteria rubric keys exactly: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability.`,
             `Return ONLY valid JSON matching the EvaluationResultV1 schema. No markdown, no code fences, just pure JSON.`,
+              'CRITICAL: Each criterion in the criteria array MUST use the field name "score_0_10" (NOT "score") for scores. Each criterion needs: key, score_0_10 (0-10), rationale, evidence, recommendations.
+',
             ``,
             `WAVE GUIDE (CANONICAL):`,
             WAVE_GUIDE_SUMMARY,
