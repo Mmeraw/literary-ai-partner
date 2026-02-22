@@ -73,6 +73,15 @@ const evalMinManuscriptChars = (() => {
   const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_CHARS || '200', 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 200;
 })();
+const openAiTimeoutMs = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || '240000', 10);
+  // Keep below Vercel maxDuration=300s so we can write failed status before platform kill.
+  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 295000 ? parsed : 240000;
+})();
+const staleRunningMinutes = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);
+  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 240 ? parsed : 10;
+})();
 
 interface EvaluationJob {
   id: string;
@@ -702,7 +711,11 @@ async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob):
     throw new Error('[Processor] OPENAI_API_KEY is not configured (fail-closed, no mock fallback)');
   }
 
-  const openai = new OpenAI({ apiKey: openaiApiKey });
+  const openai = new OpenAI({
+    apiKey: openaiApiKey,
+    timeout: openAiTimeoutMs,
+    maxRetries: 0,
+  });
   const now = new Date().toISOString();
   const startTime = Date.now();
   const calibration = getCalibrationProfile(manuscript.work_type);
@@ -886,6 +899,62 @@ Return ONLY valid JSON with this exact structure (no markdown, no code fences):
   }
 }
 
+export async function failStaleRunningJobs(): Promise<{
+  staleFound: number;
+  failed: number;
+  ids: string[];
+}> {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const cutoff = new Date(Date.now() - staleRunningMinutes * 60_000).toISOString();
+
+  const { data: staleJobs, error: staleError } = await supabase
+    .from('evaluation_jobs')
+    .select('id, updated_at')
+    .eq('status', 'running')
+    .lt('updated_at', cutoff)
+    .order('updated_at', { ascending: true })
+    .limit(25);
+
+  if (staleError) {
+    console.warn('[Processor] Failed to check stale running jobs:', staleError.message);
+    return { staleFound: 0, failed: 0, ids: [] };
+  }
+
+  if (!staleJobs || staleJobs.length === 0) {
+    return { staleFound: 0, failed: 0, ids: [] };
+  }
+
+  const staleIds = staleJobs.map((row) => row.id);
+  const now = new Date().toISOString();
+  const { data: failedRows, error: failError } = await supabase
+    .from('evaluation_jobs')
+    .update({
+      status: 'failed',
+      last_error:
+        'Auto-failed stale running job: worker timed out or crashed before completion update',
+      updated_at: now,
+    })
+    .in('id', staleIds)
+    .eq('status', 'running')
+    .select('id');
+
+  if (failError) {
+    console.warn('[Processor] Failed to auto-fail stale jobs:', failError.message);
+    return { staleFound: staleIds.length, failed: 0, ids: staleIds };
+  }
+
+  const failedCount = failedRows?.length ?? 0;
+  if (failedCount > 0) {
+    console.log(`[Processor] Auto-failed ${failedCount} stale running job(s)`);
+  }
+
+  return {
+    staleFound: staleIds.length,
+    failed: failedCount,
+    ids: staleIds,
+  };
+}
+
 /**
  * Process a single evaluation job
  */
@@ -910,11 +979,66 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: `Job status is ${job.status}, not queued` };
     }
 
+    const progressState =
+      job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
+
+    const markRunning = async (message: string) => {
+      const now = new Date().toISOString();
+      const nextProgress = {
+        ...progressState,
+        phase: 'phase_1',
+        phase_status: 'running',
+        message,
+        last_heartbeat_at: now,
+      };
+
+      Object.assign(progressState, nextProgress);
+
+      await supabase
+        .from('evaluation_jobs')
+        .update({
+          status: 'running',
+          phase_status: 'running',
+          progress: nextProgress,
+          started_at: job.started_at ?? now,
+          last_heartbeat: now,
+          last_heartbeat_at: now,
+          heartbeat_at: now,
+          updated_at: now,
+        })
+        .eq('id', jobId);
+    };
+
+    const markFailed = async (errorMessage: string) => {
+      const now = new Date().toISOString();
+      const nextProgress = {
+        ...progressState,
+        phase: 'phase_1',
+        phase_status: 'failed',
+        message: 'Evaluation failed',
+        failed_at: now,
+      };
+
+      Object.assign(progressState, nextProgress);
+
+      try {
+        await supabase
+          .from('evaluation_jobs')
+          .update({
+            status: 'failed',
+            phase_status: 'failed',
+            progress: nextProgress,
+            last_error: errorMessage,
+            updated_at: now,
+          })
+          .eq('id', jobId);
+      } catch (writeError) {
+        console.error(`[Processor] Failed writing failure state for job ${jobId}:`, writeError);
+      }
+    };
+
     // 2. Update status to running
-    await supabase
-      .from('evaluation_jobs')
-      .update({ status: 'running', updated_at: new Date().toISOString() })
-      .eq('id', jobId);
+    await markRunning('Fetching manuscript');
 
     console.log(`[Processor] Job ${jobId} status updated to running`);
 
@@ -926,16 +1050,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       .single();
 
     if (manuscriptError || !manuscript) {
-      await supabase
-        .from('evaluation_jobs')
-        .update({ 
-          status: 'failed', 
-          last_error: `Manuscript not found: ${manuscriptError?.message}`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', jobId);
-      
-      return { success: false, error: `Manuscript not found: ${manuscriptError?.message}` };
+      const message = `Manuscript not found: ${manuscriptError?.message}`;
+      await markFailed(message);
+      return { success: false, error: message };
     }
 
     console.log(`[Processor] Manuscript ${manuscript.id} fetched: "${manuscript.title}"`);
@@ -943,14 +1060,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     const resolvedManuscriptText = await resolveManuscriptText(supabase, manuscript as Manuscript);
     if (!resolvedManuscriptText || resolvedManuscriptText.trim().length === 0) {
       const contentError = 'Manuscript text unavailable: neither manuscripts.content nor manuscript_chunks.content found';
-      await supabase
-        .from('evaluation_jobs')
-        .update({
-          status: 'failed',
-          last_error: contentError,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', jobId);
+      await markFailed(contentError);
 
       return { success: false, error: contentError };
     }
@@ -959,14 +1069,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       const shortContentError =
         `Manuscript text too short for reliable evaluation: ${resolvedManuscriptText.trim().length} chars ` +
         `(minimum ${evalMinManuscriptChars})`;
-      await supabase
-        .from('evaluation_jobs')
-        .update({
-          status: 'failed',
-          last_error: shortContentError,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', jobId);
+      await markFailed(shortContentError);
 
       return { success: false, error: shortContentError };
     }
@@ -977,13 +1080,15 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     };
 
     // 4. Generate evaluation using AI (fail-closed; no mock fallback)
+    await markRunning('Generating evaluation with AI');
     const evaluationResult = await generateAIEvaluation(manuscriptWithContent, job);
 
     console.log(`[Processor] Evaluation generated for job ${jobId}`);
 
+    await markRunning('Persisting evaluation artifacts');
+
     const completionTime = new Date().toISOString();
-    const existingProgress =
-      job.progress && typeof job.progress === 'object' ? job.progress : {};
+    const existingProgress = { ...progressState };
 
     // 5. Persist canonical artifact with idempotent upsert (fail-closed)
     const manuscriptText = manuscriptWithContent.content || '(No content provided)';
@@ -1001,14 +1106,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     if (!Number.isFinite(job.manuscript_id) || job.manuscript_id <= 0) {
       const invalidManuscriptIdError = `Invalid job.manuscript_id for artifact persistence: ${job.manuscript_id}`;
-      await supabase
-        .from('evaluation_jobs')
-        .update({
-          status: 'failed',
-          last_error: invalidManuscriptIdError,
-          updated_at: completionTime,
-        })
-        .eq('id', jobId);
+      await markFailed(invalidManuscriptIdError);
 
       return { success: false, error: invalidManuscriptIdError };
     }
@@ -1027,14 +1125,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       console.log(`[Processor] Canonical artifact upserted: ${artifactId}`);
     } catch (artifactError) {
       const errorMsg = artifactError instanceof Error ? artifactError.message : String(artifactError);
-      await supabase
-        .from('evaluation_jobs')
-        .update({
-          status: 'failed',
-          last_error: `Artifact persistence failed: ${errorMsg}`,
-          updated_at: completionTime
-        })
-        .eq('id', jobId);
+      await markFailed(`Artifact persistence failed: ${errorMsg}`);
 
       return { success: false, error: `Artifact persistence failed: ${errorMsg}` };
     }
@@ -1045,29 +1136,26 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       .update({
         status: 'complete',
         phase: 'phase_2',
+        phase_status: 'complete',
         progress: {
           ...existingProgress,
           phase: 'phase_2',
           phase_status: 'complete',
           message: 'Evaluation completed',
-          finished_at: completionTime
+          finished_at: completionTime,
         },
         evaluation_result: evaluationResult,
         evaluation_result_version: 'evaluation_result_v1',
+        last_heartbeat: completionTime,
+        last_heartbeat_at: completionTime,
+        heartbeat_at: completionTime,
         last_error: null,
         updated_at: completionTime
       })
       .eq('id', jobId);
 
     if (updateError) {
-      await supabase
-        .from('evaluation_jobs')
-        .update({
-          status: 'failed',
-          last_error: `Completion update failed: ${updateError.message}`,
-          updated_at: completionTime
-        })
-        .eq('id', jobId);
+      await markFailed(`Completion update failed: ${updateError.message}`);
 
       console.error(`[Processor] Failed to update job ${jobId}:`, updateError);
       return { success: false, error: `Failed to store result: ${updateError.message}` };
@@ -1082,13 +1170,15 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     console.error(`[Processor] Error processing job ${jobId}:`, errorMessage);
 
     // Update job status to failed
+    const now = new Date().toISOString();
     try {
       await supabase
         .from('evaluation_jobs')
-        .update({ 
-          status: 'failed', 
+        .update({
+          status: 'failed',
+          phase_status: 'failed',
           last_error: errorMessage,
-          updated_at: new Date().toISOString()
+          updated_at: now,
         })
         .eq('id', jobId);
     } catch (updateError) {
@@ -1109,6 +1199,9 @@ export async function processQueuedJobs(): Promise<{
   errors: Array<{ jobId: string; error: string }>;
 }> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Safety net: recover jobs left in running due to platform hard timeout/crash.
+  await failStaleRunningJobs();
 
   // Fetch all queued jobs
   const { data: jobs, error } = await supabase

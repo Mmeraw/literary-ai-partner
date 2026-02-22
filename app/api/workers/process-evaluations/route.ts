@@ -93,14 +93,31 @@ function isVercelCronInvocation(req: NextRequest): boolean {
  */
 function checkAuthorization(req: NextRequest): { authorized: boolean; method: string; secretTooLong: boolean } {
   const expectedSecret = process.env.CRON_SECRET || '';
+  const bearer = extractBearer(req.headers.get('authorization'));
   
   // Method 1: Vercel Cron invocation (highest trust)
   if (isVercelCronInvocation(req)) {
+    // Hardened: when CRON_SECRET is configured, cron path must also present matching bearer token.
+    // This prevents spoofed x-vercel-* headers from being sufficient on their own.
+    if (expectedSecret) {
+      if (!bearer) {
+        return { authorized: false, method: 'vercel_cron_missing_bearer', secretTooLong: false };
+      }
+
+      const result = timingSafeEqual(bearer, expectedSecret);
+      if (result.secretTooLong) {
+        return { authorized: false, method: 'vercel_cron_bearer_rejected', secretTooLong: true };
+      }
+
+      if (!result.equal) {
+        return { authorized: false, method: 'vercel_cron_bearer_mismatch', secretTooLong: false };
+      }
+    }
+
     return { authorized: true, method: 'vercel_cron', secretTooLong: false };
   }
   
   // Method 2: Bearer token (manual/admin trigger)
-  const bearer = extractBearer(req.headers.get('authorization'));
   if (expectedSecret && bearer) {
     const result = timingSafeEqual(bearer, expectedSecret);
     if (result.secretTooLong) {
