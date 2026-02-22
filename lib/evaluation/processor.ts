@@ -700,8 +700,7 @@ function extractCriteriaFromAIResult(aiResult: Record<string, unknown>): unknown
  */
 async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob): Promise<EvaluationResultV1> {
   if (!openaiApiKey) {
-    console.warn('[Processor] No OpenAI API key found, using mock evaluation');
-    return generateMockEvaluation(manuscript, job);
+    throw new Error('[Processor] OPENAI_API_KEY is not configured (fail-closed, no mock fallback)');
   }
 
   const openai = new OpenAI({ apiKey: openaiApiKey });
@@ -869,8 +868,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no code fences):
     const validation = validateEvaluationResult(result);
     if (!validation.valid) {
       console.error('[Processor] AI result failed canon validation:', validation.errors);
-      console.log('[Processor] Falling back to canonical mock evaluation');
-      return generateMockEvaluation(manuscript, job);
+      throw new Error(`[Processor] AI result failed governance validation (fail-closed): ${validation.errors}`);
     }
 
     console.log(`[Processor] AI evaluation completed in ${Date.now() - startTime}ms`);
@@ -878,8 +876,8 @@ Return ONLY valid JSON with this exact structure (no markdown, no code fences):
 
   } catch (error) {
     console.error(`[Processor] OpenAI evaluation failed:`, error);
-    console.log('[Processor] Falling back to mock evaluation');
-    return generateMockEvaluation(manuscript, job);
+    // Fail-closed: re-throw so caller marks job as failed
+    throw error;
   }
 }
 
