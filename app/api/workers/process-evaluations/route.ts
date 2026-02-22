@@ -21,6 +21,8 @@ import crypto from 'crypto';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
+// Allow up to 300s for OpenAI API calls on Pro plan
+export const maxDuration = 300;
 
 
 // ============================================================================
