@@ -147,9 +147,9 @@ function normalizeCriterionEntry(key: CriterionKey, raw: unknown): CriterionEntr
         })
     : [];
 
+  console.log(`[Processor] normalizeCriterionEntry key=${key} recordKeys=${Object.keys(record).join(",")} score_0_10=${record.score_0_10} score=${(record as any).score}`);
   return {
     key,
-    console.log(`[Processor] normalizeCriterionEntry key=${key} recordKeys=${Object.keys(record).join(",")} score_0_10=${record.score_0_10} score=${(record as any).score}`);
     score_0_10: typeof record.score_0_10 === 'number' ? record.score_0_10 : typeof (record as any).score === 'number' ? Math.min(10, Math.max(0, (record as any).score)) : 0,
     rationale: typeof record.rationale === 'string' ? record.rationale : '',
     evidence,
