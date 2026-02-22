@@ -56,7 +56,7 @@ SELECT
   content->'governance'->>'confidence' AS confidence,
   content->'overview'->>'overall_score_0_100' AS score
 FROM public.evaluation_artifacts
-WHERE artifact_type = 'one_page_summary'
+WHERE artifact_type = 'evaluation_result_v1'
 ORDER BY created_at DESC
 LIMIT 20;
 
@@ -73,7 +73,7 @@ SELECT
 FROM public.evaluation_artifacts ea
 LEFT JOIN public.evaluation_jobs ej ON ej.id = ea.job_id
 WHERE 
-  ea.artifact_type = 'one_page_summary'
+  ea.artifact_type = 'evaluation_result_v1'
   AND ea.content->'governance'->'warnings' IS NOT NULL
   AND ea.content->'governance'->'warnings' != '[]'::jsonb
 ORDER BY ea.created_at DESC;
@@ -102,7 +102,7 @@ SELECT
     1
   ) AS real_ai_percentage
 FROM public.evaluation_artifacts
-WHERE artifact_type = 'one_page_summary'
+WHERE artifact_type = 'evaluation_result_v1'
   AND created_at > NOW() - INTERVAL '7 days'
 GROUP BY DATE(created_at)
 ORDER BY date DESC;

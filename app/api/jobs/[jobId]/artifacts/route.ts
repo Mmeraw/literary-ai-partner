@@ -60,7 +60,7 @@ export async function GET(_: Request, { params }: Params) {
     .from("evaluation_artifacts")
     .select("id, job_id, artifact_type, content, created_at")
     .eq("job_id", jobId)
-    // .eq("artifact_type", "one_page_summary") // enable if needed
+    // .eq("artifact_type", "evaluation_result_v1") // enable if needed
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
