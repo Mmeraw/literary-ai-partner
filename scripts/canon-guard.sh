@@ -55,4 +55,13 @@ fi
 # 3) Ensure contract doc exists (binding truth source)
 [[ -f "$ROOT/docs/JOB_CONTRACT_v1.md" ]] || fail "Missing docs/JOB_CONTRACT_v1.md (required CANON contract)."
 
+# 4) Enforce canonical artifact identity in runtime code paths.
+# Hard gate: legacy one_page_summary must not appear in active app/lib runtime tree.
+# Historical references in docs/tests/migrations are handled outside this scope.
+if rg -n --hidden --glob '!**/*.test.*' --glob '!**/__tests__/**' "one_page_summary" "$ROOT/app" "$ROOT/lib" >/dev/null 2>&1; then
+  echo "Detected forbidden runtime artifact type references:" >&2
+  rg -n --hidden --glob '!**/*.test.*' --glob '!**/__tests__/**' "one_page_summary" "$ROOT/app" "$ROOT/lib" >&2 || true
+  fail "Runtime canonical drift: found one_page_summary in app/lib. Use evaluation_result_v1 only."
+fi
+
 echo "✅ Canon Guard passed."
