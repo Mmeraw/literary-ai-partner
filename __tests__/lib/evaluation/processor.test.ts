@@ -2,6 +2,7 @@ const {
   normalizeCriteria,
   normalizeOverviewFromAIResult,
   normalizeRecommendationsFromAIResult,
+  isManuscriptTextLongEnough,
 } = require("../../../lib/evaluation/processor");
 const { CRITERIA_KEYS } = require("../../../schemas/criteria-keys");
 
@@ -125,6 +126,54 @@ describe("normalizeCriteria", () => {
     expect(output).toHaveLength(13);
     expect(output.every((c: any) => c.score_0_10 >= 0 && c.score_0_10 <= 10)).toBe(true);
   });
+
+  test("aggregates diagnostics for legacy/missing/clamped score handling", () => {
+    const diagnostics = {
+      usedLegacyScoreCount: 0,
+      missingScoreCount: 0,
+      clampedScoreCount: 0,
+      overviewFallbackUsed: false,
+      recommendationsFallbackUsed: false,
+    };
+
+    const input = Object.fromEntries(
+      CRITERIA_KEYS.map((key: string, idx: number) => {
+        if (idx < 5) {
+          return [
+            key,
+            {
+              score: "7/10",
+              rationale: `Rationale ${key}`,
+            },
+          ];
+        }
+
+        if (idx < 9) {
+          return [
+            key,
+            {
+              score_0_10: 42,
+              rationale: `Rationale ${key}`,
+            },
+          ];
+        }
+
+        return [
+          key,
+          {
+            rationale: `Rationale ${key}`,
+          },
+        ];
+      })
+    );
+
+    const output = normalizeCriteria(input, diagnostics);
+
+    expect(output).toHaveLength(13);
+    expect(diagnostics.usedLegacyScoreCount).toBe(5);
+    expect(diagnostics.clampedScoreCount).toBe(4);
+    expect(diagnostics.missingScoreCount).toBe(4);
+  });
 });
 
 describe("normalizeOverviewFromAIResult", () => {
@@ -145,11 +194,19 @@ describe("normalizeOverviewFromAIResult", () => {
   });
 
   test("falls back safely when overview fields are missing", () => {
-    const output = normalizeOverviewFromAIResult({});
+    const diagnostics = {
+      usedLegacyScoreCount: 0,
+      missingScoreCount: 0,
+      clampedScoreCount: 0,
+      overviewFallbackUsed: false,
+      recommendationsFallbackUsed: false,
+    };
+    const output = normalizeOverviewFromAIResult({}, diagnostics);
 
     expect(output.verdict).toBe("revise");
     expect(output.overall_score_0_100).toBe(70);
     expect(output.one_paragraph_summary).toBe("No summary available.");
+    expect(diagnostics.overviewFallbackUsed).toBe(true);
   });
 });
 
@@ -184,5 +241,29 @@ describe("normalizeRecommendationsFromAIResult", () => {
       impact: "high",
     });
     expect(output.strategic_revisions).toHaveLength(1);
+  });
+
+  test("flags recommendation fallback when nothing usable is present", () => {
+    const diagnostics = {
+      usedLegacyScoreCount: 0,
+      missingScoreCount: 0,
+      clampedScoreCount: 0,
+      overviewFallbackUsed: false,
+      recommendationsFallbackUsed: false,
+    };
+
+    const output = normalizeRecommendationsFromAIResult({}, diagnostics);
+
+    expect(output.quick_wins).toEqual([]);
+    expect(output.strategic_revisions).toEqual([]);
+    expect(diagnostics.recommendationsFallbackUsed).toBe(true);
+  });
+});
+
+describe("isManuscriptTextLongEnough", () => {
+  test("returns false for short text and true at threshold", () => {
+    expect(isManuscriptTextLongEnough("abc", 5)).toBe(false);
+    expect(isManuscriptTextLongEnough("abcde", 5)).toBe(true);
+    expect(isManuscriptTextLongEnough("   abcde   ", 5)).toBe(true);
   });
 });

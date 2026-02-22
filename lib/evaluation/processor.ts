@@ -333,6 +333,13 @@ async function resolveManuscriptText(
   return reconstructed;
 }
 
+export function isManuscriptTextLongEnough(
+  text: string,
+  minChars = evalMinManuscriptChars,
+): boolean {
+  return text.trim().length >= minChars;
+}
+
 function normalizeCriterionEntry(
   key: CriterionKey,
   raw: unknown,
@@ -1058,7 +1065,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: contentError };
     }
 
-    if (resolvedManuscriptText.trim().length < evalMinManuscriptChars) {
+    if (!isManuscriptTextLongEnough(resolvedManuscriptText, evalMinManuscriptChars)) {
       const shortContentError =
         `Manuscript text too short for reliable evaluation: ${resolvedManuscriptText.trim().length} chars ` +
         `(minimum ${evalMinManuscriptChars})`;
