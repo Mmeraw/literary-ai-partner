@@ -19,6 +19,8 @@ jobs:
         with:
           node-version: "20"
       - run: npm ci
+      - name: Canon guard (fast-fail)
+        run: npm run canon:guard
       - name: Install ripgrep (required for canon-audit)
         run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Canon governance audit
@@ -44,6 +46,8 @@ jobs:
         with:
           node-version: "20"
       - run: npm ci
+      - name: Canon guard (fast-fail)
+        run: npm run canon:guard
       - name: Audit (allow known tar advisory if documented)
         shell: bash
         run: |

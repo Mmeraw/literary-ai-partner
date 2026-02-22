@@ -56,12 +56,28 @@ fi
 [[ -f "$ROOT/docs/JOB_CONTRACT_v1.md" ]] || fail "Missing docs/JOB_CONTRACT_v1.md (required CANON contract)."
 
 # 4) Enforce canonical artifact identity in runtime code paths.
-# Hard gate: legacy one_page_summary must not appear in active app/lib runtime tree.
-# Historical references in docs/tests/migrations are handled outside this scope.
-if rg -n --hidden --glob '!**/*.test.*' --glob '!**/__tests__/**' "one_page_summary" "$ROOT/app" "$ROOT/lib" >/dev/null 2>&1; then
-  echo "Detected forbidden runtime artifact type references:" >&2
-  rg -n --hidden --glob '!**/*.test.*' --glob '!**/__tests__/**' "one_page_summary" "$ROOT/app" "$ROOT/lib" >&2 || true
+# Explicit allowlist scope:
+# - Enforced paths: app/, lib/
+# - Allowed legacy references elsewhere: docs/, __tests__/, historical migrations
+RUNTIME_PATHS=("$ROOT/app" "$ROOT/lib")
+RUNTIME_GLOBS=(
+  "--glob" "**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}"
+  "--glob" "!**/*.test.*"
+  "--glob" "!**/__tests__/**"
+)
+
+# 4a) Broad token ban (catches direct literal drift)
+if rg -n --hidden "${RUNTIME_GLOBS[@]}" "one_page_summary" "${RUNTIME_PATHS[@]}" >/dev/null 2>&1; then
+  echo "Detected forbidden runtime token references:" >&2
+  rg -n --hidden "${RUNTIME_GLOBS[@]}" "one_page_summary" "${RUNTIME_PATHS[@]}" >&2 || true
   fail "Runtime canonical drift: found one_page_summary in app/lib. Use evaluation_result_v1 only."
+fi
+
+# 4b) Artifact-type assignment/query ban (operator-proof semantic check)
+if rg -n --hidden "${RUNTIME_GLOBS[@]}" "artifact_type[^\n]*one_page_summary|eq\(\s*[\"']artifact_type[\"']\s*,\s*[\"']one_page_summary[\"']\s*\)" "${RUNTIME_PATHS[@]}" >/dev/null 2>&1; then
+  echo "Detected forbidden artifact_type canonical assignments/queries:" >&2
+  rg -n --hidden "${RUNTIME_GLOBS[@]}" "artifact_type[^\n]*one_page_summary|eq\(\s*[\"']artifact_type[\"']\s*,\s*[\"']one_page_summary[\"']\s*\)" "${RUNTIME_PATHS[@]}" >&2 || true
+  fail "Runtime canonical drift: artifact_type must never use one_page_summary in app/lib."
 fi
 
 echo "✅ Canon Guard passed."
