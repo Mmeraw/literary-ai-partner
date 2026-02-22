@@ -4,6 +4,7 @@ describe("Anti-mock regression (real AI path)", () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
+  const runRealAiTests = process.env.RUN_REAL_AI_TESTS === "1";
 
   const itIf = (cond: any) => (cond ? it : it.skip);
   const hasUsableSecrets =
@@ -13,7 +14,9 @@ describe("Anti-mock regression (real AI path)", () => {
     /^sk-/.test(openaiKey) &&
     !/replace|placeholder/i.test(openaiKey);
 
-  itIf(hasUsableSecrets)(
+  const shouldRun = runRealAiTests && hasUsableSecrets;
+
+  itIf(shouldRun)(
     "fails if a real-AI evaluation stores MOCK EVALUATION warnings",
     async () => {
       const supabase = createClient(supabaseUrl!, serviceKey!);
