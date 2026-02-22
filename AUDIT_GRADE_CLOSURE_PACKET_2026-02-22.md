@@ -64,6 +64,15 @@ After remediation snapshot shows:
 - Static diagnostics: no errors in changed files.
 - Targeted regression test passed:
   - `__tests__/lib/evaluation/processor.short-text.test.ts`
+- Live operational verification (post-remediation):
+  - New retry job created for manuscript `4018`: `25b05913-acc9-4900-b9a1-6e72abbebf48`
+  - Job reached canonical terminal success: `status = complete`, `phase = phase_2`
+  - Canonical artifact persisted: `evaluation_artifacts.id = 7a79fe66-8403-48a6-afe0-1b736a48a4cc`, `artifact_type = evaluation_result_v1`
+
+## Additional Hardening (post-verification)
+- `app/api/workers/process-evaluations/route.ts`
+  - Hardened cron auth path: if `CRON_SECRET` is configured, Vercel-cron header path must also provide matching bearer token.
+  - Prevents spoof-only `x-vercel-cron` / `x-vercel-id` headers from being sufficient to trigger worker execution.
 
 ## Closure Verdict
 **AUDIT CLOSURE: PASS (governance + provenance + state canonicalization)**
