@@ -62,6 +62,7 @@ import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { validateEvaluationResult } from '@/schemas/evaluation-result-v1';
+import { CRITERIA_KEYS, type CriterionKey } from '@/schemas/criteria-keys';
 import { WAVE_GUIDE_SUMMARY, WAVE_GUIDE_VERSION } from './WAVE_GUIDE';
 import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistence';
 
@@ -83,6 +84,141 @@ interface Manuscript {
   content: string;
   work_type: string | null;
   user_id: string;
+}
+
+type CriterionEntry = EvaluationResultV1['criteria'][number];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function normalizeCriterionEntry(key: CriterionKey, raw: unknown): CriterionEntry {
+  const record = isRecord(raw) ? raw : {};
+
+  const evidence = Array.isArray(record.evidence)
+    ? record.evidence
+        .filter(isRecord)
+        .map((item) => {
+          const location = isRecord(item.location)
+            ? {
+                segment_id:
+                  typeof item.location.segment_id === 'string'
+                    ? item.location.segment_id
+                    : undefined,
+                char_start:
+                  typeof item.location.char_start === 'number'
+                    ? item.location.char_start
+                    : undefined,
+                char_end:
+                  typeof item.location.char_end === 'number'
+                    ? item.location.char_end
+                    : undefined,
+              }
+            : undefined;
+
+          return {
+            snippet: typeof item.snippet === 'string' ? item.snippet : '',
+            ...(location &&
+            (location.segment_id !== undefined ||
+              location.char_start !== undefined ||
+              location.char_end !== undefined)
+              ? { location }
+              : {}),
+            ...(typeof item.note === 'string' ? { note: item.note } : {}),
+          };
+        })
+    : [];
+
+  const recommendations = Array.isArray(record.recommendations)
+    ? record.recommendations
+        .filter(isRecord)
+        .map((item) => {
+          const priority: 'high' | 'medium' | 'low' =
+            item.priority === 'high' || item.priority === 'medium' || item.priority === 'low'
+              ? item.priority
+              : 'medium';
+
+          return {
+            priority,
+            action: typeof item.action === 'string' ? item.action : '',
+            expected_impact:
+              typeof item.expected_impact === 'string' ? item.expected_impact : '',
+          };
+        })
+    : [];
+
+  return {
+    key,
+    score_0_10: typeof record.score_0_10 === 'number' ? record.score_0_10 : 0,
+    rationale: typeof record.rationale === 'string' ? record.rationale : '',
+    evidence,
+    recommendations,
+  };
+}
+
+function describeCriteriaShape(aiCriteria: unknown): string {
+  if (Array.isArray(aiCriteria)) {
+    return `array(${aiCriteria.length})`;
+  }
+  if (aiCriteria === undefined) {
+    return 'undefined';
+  }
+  if (isRecord(aiCriteria)) {
+    return 'object';
+  }
+  return typeof aiCriteria;
+}
+
+export function normalizeCriteria(aiCriteria: unknown): EvaluationResultV1['criteria'] {
+  const expectedKeys = new Set<CriterionKey>(CRITERIA_KEYS);
+  const inputShape = describeCriteriaShape(aiCriteria);
+
+  const byKey: Partial<Record<CriterionKey, unknown>> = {};
+  const observedKeys: string[] = [];
+
+  if (Array.isArray(aiCriteria)) {
+    for (const item of aiCriteria) {
+      if (!isRecord(item) || typeof item.key !== 'string') {
+        continue;
+      }
+
+      observedKeys.push(item.key);
+      if (expectedKeys.has(item.key as CriterionKey)) {
+        byKey[item.key as CriterionKey] = item;
+      }
+    }
+  } else if (isRecord(aiCriteria)) {
+    for (const [key, value] of Object.entries(aiCriteria)) {
+      observedKeys.push(key);
+      if (expectedKeys.has(key as CriterionKey)) {
+        byKey[key as CriterionKey] = value;
+      }
+    }
+  } else {
+    console.warn('[Processor] Criteria normalization failed', {
+      inputShape,
+      missingKeys: [...CRITERIA_KEYS],
+    });
+    return [];
+  }
+
+  const observedSet = new Set(observedKeys);
+  const missingKeys = CRITERIA_KEYS.filter((key) => !(key in byKey));
+  const invalidKeys = [...observedSet].filter((key) => !expectedKeys.has(key as CriterionKey));
+
+  if (missingKeys.length > 0 || invalidKeys.length > 0 || observedSet.size !== CRITERIA_KEYS.length) {
+    console.warn('[Processor] Criteria normalization failed', {
+      inputShape,
+      observedCount: observedSet.size,
+      missingKeys,
+      invalidKeys,
+    });
+    return [];
+  }
+
+  const normalized = CRITERIA_KEYS.map((key) => normalizeCriterionEntry(key, byKey[key]));
+  console.log(`[Processor] Criteria normalization success (${normalized.length} canonical keys)`);
+  return normalized;
 }
 
 /**
@@ -151,6 +287,8 @@ Return ONLY valid JSON matching this structure. No markdown, no code fences, jus
 
     // Parse OpenAI response
     const aiResult = JSON.parse(responseText);
+    console.log("[Processor] AI response keys:", Object.keys(aiResult), "criteria type:", typeof aiResult.criteria, "isArray:", Array.isArray(aiResult.criteria));
+    console.log("[Processor] AI response preview:", responseText.substring(0, 500));
 
     // Build EvaluationResultV1
     const result: EvaluationResultV1 = {
@@ -174,7 +312,7 @@ Return ONLY valid JSON matching this structure. No markdown, no code fences, jus
         top_3_strengths: aiResult.overview?.top_3_strengths || [],
         top_3_risks: aiResult.overview?.top_3_risks || []
       },
-      criteria: aiResult.criteria || [],
+      criteria: normalizeCriteria(aiResult.criteria),
       recommendations: aiResult.recommendations || { quick_wins: [], strategic_revisions: [] },
       metrics: {
         manuscript: {
