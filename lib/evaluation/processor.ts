@@ -292,8 +292,7 @@ async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob):
             `You MUST follow the WAVE Revision Guide below as the governing evaluation authority.`,
             `You MUST use the canonical 13-criteria rubric keys exactly: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability.`,
             `Return ONLY valid JSON matching the EvaluationResultV1 schema. No markdown, no code fences, just pure JSON.`,
-              'CRITICAL: Each criterion in the criteria array MUST use the field name "score_0_10" (NOT "score") for scores. Each criterion needs: key, score_0_10 (0-10), rationale, evidence, recommendations.
-',
+              'CRITICAL: Each criterion in the criteria array MUST use the field name "score_0_10" (NOT "score") for scores. Each criterion needs: key, score_0_10 (0-10), rationale, evidence, recommendations.',
             ``,
             `WAVE GUIDE (CANONICAL):`,
             WAVE_GUIDE_SUMMARY,
