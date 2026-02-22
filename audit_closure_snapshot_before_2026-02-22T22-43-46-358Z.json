@@ -1,0 +1,43 @@
+{
+  "captured_at": "2026-02-22T22:43:46.358Z",
+  "redaction": {
+    "full_payload_removed": true,
+    "reason": "prevent repository storage of full manuscript content"
+  },
+  "job_status_counts": {
+    "cancelled": 2,
+    "complete": 43,
+    "failed": 6,
+    "completed": 1,
+    "processing": 2
+  },
+  "non_canonical_statuses_detected": [
+    "cancelled",
+    "completed",
+    "processing"
+  ],
+  "manuscript_4018": {
+    "id": 4018,
+    "title": "Untitled Manuscript",
+    "file_size": 27068,
+    "word_count": 4762,
+    "status": "uploaded",
+    "source": "paste",
+    "created_at": "2026-02-22T22:11:21.213591+00:00",
+    "updated_at": "2026-02-22T22:11:21.213591+00:00",
+    "fileUrlSha256": "cbf7be7c4cd0b8fbc408245a158f5747e7382d948e50582ec3997d1b2b35c8ee",
+    "decodedTextSha256": "72a669223bd6ff70ee07a3144e99802fe0c2811e0fc0313f4e81e5e4f351973e",
+    "decoded_preview": "29 February 2016\n\nBicycle by Mike Meraw\n\n\u201cCommander Donaldson, I want him charged! Not only was he drunk, but he was fighting.\u201d"
+  },
+  "latest_job_4018": {
+    "id": "b3190658-4b3b-49b2-8992-28cb73d52977",
+    "manuscript_id": 4018,
+    "job_type": "full_evaluation",
+    "status": "failed",
+    "phase_status": "failed",
+    "last_error": "Manual recovery: stuck in running with no heartbeat/artifacts; likely worker timeout",
+    "created_at": "2026-02-22T22:11:21.332429+00:00",
+    "updated_at": "2026-02-22T22:38:44.088039+00:00"
+  },
+  "artifacts_for_latest_job_4018": []
+}
