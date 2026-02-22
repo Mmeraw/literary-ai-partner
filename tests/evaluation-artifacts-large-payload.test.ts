@@ -410,7 +410,7 @@ describeOrSkip("Evaluation Artifacts - Large Payload", () => {
         insertArtifact({
           jobId,
           manuscriptId: testManuscriptId,
-          artifactType: i === 0 ? "one_page_summary" : "detailed_evaluation",
+          artifactType: i === 0 ? "evaluation_result_v1" : "detailed_evaluation",
           artifactVersion: "v1",
           content: generateLargeArtifact(20),
           sourcePhase: "phase_2",

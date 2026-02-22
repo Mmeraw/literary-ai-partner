@@ -10,7 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 /** Canonical artifact_type constants. Every writer MUST use these. */
 export const ARTIFACT_TYPES = {
-  ONE_PAGE_SUMMARY: "one_page_summary",
+  EVALUATION_RESULT_V1: "evaluation_result_v1",
 } as const;
 
 export type ArtifactType =

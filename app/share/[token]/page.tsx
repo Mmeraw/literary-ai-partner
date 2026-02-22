@@ -16,7 +16,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-const ARTIFACT_TYPE = "one_page_summary";
+const ARTIFACT_TYPE = "evaluation_result_v1";
 
 type RubricAxis = {
   key: string;

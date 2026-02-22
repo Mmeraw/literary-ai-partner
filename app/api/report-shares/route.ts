@@ -89,6 +89,7 @@ export async function POST(req: Request) {
       .insert({
         token_hash: tokenHash,
         job_id: jobId,
+        artifact_type: "evaluation_result_v1",
         created_by: actorId,
         expires_at: expiresAt.toISOString(),
       });

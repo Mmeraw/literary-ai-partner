@@ -8,6 +8,7 @@ type Params = { params: Promise<{ jobId: string }> };
 
 export async function GET(_: Request, { params }: Params) {
   const { jobId } = await params;
+  const artifactType = "evaluation_result_v1";
 
   if (!jobId) {
     return NextResponse.json({ ok: false, error: "Missing jobId" }, { status: 400 });
@@ -60,7 +61,7 @@ export async function GET(_: Request, { params }: Params) {
     .from("evaluation_artifacts")
     .select("id, job_id, artifact_type, content, created_at")
     .eq("job_id", jobId)
-    // .eq("artifact_type", "evaluation_result_v1") // enable if needed
+    .eq("artifact_type", artifactType)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

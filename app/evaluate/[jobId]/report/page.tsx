@@ -4,10 +4,10 @@
 import { useEffect, useState } from "react";
 
 /**
- * Canonical artifact type for Flow 1 one-page summary.
+ * Canonical artifact type for Flow 1 evaluation result.
  * Governance: This page must reference the contract-defined artifact type.
  */
-const REPORT_ARTIFACT_TYPE = "one_page_summary";
+const REPORT_ARTIFACT_TYPE = "evaluation_result_v1";
 
 type Ok = {
   ok: true;

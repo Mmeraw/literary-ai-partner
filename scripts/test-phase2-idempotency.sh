@@ -76,7 +76,7 @@ echo ""
 
 # Step 6: Verify artifact exists
 echo "6. Verifying artifact exists..."
-ARTIFACT_RESPONSE=$(curl -s http://localhost:3000/api/jobs/$JOB_ID/artifacts?type=one_page_summary \
+ARTIFACT_RESPONSE=$(curl -s http://localhost:3000/api/jobs/$JOB_ID/artifacts?type=evaluation_result_v1 \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY")
 
 ARTIFACT_FOUND=$(echo "$ARTIFACT_RESPONSE" | jq -r '.ok')

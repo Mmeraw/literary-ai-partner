@@ -278,7 +278,7 @@ Generated: ${generatedAt}
   const sourceHash = `sha256:${sha256Json({
     manuscript_id: manuscriptId,
     job_id: jobId,
-    artifact_type: ARTIFACT_TYPES.ONE_PAGE_SUMMARY,
+    artifact_type: ARTIFACT_TYPES.EVALUATION_RESULT_V1,
     content: artifactContent,
   })}`;
 
@@ -315,7 +315,7 @@ async function persistOutput(
   const artifactId = await writeArtifact({
     job_id: jobId,
     manuscript_id: manuscriptId,
-    artifact_type: ARTIFACT_TYPES.ONE_PAGE_SUMMARY,
+    artifact_type: ARTIFACT_TYPES.EVALUATION_RESULT_V1,
     artifact_version: "v1",
     content: result.artifactContent,
     source_phase: PHASES.PHASE_2,

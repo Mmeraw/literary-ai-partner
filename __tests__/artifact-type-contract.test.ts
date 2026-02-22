@@ -7,8 +7,8 @@ import * as fs from "fs";
 import * as path from "path";
 
 describe("Flow 1 artifact type contract", () => {
-  it("canonical artifact type constant is \"one_page_summary\"", () => {
-    expect(ARTIFACT_TYPES.ONE_PAGE_SUMMARY).toBe("one_page_summary");
+  it("canonical artifact type constant is \"evaluation_result_v1\"", () => {
+    expect(ARTIFACT_TYPES.EVALUATION_RESULT_V1).toBe("evaluation_result_v1");
   });
 
   it("report page queries by the canonical artifact type", () => {
@@ -19,10 +19,10 @@ describe("Flow 1 artifact type contract", () => {
     const source = fs.readFileSync(reportPath, "utf8");
 
     // The report page must reference the canonical type string
-    expect(source).toContain("one_page_summary");
+    expect(source).toContain("evaluation_result_v1");
 
     // It should appear in exactly one constant declaration, not scattered
-    const matches = source.match(/one_page_summary/g) ?? [];
+    const matches = source.match(/evaluation_result_v1/g) ?? [];
     expect(matches.length).toBe(1);
   });
 
@@ -30,7 +30,7 @@ describe("Flow 1 artifact type contract", () => {
     const keys = Object.keys(ARTIFACT_TYPES);
     // There should be exactly one artifact type constant today.
     // If a new type is added, this test forces an explicit decision.
-    expect(keys).toEqual(["ONE_PAGE_SUMMARY"]);
+    expect(keys).toEqual(["EVALUATION_RESULT_V1"]);
   });
 
   it("phase2.ts uses ARTIFACT_TYPES constant (not a raw string)", () => {
@@ -41,7 +41,7 @@ describe("Flow 1 artifact type contract", () => {
     const source = fs.readFileSync(phase2Path, "utf8");
 
     // Phase 2 must import and use the constant from writeArtifact
-    expect(source).toContain("ARTIFACT_TYPES.ONE_PAGE_SUMMARY");
+    expect(source).toContain("ARTIFACT_TYPES.EVALUATION_RESULT_V1");
     expect(source).toContain("writeArtifact");
   });
 });

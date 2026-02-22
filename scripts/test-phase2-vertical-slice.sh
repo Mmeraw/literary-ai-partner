@@ -180,7 +180,7 @@ echo ""
 
 # Step 6: Verify artifact exists via GET endpoint
 echo "[6/8] Verifying artifact via GET /api/jobs/:id/artifacts..."
-ARTIFACT_JSON=$(curl -s "$BASE_URL/api/jobs/$JOB_ID/artifacts?type=one_page_summary" \
+ARTIFACT_JSON=$(curl -s "$BASE_URL/api/jobs/$JOB_ID/artifacts?type=evaluation_result_v1" \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY")
 
 ARTIFACT_OK=$(echo "$ARTIFACT_JSON" | jq -r '.ok // false')

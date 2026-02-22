@@ -78,7 +78,7 @@ export async function GET(
       .from("evaluation_artifacts")
       .select("content")
       .eq("job_id", jobId)
-      .eq("artifact_type", "one_page_summary")
+      .eq("artifact_type", "evaluation_result_v1")
       .maybeSingle();
 
     if (artifactError) {
