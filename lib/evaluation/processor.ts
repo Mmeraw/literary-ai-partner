@@ -81,7 +81,7 @@ interface EvaluationJob {
 interface Manuscript {
   id: number;
   title: string;
-  content: string;
+  content?: string | null;
   work_type: string | null;
   user_id: string;
 }
@@ -90,6 +90,207 @@ type CriterionEntry = EvaluationResultV1['criteria'][number];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function toFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+
+  const match = trimmed.match(/-?\d+(?:\.\d+)?/);
+  if (!match) {
+    return undefined;
+  }
+
+  const parsed = Number.parseFloat(match[0]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function asStringArray(value: unknown, maxLen = 3): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+    .slice(0, maxLen);
+}
+
+function normalizeVerdict(value: unknown): EvaluationResultV1['overview']['verdict'] {
+  const candidate = typeof value === 'string' ? value.toLowerCase().trim() : '';
+  if (candidate === 'pass' || candidate === 'revise' || candidate === 'fail') {
+    return candidate;
+  }
+  return 'revise';
+}
+
+function normalizeEffortOrImpact(value: unknown): 'low' | 'medium' | 'high' {
+  const candidate = typeof value === 'string' ? value.toLowerCase().trim() : '';
+  if (candidate === 'low' || candidate === 'medium' || candidate === 'high') {
+    return candidate;
+  }
+  return 'medium';
+}
+
+function normalizeCrossRecommendation(
+  raw: unknown,
+): EvaluationResultV1['recommendations']['quick_wins'][number] | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const actionRaw =
+    typeof raw.action === 'string'
+      ? raw.action
+      : typeof raw.suggestion === 'string'
+        ? raw.suggestion
+        : '';
+  const whyRaw =
+    typeof raw.why === 'string'
+      ? raw.why
+      : typeof raw.reason === 'string'
+        ? raw.reason
+        : typeof raw.expected_impact === 'string'
+          ? raw.expected_impact
+          : '';
+
+  const action = actionRaw.trim();
+  if (action.length === 0) {
+    return null;
+  }
+
+  return {
+    action,
+    why: whyRaw.trim(),
+    effort: normalizeEffortOrImpact(raw.effort),
+    impact: normalizeEffortOrImpact(raw.impact),
+  };
+}
+
+export function normalizeOverviewFromAIResult(
+  aiResult: Record<string, unknown>,
+): EvaluationResultV1['overview'] {
+  const overviewRecord = isRecord(aiResult.overview) ? aiResult.overview : {};
+
+  const verdict = normalizeVerdict(overviewRecord.verdict ?? aiResult.verdict);
+  const overallScoreRaw =
+    toFiniteNumber(overviewRecord.overall_score_0_100) ?? toFiniteNumber(aiResult.overall_score_0_100);
+  const overall_score_0_100 = clamp(overallScoreRaw ?? 70, 0, 100);
+
+  const one_paragraph_summary =
+    (typeof overviewRecord.one_paragraph_summary === 'string'
+      ? overviewRecord.one_paragraph_summary
+      : typeof aiResult.overview === 'string'
+        ? aiResult.overview
+        : typeof aiResult.summary === 'string'
+          ? aiResult.summary
+          : typeof aiResult.overview_summary === 'string'
+            ? aiResult.overview_summary
+            : '') || 'No summary available.';
+
+  const top_3_strengths = asStringArray(
+    overviewRecord.top_3_strengths ?? aiResult.top_3_strengths ?? aiResult.strengths,
+    3,
+  );
+  const top_3_risks = asStringArray(
+    overviewRecord.top_3_risks ?? aiResult.top_3_risks ?? aiResult.risks,
+    3,
+  );
+
+  return {
+    verdict,
+    overall_score_0_100,
+    one_paragraph_summary,
+    top_3_strengths,
+    top_3_risks,
+  };
+}
+
+export function normalizeRecommendationsFromAIResult(
+  aiResult: Record<string, unknown>,
+): EvaluationResultV1['recommendations'] {
+  const recommendationsRecord = isRecord(aiResult.recommendations) ? aiResult.recommendations : {};
+
+  const quickWinsSource = recommendationsRecord.quick_wins ?? aiResult.quick_wins;
+  const strategicSource =
+    recommendationsRecord.strategic_revisions ??
+    aiResult.strategic_revisions ??
+    aiResult.strategicRecommendations;
+
+  const quick_wins = Array.isArray(quickWinsSource)
+    ? quickWinsSource
+        .map(normalizeCrossRecommendation)
+        .filter(
+          (item): item is EvaluationResultV1['recommendations']['quick_wins'][number] => item !== null,
+        )
+    : [];
+
+  const strategic_revisions = Array.isArray(strategicSource)
+    ? strategicSource
+        .map(normalizeCrossRecommendation)
+        .filter(
+          (item): item is EvaluationResultV1['recommendations']['strategic_revisions'][number] =>
+            item !== null,
+        )
+    : [];
+
+  return {
+    quick_wins,
+    strategic_revisions,
+  };
+}
+
+async function resolveManuscriptText(
+  supabase: any,
+  manuscript: Manuscript,
+): Promise<string> {
+  const directContent = typeof manuscript.content === 'string' ? manuscript.content.trim() : '';
+  if (directContent.length > 0) {
+    return directContent;
+  }
+
+  const { data: chunks, error: chunkError } = await supabase
+    .from('manuscript_chunks')
+    .select('chunk_index, content')
+    .eq('manuscript_id', manuscript.id)
+    .order('chunk_index', { ascending: true });
+
+  if (chunkError) {
+    console.error(`[Processor] Failed to load manuscript chunks for manuscript ${manuscript.id}:`, chunkError);
+    return '';
+  }
+
+  if (!chunks || chunks.length === 0) {
+    return '';
+  }
+
+  const reconstructed = (chunks as Array<{ content?: unknown }>)
+    .map((chunk) => (typeof chunk.content === 'string' ? chunk.content.trim() : ''))
+    .filter((part) => part.length > 0)
+    .join('\n');
+
+  if (reconstructed.length > 0) {
+    console.warn(
+      `[Processor] manuscript ${manuscript.id} missing manuscripts.content; reconstructed text from ${chunks.length} chunk(s)`,
+    );
+  }
+
+  return reconstructed;
 }
 
 function normalizeCriterionEntry(key: CriterionKey, raw: unknown): CriterionEntry {
@@ -147,10 +348,32 @@ function normalizeCriterionEntry(key: CriterionKey, raw: unknown): CriterionEntr
         })
     : [];
 
-  console.log(`[Processor] normalizeCriterionEntry key=${key} recordKeys=${Object.keys(record).join(",")} score_0_10=${record.score_0_10} score=${(record as any).score}`);
+  console.log(
+    `[Processor] normalizeCriterionEntry key=${key} recordKeys=${Object.keys(record).join(',')} score_0_10=${record.score_0_10} score=${(record as any).score}`,
+  );
+
+  const canonicalScore = toFiniteNumber(record.score_0_10);
+  const legacyScore = toFiniteNumber((record as any).score);
+  const scoreSource =
+    canonicalScore !== undefined ? 'score_0_10' : legacyScore !== undefined ? 'score' : 'default_0';
+  const rawScore = canonicalScore ?? legacyScore ?? 0;
+  const normalizedScore = clamp(rawScore, 0, 10);
+
+  if (scoreSource === 'score') {
+    console.warn(`[Processor] Criterion ${key} used legacy score field; normalizing score -> score_0_10`);
+  }
+  if (scoreSource === 'default_0') {
+    console.warn(`[Processor] Criterion ${key} missing numeric score; defaulting score_0_10 to 0`);
+  }
+  if (normalizedScore !== rawScore) {
+    console.warn(
+      `[Processor] Criterion ${key} score out of range (${rawScore}); clamped to ${normalizedScore}`,
+    );
+  }
+
   return {
     key,
-    score_0_10: typeof record.score_0_10 === 'number' ? record.score_0_10 : typeof (record as any).score === 'number' ? Math.min(10, Math.max(0, (record as any).score)) : 0,
+    score_0_10: normalizedScore,
     rationale: typeof record.rationale === 'string' ? record.rationale : '',
     evidence,
     recommendations,
@@ -292,7 +515,7 @@ async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob):
             `You MUST follow the WAVE Revision Guide below as the governing evaluation authority.`,
             `You MUST use the canonical 13-criteria rubric keys exactly: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability.`,
             `Return ONLY valid JSON matching the EvaluationResultV1 schema. No markdown, no code fences, just pure JSON.`,
-              'CRITICAL: Each criterion in the criteria array MUST use the field name "score_0_10" (NOT "score") for scores. Each criterion needs: key, score_0_10 (0-10), rationale, evidence, recommendations.',
+            'CRITICAL: Each criterion in the criteria array MUST use the field name "score_0_10" (NOT "score") for scores. Each criterion needs: key, score_0_10 (0-10), rationale, evidence, recommendations.',
             ``,
             `WAVE GUIDE (CANONICAL):`,
             WAVE_GUIDE_SUMMARY,
@@ -315,10 +538,12 @@ Provide a comprehensive evaluation with:
 5. Quick wins and strategic revisions with effort/impact ratings
 
 Return ONLY valid JSON with this exact structure (no markdown, no code fences):
-{"verdict": "pass|revise|fail", "overall_score_0_100": <number>, "overview": "<summary>",
-"strengths": ["..."], "risks": ["..."],
-"criteria": {"concept": {"score": <0-10>, "label": "<label>", "commentary": "<text>"}, "narrativeDrive": {...}, ...all 13 keys},
-"recommendations": {"quick_wins": [{"suggestion": "...", "effort": "low|medium|high", "impact": "low|medium|high"}], "strategic_revisions": [...]}}`
+{"overview": {"verdict": "pass|revise|fail", "overall_score_0_100": <0-100>, "one_paragraph_summary": "...", "top_3_strengths": ["...", "...", "..."], "top_3_risks": ["...", "...", "..."]},
+"criteria": [
+  {"key":"concept","score_0_10":<0-10>,"rationale":"...","evidence":[{"snippet":"..."}],"recommendations":[{"priority":"high|medium|low","action":"...","expected_impact":"..."}]},
+  ...exactly 13 entries covering all canonical keys
+],
+"recommendations": {"quick_wins": [{"action": "...", "why": "...", "effort": "low|medium|high", "impact": "low|medium|high"}], "strategic_revisions": [{"action": "...", "why": "...", "effort": "low|medium|high", "impact": "low|medium|high"}]}}`
         }
       ],
       temperature: 0.7,
@@ -352,21 +577,20 @@ Return ONLY valid JSON with this exact structure (no markdown, no code fences):
         provider: "openai",
         prompt_version: WAVE_GUIDE_VERSION,
       },
-      overview: {
-        verdict: aiResult.overview?.verdict || 'revise',
-        overall_score_0_100: aiResult.overview?.overall_score_0_100 || 70,
-        one_paragraph_summary: aiResult.overview?.one_paragraph_summary || '',
-        top_3_strengths: aiResult.overview?.top_3_strengths || [],
-        top_3_risks: aiResult.overview?.top_3_risks || []
-      },
+      overview: normalizeOverviewFromAIResult(aiResult),
       criteria: normalizeCriteria(extractCriteriaFromAIResult(aiResult)),
-      recommendations: aiResult.recommendations || { quick_wins: [], strategic_revisions: [] },
+      recommendations: normalizeRecommendationsFromAIResult(aiResult),
       metrics: {
         manuscript: {
           word_count: wordCount,
           char_count: manuscriptText.length,
           genre: manuscript.work_type || 'Unknown',
-          target_audience: aiResult.metrics?.manuscript?.target_audience || 'General'
+          target_audience:
+            isRecord(aiResult.metrics) &&
+            isRecord(aiResult.metrics.manuscript) &&
+            typeof aiResult.metrics.manuscript.target_audience === 'string'
+              ? aiResult.metrics.manuscript.target_audience
+              : 'General'
         },
         processing: {
           segment_count: 1,
@@ -736,8 +960,28 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     console.log(`[Processor] Manuscript ${manuscript.id} fetched: "${manuscript.title}"`);
 
+    const resolvedManuscriptText = await resolveManuscriptText(supabase, manuscript as Manuscript);
+    if (!resolvedManuscriptText || resolvedManuscriptText.trim().length === 0) {
+      const contentError = 'Manuscript text unavailable: neither manuscripts.content nor manuscript_chunks.content found';
+      await supabase
+        .from('evaluation_jobs')
+        .update({
+          status: 'failed',
+          last_error: contentError,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', jobId);
+
+      return { success: false, error: contentError };
+    }
+
+    const manuscriptWithContent: Manuscript = {
+      ...(manuscript as Manuscript),
+      content: resolvedManuscriptText,
+    };
+
     // 4. Generate evaluation using AI (falls back to mock if no API key)
-    const evaluationResult = await generateAIEvaluation(manuscript, job);
+    const evaluationResult = await generateAIEvaluation(manuscriptWithContent, job);
 
     console.log(`[Processor] Evaluation generated for job ${jobId}`);
 
@@ -746,14 +990,14 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       job.progress && typeof job.progress === 'object' ? job.progress : {};
 
     // 5. Persist canonical artifact with idempotent upsert (fail-closed)
-    const manuscriptText = manuscript.content || '(No content provided)';
+    const manuscriptText = manuscriptWithContent.content || '(No content provided)';
     const model = evaluationResult.engine?.model || 'unknown-model';
     const promptVersion = evaluationResult.engine?.prompt_version || 'unknown-prompt';
 
     const sourceHash = stableSourceHash({
       manuscriptId: manuscript.id,
       jobId: job.id,
-      userId: manuscript.user_id,
+      userId: manuscriptWithContent.user_id,
       manuscriptText,
       promptVersion,
       model,
