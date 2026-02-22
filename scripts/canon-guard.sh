@@ -67,6 +67,8 @@ RUNTIME_PATHS=()
 if [[ ${#RUNTIME_PATHS[@]} -eq 0 ]]; then
   fail "No runtime paths found for canonical artifact guard (expected app/, lib/, or src/)."
 fi
+
+echo "🔎 Canon Guard runtime roots: ${RUNTIME_PATHS[*]}"
 RUNTIME_GLOBS=(
   "--glob" "**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}"
   "--glob" "!**/*.test.*"
