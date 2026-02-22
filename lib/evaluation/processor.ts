@@ -70,6 +70,10 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const evalDebugEnabled = process.env.EVAL_DEBUG === '1';
+const evalMinManuscriptChars = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_CHARS || '200', 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 200;
+})();
 
 interface EvaluationJob {
   id: string;
@@ -88,6 +92,14 @@ interface Manuscript {
 }
 
 type CriterionEntry = EvaluationResultV1['criteria'][number];
+
+type NormalizationDiagnostics = {
+  usedLegacyScoreCount: number;
+  missingScoreCount: number;
+  clampedScoreCount: number;
+  overviewFallbackUsed: boolean;
+  recommendationsFallbackUsed: boolean;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -199,6 +211,7 @@ function normalizeCrossRecommendation(
 
 export function normalizeOverviewFromAIResult(
   aiResult: Record<string, unknown>,
+  diagnostics?: NormalizationDiagnostics,
 ): EvaluationResultV1['overview'] {
   const overviewRecord = isRecord(aiResult.overview) ? aiResult.overview : {};
 
@@ -217,6 +230,10 @@ export function normalizeOverviewFromAIResult(
           : typeof aiResult.overview_summary === 'string'
             ? aiResult.overview_summary
             : '') || 'No summary available.';
+
+  if (diagnostics && one_paragraph_summary === 'No summary available.') {
+    diagnostics.overviewFallbackUsed = true;
+  }
 
   const top_3_strengths = asStringArray(
     overviewRecord.top_3_strengths ?? aiResult.top_3_strengths ?? aiResult.strengths,
@@ -238,6 +255,7 @@ export function normalizeOverviewFromAIResult(
 
 export function normalizeRecommendationsFromAIResult(
   aiResult: Record<string, unknown>,
+  diagnostics?: NormalizationDiagnostics,
 ): EvaluationResultV1['recommendations'] {
   const recommendationsRecord = isRecord(aiResult.recommendations) ? aiResult.recommendations : {};
 
@@ -264,10 +282,16 @@ export function normalizeRecommendationsFromAIResult(
         )
     : [];
 
-  return {
+  const normalized = {
     quick_wins,
     strategic_revisions,
   };
+
+  if (diagnostics && quick_wins.length === 0 && strategic_revisions.length === 0) {
+    diagnostics.recommendationsFallbackUsed = true;
+  }
+
+  return normalized;
 }
 
 async function resolveManuscriptText(
@@ -309,7 +333,11 @@ async function resolveManuscriptText(
   return reconstructed;
 }
 
-function normalizeCriterionEntry(key: CriterionKey, raw: unknown): CriterionEntry {
+function normalizeCriterionEntry(
+  key: CriterionKey,
+  raw: unknown,
+  diagnostics?: NormalizationDiagnostics,
+): CriterionEntry {
   const record = isRecord(raw) ? raw : {};
 
   const evidence = Array.isArray(record.evidence)
@@ -376,15 +404,27 @@ function normalizeCriterionEntry(key: CriterionKey, raw: unknown): CriterionEntr
   const normalizedScore = clamp(rawScore, 0, 10);
 
   if (scoreSource === 'score') {
-    evalDebugWarn(`[Processor] Criterion ${key} used legacy score field; normalizing score -> score_0_10`);
+    if (diagnostics) {
+      diagnostics.usedLegacyScoreCount += 1;
+    } else {
+      evalDebugWarn(`[Processor] Criterion ${key} used legacy score field; normalizing score -> score_0_10`);
+    }
   }
   if (scoreSource === 'default_0') {
-    evalDebugWarn(`[Processor] Criterion ${key} missing numeric score; defaulting score_0_10 to 0`);
+    if (diagnostics) {
+      diagnostics.missingScoreCount += 1;
+    } else {
+      evalDebugWarn(`[Processor] Criterion ${key} missing numeric score; defaulting score_0_10 to 0`);
+    }
   }
   if (normalizedScore !== rawScore) {
-    evalDebugWarn(
-      `[Processor] Criterion ${key} score out of range (${rawScore}); clamped to ${normalizedScore}`,
-    );
+    if (diagnostics) {
+      diagnostics.clampedScoreCount += 1;
+    } else {
+      evalDebugWarn(
+        `[Processor] Criterion ${key} score out of range (${rawScore}); clamped to ${normalizedScore}`,
+      );
+    }
   }
 
   return {
@@ -409,7 +449,10 @@ function describeCriteriaShape(aiCriteria: unknown): string {
   return typeof aiCriteria;
 }
 
-export function normalizeCriteria(aiCriteria: unknown): EvaluationResultV1['criteria'] {
+export function normalizeCriteria(
+  aiCriteria: unknown,
+  diagnostics?: NormalizationDiagnostics,
+): EvaluationResultV1['criteria'] {
   const expectedKeys = new Set<CriterionKey>(CRITERIA_KEYS);
   const inputShape = describeCriteriaShape(aiCriteria);
 
@@ -456,7 +499,7 @@ export function normalizeCriteria(aiCriteria: unknown): EvaluationResultV1['crit
     return [];
   }
 
-  const normalized = CRITERIA_KEYS.map((key) => normalizeCriterionEntry(key, byKey[key]));
+  const normalized = CRITERIA_KEYS.map((key) => normalizeCriterionEntry(key, byKey[key], diagnostics));
   evalDebugLog(`[Processor] Criteria normalization success (${normalized.length} canonical keys)`);
   return normalized;
 }
@@ -578,6 +621,14 @@ Return ONLY valid JSON with this exact structure (no markdown, no code fences):
     evalDebugLog("[Processor] AI response keys:", Object.keys(aiResult), "criteria type:", typeof aiResult.criteria, "isArray:", Array.isArray(aiResult.criteria));
     evalDebugLog("[Processor] AI response preview:", responseText.substring(0, 500));
 
+    const normalizationDiagnostics: NormalizationDiagnostics = {
+      usedLegacyScoreCount: 0,
+      missingScoreCount: 0,
+      clampedScoreCount: 0,
+      overviewFallbackUsed: false,
+      recommendationsFallbackUsed: false,
+    };
+
     // Build EvaluationResultV1
     const result: EvaluationResultV1 = {
       schema_version: "evaluation_result_v1",
@@ -593,9 +644,9 @@ Return ONLY valid JSON with this exact structure (no markdown, no code fences):
         provider: "openai",
         prompt_version: WAVE_GUIDE_VERSION,
       },
-      overview: normalizeOverviewFromAIResult(aiResult),
-      criteria: normalizeCriteria(extractCriteriaFromAIResult(aiResult)),
-      recommendations: normalizeRecommendationsFromAIResult(aiResult),
+      overview: normalizeOverviewFromAIResult(aiResult, normalizationDiagnostics),
+      criteria: normalizeCriteria(extractCriteriaFromAIResult(aiResult), normalizationDiagnostics),
+      recommendations: normalizeRecommendationsFromAIResult(aiResult, normalizationDiagnostics),
       metrics: {
         manuscript: {
           word_count: wordCount,
@@ -625,6 +676,22 @@ Return ONLY valid JSON with this exact structure (no markdown, no code fences):
         policy_family: "standard"
       }
     };
+
+    if (
+      normalizationDiagnostics.usedLegacyScoreCount > 0 ||
+      normalizationDiagnostics.missingScoreCount > 0 ||
+      normalizationDiagnostics.clampedScoreCount > 0 ||
+      normalizationDiagnostics.overviewFallbackUsed ||
+      normalizationDiagnostics.recommendationsFallbackUsed
+    ) {
+      evalDebugLog('[Processor] AI normalization diagnostics', {
+        used_legacy_score_count: normalizationDiagnostics.usedLegacyScoreCount,
+        missing_score_count: normalizationDiagnostics.missingScoreCount,
+        clamped_score_count: normalizationDiagnostics.clampedScoreCount,
+        overview_fallback_used: normalizationDiagnostics.overviewFallbackUsed,
+        recommendations_fallback_used: normalizationDiagnostics.recommendationsFallbackUsed,
+      });
+    }
 
     // Validate result before returning (fail-closed governance enforcement)
     const validation = validateEvaluationResult(result);
@@ -989,6 +1056,22 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         .eq('id', jobId);
 
       return { success: false, error: contentError };
+    }
+
+    if (resolvedManuscriptText.trim().length < evalMinManuscriptChars) {
+      const shortContentError =
+        `Manuscript text too short for reliable evaluation: ${resolvedManuscriptText.trim().length} chars ` +
+        `(minimum ${evalMinManuscriptChars})`;
+      await supabase
+        .from('evaluation_jobs')
+        .update({
+          status: 'failed',
+          last_error: shortContentError,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', jobId);
+
+      return { success: false, error: shortContentError };
     }
 
     const manuscriptWithContent: Manuscript = {
