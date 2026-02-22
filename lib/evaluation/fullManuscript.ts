@@ -59,7 +59,7 @@
  *
  * After AI evaluation completes:
  * - Full EvaluationResultV1 is written to evaluation_artifacts table
- * - artifact_type = "one_page_summary" (canonical)
+ * - artifact_type = "evaluation_result_v1" (canonical)
  * - source_hash ensures idempotency (same input = same artifact)
  * - created_at/updated_at tracked by database
  *
@@ -200,7 +200,7 @@ export async function getEvaluationArtifact(
     .from("evaluation_artifacts")
     .select("content")
     .eq("job_id", jobId)
-    .eq("artifact_type", "one_page_summary")
+    .eq("artifact_type", "evaluation_result_v1")
     .single();
 
   if (error || !data) {
@@ -236,7 +236,7 @@ export async function listEvaluationArtifacts(
   const { data, error } = await supabase
     .from("evaluation_artifacts")
     .select("id, artifact_type, created_at, source_hash")
-    .eq("job_id", manuscriptId)
+    .eq("manuscript_id", manuscriptId)
     .order("created_at", { ascending: false });
 
   if (error) {

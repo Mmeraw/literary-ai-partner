@@ -51,7 +51,7 @@ describe("lookupShareByToken", () => {
                 data: {
                   id: mockShareId,
                   job_id: mockJobId,
-                  artifact_type: "one_page_summary",
+                  artifact_type: "evaluation_result_v1",
                   revoked_at: null,
                   expires_at: null,
                 },
@@ -71,7 +71,7 @@ describe("lookupShareByToken", () => {
       ok: true,
       shareId: mockShareId,
       jobId: mockJobId,
-      artifactType: "one_page_summary",
+      artifactType: "evaluation_result_v1",
     });
 
     expect(mockHashShareToken).toHaveBeenCalledWith(mockToken);
@@ -92,7 +92,7 @@ describe("lookupShareByToken", () => {
                 data: {
                   id: "share-123",
                   job_id: "job-123",
-                  artifact_type: "one_page_summary",
+                  artifact_type: "evaluation_result_v1",
                   revoked_at: new Date().toISOString(),
                   expires_at: null,
                 },
@@ -128,7 +128,7 @@ describe("lookupShareByToken", () => {
                 data: {
                   id: "share-123",
                   job_id: "job-123",
-                  artifact_type: "one_page_summary",
+                  artifact_type: "evaluation_result_v1",
                   revoked_at: null,
                   expires_at: pastDate,
                 },
