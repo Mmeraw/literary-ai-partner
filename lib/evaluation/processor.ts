@@ -101,6 +101,21 @@ type NormalizationDiagnostics = {
   recommendationsFallbackUsed: boolean;
 };
 
+type CalibrationProfile = {
+  policyFamily: string;
+  guidance: string;
+};
+
+type QualitySignalAssessment = {
+  evidenceCoverageRatio: number;
+  scoreSpread: number;
+  hasUniformScores: boolean;
+  hasLowVarianceScores: boolean;
+  defaultZeroCount: number;
+  confidencePenalty: number;
+  warnings: string[];
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -172,6 +187,109 @@ function normalizeEffortOrImpact(value: unknown): 'low' | 'medium' | 'high' {
     return candidate;
   }
   return 'medium';
+}
+
+export function getCalibrationProfile(workType: string | null): CalibrationProfile {
+  const normalized = (workType || '').toLowerCase();
+
+  if (normalized.includes('memoir') || normalized.includes('nonfiction')) {
+    return {
+      policyFamily: 'memoir',
+      guidance:
+        'Calibration profile: memoir/nonfiction. Prioritize factual coherence, narrative authenticity, and thematic clarity over strict three-act fiction expectations.',
+    };
+  }
+
+  if (normalized.includes('poetry') || normalized.includes('poem')) {
+    return {
+      policyFamily: 'poetry',
+      guidance:
+        'Calibration profile: poetry. Prioritize imagery precision, emotional resonance, voice consistency, and line-level craft; avoid forcing prose-narrative assumptions.',
+    };
+  }
+
+  if (normalized.includes('screenplay') || normalized.includes('script')) {
+    return {
+      policyFamily: 'screenplay',
+      guidance:
+        'Calibration profile: screenplay/script. Prioritize scene economy, visual storytelling, dialogue subtext, pacing by sequence, and production-readability conventions.',
+    };
+  }
+
+  return {
+    policyFamily: 'standard',
+    guidance:
+      'Calibration profile: standard fiction. Prioritize concept strength, narrative drive, character arc coherence, and market-facing readability.',
+  };
+}
+
+export function assessEvaluationQuality(
+  criteria: EvaluationResultV1['criteria'],
+): QualitySignalAssessment {
+  if (!criteria || criteria.length === 0) {
+    return {
+      evidenceCoverageRatio: 0,
+      scoreSpread: 0,
+      hasUniformScores: false,
+      hasLowVarianceScores: true,
+      defaultZeroCount: 0,
+      confidencePenalty: 0.2,
+      warnings: ['Quality signal warning: criteria missing; confidence reduced.'],
+    };
+  }
+
+  const scoreValues = criteria.map((criterion) => criterion.score_0_10);
+  const minScore = Math.min(...scoreValues);
+  const maxScore = Math.max(...scoreValues);
+  const scoreSpread = maxScore - minScore;
+  const hasUniformScores = scoreSpread === 0;
+  const hasLowVarianceScores = scoreSpread <= 1.5;
+  const defaultZeroCount = scoreValues.filter((score) => score === 0).length;
+
+  const evidenceSupportedCount = criteria.filter((criterion) =>
+    criterion.evidence.some((entry) => typeof entry.snippet === 'string' && entry.snippet.trim().length >= 20),
+  ).length;
+  const evidenceCoverageRatio = evidenceSupportedCount / criteria.length;
+
+  const warnings: string[] = [];
+  let confidencePenalty = 0;
+
+  if (evidenceCoverageRatio < 0.5) {
+    warnings.push(
+      `Quality signal warning: low evidence anchoring (${Math.round(evidenceCoverageRatio * 100)}% of criteria include substantive snippets).`,
+    );
+    confidencePenalty += 0.15;
+  } else if (evidenceCoverageRatio < 0.8) {
+    warnings.push(
+      `Quality signal warning: partial evidence anchoring (${Math.round(evidenceCoverageRatio * 100)}% coverage).`,
+    );
+    confidencePenalty += 0.07;
+  }
+
+  if (hasUniformScores) {
+    warnings.push('Quality signal warning: criterion scores are fully uniform; distribution may be under-calibrated.');
+    confidencePenalty += 0.12;
+  } else if (hasLowVarianceScores) {
+    warnings.push(`Quality signal warning: narrow score spread (${scoreSpread.toFixed(2)}); review rubric differentiation.`);
+    confidencePenalty += 0.06;
+  }
+
+  if (defaultZeroCount >= 5) {
+    warnings.push(
+      `Quality signal warning: ${defaultZeroCount} criteria resolved to 0/10; input completeness or response shape may be degraded.`,
+    );
+    confidencePenalty += 0.08;
+  }
+
+  return {
+    evidenceCoverageRatio,
+    scoreSpread,
+    hasUniformScores,
+    hasLowVarianceScores,
+    defaultZeroCount,
+    confidencePenalty: clamp(confidencePenalty, 0, 0.3),
+    warnings,
+  };
 }
 
 function normalizeCrossRecommendation(
@@ -564,6 +682,7 @@ async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob):
   const openai = new OpenAI({ apiKey: openaiApiKey });
   const now = new Date().toISOString();
   const startTime = Date.now();
+  const calibration = getCalibrationProfile(manuscript.work_type);
 
   try {
     console.log(`[Processor] Calling OpenAI API for manuscript ${manuscript.id}`);
@@ -580,8 +699,10 @@ async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob):
             `You are an expert literary evaluator.`,
             `You MUST follow the WAVE Revision Guide below as the governing evaluation authority.`,
             `You MUST use the canonical 13-criteria rubric keys exactly: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability.`,
+            calibration.guidance,
             `Return ONLY valid JSON matching the EvaluationResultV1 schema. No markdown, no code fences, just pure JSON.`,
             'CRITICAL: Each criterion in the criteria array MUST use the field name "score_0_10" (NOT "score") for scores. Each criterion needs: key, score_0_10 (0-10), rationale, evidence, recommendations.',
+            'CRITICAL: Include at least one concrete evidence snippet per criterion whenever manuscript context supports it.',
             ``,
             `WAVE GUIDE (CANONICAL):`,
             WAVE_GUIDE_SUMMARY,
@@ -680,9 +801,28 @@ Return ONLY valid JSON with this exact structure (no markdown, no code fences):
           `Analysis based on ${Math.min(wordCount, 3750)} words`,
           'Full manuscript context may not be captured if truncated'
         ],
-        policy_family: "standard"
+        policy_family: calibration.policyFamily
       }
     };
+
+    const qualitySignals = assessEvaluationQuality(result.criteria);
+    if (qualitySignals.warnings.length > 0) {
+      result.governance.warnings.push(...qualitySignals.warnings);
+      result.governance.confidence = clamp(
+        result.governance.confidence - qualitySignals.confidencePenalty,
+        0.55,
+        0.95,
+      );
+
+      evalDebugLog('[Processor] Evaluation quality diagnostics', {
+        evidence_coverage_ratio: qualitySignals.evidenceCoverageRatio,
+        score_spread: qualitySignals.scoreSpread,
+        has_uniform_scores: qualitySignals.hasUniformScores,
+        has_low_variance_scores: qualitySignals.hasLowVarianceScores,
+        default_zero_count: qualitySignals.defaultZeroCount,
+        confidence_penalty: qualitySignals.confidencePenalty,
+      });
+    }
 
     if (
       normalizationDiagnostics.usedLegacyScoreCount > 0 ||

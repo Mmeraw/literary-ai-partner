@@ -3,6 +3,8 @@ const {
   normalizeOverviewFromAIResult,
   normalizeRecommendationsFromAIResult,
   isManuscriptTextLongEnough,
+  getCalibrationProfile,
+  assessEvaluationQuality,
 } = require("../../../lib/evaluation/processor");
 const { CRITERIA_KEYS } = require("../../../schemas/criteria-keys");
 
@@ -24,6 +26,24 @@ function buildCriterion(key: string, score: number) {
       },
     ],
   };
+}
+
+function buildCriteriaSet(scoreByIndex?: (idx: number) => number, withEvidence = true) {
+  return CRITERIA_KEYS.map((key: string, idx: number) => ({
+    key,
+    score_0_10: scoreByIndex ? scoreByIndex(idx) : 7,
+    rationale: `Rationale ${key}`,
+    evidence: withEvidence
+      ? [{ snippet: `Concrete evidence snippet for ${key} with enough detail.` }]
+      : [],
+    recommendations: [
+      {
+        priority: "medium",
+        action: `Improve ${key}`,
+        expected_impact: "Improves quality",
+      },
+    ],
+  }));
 }
 
 describe("normalizeCriteria", () => {
@@ -265,5 +285,45 @@ describe("isManuscriptTextLongEnough", () => {
     expect(isManuscriptTextLongEnough("abc", 5)).toBe(false);
     expect(isManuscriptTextLongEnough("abcde", 5)).toBe(true);
     expect(isManuscriptTextLongEnough("   abcde   ", 5)).toBe(true);
+  });
+});
+
+describe("getCalibrationProfile", () => {
+  test("returns memoir profile for memoir work type", () => {
+    const profile = getCalibrationProfile("Memoir");
+    expect(profile.policyFamily).toBe("memoir");
+    expect(profile.guidance.toLowerCase()).toContain("memoir");
+  });
+
+  test("returns poetry profile for poetry work type", () => {
+    const profile = getCalibrationProfile("poetry");
+    expect(profile.policyFamily).toBe("poetry");
+  });
+
+  test("falls back to standard profile", () => {
+    const profile = getCalibrationProfile("novel");
+    expect(profile.policyFamily).toBe("standard");
+  });
+});
+
+describe("assessEvaluationQuality", () => {
+  test("flags low-evidence and uniform-score patterns with confidence penalty", () => {
+    const criteria = buildCriteriaSet(() => 7, false);
+    const quality = assessEvaluationQuality(criteria);
+
+    expect(quality.hasUniformScores).toBe(true);
+    expect(quality.evidenceCoverageRatio).toBe(0);
+    expect(quality.confidencePenalty).toBeGreaterThan(0);
+    expect(quality.warnings.length).toBeGreaterThan(0);
+  });
+
+  test("keeps penalty near zero for healthy evidence and score spread", () => {
+    const criteria = buildCriteriaSet((idx: number) => 3 + (idx % 6), true);
+    const quality = assessEvaluationQuality(criteria);
+
+    expect(quality.hasUniformScores).toBe(false);
+    expect(quality.scoreSpread).toBeGreaterThan(1.5);
+    expect(quality.evidenceCoverageRatio).toBe(1);
+    expect(quality.confidencePenalty).toBe(0);
   });
 });
