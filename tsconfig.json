@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2018",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": false,
@@ -13,14 +17,26 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "plugins": [{ "name": "next" }],
-
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     }
   },
-  "include": ["next-env.d.ts", ".next/types/**/*.ts", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
+  "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.js",
+    "**/*.jsx"
+  ],
   "exclude": [
     "node_modules",
     ".next",
@@ -41,6 +57,17 @@
     "reject_agent_verification.test.ts",
     "suspend_industry_user.test.ts",
     "create_agent_verification_request.test.ts",
-    "approve_agent_verification.test.ts"
+    "approve_agent_verification.test.ts",
+    "all-branches-export",
+    "**/all-branches-export/**",
+    "literary-ai-partner-all-branches-bundle.zip",
+    "**/*.zip",
+    "tmp",
+    "**/tmp/**",
+    ".git",
+    ".github",
+    "coverage",
+    "dist",
+    "build"
   ]
 }
