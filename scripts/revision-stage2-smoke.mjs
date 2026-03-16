@@ -61,6 +61,10 @@ function ensure(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function isUuid(value) {
   return (
     typeof value === "string" &&
@@ -265,6 +269,119 @@ async function resolveEvaluationRunId(supabase) {
   throw new Error("Unable to resolve EVALUATION_RUN_ID for smoke run.");
 }
 
+async function loadProposalsForSession(supabase, revisionSessionId) {
+  const { data, error } = await supabase
+    .from("change_proposals")
+    .select("id, revision_session_id, location_ref, rule, decision, original_text, proposed_text")
+    .eq("revision_session_id", revisionSessionId);
+
+  if (error) {
+    throw new Error(
+      `Failed to load proposals for session ${revisionSessionId}: ${error.message}`,
+    );
+  }
+
+  return data ?? [];
+}
+
+function assertNoDuplicateProposalKeys(proposals, revisionSessionId) {
+  const counts = new Map();
+
+  for (const proposal of proposals) {
+    const locationRef =
+      typeof proposal?.location_ref === "string" ? proposal.location_ref.trim() : "";
+    const rule = typeof proposal?.rule === "string" ? proposal.rule.trim() : "";
+
+    if (!locationRef || !rule) {
+      continue;
+    }
+
+    const key = `${locationRef}::${rule}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  const duplicates = [...counts.entries()].filter(([, count]) => count > 1);
+  if (duplicates.length > 0) {
+    const sample = duplicates
+      .slice(0, 5)
+      .map(([key, count]) => `${key} (x${count})`)
+      .join(", ");
+
+    throw new Error(
+      `Duplicate proposal location_ref/rule pairs detected for session ${revisionSessionId}: ${sample}`,
+    );
+  }
+}
+
+async function waitForProposals(
+  supabase,
+  revisionSessionId,
+  {
+    maxWaitMs = Number(process.env.SMOKE_PROPOSAL_WAIT_MS ?? 45000),
+    initialIntervalMs = Number(process.env.SMOKE_PROPOSAL_POLL_MS ?? 1500),
+  } = {},
+) {
+  const start = Date.now();
+  let intervalMs = Math.max(250, initialIntervalMs);
+
+  while (Date.now() - start <= maxWaitMs) {
+    const proposals = await loadProposalsForSession(supabase, revisionSessionId);
+    if (proposals.length > 0) {
+      return proposals;
+    }
+
+    await sleep(intervalMs);
+    intervalMs = Math.min(5000, Math.round(intervalMs * 1.5));
+  }
+
+  return [];
+}
+
+async function getProposalSynthesisEventCounts(supabase, revisionSessionId) {
+  const { data, error } = await supabase
+    .from("revision_events")
+    .select("event_code")
+    .eq("revision_session_id", revisionSessionId)
+    .in("event_code", ["PROPOSAL_SYNTHESIS_STARTED", "PROPOSAL_SYNTHESIS_COMPLETED"]);
+
+  if (error) {
+    throw new Error(
+      `Failed to load proposal synthesis telemetry for session ${revisionSessionId}: ${error.message}`,
+    );
+  }
+
+  const rows = data ?? [];
+  const started = rows.filter((r) => r.event_code === "PROPOSAL_SYNTHESIS_STARTED").length;
+  const completed = rows.filter((r) => r.event_code === "PROPOSAL_SYNTHESIS_COMPLETED").length;
+
+  return {
+    started,
+    completed,
+  };
+}
+
+async function waitForProposalSynthesisStarted(
+  supabase,
+  revisionSessionId,
+  {
+    maxWaitMs = Number(process.env.SMOKE_SYNTHESIS_START_WAIT_MS ?? 15000),
+    pollMs = Number(process.env.SMOKE_SYNTHESIS_START_POLL_MS ?? 1000),
+  } = {},
+) {
+  const start = Date.now();
+
+  while (Date.now() - start <= maxWaitMs) {
+    const counts = await getProposalSynthesisEventCounts(supabase, revisionSessionId);
+    if (counts.started > 0) {
+      return true;
+    }
+
+    await sleep(Math.max(200, pollMs));
+  }
+
+  return false;
+}
+
 async function main() {
   const BASE = await getBaseUrl();
   const SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY");
@@ -302,6 +419,7 @@ async function main() {
 
   const start = await startRes.json();
   const revisionSession = start?.revision_session;
+  const startProposals = Array.isArray(start?.proposals) ? start.proposals : [];
   smokeContext.revisionSessionId = revisionSession?.id ?? null;
   ensure(revisionSession?.id, `Invalid start response: missing revision_session.id -> ${JSON.stringify(start)}`);
   ensure(
@@ -366,16 +484,7 @@ async function main() {
   );
 
   // Proposal checks (count, session association, pre-decision validity).
-  const { data: persistedProposals, error: persistedProposalsErr } = await supabase
-    .from("change_proposals")
-    .select("id, revision_session_id, decision, original_text, proposed_text")
-    .eq("revision_session_id", revisionSession.id);
-
-  if (persistedProposalsErr) {
-    throw new Error(`Failed to load proposals for session ${revisionSession.id}: ${persistedProposalsErr.message}`);
-  }
-
-  const proposalsFromDb = persistedProposals ?? [];
+  let proposalsFromDb = await loadProposalsForSession(supabase, revisionSession.id);
 
   const { data: findingsRows, error: findingsErr } = await supabase
     .from("diagnostic_findings")
@@ -389,6 +498,60 @@ async function main() {
 
   const findings = findingsRows ?? [];
   const actionableFindings = findings.filter((f) => f.action_hint !== "preserve");
+  let synthesisStartedObserved = false;
+
+  if (proposalsFromDb.length === 0 && actionableFindings.length > 0) {
+    synthesisStartedObserved = await waitForProposalSynthesisStarted(
+      supabase,
+      revisionSession.id,
+    );
+
+    if (!synthesisStartedObserved) {
+      console.log(
+        `[revision-stage2-smoke] Proposal synthesis start signal not observed yet for session ${revisionSession.id}; continuing with proposal polling...`,
+      );
+    }
+
+    console.log(
+      `[revision-stage2-smoke] No proposals yet for session ${revisionSession.id}; polling for synthesis readiness...`,
+    );
+    proposalsFromDb = await waitForProposals(supabase, revisionSession.id);
+  }
+
+  if (proposalsFromDb.length === 0 && actionableFindings.length > 0) {
+    console.log(
+      `[revision-stage2-smoke] Proposals still empty after polling; retrying start once for recovery...`,
+    );
+
+    await must(
+      fetch(`${BASE}/api/internal/revisions/start`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({ evaluation_run_id: EVALUATION_RUN_ID }),
+      }),
+      "Failed recovery retry on revision engine start",
+    );
+
+    synthesisStartedObserved =
+      synthesisStartedObserved ||
+      (await waitForProposalSynthesisStarted(supabase, revisionSession.id, {
+        maxWaitMs: Number(process.env.SMOKE_SYNTHESIS_START_RECOVERY_WAIT_MS ?? 8000),
+        pollMs: Number(process.env.SMOKE_SYNTHESIS_START_POLL_MS ?? 1000),
+      }));
+
+    proposalsFromDb = await waitForProposals(supabase, revisionSession.id, {
+      maxWaitMs: Number(process.env.SMOKE_PROPOSAL_RECOVERY_WAIT_MS ?? 30000),
+      initialIntervalMs: Number(process.env.SMOKE_PROPOSAL_POLL_MS ?? 1500),
+    });
+  }
+
+  const synthesisEventCounts = await getProposalSynthesisEventCounts(
+    supabase,
+    revisionSession.id,
+  );
 
   ensure(
     findings.length > 0,
@@ -402,8 +565,10 @@ async function main() {
 
   ensure(
     proposalsFromDb.length > 0,
-    `No proposals generated for evaluation_run_id=${EVALUATION_RUN_ID}. Findings exist, so check diagnostic_findings -> proposal synthesis mapping.`,
+    `No proposals generated for evaluation_run_id=${EVALUATION_RUN_ID}. Findings=${findings.length}, actionable_findings=${actionableFindings.length}, start_response_proposals=${startProposals.length}, synthesis_started_observed=${synthesisStartedObserved}, synthesis_started_events=${synthesisEventCounts.started}, synthesis_completed_events=${synthesisEventCounts.completed}. Check whether synthesis never started, started but produced zero proposals, or readiness timing is insufficient.`,
   );
+
+  assertNoDuplicateProposalKeys(proposalsFromDb, revisionSession.id);
 
   for (const p of proposalsFromDb) {
     ensure(

@@ -107,7 +107,17 @@ export async function startRevisionEngine(
   const existing = await findExistingRevisionSessionForEvaluationRun(input.evaluation_run_id);
 
   if (existing) {
-    const proposals = await listProposalsForSession(existing.id);
+    let proposals = await listProposalsForSession(existing.id);
+
+    // Recovery path: if a session exists but has no proposals yet, attempt synthesis again.
+    // This keeps start idempotent while healing intermittent timing gaps.
+    if (proposals.length === 0 && existing.status === "open") {
+      proposals = await createProposalsForSessionFromFindings(
+        existing.id,
+        input.evaluation_run_id,
+      );
+    }
+
     return {
       revision_session: existing,
       proposals,
