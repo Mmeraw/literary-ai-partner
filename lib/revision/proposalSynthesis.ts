@@ -1,7 +1,7 @@
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { bulkCreateChangeProposals } from "./proposals";
 import { listProposalsForSession } from "./sessions";
-import type { ChangeProposal, CreateChangeProposalInput } from "./types";
+import type { ChangeProposal, CreateChangeProposalInput, ProposalAction, ProposalSeverity } from "./types";
 
 let _supabase: ReturnType<typeof getSupabaseAdminClient> | undefined;
 
@@ -34,11 +34,11 @@ function toProposalInputs(
       revision_session_id: revisionSessionId,
       location_ref: f.location_ref ?? `finding:${idx + 1}`,
       rule: f.criterion_key ?? f.finding_type ?? "diagnostic_finding",
-      action: f.action_hint === "replace" ? "replace" : "refine",
+            action: (f.action_hint === "replace" ? "replace" : "refine") as ProposalAction,
       original_text: f.original_text ?? f.evidence_excerpt ?? "",
       proposed_text: f.recommendation ?? f.diagnosis ?? "",
       justification: f.diagnosis,
-      severity: f.severity ?? "medium",
+            severity: (f.severity ?? "medium") as ProposalSeverity,
     }))
     .filter(
       (input) =>
