@@ -53,6 +53,9 @@ function mapChangeProposal(row: any): ChangeProposal {
     severity: row.severity,
     decision: row.decision,
     modified_text: row.modified_text,
+    anchor_start: row.anchor_start ?? null,
+    anchor_end: row.anchor_end ?? null,
+    anchor_context: row.anchor_context ?? null,
     created_at: row.created_at,
   };
 }
