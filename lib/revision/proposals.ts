@@ -1,11 +1,25 @@
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { getVersionById } from "@/lib/manuscripts/versions";
 import { getRevisionSessionById, listProposalsForSession } from "./sessions";
+import { logRevisionEvent } from "./logRevisionEvent";
 import type {
   ChangeProposal,
   CreateChangeProposalInput,
   EvaluationProposalCandidate,
 } from "./types";
+
+type ProposalAnchorStatus = "created" | "ambiguous" | "missing";
+
+type AnchorBuildResult = {
+  anchor_start: number | null;
+  anchor_end: number | null;
+  anchor_context: string | null;
+  anchor_status: ProposalAnchorStatus;
+};
+
+type NormalizedCreateChangeProposalInput = CreateChangeProposalInput & {
+  _anchor_status?: ProposalAnchorStatus;
+};
 
 let _supabase: ReturnType<typeof getSupabaseAdminClient> | undefined;
 
@@ -48,6 +62,28 @@ function mapChangeProposal(row: any): ChangeProposal {
   };
 }
 
+async function getProposalTelemetryContext(revisionSessionId: string): Promise<{
+  evaluation_run_id: string | null;
+  manuscript_id: number | null;
+  manuscript_version_id: string | null;
+}> {
+  const session = await getRevisionSessionById(revisionSessionId);
+  if (!session) {
+    return {
+      evaluation_run_id: null,
+      manuscript_id: null,
+      manuscript_version_id: null,
+    };
+  }
+
+  const sourceVersion = await getVersionById(session.source_version_id);
+  return {
+    evaluation_run_id: session.evaluation_run_id,
+    manuscript_id: sourceVersion?.manuscript_id ?? null,
+    manuscript_version_id: sourceVersion?.id ?? session.source_version_id,
+  };
+}
+
 function normalizeForAnchorSearch(text: string): string {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
@@ -55,16 +91,13 @@ function normalizeForAnchorSearch(text: string): string {
 function buildAnchorForSnippet(
   sourceText: string,
   snippet: string,
-): {
-  anchor_start: number | null;
-  anchor_end: number | null;
-  anchor_context: string | null;
-} {
+): AnchorBuildResult {
   if (!snippet || snippet.trim().length === 0) {
     return {
       anchor_start: null,
       anchor_end: null,
       anchor_context: null,
+      anchor_status: "missing",
     };
   }
 
@@ -77,6 +110,7 @@ function buildAnchorForSnippet(
       anchor_start: null,
       anchor_end: null,
       anchor_context: null,
+      anchor_status: "missing",
     };
   }
 
@@ -91,6 +125,7 @@ function buildAnchorForSnippet(
       anchor_start: null,
       anchor_end: null,
       anchor_context: null,
+      anchor_status: "ambiguous",
     };
   }
 
@@ -102,6 +137,7 @@ function buildAnchorForSnippet(
     anchor_start: start,
     anchor_end: end,
     anchor_context: normalizedSource.slice(contextLeft, contextRight),
+    anchor_status: "created",
   };
 }
 
@@ -187,7 +223,46 @@ export async function createChangeProposal(
     throw new Error(`createChangeProposal failed: ${error.message}`);
   }
 
-  return mapChangeProposal(data);
+  const mapped = mapChangeProposal(data);
+  const telemetryContext = await getProposalTelemetryContext(mapped.revision_session_id);
+
+  void logRevisionEvent({
+    revision_session_id: mapped.revision_session_id,
+    proposal_id: mapped.id,
+    manuscript_id: telemetryContext.manuscript_id,
+    manuscript_version_id: telemetryContext.manuscript_version_id,
+    evaluation_run_id: telemetryContext.evaluation_run_id,
+    event_type: "proposal",
+    event_code: "PROPOSAL_GENERATED",
+    metadata: {
+      original_text_length: mapped.original_text.length,
+      proposed_text_length: mapped.proposed_text.length,
+    },
+  });
+
+  void logRevisionEvent({
+    revision_session_id: mapped.revision_session_id,
+    proposal_id: mapped.id,
+    manuscript_id: telemetryContext.manuscript_id,
+    manuscript_version_id: telemetryContext.manuscript_version_id,
+    evaluation_run_id: telemetryContext.evaluation_run_id,
+    event_type: "proposal",
+    severity:
+      mapped.anchor_start != null && mapped.anchor_end != null
+        ? "info"
+        : "warn",
+    event_code:
+      mapped.anchor_start != null && mapped.anchor_end != null
+        ? "PROPOSAL_ANCHOR_CREATED"
+        : "PROPOSAL_ANCHOR_MISSING",
+    metadata: {
+      anchor_start: mapped.anchor_start,
+      anchor_end: mapped.anchor_end,
+      anchor_context_length: mapped.anchor_context?.length ?? 0,
+    },
+  });
+
+  return mapped;
 }
 
 export async function bulkCreateChangeProposals(
@@ -218,7 +293,60 @@ export async function bulkCreateChangeProposals(
     throw new Error(`bulkCreateChangeProposals failed: ${error.message}`);
   }
 
-  return (data ?? []).map(mapChangeProposal);
+  const mapped = (data ?? []).map(mapChangeProposal);
+  const telemetryContext =
+    mapped.length > 0
+      ? await getProposalTelemetryContext(mapped[0].revision_session_id)
+      : {
+          evaluation_run_id: null,
+          manuscript_id: null,
+          manuscript_version_id: null,
+        };
+
+  for (let i = 0; i < mapped.length; i += 1) {
+    const created = mapped[i];
+    const input = inputs[i] as NormalizedCreateChangeProposalInput | undefined;
+    const anchorStatus =
+      input?._anchor_status ??
+      (created.anchor_start != null && created.anchor_end != null ? "created" : "missing");
+
+    void logRevisionEvent({
+      revision_session_id: created.revision_session_id,
+      proposal_id: created.id,
+      manuscript_id: telemetryContext.manuscript_id,
+      manuscript_version_id: telemetryContext.manuscript_version_id,
+      evaluation_run_id: telemetryContext.evaluation_run_id,
+      event_type: "proposal",
+      event_code: "PROPOSAL_GENERATED",
+      metadata: {
+        original_text_length: created.original_text.length,
+        proposed_text_length: created.proposed_text.length,
+      },
+    });
+
+    void logRevisionEvent({
+      revision_session_id: created.revision_session_id,
+      proposal_id: created.id,
+      manuscript_id: telemetryContext.manuscript_id,
+      manuscript_version_id: telemetryContext.manuscript_version_id,
+      evaluation_run_id: telemetryContext.evaluation_run_id,
+      event_type: "proposal",
+      severity: anchorStatus === "created" ? "info" : "warn",
+      event_code:
+        anchorStatus === "created"
+          ? "PROPOSAL_ANCHOR_CREATED"
+          : anchorStatus === "ambiguous"
+            ? "PROPOSAL_ANCHOR_AMBIGUOUS"
+            : "PROPOSAL_ANCHOR_MISSING",
+      metadata: {
+        anchor_start: created.anchor_start,
+        anchor_end: created.anchor_end,
+        anchor_context_length: created.anchor_context?.length ?? 0,
+      },
+    });
+  }
+
+  return mapped;
 }
 
 export async function getProposalById(proposalId: string): Promise<ChangeProposal | null> {
@@ -250,7 +378,7 @@ export function normalizeProposalCandidates(
   revisionSessionId: string,
   candidates: EvaluationProposalCandidate[],
   sourceText: string,
-): CreateChangeProposalInput[] {
+): NormalizedCreateChangeProposalInput[] {
   return candidates
     .filter((candidate) => {
       return Boolean(
@@ -273,6 +401,7 @@ export function normalizeProposalCandidates(
         anchor_start: anchor.anchor_start,
         anchor_end: anchor.anchor_end,
         anchor_context: anchor.anchor_context,
+        _anchor_status: anchor.anchor_status,
       };
     });
 }
