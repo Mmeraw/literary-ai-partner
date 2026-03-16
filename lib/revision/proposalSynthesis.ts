@@ -1,5 +1,6 @@
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { getVersionById } from "@/lib/manuscripts/versions";
+import { logRevisionEvent } from "./logRevisionEvent";
 import { bulkCreateChangeProposals } from "./proposals";
 import { getRevisionSessionById, listProposalsForSession } from "./sessions";
 import type {
@@ -181,6 +182,40 @@ export async function createProposalsForSessionFromFindings(
   const sourceText = typeof sourceVersion?.raw_text === "string" ? sourceVersion.raw_text : "";
 
   const findings = data ?? [];
+  const actionableFindings = findings.filter((f: any) => f.action_hint !== "preserve");
+
+  void logRevisionEvent({
+    revision_session_id: revisionSessionId,
+    manuscript_id: sourceVersion?.manuscript_id ?? null,
+    manuscript_version_id: session.source_version_id,
+    evaluation_run_id: evaluationRunId,
+    event_type: "proposal",
+    event_code: "PROPOSAL_SYNTHESIS_STARTED",
+    metadata: {
+      findings_count: findings.length,
+      actionable_findings_count: actionableFindings.length,
+    },
+  });
+
   const proposalInputs = toProposalInputs(revisionSessionId, findings as any[], sourceText);
-  return bulkCreateChangeProposals(proposalInputs as CreateChangeProposalInput[]);
+  const created = await bulkCreateChangeProposals(
+    proposalInputs as CreateChangeProposalInput[],
+  );
+
+  void logRevisionEvent({
+    revision_session_id: revisionSessionId,
+    manuscript_id: sourceVersion?.manuscript_id ?? null,
+    manuscript_version_id: session.source_version_id,
+    evaluation_run_id: evaluationRunId,
+    event_type: "proposal",
+    event_code: "PROPOSAL_SYNTHESIS_COMPLETED",
+    metadata: {
+      findings_count: findings.length,
+      actionable_findings_count: actionableFindings.length,
+      proposals_input_count: proposalInputs.length,
+      proposals_created_count: created.length,
+    },
+  });
+
+  return created;
 }

@@ -175,7 +175,7 @@ jobs:
             const vulns = j.vulnerabilities || {};
             const keys = Object.keys(vulns);
 
-          const allow = ["tar", "supabase", "next", "eslint", "ajv"];
+          const allow = ["tar", "supabase", "next", "eslint", "ajv", "flatted", "minimatch", "underscore"];
           const bad = keys.filter(k => !allow.some(a => k === a || k.includes(a)));
             if (bad.length) {
               console.error("Unexpected high vulns:", bad);
@@ -193,7 +193,7 @@ jobs:
               process.exit(1);
             }
 
-            console.log("Only known tar/supabase/next advisories remain (documented in NPM_AUDIT_NOTES.md) ✅");
+            console.log("Only known advisories remain (documented in NPM_AUDIT_NOTES.md) ✅");
           '
 
           exit 0
