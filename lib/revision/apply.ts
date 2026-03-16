@@ -1,11 +1,19 @@
 import { createDerivedVersion, getVersionById } from "@/lib/manuscripts/versions";
 import { hydrateSourceVersionIfMissing } from "@/lib/manuscripts/hydrateVersions";
+import { logRevisionEvent } from "./logRevisionEvent";
 import {
   getRevisionSessionById,
   listProposalsForSession,
   markRevisionSessionApplied,
 } from "./sessions";
 import type { ApplyRevisionSessionResult, ChangeProposal } from "./types";
+
+type ApplyTelemetryContext = {
+  revisionSessionId: string;
+  evaluationRunId: string;
+  manuscriptId: number;
+  manuscriptVersionId: string;
+};
 
 function normalizeForStrictMatch(text: string): string {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -16,6 +24,7 @@ function applySingleReplacementStrict(
   originalText: string,
   replacement: string,
   proposalId: string,
+  context: ApplyTelemetryContext,
 ): string {
   const normalizedCurrentText = normalizeForStrictMatch(currentText);
   const needle = normalizeForStrictMatch(originalText);
@@ -30,6 +39,21 @@ function applySingleReplacementStrict(
 
   const firstIdx = normalizedCurrentText.indexOf(needle);
   if (firstIdx < 0) {
+    void logRevisionEvent({
+      revision_session_id: context.revisionSessionId,
+      proposal_id: proposalId,
+      manuscript_id: context.manuscriptId,
+      manuscript_version_id: context.manuscriptVersionId,
+      evaluation_run_id: context.evaluationRunId,
+      event_type: "apply",
+      severity: "error",
+      event_code: "APPLY_LEGACY_NOT_FOUND",
+      message: `Proposal ${proposalId} original_text not found in source text.`,
+      metadata: {
+        original_text_length: originalText.length,
+      },
+    });
+
     throw new Error(
       `Proposal ${proposalId} original_text not found in source text. ` +
         `Refine proposal extraction or adopt location-aware apply.`,
@@ -38,11 +62,40 @@ function applySingleReplacementStrict(
 
   const secondIdx = normalizedCurrentText.indexOf(needle, firstIdx + needle.length);
   if (secondIdx >= 0) {
+    void logRevisionEvent({
+      revision_session_id: context.revisionSessionId,
+      proposal_id: proposalId,
+      manuscript_id: context.manuscriptId,
+      manuscript_version_id: context.manuscriptVersionId,
+      evaluation_run_id: context.evaluationRunId,
+      event_type: "apply",
+      severity: "error",
+      event_code: "APPLY_LEGACY_AMBIGUOUS",
+      message: `Proposal ${proposalId} original_text is ambiguous in source text.`,
+      metadata: {
+        original_text_length: originalText.length,
+      },
+    });
+
     throw new Error(
       `Proposal ${proposalId} original_text is ambiguous (multiple matches). ` +
         `Location-aware apply is required.`,
     );
   }
+
+  void logRevisionEvent({
+    revision_session_id: context.revisionSessionId,
+    proposal_id: proposalId,
+    manuscript_id: context.manuscriptId,
+    manuscript_version_id: context.manuscriptVersionId,
+    evaluation_run_id: context.evaluationRunId,
+    event_type: "apply",
+    event_code: "APPLY_LEGACY_FALLBACK_SUCCESS",
+    metadata: {
+      original_text_length: originalText.length,
+      replacement_length: replacement.length,
+    },
+  });
 
   return (
     normalizedCurrentText.slice(0, firstIdx) +
@@ -54,6 +107,7 @@ function applySingleReplacementStrict(
 function applySingleReplacementAnchoredStrict(
   sourceText: string,
   proposal: ChangeProposal,
+  context: ApplyTelemetryContext,
 ): string {
   const replacement =
     proposal.decision === "modified"
@@ -73,6 +127,7 @@ function applySingleReplacementAnchoredStrict(
       proposal.original_text,
       replacement,
       proposal.id,
+      context,
     );
   }
 
@@ -80,6 +135,23 @@ function applySingleReplacementAnchoredStrict(
   const end = proposal.anchor_end as number;
 
   if (end > sourceText.length) {
+    void logRevisionEvent({
+      revision_session_id: context.revisionSessionId,
+      proposal_id: proposal.id,
+      manuscript_id: context.manuscriptId,
+      manuscript_version_id: context.manuscriptVersionId,
+      evaluation_run_id: context.evaluationRunId,
+      event_type: "apply",
+      severity: "error",
+      event_code: "APPLY_ANCHORED_SLICE_MISMATCH",
+      message: `Proposal ${proposal.id} anchor range exceeds source length.`,
+      metadata: {
+        anchor_start: start,
+        anchor_end: end,
+        source_length: sourceText.length,
+      },
+    });
+
     throw new Error(`Proposal ${proposal.id} anchor range exceeds source length.`);
   }
 
@@ -90,6 +162,24 @@ function applySingleReplacementAnchoredStrict(
     normalizeForStrictMatch(actualSlice) !==
     normalizeForStrictMatch(expectedSlice)
   ) {
+    void logRevisionEvent({
+      revision_session_id: context.revisionSessionId,
+      proposal_id: proposal.id,
+      manuscript_id: context.manuscriptId,
+      manuscript_version_id: context.manuscriptVersionId,
+      evaluation_run_id: context.evaluationRunId,
+      event_type: "apply",
+      severity: "error",
+      event_code: "APPLY_ANCHORED_SLICE_MISMATCH",
+      message: `Anchored slice did not match original_text for proposal ${proposal.id}.`,
+      metadata: {
+        anchor_start: start,
+        anchor_end: end,
+        expected_length: expectedSlice.length,
+        actual_length: actualSlice.length,
+      },
+    });
+
     throw new Error(
       `Proposal ${proposal.id} anchored slice does not match original_text.`,
     );
@@ -105,16 +195,51 @@ function applySingleReplacementAnchoredStrict(
         normalizeForStrictMatch(proposal.anchor_context),
       )
     ) {
+      void logRevisionEvent({
+        revision_session_id: context.revisionSessionId,
+        proposal_id: proposal.id,
+        manuscript_id: context.manuscriptId,
+        manuscript_version_id: context.manuscriptVersionId,
+        evaluation_run_id: context.evaluationRunId,
+        event_type: "apply",
+        severity: "error",
+        event_code: "APPLY_ANCHORED_CONTEXT_MISMATCH",
+        message: `Anchor context verification failed for proposal ${proposal.id}.`,
+        metadata: {
+          anchor_start: start,
+          anchor_end: end,
+        },
+      });
+
       throw new Error(
         `Proposal ${proposal.id} anchor_context verification failed.`,
       );
     }
   }
 
+  void logRevisionEvent({
+    revision_session_id: context.revisionSessionId,
+    proposal_id: proposal.id,
+    manuscript_id: context.manuscriptId,
+    manuscript_version_id: context.manuscriptVersionId,
+    evaluation_run_id: context.evaluationRunId,
+    event_type: "apply",
+    event_code: "APPLY_ANCHORED_SUCCESS",
+    metadata: {
+      anchor_start: start,
+      anchor_end: end,
+      replacement_length: replacement.length,
+    },
+  });
+
   return sourceText.slice(0, start) + replacement + sourceText.slice(end);
 }
 
-function applyAcceptedChanges(sourceText: string, proposals: ChangeProposal[]): string {
+function applyAcceptedChanges(
+  sourceText: string,
+  proposals: ChangeProposal[],
+  context: ApplyTelemetryContext,
+): string {
   const ordered = [...proposals].sort((a, b) => {
     const aStart = a.anchor_start ?? -1;
     const bStart = b.anchor_start ?? -1;
@@ -130,7 +255,7 @@ function applyAcceptedChanges(sourceText: string, proposals: ChangeProposal[]): 
 
     // Hardened behavior: prefer strict anchored replacement when offsets exist,
     // otherwise fall back to strict single-match text replacement. Fail closed.
-    result = applySingleReplacementAnchoredStrict(result, proposal);
+    result = applySingleReplacementAnchoredStrict(result, proposal, context);
   }
 
   return result;
@@ -179,7 +304,12 @@ export async function applyRevisionSession(
     throw new Error("No accepted or modified proposals to apply.");
   }
 
-  const nextText = applyAcceptedChanges(sourceText, acceptedOrModified);
+  const nextText = applyAcceptedChanges(sourceText, acceptedOrModified, {
+    revisionSessionId,
+    evaluationRunId: session.evaluation_run_id,
+    manuscriptId: sourceVersion.manuscript_id,
+    manuscriptVersionId: sourceVersion.id,
+  });
 
   const resultVersion = await createDerivedVersion({
     manuscript_id: sourceVersion.manuscript_id,

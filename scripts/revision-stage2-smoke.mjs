@@ -21,6 +21,14 @@ import { loadLocalEnv } from "./load-env.mjs";
 
 loadLocalEnv();
 
+const smokeContext = {
+  supabase: null,
+  evaluationRunId: null,
+  revisionSessionId: null,
+  manuscriptId: null,
+  manuscriptVersionId: null,
+};
+
 function env(name) {
   const value = process.env[name];
   if (!value) {
@@ -58,6 +66,35 @@ function isUuid(value) {
     typeof value === "string" &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
   );
+}
+
+async function logRevisionEvent(supabase, payload) {
+  try {
+    const { error } = await supabase.from("revision_events").insert({
+      revision_session_id: payload.revision_session_id ?? null,
+      proposal_id: payload.proposal_id ?? null,
+      manuscript_id: payload.manuscript_id ?? null,
+      manuscript_version_id: payload.manuscript_version_id ?? null,
+      evaluation_run_id: payload.evaluation_run_id ?? null,
+      event_type: payload.event_type,
+      severity: payload.severity ?? "info",
+      event_code: payload.event_code,
+      message: payload.message ?? null,
+      metadata: payload.metadata ?? {},
+    });
+
+    if (error) {
+      console.error("Failed to log revision event", {
+        event_code: payload.event_code,
+        error: error.message,
+      });
+    }
+  } catch (error) {
+    console.error("Failed to log revision event", {
+      event_code: payload.event_code,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 async function getLatestRevisionSessionForEvaluationRun(supabase, evaluationRunId) {
@@ -161,6 +198,18 @@ async function resolveEvaluationRunId(supabase) {
   if (explicit) {
     const latestSession = await getLatestRevisionSessionForEvaluationRun(supabase, explicit);
     if (latestSession?.status === "applied") {
+      await logRevisionEvent(supabase, {
+        evaluation_run_id: explicit,
+        revision_session_id: latestSession.id,
+        event_type: "smoke",
+        severity: "warn",
+        event_code: "SMOKE_STALE_RUN_REJECTED",
+        metadata: {
+          latest_session_id: latestSession.id,
+          latest_session_status: latestSession.status,
+        },
+      });
+
       throw new Error(
         `EVALUATION_RUN_ID=${explicit} already has an applied revision session (${latestSession.id}). ` +
           `Choose a different evaluation run or clear stale session/proposal rows before rerunning smoke.`,
@@ -188,6 +237,12 @@ async function resolveEvaluationRunId(supabase) {
   for (const candidate of candidates) {
     const latestSession = await getLatestRevisionSessionForEvaluationRun(supabase, candidate.id);
     if (!latestSession) {
+      await logRevisionEvent(supabase, {
+        evaluation_run_id: candidate.id,
+        event_type: "smoke",
+        event_code: "SMOKE_FRESH_RUN_SELECTED",
+      });
+
       console.log(`[revision-stage2-smoke] Auto-selected EVALUATION_RUN_ID=${candidate.id}`);
       return candidate.id;
     }
@@ -222,8 +277,10 @@ async function main() {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
+  smokeContext.supabase = supabase;
 
   const EVALUATION_RUN_ID = await resolveEvaluationRunId(supabase);
+  smokeContext.evaluationRunId = EVALUATION_RUN_ID;
 
   console.log(`revision-stage2-smoke: evaluation_run_id=${EVALUATION_RUN_ID}`);
   console.log(`revision-stage2-smoke: base=${BASE}`);
@@ -245,6 +302,7 @@ async function main() {
 
   const start = await startRes.json();
   const revisionSession = start?.revision_session;
+  smokeContext.revisionSessionId = revisionSession?.id ?? null;
   ensure(revisionSession?.id, `Invalid start response: missing revision_session.id -> ${JSON.stringify(start)}`);
   ensure(
     revisionSession?.source_version_id,
@@ -256,6 +314,7 @@ async function main() {
   );
 
   const sourceVersionId = revisionSession.source_version_id;
+  smokeContext.manuscriptVersionId = sourceVersionId;
   ensure(
     isUuid(sourceVersionId),
     `Invalid source version UUID from start response: ${sourceVersionId}`,
@@ -280,6 +339,7 @@ async function main() {
     evalJob.manuscript_version_id === sourceVersionId,
     `Source binding mismatch: evaluation_jobs.manuscript_version_id=${evalJob.manuscript_version_id} expected=${sourceVersionId}`,
   );
+  smokeContext.manuscriptId = evalJob.manuscript_id;
 
   // Validate session persisted as expected.
   const { data: persistedSession, error: persistedSessionErr } = await supabase
@@ -473,8 +533,27 @@ async function main() {
   }
 
   if (sourceBefore.raw_text !== sourceAfter.raw_text) {
+    await logRevisionEvent(supabase, {
+      revision_session_id: revisionSession.id,
+      manuscript_id: sourceBefore.manuscript_id,
+      manuscript_version_id: sourceVersionId,
+      evaluation_run_id: EVALUATION_RUN_ID,
+      event_type: "immutability",
+      severity: "critical",
+      event_code: "SOURCE_IMMUTABILITY_VIOLATION",
+    });
+
     throw new Error("Immutability violation: source version text changed after finalize.");
   }
+
+  await logRevisionEvent(supabase, {
+    revision_session_id: revisionSession.id,
+    manuscript_id: sourceBefore.manuscript_id,
+    manuscript_version_id: sourceVersionId,
+    evaluation_run_id: EVALUATION_RUN_ID,
+    event_type: "immutability",
+    event_code: "SOURCE_IMMUTABLE_CONFIRMED",
+  });
 
   if (
     selectedWithEffectiveTextMutation.length > 0 &&
@@ -487,6 +566,20 @@ async function main() {
   }
 
   console.log("✅ Stage 2 smoke passed");
+  await logRevisionEvent(supabase, {
+    revision_session_id: revisionSession.id,
+    manuscript_id: sourceBefore.manuscript_id,
+    manuscript_version_id: sourceVersionId,
+    evaluation_run_id: EVALUATION_RUN_ID,
+    event_type: "smoke",
+    event_code: "SMOKE_RUN_PASSED",
+    metadata: {
+      accepted_proposals: selectedIds.length,
+      accepted_effective_mutations: selectedWithEffectiveTextMutation.length,
+      result_version_id: resultVersionId,
+    },
+  });
+
   console.log(
     JSON.stringify(
       {
@@ -510,7 +603,20 @@ async function main() {
   );
 }
 
-main().catch((e) => {
+main().catch(async (e) => {
+  if (smokeContext.supabase && smokeContext.evaluationRunId) {
+    await logRevisionEvent(smokeContext.supabase, {
+      revision_session_id: smokeContext.revisionSessionId,
+      manuscript_id: smokeContext.manuscriptId,
+      manuscript_version_id: smokeContext.manuscriptVersionId,
+      evaluation_run_id: smokeContext.evaluationRunId,
+      event_type: "smoke",
+      severity: "error",
+      event_code: "SMOKE_RUN_FAILED",
+      message: e instanceof Error ? e.message : String(e),
+    });
+  }
+
   console.error(e?.stack || String(e));
   process.exit(1);
 });

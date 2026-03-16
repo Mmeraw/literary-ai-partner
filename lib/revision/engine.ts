@@ -1,5 +1,6 @@
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { applyRevisionSession } from "./apply";
+import { logRevisionEvent } from "./logRevisionEvent";
 import { createDiagnosticFindingsForEvaluationRun } from "./normalizeFindings";
 import {
   createProposalsForSessionFromFindings,
@@ -120,6 +121,21 @@ export async function startRevisionEngine(
     source_version_id: sourceVersionId,
   });
 
+  const sourceVersion = await supabase
+    .from("manuscript_versions")
+    .select("id, manuscript_id")
+    .eq("id", sourceVersionId)
+    .maybeSingle();
+
+  void logRevisionEvent({
+    revision_session_id: revisionSession.id,
+    manuscript_id: sourceVersion.data?.manuscript_id ?? null,
+    manuscript_version_id: sourceVersionId,
+    evaluation_run_id: input.evaluation_run_id,
+    event_type: "session",
+    event_code: "REVISION_SESSION_CREATED",
+  });
+
   await createDiagnosticFindingsForEvaluationRun(
     input.evaluation_run_id,
     sourceVersionId,
@@ -143,17 +159,53 @@ export async function startRevisionEngine(
 export async function finalizeRevisionEngine(
   revisionSessionId: string,
 ): Promise<FinalizeRevisionEngineResult> {
-  const applyResult = await applyRevisionSession(revisionSessionId);
+  const sessionBeforeFinalize = await getRevisionSessionById(revisionSessionId);
 
-  const revisionSession = await getRevisionSessionById(revisionSessionId);
-  if (!revisionSession) {
-    throw new Error(
-      `finalizeRevisionEngine failed: revision session not found after apply: ${revisionSessionId}`,
-    );
+  try {
+    const applyResult = await applyRevisionSession(revisionSessionId);
+
+    const revisionSession = await getRevisionSessionById(revisionSessionId);
+    if (!revisionSession) {
+      throw new Error(
+        `finalizeRevisionEngine failed: revision session not found after apply: ${revisionSessionId}`,
+      );
+    }
+
+    const sourceVersion = await supabase
+      .from("manuscript_versions")
+      .select("id, manuscript_id")
+      .eq("id", revisionSession.source_version_id)
+      .maybeSingle();
+
+    void logRevisionEvent({
+      revision_session_id: revisionSessionId,
+      manuscript_id: sourceVersion.data?.manuscript_id ?? null,
+      manuscript_version_id: revisionSession.source_version_id,
+      evaluation_run_id: revisionSession.evaluation_run_id,
+      event_type: "finalize",
+      event_code: "REVISION_SESSION_FINALIZED",
+      metadata: {
+        result_version_id: applyResult.result_version_id,
+        accepted_count: applyResult.accepted_count,
+        modified_count: applyResult.modified_count,
+      },
+    });
+
+    return {
+      revision_session: revisionSession,
+      apply_result: applyResult,
+    };
+  } catch (error) {
+    void logRevisionEvent({
+      revision_session_id: revisionSessionId,
+      manuscript_version_id: sessionBeforeFinalize?.source_version_id ?? null,
+      evaluation_run_id: sessionBeforeFinalize?.evaluation_run_id ?? null,
+      event_type: "finalize",
+      severity: "error",
+      event_code: "REVISION_SESSION_FINALIZE_FAILED",
+      message: error instanceof Error ? error.message : String(error),
+    });
+
+    throw error;
   }
-
-  return {
-    revision_session: revisionSession,
-    apply_result: applyResult,
-  };
 }
