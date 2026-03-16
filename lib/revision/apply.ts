@@ -1,4 +1,5 @@
 import { createDerivedVersion, getVersionById } from "@/lib/manuscripts/versions";
+import { hydrateSourceVersionIfMissing } from "@/lib/manuscripts/hydrateVersions";
 import {
   getRevisionSessionById,
   listProposalsForSession,
@@ -6,13 +7,19 @@ import {
 } from "./sessions";
 import type { ApplyRevisionSessionResult, ChangeProposal } from "./types";
 
+function normalizeForStrictMatch(text: string): string {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
 function applySingleReplacementStrict(
   currentText: string,
   originalText: string,
   replacement: string,
   proposalId: string,
 ): string {
-  const needle = originalText;
+  const normalizedCurrentText = normalizeForStrictMatch(currentText);
+  const needle = normalizeForStrictMatch(originalText);
+  const normalizedReplacement = normalizeForStrictMatch(replacement);
 
   if (!needle || needle.trim().length === 0) {
     throw new Error(
@@ -21,7 +28,7 @@ function applySingleReplacementStrict(
     );
   }
 
-  const firstIdx = currentText.indexOf(needle);
+  const firstIdx = normalizedCurrentText.indexOf(needle);
   if (firstIdx < 0) {
     throw new Error(
       `Proposal ${proposalId} original_text not found in source text. ` +
@@ -29,7 +36,7 @@ function applySingleReplacementStrict(
     );
   }
 
-  const secondIdx = currentText.indexOf(needle, firstIdx + needle.length);
+  const secondIdx = normalizedCurrentText.indexOf(needle, firstIdx + needle.length);
   if (secondIdx >= 0) {
     throw new Error(
       `Proposal ${proposalId} original_text is ambiguous (multiple matches). ` +
@@ -37,7 +44,11 @@ function applySingleReplacementStrict(
     );
   }
 
-  return currentText.slice(0, firstIdx) + replacement + currentText.slice(firstIdx + needle.length);
+  return (
+    normalizedCurrentText.slice(0, firstIdx) +
+    normalizedReplacement +
+    normalizedCurrentText.slice(firstIdx + needle.length)
+  );
 }
 
 function applyAcceptedChanges(sourceText: string, proposals: ChangeProposal[]): string {
@@ -86,6 +97,20 @@ export async function applyRevisionSession(
     throw new Error(`Source version not found: ${session.source_version_id}`);
   }
 
+  let sourceText = sourceVersion.raw_text;
+  if (typeof sourceText !== "string" || sourceText.trim().length === 0) {
+    const hydrated = await hydrateSourceVersionIfMissing(sourceVersion.id, {
+      persist: false,
+    });
+    sourceText = hydrated.raw_text ?? "";
+
+    if (sourceText.trim().length === 0) {
+      throw new Error(
+        `Source version ${sourceVersion.id} has empty raw_text and could not be hydrated from manuscript source.`,
+      );
+    }
+  }
+
   const proposals = await listProposalsForSession(revisionSessionId);
 
   const acceptedOrModified = proposals.filter(
@@ -96,7 +121,7 @@ export async function applyRevisionSession(
     throw new Error("No accepted or modified proposals to apply.");
   }
 
-  const nextText = applyAcceptedChanges(sourceVersion.raw_text, acceptedOrModified);
+  const nextText = applyAcceptedChanges(sourceText, acceptedOrModified);
 
   const resultVersion = await createDerivedVersion({
     manuscript_id: sourceVersion.manuscript_id,

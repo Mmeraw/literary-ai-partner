@@ -60,6 +60,24 @@ function isUuid(value) {
   );
 }
 
+async function getLatestRevisionSessionForEvaluationRun(supabase, evaluationRunId) {
+  const { data, error } = await supabase
+    .from("revision_sessions")
+    .select("id, status, created_at")
+    .eq("evaluation_run_id", evaluationRunId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Failed to inspect revision_sessions for evaluation_run_id=${evaluationRunId}: ${error.message}`,
+    );
+  }
+
+  return data ?? null;
+}
+
 async function runSchemaPreflight(supabase, evaluationRunId) {
   const issues = [];
 
@@ -140,7 +158,16 @@ async function runSchemaPreflight(supabase, evaluationRunId) {
 
 async function resolveEvaluationRunId(supabase) {
   const explicit = process.env.EVALUATION_RUN_ID?.trim();
-  if (explicit) return explicit;
+  if (explicit) {
+    const latestSession = await getLatestRevisionSessionForEvaluationRun(supabase, explicit);
+    if (latestSession?.status === "applied") {
+      throw new Error(
+        `EVALUATION_RUN_ID=${explicit} already has an applied revision session (${latestSession.id}). ` +
+          `Choose a different evaluation run or clear stale session/proposal rows before rerunning smoke.`,
+      );
+    }
+    return explicit;
+  }
 
   const { data, error } = await supabase
     .from("evaluation_jobs")
@@ -148,8 +175,7 @@ async function resolveEvaluationRunId(supabase) {
     .eq("status", "complete")
     .not("manuscript_version_id", "is", null)
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(25);
 
   if (error) {
     throw new Error(
@@ -158,15 +184,30 @@ async function resolveEvaluationRunId(supabase) {
     );
   }
 
-  if (!data?.id) {
+  const candidates = data ?? [];
+  for (const candidate of candidates) {
+    const latestSession = await getLatestRevisionSessionForEvaluationRun(supabase, candidate.id);
+    if (!latestSession) {
+      console.log(`[revision-stage2-smoke] Auto-selected EVALUATION_RUN_ID=${candidate.id}`);
+      return candidate.id;
+    }
+  }
+
+  if (candidates.length > 0) {
+    throw new Error(
+      "Missing env EVALUATION_RUN_ID and auto-discovery found only runs with existing revision sessions. " +
+        "Provide EVALUATION_RUN_ID for a fresh run or clear stale revision session data.",
+    );
+  }
+
+  if (!candidates.length) {
     throw new Error(
       "Missing env EVALUATION_RUN_ID and auto-discovery found no completed " +
         "evaluation_jobs with manuscript_version_id.",
     );
   }
 
-  console.log(`[revision-stage2-smoke] Auto-selected EVALUATION_RUN_ID=${data.id}`);
-  return data.id;
+  throw new Error("Unable to resolve EVALUATION_RUN_ID for smoke run.");
 }
 
 async function main() {
