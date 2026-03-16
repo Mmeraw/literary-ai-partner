@@ -131,10 +131,15 @@ async function resolveBoundSourceText(sourceVersionId: string): Promise<string> 
     );
   }
 
-  const manuscript = Array.isArray((data ?? {}).manuscripts)
-    ? data.manuscripts[0]
-    : data?.manuscripts;
-  const fileUrl = manuscript?.file_url;
+  const manuscriptJoin = data?.manuscripts as
+    | { file_url?: unknown }
+    | Array<{ file_url?: unknown }>
+    | null
+    | undefined;
+  const manuscript = Array.isArray(manuscriptJoin)
+    ? manuscriptJoin[0]
+    : manuscriptJoin;
+  const fileUrl = typeof manuscript?.file_url === "string" ? manuscript.file_url : "";
 
   if (!fileUrl || typeof fileUrl !== "string") {
     return "";
