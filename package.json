@@ -33,6 +33,8 @@
     "jobs:test:metrics": "node scripts/jobs-test-metrics.mjs",
     "jobs:retry-tick": "node scripts/jobs-retry-tick.mjs",
     "jobs:load": "node scripts/jobs-load.mjs",
+    "revision:hydrate:stage2": "node scripts/revision-stage2-hydrate.mjs",
+    "revision:smoke:stage2": "node scripts/revision-stage2-smoke.mjs",
     "evidence:phase2c": "bash scripts/evidence-phase2c.sh",
     "evidence:phase2d": "bash scripts/evidence-phase2d.sh",
     "evidence:flow1": "bash scripts/evidence-flow1.sh"
