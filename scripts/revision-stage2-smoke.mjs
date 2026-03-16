@@ -368,7 +368,7 @@ async function main() {
   // Proposal checks (count, session association, pre-decision validity).
   const { data: persistedProposals, error: persistedProposalsErr } = await supabase
     .from("change_proposals")
-    .select("id, revision_session_id, decision, original_text, proposed_text")
+    .select("id, revision_session_id, decision, original_text, proposed_text, anchor_start, anchor_end")
     .eq("revision_session_id", revisionSession.id);
 
   if (persistedProposalsErr) {
@@ -444,7 +444,15 @@ async function main() {
     );
   }
 
-  const selected = viable.slice(0, Math.max(1, maxAccept));
+  const anchoredViable = viable.filter(
+    (p) =>
+      Number.isInteger(p.anchor_start) &&
+      Number.isInteger(p.anchor_end) &&
+      p.anchor_end > p.anchor_start,
+  );
+
+  const selectedPool = anchoredViable.length > 0 ? anchoredViable : viable;
+  const selected = selectedPool.slice(0, Math.max(1, maxAccept));
   const selectedIds = selected.map((p) => p.id);
   const selectedWithEffectiveTextMutation = selected.filter(
     (p) => p.original_text.trim() !== p.proposed_text.trim(),

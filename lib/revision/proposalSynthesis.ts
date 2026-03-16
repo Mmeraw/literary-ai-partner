@@ -1,5 +1,6 @@
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { getVersionById } from "@/lib/manuscripts/versions";
+import { hydrateSourceVersionIfMissing } from "@/lib/manuscripts/hydrateVersions";
 import { bulkCreateChangeProposals } from "./proposals";
 import { getRevisionSessionById, listProposalsForSession } from "./sessions";
 import type {
@@ -36,6 +37,69 @@ const supabase = new Proxy({} as NonNullable<ReturnType<typeof getSupabaseAdminC
 
 function normalizeForAnchorSearch(text: string): string {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function decodeDataUrl(fileUrl: string): string | null {
+  const base64Match = fileUrl.match(/^data:[^,]*;base64,(.*)$/);
+  if (base64Match) {
+    return Buffer.from(base64Match[1], "base64").toString("utf8");
+  }
+
+  const encodedMatch = fileUrl.match(/^data:[^,]*,(.*)$/);
+  if (encodedMatch) {
+    return decodeURIComponent(encodedMatch[1]);
+  }
+
+  return null;
+}
+
+async function resolveBoundSourceText(sourceVersionId: string): Promise<string> {
+  const sourceVersion = await getVersionById(sourceVersionId);
+  let sourceText = typeof sourceVersion?.raw_text === "string" ? sourceVersion.raw_text : "";
+
+  if (sourceText.trim().length > 0) {
+    return normalizeForAnchorSearch(sourceText);
+  }
+
+  const hydrated = await hydrateSourceVersionIfMissing(sourceVersionId, {
+    persist: false,
+  });
+  sourceText = hydrated.raw_text ?? "";
+  if (sourceText.trim().length > 0) {
+    return normalizeForAnchorSearch(sourceText);
+  }
+
+  const { data, error } = await supabase
+    .from("manuscript_versions")
+    .select("id, manuscripts(file_url)")
+    .eq("id", sourceVersionId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Failed to resolve manuscript file_url for source version ${sourceVersionId}: ${error.message}`,
+    );
+  }
+
+  const manuscript = Array.isArray((data ?? {}).manuscripts)
+    ? data.manuscripts[0]
+    : data?.manuscripts;
+  const fileUrl = manuscript?.file_url;
+
+  if (!fileUrl || typeof fileUrl !== "string") {
+    return "";
+  }
+
+  if (fileUrl.startsWith("data:")) {
+    return normalizeForAnchorSearch(decodeDataUrl(fileUrl) ?? "");
+  }
+
+  const res = await fetch(fileUrl);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch source text from file_url (status=${res.status})`);
+  }
+
+  return normalizeForAnchorSearch(await res.text());
 }
 
 function buildAnchorForSnippet(
@@ -105,13 +169,17 @@ function toProposalInputs(
     .map((f, idx) => {
       const originalText = f.original_text ?? f.evidence_excerpt ?? "";
       const anchor = buildAnchorForSnippet(sourceText, originalText);
+      const anchoredOriginalText =
+        anchor.anchor_start != null && anchor.anchor_end != null
+          ? sourceText.slice(anchor.anchor_start, anchor.anchor_end)
+          : originalText;
 
       return {
         revision_session_id: revisionSessionId,
         location_ref: f.location_ref ?? `finding:${idx + 1}`,
         rule: f.criterion_key ?? f.finding_type ?? "diagnostic_finding",
         action: (f.action_hint === "replace" ? "replace" : "refine") as ProposalAction,
-        original_text: originalText,
+        original_text: anchoredOriginalText,
         proposed_text: f.recommendation ?? f.diagnosis ?? "",
         justification: f.diagnosis,
         severity: (f.severity ?? "medium") as ProposalSeverity,
@@ -177,8 +245,12 @@ export async function createProposalsForSessionFromFindings(
     throw new Error(`Revision session not found: ${revisionSessionId}`);
   }
 
-  const sourceVersion = await getVersionById(session.source_version_id);
-  const sourceText = typeof sourceVersion?.raw_text === "string" ? sourceVersion.raw_text : "";
+  const sourceText = await resolveBoundSourceText(session.source_version_id);
+  if (!sourceText || sourceText.trim().length === 0) {
+    throw new Error(
+      `Cannot synthesize anchored proposals: source text unavailable for source_version_id=${session.source_version_id}`,
+    );
+  }
 
   const findings = data ?? [];
   const proposalInputs = toProposalInputs(revisionSessionId, findings as any[], sourceText);
