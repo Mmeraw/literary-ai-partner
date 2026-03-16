@@ -51,28 +51,86 @@ function applySingleReplacementStrict(
   );
 }
 
-function applyAcceptedChanges(sourceText: string, proposals: ChangeProposal[]): string {
-  let result = sourceText;
+function applySingleReplacementAnchoredStrict(
+  sourceText: string,
+  proposal: ChangeProposal,
+): string {
+  const replacement =
+    proposal.decision === "modified"
+      ? (proposal.modified_text ?? proposal.proposed_text)
+      : proposal.proposed_text;
 
-  for (const proposal of proposals) {
-    if (proposal.decision !== "accepted" && proposal.decision !== "modified") {
-      continue;
-    }
+  const hasAnchor =
+    Number.isInteger(proposal.anchor_start) &&
+    Number.isInteger(proposal.anchor_end) &&
+    (proposal.anchor_start as number) >= 0 &&
+    (proposal.anchor_end as number) > (proposal.anchor_start as number);
 
-    const replacement =
-      proposal.decision === "modified"
-        ? (proposal.modified_text ?? proposal.proposed_text)
-        : proposal.proposed_text;
-
-    // First-pass behavior (hardened): exact single-match replacement only.
-    // If the anchor text is missing or ambiguous, fail closed.
-    // Later: replace with location-aware apply via offsets/anchors.
-    result = applySingleReplacementStrict(
-      result,
+  // Legacy fallback for pre-anchor proposals.
+  if (!hasAnchor) {
+    return applySingleReplacementStrict(
+      sourceText,
       proposal.original_text,
       replacement,
       proposal.id,
     );
+  }
+
+  const start = proposal.anchor_start as number;
+  const end = proposal.anchor_end as number;
+
+  if (end > sourceText.length) {
+    throw new Error(`Proposal ${proposal.id} anchor range exceeds source length.`);
+  }
+
+  const actualSlice = sourceText.slice(start, end);
+  const expectedSlice = proposal.original_text;
+
+  if (
+    normalizeForStrictMatch(actualSlice) !==
+    normalizeForStrictMatch(expectedSlice)
+  ) {
+    throw new Error(
+      `Proposal ${proposal.id} anchored slice does not match original_text.`,
+    );
+  }
+
+  if (proposal.anchor_context) {
+    const contextLeft = Math.max(0, start - 80);
+    const contextRight = Math.min(sourceText.length, end + 80);
+    const actualContext = sourceText.slice(contextLeft, contextRight);
+
+    if (
+      !normalizeForStrictMatch(actualContext).includes(
+        normalizeForStrictMatch(proposal.anchor_context),
+      )
+    ) {
+      throw new Error(
+        `Proposal ${proposal.id} anchor_context verification failed.`,
+      );
+    }
+  }
+
+  return sourceText.slice(0, start) + replacement + sourceText.slice(end);
+}
+
+function applyAcceptedChanges(sourceText: string, proposals: ChangeProposal[]): string {
+  const ordered = [...proposals].sort((a, b) => {
+    const aStart = a.anchor_start ?? -1;
+    const bStart = b.anchor_start ?? -1;
+    return bStart - aStart;
+  });
+
+  let result = sourceText;
+
+  for (const proposal of ordered) {
+    if (proposal.decision !== "accepted" && proposal.decision !== "modified") {
+      continue;
+    }
+
+    // Hardened behavior: prefer strict anchored replacement when offsets exist,
+    // otherwise fall back to strict single-match text replacement. Fail closed.
+    result = applySingleReplacementAnchoredStrict(result, proposal);
   }
 
   return result;
