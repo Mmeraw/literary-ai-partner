@@ -32,10 +32,13 @@
   "include": [
     "next-env.d.ts",
     ".next/types/**/*.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    "**/*.js",
-    "**/*.jsx"
+    "app/**/*",
+    "pages/**/*",
+    "components/**/*",
+    "lib/**/*",
+    "scripts/**/*",
+    "middleware.ts",
+    "next.config.*"
   ],
   "exclude": [
     "node_modules",

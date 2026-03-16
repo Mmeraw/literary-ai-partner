@@ -1,5 +1,7 @@
 {
   "typescript.tsserver.maxTsServerMemory": 2048,
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
+  "typescript.suggest.autoImports": false,
   "javascript.suggest.autoImports": false,
-  "typescript.suggest.autoImports": false
+  "typescript.preferences.includePackageJsonAutoImports": "off"
 }
