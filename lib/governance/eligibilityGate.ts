@@ -95,7 +95,7 @@ function checkStructuralReadiness(envelope: EvaluationEnvelope) {
     .map((c) => ({
       key: c.key,
       score: c.score,
-      weight: CRITERION_WEIGHT_MAP.get(c.key) || 0,
+      weight: CRITERION_WEIGHT_MAP[c.key] || 0,
     }));
 
   if (structuralScores.length === 0) {

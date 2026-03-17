@@ -243,9 +243,23 @@ export async function finalizeRevisionEngine(
   revisionSessionId: string,
 ): Promise<FinalizeRevisionEngineResult> {
   const sessionBeforeFinalize = await getRevisionSessionById(revisionSessionId);
-  const readySession = sessionBeforeFinalize
-    ? await ensureRevisionSessionReadyForFinalize(sessionBeforeFinalize)
-    : null;
+  
+  if (!sessionBeforeFinalize) {
+    throw new Error(
+      `finalizeRevisionEngine failed: revision session not found: ${revisionSessionId}`,
+    );
+  }
+
+  // MANDATORY: Check governance eligibility before finalizing refinement
+  // This gates access from the finalize API endpoint, preventing bypass
+  await checkRefinementEligibilityByEvaluationRun(
+    supabase,
+    sessionBeforeFinalize.evaluation_run_id,
+  );
+
+  const readySession = await ensureRevisionSessionReadyForFinalize(
+    sessionBeforeFinalize,
+  );
 
   try {
     const applyResult = await applyRevisionSession(revisionSessionId);

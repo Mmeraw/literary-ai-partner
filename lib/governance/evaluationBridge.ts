@@ -3,10 +3,14 @@
  *
  * Maps existing evaluation schema to governance envelope format,
  * and wires governance enforcement into the evaluation persistence path.
+ *
+ * The bridge is responsible for:
+ * 1. Translating EvaluationResultV1 criterion keys to canonical governance keys
+ * 2. Converting 0-10 scores to 1-10 integer band
+ * 3. Rejecting unknown criterion keys (fail-closed)
  */
 
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
-import type { CriterionKey } from "@/schemas/criteria-keys";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   beforePersistEvaluationArtifacts,
@@ -18,27 +22,95 @@ import {
 } from "./eligibilityGate";
 import { GovernanceError } from "./errors";
 import type { EvaluationEnvelope, CriterionScore } from "./types";
+import type { CriterionKey } from "./canonicalCriteria";
 
 /**
- * Map EvaluationResultV1 criteria (score_0_10) to GovernanceEnvelope criteria (score 1-10).
+ * Explicit mapping from EvaluationResultV1 criterion keys to canonical governance keys.
  *
- * The existing system uses 0-10 scores; governance layer uses 1-10 integer scores.
- * Conversion: score_0_10 → floor(score_0_10) + 1 to shift to [1..11], clamped to [1..10]
+ * This is the bridge point where the existing evaluation schema is translated
+ * to the governance layer's canonical keys. No "as any" casts allowed here.
  *
- * Alternatively: use score_0_10 as-is if it's already in the right range.
- * For safety, we treat 0 as invalid and clamp to [1..10].
+ * Source system keys (lowercase) → Governance canonical keys (UPPERCASE)
+ *
+ * EvaluationResultV1 uses lowercase camelCase keys like:
+ * - concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme,
+ *   worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability
+ *
+ * Governance canonical keys are UPPERCASE like:
+ * - CONCEPT, MOMENTUM, CHARACTER, POVVOICE, SCENE, DIALOGUE, THEME, WORLD,
+ *   PACING, PROSE, TONE, CLOSURE, MARKET
+ */
+const EVALUATION_TO_GOVERNANCE_KEY_MAP: Record<string, CriterionKey> = {
+  // EvaluationResultV1 key → Governance canonical key (with type safety)
+  concept: "CONCEPT" as CriterionKey,
+  narrativeDrive: "MOMENTUM" as CriterionKey,
+  character: "CHARACTER" as CriterionKey,
+  voice: "POVVOICE" as CriterionKey,
+  sceneConstruction: "SCENE" as CriterionKey,
+  dialogue: "DIALOGUE" as CriterionKey,
+  theme: "THEME" as CriterionKey,
+  worldbuilding: "WORLD" as CriterionKey,
+  pacing: "PACING" as CriterionKey,
+  proseControl: "PROSE" as CriterionKey,
+  tone: "TONE" as CriterionKey,
+  narrativeClosure: "CLOSURE" as CriterionKey,
+  marketability: "MARKET" as CriterionKey,
+};
+
+/**
+ * Translate a criterion key from EvaluationResultV1 to canonical governance key.
+ *
+ * Throws GovernanceError if the key is unknown (fail-closed).
+ *
+ * @throws GovernanceError with code CRITERIA_SCHEMA_VIOLATION if key not recognized
+ */
+function translateCriterionKey(incomingKey: unknown): CriterionKey {
+  if (typeof incomingKey !== "string") {
+    throw new GovernanceError(
+      `Criterion key must be a string, got ${typeof incomingKey}`,
+      "CRITERIA_SCHEMA_VIOLATION",
+      { receivedKey: incomingKey, receivedType: typeof incomingKey }
+    );
+  }
+
+  const canonicalKey = EVALUATION_TO_GOVERNANCE_KEY_MAP[incomingKey];
+  if (!canonicalKey) {
+    throw new GovernanceError(
+      `Unknown criterion key from evaluation: "${incomingKey}". No mapping to governance canonical key.`,
+      "CRITERIA_SCHEMA_VIOLATION",
+      {
+        unknownKey: incomingKey,
+        knownKeys: Object.keys(EVALUATION_TO_GOVERNANCE_KEY_MAP),
+      }
+    );
+  }
+
+  return canonicalKey;
+}
+
+/**
+ * Map EvaluationResultV1 criteria to GovernanceEnvelope criteria.
+ *
+ * Translations:
+ * - Criterion keys: EvaluationResultV1 keys → canonical governance keys (via explicit map, throws on unknown)
+ * - Scores: 0-10 band → 1-10 band (0 becomes 1, 10 stays 10)
+ *
+ * @throws GovernanceError if any criterion key is unknown
  */
 export function mapEvaluationResultToGovernanceEnvelope(
   evaluation: EvaluationResultV1
 ): EvaluationEnvelope {
   const criteria = evaluation.criteria.map(
     (criterion): CriterionScore => {
-      // Map the existing score (0-10) to governance range (1-10)
-      // Treat 0 as 1 (minimum), 10 stays 10
+      // Translate criterion key, throws on unknown (fail-closed)
+      const canonicalKey = translateCriterionKey(criterion.key);
+
+      // Convert score from 0-10 band to 1-10 band
+      // 0 → 1 (minimum), 10 → 10 (maximum)
       const score = Math.max(1, Math.min(10, Math.round(criterion.score_0_10)));
 
       return {
-        key: criterion.key as any, // Key mapping happens via type compatibility
+        key: canonicalKey,
         score,
         reasoning: criterion.rationale,
       };
