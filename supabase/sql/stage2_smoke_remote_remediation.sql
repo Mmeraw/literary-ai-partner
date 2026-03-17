@@ -98,10 +98,17 @@ CREATE TABLE IF NOT EXISTS public.revision_sessions (
   evaluation_run_id uuid NOT NULL REFERENCES public.evaluation_jobs(id) ON DELETE CASCADE,
   source_version_id uuid NOT NULL REFERENCES public.manuscript_versions(id) ON DELETE CASCADE,
   result_version_id uuid REFERENCES public.manuscript_versions(id) ON DELETE SET NULL,
-  status text NOT NULL CHECK (status IN ('open', 'applied', 'discarded')),
+  status text NOT NULL CHECK (status IN ('open', 'findings_ready', 'synthesis_started', 'proposals_ready', 'applied', 'failed')),
   summary jsonb NOT NULL DEFAULT '{}'::jsonb,
+  findings_count integer NOT NULL DEFAULT 0,
+  actionable_findings_count integer NOT NULL DEFAULT 0,
+  proposal_ready_actionable_findings_count integer NOT NULL DEFAULT 0,
+  proposals_created_count integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now(),
-  completed_at timestamptz
+  completed_at timestamptz,
+  last_transition_at timestamptz,
+  failure_code text,
+  failure_message text
 );
 
 CREATE INDEX IF NOT EXISTS idx_revision_sessions_evaluation_run_id

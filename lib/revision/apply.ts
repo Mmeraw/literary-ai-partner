@@ -1,11 +1,8 @@
 import { createDerivedVersion, getVersionById } from "@/lib/manuscripts/versions";
 import { hydrateSourceVersionIfMissing } from "@/lib/manuscripts/hydrateVersions";
 import { logRevisionEvent } from "./logRevisionEvent";
-import {
-  getRevisionSessionById,
-  listProposalsForSession,
-  markRevisionSessionApplied,
-} from "./sessions";
+import { transitionRevisionSessionState } from "./sessionTransitions";
+import { getRevisionSessionById, listProposalsForSession } from "./sessions";
 import type { ApplyRevisionSessionResult, ChangeProposal } from "./types";
 
 type ApplyTelemetryContext = {
@@ -269,9 +266,9 @@ export async function applyRevisionSession(
     throw new Error(`Revision session not found: ${revisionSessionId}`);
   }
 
-  if (session.status !== "open") {
+  if (session.status !== "proposals_ready") {
     throw new Error(
-      `Revision session ${revisionSessionId} is not open; current status: ${session.status}`,
+      `Revision session ${revisionSessionId} is not ready to apply; current status: ${session.status}`,
     );
   }
 
@@ -321,11 +318,16 @@ export async function applyRevisionSession(
   const acceptedCount = proposals.filter((p) => p.decision === "accepted").length;
   const modifiedCount = proposals.filter((p) => p.decision === "modified").length;
 
-  await markRevisionSessionApplied(revisionSessionId, resultVersion.id, {
-    accepted_count: acceptedCount,
-    modified_count: modifiedCount,
-    source_version_id: sourceVersion.id,
+  await transitionRevisionSessionState(revisionSessionId, {
+    nextStatus: "applied",
     result_version_id: resultVersion.id,
+    proposals_created_count: proposals.length,
+    summary: {
+      accepted_count: acceptedCount,
+      modified_count: modifiedCount,
+      source_version_id: sourceVersion.id,
+      result_version_id: resultVersion.id,
+    },
   });
 
   return {

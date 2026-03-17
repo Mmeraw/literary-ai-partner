@@ -1,6 +1,7 @@
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { getVersionById } from "@/lib/manuscripts/versions";
 import { logRevisionEvent } from "./logRevisionEvent";
+import { transitionRevisionSessionState } from "./sessionTransitions";
 import { bulkCreateChangeProposals } from "./proposals";
 import { getRevisionSessionById, listProposalsForSession } from "./sessions";
 import type {
@@ -157,11 +158,6 @@ export async function createProposalsForSessionFromFindings(
   revisionSessionId: string,
   evaluationRunId: string,
 ): Promise<ChangeProposal[]> {
-  const existing = await listProposalsForSession(revisionSessionId);
-  if (existing.length > 0) {
-    return existing;
-  }
-
   const { data, error } = await supabase
     .from("diagnostic_findings")
     .select("*")
@@ -183,6 +179,52 @@ export async function createProposalsForSessionFromFindings(
 
   const findings = data ?? [];
   const actionableFindings = findings.filter((f: any) => f.action_hint !== "preserve");
+  const proposalReadyActionableFindings = actionableFindings.filter(
+    (f: any) => typeof f?.original_text === "string" && f.original_text.trim().length > 0,
+  );
+
+  let currentSession = session;
+  if (currentSession.status === "open") {
+    currentSession = await transitionRevisionSessionState(revisionSessionId, {
+      nextStatus: "findings_ready",
+      findings_count: findings.length,
+      actionable_findings_count: actionableFindings.length,
+      proposal_ready_actionable_findings_count: proposalReadyActionableFindings.length,
+    });
+  }
+
+  const existing = await listProposalsForSession(revisionSessionId);
+  if (existing.length > 0) {
+    if (currentSession.status === "findings_ready") {
+      currentSession = await transitionRevisionSessionState(revisionSessionId, {
+        nextStatus: "synthesis_started",
+        findings_count: findings.length,
+        actionable_findings_count: actionableFindings.length,
+        proposal_ready_actionable_findings_count: proposalReadyActionableFindings.length,
+      });
+    }
+
+    if (currentSession.status === "synthesis_started") {
+      await transitionRevisionSessionState(revisionSessionId, {
+        nextStatus: "proposals_ready",
+        findings_count: findings.length,
+        actionable_findings_count: actionableFindings.length,
+        proposal_ready_actionable_findings_count: proposalReadyActionableFindings.length,
+        proposals_created_count: existing.length,
+      });
+    }
+
+    return existing;
+  }
+
+  if (currentSession.status === "findings_ready") {
+    currentSession = await transitionRevisionSessionState(revisionSessionId, {
+      nextStatus: "synthesis_started",
+      findings_count: findings.length,
+      actionable_findings_count: actionableFindings.length,
+      proposal_ready_actionable_findings_count: proposalReadyActionableFindings.length,
+    });
+  }
 
   void logRevisionEvent({
     revision_session_id: revisionSessionId,
@@ -194,6 +236,7 @@ export async function createProposalsForSessionFromFindings(
     metadata: {
       findings_count: findings.length,
       actionable_findings_count: actionableFindings.length,
+      proposal_ready_actionable_findings_count: proposalReadyActionableFindings.length,
     },
   });
 
@@ -212,9 +255,18 @@ export async function createProposalsForSessionFromFindings(
     metadata: {
       findings_count: findings.length,
       actionable_findings_count: actionableFindings.length,
+      proposal_ready_actionable_findings_count: proposalReadyActionableFindings.length,
       proposals_input_count: proposalInputs.length,
       proposals_created_count: created.length,
     },
+  });
+
+  await transitionRevisionSessionState(revisionSessionId, {
+    nextStatus: "proposals_ready",
+    findings_count: findings.length,
+    actionable_findings_count: actionableFindings.length,
+    proposal_ready_actionable_findings_count: proposalReadyActionableFindings.length,
+    proposals_created_count: created.length,
   });
 
   return created;
