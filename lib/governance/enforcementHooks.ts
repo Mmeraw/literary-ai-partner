@@ -57,8 +57,8 @@ export function beforeAllowRefinement(envelope: EvaluationEnvelope): void {
   // Validate envelope has been evaluated
   if (!envelope.eligibility_gate) {
     throw new GovernanceError(
-      "REFINEMENT_BLOCKED_BY_GATE",
       "Evaluation envelope must have eligibility_gate before refinement",
+      "REFINEMENT_BLOCKED_BY_GATE",
       {
         envelopeId: envelope.id || "(no id)",
         hasGate: !!envelope.eligibility_gate,
@@ -68,8 +68,8 @@ export function beforeAllowRefinement(envelope: EvaluationEnvelope): void {
 
   if (envelope.eligibility_gate === "BLOCK") {
     throw new GovernanceError(
-      "REFINEMENT_BLOCKED_BY_GATE",
       `Refinement blocked: eligibility gate is BLOCK (readiness_state: ${envelope.readiness_state || "(unknown)"})`,
+      "REFINEMENT_BLOCKED_BY_GATE",
       {
         envelopeId: envelope.id,
         eligibilityGate: envelope.eligibility_gate,

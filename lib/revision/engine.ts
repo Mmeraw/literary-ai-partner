@@ -11,6 +11,7 @@ import {
   createRevisionSession,
   getRevisionSessionById,
 } from "./sessions";
+import { checkRefinementEligibilityByEvaluationRun } from "@/lib/governance/evaluationBridge";
 import type {
   ApplyRevisionSessionResult,
   ChangeProposal,
@@ -146,6 +147,9 @@ async function ensureRevisionSessionReadyForFinalize(
 export async function startRevisionEngine(
   input: StartRevisionEngineInput,
 ): Promise<StartRevisionEngineResult> {
+  // MANDATORY: Check governance eligibility before entering refinement path
+  await checkRefinementEligibilityByEvaluationRun(supabase, input.evaluation_run_id);
+
   const existing = await findExistingRevisionSessionForEvaluationRun(input.evaluation_run_id);
 
   // `failed` is a terminal state with no valid outbound transitions; create a fresh session.

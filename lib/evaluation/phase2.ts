@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
 import { upsertEvaluationArtifact, sha256Hex } from "./artifactPersistence";
+import { applyGovernanceEnforcement } from "@/lib/governance/evaluationBridge";
 
 export type Phase2Ok = { ok: true; artifactId: string };
 export type Phase2Err = { ok: false; error: string; details?: string };
@@ -74,13 +75,26 @@ export async function runPhase2Aggregation(
       };
     }
 
+    // Apply governance enforcement before persistence (MANDATORY)
+    // This validates criteria, computes WCS, evaluates eligibility gate, and augments result
+    let governedResult = result;
+    try {
+      governedResult = applyGovernanceEnforcement(result);
+    } catch (govErr) {
+      return {
+        ok: false,
+        error: "Governance enforcement failed",
+        details: govErr instanceof Error ? govErr.message : String(govErr),
+      };
+    }
+
     // Persist to evaluation_artifacts via canonical upsert
     const artifactId = await upsertEvaluationArtifact({
       supabase,
       jobId,
       manuscriptId,
       artifactType: "evaluation_result_v1",
-      content: result,
+      content: governedResult,
       sourceHash,
       artifactVersion: "evaluation_result_v1",
     });
