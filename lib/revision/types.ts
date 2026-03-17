@@ -1,7 +1,13 @@
 export type ProposalAction = "preserve" | "refine" | "replace";
 export type ProposalSeverity = "low" | "medium" | "high";
 export type ProposalDecision = "accepted" | "rejected" | "modified";
-export type RevisionSessionStatus = "open" | "applied" | "discarded";
+export type RevisionSessionStatus =
+  | "open"
+  | "findings_ready"
+  | "synthesis_started"
+  | "proposals_ready"
+  | "applied"
+  | "failed";
 export type FindingActionHint = ProposalAction;
 export type FindingStatus = "open" | "resolved" | "ignored";
 
@@ -12,8 +18,15 @@ export type RevisionSession = {
   result_version_id: string | null;
   status: RevisionSessionStatus;
   summary: Record<string, unknown>;
+  findings_count: number;
+  actionable_findings_count: number;
+  proposal_ready_actionable_findings_count: number;
+  proposals_created_count: number;
   created_at: string;
   completed_at: string | null;
+  last_transition_at: string | null;
+  failure_code: string | null;
+  failure_message: string | null;
 };
 
 export type ChangeProposal = {

@@ -6,10 +6,10 @@ import {
   createProposalsForSessionFromFindings,
   getFindingsSynthesisSummary,
 } from "./proposalSynthesis";
+import { transitionRevisionSessionState } from "./sessionTransitions";
 import {
   createRevisionSession,
   getRevisionSessionById,
-  listProposalsForSession,
 } from "./sessions";
 import type {
   ApplyRevisionSessionResult,
@@ -96,9 +96,51 @@ async function findExistingRevisionSessionForEvaluationRun(
     result_version_id: data.result_version_id,
     status: data.status,
     summary: data.summary ?? {},
+    findings_count: data.findings_count ?? 0,
+    actionable_findings_count: data.actionable_findings_count ?? 0,
+    proposal_ready_actionable_findings_count:
+      data.proposal_ready_actionable_findings_count ?? 0,
+    proposals_created_count: data.proposals_created_count ?? 0,
     created_at: data.created_at,
     completed_at: data.completed_at,
+    last_transition_at: data.last_transition_at ?? null,
+    failure_code: data.failure_code ?? null,
+    failure_message: data.failure_message ?? null,
   };
+}
+
+async function ensureRevisionSessionReadyForFinalize(
+  session: RevisionSession,
+): Promise<RevisionSession> {
+  let currentSession = session;
+
+  if (currentSession.status === "applied" || currentSession.status === "failed") {
+    return currentSession;
+  }
+
+  const findingsSummary = await getFindingsSynthesisSummary(currentSession.evaluation_run_id);
+
+  if (currentSession.status === "open") {
+    currentSession = await transitionRevisionSessionState(currentSession.id, {
+      nextStatus: "findings_ready",
+      findings_count: findingsSummary.findings_count,
+      actionable_findings_count: findingsSummary.actionable_findings_count,
+    });
+  }
+
+  await createProposalsForSessionFromFindings(
+    currentSession.id,
+    currentSession.evaluation_run_id,
+  );
+
+  const refreshed = await getRevisionSessionById(currentSession.id);
+  if (!refreshed) {
+    throw new Error(
+      `ensureRevisionSessionReadyForFinalize failed: revision session not found after synthesis: ${currentSession.id}`,
+    );
+  }
+
+  return refreshed;
 }
 
 export async function startRevisionEngine(
@@ -106,21 +148,35 @@ export async function startRevisionEngine(
 ): Promise<StartRevisionEngineResult> {
   const existing = await findExistingRevisionSessionForEvaluationRun(input.evaluation_run_id);
 
-  if (existing) {
-    let proposals = await listProposalsForSession(existing.id);
+  // `failed` is a terminal state with no valid outbound transitions; create a fresh session.
+  if (existing && existing.status !== "failed") {
+    await createDiagnosticFindingsForEvaluationRun(
+      input.evaluation_run_id,
+      existing.source_version_id,
+    );
 
-    // Recovery path: if a session exists but has no proposals yet, attempt synthesis again.
-    // This keeps start idempotent while healing intermittent timing gaps.
-    if (proposals.length === 0 && existing.status === "open") {
-      proposals = await createProposalsForSessionFromFindings(
-        existing.id,
-        input.evaluation_run_id,
-      );
+    const synthesisSummary = await getFindingsSynthesisSummary(input.evaluation_run_id);
+
+    if (existing.status === "open") {
+      await transitionRevisionSessionState(existing.id, {
+        nextStatus: "findings_ready",
+        findings_count: synthesisSummary.findings_count,
+        actionable_findings_count: synthesisSummary.actionable_findings_count,
+      });
     }
 
+    const proposals = await createProposalsForSessionFromFindings(
+      existing.id,
+      input.evaluation_run_id,
+    );
+
+    const refreshed = (await getRevisionSessionById(existing.id)) ?? existing;
+
     return {
-      revision_session: existing,
+      revision_session: refreshed,
       proposals,
+      findings_count: synthesisSummary.findings_count,
+      actionable_findings_count: synthesisSummary.actionable_findings_count,
     };
   }
 
@@ -153,13 +209,26 @@ export async function startRevisionEngine(
 
   const synthesisSummary = await getFindingsSynthesisSummary(input.evaluation_run_id);
 
+  await transitionRevisionSessionState(revisionSession.id, {
+    nextStatus: "findings_ready",
+    findings_count: synthesisSummary.findings_count,
+    actionable_findings_count: synthesisSummary.actionable_findings_count,
+  });
+
   const proposals = await createProposalsForSessionFromFindings(
     revisionSession.id,
     input.evaluation_run_id,
   );
 
+  const readySession = await getRevisionSessionById(revisionSession.id);
+  if (!readySession) {
+    throw new Error(
+      `startRevisionEngine failed: revision session not found after proposal synthesis: ${revisionSession.id}`,
+    );
+  }
+
   return {
-    revision_session: revisionSession,
+    revision_session: readySession,
     proposals,
     findings_count: synthesisSummary.findings_count,
     actionable_findings_count: synthesisSummary.actionable_findings_count,
@@ -170,6 +239,9 @@ export async function finalizeRevisionEngine(
   revisionSessionId: string,
 ): Promise<FinalizeRevisionEngineResult> {
   const sessionBeforeFinalize = await getRevisionSessionById(revisionSessionId);
+  const readySession = sessionBeforeFinalize
+    ? await ensureRevisionSessionReadyForFinalize(sessionBeforeFinalize)
+    : null;
 
   try {
     const applyResult = await applyRevisionSession(revisionSessionId);
@@ -206,10 +278,33 @@ export async function finalizeRevisionEngine(
       apply_result: applyResult,
     };
   } catch (error) {
+    if (readySession && readySession.status !== "applied" && readySession.status !== "failed") {
+      try {
+        await transitionRevisionSessionState(revisionSessionId, {
+          nextStatus: "failed",
+          findings_count: readySession.findings_count,
+          actionable_findings_count: readySession.actionable_findings_count,
+          proposal_ready_actionable_findings_count:
+            readySession.proposal_ready_actionable_findings_count,
+          proposals_created_count: readySession.proposals_created_count,
+          failure_code: "REVISION_FINALIZE_FAILED",
+          failure_message: error instanceof Error ? error.message : String(error),
+        });
+      } catch (transitionError) {
+        console.error("Failed to persist revision session failure state", {
+          revisionSessionId,
+          error:
+            transitionError instanceof Error
+              ? transitionError.message
+              : String(transitionError),
+        });
+      }
+    }
+
     void logRevisionEvent({
       revision_session_id: revisionSessionId,
-      manuscript_version_id: sessionBeforeFinalize?.source_version_id ?? null,
-      evaluation_run_id: sessionBeforeFinalize?.evaluation_run_id ?? null,
+      manuscript_version_id: readySession?.source_version_id ?? sessionBeforeFinalize?.source_version_id ?? null,
+      evaluation_run_id: readySession?.evaluation_run_id ?? sessionBeforeFinalize?.evaluation_run_id ?? null,
       event_type: "finalize",
       severity: "error",
       event_code: "REVISION_SESSION_FINALIZE_FAILED",

@@ -146,7 +146,9 @@ async function runSchemaPreflight(supabase, evaluationRunId) {
 
   const revisionSessionsCheck = await supabase
     .from("revision_sessions")
-    .select("id")
+    .select(
+      "id, status, findings_count, actionable_findings_count, proposal_ready_actionable_findings_count, proposals_created_count, last_transition_at, failure_code, failure_message",
+    )
     .limit(1);
 
   if (revisionSessionsCheck.error) {
@@ -213,6 +215,7 @@ async function runSchemaPreflight(supabase, evaluationRunId) {
         "\n  20260316010000_stage2_versions_revisions_rls.sql" +
         "\n  20260316020000_add_diagnostic_findings.sql" +
         "\n  20260316021000_diagnostic_findings_rls.sql" +
+        "\n  20260317020000_revision_sessions_state_machine.sql" +
         "\n- NOTIFY pgrst, 'reload schema';" +
         "\n- Restart the local app server on port 3002.",
     );
@@ -308,7 +311,7 @@ async function resolveEvaluationRunId(supabase) {
 async function loadProposalsForSession(supabase, revisionSessionId) {
   const { data, error } = await supabase
     .from("change_proposals")
-    .select("id, revision_session_id, location_ref, rule, decision, original_text, proposed_text")
+    .select("id, revision_session_id, location_ref, rule, decision, original_text, proposed_text, anchor_start, anchor_end")
     .eq("revision_session_id", revisionSessionId);
 
   if (error) {
@@ -498,7 +501,9 @@ async function main() {
   // Validate session persisted as expected.
   const { data: persistedSession, error: persistedSessionErr } = await supabase
     .from("revision_sessions")
-    .select("id, evaluation_run_id, source_version_id, status")
+    .select(
+      "id, evaluation_run_id, source_version_id, status, findings_count, actionable_findings_count, proposal_ready_actionable_findings_count, proposals_created_count, last_transition_at, failure_code, failure_message",
+    )
     .eq("id", revisionSession.id)
     .single();
 
@@ -515,8 +520,8 @@ async function main() {
     `Persisted session source_version_id mismatch: ${persistedSession.source_version_id} != ${sourceVersionId}`,
   );
   ensure(
-    persistedSession.status === "open",
-    `Expected session status=open before finalize, got ${persistedSession.status}`,
+    persistedSession.status === "proposals_ready",
+    `Expected session status=proposals_ready after start, got ${persistedSession.status}`,
   );
 
   // Proposal checks (count, session association, pre-decision validity).
@@ -611,6 +616,31 @@ async function main() {
 
   assertNoDuplicateProposalKeys(proposalsFromDb, revisionSession.id);
 
+  ensure(
+    persistedSession.findings_count === findings.length,
+    `findings_count mismatch: session=${persistedSession.findings_count} actual=${findings.length}`,
+  );
+  ensure(
+    persistedSession.actionable_findings_count === actionableFindings.length,
+    `actionable_findings_count mismatch: session=${persistedSession.actionable_findings_count} actual=${actionableFindings.length}`,
+  );
+  ensure(
+    persistedSession.proposal_ready_actionable_findings_count === proposalReadyActionableFindings.length,
+    `proposal_ready_actionable_findings_count mismatch: session=${persistedSession.proposal_ready_actionable_findings_count} actual=${proposalReadyActionableFindings.length}`,
+  );
+  ensure(
+    persistedSession.proposals_created_count === proposalsFromDb.length,
+    `proposals_created_count mismatch: session=${persistedSession.proposals_created_count} actual=${proposalsFromDb.length}`,
+  );
+  ensure(
+    typeof persistedSession.last_transition_at === "string" && persistedSession.last_transition_at.length > 0,
+    "Expected last_transition_at to be populated after start",
+  );
+  ensure(
+    persistedSession.failure_code === null && persistedSession.failure_message === null,
+    `Expected no failure metadata before finalize, got code=${persistedSession.failure_code} message=${persistedSession.failure_message}`,
+  );
+
   for (const p of proposalsFromDb) {
     ensure(
       p.revision_session_id === revisionSession.id,
@@ -634,19 +664,24 @@ async function main() {
   }
 
   // 2) Decide proposals (accept a small viable subset)
+  // Only accept proposals with a confirmed anchor (anchor_start + anchor_end set),
+  // meaning the original_text was found exactly once in source during synthesis.
+  // Proposals without a valid anchor cannot be applied via the strict text-match path.
   const maxAccept = Number(process.env.MAX_ACCEPT_PROPOSALS ?? 3);
   const viable = proposalsFromDb.filter(
     (p) =>
       typeof p?.id === "string" &&
       typeof p?.original_text === "string" &&
       p.original_text.trim().length > 0 &&
-      typeof p?.proposed_text === "string",
+      typeof p?.proposed_text === "string" &&
+      typeof p?.anchor_start === "number" &&
+      typeof p?.anchor_end === "number",
   );
 
   if (viable.length === 0) {
     throw new Error(
-      "No viable proposals to accept (need non-empty original_text and string proposed_text). " +
-        "Confirm proposal extraction maps to change_proposals.original_text/proposed_text.",
+      "No viable proposals to accept (need non-empty original_text, proposed_text, and a confirmed anchor). " +
+        "Confirm proposal extraction maps to change_proposals.original_text/proposed_text and that anchor offsets are set.",
     );
   }
 
@@ -685,7 +720,9 @@ async function main() {
 
   const { data: finalizedSession, error: finalizedSessionErr } = await supabase
     .from("revision_sessions")
-    .select("id, status, result_version_id")
+    .select(
+      "id, status, result_version_id, proposals_created_count, last_transition_at, failure_code, failure_message, completed_at",
+    )
     .eq("id", revisionSession.id)
     .single();
 
@@ -700,6 +737,22 @@ async function main() {
   ensure(
     finalizedSession.result_version_id === resultVersionId,
     `Finalized session result_version_id mismatch: ${finalizedSession.result_version_id} != ${resultVersionId}`,
+  );
+  ensure(
+    finalizedSession.proposals_created_count === proposalsFromDb.length,
+    `Finalized session proposals_created_count mismatch: ${finalizedSession.proposals_created_count} != ${proposalsFromDb.length}`,
+  );
+  ensure(
+    typeof finalizedSession.last_transition_at === "string" && finalizedSession.last_transition_at.length > 0,
+    "Expected finalized session last_transition_at to be populated",
+  );
+  ensure(
+    typeof finalizedSession.completed_at === "string" && finalizedSession.completed_at.length > 0,
+    "Expected finalized session completed_at to be populated",
+  );
+  ensure(
+    finalizedSession.failure_code === null && finalizedSession.failure_message === null,
+    `Expected finalized session to have no failure metadata, got code=${finalizedSession.failure_code} message=${finalizedSession.failure_message}`,
   );
 
   // 4) Assertions: lineage + immutability

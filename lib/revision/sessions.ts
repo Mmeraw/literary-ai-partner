@@ -35,8 +35,16 @@ function mapRevisionSession(row: any): RevisionSession {
     result_version_id: row.result_version_id,
     status: row.status,
     summary: row.summary ?? {},
+    findings_count: row.findings_count ?? 0,
+    actionable_findings_count: row.actionable_findings_count ?? 0,
+    proposal_ready_actionable_findings_count:
+      row.proposal_ready_actionable_findings_count ?? 0,
+    proposals_created_count: row.proposals_created_count ?? 0,
     created_at: row.created_at,
     completed_at: row.completed_at,
+    last_transition_at: row.last_transition_at ?? null,
+    failure_code: row.failure_code ?? null,
+    failure_message: row.failure_message ?? null,
   };
 }
 
@@ -70,6 +78,7 @@ export async function createRevisionSession(
       source_version_id: input.source_version_id,
       status: "open",
       summary: {},
+      last_transition_at: new Date().toISOString(),
     })
     .select("*")
     .single();
@@ -126,42 +135,4 @@ export async function decideProposal(
 
   if (error) throw new Error(`decideProposal failed: ${error.message}`);
   return mapChangeProposal(data);
-}
-
-export async function markRevisionSessionApplied(
-  revisionSessionId: string,
-  resultVersionId: string,
-  summary: Record<string, unknown>,
-): Promise<RevisionSession> {
-  const { data, error } = await supabase
-    .from("revision_sessions")
-    .update({
-      status: "applied",
-      result_version_id: resultVersionId,
-      summary,
-      completed_at: new Date().toISOString(),
-    })
-    .eq("id", revisionSessionId)
-    .select("*")
-    .single();
-
-  if (error) throw new Error(`markRevisionSessionApplied failed: ${error.message}`);
-  return mapRevisionSession(data);
-}
-
-export async function discardRevisionSession(
-  revisionSessionId: string,
-): Promise<RevisionSession> {
-  const { data, error } = await supabase
-    .from("revision_sessions")
-    .update({
-      status: "discarded",
-      completed_at: new Date().toISOString(),
-    })
-    .eq("id", revisionSessionId)
-    .select("*")
-    .single();
-
-  if (error) throw new Error(`discardRevisionSession failed: ${error.message}`);
-  return mapRevisionSession(data);
 }
