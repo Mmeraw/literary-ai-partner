@@ -1,8 +1,15 @@
 /**
- * Canon Doctrine Registry — single source of truth for enforceable rules.
+ * Internal Governance Mapping Layer — canon enforcement IDs for this codebase.
  *
- * Each registry entry represents an ACTIVE canon that governance logic may enforce.
- * DO NOT invent Canon IDs. All IDs must map to real canon documents.
+ * PROVENANCE NOTE:
+ * The IDs in this registry (CRIT-*, GATE-*, ENV-*, REFINEMENT-*) are the
+ * internal governance keys used by this enforcement layer to identify rules.
+ * They are NOT yet verified against an external Canon Doctrine Registry source.
+ * Until that verification occurs, this module should be treated as an internal
+ * mapping layer, not as a Registry-backed authority.
+ *
+ * When the authoritative Canon Doctrine Registry source is linked here,
+ * remove this provenance note and update the module header accordingly.
  *
  * Status values:
  * - ACTIVE: canon is in force and enforceable
