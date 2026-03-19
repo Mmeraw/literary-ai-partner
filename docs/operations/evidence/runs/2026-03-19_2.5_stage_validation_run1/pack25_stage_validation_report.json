@@ -1,0 +1,40 @@
+{
+  "metadata": {
+    "phase": "2.5",
+    "seed": 42,
+    "run_mode": "deterministic",
+    "commit_sha": "00c3d99f6a5938571578f236bf628fdd6ad96b90",
+    "run_date_utc": "2026-03-19T23:00:45.794Z"
+  },
+  "metrics": {
+    "ingest_count": 1,
+    "extracted_count": 1,
+    "validated_count": 1,
+    "applied_count": 1,
+    "success_output_matches_expected": true,
+    "bad_input_classified_code": "PARSE_ERROR",
+    "bad_input_failure_envelope_phase": "phase_2",
+    "pass": true
+  },
+  "success_case": {
+    "source_text": "Opening line.\nHero enters the room and looks around carefully.\nClosing line.",
+    "expected_output": "Opening line.\nHero steps into the room, scanning every corner.\nClosing line.",
+    "actual_output": "Opening line.\nHero steps into the room, scanning every corner.\nClosing line."
+  },
+  "failure_case": {
+    "classified_code": "PARSE_ERROR",
+    "envelope": {
+      "code": "PARSE_ERROR",
+      "message": "Input could not be parsed into a valid revision/apply structure. Detail: Malformed proposal candidate 1 (scene:bad): missing required field(s): proposed_text.",
+      "retryable": false,
+      "phase": "phase_2",
+      "context": {
+        "classifier": "revision.apply",
+        "detail": "Malformed proposal candidate 1 (scene:bad): missing required field(s): proposed_text.",
+        "stage": "phase_2_5_validation",
+        "scenario": "malformed_candidate"
+      },
+      "occurred_at": "2026-03-19T23:00:45.794Z"
+    }
+  }
+}
