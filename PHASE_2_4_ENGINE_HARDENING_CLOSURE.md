@@ -96,7 +96,7 @@ lost_writes_total           = 0
 non_canonical_status_total  = 0
 ```
 
-Pack F is no longer scaffold-only — it is executed, archived, and published.
+Pack F is complete at `abe6146` — executed, archived, and published. No longer scaffold-only or blocked.
 
 ---
 
@@ -138,7 +138,7 @@ With Phase 2.4 complete, the system has crossed from "hardening in progress" to 
 - **Failure visibility** (2.4) — every failure classified, diagnosed, and measurable
 - **Operational proof** (Packs A-F) — reliability proven at scale through 100k events
 
-The engine is no longer a prototype — it is a verified, production-grade revision engine.
+The engine is no longer a prototype — it is a verified, production-grade revision engine within the proven scope of the current hardening packs. This does not claim all future reliability concerns are solved; it claims the hardening baseline is now achieved, measured, and governance-recorded.
 
 ---
 
@@ -150,10 +150,12 @@ The engine is no longer a prototype — it is a verified, production-grade revis
 
 ## What's Next
 
-The next workstream shifts from proof-building to **operationalization and next-phase delivery**:
+The project has crossed from "hardening in progress" to "hardening baseline achieved and governance-recorded." The next frontier is no longer proving the engine can behave — it is proving the next layer of product behavior on top of that engine.
 
-1. **Broader corpus expansion** — extend golden corpus beyond current edge cases
-2. **Production observability wiring** — structured logs, health dashboards
-3. **Alert thresholds** — SLA alerting for job state anomalies
-4. **Release gating automation** — CI gates that enforce pack-level qualification
-5. **Phase 2.5+ product work** — the next numbered phases on the roadmap
+Recommended sequence:
+
+1. **Phase 2.5 — Stage Validation** — full anchor-to-apply pipeline integration proof
+2. **Phase 2.6 — A6 Report Credibility** — expose rubric, confidence, provenance on the report UI
+3. **Phase 2.7 — Evaluation Uplift** — dual-axis evaluation, quality guards, "senior editor" quality jump
+
+Operationalization work (corpus expansion, observability, alert thresholds, release gating automation) runs in parallel as the engine matures.
