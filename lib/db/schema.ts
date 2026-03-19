@@ -30,6 +30,7 @@ export type EvaluationJobRow = {
   retry_count: number | null;
   next_retry_at: string | null;
   last_error: string | null;
+  failure_envelope: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
   last_heartbeat: string | null;

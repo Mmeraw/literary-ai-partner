@@ -340,3 +340,54 @@ When executing work from this roadmap:
 - always preserve Stage 2 invariants
 - never invent criteria, weights, thresholds, or readiness states outside Volume II-A
 - always consult the Canon Doctrine Registry before adding new doctrine
+
+---
+
+## Phase 2.4 Closure Evidence (Current jobs/apply path)
+
+### Scope
+
+Structured failure classification for the current jobs/apply failure path.
+
+### Completed
+
+- 2.4.a Enumerated closed failure-code set
+- 2.4.b Persisted structured failure envelope and surfaced `failure_code`
+- 2.4.c Added concrete classification-path proof for covered apply failure modes
+
+### Key files
+
+- `lib/errors/revisionCodes.ts`
+- `lib/revision/failureClassification.ts`
+- `docs/errors/failure-codes.md`
+- `lib/jobs/jobStore.supabase.ts`
+- `app/api/jobs/[jobId]/route.ts`
+- `tests/failures/apply-failure-codes.test.ts`
+- `tests/failures/apply-failure-classification-paths.test.ts`
+- `tests/api/jobs-endpoint.test.ts`
+
+### Validation command
+
+`npm test -- tests/failures/apply-failure-classification-paths.test.ts tests/failures/apply-failure-codes.test.ts tests/api/jobs-endpoint.test.ts --runInBand`
+
+### Result
+
+- Test Suites: 3 passed, 3 total
+- Tests: 42 passed, 42 total
+
+### Covered codes
+
+- `ANCHOR_MISS`
+- `ANCHOR_AMBIGUOUS`
+- `CONTEXT_MISMATCH`
+- `OFFSET_CONFLICT`
+- `PARSE_ERROR`
+- `INVARIANT_VIOLATION`
+- `APPLY_COLLISION`
+
+### Acceptance outcome
+
+- `setJobFailed(...)` persists structured failure data
+- `getJob(...)` surfaces `failure_code`
+- jobs endpoint returns classified failure info on failed jobs
+- no generic/unclassified fallback in covered paths

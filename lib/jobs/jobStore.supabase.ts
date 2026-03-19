@@ -9,7 +9,7 @@ import {
 import { Job, JobStatus, JobType, PHASES, Phase, JOB_STATUS, JobProgress } from "./types";
 
 const JOB_SELECT_FIELDS =
-  "id, manuscript_id, job_type, status, progress, created_at, updated_at, last_heartbeat, manuscripts(user_id)";
+  "id, manuscript_id, job_type, status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id)";
 
 // Lazy-initialized Supabase client - null-safe for CI/build environments
 let _supabase: ReturnType<typeof createAdminClient> | undefined;
@@ -504,7 +504,17 @@ export async function setJobFailed(
   const shouldRetry = errorEnvelope.retryable && nextAttempt <= maxAttempts;
   
   let updatePayload: any = {
-    last_error: JSON.stringify(errorEnvelope),
+    last_error: errorEnvelope.message,
+    failure_envelope: {
+      error_code: errorEnvelope.code,
+      code: errorEnvelope.code,
+      message: errorEnvelope.message,
+      retryable: errorEnvelope.retryable,
+      phase: errorEnvelope.phase,
+      provider: errorEnvelope.provider ?? null,
+      occurred_at: errorEnvelope.occurred_at,
+      context: errorEnvelope.context ?? null,
+    },
     attempt_count: nextAttempt,
     updated_at: now,
   };
@@ -577,6 +587,32 @@ function mapDbRowToJob(row: any): Job {
     );
   }
 
+  const failureEnvelope =
+    row?.failure_envelope && typeof row.failure_envelope === "object"
+      ? row.failure_envelope
+      : null;
+
+  const parsedLastErrorCode = (() => {
+    if (typeof row?.last_error !== "string") return null;
+    try {
+      const parsed = JSON.parse(row.last_error);
+      if (parsed && typeof parsed === "object") {
+        if (typeof parsed.code === "string") return parsed.code;
+        if (typeof parsed.error_code === "string") return parsed.error_code;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const failureCode =
+    (typeof failureEnvelope?.error_code === "string" && failureEnvelope.error_code) ||
+    (typeof failureEnvelope?.code === "string" && failureEnvelope.code) ||
+    (typeof completeProgress?.error_code === "string" && completeProgress.error_code) ||
+    parsedLastErrorCode ||
+    null;
+
   return {
     id: row.id,
     user_id: ownerUserId,
@@ -587,5 +623,7 @@ function mapDbRowToJob(row: any): Job {
     created_at: row.created_at,
     updated_at: row.updated_at,
     last_heartbeat: row.last_heartbeat || null,
+    last_error: row.last_error ?? null,
+    failure_code: failureCode,
   };
 }

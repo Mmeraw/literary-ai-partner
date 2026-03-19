@@ -7,6 +7,7 @@ import {
   CRITERIA_METADATA,
   type CriterionKey,
 } from "@/schemas/criteria-keys";
+import { EvaluationPoller } from "@/components/EvaluationPoller";
 
 type Job = {
   id: string;
@@ -263,6 +264,10 @@ export default async function EvaluationReportPage({
           </p>
         ) : null}
       </div>
+
+      <section className="mt-6">
+        <EvaluationPoller jobId={jobId} redirectOnComplete />
+      </section>
 
       {!isComplete ? (
         <section className="mt-6 rounded-lg border p-5">

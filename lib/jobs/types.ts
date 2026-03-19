@@ -105,6 +105,7 @@ export type JobRecord = {
 
   // Optional/legacy helpers (do not affect canon truth)
   last_error?: string | null;
+  failure_code?: string | null;
   retry_count?: number;
 };
 

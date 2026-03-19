@@ -1,0 +1,243 @@
+Title,Body,Labels,Milestone,Assignee
+"[S0-2.1.a] Design anchor schema","**Type:** Design  
+**Where:** DB / Schema  
+**Phase:** 2.1 Anchor Metadata System  
+
+**Description:**  
+Decide representation for `start`, `end`, and `context` in `change_proposals` (int offsets vs ranges, encoding, constraints).
+
+**Notes:**  
+- Document invariants (e.g., `0 ≤ start < end ≤ text_length`)
+- Consider CRLF normalization impact on offsets
+- Define how context windows are stored (byte vs char offsets)
+
+**Acceptance Criteria:**
+- [ ] Schema design document created in `docs/schema/anchor-design.md`
+- [ ] Invariants documented with examples
+- [ ] Review by 1 team member
+- [ ] Ready for migration task (2.1.b)","Design,P0,Anchor-Metadata,Sprint-S0",,"Mike"
+"[S0-2.1.b] Add anchor fields + migrations","**Type:** DB Migration  
+**Where:** `supabase/migrations`  
+**Phase:** 2.1 Anchor Metadata System  
+
+**Description:**  
+Add anchor columns to `change_proposals` with forward + down migrations. Create and test both directions for safe rollback.
+
+**Notes:**
+- New rows must have non‑null anchors
+- Define backfill or `NULL` rules for legacy rows
+- Ensure migration runs without data loss
+- Test down migration restores state
+
+**Acceptance Criteria:**
+- [ ] Forward migration adds start_offset, end_offset, before_context, after_context
+- [ ] Down migration tested and works safely
+- [ ] No existing data corrupted
+- [ ] Constraint: new proposals must have non-null anchors","Database-Migration,P0,Anchor-Metadata,Sprint-S0",,"Mike"
+"[S0-2.1.c] Wire anchors into TS models/zod","**Type:** Backend  
+**Where:** `lib/db/`, `lib/types/`  
+**Phase:** 2.1 Anchor Metadata System  
+
+**Description:**  
+Expose anchor fields in TypeScript models and zod schemas so every proposal in code has typed anchors. Ensure domain model and DB types stay in sync.
+
+**Notes:**
+- Update ChangeProposal type to include anchors
+- Create zod schema for anchor validation
+- Ensure tRPC queries return anchor fields
+- No breaking changes to existing queries
+
+**Acceptance Criteria:**
+- [ ] ChangeProposal type updated with anchor fields
+- [ ] Zod schema validates anchor shape
+- [ ] tRPC routes return anchor fields
+- [ ] TypeScript compilation succeeds with no errors
+- [ ] Backwards-compatible with existing code","Backend,P0,Anchor-Metadata,Sprint-S0",,"Mike"
+"[S0-2.1.d] Enforce 100% valid anchors","**Type:** Validation/Tests  
+**Where:** `lib/validation/`, `tests/anchors/`  
+**Phase:** 2.1 Anchor Metadata System  
+
+**Description:**  
+Add validators that reject proposals without valid anchors and tests that confirm 100% coverage of all proposals stored in DB.
+
+**Notes:**
+- Include at least one end‑to‑end test from evaluation output → stored proposal
+- Test that invalid anchors throw on insert
+- Verify 100% of _stored_ proposals have valid anchors
+
+**Acceptance Criteria:**
+- [ ] Validator function rejects invalid anchors (missing fields, bad ranges)
+- [ ] Unit tests cover at least 5 invalid cases
+- [ ] End-to-end test: evaluation pipe → stored proposal with valid anchors
+- [ ] Query confirms 100% of proposals in DB have non-null anchors
+- [ ] All tests passing","Tests,Validation,P0,Anchor-Metadata,Sprint-S0",,"Mike"
+"[S0-2.2.a] Define extraction contract","**Type:** Design  
+**Where:** `docs/contracts/`, `schemas/`  
+**Phase:** 2.2 Proposal Extraction Contract  
+
+**Description:**  
+Specify the input (evaluation artifact) and output (proposal with anchors) shapes, plus invariants (no drift, exact match). Tie explicitly to `evaluationresultv1` fields.
+
+**Notes:**
+- Map from evaluationresultv1 fields to proposal fields
+- Define what ""zero drift"" means (byte-accurate, CRLF handling, Unicode normalization)
+- Include examples with tricky cases (dialogue, em‑dashes, tabs)
+
+**Acceptance Criteria:**
+- [ ] Contract document created in `docs/contracts/extraction-contract.md`
+- [ ] Input/output shapes specified with examples
+- [ ] Invariants documented (no drift, exact match, fallback rules)
+- [ ] 3+ tricky cases documented (dialogue, punctuation, Unicode)
+- [ ] Review by 1 team member","Design,P0,Extraction-Contract,Sprint-S0",,"Mike"
+"[S0-2.2.b] Implement extraction logic","**Type:** Backend  
+**Where:** `lib/evaluation/proposals/`  
+**Phase:** 2.2 Proposal Extraction Contract  
+
+**Description:**  
+Implement extraction that computes anchors against source text with character‑accurate matching. Treat whitespace, punctuation, and Unicode carefully; prefer pure functions.
+
+**Notes:**
+- Build `extractProposalsWithAnchors(evaluationResult, sourceText) → ChangeProposal[]`
+- Use strict matching; no fallback or fuzzy matching
+- Normalize CRLF for comparison but preserve in output
+- Log anchor computation for debugging
+
+**Acceptance Criteria:**
+- [ ] Function implemented in `lib/evaluation/proposals/extract.ts`
+- [ ] Pure function (no side effects, deterministic)
+- [ ] Throws on anchor mismatch (fail-closed)
+- [ ] Handles CRLF normalization correctly
+- [ ] Unit tests passing (see 2.2.c)","Backend,P0,Extraction-Contract,Sprint-S0",,"Mike"
+"[S0-2.2.c] Tests for 0 drift/partial captures","**Type:** Tests  
+**Where:** `tests/proposals/`  
+**Phase:** 2.2 Proposal Extraction Contract  
+
+**Description:**  
+Create golden tests where extracted spans are compared byte‑for‑byte to the manuscript. Include tricky cases (tabs, multi‑line dialogue, accents, em‑dashes).
+
+**Notes:**
+- At least 10 test cases covering: basic, CRLF, tabs, multi-line, Unicode, punctuation
+- Each test verifies source.slice(start, end) === original_text
+- Verify context windows are correct (40-char windows, normalized)
+- Assert no partial or drifted captures
+
+**Acceptance Criteria:**
+- [ ] 10+ test cases in `tests/proposals/extraction.test.ts`
+- [ ] All tests passing
+- [ ] Coverage: basic, CRLF, tabs, dialogue, Unicode, punctuation, edge cases
+- [ ] Zero drift violations (100% matchers exact)
+- [ ] Context window tests passing","Tests,P0,Extraction-Contract,Sprint-S0",,"Mike"
+"[S0-2.3.a] Design apply algorithm","**Type:** Design  
+**Where:** `docs/algorithms/apply.md`  
+**Phase:** 2.3 Location-Aware Apply  
+
+**Description:**  
+Specify primary strategy (offset + length validation + context) and failure modes. Document how failures map to failure codes for later (2.4).
+
+**Notes:**
+- Primary: validate offset range, check context on both sides, apply replacement
+- Fallback: none (fail-closed, no fuzzy search)
+- Call out explicit failure modes: anchor_miss, context_mismatch, overlap, duplicate
+- Include idempotency requirements
+
+**Acceptance Criteria:**
+- [ ] Algorithm doc created in `docs/algorithms/apply.md`
+- [ ] Primary + fallback strategies specified
+- [ ] Failure modes enumerated and mapped to codes
+- [ ] Idempotency requirements stated
+- [ ] 2–3 worked examples with offsets","Design,P0,Location-Apply,Sprint-S0",,"Mike"
+"[S0-2.3.b] Implement deterministic apply function","**Type:** Backend  
+**Where:** `lib/revision/applyEngine.ts` (or integrate into `lib/revision/apply.ts`)  
+**Phase:** 2.3 Location-Aware Apply  
+
+**Description:**  
+Implement pure `(text, proposal) → newText` function using the designed algorithm. No side effects; must be idempotent when re‑applied to already‑updated text (or throw with correct failure code).
+
+**Notes:**
+- Use reverse-offset batching for multi-proposal applies
+- Validate all before mutating any (preflight pattern)
+- Explicit overlap + duplicate rejection
+- Stale-anchor fail-closed behavior
+
+**Acceptance Criteria:**
+- [ ] Function implemented and tested
+- [ ] Pure function (no side effects, deterministic)
+- [ ] Idempotent or explicit stale-anchor failure
+- [ ] Batch apply with preflight validation
+- [ ] All Phase 2.3 unit tests passing (see 2.3.c)","Backend,P0,Location-Apply,Sprint-S0",,"Mike"
+"[S0-2.3.c] Harness tests (≥99.5% success)","**Type:** Tests/Harness  
+**Where:** `tests/applyEngine/` (or `tests/anchors/`)  
+**Phase:** 2.3 Location-Aware Apply  
+
+**Description:**  
+Build a harness that runs many proposals against sample texts and reports success rate. Assert ≥99.5% success on valid anchors; log failures with enough detail for debugging.
+
+**Notes:**
+- At least 20 test cases covering: disjoint, adjacent, overlapping (reject), duplicates (reject), CRLF, stale-anchor fail-closed
+- Run on diverse texts (dialogue, code, poetry, etc.)
+- Log failure cases for inspection
+- Assert success_rate ≥ 99.5% on valid anchors
+
+**Acceptance Criteria:**
+- [ ] Harness created with 20+ test cases
+- [ ] All valid proposals apply successfully
+- [ ] Overlapping/duplicate proposals explicitly rejected
+- [ ] Stale-anchor (re-apply to mutated text) fails with correct code
+- [ ] Success rate ≥ 99.5% measured and reported","Tests,Harness,P0,Location-Apply,Sprint-S0",,"Mike"
+"[S0-2.4.a] Enumerate failure codes","**Type:** Design  
+**Where:** `docs/errors/`, `lib/errors/`  
+**Phase:** 2.4 Failure Classification  
+
+**Description:**  
+Define a closed set of failure codes (e.g., `ANCHOR_MISS`, `CONFLICT`, `PARSE_ERROR`, `INVARIANT_VIOLATION`). Include human‑readable messages and machine‑readable codes.
+
+**Notes:**
+- Map each failure mode from 2.3.a to a specific code
+- Consider: anchor_miss, context_mismatch, overlap, duplicate, parse_error, invariant_violation
+- Include HTTP status code mappings
+- Create enum or constants file
+
+**Acceptance Criteria:**
+- [ ] Failure code enum defined in `lib/errors/revisionCodes.ts`
+- [ ] 6+ codes covering all 2.3 failure modes
+- [ ] Human-readable messages for each code
+- [ ] Machine-readable codes (UPPER_SNAKE_CASE)
+- [ ] Code review by 1 team member","Design,P0,Failure-Classification,Sprint-S0",,"Mike"
+"[S0-2.4.b] Persist failure codes to revision_sessions","**Type:** Backend/DB  
+**Where:** `supabase/migrations`, `lib/db/revisionSessions.ts`  
+**Phase:** 2.4 Failure Classification  
+
+**Description:**  
+Extend schema and write path so every failed apply stores a specific failure code + context. Ensure existing readers tolerate new fields.
+
+**Notes:**
+- Add columns: apply_failure_code, apply_failure_context (JSON)
+- Update revision_sessions table or create apply_outcome table
+- Log failure code when apply fails
+- Ensure backwards compatibility
+
+**Acceptance Criteria:**
+- [ ] Migration adds apply_failure_code, apply_failure_context to schema
+- [ ] Down migration tested
+- [ ] Code path logs failure code on every apply error
+- [ ] TypeScript types updated for new fields
+- [ ] Existing queries still work (no breaking changes)","Backend,Database-Migration,P0,Failure-Classification,Sprint-S0",,"Mike"
+"[S0-2.4.c] Tests: 100% failures classified","**Type:** Tests  
+**Where:** `tests/failures/`  
+**Phase:** 2.4 Failure Classification  
+
+**Description:**  
+Add tests that simulate each failure mode and assert a non‑generic code is stored. Disallow any ""UNKNOWN"" or empty failure types in the apply pipeline.
+
+**Notes:**
+- Test each failure code: anchor_miss, context_mismatch, overlap, duplicate, etc.
+- Assert failure_code is non-null and matches expected value
+- Verify failure_context contains useful debugging info
+- Assert no ""UNKNOWN"" or generic errors in logs
+
+**Acceptance Criteria:**
+- [ ] Test file created: `tests/failures/apply-failure-codes.test.ts`
+- [ ] 8+ test cases (one per failure code)
+- [ ] All tests passing
+- [ ] Every failure code path tested
+- [ ] Assertions confirm: code ≠ null, code matches expected, context non-empty","Tests,P0,Failure-Classification,Sprint-S0",,"Mike"

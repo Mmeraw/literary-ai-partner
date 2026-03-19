@@ -77,3 +77,54 @@ All 15 smoke checks pass deterministically:
 ## Next: Stage 3
 
 Proposal readiness should be promoted from inferred behavior to a persisted state machine on `revision_sessions`. See Stage 3 planning docs.
+
+---
+
+## Phase 2.4 Closure Evidence (Current jobs/apply path)
+
+### Scope
+
+Structured failure classification for the current jobs/apply failure path.
+
+### Completed
+
+- 2.4.a Enumerated closed failure-code set
+- 2.4.b Persisted structured failure envelope and surfaced `failure_code`
+- 2.4.c Added concrete classification-path proof for covered apply failure modes
+
+### Key files
+
+- `lib/errors/revisionCodes.ts`
+- `lib/revision/failureClassification.ts`
+- `docs/errors/failure-codes.md`
+- `lib/jobs/jobStore.supabase.ts`
+- `app/api/jobs/[jobId]/route.ts`
+- `tests/failures/apply-failure-codes.test.ts`
+- `tests/failures/apply-failure-classification-paths.test.ts`
+- `tests/api/jobs-endpoint.test.ts`
+
+### Validation command
+
+`npm test -- tests/failures/apply-failure-classification-paths.test.ts tests/failures/apply-failure-codes.test.ts tests/api/jobs-endpoint.test.ts --runInBand`
+
+### Result
+
+- Test Suites: 3 passed, 3 total
+- Tests: 42 passed, 42 total
+
+### Covered codes
+
+- `ANCHOR_MISS`
+- `ANCHOR_AMBIGUOUS`
+- `CONTEXT_MISMATCH`
+- `OFFSET_CONFLICT`
+- `PARSE_ERROR`
+- `INVARIANT_VIOLATION`
+- `APPLY_COLLISION`
+
+### Acceptance outcome
+
+- `setJobFailed(...)` persists structured failure data
+- `getJob(...)` surfaces `failure_code`
+- jobs endpoint returns classified failure info on failed jobs
+- no generic/unclassified fallback in covered paths

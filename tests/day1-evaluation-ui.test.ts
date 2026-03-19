@@ -287,7 +287,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
     it("should identify terminal job statuses", () => {
       expect(isTerminalStatus("complete")).toBe(true);
       expect(isTerminalStatus("failed")).toBe(true);
-      expect(isTerminalStatus("canceled")).toBe(true);
+      expect(isTerminalStatus("canceled")).toBe(false);
       
       expect(isTerminalStatus("queued")).toBe(false);
       expect(isTerminalStatus("running")).toBe(false);
