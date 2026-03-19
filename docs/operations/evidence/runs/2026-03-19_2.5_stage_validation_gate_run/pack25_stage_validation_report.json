@@ -1,0 +1,106 @@
+{
+  "metadata": {
+    "phase": "2.5",
+    "seed": 42,
+    "run_mode": "deterministic",
+    "commit_sha": "d0e913f23a5ffe1a8b5d5eefc0f37246482a4fa4",
+    "run_date_utc": "2026-03-19T23:19:30.016Z"
+  },
+  "metrics": {
+    "success_case_total": 5,
+    "success_case_passed": 5,
+    "failure_case_total": 3,
+    "failure_case_passed": 3,
+    "ingest_count_total": 9,
+    "extracted_count_total": 9,
+    "validated_count_total": 9,
+    "applied_count_total": 9,
+    "repeated_run_identity_passed": true,
+    "pass": true
+  },
+  "success_cases": [
+    {
+      "id": "happy-single-proposal",
+      "ingest_count": 1,
+      "extracted_count": 1,
+      "validated_count": 1,
+      "applied_count": 1,
+      "expected_output": "Opening line.\nHero steps into the room, scanning every corner.\nClosing line.",
+      "actual_output": "Opening line.\nHero steps into the room, scanning every corner.\nClosing line.",
+      "output_match": true,
+      "repeat_output_match": true,
+      "repeat_pipeline_identity_match": true
+    },
+    {
+      "id": "happy-multi-proposal-unicode",
+      "ingest_count": 2,
+      "extracted_count": 2,
+      "validated_count": 2,
+      "applied_count": 2,
+      "expected_output": "The bistro stayed open late.\nShe paused, then answered without hesitation.",
+      "actual_output": "The bistro stayed open late.\nShe paused, then answered without hesitation.",
+      "output_match": true,
+      "repeat_output_match": true,
+      "repeat_pipeline_identity_match": true
+    },
+    {
+      "id": "literary-prose",
+      "ingest_count": 2,
+      "extracted_count": 2,
+      "validated_count": 2,
+      "applied_count": 2,
+      "expected_output": "The river moved steadily through the valley, carrying with it the memory of storms long past. The air smelled subtly of pine and wet stone.",
+      "actual_output": "The river moved steadily through the valley, carrying with it the memory of storms long past. The air smelled subtly of pine and wet stone.",
+      "output_match": true,
+      "repeat_output_match": true,
+      "repeat_pipeline_identity_match": true
+    },
+    {
+      "id": "dialogue-punctuation",
+      "ingest_count": 2,
+      "extracted_count": 2,
+      "validated_count": 2,
+      "applied_count": 2,
+      "expected_output": "\"You said you'd be here,\" she whispered, but the room was empty. \"Where are you now?\"",
+      "actual_output": "\"You said you'd be here,\" she whispered, but the room was empty. \"Where are you now?\"",
+      "output_match": true,
+      "repeat_output_match": true,
+      "repeat_pipeline_identity_match": true
+    },
+    {
+      "id": "multi-paragraph-spacing",
+      "ingest_count": 2,
+      "extracted_count": 2,
+      "validated_count": 2,
+      "applied_count": 2,
+      "expected_output": "He opened the door.\n\nNothing stirred.\n\nThen, somewhere deeper inside, something breathed.",
+      "actual_output": "He opened the door.\n\nNothing stirred.\n\nThen, somewhere deeper inside, something breathed.",
+      "output_match": true,
+      "repeat_output_match": true,
+      "repeat_pipeline_identity_match": true
+    }
+  ],
+  "failure_cases": [
+    {
+      "id": "malformed-ingest",
+      "description": "Malformed candidate rejected at ingest normalization",
+      "classified_code": "PARSE_ERROR",
+      "envelope_phase": "phase_2",
+      "expected_code_match": true
+    },
+    {
+      "id": "extraction-mismatch",
+      "description": "Mismatched original_text fails extraction contract",
+      "classified_code": "ANCHOR_MISS",
+      "envelope_phase": "phase_2",
+      "expected_code_match": true
+    },
+    {
+      "id": "apply-preflight-overlap",
+      "description": "Overlapping ranges rejected during preflight",
+      "classified_code": "OFFSET_CONFLICT",
+      "envelope_phase": "phase_2",
+      "expected_code_match": true
+    }
+  ]
+}

@@ -309,6 +309,86 @@ describe("Phase 2.5 stage validation", () => {
         expected_output:
           "The bistro stayed open late.\nShe paused, then answered without hesitation.",
       },
+      {
+        id: "literary-prose",
+        source_text:
+          "The river moved slowly through the valley, carrying with it the memory of storms long past. The air smelled faintly of pine and wet stone.",
+        candidates: [
+          {
+            location_ref: "prose:1a",
+            rule: "word-choice",
+            action: "refine",
+            original_text: "slowly",
+            proposed_text: "steadily",
+            justification: "More precise cadence.",
+            severity: "low",
+          },
+          {
+            location_ref: "prose:1b",
+            rule: "word-choice",
+            action: "refine",
+            original_text: "faintly",
+            proposed_text: "subtly",
+            justification: "More evocative sensory language.",
+            severity: "low",
+          },
+        ],
+        expected_output:
+          "The river moved steadily through the valley, carrying with it the memory of storms long past. The air smelled subtly of pine and wet stone.",
+      },
+      {
+        id: "dialogue-punctuation",
+        source_text:
+          '"You said you\'d be here," she whispered \u2014 but the room was empty. "Where are you?"',
+        candidates: [
+          {
+            location_ref: "dialogue:1a",
+            rule: "punctuation",
+            action: "refine",
+            original_text: "whispered \u2014 but",
+            proposed_text: "whispered, but",
+            justification: "Smooth dialogue rhythm.",
+            severity: "low",
+          },
+          {
+            location_ref: "dialogue:1b",
+            rule: "clarity",
+            action: "refine",
+            original_text: "Where are you?",
+            proposed_text: "Where are you now?",
+            justification: "Adds urgency.",
+            severity: "low",
+          },
+        ],
+        expected_output:
+          '"You said you\'d be here," she whispered, but the room was empty. "Where are you now?"',
+      },
+      {
+        id: "multi-paragraph-spacing",
+        source_text: "He opened the door.\n\nNothing moved.\n\nThen, somewhere deeper inside, something shifted.",
+        candidates: [
+          {
+            location_ref: "para:1a",
+            rule: "word-choice",
+            action: "refine",
+            original_text: "Nothing moved.",
+            proposed_text: "Nothing stirred.",
+            justification: "More evocative action word.",
+            severity: "low",
+          },
+          {
+            location_ref: "para:1b",
+            rule: "word-choice",
+            action: "refine",
+            original_text: "something shifted",
+            proposed_text: "something breathed",
+            justification: "Heightens tension with organic imagery.",
+            severity: "low",
+          },
+        ],
+        expected_output:
+          "He opened the door.\n\nNothing stirred.\n\nThen, somewhere deeper inside, something breathed.",
+      },
     ];
 
     const overlapSource = "abcdefg";
@@ -442,8 +522,8 @@ describe("Phase 2.5 stage validation", () => {
       expect(existsSync(path.join(outDir, "pack25_stage_validation_report.md"))).toBe(true);
     }
 
-    expect(metrics.success_case_total).toBe(2);
-    expect(metrics.success_case_passed).toBe(2);
+    expect(metrics.success_case_total).toBe(5);
+    expect(metrics.success_case_passed).toBe(5);
     expect(metrics.failure_case_total).toBe(3);
     expect(metrics.failure_case_passed).toBe(3);
     expect(metrics.repeated_run_identity_passed).toBe(true);
