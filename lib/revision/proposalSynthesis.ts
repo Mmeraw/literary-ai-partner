@@ -4,6 +4,7 @@ import { logRevisionEvent } from "./logRevisionEvent";
 import { transitionRevisionSessionState } from "./sessionTransitions";
 import { bulkCreateChangeProposals } from "./proposals";
 import { getRevisionSessionById, listProposalsForSession } from "./sessions";
+import { buildAnchorForSnippet, validateAnchorAgainstSource, validateExtractionContract } from "./anchorContract";
 import type {
   ChangeProposal,
   CreateChangeProposalInput,
@@ -36,67 +37,6 @@ const supabase = new Proxy({} as NonNullable<ReturnType<typeof getSupabaseAdminC
   },
 });
 
-function normalizeForAnchorSearch(text: string): string {
-  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-}
-
-function buildAnchorForSnippet(
-  sourceText: string,
-  snippet: string,
-): {
-  anchor_start: number | null;
-  anchor_end: number | null;
-  anchor_context: string | null;
-  anchor_status: "created" | "ambiguous" | "missing";
-} {
-  if (!snippet || snippet.trim().length === 0) {
-    return {
-      anchor_start: null,
-      anchor_end: null,
-      anchor_context: null,
-      anchor_status: "missing",
-    };
-  }
-
-  const normalizedSource = normalizeForAnchorSearch(sourceText);
-  const normalizedSnippet = normalizeForAnchorSearch(snippet);
-
-  const start = normalizedSource.indexOf(normalizedSnippet);
-  if (start === -1) {
-    return {
-      anchor_start: null,
-      anchor_end: null,
-      anchor_context: null,
-      anchor_status: "missing",
-    };
-  }
-
-  const second = normalizedSource.indexOf(
-    normalizedSnippet,
-    start + normalizedSnippet.length,
-  );
-
-  if (second !== -1) {
-    return {
-      anchor_start: null,
-      anchor_end: null,
-      anchor_context: null,
-      anchor_status: "ambiguous",
-    };
-  }
-
-  const end = start + normalizedSnippet.length;
-  const contextLeft = Math.max(0, start - 80);
-  const contextRight = Math.min(normalizedSource.length, end + 80);
-
-  return {
-    anchor_start: start,
-    anchor_end: end,
-    anchor_context: normalizedSource.slice(contextLeft, contextRight),
-    anchor_status: "created",
-  };
-}
-
 function toProposalInputs(
   revisionSessionId: string,
   findings: any[],
@@ -108,6 +48,19 @@ function toProposalInputs(
       const originalText = f.original_text ?? f.evidence_excerpt ?? "";
       const anchor = buildAnchorForSnippet(sourceText, originalText);
 
+      if (anchor.anchor_status !== "created") {
+        throw new Error(
+          `Anchor generation failed for finding ${idx + 1} (${f.location_ref ?? "unknown"}): ${anchor.reason}`,
+        );
+      }
+
+      validateAnchorAgainstSource(anchor, sourceText, originalText);
+
+      validateExtractionContract(
+        { start_offset: anchor.start_offset, end_offset: anchor.end_offset, original_text: originalText },
+        sourceText,
+      );
+
       return {
         revision_session_id: revisionSessionId,
         location_ref: f.location_ref ?? `finding:${idx + 1}`,
@@ -117,9 +70,11 @@ function toProposalInputs(
         proposed_text: f.recommendation ?? f.diagnosis ?? "",
         justification: f.diagnosis,
         severity: (f.severity ?? "medium") as ProposalSeverity,
-        anchor_start: anchor.anchor_start,
-        anchor_end: anchor.anchor_end,
-        anchor_context: anchor.anchor_context,
+        start_offset: anchor.start_offset,
+        end_offset: anchor.end_offset,
+        before_context: anchor.before_context,
+        after_context: anchor.after_context,
+        anchor_text_normalized: anchor.anchor_text_normalized ?? null,
         _anchor_status: anchor.anchor_status,
       };
     })

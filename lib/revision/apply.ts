@@ -3,6 +3,7 @@ import { hydrateSourceVersionIfMissing } from "@/lib/manuscripts/hydrateVersions
 import { logRevisionEvent } from "./logRevisionEvent";
 import { transitionRevisionSessionState } from "./sessionTransitions";
 import { getRevisionSessionById, listProposalsForSession } from "./sessions";
+import { ANCHOR_CONTEXT_TARGET_CHARS, normalizeForStrictMatch } from "./anchorContract";
 import type { ApplyRevisionSessionResult, ChangeProposal } from "./types";
 
 type ApplyTelemetryContext = {
@@ -11,95 +12,6 @@ type ApplyTelemetryContext = {
   manuscriptId: number;
   manuscriptVersionId: string;
 };
-
-function normalizeForStrictMatch(text: string): string {
-  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-}
-
-function applySingleReplacementStrict(
-  currentText: string,
-  originalText: string,
-  replacement: string,
-  proposalId: string,
-  context: ApplyTelemetryContext,
-): string {
-  const normalizedCurrentText = normalizeForStrictMatch(currentText);
-  const needle = normalizeForStrictMatch(originalText);
-  const normalizedReplacement = normalizeForStrictMatch(replacement);
-
-  if (!needle || needle.trim().length === 0) {
-    throw new Error(
-      `Proposal ${proposalId} has empty original_text. ` +
-        `Location-aware apply is required for empty-anchor edits.`,
-    );
-  }
-
-  const firstIdx = normalizedCurrentText.indexOf(needle);
-  if (firstIdx < 0) {
-    void logRevisionEvent({
-      revision_session_id: context.revisionSessionId,
-      proposal_id: proposalId,
-      manuscript_id: context.manuscriptId,
-      manuscript_version_id: context.manuscriptVersionId,
-      evaluation_run_id: context.evaluationRunId,
-      event_type: "apply",
-      severity: "error",
-      event_code: "APPLY_LEGACY_NOT_FOUND",
-      message: `Proposal ${proposalId} original_text not found in source text.`,
-      metadata: {
-        original_text_length: originalText.length,
-      },
-    });
-
-    throw new Error(
-      `Proposal ${proposalId} original_text not found in source text. ` +
-        `Refine proposal extraction or adopt location-aware apply.`,
-    );
-  }
-
-  const secondIdx = normalizedCurrentText.indexOf(needle, firstIdx + needle.length);
-  if (secondIdx >= 0) {
-    void logRevisionEvent({
-      revision_session_id: context.revisionSessionId,
-      proposal_id: proposalId,
-      manuscript_id: context.manuscriptId,
-      manuscript_version_id: context.manuscriptVersionId,
-      evaluation_run_id: context.evaluationRunId,
-      event_type: "apply",
-      severity: "error",
-      event_code: "APPLY_LEGACY_AMBIGUOUS",
-      message: `Proposal ${proposalId} original_text is ambiguous in source text.`,
-      metadata: {
-        original_text_length: originalText.length,
-      },
-    });
-
-    throw new Error(
-      `Proposal ${proposalId} original_text is ambiguous (multiple matches). ` +
-        `Location-aware apply is required.`,
-    );
-  }
-
-  void logRevisionEvent({
-    revision_session_id: context.revisionSessionId,
-    proposal_id: proposalId,
-    manuscript_id: context.manuscriptId,
-    manuscript_version_id: context.manuscriptVersionId,
-    evaluation_run_id: context.evaluationRunId,
-    event_type: "apply",
-    event_code: "APPLY_LEGACY_FALLBACK_SUCCESS",
-    metadata: {
-      original_text_length: originalText.length,
-      replacement_length: replacement.length,
-    },
-  });
-
-  return (
-    normalizedCurrentText.slice(0, firstIdx) +
-    normalizedReplacement +
-    normalizedCurrentText.slice(firstIdx + needle.length)
-  );
-}
 
 function applySingleReplacementAnchoredStrict(
   sourceText: string,
@@ -112,24 +24,31 @@ function applySingleReplacementAnchoredStrict(
       : proposal.proposed_text;
 
   const hasAnchor =
-    Number.isInteger(proposal.anchor_start) &&
-    Number.isInteger(proposal.anchor_end) &&
-    (proposal.anchor_start as number) >= 0 &&
-    (proposal.anchor_end as number) > (proposal.anchor_start as number);
+    Number.isInteger(proposal.start_offset) &&
+    Number.isInteger(proposal.end_offset) &&
+    (proposal.start_offset as number) >= 0 &&
+    (proposal.end_offset as number) > (proposal.start_offset as number);
 
-  // Legacy fallback for pre-anchor proposals.
   if (!hasAnchor) {
-    return applySingleReplacementStrict(
-      sourceText,
-      proposal.original_text,
-      replacement,
-      proposal.id,
-      context,
+    void logRevisionEvent({
+      revision_session_id: context.revisionSessionId,
+      proposal_id: proposal.id,
+      manuscript_id: context.manuscriptId,
+      manuscript_version_id: context.manuscriptVersionId,
+      evaluation_run_id: context.evaluationRunId,
+      event_type: "apply",
+      severity: "error",
+      event_code: "APPLY_ANCHORED_MISSING_OFFSETS",
+      message: `Proposal ${proposal.id} missing valid anchor offsets; fail-closed apply enforced.`,
+    });
+
+    throw new Error(
+      `Proposal ${proposal.id} missing valid anchor offsets; apply requires deterministic anchored coordinates.`,
     );
   }
 
-  const start = proposal.anchor_start as number;
-  const end = proposal.anchor_end as number;
+  const start = proposal.start_offset as number;
+  const end = proposal.end_offset as number;
 
   if (end > sourceText.length) {
     void logRevisionEvent({
@@ -143,8 +62,8 @@ function applySingleReplacementAnchoredStrict(
       event_code: "APPLY_ANCHORED_SLICE_MISMATCH",
       message: `Proposal ${proposal.id} anchor range exceeds source length.`,
       metadata: {
-        anchor_start: start,
-        anchor_end: end,
+        start_offset: start,
+        end_offset: end,
         source_length: sourceText.length,
       },
     });
@@ -170,8 +89,8 @@ function applySingleReplacementAnchoredStrict(
       event_code: "APPLY_ANCHORED_SLICE_MISMATCH",
       message: `Anchored slice did not match original_text for proposal ${proposal.id}.`,
       metadata: {
-        anchor_start: start,
-        anchor_end: end,
+        start_offset: start,
+        end_offset: end,
         expected_length: expectedSlice.length,
         actual_length: actualSlice.length,
       },
@@ -182,36 +101,40 @@ function applySingleReplacementAnchoredStrict(
     );
   }
 
-  if (proposal.anchor_context) {
-    const contextLeft = Math.max(0, start - 80);
-    const contextRight = Math.min(sourceText.length, end + 80);
-    const actualContext = sourceText.slice(contextLeft, contextRight);
+  const expectedBefore = sourceText.slice(
+    Math.max(0, start - ANCHOR_CONTEXT_TARGET_CHARS),
+    start,
+  );
+  const expectedAfter = sourceText.slice(
+    end,
+    Math.min(sourceText.length, end + ANCHOR_CONTEXT_TARGET_CHARS),
+  );
 
-    if (
-      !normalizeForStrictMatch(actualContext).includes(
-        normalizeForStrictMatch(proposal.anchor_context),
-      )
-    ) {
-      void logRevisionEvent({
-        revision_session_id: context.revisionSessionId,
-        proposal_id: proposal.id,
-        manuscript_id: context.manuscriptId,
-        manuscript_version_id: context.manuscriptVersionId,
-        evaluation_run_id: context.evaluationRunId,
-        event_type: "apply",
-        severity: "error",
-        event_code: "APPLY_ANCHORED_CONTEXT_MISMATCH",
-        message: `Anchor context verification failed for proposal ${proposal.id}.`,
-        metadata: {
-          anchor_start: start,
-          anchor_end: end,
-        },
-      });
+  if (
+    normalizeForStrictMatch(expectedBefore) !==
+      normalizeForStrictMatch(proposal.before_context) ||
+    normalizeForStrictMatch(expectedAfter) !==
+      normalizeForStrictMatch(proposal.after_context)
+  ) {
+    void logRevisionEvent({
+      revision_session_id: context.revisionSessionId,
+      proposal_id: proposal.id,
+      manuscript_id: context.manuscriptId,
+      manuscript_version_id: context.manuscriptVersionId,
+      evaluation_run_id: context.evaluationRunId,
+      event_type: "apply",
+      severity: "error",
+      event_code: "APPLY_ANCHORED_CONTEXT_MISMATCH",
+      message: `Anchor context verification failed for proposal ${proposal.id}.`,
+      metadata: {
+        start_offset: start,
+        end_offset: end,
+      },
+    });
 
-      throw new Error(
-        `Proposal ${proposal.id} anchor_context verification failed.`,
-      );
-    }
+    throw new Error(
+      `Proposal ${proposal.id} before/after context verification failed.`,
+    );
   }
 
   void logRevisionEvent({
@@ -223,8 +146,8 @@ function applySingleReplacementAnchoredStrict(
     event_type: "apply",
     event_code: "APPLY_ANCHORED_SUCCESS",
     metadata: {
-      anchor_start: start,
-      anchor_end: end,
+      start_offset: start,
+      end_offset: end,
       replacement_length: replacement.length,
     },
   });
@@ -238,8 +161,8 @@ function applyAcceptedChanges(
   context: ApplyTelemetryContext,
 ): string {
   const ordered = [...proposals].sort((a, b) => {
-    const aStart = a.anchor_start ?? -1;
-    const bStart = b.anchor_start ?? -1;
+    const aStart = a.start_offset ?? -1;
+    const bStart = b.start_offset ?? -1;
     return bStart - aStart;
   });
 
@@ -250,8 +173,7 @@ function applyAcceptedChanges(
       continue;
     }
 
-    // Hardened behavior: prefer strict anchored replacement when offsets exist,
-    // otherwise fall back to strict single-match text replacement. Fail closed.
+    // Hardened behavior: strict anchored replacement only. Fail closed.
     result = applySingleReplacementAnchoredStrict(result, proposal, context);
   }
 

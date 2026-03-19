@@ -37,6 +37,7 @@
     "components/**/*",
     "lib/**/*",
     "scripts/**/*",
+    "tests/**/*",
     "middleware.ts",
     "next.config.*"
   ],

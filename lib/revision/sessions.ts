@@ -1,4 +1,5 @@
 import { getSupabaseAdminClient } from "@/lib/supabase";
+import { proposalAnchorSchema } from "./anchorContract";
 import type {
   ChangeProposal,
   CreateRevisionSessionInput,
@@ -49,6 +50,14 @@ function mapRevisionSession(row: any): RevisionSession {
 }
 
 function mapChangeProposal(row: any): ChangeProposal {
+  const parsedAnchor = proposalAnchorSchema.parse({
+    start_offset: row.start_offset ?? row.anchor_start,
+    end_offset: row.end_offset ?? row.anchor_end,
+    before_context: row.before_context ?? "",
+    after_context: row.after_context ?? "",
+    anchor_text_normalized: row.anchor_text_normalized ?? null,
+  });
+
   return {
     id: row.id,
     revision_session_id: row.revision_session_id,
@@ -61,9 +70,11 @@ function mapChangeProposal(row: any): ChangeProposal {
     severity: row.severity,
     decision: row.decision,
     modified_text: row.modified_text,
-    anchor_start: row.anchor_start ?? null,
-    anchor_end: row.anchor_end ?? null,
-    anchor_context: row.anchor_context ?? null,
+    start_offset: parsedAnchor.start_offset,
+    end_offset: parsedAnchor.end_offset,
+    before_context: parsedAnchor.before_context,
+    after_context: parsedAnchor.after_context,
+    anchor_text_normalized: parsedAnchor.anchor_text_normalized ?? null,
     created_at: row.created_at,
   };
 }

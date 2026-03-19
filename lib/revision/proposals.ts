@@ -2,20 +2,18 @@ import { getSupabaseAdminClient } from "@/lib/supabase";
 import { getVersionById } from "@/lib/manuscripts/versions";
 import { getRevisionSessionById, listProposalsForSession } from "./sessions";
 import { logRevisionEvent } from "./logRevisionEvent";
+import {
+  buildAnchorForSnippet,
+  proposalAnchorSchema,
+  validateAnchorAgainstSource,
+  validateExtractionContract,
+  type ProposalAnchorStatus,
+} from "./anchorContract";
 import type {
   ChangeProposal,
   CreateChangeProposalInput,
   EvaluationProposalCandidate,
 } from "./types";
-
-type ProposalAnchorStatus = "created" | "ambiguous" | "missing";
-
-type AnchorBuildResult = {
-  anchor_start: number | null;
-  anchor_end: number | null;
-  anchor_context: string | null;
-  anchor_status: ProposalAnchorStatus;
-};
 
 type NormalizedCreateChangeProposalInput = CreateChangeProposalInput & {
   _anchor_status?: ProposalAnchorStatus;
@@ -43,6 +41,14 @@ const supabase = new Proxy({} as NonNullable<ReturnType<typeof getSupabaseAdminC
 });
 
 function mapChangeProposal(row: any): ChangeProposal {
+  const parsedAnchor = proposalAnchorSchema.parse({
+    start_offset: row.start_offset ?? row.anchor_start,
+    end_offset: row.end_offset ?? row.anchor_end,
+    before_context: row.before_context ?? "",
+    after_context: row.after_context ?? "",
+    anchor_text_normalized: row.anchor_text_normalized ?? null,
+  });
+
   return {
     id: row.id,
     revision_session_id: row.revision_session_id,
@@ -55,9 +61,11 @@ function mapChangeProposal(row: any): ChangeProposal {
     severity: row.severity,
     decision: row.decision,
     modified_text: row.modified_text,
-    anchor_start: row.anchor_start ?? null,
-    anchor_end: row.anchor_end ?? null,
-    anchor_context: row.anchor_context ?? null,
+    start_offset: parsedAnchor.start_offset,
+    end_offset: parsedAnchor.end_offset,
+    before_context: parsedAnchor.before_context,
+    after_context: parsedAnchor.after_context,
+    anchor_text_normalized: parsedAnchor.anchor_text_normalized ?? null,
     created_at: row.created_at,
   };
 }
@@ -81,63 +89,6 @@ async function getProposalTelemetryContext(revisionSessionId: string): Promise<{
     evaluation_run_id: session.evaluation_run_id,
     manuscript_id: sourceVersion?.manuscript_id ?? null,
     manuscript_version_id: sourceVersion?.id ?? session.source_version_id,
-  };
-}
-
-function normalizeForAnchorSearch(text: string): string {
-  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-}
-
-function buildAnchorForSnippet(
-  sourceText: string,
-  snippet: string,
-): AnchorBuildResult {
-  if (!snippet || snippet.trim().length === 0) {
-    return {
-      anchor_start: null,
-      anchor_end: null,
-      anchor_context: null,
-      anchor_status: "missing",
-    };
-  }
-
-  const normalizedSource = normalizeForAnchorSearch(sourceText);
-  const normalizedSnippet = normalizeForAnchorSearch(snippet);
-
-  const start = normalizedSource.indexOf(normalizedSnippet);
-  if (start === -1) {
-    return {
-      anchor_start: null,
-      anchor_end: null,
-      anchor_context: null,
-      anchor_status: "missing",
-    };
-  }
-
-  const second = normalizedSource.indexOf(
-    normalizedSnippet,
-    start + normalizedSnippet.length,
-  );
-
-  // Ambiguous anchors should fail back to legacy path, not silently choose one.
-  if (second !== -1) {
-    return {
-      anchor_start: null,
-      anchor_end: null,
-      anchor_context: null,
-      anchor_status: "ambiguous",
-    };
-  }
-
-  const end = start + normalizedSnippet.length;
-  const contextLeft = Math.max(0, start - 80);
-  const contextRight = Math.min(normalizedSource.length, end + 80);
-
-  return {
-    anchor_start: start,
-    anchor_end: end,
-    anchor_context: normalizedSource.slice(contextLeft, contextRight),
-    anchor_status: "created",
   };
 }
 
@@ -201,6 +152,8 @@ function getCriterionEvidenceSnippet(criterion: any): string {
 export async function createChangeProposal(
   input: CreateChangeProposalInput,
 ): Promise<ChangeProposal> {
+  proposalAnchorSchema.parse(input);
+
   const { data, error } = await supabase
     .from("change_proposals")
     .insert({
@@ -212,9 +165,11 @@ export async function createChangeProposal(
       proposed_text: input.proposed_text,
       justification: input.justification,
       severity: input.severity,
-      anchor_start: input.anchor_start ?? null,
-      anchor_end: input.anchor_end ?? null,
-      anchor_context: input.anchor_context ?? null,
+      start_offset: input.start_offset,
+      end_offset: input.end_offset,
+      before_context: input.before_context,
+      after_context: input.after_context,
+      anchor_text_normalized: input.anchor_text_normalized ?? null,
     })
     .select("*")
     .single();
@@ -248,17 +203,18 @@ export async function createChangeProposal(
     evaluation_run_id: telemetryContext.evaluation_run_id,
     event_type: "proposal",
     severity:
-      mapped.anchor_start != null && mapped.anchor_end != null
+      Number.isInteger(mapped.start_offset) && Number.isInteger(mapped.end_offset)
         ? "info"
         : "warn",
     event_code:
-      mapped.anchor_start != null && mapped.anchor_end != null
+      Number.isInteger(mapped.start_offset) && Number.isInteger(mapped.end_offset)
         ? "PROPOSAL_ANCHOR_CREATED"
         : "PROPOSAL_ANCHOR_MISSING",
     metadata: {
-      anchor_start: mapped.anchor_start,
-      anchor_end: mapped.anchor_end,
-      anchor_context_length: mapped.anchor_context?.length ?? 0,
+      start_offset: mapped.start_offset,
+      end_offset: mapped.end_offset,
+      before_context_length: mapped.before_context.length,
+      after_context_length: mapped.after_context.length,
     },
   });
 
@@ -270,6 +226,10 @@ export async function bulkCreateChangeProposals(
 ): Promise<ChangeProposal[]> {
   if (inputs.length === 0) return [];
 
+  for (const input of inputs) {
+    proposalAnchorSchema.parse(input);
+  }
+
   const payload = inputs.map((input) => ({
     revision_session_id: input.revision_session_id,
     location_ref: input.location_ref,
@@ -279,9 +239,11 @@ export async function bulkCreateChangeProposals(
     proposed_text: input.proposed_text,
     justification: input.justification,
     severity: input.severity,
-    anchor_start: input.anchor_start ?? null,
-    anchor_end: input.anchor_end ?? null,
-    anchor_context: input.anchor_context ?? null,
+    start_offset: input.start_offset,
+    end_offset: input.end_offset,
+    before_context: input.before_context,
+    after_context: input.after_context,
+    anchor_text_normalized: input.anchor_text_normalized ?? null,
   }));
 
   const { data, error } = await supabase
@@ -308,7 +270,9 @@ export async function bulkCreateChangeProposals(
     const input = inputs[i] as NormalizedCreateChangeProposalInput | undefined;
     const anchorStatus =
       input?._anchor_status ??
-      (created.anchor_start != null && created.anchor_end != null ? "created" : "missing");
+      (Number.isInteger(created.start_offset) && Number.isInteger(created.end_offset)
+        ? "created"
+        : "missing");
 
     void logRevisionEvent({
       revision_session_id: created.revision_session_id,
@@ -339,9 +303,10 @@ export async function bulkCreateChangeProposals(
             ? "PROPOSAL_ANCHOR_AMBIGUOUS"
             : "PROPOSAL_ANCHOR_MISSING",
       metadata: {
-        anchor_start: created.anchor_start,
-        anchor_end: created.anchor_end,
-        anchor_context_length: created.anchor_context?.length ?? 0,
+        start_offset: created.start_offset,
+        end_offset: created.end_offset,
+        before_context_length: created.before_context.length,
+        after_context_length: created.after_context.length,
       },
     });
   }
@@ -389,6 +354,19 @@ export function normalizeProposalCandidates(
       const originalText = candidate.original_text ?? "";
       const anchor = buildAnchorForSnippet(sourceText, originalText);
 
+      if (anchor.anchor_status !== "created") {
+        throw new Error(
+          `Anchor generation failed for candidate ${index + 1} (${candidate.location_ref ?? "unknown"}): ${anchor.reason}`,
+        );
+      }
+
+      validateAnchorAgainstSource(anchor, sourceText, originalText);
+
+      validateExtractionContract(
+        { start_offset: anchor.start_offset, end_offset: anchor.end_offset, original_text: originalText },
+        sourceText,
+      );
+
       return {
         revision_session_id: revisionSessionId,
         location_ref: candidate.location_ref ?? `unknown:${index + 1}`,
@@ -398,9 +376,11 @@ export function normalizeProposalCandidates(
         proposed_text: candidate.proposed_text ?? "",
         justification: candidate.justification ?? "",
         severity: candidate.severity ?? "medium",
-        anchor_start: anchor.anchor_start,
-        anchor_end: anchor.anchor_end,
-        anchor_context: anchor.anchor_context,
+        start_offset: anchor.start_offset,
+        end_offset: anchor.end_offset,
+        before_context: anchor.before_context,
+        after_context: anchor.after_context,
+        anchor_text_normalized: anchor.anchor_text_normalized ?? null,
         _anchor_status: anchor.anchor_status,
       };
     });

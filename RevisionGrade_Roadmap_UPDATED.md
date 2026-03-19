@@ -8,8 +8,8 @@ Canon: Volumes I-V fully integrated (77 doctrine units referenced)
 ---
 Executive Summary
 Status Overview
-Completed: 2 items
-In Progress: 1 items (2.1 — code complete, DB rollout pending)
+Completed: 3 items
+In Progress: 0 items
 Next: 12 items
 Planned: 16 items
 Future: 13 items
@@ -28,7 +28,7 @@ Phase 5 — Dashboards, Analytics & Platform: 16 items
 Investment Readiness Status
 Foundation & Governance: PRODUCTION READY
 Evaluation Loop (Gate A5): DEMO READY
-Anchor Metadata (2.1): CODE COMPLETE, DB VERIFICATION PENDING
+Anchor Metadata (2.1): COMPLETED, VERIFIED 2026-03-18 (6/6 gates, DB xtumxjnzdswuumndcbwc)
 Canon Integration (Phase 0): NEXT
 Trust & Quality Uplift: NEXT IN QUEUE
 Product Surface (Revision UX): PLANNED
@@ -43,7 +43,7 @@ Every sprint subtask has: Success Criteria, Test Method, Output Artifact
 Definition of done: "This passed its defined success test" — not "I think this is done"
 Canon compliance check required before any phase can be marked verified
 Active Gates
-2.1 DB Verification: phase21-db-verification.sql must pass before 2.2 begins
+2.1 DB Verification: PASSED 2026-03-18 (6/6 gates). 2.2 is open.
 Canon Gate (Pass 1.5): Must execute before results surface to users
 Two-AI Independence: Pass 2 must never receive Pass 1 outputs
 Audit Spine: Append-only, hash-chained, no DELETE/UPDATE, 7-year retention

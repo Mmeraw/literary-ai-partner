@@ -41,9 +41,11 @@ export type ChangeProposal = {
   severity: ProposalSeverity;
   decision: ProposalDecision | null;
   modified_text: string | null;
-  anchor_start: number | null;
-  anchor_end: number | null;
-  anchor_context: string | null;
+  start_offset: number;
+  end_offset: number;
+  before_context: string;
+  after_context: string;
+  anchor_text_normalized: string | null;
   created_at: string;
 };
 
@@ -85,9 +87,11 @@ export type CreateChangeProposalInput = {
   proposed_text: string;
   justification: string;
   severity: ProposalSeverity;
-  anchor_start?: number | null;
-  anchor_end?: number | null;
-  anchor_context?: string | null;
+  start_offset: number;
+  end_offset: number;
+  before_context: string;
+  after_context: string;
+  anchor_text_normalized?: string | null;
 };
 
 export type CreateDiagnosticFindingInput = {

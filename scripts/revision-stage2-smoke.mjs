@@ -311,7 +311,7 @@ async function resolveEvaluationRunId(supabase) {
 async function loadProposalsForSession(supabase, revisionSessionId) {
   const { data, error } = await supabase
     .from("change_proposals")
-    .select("id, revision_session_id, location_ref, rule, decision, original_text, proposed_text, anchor_start, anchor_end")
+    .select("id, revision_session_id, location_ref, rule, decision, original_text, proposed_text, start_offset, end_offset")
     .eq("revision_session_id", revisionSessionId);
 
   if (error) {
@@ -664,7 +664,7 @@ async function main() {
   }
 
   // 2) Decide proposals (accept a small viable subset)
-  // Only accept proposals with a confirmed anchor (anchor_start + anchor_end set),
+  // Only accept proposals with a confirmed anchor (start_offset + end_offset set),
   // meaning the original_text was found exactly once in source during synthesis.
   // Proposals without a valid anchor cannot be applied via the strict text-match path.
   const maxAccept = Number(process.env.MAX_ACCEPT_PROPOSALS ?? 3);
@@ -674,8 +674,8 @@ async function main() {
       typeof p?.original_text === "string" &&
       p.original_text.trim().length > 0 &&
       typeof p?.proposed_text === "string" &&
-      typeof p?.anchor_start === "number" &&
-      typeof p?.anchor_end === "number",
+        typeof p?.start_offset === "number" &&
+        typeof p?.end_offset === "number",
   );
 
   if (viable.length === 0) {
