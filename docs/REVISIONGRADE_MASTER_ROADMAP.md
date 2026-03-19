@@ -391,3 +391,34 @@ Structured failure classification for the current jobs/apply failure path.
 - `getJob(...)` surfaces `failure_code`
 - jobs endpoint returns classified failure info on failed jobs
 - no generic/unclassified fallback in covered paths
+
+---
+
+## Post-2.4 execution packet (2.1–2.3 residual hardening)
+
+### Tracker one-liner
+
+Phase 2.4 closed on main at `461a004`; next execution block is engine hardening to lock residual 2.1–2.3 invariants, fail-closed extraction, and `>=99.5%` apply reliability with zero wrong-location edits.
+
+### Canonical anchor contract (single source of truth)
+
+- `start_offset`: inclusive
+- `end_offset`: exclusive
+- `before_context`: exact preceding slice
+- `after_context`: exact following slice
+
+### Execution order
+
+1. 2.1 Anchor enforcement hard-lock
+2. 2.1 DB/type/runtime parity
+3. 2.2 Fail-closed extraction behavior
+4. 2.2 Extraction contract golden set
+5. 2.3 Apply harness expansion
+
+### Explicit acceptance refinements
+
+- DB, TS, and validator all reject `start_offset >= end_offset`
+- Golden coverage includes mixed smart/curly punctuation
+- Apply harness quality gates are split and both mandatory:
+  - placement success rate `>=99.5%` on valid anchors
+  - wrong-location edits `= 0`
