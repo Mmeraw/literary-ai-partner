@@ -1,115 +1,107 @@
 # RevisionGrade Project Management Roadmap Tracker
 
-## RevisionGrade Project Management Roadmap Tracker
-## Generated: March 19, 2026
-## Owner: Mike Meraw
-## Total Items: 44 work items across 6 phases (0-5)
-## Canon: Volumes I-V fully integrated (77 doctrine units referenced)
+RevisionGrade Project Management Roadmap Tracker
+Generated: March 19, 2026
+Owner: Mike Meraw
+Total Items: 44 work items across 6 phases (0-5)
+Canon: Volumes I-V fully integrated (77 doctrine units referenced)
 ---
-
-## Executive Summary
-
-## Status Overview
-- Completed: 7 items (1.1, 1.2, 2.1, 2.2, 2.3, 2.4, 2.5)
-- In Progress: 0 items
-- Next: 8 items
-- Planned: 16 items
-- Future: 13 items
-
-## Priority Distribution
-- P0-Blocker: 8 items (mission-critical, execution order locked)
-- P1-Critical: 14 items (high priority)
-- P2-Important: 11 items (needed for product)
-- P3-Feature: 11 items (future enhancement)
-
-## Phase Distribution
-- Phase 0 — Canon Integration & Authority: 3 items
-- Phase 1 — Foundation & Governance: 2 items (COMPLETE)
-- Phase 2 — Evaluation Quality & Credibility: 11 items
-- Phase 3 — Action Loop: Revision & WAVE: 7 items
-- Phase 4 — Conversion & Packaging: 5 items
-- Phase 5 — Dashboards, Analytics & Platform: 16 items
-
-## Investment Readiness Status
-- Foundation & Governance: PRODUCTION READY
-- Evaluation Loop (Gate A5): DEMO READY
-- Anchor Metadata (2.1): VERIFIED & COMPLETE (DB 6-gate pass 2026-03-18)
-- Proposal Extraction (2.2): COMPLETED & VERIFIED (21/21 tests, 2026-03-19)
-- Apply Integrity (2.3): COMPLETED & VERIFIED (13/13 tests, 2026-03-19)
-- Failure Classification + Engine Hardening (2.4): COMPLETED & VERIFIED (10 suites/100 tests, Pack F 100k soak, abe6146, 2026-03-19)
-- Stage Validation (2.5): COMPLETED & VERIFIED (5 success/3 fail-closed, deterministic matrix, gate run 2026-03-19)
-- Canon Integration (Phase 0): NEXT
-- Trust & Quality Uplift: NEXT IN QUEUE
-
+Executive Summary
+Status Overview
+  Completed: 7 items (1.1, 1.2, 2.1, 2.2, 2.3, 2.4, 2.5)
+  In Progress: 0 items
+  Next: 9 items
+  Planned: 16 items
+  Future: 13 items
+Priority Distribution
+  P0-Blocker: 8 items (mission-critical, execution order locked)
+  P1-Critical: 14 items (high priority)
+  P2-Important: 11 items (needed for product)
+  P3-Feature: 11 items (future enhancement)
+Phase Distribution
+  Phase 0 — Canon Integration & Authority: 3 items
+  Phase 1 — Foundation & Governance: 2 items (COMPLETE)
+  Phase 2 — Evaluation Quality & Credibility: 11 items
+  Phase 3 — Action Loop: Revision & WAVE: 7 items
+  Phase 4 — Conversion & Packaging: 5 items
+  Phase 5 — Dashboards, Analytics & Platform: 16 items
+Investment Readiness Status
+  Foundation & Governance: PRODUCTION READY
+  Evaluation Loop (Gate A5): DEMO READY
+  Anchor Metadata (2.1): VERIFIED & COMPLETE (DB 6-gate pass 2026-03-18)
+  Proposal Extraction (2.2): COMPLETED & VERIFIED (21/21 tests, 2026-03-19)
+  Apply Integrity (2.3): COMPLETED & VERIFIED (13/13 tests, 2026-03-19)
+  Failure Classification + Engine Hardening (2.4): COMPLETED & VERIFIED (10 suites/100 tests, Pack F 100k soak, abe6146, 2026-03-19)
+  Canon Integration (Phase 0): NEXT
+  Trust & Quality Uplift: NEXT IN QUEUE
 ---
-
-## Three-Layer Execution Structure
-- Layer 1 — Roadmap: direction + sequencing (this workbook)
-- Layer 2 — Sprint: atomic subtasks with verification (Sprint 0 sheet)
-- Layer 3 — Authority: canon enforcement at runtime (Phase 0 items)
-
-## Governance Model
-- Every roadmap item has: Success Criteria, Test Method, Canon Reference
-- Every sprint subtask has: Success Criteria, Test Method, Output Artifact
-- Definition of done: "This passed its defined success test" — not "I think this is done"
-- Canon compliance check required before any phase can be marked verified
-
-## Active Gates
-- 2.1 DB Verification: phase21-db-verification.sql must pass before 2.2 begins
-- Canon Gate (Pass 1.5): Must execute before results surface to users
-- Two-AI Independence: Pass 2 must never receive Pass 1 outputs
-- Audit Spine: Append-only, hash-chained, no DELETE/UPDATE, 7-year retention
-
+Three-Layer Execution Structure
+  Layer 1 — Roadmap: direction + sequencing (this workbook)
+  Layer 2 — Sprint: atomic subtasks with verification (Sprint 0 sheet)
+  Layer 3 — Authority: canon enforcement at runtime (Phase 0 items)
+Governance Model
+  Every roadmap item has: Success Criteria, Test Method, Canon Reference
+  Every sprint subtask has: Success Criteria, Test Method, Output Artifact
+  Definition of done: "This passed its defined success test" — not "I think this is done"
+  Canon compliance check required before any phase can be marked verified
+Active Gates
+  2.1 DB Verification: phase21-db-verification.sql must pass before 2.2 begins
+  Canon Gate (Pass 1.5): Must execute before results surface to users
+  Two-AI Independence: Pass 2 must never receive Pass 1 outputs
+  Audit Spine: Append-only, hash-chained, no DELETE/UPDATE, 7-year retention
 ---
-
-## Workbook Sheets
-- Overview: Dashboard with KPI cards and phase progress
-- Roadmap: Full 44-item sequential tracker with all PM fields + Canon Reference
-- Sprint 0 (Phase 2): 13 atomic subtasks for 2.1-2.4 with Success/Test/Artifact
-- Immediate Priorities: The 'next three' critical deliverables
-- Canon Reference: Authority chain, numeric constants, 10 non-negotiable governance rules
-
+Workbook Sheets
+  Overview: Dashboard with KPI cards and phase progress
+  Roadmap: Full 44-item sequential tracker with all PM fields + Canon Reference
+  Sprint 0 (Phase 2): 15 atomic subtasks for 2.1-2.5 with Success/Test/Artifact
+  Immediate Priorities: The 'next three' critical deliverables
+  Canon Reference: Authority chain, numeric constants, 10 non-negotiable governance rules
 ---
-
-## Canon Document Sources (20 documents integrated)
-- Volume I — WAVE Revision Guide Canon (62 waves, 3 tsunamis, 10 execution rules)
-- Volume II — Story Evaluation Criteria (13 criteria, 10 diagnostic patterns)
-- Volume II-A — Operational Schema (weights, gates, JSON envelope, Supabase tables)
-- Volume III — Platform Governance Canon (5 doctrines, 3-layer editorial intelligence)
-- Volume III — Tools & Implementation Systems (schemas, prompts, adapters)
-- Volume III — Operational Specification (thresholds, routing, 7-stage pipeline)
-- Volume IV — AI Governance Canon (3-layer authority, 7 protection systems)
-- Volume V — Execution Architecture (AEP 6-step flow, Trifecta, chunking, reliability)
-- Canon III — Lessons of the Living System (8 governing laws)
-- Canon Assembly Matrix (RCAM v2.0, 24 source docs, 5 matrix rules)
-- Canon Doctrine Registry (77 doctrine units, 6 governance rules)
-- + 9 supporting/variant documents (txt, md formats)
-
----
+Canon Document Sources (20 documents integrated)
+  Volume I — WAVE Revision Guide Canon (62 waves, 3 tsunamis, 10 execution rules)
+  Volume II — Story Evaluation Criteria (13 criteria, 10 diagnostic patterns)
+  Volume II-A — Operational Schema (weights, gates, JSON envelope, Supabase tables)
+  Volume III — Platform Governance Canon (5 doctrines, 3-layer editorial intelligence)
+  Volume III — Tools & Implementation Systems (schemas, prompts, adapters)
+  Volume III — Operational Specification (thresholds, routing, 7-stage pipeline)
+  Volume IV — AI Governance Canon (3-layer authority, 7 protection systems)
+  Volume V — Execution Architecture (AEP 6-step flow, Trifecta, chunking, reliability)
+  Canon III — Lessons of the Living System (8 governing laws)
+  Canon Assembly Matrix (RCAM v2.0, 24 source docs, 5 matrix rules)
+  Canon Doctrine Registry (77 doctrine units, 6 governance rules)
+  + 9 supporting/variant documents (txt, md formats)
 
 # Overview
 
-RevisionGrade — Product Roadmap
-Upload → Evaluation → Revision → Packaging → StoryGate → Agents
-Generated: March 19, 2026 | Owner: Mike Meraw | Canon: Volumes I-V integrated
-STATUS SUMMARY
-Completed | In Progress | Next | Planned | Future | Total Items
-=COUNTIF(Roadmap!F:F,"Completed") | =COUNTIF(Roadmap!F:F,"In Progress") | =COUNTIF(Roadmap!F:F,"Next") | =COUNTIF(Roadmap!F:F,"Planned") | =COUNTIF(Roadmap!F:F,"Future") | =COUNTA(Roadmap!F2:F100)
-PHASE PROGRESS
-Phase | Name | Items | Completed | % Done
-0 | Canon Integration & Authority | =COUNTIF(Roadmap!B:B,0) | =COUNTIFS(Roadmap!B:B,0,Roadmap!F:F,"Completed") | =IF(D15=0,0,E15/D15)
-1 | Foundation & Governance | =COUNTIF(Roadmap!B:B,1) | =COUNTIFS(Roadmap!B:B,1,Roadmap!F:F,"Completed") | =IF(D16=0,0,E16/D16)
-2 | Evaluation Quality & Credibility | =COUNTIF(Roadmap!B:B,2) | =COUNTIFS(Roadmap!B:B,2,Roadmap!F:F,"Completed") | =IF(D17=0,0,E17/D17)
-3 | Action Loop: Revision & WAVE | =COUNTIF(Roadmap!B:B,3) | =COUNTIFS(Roadmap!B:B,3,Roadmap!F:F,"Completed") | =IF(D18=0,0,E18/D18)
-4 | Conversion & Packaging | =COUNTIF(Roadmap!B:B,4) | =COUNTIFS(Roadmap!B:B,4,Roadmap!F:F,"Completed") | =IF(D19=0,0,E19/D19)
-5 | Dashboards, Analytics & Platform | =COUNTIF(Roadmap!B:B,5) | =COUNTIFS(Roadmap!B:B,5,Roadmap!F:F,"Completed") | =IF(D20=0,0,E20/D20)
-SHEET INDEX
-Roadmap | Full sequential task tracker with all PM fields
-Immediate Priorities | The 'next three' critical deliverables
-Sprint 0 (Phase 2) | Governed execution board: 13 atomic subtasks for 2.1-2.4 with Success/Test/Artifact
-Canon Reference | Authority chain, numeric constants, governance rules from Volumes I-V
-
----
+|  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+|  | RevisionGrade — Product Roadmap |  |  |  |  |  |  |  |  |
+|  | Upload → Evaluation → Revision → Packaging → StoryGate → Agents |  |  |  |  |  |  |  |  |
+|  | Generated: March 19, 2026 \| Owner: Mike Meraw \| Canon: Volumes I-V integrated |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |  |
+|  | STATUS SUMMARY |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |  |
+|  | Completed | In Progress | Next | Planned | Future | Total Items |  |  |  |
+|  | =COUNTIF(Roadmap!F:F,"Completed") | =COUNTIF(Roadmap!F:F,"In Progress") | =COUNTIF(Roadmap!F:F,"Next") | =COUNTIF(Roadmap!F:F,"Planned") | =COUNTIF(Roadmap!F:F,"Future") | =COUNTA(Roadmap!F2:F100) |  |  |  |
+|  |  |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |  |
+|  | PHASE PROGRESS |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |  |
+|  | Phase | Name | Items | Completed | % Done |  |  |  |  |
+|  | 0 | Canon Integration & Authority | =COUNTIF(Roadmap!B:B,0) | =COUNTIFS(Roadmap!B:B,0,Roadmap!F:F,"Completed") | =IF(D15=0,0,E15/D15) |  |  |  |  |
+|  | 1 | Foundation & Governance | =COUNTIF(Roadmap!B:B,1) | =COUNTIFS(Roadmap!B:B,1,Roadmap!F:F,"Completed") | =IF(D16=0,0,E16/D16) |  |  |  |  |
+|  | 2 | Evaluation Quality & Credibility | =COUNTIF(Roadmap!B:B,2) | =COUNTIFS(Roadmap!B:B,2,Roadmap!F:F,"Completed") | =IF(D17=0,0,E17/D17) |  |  |  |  |
+|  | 3 | Action Loop: Revision & WAVE | =COUNTIF(Roadmap!B:B,3) | =COUNTIFS(Roadmap!B:B,3,Roadmap!F:F,"Completed") | =IF(D18=0,0,E18/D18) |  |  |  |  |
+|  | 4 | Conversion & Packaging | =COUNTIF(Roadmap!B:B,4) | =COUNTIFS(Roadmap!B:B,4,Roadmap!F:F,"Completed") | =IF(D19=0,0,E19/D19) |  |  |  |  |
+|  | 5 | Dashboards, Analytics & Platform | =COUNTIF(Roadmap!B:B,5) | =COUNTIFS(Roadmap!B:B,5,Roadmap!F:F,"Completed") | =IF(D20=0,0,E20/D20) |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |  |
+|  | SHEET INDEX |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |  |
+|  | Roadmap | Full sequential task tracker with all PM fields |  |  |  |  |  |  |  |
+|  | Immediate Priorities | The 'next three' critical deliverables |  |  |  |  |  |  |  |
+|  | Sprint 0 (Phase 2) | Governed execution board: 15 atomic subtasks for 2.1-2.5 with Success/Test/Artifact |  |  |  |  |  |  |  |
+|  | Canon Reference | Authority chain, numeric constants, governance rules from Volumes I-V |  |  |  |  |  |  |  |
 
 # Roadmap
 
@@ -124,7 +116,7 @@ Canon Reference | Authority chain, numeric constants, governance rules from Volu
 | 4 | 2 | 2.2 | Proposal Extraction Contract |  | Completed | P0 | Ensure exact anchors with zero whitespace drift or partial captures. The extraction contract is the bridge between evaluation output and revision input. | Deterministic extraction contract: source_text.slice(start_offset, end_offset) must exactly reproduce anchor_text_normalized with zero ambiguity. No whitespace drift, no partial captures, no encoding differences. Validate every anchor against source text byte-for-byte. Handle unicode, em-dashes, smart quotes, and multi-byte characters. Extraction is purely mechanical — no inference, no fuzzy matching. | Proposal logic | Mike + Copilot | 6-8 | 2.1 | source_text.slice(start_offset, end_offset) === anchor_text_normalized for 100% of proposals. 0 whitespace drift. 0 partial captures (every extraction includes complete sentence/clause boundaries). 0 encoding mismatches. Handles unicode, em-dashes, smart quotes. Extraction is deterministic and reproducible — same input always produces same output. | Substring reconstruction test: reconstruct anchor from source using offsets → must equal original_text. Diff validation across full corpus (not samples): extracted_text === source_slice. Run extraction on 50+ proposals from 3 manuscripts → 0 byte-level differences. | Yes | Phase 2.2 COMPLETED (2026-03-19). 21/21 tests green. validateExtractionContract enforced at proposal creation. No fallback. Fail-closed. \| GATE: 2.1 DB verification passed (2026-03-18). 2.2 may proceed. Deterministic formula: source_text.slice(start_offset, end_offset) must exactly reproduce anchor_text_normalized. Output Artifacts: extraction module (lib/evaluation/proposals/extractProposals.ts), extraction diff report (CSV: proposal_id, source_text, extracted_text, match_status), coverage report (≥95% line coverage on extraction logic). | Vol III Tools (§III.T4 extraction contract), Vol II-A (§evidence excerpt max 200 chars) |
 | 5 | 2 | 2.3 | Location-Aware Apply |  | Completed | P0 | Deterministic apply engine: given a valid anchor, the system must apply the change to exactly the right location every time. | Offset + context validation. Character-level positioning with fallback matching. Idempotent apply logic. | Finalize logic | Mike + Copilot | 8-12 | 2.2 | ≥99.5% correct placement on valid anchors. 0 incorrect placements (wrong location = critical failure). Idempotent: applying same proposal twice produces identical output. Handles multi-byte unicode correctly. | Batch apply: run 500-1000 proposals through apply engine. Track: success, mismatch, failure type. Rerun consistency: re-run identical batch → outputs must be byte-identical. Edge cases: offset shifted by prior edit, context fallback, overlapping proposals, unicode stress test. | Yes | THE CORE PRODUCT. The apply engine is the product — everything else is presentation. Difficulty: HARD. This is where determinism is either proven or breaks. Do NOT patch edge cases with hacks. Log everything, classify failures (2.4), refine determinism. Output Artifacts: applyEngine.ts, success rate report, test harness (tests/applyEngine/), CI integration. | Vol V (AEP Step 3 — Apply), Vol III Ops (§III.O8 determinism requirement) |
 | 6 | 2 | 2.4 | Failure Classification |  | Completed | P0 | Every failure must be diagnosable. Unclassified failures are invisible failures — they erode trust and make debugging impossible. | Enumerate failure codes for every apply path. Classify by type (anchor miss, conflict, parse error, etc.) and persist to revision_sessions. | revision_sessions | Mike + Copilot | 4-6 | 2.3 | 100% of failures mapped to defined actionable codes (ANCHOR_MISS, ANCHOR_AMBIGUOUS, CONTEXT_MISMATCH, OFFSET_CONFLICT, PARSE_ERROR, APPLY_COLLISION). 0 'unknown' failures on reproducible scenarios. All failure types persisted in revision_sessions with failure_code, failure_detail, failure_timestamp. | Force failure scenarios: bad anchor, ambiguous match, missing source, overlapping edits, corrupt input. Verify each produces correct failure_code + correct failure_message. Query: SELECT * FROM revision_sessions WHERE status='failed' AND failure_code IS NULL → must return 0 rows. | Yes | COMPLETED at abe6146. Engine hardening: 10 suites/100 tests. Pack A (27 tests), Pack C (24 tests), Pack D (182/182 valid, 0 wrong-location), Pack F (100k soak: 0 unclassified, 0 wrong-location, 0 lost writes). Fail-closed malformed-candidate fix shipped. Operations docs spine published. | Vol V (§V.11 reliability model, dead-letter), Vol IV (§IV.G4.3 violation severity classes) |
-| 7 | 2 | 2.5 | Stage 2.5 Validation |  | Completed | P0 | Verify that the entire anchor → extract → apply pipeline is deterministic. Repeat runs must produce identical outputs. | Test harness: run the same manuscript through the pipeline N times. Compare outputs byte-for-byte. CI integration. | CI / Test harness | Mike | 2-4 | 2.4 | Identical outputs every run across full test suite. |  | No | Gate checkpoint before proceeding to 2.6. | Vol III Ops (§III.O8 determinism), Vol V (§V.11 idempotency), Canon III Lesson I:5 (resistance reveals structure) |
+| 7 | 2 | 2.5 | Stage 2.5 Validation |  | Completed | P0 | Verify that the entire anchor → extract → apply pipeline is deterministic. Repeat runs must produce identical outputs. | Test harness: run the same manuscript through the pipeline N times. Compare outputs byte-for-byte. CI integration. | CI / Test harness | Mike | 2-4 | 2.4 | Identical outputs every run across full test suite. |  | No | COMPLETED at 48aa4c9 (2026-03-19). Deterministic matrix: 5 success cases (single, multi-proposal, literary prose, dialogue, multi-paragraph), 3 failure cases (PARSE_ERROR, ANCHOR_MISS, OFFSET_CONFLICT). 9/9 ingest, 9/9 extract, 9/9 validate, 9/9 apply. Repeated-run byte identity: true. 3 archived evidence runs. Closure doc published. | Vol III Ops (§III.O8 determinism), Vol V (§V.11 idempotency), Canon III Lesson I:5 (resistance reveals structure) |
 | 8 | 2 | 2.6 | A6 Report Credibility Layer |  | Next | P1 | A writer must see 'why 8.3?' in plain language before they'll trust anything more advanced. Score explanations, rubric breakdown, confidence, and provenance — all from persisted artifacts. | Extend evaluationresultv1 content with rubric items and credibility block (no new tables). Render 'Why this score?' section in report UI (no recompute, artifact-only). | Report UI / evaluationresultv1 | Mike + Copilot | 6-8 | 1.2 | Rubric breakdown, score explanations, confidence, and provenance visible on report. Zero recomputation on read. |  | No | Partially implemented. Roadmap Item 1 from narrative. Must close on top of Gate A5. | Vol II (13 Criteria + diagnostic framework), Vol II-A (§WCS computation, eligibility gates), Vol III Ops (§score thresholds 50/60/65/80) |
 | 9 | 2 | 2.7 | Evaluation Uplift (Pass 1-4, Dual Axis) |  | Next | P1 | The psychological shift from 'grader' to 'trusted editor.' Dual-axis evaluation: Craft Execution + Editorial/Literary Insight, with quality guards that prevent generic or duplicated output. | Multi-pass pipeline: structural → intent/genre → interpretive → synthesis. Guards: no duplicated recs vs summary, no generic recs (must anchor to character/scene/event), no pretending full coverage when partial. | Evaluation pipeline | Mike + Copilot | 12-16 | 2.6 | Dual-axis scores. Zero generic recommendations. All recs anchored to specific text. Quality guards pass CI. |  | No | This is what makes the product feel like a senior editor, not a rubric engine. | Vol II (13 Criteria, 10 diagnostic patterns), Vol III Tools (§PASS1/PASS2/PASS3 prompts, temperatures 0.3/0.2), Vol IV (§multi-AI consensus) |
 | 10 | 2 | 2.8 | Multi-Chunk Evaluation Synthesis |  | Next | P1 | Core promise is 'whole-work editorial intelligence,' not 'first 10K words.' Must handle full manuscripts and screenplays via chunking with aggregate memory. | Ensure 100% text coverage or explicit 'partial evaluation' labeling. Aggregate per-criterion signals across chunks into the 13-criterion rubric. Unified result artifact. | Evaluation pipeline | Mike + Copilot | 10-14 | 2.7 | 100% coverage or explicit partial labeling. Unified rubric scores across all chunks. |  | No | Must land before heavy product UX work. | Vol V (§V.5 chunking architecture, whole-manuscript reconciliation) |
@@ -159,112 +151,110 @@ Canon Reference | Authority chain, numeric constants, governance rules from Volu
 | 39 | 5 | 5.14 | Canon Protection Systems |  | Future | P2 | Vol IV defines 7 canon protection systems with 4-level violation severity. Silent rule changes are prohibited — all canon modifications require formal ChangeProposal. This is the immune system that prevents the platform from drifting away from its own doctrine. | Implement: (1) Canon version registry, (2) Change proposal workflow, (3) Violation detection (4 severity levels), (4) Canon drift alerting, (5) Formal change approval gate. All canon-referenced constants loaded from registry, never hardcoded. | lib/governance/canon/ | Mike | 12-16 | 5.13 | Canon constants loaded from registry. Any attempt to modify without ChangeProposal is blocked/logged. Violation severity correctly classified. | Attempt to change a threshold without ChangeProposal — blocked. Submit formal ChangeProposal — approved and applied. Verify canon version incremented. | No | 4 severity levels per Vol IV: advisory, warning, violation, critical. | Vol IV (§IV.G3 7 canon protection systems, 4 violation severity levels), Canon Doctrine Registry (77 doctrine units) |
 | 40 | 5 | 5.15 | Human Review Escalation Queue |  | Future | P2 | Vol IV mandates human review when AI disagreement exceeds ±20 points. Vol III Tools requires a disputed-items log and human review escalation at >20% dispute rate. This is the safety valve that maintains trust when AI consensus breaks down. | Build human review queue: triggered by ±20 point AI disagreement or >20% dispute rate. Queue shows: manuscript, both AI evaluations, divergence summary, recommended action. Human verdict is final and persisted to audit trail. | Admin UI / lib/review/ | Mike | 8-12 | 2.10 + 5.2 | High-divergence evaluations automatically queued. Human verdicts recorded and final. Dispute rate tracked per evaluation batch. | Inject evaluation with 25-point divergence — auto-queued. Process in review queue — verdict persisted. Verify audit trail includes human review event. | No |  | Vol IV (§IV.G4.3 human review at ±20 points), Vol III Tools (§III.T9 disputed-items log, >20% escalation), Vol III Governance (§minor ±10 / major ±20) |
 | 41 | 5 | 5.16 | Voice Spine & Drift Detection |  | Future | P3 | Canon Doctrine Registry defines VOICE-11 through VOICE-15: Voice Spine Schema, Character Voice Profile, Drift Detection & Heatmap, Voice × 13-Criteria Crosswalk, ETL & Audit Requirements. This is a distinct analytical subsystem for voice consistency. | Implement voice spine schema (character voice profiles per work). Build drift detection algorithm (flag voice inconsistency across chapters/scenes). Heatmap visualization. Cross-reference with 13-criteria evaluation. | lib/analysis/voice/ | Mike | 14-20 | 2.8 + 3.3 | Voice profiles generated per character. Drift flagged across chapters. Heatmap renders. Voice metrics feed into evaluation criteria. | Submit manuscript with intentional voice drift in chapter 5 — flagged. Submit consistent manuscript — clean. Heatmap renders without errors. | No | Advanced analytical feature. Depends on multi-chunk synthesis being complete. | Canon Doctrine Registry (VOICE-11 through VOICE-15), Vol II (diagnostic patterns) |
-
----
+|  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| ← Back to Overview |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 
 # Sprint 0 (Phase 2)
 
-| Sprint | Phase_ID | Task_Group | Subtask_ID | Subtask | Type | Where (Codebase) | Success Criteria | Test Method | Output Artifact |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| PHASE 0 | Canon Integration & Authority Enforcement | Bind canon registry, lessons learned, and governance into runtime enforcement layer | Required before Phase 2.2 |  |  |  |  |  |  |
-| 0.1 | Canon Registry Binding | Map Vol I–V, Doctrine Registry, Lessons Learned into canonical IDs + precedence |  |  |  |  |  |  |  |
-| 0.2 | Lessons → Rules Mapping | Convert lessons learned into validation rules (blur, authority transfer, stalled scenes) |  |  |  |  |  |  |  |
-| 0.3 | Canon Guard Runtime | Fail execution if output violates canon (no silent pass) |  |  |  |  |  |  |  |
-| 0.4 | Audit Layer | Produce canon compliance report per run |  |  |  |  |  |  |  |
-| S0-Apply-Engine | 2.1 | Anchor Metadata System | 2.1.a | Complete | Design | DB / Schema | Schema defines start_offset (int), end_offset (int), before_context + after_context (strings, ~40 chars each). All fields required, non-nullable. | Schema review + Zod parse test: feed 10 valid and 10 malformed anchors. 100% correct accept/reject. | docs/schemas/anchor-metadata.md + Zod schema file (lib/types/anchor.ts) |
-| S0-Apply-Engine | 2.1 | Anchor Metadata System | 2.1.b | Complete | DB Migration | supabase/migrations | Migration runs clean on empty and populated DB. change_proposals table has start_offset, end_offset, before_context/after_context columns. Rollback succeeds without data loss. | supabase db reset + migrate up + migrate down. Verify columns exist via SQL introspection. Insert test row, rollback, confirm no orphan data. | supabase/migrations/<timestamp>_add_anchor_fields.sql + migration test log |
-| S0-Apply-Engine | 2.1 | Anchor Metadata System | 2.1.c | Complete | Backend | lib/db/, lib/types/ | TS types and Zod validators match DB schema exactly. All proposal CRUD operations enforce anchor fields. No untyped access to anchor data anywhere in codebase. | TypeScript strict compile (0 errors). Zod .parse() on 20 sample proposals (10 valid, 10 invalid). grep codebase for raw SQL accessing anchor columns — must be 0. | lib/types/proposal.ts + lib/db/proposals.ts (updated) + TS compile log |
-| S0-Apply-Engine | 2.1 | Anchor Metadata System | 2.1.d | Complete | Validation / Tests | lib/validation/, tests/anchors/ | 100% of proposals in test corpus have valid anchors. 0 proposals accepted with null/empty start_offset, end_offset, or before_context/after_context. Validation rejects malformed anchors at insert time. | Run full proposal generation pipeline on 3 sample manuscripts. Query: SELECT COUNT(*) FROM change_proposals WHERE start_offset IS NULL OR end_offset IS NULL — must return 0. Attempt 5 invalid inserts — all rejected. | tests/anchors/anchor-validation.test.ts + test run report (pass/fail counts) |
-| S0-Apply-Engine | 2.2 | Proposal Extraction | 2.2.a | Define extraction contract | Design | docs/contracts/, schemas/ | Contract document specifies: input format, output schema, whitespace handling rules, partial-capture rejection criteria, edge cases (unicode, line breaks, tabs). Reviewed and signed off. | Peer review: walk through 5 edge-case examples against the contract. Each example must have a deterministic expected output documented. | docs/contracts/extraction-contract.md + 5 edge-case examples in docs/contracts/extraction-examples.md |
-| S0-Apply-Engine | 2.2 | Proposal Extraction | 2.2.b | Implement extraction logic (0 whitespace drift) | Backend | lib/evaluation/proposals/ | 0 whitespace drift: extracted anchor text matches source text byte-for-byte. 0 partial captures: every extraction includes complete sentence/clause boundaries. Handles unicode, em-dashes, smart quotes. | Run extraction on 50+ proposals from 3 different manuscripts. Diff each extracted anchor against source text — 0 byte-level differences. Flag any extraction that splits mid-word or mid-clause. | lib/evaluation/proposals/extractProposals.ts + extraction diff report (CSV: proposal_id, source_text, extracted_text, match_status) |
-| S0-Apply-Engine | 2.2 | Proposal Extraction | 2.2.c | Add tests for 0 drift / partial captures | Tests | tests/proposals/ | Test suite covers: exact match, whitespace variants (tabs, double spaces, newlines), unicode (em-dash, curly quotes, accented chars), partial capture rejection, empty input, overlapping anchors. | Run test suite: 100% pass. Coverage report shows ≥95% line coverage on extraction logic. Add regression test for every bug found during development. | tests/proposals/extraction.test.ts + coverage report (HTML or lcov) |
-| S0-Apply-Engine | 2.3 | Location-Aware Apply | 2.3.a | Design apply algorithm (offset + context + fallback) | Design | docs/algorithms/apply.md | Algorithm doc specifies: primary match (offset), fallback match (context window ±N chars), conflict resolution (overlapping edits), idempotency guarantee. Pseudocode for each path. | Walk through 10 scenarios on paper: exact match, offset shifted by edit, context fallback, overlapping proposals, duplicate apply. Each scenario has expected outcome documented. | docs/algorithms/apply.md (with pseudocode + 10 scenario walkthroughs) |
-| S0-Apply-Engine | 2.3 | Location-Aware Apply | 2.3.b | Implement deterministic apply function | Backend | lib/revision/applyEngine.ts | ≥99.5% correct placement on valid anchors. 0 incorrect edits (wrong location = critical failure). Idempotent: applying same proposal twice produces identical output. Handles multi-byte unicode correctly. | Run 500-1000 proposals through apply engine. Diff original vs applied at character level. Rerun identical batch — output must be byte-identical. Test with unicode-heavy manuscript (Spanish, accented chars). | lib/revision/applyEngine.ts + test log (pass/fail counts, placement accuracy %, idempotency check result) |
-| S0-Apply-Engine | 2.3 | Location-Aware Apply | 2.3.c | Harness tests for ≥99.5% success | Tests / Harness | tests/applyEngine/ | Harness covers: exact offset match, context-fallback match, overlapping proposals, sequential multi-apply, idempotent rerun, unicode edge cases, empty proposal, proposal on deleted text. | Automated harness: run full suite, report per-scenario pass/fail. ≥99.5% overall. 0 incorrect placements. Harness runs in CI (< 60s). Add regression test for every production failure. | tests/applyEngine/ (full harness) + CI integration (.github/workflows/) + harness summary report |
-| S0-Apply-Engine | 2.4 | Failure Classification | 2.4.a | Enumerate failure codes | Design | docs/errors/, lib/errors/revisionCodes.ts | Closed set of failure codes (ANCHOR_MISS, CONFLICT, PARSE_ERROR, INVARIANT_VIOLATION). No UNKNOWN or empty types. | Review code for any untyped throw/catch. Grep for unknown failure strings. | lib/errors/revisionCodes.ts, PACK_F_EXECUTION_CONTRACT.md |
-| S0-Apply-Engine | 2.4 | Failure Classification | 2.4.b | Wire codes into revision_sessions + telemetry | Backend / DB | supabase/migrations, lib/db/revisionSessions.ts, lib/revision/telemetry.ts | Every failed apply stores a specific failure code + context. Telemetry event codes cover all apply paths. | Run all apply paths (valid, invalid offsets, overlap, stale anchor). Verify DB row has non-null failure_code. | Updated revision_sessions schema, telemetry.ts event codes |
-| S0-Apply-Engine | 2.4 | Failure Classification | 2.4.c | Tests: 100% classified failures + Pack F soak qualification | Tests / Harness | tests/failures/, tests/operations/, scripts/soak/ | 10 suites/100 tests green. Pack F 100k soak: 0 unclassified, 0 wrong-location, 0 lost writes. | npm test (full suite). npm run soak:run with 1k/10k/100k events. Verify archived evidence ladder. | soak-harness.test.ts, packF archives (1k/10k/100k) |
-| EXECUTION GOVERNANCE NOTES |  |  |  |  |  |  |  |  |  |
-| Current State | Roadmap (strategic) + Sprint (operational) + Verification (truth). Three-layer execution structure. |  |  |  |  |  |  |  |  |
-| Core Principle | Eliminate "I think this is done." Replace with "This passed its defined success test." Every row has provable completion. |  |  |  |  |  |  |  |  |
-| Critical Path | 2.1 → 2.2 → 2.3 → 2.4. Do NOT parallelize. Each depends on the prior being VERIFIED, not just coded. |  |  |  |  |  |  |  |  |
-| 2.3 Is The Product | The apply engine is the product. Everything else — UI, reports, packaging — is presentation. If 2.3 is deterministic, idempotent, and precise, you win. If not, everything collapses. |  |  |  |  |  |  |  |  |
-| When 2.3 Fails | Do NOT patch. Do NOT add hacks. Log everything → classify failures (2.4) → refine determinism. This is the discipline that separates a system from a tool. |  |  |  |  |  |  |  |  |
-| Scope Discipline | Do NOT expand scope. Do NOT add features. Finish 2.1 VERIFIED → 2.2 VERIFIED → 2.3 VERIFIED → 2.4 VERIFIED. Then and only then move forward. |  |  |  |  |  |  |  |  |
-| 2.1 VERIFIED (2026-03-18). Code complete + tests pass + DB verification 6/6 gates passed on target DB. 21 anchored rows verified — deterministic slice contract holds. Data remediation: 2 manuscript_versions backfilled (raw_text from file_url), 15 anchor offsets recomputed. GATE CLEARED → 2.2 may proceed. | 2.1 CODE COMPLETE + TEST VERIFIED. DB rollout pending. SQL verification pack created (phase21-db-verification.sql). Runbook at tests/anchors/PHASE21_DB_VERIFICATION_RUNBOOK.md. GATE: DB verification must pass before 2.2 begins. |  |  |  |  |  |  |  |  |
-
----
+| Sprint | Phase_ID | Task_Group | Subtask_ID | Subtask | Type | Where (Codebase) | Success Criteria | Test Method | Output Artifact |  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| PHASE 0 | Canon Integration & Authority Enforcement | Bind canon registry, lessons learned, and governance into runtime enforcement layer | Required before Phase 2.2 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 0.1 | Canon Registry Binding | Map Vol I–V, Doctrine Registry, Lessons Learned into canonical IDs + precedence |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 0.2 | Lessons → Rules Mapping | Convert lessons learned into validation rules (blur, authority transfer, stalled scenes) |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 0.3 | Canon Guard Runtime | Fail execution if output violates canon (no silent pass) |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 0.4 | Audit Layer | Produce canon compliance report per run |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.1 | Anchor Metadata System | 2.1.a | Complete | Design | DB / Schema | Schema defines start_offset (int), end_offset (int), before_context + after_context (strings, ~40 chars each). All fields required, non-nullable. | Schema review + Zod parse test: feed 10 valid and 10 malformed anchors. 100% correct accept/reject. | docs/schemas/anchor-metadata.md + Zod schema file (lib/types/anchor.ts) |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.1 | Anchor Metadata System | 2.1.b | Complete | DB Migration | supabase/migrations | Migration runs clean on empty and populated DB. change_proposals table has start_offset, end_offset, before_context/after_context columns. Rollback succeeds without data loss. | supabase db reset + migrate up + migrate down. Verify columns exist via SQL introspection. Insert test row, rollback, confirm no orphan data. | supabase/migrations/<timestamp>_add_anchor_fields.sql + migration test log |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.1 | Anchor Metadata System | 2.1.c | Complete | Backend | lib/db/, lib/types/ | TS types and Zod validators match DB schema exactly. All proposal CRUD operations enforce anchor fields. No untyped access to anchor data anywhere in codebase. | TypeScript strict compile (0 errors). Zod .parse() on 20 sample proposals (10 valid, 10 invalid). grep codebase for raw SQL accessing anchor columns — must be 0. | lib/types/proposal.ts + lib/db/proposals.ts (updated) + TS compile log |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.1 | Anchor Metadata System | 2.1.d | Complete | Validation / Tests | lib/validation/, tests/anchors/ | 100% of proposals in test corpus have valid anchors. 0 proposals accepted with null/empty start_offset, end_offset, or before_context/after_context. Validation rejects malformed anchors at insert time. | Run full proposal generation pipeline on 3 sample manuscripts. Query: SELECT COUNT(*) FROM change_proposals WHERE start_offset IS NULL OR end_offset IS NULL — must return 0. Attempt 5 invalid inserts — all rejected. | tests/anchors/anchor-validation.test.ts + test run report (pass/fail counts) |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.2 | Proposal Extraction | 2.2.a | Define extraction contract | Design | docs/contracts/, schemas/ | Contract document specifies: input format, output schema, whitespace handling rules, partial-capture rejection criteria, edge cases (unicode, line breaks, tabs). Reviewed and signed off. | Peer review: walk through 5 edge-case examples against the contract. Each example must have a deterministic expected output documented. | docs/contracts/extraction-contract.md + 5 edge-case examples in docs/contracts/extraction-examples.md |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.2 | Proposal Extraction | 2.2.b | Implement extraction logic (0 whitespace drift) | Backend | lib/evaluation/proposals/ | 0 whitespace drift: extracted anchor text matches source text byte-for-byte. 0 partial captures: every extraction includes complete sentence/clause boundaries. Handles unicode, em-dashes, smart quotes. | Run extraction on 50+ proposals from 3 different manuscripts. Diff each extracted anchor against source text — 0 byte-level differences. Flag any extraction that splits mid-word or mid-clause. | lib/evaluation/proposals/extractProposals.ts + extraction diff report (CSV: proposal_id, source_text, extracted_text, match_status) |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.2 | Proposal Extraction | 2.2.c | Add tests for 0 drift / partial captures | Tests | tests/proposals/ | Test suite covers: exact match, whitespace variants (tabs, double spaces, newlines), unicode (em-dash, curly quotes, accented chars), partial capture rejection, empty input, overlapping anchors. | Run test suite: 100% pass. Coverage report shows ≥95% line coverage on extraction logic. Add regression test for every bug found during development. | tests/proposals/extraction.test.ts + coverage report (HTML or lcov) |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.3 | Location-Aware Apply | 2.3.a | Design apply algorithm (offset + context + fallback) | Design | docs/algorithms/apply.md | Algorithm doc specifies: primary match (offset), fallback match (context window ±N chars), conflict resolution (overlapping edits), idempotency guarantee. Pseudocode for each path. | Walk through 10 scenarios on paper: exact match, offset shifted by edit, context fallback, overlapping proposals, duplicate apply. Each scenario has expected outcome documented. | docs/algorithms/apply.md (with pseudocode + 10 scenario walkthroughs) |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.3 | Location-Aware Apply | 2.3.b | Implement deterministic apply function | Backend | lib/revision/applyEngine.ts | ≥99.5% correct placement on valid anchors. 0 incorrect edits (wrong location = critical failure). Idempotent: applying same proposal twice produces identical output. Handles multi-byte unicode correctly. | Run 500-1000 proposals through apply engine. Diff original vs applied at character level. Rerun identical batch — output must be byte-identical. Test with unicode-heavy manuscript (Spanish, accented chars). | lib/revision/applyEngine.ts + test log (pass/fail counts, placement accuracy %, idempotency check result) |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.3 | Location-Aware Apply | 2.3.c | Harness tests for ≥99.5% success | Tests / Harness | tests/applyEngine/ | Harness covers: exact offset match, context-fallback match, overlapping proposals, sequential multi-apply, idempotent rerun, unicode edge cases, empty proposal, proposal on deleted text. | Automated harness: run full suite, report per-scenario pass/fail. ≥99.5% overall. 0 incorrect placements. Harness runs in CI (< 60s). Add regression test for every production failure. | tests/applyEngine/ (full harness) + CI integration (.github/workflows/) + harness summary report |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.4 | Failure Classification | 2.4.a | Enumerate failure codes | Design | docs/errors/, lib/errors/revisionCodes.ts | Closed set of failure codes (ANCHOR_MISS, CONFLICT, PARSE_ERROR, INVARIANT_VIOLATION). No UNKNOWN or empty types. | Review code for any untyped throw/catch. Grep for unknown failure strings. | lib/errors/revisionCodes.ts, PACK_F_EXECUTION_CONTRACT.md |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.4 | Failure Classification | 2.4.b | Wire codes into revision_sessions + telemetry | Backend / DB | supabase/migrations, lib/db/revisionSessions.ts, lib/revision/telemetry.ts | Every failed apply stores a specific failure code + context. Telemetry event codes cover all apply paths. | Run all apply paths (valid, invalid offsets, overlap, stale anchor). Verify DB row has non-null failure_code. | Updated revision_sessions schema, telemetry.ts event codes |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.4 | Failure Classification | 2.4.c | Tests: 100% classified failures + Pack F soak qualification | Tests / Harness | tests/failures/, tests/operations/, scripts/soak/ | 10 suites/100 tests green. Pack F 100k soak: 0 unclassified, 0 wrong-location, 0 lost writes. | npm test (full suite). npm run soak:run with 1k/10k/100k events. Verify archived evidence ladder. | soak-harness.test.ts, packF archives (1k/10k/100k) |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.5 | Stage Validation | 2.5.a | Build deterministic stage-validation e2e harness | Tests / Harness | tests/anchors/stage-validation-e2e.test.ts | 5 success cases + 3 failure cases. 9/9 ingest, 9/9 extract, 9/9 validate, 9/9 apply. All pass. | npm test -- tests/anchors/stage-validation-e2e.test.ts. Verify JSON: pass=true. | stage-validation-e2e.test.ts, pack25 JSON/MD reports |  |  |  |  |  |  |  |  |  |  |
+| S0-Apply-Engine | 2.5 | Stage Validation | 2.5.b | Repeated-run byte identity proof + evidence archival | Tests / Evidence | docs/operations/evidence/runs/ | repeated_run_identity_passed=true for all cases. Pipeline-identity byte-identical across runs. 3 evidence runs archived. | Run harness with PACK_25_REPORT_DIR. Verify JSON: repeated_run_identity_passed=true. | 3 archived evidence directories under docs/operations/evidence/runs/ |  |  |  |  |  |  |  |  |  |  |
+| EXECUTION GOVERNANCE NOTES |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| Current State | Roadmap (strategic) + Sprint (operational) + Verification (truth). Three-layer execution structure. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| Core Principle | Eliminate "I think this is done." Replace with "This passed its defined success test." Every row has provable completion. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| Critical Path | 2.1 → 2.2 → 2.3 → 2.4. Do NOT parallelize. Each depends on the prior being VERIFIED, not just coded. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 2.3 Is The Product | The apply engine is the product. Everything else — UI, reports, packaging — is presentation. If 2.3 is deterministic, idempotent, and precise, you win. If not, everything collapses. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| When 2.3 Fails | Do NOT patch. Do NOT add hacks. Log everything → classify failures (2.4) → refine determinism. This is the discipline that separates a system from a tool. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| Scope Discipline | Do NOT expand scope. Do NOT add features. Finish 2.1 VERIFIED → 2.2 VERIFIED → 2.3 VERIFIED → 2.4 VERIFIED. Then and only then move forward. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 2.1 VERIFIED (2026-03-18). Code complete + tests pass + DB verification 6/6 gates passed on target DB. 21 anchored rows verified — deterministic slice contract holds. Data remediation: 2 manuscript_versions backfilled (raw_text from file_url), 15 anchor offsets recomputed. GATE CLEARED → 2.2 may proceed. | 2.1 CODE COMPLETE + TEST VERIFIED. DB rollout pending. SQL verification pack created (phase21-db-verification.sql). Runbook at tests/anchors/PHASE21_DB_VERIFICATION_RUNBOOK.md. GATE: DB verification must pass before 2.2 begins. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 
 # Immediate Priorities
 
-Immediate Priorities — The Next Three
-Once these three are real, everything else sits on a foundation that feels like a senior editor, not a rubric engine.
-# | Deliverable | Status | Depends On | What | Why | How | Done When | LOE
-1 | Close A6 — Report Credibility Layer | Next (start immediately) | Gate A5 (completed) | Lock in score explanations, rubric mapping, confidence levels, and provenance on the existing report. All driven from persisted artifacts — zero recomputation. | A writer who sees '8.3' without understanding why will never trust the system enough to pay for revision or packaging. Credibility is the unlock for everything downstream. | Extend evaluationresultv1 content block with rubric items and credibility metadata. Render 'Why this score?' section in report UI. Artifact-only reads. | Rubric breakdown, score explanations, confidence, and provenance all visible. Report loads from artifact with zero recomputation. | 6-8 hours
-2 | Evaluation Uplift — Pass 1-4, Quality Guards, Dual Axis | Next (after A6) | A6 Report Credibility | Dual-axis evaluation: Craft Execution + Editorial/Literary Insight. Multi-pass pipeline (structural → intent/genre → interpretive → synthesis) with quality guards. | This is the psychological shift from 'grader' to 'trusted editor.' It drives repeat use, justifies pricing, and makes the trajectory + packaging products meaningful. | Four-pass pipeline. Guards before persistence: no duplicated recs vs summary, no generic recs (must anchor to character/scene/event), no pretending full coverage when partial. Multi-chunk correctness. | Dual-axis scores rendered. Zero generic recommendations. All recs anchored to specific text. Multi-chunk synthesis with 100% coverage or explicit partial labeling. | 22-30 hours (includes 2.7 + 2.8)
-3 | Interactive Revision Loop (WAVE) | Planned (after uplift) | Evaluation Uplift + State Machine + Transition Engine | For each flagged issue: show sentence, explain why problematic, offer 3 alternatives + 'edit your own,' accept/reject with progression to 'closed' document state. | This is where RevisionGrade stops being a diagnostic and becomes a coach. It's the product differentiator and the scaffolding for trajectory intelligence. | evaluationresultv1 + WAVE → Issue + Suggestion objects per sentence/section. Pass UI iterates issues until none remain. Persist versions for before/after ATI comparison. | Full issue iteration works. Accept/reject/edit workflow functional. Document reaches 'closed' state. Version history persisted. | 16-24 hours
-← Back to Overview
-
----
+|  |  |  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+|  | Immediate Priorities — The Next Three |  |  |  |  |  |  |  |  |
+|  | Once these three are real, everything else sits on a foundation that feels like a senior editor, not a rubric engine. |  |  |  |  |  |  |  |  |
+|  | # | Deliverable | Status | Depends On | What | Why | How | Done When | LOE |
+|  | 1 | Close A6 — Report Credibility Layer | Next (start immediately) | Gate A5 (completed) | Lock in score explanations, rubric mapping, confidence levels, and provenance on the existing report. All driven from persisted artifacts — zero recomputation. | A writer who sees '8.3' without understanding why will never trust the system enough to pay for revision or packaging. Credibility is the unlock for everything downstream. | Extend evaluationresultv1 content block with rubric items and credibility metadata. Render 'Why this score?' section in report UI. Artifact-only reads. | Rubric breakdown, score explanations, confidence, and provenance all visible. Report loads from artifact with zero recomputation. | 6-8 hours |
+|  | 2 | Evaluation Uplift — Pass 1-4, Quality Guards, Dual Axis | Next (after A6) | A6 Report Credibility | Dual-axis evaluation: Craft Execution + Editorial/Literary Insight. Multi-pass pipeline (structural → intent/genre → interpretive → synthesis) with quality guards. | This is the psychological shift from 'grader' to 'trusted editor.' It drives repeat use, justifies pricing, and makes the trajectory + packaging products meaningful. | Four-pass pipeline. Guards before persistence: no duplicated recs vs summary, no generic recs (must anchor to character/scene/event), no pretending full coverage when partial. Multi-chunk correctness. | Dual-axis scores rendered. Zero generic recommendations. All recs anchored to specific text. Multi-chunk synthesis with 100% coverage or explicit partial labeling. | 22-30 hours (includes 2.7 + 2.8) |
+|  | 3 | Interactive Revision Loop (WAVE) | Planned (after uplift) | Evaluation Uplift + State Machine + Transition Engine | For each flagged issue: show sentence, explain why problematic, offer 3 alternatives + 'edit your own,' accept/reject with progression to 'closed' document state. | This is where RevisionGrade stops being a diagnostic and becomes a coach. It's the product differentiator and the scaffolding for trajectory intelligence. | evaluationresultv1 + WAVE → Issue + Suggestion objects per sentence/section. Pass UI iterates issues until none remain. Persist versions for before/after ATI comparison. | Full issue iteration works. Accept/reject/edit workflow functional. Document reaches 'closed' state. Version history persisted. | 16-24 hours |
+|  | ← Back to Overview |  |  |  |  |  |  |  |  |
 
 # Canon Reference
 
-RevisionGrade — Canon Document Reference
-Mapping between 5-volume governance canon and roadmap execution items
-CANON AUTHORITY CHAIN
-Canon III — Meta-Governance (DOMINATUS) | 8 governing laws. Adversarial testing required. No silent changes.
-→ Volume IV — AI Governance Canon | 3-layer authority model. 7 canon protection systems. 4 violation severity levels. Human review at ±20 points.
-→ Canon Doctrine Registry | 77 canonical doctrine units. Single source of truth. 6 registry governance rules.
-→ Canon Assembly Matrix (RCAM v2.0) | 24 source documents mapped to 5 volumes. 5 matrix rules. Build map.
-→ Volume II — Story Evaluation Canon | 13 criteria. 10 diagnostic patterns. Scoring doctrine. Evidence trail.
-→ Volume II-A — Operational Schema | Machine spec. Criterion weights. WCS computation. Eligibility gates. JSON schema. Supabase tables.
-→ Volume I — WAVE Revision Canon | 62 waves. 3 tsunamis. 10 binding execution rules. Standard Wave Template. Velocity Bundle.
-→ Volume III — Platform Governance + Tools + Ops | 3 shells: WHY (doctrine) / HOW (schemas, prompts, adapters) / WHEN (thresholds, routing, pipeline).
-→ Volume V — Execution Architecture | AEP 6-step flow. Trifecta Model. Chunking. Reliability. 5 certified artifact types. 12-step build sequence.
-KEY NUMERIC CONSTANTS (Engineering Specs)
-Constant | Value | Source
-WAVE eligibility minimum WCS | 7.0 | Vol II-A
-Structural fail threshold (per criterion) | 5 | Vol II-A
-Agent-ready WCS | 8.5 | Vol II-A
-Market review trigger | 6.0 | Vol II-A
-Score scale | 1-10 integer (no half-points) | Vol II-A
-Readiness: FOUNDATIONAL | <60 (100-pt scale) | Vol III Ops
-Readiness: DEVELOPING | 60-64 | Vol III Ops
-Readiness: REFINEMENT_ELIGIBLE | 65-79 | Vol III Ops
-Readiness: AGENT_READY | ≥80 | Vol III Ops
-PASS1/PASS2 temperature | 0.3 | Vol III Tools
-PASS3 temperature | 0.2 | Vol III Tools
-PASS1/PASS2 max tokens | 4,000 | Vol III Tools
-PASS3 max tokens | 5,000 | Vol III Tools
-Evidence excerpt max length | 200 chars/criterion | Vol III Tools
-Recommendation max length | 300 chars/criterion | Vol III Tools
-Overview max length | 500 chars | Vol III Tools
-Soft fail: min recommendation length | 50 chars | Vol III Tools
-Soft fail: min confidence | 0.5 | Vol III Tools
-Canon Gate hard fail retries | 3 | Vol III Tools
-Canon Gate timeout | 60 seconds | Vol III Tools
-Minor AI disagreement | ±10 points (auto-resolve) | Vol III Governance
-Major AI disagreement (human review) | ±20 points | Vol IV
-Multi-AI agreement confidence | ±5 points | Vol IV
-Audit log retention | 7 years minimum | Vol III Ops
-Evaluation retention | 3 years minimum | Vol III Ops
-Total canonical waves | 62 | Vol I
-Total tsunamis | 3 | Vol I
-Canonical doctrine units | 77 | Registry
-AI systems in pipeline (minimum) | 2 | Vol II-A
-NON-NEGOTIABLE GOVERNANCE RULES
-1. | Structural failure must block cosmetic polish tools — no exceptions in Trusted Path
-2. | Canon Gate (Pass 1.5) must execute before results surface to users — always
-3. | Pass 2 must never receive Pass 1 outputs — independence guarantee is absolute
-4. | Prompts must be loaded at runtime — never hardcoded
-5. | Core logic must never call provider APIs directly — adapters only
-6. | Audit logs are append-only and hash-chained — no DELETE or UPDATE permitted
-7. | Audit preservation supersedes business logic in conflict scenarios
-8. | Studio Mode outputs are non-equivalent to Trusted Path — cannot be certified without re-execution
-9. | Canon changes require formal ChangeProposal — silent rule changes are prohibited
-10. | No external interface goes live before Canon Gate, audit spine, and reliability controls are operational
-← Back to Overview
-
----
-
-*Markdown companion auto-generated from RevisionGrade_Roadmap_UPDATED.xlsx on 2026-03-19 22:46 UTC*
+|  |  |  |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+|  | RevisionGrade — Canon Document Reference |  |  |  |  |  |  |
+|  | Mapping between 5-volume governance canon and roadmap execution items |  |  |  |  |  |  |
+|  | CANON AUTHORITY CHAIN |  |  |  |  |  |  |
+|  | Canon III — Meta-Governance (DOMINATUS) | 8 governing laws. Adversarial testing required. No silent changes. |  |  |  |  |  |
+|  | → Volume IV — AI Governance Canon | 3-layer authority model. 7 canon protection systems. 4 violation severity levels. Human review at ±20 points. |  |  |  |  |  |
+|  | → Canon Doctrine Registry | 77 canonical doctrine units. Single source of truth. 6 registry governance rules. |  |  |  |  |  |
+|  | → Canon Assembly Matrix (RCAM v2.0) | 24 source documents mapped to 5 volumes. 5 matrix rules. Build map. |  |  |  |  |  |
+|  | → Volume II — Story Evaluation Canon | 13 criteria. 10 diagnostic patterns. Scoring doctrine. Evidence trail. |  |  |  |  |  |
+|  | → Volume II-A — Operational Schema | Machine spec. Criterion weights. WCS computation. Eligibility gates. JSON schema. Supabase tables. |  |  |  |  |  |
+|  | → Volume I — WAVE Revision Canon | 62 waves. 3 tsunamis. 10 binding execution rules. Standard Wave Template. Velocity Bundle. |  |  |  |  |  |
+|  | → Volume III — Platform Governance + Tools + Ops | 3 shells: WHY (doctrine) / HOW (schemas, prompts, adapters) / WHEN (thresholds, routing, pipeline). |  |  |  |  |  |
+|  | → Volume V — Execution Architecture | AEP 6-step flow. Trifecta Model. Chunking. Reliability. 5 certified artifact types. 12-step build sequence. |  |  |  |  |  |
+|  | KEY NUMERIC CONSTANTS (Engineering Specs) |  |  |  |  |  |  |
+|  | Constant | Value | Source |  |  |  |  |
+|  | WAVE eligibility minimum WCS | 7.0 | Vol II-A |  |  |  |  |
+|  | Structural fail threshold (per criterion) | 5 | Vol II-A |  |  |  |  |
+|  | Agent-ready WCS | 8.5 | Vol II-A |  |  |  |  |
+|  | Market review trigger | 6.0 | Vol II-A |  |  |  |  |
+|  | Score scale | 1-10 integer (no half-points) | Vol II-A |  |  |  |  |
+|  | Readiness: FOUNDATIONAL | <60 (100-pt scale) | Vol III Ops |  |  |  |  |
+|  | Readiness: DEVELOPING | 60-64 | Vol III Ops |  |  |  |  |
+|  | Readiness: REFINEMENT_ELIGIBLE | 65-79 | Vol III Ops |  |  |  |  |
+|  | Readiness: AGENT_READY | ≥80 | Vol III Ops |  |  |  |  |
+|  | PASS1/PASS2 temperature | 0.3 | Vol III Tools |  |  |  |  |
+|  | PASS3 temperature | 0.2 | Vol III Tools |  |  |  |  |
+|  | PASS1/PASS2 max tokens | 4,000 | Vol III Tools |  |  |  |  |
+|  | PASS3 max tokens | 5,000 | Vol III Tools |  |  |  |  |
+|  | Evidence excerpt max length | 200 chars/criterion | Vol III Tools |  |  |  |  |
+|  | Recommendation max length | 300 chars/criterion | Vol III Tools |  |  |  |  |
+|  | Overview max length | 500 chars | Vol III Tools |  |  |  |  |
+|  | Soft fail: min recommendation length | 50 chars | Vol III Tools |  |  |  |  |
+|  | Soft fail: min confidence | 0.5 | Vol III Tools |  |  |  |  |
+|  | Canon Gate hard fail retries | 3 | Vol III Tools |  |  |  |  |
+|  | Canon Gate timeout | 60 seconds | Vol III Tools |  |  |  |  |
+|  | Minor AI disagreement | ±10 points (auto-resolve) | Vol III Governance |  |  |  |  |
+|  | Major AI disagreement (human review) | ±20 points | Vol IV |  |  |  |  |
+|  | Multi-AI agreement confidence | ±5 points | Vol IV |  |  |  |  |
+|  | Audit log retention | 7 years minimum | Vol III Ops |  |  |  |  |
+|  | Evaluation retention | 3 years minimum | Vol III Ops |  |  |  |  |
+|  | Total canonical waves | 62 | Vol I |  |  |  |  |
+|  | Total tsunamis | 3 | Vol I |  |  |  |  |
+|  | Canonical doctrine units | 77 | Registry |  |  |  |  |
+|  | AI systems in pipeline (minimum) | 2 | Vol II-A |  |  |  |  |
+|  | NON-NEGOTIABLE GOVERNANCE RULES |  |  |  |  |  |  |
+|  | 1. | Structural failure must block cosmetic polish tools — no exceptions in Trusted Path |  |  |  |  |  |
+|  | 2. | Canon Gate (Pass 1.5) must execute before results surface to users — always |  |  |  |  |  |
+|  | 3. | Pass 2 must never receive Pass 1 outputs — independence guarantee is absolute |  |  |  |  |  |
+|  | 4. | Prompts must be loaded at runtime — never hardcoded |  |  |  |  |  |
+|  | 5. | Core logic must never call provider APIs directly — adapters only |  |  |  |  |  |
+|  | 6. | Audit logs are append-only and hash-chained — no DELETE or UPDATE permitted |  |  |  |  |  |
+|  | 7. | Audit preservation supersedes business logic in conflict scenarios |  |  |  |  |  |
+|  | 8. | Studio Mode outputs are non-equivalent to Trusted Path — cannot be certified without re-execution |  |  |  |  |  |
+|  | 9. | Canon changes require formal ChangeProposal — silent rule changes are prohibited |  |  |  |  |  |
+|  | 10. | No external interface goes live before Canon Gate, audit spine, and reliability controls are operational |  |  |  |  |  |
+|  | ← Back to Overview |  |  |  |  |  |  |
