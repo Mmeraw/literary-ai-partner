@@ -1,0 +1,24 @@
+{
+  "date": "2026-03-19",
+  "commit": "461a004",
+  "branch": "main",
+  "runner": "local",
+  "evidence_status": "scaffold_backfill_required",
+  "packs": {
+    "A": "pass",
+    "B": "pass",
+    "C": "partial",
+    "D": "blocked",
+    "E": "pass",
+    "F": "blocked"
+  },
+  "invariants": {
+    "unclassified_failures": 0,
+    "wrong_location_edits": 0,
+    "non_canonical_status": 0
+  },
+  "notes": [
+    "Historical baseline captured as an evidence scaffold.",
+    "Raw logs should be backfilled by rerunning packs under the runbook evidence contract."
+  ]
+}

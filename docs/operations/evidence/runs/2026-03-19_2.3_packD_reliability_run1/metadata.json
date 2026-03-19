@@ -1,0 +1,25 @@
+{
+  "date": "2026-03-19",
+  "commit": "70a4184ae04f8db2a8742d80957fa71ceb7d0675",
+  "branch": "main",
+  "runner": "local",
+  "mode": "verification",
+  "pack": "D",
+  "status": "pass_test_layer",
+  "command": "npm test -- tests/anchors/apply-integrity.test.ts tests/anchors/apply-session-atomicity.test.ts tests/anchors/apply-reliability-harness.test.ts --runInBand",
+  "results": {
+    "valid_total": 182,
+    "valid_pass": 182,
+    "valid_success_rate": 100,
+    "wrong_location_edits_total": 0,
+    "invalid_total": 3,
+    "invalid_expected_failures": 3,
+    "invalid_unexpected_passes": 0,
+    "invalid_wrong_error_shape": 0,
+    "pass": true
+  },
+  "notes": [
+    "Deterministic apply reliability harness produced machine-readable metrics artifacts.",
+    "Report files: packD_apply_reliability_report.json and packD_apply_reliability_report.md"
+  ]
+}

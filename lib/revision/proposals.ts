@@ -344,13 +344,24 @@ export function normalizeProposalCandidates(
   candidates: EvaluationProposalCandidate[],
   sourceText: string,
 ): NormalizedCreateChangeProposalInput[] {
-  return candidates
-    .filter((candidate) => {
-      return Boolean(
-        candidate.original_text && candidate.proposed_text && candidate.justification,
-      );
-    })
-    .map((candidate, index) => {
+  return candidates.map((candidate, index) => {
+      const missingFields: string[] = [];
+      if (!candidate.original_text || candidate.original_text.trim().length === 0) {
+        missingFields.push("original_text");
+      }
+      if (!candidate.proposed_text || candidate.proposed_text.trim().length === 0) {
+        missingFields.push("proposed_text");
+      }
+      if (!candidate.justification || candidate.justification.trim().length === 0) {
+        missingFields.push("justification");
+      }
+
+      if (missingFields.length > 0) {
+        throw new Error(
+          `Malformed proposal candidate ${index + 1} (${candidate.location_ref ?? "unknown"}): missing required field(s): ${missingFields.join(", ")}.`,
+        );
+      }
+
       const originalText = candidate.original_text ?? "";
       const anchor = buildAnchorForSnippet(sourceText, originalText);
 

@@ -147,4 +147,44 @@ describe("Phase 2.1 anchor contract", () => {
       ),
     ).toThrow(/Anchor generation failed/);
   });
+
+  test("normalizeProposalCandidates fails closed on malformed candidates", () => {
+    const sourceText = "One valid source sentence.";
+
+    expect(() =>
+      normalizeProposalCandidates(
+        "session-3",
+        [
+          {
+            location_ref: "malformed:1",
+            rule: "clarity",
+            action: "refine",
+            original_text: "",
+            proposed_text: "Replacement text.",
+            justification: "",
+            severity: "medium",
+          },
+        ],
+        sourceText,
+      ),
+    ).toThrow(/Malformed proposal candidate/);
+
+    expect(() =>
+      normalizeProposalCandidates(
+        "session-3",
+        [
+          {
+            location_ref: "malformed:2",
+            rule: "clarity",
+            action: "refine",
+            original_text: "One valid source sentence.",
+            proposed_text: "",
+            justification: "Needed revision",
+            severity: "medium",
+          },
+        ],
+        sourceText,
+      ),
+    ).toThrow(/missing required field\(s\): proposed_text/);
+  });
 });

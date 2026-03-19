@@ -1,0 +1,26 @@
+{
+  "date": "2026-03-19",
+  "commit": "70a4184ae04f8db2a8742d80957fa71ceb7d0675",
+  "branch": "main",
+  "runner": "local",
+  "mode": "verification",
+  "pack": "A",
+  "status": "partial_target_db_pending",
+  "command": "npm test -- tests/anchors/anchor-validation.test.ts tests/anchors/extraction-contract.test.ts tests/anchors/anchor-parity-contract.test.ts --runInBand",
+  "results": {
+    "test_suites_passed": 3,
+    "test_suites_total": 3,
+    "tests_passed": 36,
+    "tests_total": 36
+  },
+  "invariants": {
+    "start_offset_gte_end_offset_rejected": true,
+    "negative_start_offset_rejected": true,
+    "extraction_fail_closed_on_invalid_offsets": true,
+    "target_db_verification_completed": false
+  },
+  "notes": [
+    "Pack A test-layer parity passed on final successful run.",
+    "Full Pack A sign-off still requires target DB verification via tests/anchors/phase21-db-verification.sql."
+  ]
+}

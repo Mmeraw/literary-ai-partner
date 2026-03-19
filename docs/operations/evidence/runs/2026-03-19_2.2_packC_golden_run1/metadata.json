@@ -1,0 +1,29 @@
+{
+  "date": "2026-03-19",
+  "commit": "70a4184ae04f8db2a8742d80957fa71ceb7d0675",
+  "branch": "main",
+  "runner": "local",
+  "mode": "verification",
+  "pack": "C",
+  "status": "pass_test_layer",
+  "command": "npm test -- tests/anchors/extraction-contract.test.ts tests/anchors/extraction-golden-corpus.test.ts --runInBand",
+  "results": {
+    "test_suites_passed": 2,
+    "test_suites_total": 2,
+    "tests_passed": 24,
+    "tests_total": 24
+  },
+  "coverage_focus": [
+    "CRLF/LF normalization",
+    "Unicode accents",
+    "em dashes",
+    "smart/curly quotes",
+    "multiline dialogue",
+    "punctuation boundaries",
+    "whitespace-sensitive spans"
+  ],
+  "notes": [
+    "Dedicated golden corpus suite added and passed.",
+    "This is Pack C test-layer evidence for exact extraction behavior."
+  ]
+}

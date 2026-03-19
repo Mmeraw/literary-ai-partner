@@ -2,6 +2,11 @@
 
 **Post–Phase 2.4 Baseline (Commit: `461a004`)**
 
+Execution companion:
+
+- `docs/operations/OPERATIONS_HARDENING_RUNBOOK.md`
+- `docs/operations/evidence/SUMMARY.md`
+
 ## 1. Mission Objective
 
 Process **100,000 classified failure events** under load with:
@@ -105,6 +110,10 @@ Full traceability:
 - every rejection has a code + context
 
 ### 3.5 Observability
+
+Evidence authenticity rule:
+
+- If it is not captured under `docs/operations/evidence/`, it did not happen.
 
 #### Metrics (Required)
 

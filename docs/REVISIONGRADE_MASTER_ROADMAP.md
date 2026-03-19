@@ -426,3 +426,4 @@ Phase 2.4 closed on main at `461a004`; next execution block is engine hardening 
 ### Operations hardening spec (next artifact)
 
 - See `docs/operations/OPERATIONS_HARDENING_SPEC.md` for SLOs, test matrix, alert thresholds, go/no-go release gates, and rollback playbook.
+- See `docs/operations/OPERATIONS_HARDENING_RUNBOOK.md` for verification packs, exact commands, evidence archive expectations, no-go triggers, and release sign-off.
