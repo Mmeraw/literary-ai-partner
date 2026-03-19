@@ -27,7 +27,7 @@ Every failure must be diagnosable. Unclassified failures are invisible failures 
 
 | Subtask | Description | Status |
 |---------|------------|--------|
-| 2.4.a — Enumerate failure codes | Closed set of failure codes in `lib/errors/revisionCodes.ts` (ANCHOR_MISS, CONFLICT, PARSE_ERROR, INVARIANT_VIOLATION, etc.) | ✅ Done |
+| 2.4.a — Enumerate failure codes | Closed set of failure codes in `lib/errors/revisionCodes.ts` (ANCHOR_MISS, CONFLICT, PARSE_ERROR, INVARIANT_VIOLATION, etc.). **Canonical source of truth: `lib/errors/revisionCodes.ts`** | ✅ Done |
 | 2.4.b — Persist codes to revision_sessions | Schema + write path extended so every failed apply stores a specific failure code + context | ✅ Done |
 | 2.4.c — Tests: 100% classified failures | Tests simulate each failure mode and assert a non-generic code is stored; no UNKNOWN or empty failures | ✅ Done |
 
