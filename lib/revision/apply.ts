@@ -4,6 +4,7 @@ import { logRevisionEvent } from "./logRevisionEvent";
 import { transitionRevisionSessionState } from "./sessionTransitions";
 import { getRevisionSessionById, listProposalsForSession } from "./sessions";
 import { ANCHOR_CONTEXT_TARGET_CHARS, normalizeForStrictMatch } from "./anchorContract";
+import { preflightAcceptedChanges } from "./applyBatch";
 import type { ApplyRevisionSessionResult, ChangeProposal } from "./types";
 
 type ApplyTelemetryContext = {
@@ -160,11 +161,7 @@ function applyAcceptedChanges(
   proposals: ChangeProposal[],
   context: ApplyTelemetryContext,
 ): string {
-  const ordered = [...proposals].sort((a, b) => {
-    const aStart = a.start_offset ?? -1;
-    const bStart = b.start_offset ?? -1;
-    return bStart - aStart;
-  });
+  const ordered = preflightAcceptedChanges(sourceText, proposals);
 
   let result = sourceText;
 
