@@ -422,3 +422,7 @@ Phase 2.4 closed on main at `461a004`; next execution block is engine hardening 
 - Apply harness quality gates are split and both mandatory:
   - placement success rate `>=99.5%` on valid anchors
   - wrong-location edits `= 0`
+
+### Operations hardening spec (next artifact)
+
+- See `docs/operations/OPERATIONS_HARDENING_SPEC.md` for SLOs, test matrix, alert thresholds, go/no-go release gates, and rollback playbook.
