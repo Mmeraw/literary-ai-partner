@@ -1,0 +1,27 @@
+{
+  "requested_events": 100000,
+  "total_events_processed": 100000,
+  "classified_failures_total": {
+    "ANCHOR_MISS": 22222,
+    "ANCHOR_AMBIGUOUS": 11111,
+    "CONTEXT_MISMATCH": 11111,
+    "OFFSET_CONFLICT": 11111,
+    "PARSE_ERROR": 11111,
+    "INVARIANT_VIOLATION": 11111,
+    "APPLY_COLLISION": 11111
+  },
+  "unclassified_failures_total": 0,
+  "wrong_location_edits_total": 0,
+  "lost_writes_total": 0,
+  "persistence_write_failures_total": 9040,
+  "retries_total": 9040,
+  "non_canonical_status_total": 0,
+  "silent_fallback_total": 0,
+  "duration_ms": 11817,
+  "throughput_events_per_sec": 8462.385,
+  "max_concurrency_observed": 10,
+  "mode": "stress",
+  "seed": 42,
+  "concurrency": 10,
+  "pass": true
+}

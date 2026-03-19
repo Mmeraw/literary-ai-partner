@@ -33,6 +33,10 @@
     "jobs:test:metrics": "node scripts/jobs-test-metrics.mjs",
     "jobs:retry-tick": "node scripts/jobs-retry-tick.mjs",
     "jobs:load": "node scripts/jobs-load.mjs",
+    "soak:run": "tsx -r tsconfig-paths/register scripts/soak/run-soak.ts",
+    "soak:debug": "npm run soak:run -- --events=1000 --concurrency=5 --seed=42 --mode=deterministic",
+    "soak:stability": "npm run soak:run -- --events=10000 --concurrency=10 --seed=42 --mode=stress",
+    "soak:qualify": "npm run soak:run -- --events=100000 --concurrency=10 --seed=42 --mode=stress",
     "revision:hydrate:stage2": "node scripts/revision-stage2-hydrate.mjs",
     "revision:smoke:stage2": "node scripts/revision-stage2-smoke.mjs",
     "evidence:phase2c": "bash scripts/evidence-phase2c.sh",
@@ -41,6 +45,7 @@
   },
   "dependencies": {
     "@base44/sdk": "^0.8.0",
+    "@base44/vite-plugin": "^1.0.0",
     "@hello-pangea/dnd": "^17.0.0",
     "@hookform/resolvers": "^4.1.2",
     "@radix-ui/react-accordion": "^1.2.3",
@@ -108,8 +113,7 @@
     "three": "^0.171.0",
     "uuid": "^9.0.1",
     "vaul": "^1.1.2",
-    "zod": "^3.24.2",
-    "@base44/vite-plugin": "^1.0.0"
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.2",
@@ -135,6 +139,8 @@
     "postcss": "^8.5.3",
     "supabase": "^2.72.8",
     "tailwindcss": "^3.4.17",
+    "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.8.2"
   }
 }

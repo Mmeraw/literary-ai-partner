@@ -1,0 +1,177 @@
+[
+  {
+    "event_id": "event-1",
+    "scenario": "overlap_conflict",
+    "code": "OFFSET_CONFLICT",
+    "detail": "Overlapping proposals detected: [12, 15) overlaps [13, 16)",
+    "persisted": true
+  },
+  {
+    "event_id": "event-2",
+    "scenario": "duplicate_range",
+    "code": "APPLY_COLLISION",
+    "detail": "Duplicate proposal range detected: [15, 17)",
+    "persisted": true
+  },
+  {
+    "event_id": "event-3",
+    "scenario": "stale_reapply",
+    "code": "ANCHOR_MISS",
+    "detail": "Extraction contract violation: source slice does not match original_text.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-4",
+    "scenario": "anchor_miss",
+    "code": "ANCHOR_MISS",
+    "detail": "Extraction contract violation: source slice does not match original_text.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-5",
+    "scenario": "context_mismatch",
+    "code": "CONTEXT_MISMATCH",
+    "detail": "Proposal ctx-5 before/after context verification failed.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-6",
+    "scenario": "parse_error",
+    "code": "PARSE_ERROR",
+    "detail": "Proposal parse-6 missing valid anchor offsets; apply requires deterministic anchored coordinates.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-7",
+    "scenario": "anchor_ambiguous",
+    "code": "ANCHOR_AMBIGUOUS",
+    "detail": "original_text appears multiple times in source text",
+    "persisted": true
+  },
+  {
+    "event_id": "event-8",
+    "scenario": "invariant_violation",
+    "code": "INVARIANT_VIOLATION",
+    "detail": "Invariant violation: synthetic Pack F contract breach for event-8.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-10",
+    "scenario": "overlap_conflict",
+    "code": "OFFSET_CONFLICT",
+    "detail": "Overlapping proposals detected: [13, 16) overlaps [14, 17)",
+    "persisted": true
+  },
+  {
+    "event_id": "event-11",
+    "scenario": "duplicate_range",
+    "code": "APPLY_COLLISION",
+    "detail": "Duplicate proposal range detected: [16, 18)",
+    "persisted": true
+  },
+  {
+    "event_id": "event-12",
+    "scenario": "stale_reapply",
+    "code": "ANCHOR_MISS",
+    "detail": "Extraction contract violation: source slice does not match original_text.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-13",
+    "scenario": "anchor_miss",
+    "code": "ANCHOR_MISS",
+    "detail": "Extraction contract violation: source slice does not match original_text.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-14",
+    "scenario": "context_mismatch",
+    "code": "CONTEXT_MISMATCH",
+    "detail": "Proposal ctx-14 before/after context verification failed.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-15",
+    "scenario": "parse_error",
+    "code": "PARSE_ERROR",
+    "detail": "Proposal parse-15 missing valid anchor offsets; apply requires deterministic anchored coordinates.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-16",
+    "scenario": "anchor_ambiguous",
+    "code": "ANCHOR_AMBIGUOUS",
+    "detail": "original_text appears multiple times in source text",
+    "persisted": true
+  },
+  {
+    "event_id": "event-17",
+    "scenario": "invariant_violation",
+    "code": "INVARIANT_VIOLATION",
+    "detail": "Invariant violation: synthetic Pack F contract breach for event-17.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-19",
+    "scenario": "overlap_conflict",
+    "code": "OFFSET_CONFLICT",
+    "detail": "Overlapping proposals detected: [13, 16) overlaps [14, 17)",
+    "persisted": true
+  },
+  {
+    "event_id": "event-20",
+    "scenario": "duplicate_range",
+    "code": "APPLY_COLLISION",
+    "detail": "Duplicate proposal range detected: [16, 18)",
+    "persisted": true
+  },
+  {
+    "event_id": "event-21",
+    "scenario": "stale_reapply",
+    "code": "ANCHOR_MISS",
+    "detail": "Extraction contract violation: source slice does not match original_text.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-22",
+    "scenario": "anchor_miss",
+    "code": "ANCHOR_MISS",
+    "detail": "Extraction contract violation: source slice does not match original_text.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-23",
+    "scenario": "context_mismatch",
+    "code": "CONTEXT_MISMATCH",
+    "detail": "Proposal ctx-23 before/after context verification failed.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-24",
+    "scenario": "parse_error",
+    "code": "PARSE_ERROR",
+    "detail": "Proposal parse-24 missing valid anchor offsets; apply requires deterministic anchored coordinates.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-25",
+    "scenario": "anchor_ambiguous",
+    "code": "ANCHOR_AMBIGUOUS",
+    "detail": "original_text appears multiple times in source text",
+    "persisted": true
+  },
+  {
+    "event_id": "event-26",
+    "scenario": "invariant_violation",
+    "code": "INVARIANT_VIOLATION",
+    "detail": "Invariant violation: synthetic Pack F contract breach for event-26.",
+    "persisted": true
+  },
+  {
+    "event_id": "event-28",
+    "scenario": "overlap_conflict",
+    "code": "OFFSET_CONFLICT",
+    "detail": "Overlapping proposals detected: [13, 16) overlaps [14, 17)",
+    "persisted": true
+  }
+]

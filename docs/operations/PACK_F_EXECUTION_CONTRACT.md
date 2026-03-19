@@ -33,15 +33,15 @@ These values must be written to `metadata.json`.
 
 ### Debug pass
 
-`node scripts/soak/run-soak.ts --events=1000 --concurrency=5 --seed=42 --mode=deterministic`
+`npm run soak:run -- --events=1000 --concurrency=5 --seed=42 --mode=deterministic`
 
 ### Stability pass
 
-`node scripts/soak/run-soak.ts --events=10000 --concurrency=10 --seed=42 --mode=stress`
+`npm run soak:run -- --events=10000 --concurrency=10 --seed=42 --mode=stress`
 
 ### Final qualification pass
 
-`node scripts/soak/run-soak.ts --events=100000 --concurrency=10 --seed=42 --mode=stress`
+`npm run soak:run -- --events=100000 --concurrency=10 --seed=42 --mode=stress`
 
 If the actual CLI differs, this contract must be updated to the checked-in command shape before sign-off.
 

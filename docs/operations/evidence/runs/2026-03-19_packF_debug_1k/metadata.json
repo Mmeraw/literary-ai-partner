@@ -1,0 +1,11 @@
+{
+  "commit_sha": "dcd85ca3459ce9948a2c1ebf2b07022f53cff84c",
+  "branch": "main",
+  "mode": "deterministic",
+  "seed": 42,
+  "total_event_count": 1000,
+  "concurrency_level": 5,
+  "fault_injection_enabled": false,
+  "run_date_utc": "2026-03-19T22:18:53.404Z",
+  "command": "node scripts/soak/run-soak.ts --events=1000 --concurrency=5 --seed=42 --mode=deterministic"
+}

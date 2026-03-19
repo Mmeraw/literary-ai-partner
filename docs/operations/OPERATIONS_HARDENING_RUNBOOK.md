@@ -42,7 +42,7 @@ Not accepted as primary evidence:
 | C | Golden extraction edge cases | Prove exact-span behavior on tricky text shapes | Partially executable now; dedicated golden corpus still required for final sign-off |
 | D | Apply harness reliability | Prove repeatable apply behavior and wrong-location safety | Executable now (dedicated reliability harness + report artifacts implemented) |
 | E | Jobs / failure surfacing | Prove classified failures persist and surface on read path | Executable now |
-| F | Soak / chaos | Prove invariants hold under 100,000-event load and injected faults | Not yet executable in-repo; hard blocker for release sign-off |
+| F | Soak / chaos | Prove invariants hold under 100,000-event load and injected faults | PASS with archived 100k run evidence |
 
 ## Commands
 
@@ -208,9 +208,17 @@ Design and execution references:
 
 #### Command set
 
-No executable checked-in soak / chaos harness command exists yet in this repository.
+Debug pass:
 
-This is a **hard blocker**, not a waived step.
+`npm run soak:run -- --events=1000 --concurrency=5 --seed=42 --mode=deterministic`
+
+Stability pass:
+
+`npm run soak:run -- --events=10000 --concurrency=10 --seed=42 --mode=stress`
+
+Final qualification pass:
+
+`npm run soak:run -- --events=100000 --concurrency=10 --seed=42 --mode=stress`
 
 Before release sign-off, Pack F must be backed by a checked-in executable command and archived output proving:
 

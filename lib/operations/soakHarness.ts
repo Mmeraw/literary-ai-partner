@@ -628,7 +628,7 @@ export async function runSoakHarness(
     concurrency_level: options.concurrency,
     fault_injection_enabled: options.mode === "stress",
     run_date_utc: new Date().toISOString(),
-    command: `node scripts/soak/run-soak.ts --events=${options.events} --concurrency=${options.concurrency} --seed=${options.seed} --mode=${options.mode}`,
+    command: `npm run soak:run -- --events=${options.events} --concurrency=${options.concurrency} --seed=${options.seed} --mode=${options.mode}`,
   };
 
   const result: SoakHarnessRunResult = {
