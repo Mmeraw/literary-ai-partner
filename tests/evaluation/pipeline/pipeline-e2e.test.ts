@@ -17,13 +17,20 @@ import type { RunPass3Options } from "@/lib/evaluation/pipeline/runPass3Synthesi
 // ── Fixture builders ──────────────────────────────────────────────────────────
 
 function makeSinglePassOutput(pass: 1 | 2): SinglePassOutput {
+  // IMPORTANT: rationale text for pass 1 and pass 2 must NOT share any 6-word
+  // n-gram, otherwise QG check 8 (QG_INDEPENDENCE_VIOLATION) will fire.
+  const rationale =
+    pass === 1
+      ? (key: string) => `Structural craft review of ${key} reveals competent technique with room for improvement.`
+      : (key: string) => `Editorial literary perspective on ${key} shows thematic depth requiring further development.`;
+
   return {
     pass,
     axis: pass === 1 ? "craft_execution" : "editorial_literary",
     criteria: CRITERIA_KEYS.map((key) => ({
       key,
       score_0_10: 7,
-      rationale: `Pass ${pass} analysis of ${key}: the manuscript demonstrates solid craft.`,
+      rationale: rationale(key),
       evidence: [{ snippet: "The river moved slowly through the valley." }],
       recommendations: [
         {
