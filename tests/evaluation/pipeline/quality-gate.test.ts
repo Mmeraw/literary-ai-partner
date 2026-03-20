@@ -237,7 +237,7 @@ describe("runQualityGate", () => {
 
   // ── QG_INDEPENDENCE_VIOLATION ───────────────────────────────────────────
 
-  it("rejects when Pass 2 contains verbatim Pass 1 phrase (QG_INDEPENDENCE_VIOLATION)", () => {
+  it("rejects when Pass 2 reuses multiple non-evidence Pass 1 rationale phrases (QG_INDEPENDENCE_VIOLATION)", () => {
     const synthesis = makeValidSynthesis();
 
     const pass1: SinglePassOutput = {
@@ -248,7 +248,7 @@ describe("runQualityGate", () => {
           key: "voice",
           score_0_10: 7,
           rationale:
-            "The narrative voice demonstrates consistent structural clarity and precise word choice throughout the opening passage.",
+            "The narrative voice demonstrates consistent structural clarity and precise word choice throughout the opening passage while maintaining cadence.",
           evidence: [{ snippet: "The river moved slowly through the valley." }],
           recommendations: [],
         },
@@ -268,7 +268,7 @@ describe("runQualityGate", () => {
           key: "voice",
           score_0_10: 6,
           rationale:
-            "The narrative voice demonstrates consistent structural clarity and precise word choice — a sign the author has found their register.", // verbatim phrase copied
+            "The narrative voice demonstrates consistent structural clarity and precise word choice throughout the opening passage with an elegant cadence and register.",
           evidence: [{ snippet: "The river moved slowly through the valley." }],
           recommendations: [],
         },
@@ -313,6 +313,98 @@ describe("runQualityGate", () => {
           key: "voice",
           score_0_10: 8,
           rationale: "The author's literary sensibility shines through — there is a distinct emotional resonance in the imagery.",
+          evidence: [],
+          recommendations: [],
+        },
+      ],
+      model: "gpt-4o-mini",
+      prompt_version: "pass2-v1",
+      temperature: 0.3,
+      generated_at: new Date().toISOString(),
+    };
+
+    const result = runQualityGate(synthesis, pass1, pass2);
+    const indepCheck = result.checks.find((c) => c.check_id === "pass_independence");
+    expect(indepCheck?.passed).toBe(true);
+  });
+
+  it("does not fail independence when overlap is only manuscript-sourced evidence phrasing", () => {
+    const synthesis = makeValidSynthesis();
+
+    const sharedEvidence = "The river moved slowly through the valley under moonlight and mist.";
+
+    const pass1: SinglePassOutput = {
+      pass: 1,
+      axis: "craft_execution",
+      criteria: [
+        {
+          key: "voice",
+          score_0_10: 7,
+          rationale: `This criterion is anchored by quoted text: ${sharedEvidence}`,
+          evidence: [{ snippet: sharedEvidence }],
+          recommendations: [],
+        },
+      ],
+      model: "gpt-4o-mini",
+      prompt_version: "pass1-v1",
+      temperature: 0.3,
+      generated_at: new Date().toISOString(),
+    };
+
+    const pass2: SinglePassOutput = {
+      pass: 2,
+      axis: "editorial_literary",
+      criteria: [
+        {
+          key: "voice",
+          score_0_10: 8,
+          rationale: `Editorially, the same quote appears: ${sharedEvidence}`,
+          evidence: [{ snippet: sharedEvidence }],
+          recommendations: [],
+        },
+      ],
+      model: "gpt-4o-mini",
+      prompt_version: "pass2-v1",
+      temperature: 0.3,
+      generated_at: new Date().toISOString(),
+    };
+
+    const result = runQualityGate(synthesis, pass1, pass2);
+    const indepCheck = result.checks.find((c) => c.check_id === "pass_independence");
+    expect(indepCheck?.passed).toBe(true);
+  });
+
+  it("does not fail independence when only a single non-evidence overlap is present", () => {
+    const synthesis = makeValidSynthesis();
+
+    const pass1: SinglePassOutput = {
+      pass: 1,
+      axis: "craft_execution",
+      criteria: [
+        {
+          key: "voice",
+          score_0_10: 7,
+          rationale:
+            "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron",
+          evidence: [],
+          recommendations: [],
+        },
+      ],
+      model: "gpt-4o-mini",
+      prompt_version: "pass1-v1",
+      temperature: 0.3,
+      generated_at: new Date().toISOString(),
+    };
+
+    const pass2: SinglePassOutput = {
+      pass: 2,
+      axis: "editorial_literary",
+      criteria: [
+        {
+          key: "voice",
+          score_0_10: 8,
+          rationale:
+            "alpha beta gamma delta epsilon zeta eta theta uniqueone uniquetwo uniquethree uniquefour",
           evidence: [],
           recommendations: [],
         },

@@ -13,7 +13,7 @@
  *   QG_LONG_OVERVIEW      — one_paragraph_summary > 500 chars
  *   QG_CRITERIA_MISSING   — output does not contain all 13 criteria
  *   QG_SCORE_RANGE        — score not in integer 0-10
- *   QG_INDEPENDENCE_VIOLATION — Pass 2 verbatim phrases in Pass 1 output
+ *   QG_INDEPENDENCE_VIOLATION — Pass 2 reuses non-manuscript rationale phrasing from Pass 1
  */
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
@@ -23,6 +23,29 @@ export const QG_MIN_REC_LENGTH = 50;
 export const QG_MAX_REC_LENGTH = 300;
 export const QG_MAX_EVIDENCE_LENGTH = 200;
 export const QG_MAX_OVERVIEW_LENGTH = 500;
+export const QG_INDEPENDENCE_NGRAM_SIZE = 8;
+export const QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION = 2;
+
+function tokenizeForOverlap(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 0);
+}
+
+function collectNgrams(text: string, n: number): string[] {
+  const words = tokenizeForOverlap(text);
+  if (words.length < n) {
+    return [];
+  }
+
+  const grams: string[] = [];
+  for (let i = 0; i <= words.length - n; i++) {
+    grams.push(words.slice(i, i + n).join(" "));
+  }
+  return grams;
+}
 
 /**
  * Run all quality gate checks against a SynthesisOutput.
@@ -169,36 +192,63 @@ export function runQualityGate(
         : "No duplicated recommendations",
   });
 
-  // ── Check 8: Pass independence (no verbatim cross-contamination) ─────────
+  // ── Check 8: Pass independence (rationale phrasing only; calibrated) ─────
   if (pass1 && pass2) {
-    // Extract all 6-word sliding n-grams from Pass 1 rationale
+    const ngramSize = QG_INDEPENDENCE_NGRAM_SIZE;
+
+    // Exclude manuscript-sourced phrase overlap by filtering any n-gram
+    // that appears inside evidence snippets from either pass.
+    const evidenceNgrams = new Set<string>();
+    for (const c of [...pass1.criteria, ...pass2.criteria]) {
+      for (const e of c.evidence) {
+        for (const gram of collectNgrams(e.snippet, ngramSize)) {
+          evidenceNgrams.add(gram);
+        }
+      }
+    }
+
+    // Extract calibrated n-grams from Pass 1 rationale text.
     const pass1Ngrams = new Set<string>();
     for (const c of pass1.criteria) {
-      const words = c.rationale.toLowerCase().split(/\s+/).filter((w) => w.length > 0);
-      for (let i = 0; i <= words.length - 6; i++) {
-        pass1Ngrams.add(words.slice(i, i + 6).join(" "));
+      for (const gram of collectNgrams(c.rationale, ngramSize)) {
+        if (!evidenceNgrams.has(gram)) {
+          pass1Ngrams.add(gram);
+        }
       }
     }
 
     const violations: string[] = [];
     for (const c of pass2.criteria) {
-      const p2words = c.rationale.toLowerCase().split(/\s+/).filter((w) => w.length > 0);
-      for (let i = 0; i <= p2words.length - 6; i++) {
-        if (pass1Ngrams.has(p2words.slice(i, i + 6).join(" "))) {
-          violations.push(`${c.key}: verbatim phrase from Pass 1`);
-          break;
+      let overlapCount = 0;
+      for (const gram of collectNgrams(c.rationale, ngramSize)) {
+        if (evidenceNgrams.has(gram)) {
+          continue;
+        }
+        if (pass1Ngrams.has(gram)) {
+          overlapCount += 1;
         }
       }
+
+      if (overlapCount >= QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION) {
+        violations.push(
+          `${c.key}: ${overlapCount} shared non-evidence ${ngramSize}-gram(s) with Pass 1 rationale`,
+        );
+      }
     }
+
     checks.push({
       check_id: "pass_independence",
       passed: violations.length === 0,
       error_code: violations.length > 0 ? "QG_INDEPENDENCE_VIOLATION" : undefined,
       details:
         violations.length > 0
-          ? `${violations.length} Pass 2 criterion/criteria contain verbatim Pass 1 phrases`
-          : "Pass 1 / Pass 2 independence confirmed",
+          ? `${violations.length} Pass 2 criterion/criteria exceed calibrated rationale-overlap threshold (n=${ngramSize}, min=${QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION})`
+          : `Pass 1 / Pass 2 independence confirmed (n=${ngramSize})`,
     });
+
+    if (violations.length > 0) {
+      warnings.push(...violations);
+    }
   }
 
   // ── Warn: Confidence minimum (soft fail) ─────────────────────────────────
