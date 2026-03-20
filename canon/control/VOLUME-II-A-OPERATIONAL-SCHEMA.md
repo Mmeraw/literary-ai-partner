@@ -3,130 +3,480 @@
 Status: CANONICAL — ACTIVE  
 Version: 1.0  
 Authority: Mike Meraw  
-Depends on: Volume II, Volume III-TI  
-Canon ID: VOL-IIA-OPS-SCHEMA-1.0  
-Governance: Doctrine Registry + Assembly Matrix  
-Last Updated: 2026-03-09
+Canon ID: VOL-IIA-OPS-SCHEMA-V10  
+Last Updated: 2026-03-20
 
 ---
 
-## PURPOSE
+*Machine-Operational Specification for RevisionGrade Evaluation, Routing, Scoring, and Audit Artifacts*
 
-Volume II-A provides the operational implementation of Volume II’s 13 evaluation criteria. Where Volume II defines what each criterion measures and how it is scored, Volume II-A defines how those criteria are operationalized in system terms—the prompts, evidence requirements, scoring rubrics, and output formats used in actual evaluations.
+This is implementation infrastructure, not canon.
 
-Volume II-A is the bridge between the evaluative methodology (Volume II) and the technical implementation (Volume III-TI).
+It translates doctrine into:
 
----
+• Criterion registry tables\
+• Weight models\
+• Threshold constants\
+• Routing logic\
+• JSON evaluation envelopes\
+• Persistence schemas\
+• Multi-AI orchestration contracts
 
-## PART 1 — CRITERION OPERATIONALIZATION
+Think:
 
-### How Each Criterion Operates
+Volume II = Constitution\
+Volume II-A = Machine Code
 
-Every criterion follows this operational pattern:
+**\*\*\***
 
-1. **Wave Input Collection** — Gather outputs from relevant waves
-2. **Tsunami Input Collection** — Gather outputs from relevant tsunamis
-3. **Evidence Synthesis** — Identify key manuscript evidence
-4. **Score Computation** — Apply scoring rubric to evidence
-5. **Justification Generation** — Write minimum 100-word justification
-6. **Confidence Assessment** — Self-assess confidence level
-7. **Output Validation** — Validate output against Criterion Score Schema
+**Relationship to Volume II Canon:** This document translates the doctrine of Volume II into structured constants, tables, schemas, and routing rules for GitHub, Supabase, Vercel, and governed multi-AI evaluation pipelines. It does not replace Volume II; it operationalizes it.
 
----
+# 1. Purpose and authority chain
 
-## PART 2 — SCORING RUBRICS
+This specification is the executable companion to Volume II --- The 13 Story Criteria Canon. It exists so the platform can score manuscripts consistently, gate refinement correctly, and emit auditable artifacts.
 
-### Universal Rubric (all 13 criteria)
+-   **Authority chain:** Volume II Canon → Volume II-A Operational Schema → application code → database artifacts → dashboards / agent-facing surfaces.
 
-**Score 1–3 (Needs Major Revision):**
-- Multiple significant issues present
-- Issues are systemic, not isolated
-- Fundamental craft elements are underdeveloped or absent
-- Reader experience is substantially compromised
+# 2. Criterion registry
 
-**Score 4–6 (Functional with Notable Weaknesses):**
-- Core elements are present but inconsistently executed
-- Specific, identifiable weaknesses
-- Does not yet meet professional publication standards
-- Clear revision path exists
+Every evaluation must contain exactly the 13 canonical criteria below. No additional criteria may be invented at runtime, and no criterion may be omitted.
 
-**Score 7–8 (Strong with Minor Issues):**
-- Professional-level execution
-- Minor, addressable issues present
-- Meets or approaches publication standards
-- Competitively viable for agent submission
+  -------------------------------------------------------------------------------------------------------------
+  ID             Key            Canonical Name                                Domain             Weight
+  -------------- -------------- --------------------------------------------- ------------------ --------------
+  1              CONCEPT        Concept & Core Premise                        Macro structural   1.20
 
-**Score 9–10 (Exceptional Execution):**
-- Exceeds professional standards
-- Distinctive, memorable execution
-- Highly competitive for agent submission
-- Near-publication or publication ready
+  2              MOMENTUM       Narrative Drive & Momentum                    Macro structural   1.20
 
----
+  3              CHARACTER      Character Depth & Psychological Coherence     Macro structural   1.15
 
-## PART 3 — EVIDENCE REQUIREMENTS
+  4              POV_VOICE      Point of View & Voice Control                 Bridge             1.10
 
-### What Counts as Manuscript Evidence
+  5              SCENE          Scene Construction & Function                 Macro structural   1.10
 
-- Direct quotation from the manuscript (with location reference)
-- Paraphrase of specific passage (with location reference)
-- Pattern identification with multiple location references
-- Structural observation with chapter/scene reference
-- Aggregate observation referencing multiple sections
+  6              DIALOGUE       Dialogue Authenticity & Subtext               Bridge             1.00
 
-### What Does NOT Count as Evidence
+  7              THEME          Thematic Integration                          Macro structural   0.95
 
-- General impressions without manuscript location
-- Claims about the author’s intent
-- References to genre conventions not present in the manuscript
-- Assumptions about reader response without textual support
+  8              WORLD          World-Building & Environmental Logic          Macro structural   0.95
 
----
+  9              PACING         Pacing & Structural Balance                   Macro structural   1.15
 
-## PART 4 — CRITERION-TO-WAVE MAPPING
+  10             PROSE          Prose Control & Line-Level Craft              Bridge             1.00
 
-| Criterion | Primary Waves | Primary Tsunami |
-|---|---|---|
-| C-01: Narrative Structure | W-01,W-02,W-04,W-09 | T-1, T-3 |
-| C-02: Plot Coherence | W-21,W-22,W-29,W-30 | T-3 |
-| C-03: Pacing and Tension | W-08,W-22,W-24,W-25 | T-3 |
-| C-04: Opening and Closing | W-06,W-60,W-61 | T-6 |
-| C-05: Character Development | W-15,W-16,W-18,W-20 | T-2 |
-| C-06: Dialogue Quality | W-12,W-13,W-44 | T-2 |
-| C-07: Emotional Resonance | W-17,W-51,W-52 | T-6 |
-| C-08: Prose Quality | W-31,W-32,W-33,W-35 | T-4 |
-| C-09: Voice and Style | W-03,W-40 | T-4 |
-| C-10: Show vs. Tell | W-05,W-38 | T-4 |
-| C-11: Technical Execution | W-41,W-42,W-43,W-45,W-46 | T-5 |
-| C-12: Genre Awareness | W-48,W-56,W-57 | T-6 |
-| C-13: Reader Experience | W-51,W-52,W-53,W-54 | T-6 |
+  11             TONE           Tonal Authority & Consistency                 Bridge             0.95
 
----
+  12             CLOSURE        Narrative Closure & Promises Kept             Macro structural   1.05
 
-## PART 5 — ELIGIBILITY GATE OPERATIONAL RULES
+  13             MARKET         Professional Readiness & Market Positioning   Market             0.90
+  -------------------------------------------------------------------------------------------------------------
 
-### Gate Computation Rules
+# 3. Score scale and banding
 
-**Agent Readiness Gate:**
-- Condition: ALL 13 criteria scored 6.0 or higher
-- AND: Overall score (mean of 13 criteria) is 7.0 or higher
-- Computed automatically after all criteria are scored
-- No manual override permitted
+Each criterion is scored on a 1--10 integer scale. Half-points are disallowed unless a future version bump explicitly authorizes them.
 
-**Revision Complete Gate:**
-- Condition: ALL 13 criteria scored 5.0 or higher
-- AND: Overall score is 6.0 or higher
-- Signals: Ready for next major revision cycle
+-   1--3 = Foundational weakness
 
-**Publication Readiness Gate:**
-- Condition: ALL 13 criteria scored 7.0 or higher
-- AND: Overall score is 8.0 or higher
-- Signals: Approaching publication standard
+-   4--6 = Developing but inconsistent
 
-### Near-Threshold Flagging
+-   7--8 = Strong with minor gaps
 
-When any criterion score is within 0.5 of a gate boundary, flag for human review before gate determination is made final. This is a Volume IV Level 2 action.
+-   9--10 = Professional-grade execution
 
----
+# 4. Weight table and composite scoring
 
-*End of Volume II-A — Operational Schema*
+Weighted Composite Score (WCS) = SUM(score × weight) ÷ SUM(weights). This score drives readiness states but does not override hard fail conditions.
+
+-   Structural emphasis is intentional: concept, momentum, character, pacing, and closure materially affect eligibility.
+
+-   Bridge criteria (POV/voice, dialogue, prose, tone) influence readiness but do not rescue broken architecture.
+
+-   Market positioning may depress final readiness but may not block structural refinement on its own.
+
+# 5. Eligibility gate constants
+
+  -----------------------------------------------------------------------------------------------------------------------
+  Constant                     Value                Meaning
+  ---------------------------- -------------------- ---------------------------------------------------------------------
+  WAVE_ELIGIBILITY_MIN_WCS     7.0                  Minimum weighted composite score to unlock Volume I WAVE refinement
+
+  STRUCTURAL_FAIL_THRESHOLD    5                    If any structural criterion falls below 5, WAVE is blocked
+
+  AGENT_READY_WCS              8.5                  Composite threshold for strong professional/agent-ready status
+
+  MARKET_REVIEW_TRIGGER        6                    If MARKET criterion \< 6, flag market-path review
+  -----------------------------------------------------------------------------------------------------------------------
+
+Structural criteria for fail-fast purposes: CONCEPT, MOMENTUM, CHARACTER, SCENE, PACING, CLOSURE.
+
+# 6. Criteria-to-WAVE routing map
+
+This map determines which WAVE domains should be emphasized after Criteria scoring. It is routing guidance, not a substitute for human judgment.
+
+  ----------------------------------------------------------------------------------------------------------------------------------------------
+  Criterion Key           Primary WAVE Domains    Routing Intent
+  ----------------------- ----------------------- ----------------------------------------------------------------------------------------------
+  CONCEPT                 Waves 1--3              Narrative architecture, chapter/scene function, foreshadowing
+
+  MOMENTUM                Waves 31--40            Scene-to-scene momentum, hooks, tension escalation, denouement
+
+  CHARACTER               Waves 11--20            Character arc tracking, consistency, relationship dynamics, voice differentiation
+
+  POV_VOICE               Waves 5, 16, 20, 58     POV stability, thought boundaries, voice differentiation, lyric control
+
+  SCENE                   Waves 2--3, 31--32      Chapter/scene function, openings/exits, hook strength
+
+  DIALOGUE                Waves 13--15, 49        Dialogue authenticity, subtext, tag reduction, dialogue spacing
+
+  THEME                   Waves 21, 28, 60        Thematic integration, symbol/motif tracking, repetition as motif
+
+  WORLD                   Waves 22--24, 29        World-building logic, cultural authenticity, setting as character
+
+  PACING                  Waves 31--40, 41--42    Momentum, pacing balance, sentence/paragraph rhythm
+
+  PROSE                   Waves 45--55, 61        Echo detection, abstract diagnosis, punctuation authority, compression, micro-edit precision
+
+  TONE                    Waves 43--44, 58--59    Silence, sound anchors, lyric control, white space
+
+  CLOSURE                 Waves 9, 39--40         Promises/payoffs, climax architecture, exit velocity
+
+  MARKET                  Wave 62                 Agent-readiness final assessment
+  ----------------------------------------------------------------------------------------------------------------------------------------------
+
+# 7. Evaluation output schema
+
+Every full evaluation artifact must serialize the following envelope. The shape below is normative even if the underlying storage uses jsonb.
+
+{
+
+\"manuscript_id\": \"uuid-or-bigint\",
+
+\"evaluation_version\": \"VOL-II-A-1.0\",
+
+\"criteria_scores\": \[
+
+{
+
+\"criterion_key\": \"CONCEPT\",
+
+\"score\": 8,
+
+\"band\": \"Strong with minor gaps\",
+
+\"evidence_summary\": \"\...\",
+
+\"priority\": \"HIGH\|MED\|LOW\"
+
+}
+
+\],
+
+\"weighted_composite_score\": 7.9,
+
+\"eligibility_gate\": \"PASS\|BLOCK\",
+
+\"readiness_state\": \"FOUNDATIONAL\|DEVELOPING\|REFINEMENT_ELIGIBLE\|AGENT_READY\",
+
+\"priority_repairs\": \[\"\...\"\],
+
+\"wave_routing_targets\": \[\"W31-40\", \"W45-55\"\],
+
+\"audit\": {
+
+\"ai_systems_used\": 2,
+
+\"convergence_state\": \"AGREE\|DIVERGE\",
+
+\"generated_at\": \"ISO-8601\"
+
+}
+
+}
+
+# 8. Supabase persistence model
+
+-   Authoritative manuscript records live in manuscripts.
+
+-   Chunk-level processing records live in manuscript_chunks when long-form evaluation requires staged chunking.
+
+-   High-level evaluation records live in evaluations.
+
+-   Governed output artifacts live in evaluation_artifacts as jsonb envelopes conforming to this specification.
+
+-   No artifact should be written if fewer than 13 criteria are present or if any criterion key is invalid.
+
+# 9. AI pipeline contract
+
+-   AI System 1 may generate candidate criterion judgments, evidence summaries, and issue flags.
+
+-   AI System 2 must audit, challenge, or converge those judgments before final artifact write.
+
+-   No AI may invent criterion keys, weight values, eligibility thresholds, or routing maps not defined in this schema.
+
+-   Divergence between AI systems must be logged into the audit envelope as a judgment zone, not silently collapsed.
+
+# 10. Implementation invariants
+
+-   Exactly 13 canonical criteria must be present in every full evaluation.
+
+-   Weighted composite scoring must be deterministic for identical inputs.
+
+-   Eligibility gate decisions must be explainable from stored criterion values and thresholds.
+
+-   WAVE may not run when eligibility_gate = BLOCK.
+
+-   Any schema change requires a version bump in this document and a matching registry / code update.
+
+    \*\*\*
+
+**📗 Volume II-A --- Operational Schema (Separate)**
+
+-   **Volume II** = constitutional doctrine
+
+-   **Volume II-A** = execution schema for GitHub, Supabase, Vercel, and governed AI pipelines
+
+**Contains machine-readable execution spec:**
+
+**• Criteria data model\
+• Weight constants\
+• Threshold constants\
+• Criteria↔Wave routing map\
+• Evaluation output format**
+
+**🏛 Think Legal System**
+
+**Constitution\
+→ principles, rights, structure**
+
+**Statutes / Code\
+→ implementation details**
+
+**The Constitution is written.\
+Don't bury it in wiring diagrams.**
+
+**✅ Best Practice for the Platform**
+
+**You're building a governance-heavy system.**
+
+**So use this:**
+
+**[/docs\
+/canon\
+VOLUME_II_STORY_CRITERIA_CANON.md\
+/specs\
+VOLUME_II_OPERATIONAL_SCHEMA.md]{.mark}**
+
+**This mirrors:**
+
+**• Legal systems\
+• Enterprise architecture\
+• Platform governance standards**
+
+  -------------------------------------------------------------------------
+  **Doctrine & evaluation philosophy**    **Embed in Volume II**
+  --------------------------------------- ---------------------------------
+  **Data structures & execution logic**   **Separate Operational Schema**
+
+  -------------------------------------------------------------------------
+
+**⚙️ Operational Schema --- What It Is**
+
+**Role:** System Interface Specification\
+**Audience:** Engineers + AI runtime systems
+
+This is your:
+
+"How the platform executes the doctrine" document.
+
+It contains:
+
+✔ Data models\
+✔ Weight tables\
+✔ Threshold constants\
+✔ Routing maps\
+✔ Output schemas\
+✔ Field definitions
+
+It is machine-facing.
+
+**Volume II-A --- Operational Schema**\
+Machine-operational spec for:
+
+-   criterion registry
+
+-   score scale and banding
+
+-   weight table
+
+-   eligibility gate constants
+
+-   Criteria↔WAVE routing map
+
+-   evaluation output schema
+
+-   Supabase persistence model
+
+-   two-AI pipeline contract
+
+-   implementation invariants
+
+Top of Form
+
+Below is the **Narrative Diagnostic Grid** --- the operational layer that turns the RevisionGrade canon into something a system (human or AI) can apply **scene-by-scene across a manuscript**.
+
+This is essentially the **evaluation matrix** behind the models we just built.
+
+**REVISIONGRADE CANON ADDENDUM**
+
+**The Narrative Diagnostic Grid**
+
+(Add to **Volume II --- Evaluation Infrastructure**)
+
+**Purpose**
+
+The Narrative Diagnostic Grid evaluates **each scene across the core narrative forces** that govern reader engagement.
+
+Rather than evaluating prose in isolation, the grid analyzes whether the scene contributes to the **operating narrative system**.
+
+The grid measures:
+
+• Authority\
+• Energy\
+• Motion\
+• Pressure\
+• Consequence\
+• Orientation\
+• Information Flow
+
+Together these elements determine whether a scene **strengthens or weakens the narrative engine.**
+
+**The Diagnostic Grid**
+
+  ----------------------------------------------------------------------------------------------------------------------
+  **Narrative Force**   **Diagnostic Question**                                     **Scene Signal**
+  --------------------- ----------------------------------------------------------- ------------------------------------
+  Authority             Does the narrative voice demonstrate control and clarity?   precise language, confident tone
+
+  Energy                Does the scene sustain curiosity or tension?                questions raised, conflict signals
+
+  Motion                Does the scene alter the story's state?                     decision, revelation, shift
+
+  Pressure              Does risk increase or options narrow?                       rising threat or constraint
+
+  Consequence           Will the scene affect later events?                         decisions propagate forward
+
+  Orientation           Can the reader clearly locate characters and actions?       spatial clarity, object anchors
+
+  Information Flow      Is information revealed at an effective pace?               balanced curiosity vs clarity
+  ----------------------------------------------------------------------------------------------------------------------
+
+**Scene Scoring Method**
+
+Each dimension can be scored on a **0--2 scale**:
+
+**0 --- absent**\
+The scene does not demonstrate the element.
+
+**1 --- present but weak**\
+The element exists but contributes minimally.
+
+**2 --- strong**\
+The element actively strengthens the narrative system.
+
+**Scene Evaluation Example**
+
+Example scene:
+
+  ---------------------------------------------------------------------------
+  **Force**            **Score**   **Reason**
+  -------------------- ----------- ------------------------------------------
+  Authority            2           controlled voice and clear description
+
+  Energy               2           tension between characters
+
+  Motion               1           information revealed but no decision
+
+  Pressure             1           mild threat introduced
+
+  Consequence          0           no future impact yet
+
+  Orientation          2           clear spatial anchors
+
+  Information Flow     2           curiosity maintained
+  ---------------------------------------------------------------------------
+
+Total Score: **8 / 14**
+
+This suggests the scene is engaging but may require **stronger consequence or motion**.
+
+**Diagnostic Interpretation**
+
+Patterns across scenes reveal systemic issues.
+
+Examples:
+
+**Low Motion Across Scenes**
+
+May indicate **narrative stagnation**.
+
+**Low Pressure in Mid-Novel**
+
+May indicate **weak escalation architecture**.
+
+**Low Orientation**
+
+May indicate **spatial confusion or excessive atmosphere**.
+
+**Low Consequence**
+
+May indicate **episodic storytelling rather than causal narrative.**
+
+**Manuscript-Level Analysis**
+
+After evaluating multiple scenes, RevisionGrade can identify patterns such as:
+
+• energy collapse in the middle act\
+• weak escalation ladder\
+• environmental repetition\
+• authority breaks in opening chapters
+
+This allows the system to identify **structural revision priorities**.
+
+**Integration With Existing Criteria**
+
+The grid supports the 13 core evaluation criteria, particularly:
+
+Narrative Drive & Momentum\
+Scene Construction & Function\
+Prose Control & Line-Level Craft\
+Emotional Resonance\
+Pacing & Structural Balance
+
+The grid translates these criteria into **operational diagnostics**.
+
+**Canonical Principle**
+
+Narrative strength emerges when scenes simultaneously sustain:
+
+• authority\
+• energy\
+• motion\
+• pressure\
+• consequence
+
+When multiple scenes fail these conditions, the manuscript may require **structural revision rather than line editing.**
+
+**Role in RevisionGrade**
+
+The Narrative Diagnostic Grid allows RevisionGrade to perform:
+
+• scene-level evaluation\
+• pattern detection across chapters\
+• escalation analysis\
+• tension density mapping
+
+This transforms literary critique into a **systematic narrative analysis framework.**
+
+Bottom of Form
+
+Bottom of Form

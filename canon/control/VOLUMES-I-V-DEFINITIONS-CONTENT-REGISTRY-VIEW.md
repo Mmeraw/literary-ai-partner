@@ -1,130 +1,221 @@
-# REVISIONGRADE CANON — VOLUMES I–V DEFINITIONS & CONTENT REGISTRY VIEW
+# VOLUMES I–V — DEFINITIONS AND CONTENT REGISTRY VIEW
 
 Status: CANONICAL — ACTIVE  
-Version: 1.0  
+Version: 2.1  
 Authority: Mike Meraw  
-Canon ID: CTRL-DEFINITIONS-REG-1.0  
-Governance: Doctrine Registry + Assembly Matrix  
-Last Updated: 2026-03-09
+Canon ID: CTRL-DEFINITIONS-REG-V21  
+Last Updated: 2026-03-20
 
 ---
 
-## PURPOSE
+**RevisionGrade Volumes I--V**
 
-This document is the cross-volume definitions register and content registry view for the RevisionGrade canon. It provides a single location to find canonical definitions for key terms, and a registry view showing what content lives in which volume.
+**Definitions and Content Registry View**
 
----
+*Quick-Reference Index of Canon Content by Volume (v2.1 --- March 2026)*
 
-## PART 1 — CANONICAL DEFINITIONS
+**Volume I --- WAVE Revision Guide Canon**
 
-### A
+**Purpose:** Defines the 62-wave revision methodology and its execution rules.
 
-**Adapter** — A system component that translates between external formats and the canonical evaluation pipeline. Defined in Volume III-TI.
+**Contains:**
 
-**Assembly Matrix** — The canonical control document showing how volumes, doctrines, and systems connect. One of four control documents.
+-   5 Tsunamis (structural integrity, character/dialogue, thematic/world-building, pacing/momentum, literary authority)
 
-**Authority Level** — The classification of AI action permissions (Level 1, 2, or 3). Defined in Volume IV.
+-   62 individual Wave definitions (Waves 1--62)
 
-### C
+-   Breath & Sound Optimization Canon
 
-**Canon** — The complete set of authoritative documents governing the RevisionGrade platform: Volumes I–V plus four control documents.
+-   Velocity Bundle (compressed late-stage execution)
 
-**Canon ID** — The unique identifier for a canonical document (e.g., VOL-I-WAVE-V20).
+-   WAVE Evaluator Governance Layer (W-G1 through W-G5)
 
-**Canonical** — Having the authority of canon. Canonical documents are authoritative; archived documents are not.
+-   Execution rules and sequencing constraints
 
-**Confidence** — The AI self-assessment of reliability for a given score or output. Three levels: HIGH, MEDIUM, LOW.
+**Doctrine Count:** 18 registered canon units
 
-**Criterion (pl. Criteria)** — One of the 13 evaluation dimensions in Volume II against which manuscripts are assessed.
+**Cross-References:** Vol II (criteria alignment), Vol IV (governance), Vol V (pipeline sequencing)
 
-### D
+**Volume II --- 13 Story Evaluation Criteria Canon**
 
-**Delta Report** — A comparison evaluation showing how a manuscript changed between two submission versions.
+**Purpose:** Defines the 13 evaluation criteria, scoring methodology, and diagnostic framework.
 
-**Diagnostic Prompt** — An AI prompt designed to execute a specific WAVE diagnostic. Defined in Volume III-TI.
+**Contains:**
 
-**Doctrine** — A canonical rule with a unique ID registered in the Doctrine Registry.
+-   13 Core Story Evaluation Criteria (Concept through Professional Readiness)
 
-**Doctrine Registry** — The canonical control document listing all 30 doctrines across Volumes I–V.
+-   Scoring Methodology (weighted composite model, tier weighting)
 
-### E
+-   WAVE-Criteria Alignment Mapping
 
-**Eligibility Gate** — A minimum scoring threshold that must be met for specific platform actions (Agent Readiness, Revision Complete, Publication Readiness). Defined in Volume II.
+-   Diagnostic Patterns & Failure Modes
 
-**Evaluator** — A system component that executes canonical evaluation logic. Defined in Volume III-TI.
+-   Revision Prioritization Logic
 
-### G
+-   Evidence Capture & Audit Trail
 
-**Gate** — An operational checkpoint that must be passed before the pipeline can proceed. Defined in Volume III-OS.
+-   Composite Concepts and Cross-Mapping Rules
 
-**Governance** — The system of rules, authorities, and accountability structures that govern platform behavior.
+-   Differentiated Authority Model (DAM) --- Addendum
 
-### M
+-   Michael Witness POV Constraints --- Addendum
 
-**Manuscript** — A written work submitted to RevisionGrade for evaluation. Must meet submission gate requirements.
+-   Breath & Sound Addendum
 
-### P
+-   First-50-Pages Authority Lock Plan --- Addendum
 
-**Pipeline** — The sequential evaluation process from submission through delivery. Defined in Volume III-OS.
+-   Dependency Calibration Scale (DCS) --- Narrative Attachment Model
 
-**Prompt** — An instruction set provided to an AI model for a specific evaluation task. Governed by Volume III-TI and Volume IV.
+**Doctrine Count:** 17 registered canon units (13 criteria + composites + DCS + addendum entries)
 
-### S
+**Cross-References:** Vol I (WAVE alignment), Vol IV (governance), Vol V (tier weighting)
 
-**Schema** — The canonical data structure definition for evaluation components. Defined in Volume III-TI.
+**Volume II-A --- Operational Schema**
 
-**Score** — A numerical assessment on a 1–10 scale. Assigned by waves (individual), tsunamis (aggregated), and criteria (synthesized).
+**Purpose:** Machine-operational specification for evaluation, routing, scoring, and audit artifacts.
 
-### T
+**Contains:**
 
-**Tsunami** — A higher-order diagnostic aggregation that combines findings from multiple waves. Six tsunamis (T-1 through T-6). Defined in Volume I.
+-   Data structures and execution logic
 
-### V
+-   Scoring computation rules
 
-**Volume** — One of the five primary canonical documents (I through V).
+-   Scene-level and chapter-level scoring methods
 
-### W
+-   Routing and artifact generation specs
 
-**Wave** — One of 62 individual diagnostic passes through a manuscript, each targeting a specific craft element. Defined in Volume I.
+**Doctrine Count:** 1 registered canon unit
 
----
+**Cross-References:** Vol II (scoring), Vol III (pipeline), Vol V (execution flow)
 
-## PART 2 — CONTENT REGISTRY VIEW
+**Canon III --- Lessons of the Living System**
 
-### What Lives Where
+**Purpose:** Governing laws derived from system failure, ambiguity, and observed narrative truth.
 
-| Content Type | Location |
-|---|---|
-| Wave definitions (W-01 through W-62) | Volume I, Part 1 |
-| Tsunami definitions (T-1 through T-6) | Volume I, Part 2 |
-| Wave execution rules | Volume I, Part 3 |
-| 13 evaluation criteria | Volume II |
-| Eligibility gate thresholds | Volume II, Scoring Model |
-| Platform identity and purpose | Volume III-PG, Part 1 |
-| User journey and rights | Volume III-PG, Part 2 |
-| Platform governance constraints | Volume III-PG, Part 3 |
-| Core schemas | Volume III-TI, Part 1 |
-| Prompt architecture | Volume III-TI, Part 2 |
-| Adapters and evaluators | Volume III-TI, Part 3 |
-| Integration contracts | Volume III-TI, Part 4 |
-| Submission gates | Volume III-OS, Part 1 |
-| Routing rules | Volume III-OS, Part 2 |
-| Operational triggers | Volume III-OS, Part 3 |
-| AI authority levels | Volume IV, Part 1 |
-| AI governance constraints | Volume IV, Part 2 |
-| Risk and failure management | Volume IV, Part 3 |
-| Canon protection systems | Volume IV, Part 4 |
-| Deployment architecture | Volume V, Part 1 |
-| Reliability and monitoring | Volume V, Part 2 |
-| Scaling architecture | Volume V, Part 3 |
-| Disaster recovery | Volume V, Part 4 |
-| Industry interface | Volume V, Part 5 |
-| Doctrine index | Doctrine Registry |
-| Volume dependency map | Assembly Matrix |
-| Conflict resolution hierarchy | Assembly Matrix, Part 4 |
-| Term definitions | This document |
-| Operational schema (Vol II) | Volume II-A Operational Schema |
+**Contains:**
 
----
+-   8 Lessons (I:1 through I:8)
 
-*End of Volumes I–V Definitions & Content Registry View*
+-   Each with Observation, Revelation, Law, and Implication
+
+-   Laws: Blur Not Multiplicity, Authority Must Ascend, Events Must Propagate, Control Is Conditional, Resistance Reveals Structure, Interpretation Without Consequence Is Drift, Pressure Must Move, The System Resists in Three Forms
+
+**Doctrine Count:** 1 registered canon unit (collection)
+
+**Cross-References:** Vol V Section VII (enforcement rules derived from these lessons)
+
+**Volume III --- Platform Governance Canon**
+
+**Purpose:** Defines non-negotiable operational rules, system constants, enforcement architecture, and implementation specifications.
+
+**Contains:**
+
+-   Part A: Governance Foundations (Purpose, Authority, Doctrines --- Sections 1--3)
+
+-   Part B: Enforcement Architecture (Editorial Intelligence --- Section 4)
+
+-   Part C: Operational Specification (Constants, Routing, Artifacts, Flow Control, Consequences, Engineering, Hooks, Data Handling --- Sections 5--12)
+
+-   Part D: Implementation Artifacts (Schemas, Prompt Registry, Implementation Specs --- Sections 13--15)
+
+-   Part E: Governance Authority (Completion Status, Authority --- Sections 16--17)
+
+-   5 Core Doctrines (Platform Integrity, User Trust, Separation of Concerns, Eligibility Gate, Artifact Persistence)
+
+-   System Constants and Thresholds
+
+-   Canon Gate specification
+
+-   Implementation Priority Order (Phases 1--5)
+
+-   Appendix with Quick Reference Tables
+
+**Doctrine Count:** See RCAM for detailed routing
+
+**Cross-References:** Vol I (WAVE tools), Vol II (criteria), Vol IV (governance authority), Vol V (execution)
+
+**Volume IV --- AI Governance Canon**
+
+**Purpose:** Defines what AI is allowed to do, how it is governed, and how canon is protected.
+
+**Contains:**
+
+-   G1: AI Role Definition
+
+-   G2: Governance Architecture (three authority layers)
+
+-   G3: Canon Protection Systems (formatting locks, authority bands, POV containment, personification budget, forward-hook protection, late-stage compression, breath timing)
+
+-   G4: Risk & Failure Controls (hallucination guardrails, multi-AI consensus, human oversight protocol)
+
+-   G5: Canon Stability (human authority supremacy, canon evolution protocol)
+
+-   G6: Governance State & Violation Model (states, severity classes, enforcement mechanism)
+
+-   G6.3: Runtime Enforcement Reference → Volume V Section VII
+
+-   G7: Cross-Volume Governance Anchors
+
+**Doctrine Count:** See RCAM for detailed routing
+
+**Cross-References:** Vol I (WAVE governance), Vol III (enforcement), Vol V (runtime enforcement)
+
+**Volume V --- Execution Architecture & Industry Interface Canon**
+
+**Purpose:** Defines runtime execution, pipeline architecture, and external-facing artifact system.
+
+**Contains:**
+
+-   V.1: Agent & Publisher Interface Canon
+
+-   V.2: Conceptual Pipeline Architecture
+
+-   V.3: AEP One-Shot Execution Flow (Steps 0--5)
+
+-   V.4: Trifecta Model (Three-Pass Evaluation)
+
+-   V.5: Chunking & Manuscript Assembly
+
+-   V.6: Multi-AI Orchestration Framework
+
+-   V.7: Provider Abstraction in Runtime
+
+-   V.8: Execution Modes (Trusted Path vs Studio)
+
+-   V.9: UI & Human Review Contracts
+
+-   V.10: Artifact Generation & Certification
+
+-   V.11: Reliability, Retry, and Incident Model
+
+-   V.12: Build / Rollout Sequence
+
+-   Section VII: Canon Enforcement System (Phase 0 integration)
+
+> -- VII.1: Canon Registry Binding
+>
+> -- VII.2: Lessons Learned Rule Engine
+>
+> -- VII.3: Governance Injection Map
+>
+> -- System Guarantee
+
+**Doctrine Count:** 8 registered canon units (enforcement system)
+
+**Cross-References:** Vol III (pipeline specs), Vol IV (governance authority), Canon III (lessons)
+
+**Control Documents**
+
+-   RCAM (Canon Assembly Matrix) --- Routes every source document to its canonical volume destination
+
+-   Doctrine Registry --- Master index of all registered canon with IDs, types, and cross-references
+
+-   This document --- Quick-reference lens of what each volume contains
+
+**Totals**
+
+-   5 Volumes + 1 Sub-volume (II-A) + 1 Canon supplement (Canon III)
+
+-   2 Control Documents (RCAM, Doctrine Registry)
+
+-   49 registered doctrine units (Doctrine Registry v2.1)
