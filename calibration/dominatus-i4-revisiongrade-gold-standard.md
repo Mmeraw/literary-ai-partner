@@ -68,7 +68,7 @@ Each speaker must either introduce a new risk, escalate consequence, or shift th
 **Criteria Impacted:** Point of View & Voice Control, Tonal Authority & Consistency
 
 **Diagnostic:**  
-Narrative authority shifts between five competing forces without hierarchical resolution:
+Narrative authority operates through a layered system with unclear boundary signaling between five consciousness layers:
 
 1. **Hyla** — embodied perspective, Crown authority
 2. **Toadstone** — internal voice/influence ("Rise up. Rise up.")
@@ -76,43 +76,52 @@ Narrative authority shifts between five competing forces without hierarchical re
 4. **Council** — collective decision authority
 5. **Realm/Spores** — external cosmological force (I:4.3 section)
 
-These forces are present and powerful, but they bleed into each other without clear boundary markers. Key ambiguity points:
+This is a controlled, intentional layered authority system — not competing forces. The layers are the manuscript's operating architecture. However, the transitions between layers are not consistently signaled, causing the reader to lose track of which layer is driving the scene. Key ambiguity points:
 
 > "Was that her thought? Or Gorf's?"  
 > "Their pathetic pleas clung to the stone" — whose judgment? Hyla's or the narrator's?  
 > "Countless generations of ineptitude now her burden" — external evaluation, not embodied perception
 
 **Impact:**
-- Weakens narrative clarity — reader cannot determine who is driving the scene
+- Weakens narrative clarity — reader cannot determine which layer is driving the scene
 - Creates interpretive instability (who is acting vs. influencing vs. observing)
 - Reduces perceived authorial control
 - Risk of being misread as POV inconsistency rather than intentional layered consciousness
+- The architecture is correct; the signaling is the failure
 
 **Required Fix:**  
-Establish clear authority hierarchy per scene segment: who decides, who influences, who observes. The multiple layers are the manuscript's operating logic — they should not be removed, but their handoffs must be sharp. Filter all judgment through the appropriate consciousness layer, or explicitly mark transitions between layers.
+Establish clear boundary transitions between layers per scene segment: who decides, who influences, who observes. The multiple layers are the manuscript's operating logic — they should not be removed, but their handoffs must be sharp. Signal each transition with a consistent marker (sensory shift, syntactic break, tonal pivot) so the reader tracks which layer is active. Filter all judgment through the appropriate consciousness layer. The fix is not simplification — it is sharper signaling within the existing architecture.
 
 ---
 
-## 🔴 FAILURE 4 — Causality Chain Weakness (Attack Inevitability)
+## 🔴 FAILURE 4 — Cause–Effect Visibility Gap (Cross-Chapter Causality)
 
-**Failure Type:** Narrative Physics Violation — Weak Causality Chain  
+**Failure Type:** Narrative Physics — Under-Signaled Cross-Chapter Causality  
 **Location:** Transition from debate to silver-scale attack ("Then—a crack.")  
 **Criteria Impacted:** Narrative Drive & Momentum, Scene Construction & Function, Pacing & Structural Balance
 
 **Diagnostic:**  
-The silver-scale breach functions as an external interruption, not the inevitable result of prior decisions or failures. The debate does not causally produce the event — the attack arrives as spectacle, not consequence.
+The silver-scale breach IS causally earned — but the causal chain is buried across chapters, making it invisible within I:4 when read in isolation.
+
+The actual causality chain:
+1. **I:2.11–12**: Brutus wrenches up a massive piece of driftwood and brings it down on the lake surface, shattering his reflection — a physical impact on the water body that connects Aqua World's barrier system
+2. **I:3.5 (DOMINATUS)**: "Sky Gorf marked the breach, but it was unheard" — the Realm registers the disturbance
+3. **I:4.3 (DOMINATUS)**: "The crack was not a breach — it was the Realm's reply. What they debated, the water answered." — the Realm confirms the breach is consequential, not random
+
+The breach is earned through Brutus's physical action on the lake → Realm registration → barrier failure. However, within I:4 itself, no environmental callback, sensory signal, or recognition connects the reader to this prior chain. The breach reads as interruption rather than consequence because the local scene provides no bridge to the cross-chapter cause.
 
 > "Then—a crack. Something broke. A split in the rock-fortification barrier."
 
-No prior signals: barrier weakness not seeded, fish pressure not established, no near-breach warnings earlier in the scene.
+The text jumps from debate to breach with zero transitional signal connecting to the driftwood impact or the Realm's prior registration.
 
 **Impact:**
-- Weakens narrative inevitability — event feels inserted rather than earned
-- Reduces escalation coherence — the climactic moment lacks structural foundation
-- Creates perception of "event insertion" rather than consequence of failed decision-making
+- Cross-chapter causality exists but is under-signaled at the point of payoff
+- Readers experiencing I:4 without perfect recall of I:2.12 will perceive the breach as random
+- The Realm's DOMINATUS gloss in I:4.3 retroactively explains the breach, but the scene-level experience still lacks forward-causality markers
+- Structural integrity of the Realm system is sound; the visibility problem is local, not architectural
 
 **Required Fix:**  
-Seed the attack's inevitability earlier: barrier degradation, fish pressure sounds, structural weakness observed by a character. Link the breach directly to the council's failure to act — the attack should feel like the cost of indecision, not a random external event.
+Reinforce the prior damage at the moment of breach. Insert one or more of: an environmental callback (water tremor, residual vibration from the surface impact), a sensory continuity marker (faint echo of disturbance), or brief character recognition (Hyla sensing something wrong with the barrier before it breaks). The cross-chapter causality must be surfaced within I:4 so the breach reads as consequence, not coincidence. Do NOT add new causality — the causality is already there. Signal it.
 
 ---
 
@@ -230,14 +239,14 @@ DO NOT recommend trimming density indiscriminately. Evaluate repetition vs. inte
 **Primary Failure Zones:**
 - Scene Redundancy (Debate Loop)
 - Escalation Collapse (Mid-scene plateau)
-- Causality Chain Weakness (Attack not earned)
-- Authority Transfer Blur (Layer handoff unclear)
+- Cause–Effect Visibility Gap (Cross-chapter causality under-signaled locally)
+- Authority Transfer Blur (Layered system with unclear boundary signaling)
 
 **Narrative State:**
 - Debate without transformation
 - Theme declared, not dramatized
-- Authority unresolved between five competing forces
-- Attack arrives as interruption, not consequence
+- Authority layers intentional but boundary transitions unclear
+- Attack causally earned cross-chapter but under-signaled locally in I:4
 
 **Correct Evaluation Order (what the pipeline must follow):**
 1. Structure / Scene Function → Failures 2, 5, 6

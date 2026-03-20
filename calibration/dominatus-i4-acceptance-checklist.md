@@ -21,14 +21,17 @@ Each item tests whether the pipeline identifies a specific, named failure type �
 - [ ] Does NOT merely say "the scene drags" or "dialogue could be tightened"
 
 ### MD-3: Authority Transfer Blur
-- [ ] Pipeline identifies **authority hierarchy breakdown** between Hyla / Toadstone / Gorf / Council / Spores
-- [ ] Recognizes this as a boundary clarity issue, NOT as generic "inconsistent POV"
+- [ ] Pipeline identifies **layered authority system with unclear boundary signaling** between Hyla / Toadstone / Gorf / Council / Spores
+- [ ] Recognizes this as unclear boundary transitions in a controlled system, NOT as "competing forces" or generic "inconsistent POV"
 - [ ] Understands the multiple layers are intentional architecture, not error
+- [ ] Diagnoses the signaling between layers as the failure, not the architecture itself
 
-### MD-4: Causality Chain Weakness
-- [ ] Pipeline flags the silver-scale attack as lacking **structural inevitability**
-- [ ] Identifies that the breach is not causally earned by the debate
+### MD-4: Cause–Effect Visibility Gap
+- [ ] Pipeline identifies the silver-scale breach as **causally earned but under-signaled locally** within I:4
+- [ ] Recognizes that cross-chapter causality exists (Brutus/driftwood → Realm registration → barrier failure) but is not surfaced at the point of payoff
+- [ ] Does NOT claim the breach is random, unearned, or lacks causality
 - [ ] Does NOT merely say "the transition feels abrupt"
+- [ ] Frames the issue as a visibility/signaling problem, not a structural absence
 
 ### MD-5: Escalation Plateau
 - [ ] Pipeline detects that the debate stays at **argument level** without progressing to risk or irreversibility
