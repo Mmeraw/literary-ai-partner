@@ -15,8 +15,8 @@ describe("Phase 2.6 A6 report credibility", () => {
     {
       anchor_id: "anchor_2",
       start_offset: 43,
-      end_offset: 83,
-      source_excerpt: sourceText.slice(43, 83),
+      end_offset: 86,
+      source_excerpt: sourceText.slice(43, 86),
     },
   ];
 
