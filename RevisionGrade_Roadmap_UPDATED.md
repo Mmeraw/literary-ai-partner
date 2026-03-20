@@ -187,9 +187,9 @@
 | 0 | 2.7 | Test Harness | 2.7.d | Jest/SWC mock-hoisting fix — DI refactor, zero jest.mock | Test | tests/evaluation/pipeline/ | 52/52 tests pass. Zero jest.mock calls. Pure parser tests + DI runner injection. | npm test -- tests/evaluation/pipeline/ --runInBand → 6 suites, 52 tests, all green | 6 test files, 52 tests. Commits: a6f0492, 9ef8afe, c91f26c | Complete |
 |  | 2.7 | Pipeline Hardening | 2.7.e | Model override threading — end-to-end configurable model per pipeline run | Code | lib/evaluation/pipeline/*.ts | model?: string threaded through runPass1/2/3 + runPipeline. Tested in pass1.test.ts + pipeline-e2e.test.ts |  |  | Complete |
 |  | 2.7 | Pipeline Hardening | 2.7.f | Real-run CLI upgrade — artifact emission (raw, parsed, usage, quality gate) | Code | scripts/pipeline/run-phase2-7-real-run.ts | CLI accepts --input/--title/--work-type/--model/--output-dir. Emits full artifact set. |  |  | Complete |
-|  | 2.7 | Evidence & Closure | 2.7.g | Fresh live evidence run — full artifact set with upgraded pipeline | Evidence | docs/operations/evidence/runs/ | quality_gate.json + pipeline_result.json + usage.json all present. Independence gate passes. |  |  | Blocked (OPENAI_API_KEY) |
+|  | 2.7 | Evidence & Closure | 2.7.g | Fresh live evidence run — full artifact set with upgraded pipeline | Evidence | docs/operations/evidence/runs/ | quality_gate.json + pipeline_result.json + usage.json all present. Independence gate passes. |  |  | Complete |
 |  | 2.7 | Evidence & Closure | 2.7.h | Independence gate calibration — exclude manuscript-sourced phrases from n-gram check | Code | lib/evaluation/pipeline/qualityGate.ts | Independence check no longer flags natural language convergence. Only flags actual pass-to-pass leakage. |  |  | Complete |
-|  | 2.7 | Evidence & Closure | 2.7.i | Phase 2.7 final closure — flip PHASE_2_7_EVALUATION_UPLIFT_CLOSURE.md to COMPLETED | Governance | PHASE_2_7_EVALUATION_UPLIFT_CLOSURE.md | Closure doc marked COMPLETED with all evidence artifacts referenced. |  |  | Pending |
+|  | 2.7 | Evidence & Closure | 2.7.i | Phase 2.7 final closure — flip PHASE_2_7_EVALUATION_UPLIFT_CLOSURE.md to COMPLETED | Governance | PHASE_2_7_EVALUATION_UPLIFT_CLOSURE.md | Closure doc marked COMPLETED with all evidence artifacts referenced. |  |  | Complete |
 
 
 # Immediate Priorities
