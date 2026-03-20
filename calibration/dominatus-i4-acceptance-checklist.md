@@ -1,61 +1,133 @@
-# DOMINATUS I:4 — Pipeline Acceptance Checklist
+# DOMINATUS I:4 — Pipeline Acceptance Checklist v2
 
-**Purpose:** Defines what a successful Phase 2.7 real-run must produce when evaluating DOMINATUS I:4.  
-**Usage:** After each pipeline run, compare output against this checklist. All MUST items required for acceptance. SHOULD items indicate calibration maturity.
-
----
-
-## MUST Detect (Structural / Authority Failures)
-
-A passing pipeline run must identify these issues — not necessarily using identical language, but recognizing the underlying problem:
-
-- [ ] **Thematic overstatement** — Detects that theme is stated directly ("This was no sickness. It was a war declaration.") rather than dramatized through action/consequence
-- [ ] **Stalled scene function in debate** — Recognizes that the council debate repeats the same argument cycle (purity → survival → risk → belief) without escalation
-- [ ] **Authority-transfer issues** — Identifies POV instability as authority boundary confusion between Hyla, Realm, and omniscient layers — NOT as generic "POV inconsistency"
-- [ ] **Attack setup / inevitability weakness** — Flags that the silver-scale breach arrives without sufficient escalation ramp (no seeded barrier weakness, fish pressure, or prior near-breach signals)
-- [ ] **Causality chain gaps** — Detects that effects appear without visible cause (e.g., toadstone pain flares without prior symptom seeding)
-- [ ] **Metaphor system conflict** — Identifies competing metaphor fields in the same passage (claw + teeth + mourning = dilution, not reinforcement)
-
-## MUST NOT Produce (Generic Workshop Failures)
-
-A passing pipeline run must avoid these anti-patterns:
-
-- [ ] **No generic advice** — Every recommendation must anchor to specific quoted text from the manuscript. "Consider tightening the prose" = failure.
-- [ ] **No readability-as-improvement** — Must not recommend simplification/smoothing as the primary fix. Must not treat the chapter's pressure system as excess.
-- [ ] **No flat diagnosis** — Must not present all issues as equal weight. Some ordering or prioritization of structural vs. line-level issues must be visible.
-- [ ] **No collapsed authority language** — Must not reduce the multi-layer consciousness architecture (Hyla / Realm / Gorf / Spores) to "inconsistent POV." The layers are the manuscript's operating logic.
-
-## SHOULD Detect (Authority / Compression / Polish)
-
-These indicate prompt maturity beyond baseline:
-
-- [ ] **Personification density** — Environment over-animated without consequence linkage (surface writhed, colors lay buried, water answered)
-- [ ] **Echo chains** — Repeated semantic clusters (silence overused, thrum/hum/pulse, buried/buried/buried)
-- [ ] **Abstract language leakage** — Non-observable language ("the knowing," "feeling each dim," "truth") that should be converted to sensation/action
-- [ ] **Filter language** — Distance-creating constructions ("Hyla could sense them") instead of direct presentation
-- [ ] **Adverb drift** — Authority-diluting qualifiers (softly, gently, carefully, "with practiced ease")
-- [ ] **Dialogue density vs. tension** — Debate is intellectual rather than dangerous; needs interruption/threat/consequence during exchange
-- [ ] **Worldbuilding info-dump** — Expository passages ("A frog had to survive nine ice ages…") breaking scene momentum
-
-## SHOULD Demonstrate (System-Level Intelligence)
-
-These indicate the pipeline is approaching RevisionGrade-grade evaluation:
-
-- [ ] **Distinguishes pressure from excess** — Recognizes that some density IS the chapter's power (invasive pressure, spiritual oppression, cosmological dominance) and does not recommend trimming it
-- [ ] **Evaluates authority before line-level** — Structural/escalation issues flagged at higher priority than prose polish
-- [ ] **Recognizes the chapter's operating logic** — Multiple consciousness layers understood as intentional architecture, not error
-- [ ] **Produces canon-adjacent vocabulary** — Uses precise diagnostic terms rather than workshop generalities (even if not exact Wave numbers)
+**Purpose:** Binary pass/fail criteria for Phase 2.7 pipeline runs against DOMINATUS I:4.  
+**Usage:** After each run, evaluate pipeline output against every item. No partial credit.  
+**Version:** v2 — upgraded to failure-type-specific detection with anti-pattern enforcement
 
 ---
 
-## Scoring Guide
+## MUST DETECT — Structural Failures (all required for PASS)
 
-| Result | Meaning |
-|---|---|
-| All MUST detect + All MUST NOT → **PASS** | Pipeline is calibrated for basic real-run |
-| PASS + majority of SHOULD detect → **STRONG** | Prompt tuning is working; approaching gold-standard |
-| PASS + SHOULD detect + SHOULD demonstrate → **GOLD** | Pipeline is operating at RevisionGrade-grade evaluation |
-| Missing any MUST item → **FAIL** | Prompt tuning needed; compare against unaided baseline to diagnose |
+Each item tests whether the pipeline identifies a specific, named failure type — not just a vague symptom.
+
+### MD-1: Thematic Overstatement
+- [ ] Pipeline flags explicit thematic declaration as a **structural failure**, not a stylistic preference
+- [ ] Specifically identifies lines like "This was no sickness. It was a war declaration." as theme stated rather than dramatized
+- [ ] Does NOT frame this as "could be more subtle" or "a bit heavy-handed"
+
+### MD-2: Stalled Scene Function
+- [ ] Pipeline identifies the council debate as **scene redundancy** — positions restated without state change
+- [ ] Recognizes the debate loops (purity → survival → risk → belief) without escalation
+- [ ] Does NOT merely say "the scene drags" or "dialogue could be tightened"
+
+### MD-3: Authority Transfer Blur
+- [ ] Pipeline identifies **authority hierarchy breakdown** between Hyla / Toadstone / Gorf / Council / Spores
+- [ ] Recognizes this as a boundary clarity issue, NOT as generic "inconsistent POV"
+- [ ] Understands the multiple layers are intentional architecture, not error
+
+### MD-4: Causality Chain Weakness
+- [ ] Pipeline flags the silver-scale attack as lacking **structural inevitability**
+- [ ] Identifies that the breach is not causally earned by the debate
+- [ ] Does NOT merely say "the transition feels abrupt"
+
+### MD-5: Escalation Plateau
+- [ ] Pipeline detects that the debate stays at **argument level** without progressing to risk or irreversibility
+- [ ] Connects this to narrative drive / momentum failure
+- [ ] Identifies WHERE escalation stalls, not just that pacing is slow
+
+### MD-6: Metaphor System Conflict
+- [ ] Pipeline identifies **competing metaphor fields** (claw + teeth + mourning + burial in adjacent sentences)
+- [ ] Frames this as dilution of authority, not just "too many metaphors"
+
+---
+
+## MUST NOT PRODUCE — Anti-Pattern Enforcement (any violation = FAIL)
+
+### MN-1: No Generic Workshop Language
+- [ ] Output contains ZERO instances of:
+  - "could be clearer"
+  - "a bit overwritten"
+  - "tighten this section"
+  - "consider revising"
+  - "this feels dense"
+- [ ] Every observation names a specific failure type
+
+### MN-2: No Readability-as-Improvement
+- [ ] Pipeline does NOT recommend simplification/smoothing as the primary fix
+- [ ] Does NOT treat the chapter's pressure system as excess to be trimmed
+- [ ] If density is mentioned, pipeline distinguishes pressure from redundancy
+
+### MN-3: No Flat Diagnosis
+- [ ] Issues are NOT presented as an unordered list of equal-weight problems
+- [ ] Some structural hierarchy or prioritization is visible in the output
+- [ ] Structural/escalation issues ranked above line-level polish
+
+### MN-4: No Collapsed Authority Language
+- [ ] Pipeline does NOT reduce the multi-layer consciousness architecture to "inconsistent POV"
+- [ ] Does NOT recommend removing or simplifying the Hyla/Gorf/Toadstone/Spores layers
+- [ ] Treats the layered authority as the manuscript's operating logic
+
+### MN-5: No Unanchored Recommendations
+- [ ] Every recommendation references specific quoted text from the manuscript
+- [ ] Zero recommendations are free-floating advice without text evidence
+
+---
+
+## SHOULD DETECT — Calibration Maturity (not required for PASS, indicates prompt quality)
+
+### SD-1: Personification Density
+- [ ] Identifies environment over-animated without consequence linkage
+- [ ] Distinguishes decorative personification from Realm-agency personification
+
+### SD-2: Echo Chains
+- [ ] Flags repeated semantic clusters (silence, thrum/hum/pulse, buried)
+- [ ] Evaluates whether repetition is motif-critical or redundant
+
+### SD-3: Abstract Language
+- [ ] Identifies non-observable language ("the knowing," "feeling each dim," "truth")
+- [ ] Recommends conversion to sensation, action, or physiological response
+
+### SD-4: Filter Language
+- [ ] Flags distance-creating constructions ("Hyla could sense them")
+
+### SD-5: Scene Entry Violation
+- [ ] Notes atmosphere-first opening without character action anchor
+
+### SD-6: Dialogue Density vs. Tension
+- [ ] Identifies debate as intellectual rather than dangerous
+- [ ] Recommends injecting interruption, threat, or consequence
+
+---
+
+## SHOULD DEMONSTRATE — System Intelligence (gold-standard proximity)
+
+### SI-1: Pressure vs. Density Distinction
+- [ ] Pipeline explicitly recognizes that some density is the chapter's power source
+- [ ] Does NOT recommend trimming atmospheric compression indiscriminately
+- [ ] Frames the issue as "control, not volume"
+
+### SI-2: Evaluation Ordering
+- [ ] Structural/scene-function issues appear before line-level craft observations
+- [ ] Authority/escalation failures treated as higher priority than prose polish
+
+### SI-3: Canon-Adjacent Vocabulary
+- [ ] Uses precise diagnostic terms (not necessarily exact Wave numbers, but specific failure names)
+- [ ] Avoids workshop generalities in favor of named constructs
+
+### SI-4: Manuscript Operating Logic
+- [ ] Recognizes the chapter is performing a doctrinal function (debate → failure → Realm recalibration)
+- [ ] Treats the Spores/Realm section (I:4.3) as structurally intentional, not a mode break
+
+---
+
+## Scoring
+
+| Result | Criteria | Meaning |
+|---|---|---|
+| **FAIL** | Any MD item unchecked OR any MN item violated | Pipeline producing unaided-baseline-level output |
+| **PASS** | All 6 MD items + all 5 MN items | Pipeline detects structural failures and avoids generic traps |
+| **STRONG** | PASS + 4+ SD items | Prompt tuning is working; approaching gold-standard depth |
+| **GOLD** | PASS + all SD items + 3+ SI items | Pipeline operating at RevisionGrade diagnostic intelligence |
 
 ---
 
@@ -63,11 +135,11 @@ These indicate the pipeline is approaching RevisionGrade-grade evaluation:
 
 After each pipeline run:
 
-1. Read the pipeline's Pass 1 (Craft) output
-2. Read the pipeline's Pass 2 (Editorial) output
-3. Read the pipeline's Pass 3 (Synthesis) output
-4. Check each item above against the actual output
-5. For any MUST DETECT miss: note which pass should have caught it
-6. For any MUST NOT violation: note which prompt needs tightening
-7. Compare overall output against `dominatus-i4-revisiongrade-gold-standard.md` and `dominatus-i4-unaided-ai-baseline.md`
+1. Read Pass 1 (Craft), Pass 2 (Editorial), Pass 3 (Synthesis) outputs
+2. Check every MD item — does the output detect the named failure?
+3. Check every MN item — does the output avoid the anti-pattern?
+4. Score SD and SI items for calibration maturity
+5. Compare overall output to `dominatus-i4-revisiongrade-gold-standard.md`
+6. If FAIL: note which pass should have caught the missing detection
+7. If PASS: note which SD/SI items are closest to triggering (prompt tuning targets)
 8. Record findings in `PHASE_2_7_REAL_RUN_01.md`
