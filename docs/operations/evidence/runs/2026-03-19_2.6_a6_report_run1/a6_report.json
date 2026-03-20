@@ -1,0 +1,55 @@
+{
+  "evaluation_id": "a6_evidence_run_1",
+  "criteria": [
+    {
+      "name": "narrative_cohesion",
+      "score": 8.5,
+      "max_score": 10,
+      "reasoning": "The passage maintains clear movement and continuity across descriptive beats.",
+      "evidence_refs": [
+        "anchor_1"
+      ],
+      "confidence": 0.9
+    },
+    {
+      "name": "tone_consistency",
+      "score": 8.9,
+      "max_score": 10,
+      "reasoning": "Dialogue and narration remain stylistically aligned and tonally coherent.",
+      "evidence_refs": [
+        "anchor_2"
+      ],
+      "confidence": 0.9
+    }
+  ],
+  "overall": {
+    "score": 8.7,
+    "confidence": 0.9,
+    "summary": "A6 credibility layer generated rubric transparency, confidence scoring, and provenance trace."
+  },
+  "provenance": [
+    {
+      "anchor_id": "anchor_1",
+      "start_offset": 4,
+      "end_offset": 22,
+      "source_excerpt": "river moved slowly",
+      "used_for": [
+        "narrative_cohesion"
+      ]
+    },
+    {
+      "anchor_id": "anchor_2",
+      "start_offset": 43,
+      "end_offset": 86,
+      "source_excerpt": "\"You said you would be here,\" she whispered",
+      "used_for": [
+        "tone_consistency"
+      ]
+    }
+  ],
+  "metadata": {
+    "commit_sha": "45a63f100cd277a9dd9db94aded8e20326cc96e0",
+    "model_version": "a6-v1",
+    "generated_at": "2026-03-20T00:26:45.175Z"
+  }
+}

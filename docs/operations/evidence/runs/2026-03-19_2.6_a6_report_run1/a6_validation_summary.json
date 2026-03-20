@@ -1,0 +1,30 @@
+{
+  "metadata": {
+    "phase": "2.6",
+    "evaluation_id": "a6_evidence_run_1",
+    "commit_sha": "45a63f100cd277a9dd9db94aded8e20326cc96e0",
+    "run_date_utc": "2026-03-20T00:26:45.175Z"
+  },
+  "metrics": {
+    "criteria_count": 2,
+    "provenance_count": 2,
+    "all_criteria_have_reasoning": true,
+    "all_reasoning_has_evidence": true,
+    "all_evidence_refs_resolve_to_provenance": true,
+    "all_anchors_resolve": true,
+    "confidence_is_derived": true,
+    "pass": true
+  },
+  "failure_cases_tested": [
+    {
+      "id": "missing-evidence-refs",
+      "expected_error": "A6_MISSING_EVIDENCE_REFS",
+      "passed": true
+    },
+    {
+      "id": "phantom-anchor",
+      "expected_error": "A6_PHANTOM_ANCHOR",
+      "passed": true
+    }
+  ]
+}

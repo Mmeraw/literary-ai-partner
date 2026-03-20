@@ -1,0 +1,22 @@
+{
+  "phase": "2.6",
+  "run_id": "2026-03-19_2.6_a6_report_run1",
+  "commit_sha": "45a63f100cd277a9dd9db94aded8e20326cc96e0",
+  "branch": "main",
+  "command": "npm run a6:run -- --output=docs/operations/evidence/runs/2026-03-19_2.6_a6_report_run1",
+  "run_date_utc": "2026-03-20T00:26:45.175Z",
+  "artifacts": {
+    "json": "docs/operations/evidence/runs/2026-03-19_2.6_a6_report_run1/a6_report.json",
+    "markdown": "docs/operations/evidence/runs/2026-03-19_2.6_a6_report_run1/a6_report.md",
+    "log": "docs/operations/evidence/runs/2026-03-19_2.6_a6_report_run1/a6_validation.log"
+  },
+  "result": {
+    "pass": true,
+    "criteria_count": 2,
+    "provenance_count": 2,
+    "all_criteria_have_reasoning": true,
+    "all_reasoning_has_evidence": true,
+    "all_anchors_resolve": true,
+    "confidence_is_derived": true
+  }
+}
