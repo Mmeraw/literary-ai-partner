@@ -109,6 +109,22 @@ export type QualityGateResult = {
   warnings: string[];
 };
 
+// ── Completion capture / usage telemetry ───────────────────────────────────
+
+export type CompletionUsage = {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+};
+
+export type PassCompletionCapture = {
+  pass: 1 | 2 | 3;
+  raw_text: string;
+  model: string;
+  usage?: CompletionUsage;
+  generated_at: string;
+};
+
 // ── Pipeline result ──────────────────────────────────────────────────────────
 
 export type PipelineResult =

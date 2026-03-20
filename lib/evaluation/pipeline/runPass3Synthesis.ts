@@ -12,7 +12,7 @@
 import OpenAI from "openai";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS3_SYSTEM_PROMPT, PASS3_PROMPT_VERSION, buildPass3UserPrompt } from "./prompts/pass3-synthesis";
-import type { SinglePassOutput, SynthesisOutput, SynthesizedCriterion, EvidenceAnchor } from "./types";
+import type { SinglePassOutput, SynthesisOutput, SynthesizedCriterion, EvidenceAnchor, CompletionUsage, PassCompletionCapture } from "./types";
 
 const PASS3_TEMPERATURE = 0.2;
 const PASS3_MAX_TOKENS = 5000;
@@ -25,16 +25,18 @@ export type CreateCompletionFn = (params: {
   temperature: number;
   max_tokens: number;
   response_format: { type: string };
-}) => Promise<{ choices: { message: { content: string | null } }[] }>;
+}) => Promise<{ choices: { message: { content: string | null } }[]; usage?: CompletionUsage }>;
 
 export interface RunPass3Options {
   pass1: SinglePassOutput;
   pass2: SinglePassOutput;
   manuscriptText: string;
   title: string;
+  model?: string;
   openaiApiKey?: string;
   /** Override the completion function (for testing). Production callers omit this. */
   _createCompletion?: CreateCompletionFn;
+  _onCompletion?: (capture: PassCompletionCapture) => void;
 }
 
 /**
@@ -44,6 +46,7 @@ export interface RunPass3Options {
  */
 export async function runPass3Synthesis(opts: RunPass3Options): Promise<SynthesisOutput> {
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
+  const selectedModel = opts.model ?? PASS3_MODEL;
 
   const userPrompt = buildPass3UserPrompt({
     pass1Json: JSON.stringify(opts.pass1, null, 2),
@@ -53,7 +56,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   });
 
   const completion = await createCompletion({
-    model: PASS3_MODEL,
+    model: selectedModel,
     messages: [
       { role: "system", content: PASS3_SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
@@ -68,7 +71,15 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     throw new Error("[Pass3] Empty response from OpenAI");
   }
 
-  return parsePass3Response(responseText, opts.pass1, opts.pass2);
+  opts._onCompletion?.({
+    pass: 3,
+    raw_text: responseText,
+    model: selectedModel,
+    usage: completion.usage,
+    generated_at: new Date().toISOString(),
+  });
+
+  return parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel);
 }
 
 /**
@@ -84,6 +95,7 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
   return (params) =>
     openai.chat.completions.create(params as Parameters<typeof openai.chat.completions.create>[0]) as Promise<{
       choices: { message: { content: string | null } }[];
+      usage?: CompletionUsage;
     }>;
 }
 
@@ -91,6 +103,7 @@ export function parsePass3Response(
   raw: string,
   pass1: SinglePassOutput,
   pass2: SinglePassOutput,
+  fallbackModel = PASS3_MODEL,
 ): SynthesisOutput {
   let parsed: unknown;
   try {
@@ -192,7 +205,7 @@ export function parsePass3Response(
     metadata: {
       pass1_model: String(rawMeta["pass1_model"] ?? pass1.model),
       pass2_model: String(rawMeta["pass2_model"] ?? pass2.model),
-      pass3_model: String(rawMeta["pass3_model"] ?? PASS3_MODEL),
+      pass3_model: String(rawMeta["pass3_model"] ?? fallbackModel),
       generated_at: new Date().toISOString(),
     },
   };

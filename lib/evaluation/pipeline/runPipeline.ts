@@ -30,6 +30,7 @@ export interface RunPipelineOptions {
   manuscriptText: string;
   workType: string;
   title: string;
+  model?: string;
   openaiApiKey?: string;
   /**
    * Dependency injection for runner functions (testing only).
@@ -66,6 +67,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       manuscriptText: opts.manuscriptText,
       workType: opts.workType,
       title: opts.title,
+      model: opts.model,
       openaiApiKey: opts.openaiApiKey,
     });
   } catch (err) {
@@ -85,6 +87,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       manuscriptText: opts.manuscriptText,
       workType: opts.workType,
       title: opts.title,
+      model: opts.model,
       openaiApiKey: opts.openaiApiKey,
     });
   } catch (err) {
@@ -103,6 +106,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       pass2: pass2Output,
       manuscriptText: opts.manuscriptText,
       title: opts.title,
+      model: opts.model,
       openaiApiKey: opts.openaiApiKey,
     });
   } catch (err) {

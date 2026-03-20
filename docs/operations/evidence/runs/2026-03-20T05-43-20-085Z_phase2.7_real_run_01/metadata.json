@@ -1,0 +1,11 @@
+{
+  "phase": "2.7",
+  "run_type": "real_manuscript",
+  "source_path": "/workspaces/literary-ai-partner/archive/base44-export/toadstone-power-of-belief-base44-voice-training-canonical-source-text.txt",
+  "source_title": "Toadstone Power of Belief — Chapter 1",
+  "work_type": "novel_chapter",
+  "word_count": 486,
+  "generated_at": "2026-03-20T05:45:58.657Z",
+  "output_dir": "docs/operations/evidence/runs/2026-03-20T05-43-20-085Z_phase2.7_real_run_01",
+  "quality_gate_pass": false
+}

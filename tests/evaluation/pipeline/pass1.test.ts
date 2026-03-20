@@ -134,6 +134,28 @@ describe("runPass1", () => {
     expect(result.criteria).toHaveLength(13);
   });
 
+  it("uses the caller-provided model override in the completion request", async () => {
+    let requestedModel: string | undefined;
+    const captureCompletion: CreateCompletionFn = async (params) => {
+      requestedModel = params.model;
+      return {
+        choices: [{ message: { content: JSON.stringify(makePass1Fixture()) } }],
+      };
+    };
+
+    const result = await runPass1({
+      manuscriptText: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "Test Manuscript",
+      model: "gpt-4o",
+      openaiApiKey: "sk-test",
+      _createCompletion: captureCompletion,
+    });
+
+    expect(requestedModel).toBe("gpt-4o");
+    expect(result.model).toBe("gpt-4o");
+  });
+
   it("throws when OPENAI_API_KEY is not configured", async () => {
     const savedKey = process.env.OPENAI_API_KEY;
     delete process.env.OPENAI_API_KEY;

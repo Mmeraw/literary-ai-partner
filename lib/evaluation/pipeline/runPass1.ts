@@ -11,7 +11,7 @@
 import OpenAI from "openai";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS1_SYSTEM_PROMPT, PASS1_PROMPT_VERSION, buildPass1UserPrompt } from "./prompts/pass1-craft";
-import type { SinglePassOutput, AxisCriterionResult, EvidenceAnchor } from "./types";
+import type { SinglePassOutput, AxisCriterionResult, EvidenceAnchor, CompletionUsage, PassCompletionCapture } from "./types";
 
 const PASS1_TEMPERATURE = 0.3;
 const PASS1_MAX_TOKENS = 4000;
@@ -24,15 +24,17 @@ export type CreateCompletionFn = (params: {
   temperature: number;
   max_tokens: number;
   response_format: { type: string };
-}) => Promise<{ choices: { message: { content: string | null } }[] }>;
+}) => Promise<{ choices: { message: { content: string | null } }[]; usage?: CompletionUsage }>;
 
 export interface RunPass1Options {
   manuscriptText: string;
   workType: string;
   title: string;
+  model?: string;
   openaiApiKey?: string;
   /** Override the completion function (for testing). Production callers omit this. */
   _createCompletion?: CreateCompletionFn;
+  _onCompletion?: (capture: PassCompletionCapture) => void;
 }
 
 /**
@@ -42,6 +44,7 @@ export interface RunPass1Options {
  */
 export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput> {
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
+  const selectedModel = opts.model ?? PASS1_MODEL;
 
   const userPrompt = buildPass1UserPrompt({
     manuscriptText: opts.manuscriptText,
@@ -50,7 +53,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   });
 
   const completion = await createCompletion({
-    model: PASS1_MODEL,
+    model: selectedModel,
     messages: [
       { role: "system", content: PASS1_SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
@@ -65,7 +68,15 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     throw new Error("[Pass1] Empty response from OpenAI");
   }
 
-  return parsePass1Response(responseText);
+  opts._onCompletion?.({
+    pass: 1,
+    raw_text: responseText,
+    model: selectedModel,
+    usage: completion.usage,
+    generated_at: new Date().toISOString(),
+  });
+
+  return parsePass1Response(responseText, selectedModel);
 }
 
 /**
@@ -81,6 +92,7 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
   return (params) =>
     openai.chat.completions.create(params as Parameters<typeof openai.chat.completions.create>[0]) as Promise<{
       choices: { message: { content: string | null } }[];
+      usage?: CompletionUsage;
     }>;
 }
 
@@ -92,7 +104,7 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
  * @returns Validated SinglePassOutput with axis="craft_execution"
  * @throws on invalid structure, empty criteria, or parse errors
  */
-export function parsePass1Response(raw: string): SinglePassOutput {
+export function parsePass1Response(raw: string, fallbackModel = PASS1_MODEL): SinglePassOutput {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -158,7 +170,7 @@ export function parsePass1Response(raw: string): SinglePassOutput {
     pass: 1,
     axis: "craft_execution",
     criteria,
-    model: String(obj["model"] ?? PASS1_MODEL),
+    model: String(obj["model"] ?? fallbackModel),
     prompt_version: PASS1_PROMPT_VERSION,
     temperature: PASS1_TEMPERATURE,
     generated_at: new Date().toISOString(),

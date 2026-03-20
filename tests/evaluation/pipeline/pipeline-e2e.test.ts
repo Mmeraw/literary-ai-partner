@@ -248,6 +248,31 @@ describe("runPipeline (e2e with injected runners)", () => {
     expect(mockRunPass2).not.toHaveBeenCalled();
     expect(mockRunPass3).not.toHaveBeenCalled();
   });
+
+  it("threads a model override to all three passes", async () => {
+    await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      model: "gpt-4o",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(mockRunPass1).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-4o" }),
+    );
+    expect(mockRunPass2).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-4o" }),
+    );
+    expect(mockRunPass3).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-4o" }),
+    );
+  });
 });
 
 describe("synthesisToEvaluationResult", () => {

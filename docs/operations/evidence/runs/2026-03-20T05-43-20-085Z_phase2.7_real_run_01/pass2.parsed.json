@@ -1,0 +1,270 @@
+{
+  "pass": 2,
+  "axis": "editorial_literary",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 7,
+      "rationale": "The concept of anthropomorphized frogs navigating environmental change is intriguing and rich with potential. However, the execution could deepen its thematic exploration.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts for the Columbia spotted frog colony.",
+          "char_start": 0,
+          "char_end": 118
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Expand on the implications of the frogs' sanctuary being threatened to enhance the environmental themes.",
+          "expected_impact": "This will deepen the reader's engagement with the ecological themes and the stakes involved.",
+          "anchor_snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts for the Columbia spotted frog colony."
+        }
+      ]
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 6,
+      "rationale": "The narrative sets up an interesting conflict with the introduction of 'giants,' but the pacing slows with exposition that could be more dynamic.",
+      "evidence": [
+        {
+          "snippet": "But with the infiltration of the giants, their watery world felt foreign to them at times.",
+          "char_start": 118,
+          "char_end": 166
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Introduce action or conflict earlier to maintain momentum and heighten reader interest.",
+          "expected_impact": "This will create a more engaging narrative that compels readers to continue.",
+          "anchor_snippet": "But with the infiltration of the giants, their watery world felt foreign to them at times."
+        }
+      ]
+    },
+    {
+      "key": "character",
+      "score_0_10": 5,
+      "rationale": "While Hyla is introduced as a significant character, her motivations and emotional depth are not yet fully realized.",
+      "evidence": [
+        {
+          "snippet": "Hyla, the wisest of the elders, had been anointed crown two ice ages ago.",
+          "char_start": 269,
+          "char_end": 305
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Develop Hyla's backstory and internal conflict to make her a more relatable and complex character.",
+          "expected_impact": "This will enhance emotional investment in her decisions and the overall narrative.",
+          "anchor_snippet": "Hyla, the wisest of the elders, had been anointed crown two ice ages ago."
+        }
+      ]
+    },
+    {
+      "key": "voice",
+      "score_0_10": 6,
+      "rationale": "The narrative voice is descriptive and imaginative, but it occasionally lacks a consistent tone that aligns with the frogs' perspective.",
+      "evidence": [
+        {
+          "snippet": "Froglore had it that when the world was a marshy swamp and the word hibernation did not yet exist...",
+          "char_start": 166,
+          "char_end": 218
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Refine the narrative voice to better reflect the frogs' worldview and emotional experiences.",
+          "expected_impact": "This will create a more immersive reading experience that resonates with the audience.",
+          "anchor_snippet": "Froglore had it that when the world was a marshy swamp and the word hibernation did not yet exist..."
+        }
+      ]
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are vividly described, creating a strong sense of place. However, transitions between scenes could be smoother.",
+      "evidence": [
+        {
+          "snippet": "Denizens found themselves victims of habitat fragmentation, degradation, predation, and disease.",
+          "char_start": 305,
+          "char_end": 353
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Enhance transitions between scenes to improve flow and maintain reader engagement.",
+          "expected_impact": "This will create a more cohesive narrative structure that keeps readers invested.",
+          "anchor_snippet": "Denizens found themselves victims of habitat fragmentation, degradation, predation, and disease."
+        }
+      ]
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 4,
+      "rationale": "There is a lack of direct dialogue, which limits character interaction and the development of relationships.",
+      "evidence": [
+        {
+          "snippet": "The masses beseeched Hyla to invoke the power of the amulet.",
+          "char_start": 353,
+          "char_end": 396
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Incorporate dialogue among characters to reveal their personalities and relationships more vividly.",
+          "expected_impact": "This will enhance character development and make the narrative more dynamic.",
+          "anchor_snippet": "The masses beseeched Hyla to invoke the power of the amulet."
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "score_0_10": 8,
+      "rationale": "The themes of environmental degradation and the struggle for survival are compelling and relevant, resonating with contemporary issues.",
+      "evidence": [
+        {
+          "snippet": "They could not understand why prayers went unanswered.",
+          "char_start": 396,
+          "char_end": 426
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Deepen the exploration of themes by contrasting the past and present experiences of the frogs.",
+          "expected_impact": "This will enrich thematic depth and engage readers on a more profound level.",
+          "anchor_snippet": "They could not understand why prayers went unanswered."
+        }
+      ]
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 7,
+      "rationale": "The world of Aqua World is creatively constructed, but further details about its culture and history could enhance immersion.",
+      "evidence": [
+        {
+          "snippet": "Only the crown of the queendom had an artefact from times past.",
+          "char_start": 218,
+          "char_end": 260
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Expand on the cultural practices and historical context of the frogs to create a more immersive world.",
+          "expected_impact": "This will allow readers to feel more connected to the setting and its inhabitants.",
+          "anchor_snippet": "Only the crown of the queendom had an artefact from times past."
+        }
+      ]
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 5,
+      "rationale": "The pacing is uneven, with sections of heavy exposition that could benefit from more action or dialogue to maintain reader interest.",
+      "evidence": [
+        {
+          "snippet": "The systematic removal of trees, clearing of underbrush, removal of bedrock...",
+          "char_start": 118,
+          "char_end": 174
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Balance exposition with action or dialogue to maintain a more consistent pacing throughout the chapter.",
+          "expected_impact": "This will keep readers engaged and enhance the overall flow of the narrative.",
+          "anchor_snippet": "The systematic removal of trees, clearing of underbrush, removal of bedrock..."
+        }
+      ]
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 6,
+      "rationale": "The prose is vivid and descriptive, but some sections could be tightened for clarity and impact.",
+      "evidence": [
+        {
+          "snippet": "Such size permitted hatchling dinosaurs to be on the menu.",
+          "char_start": 218,
+          "char_end": 258
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Review and tighten prose in descriptive passages to enhance clarity and maintain reader engagement.",
+          "expected_impact": "This will create a more impactful reading experience without losing the richness of detail.",
+          "anchor_snippet": "Such size permitted hatchling dinosaurs to be on the menu."
+        }
+      ]
+    },
+    {
+      "key": "tone",
+      "score_0_10": 6,
+      "rationale": "The tone is generally consistent but could benefit from more emotional resonance in the characters' experiences.",
+      "evidence": [
+        {
+          "snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams.",
+          "char_start": 426,
+          "char_end": 474
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Infuse more emotional depth into the tone, especially in character interactions and conflicts.",
+          "expected_impact": "This will enhance reader connection and investment in the characters' journeys.",
+          "anchor_snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams."
+        }
+      ]
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 4,
+      "rationale": "The excerpt lacks a clear sense of closure, leaving many questions unanswered and the narrative feeling incomplete.",
+      "evidence": [
+        {
+          "snippet": "They would come and go riding angry, loud terra-firma-vibrating creatures...",
+          "char_start": 474,
+          "char_end": 526
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Provide a stronger sense of narrative closure by resolving key conflicts or questions raised in the chapter.",
+          "expected_impact": "This will create a more satisfying reading experience and encourage readers to continue.",
+          "anchor_snippet": "They would come and go riding angry, loud terra-firma-vibrating creatures..."
+        }
+      ]
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 6,
+      "rationale": "The unique premise of anthropomorphized frogs has niche appeal, but stronger character development and plot dynamics could broaden its market reach.",
+      "evidence": [
+        {
+          "snippet": "They had strange markings on the side: Ford, Nissan, Toyota, Chevrolet...",
+          "char_start": 526,
+          "char_end": 578
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Enhance character arcs and plot tension to increase the manuscript's appeal to a wider audience.",
+          "expected_impact": "This will improve marketability by attracting readers who enjoy character-driven narratives.",
+          "anchor_snippet": "They had strange markings on the side: Ford, Nissan, Toyota, Chevrolet..."
+        }
+      ]
+    }
+  ],
+  "model": "editorial_v1",
+  "prompt_version": "pass2-editorial-v1",
+  "temperature": 0.3,
+  "generated_at": "2026-03-20T05:44:58.793Z"
+}

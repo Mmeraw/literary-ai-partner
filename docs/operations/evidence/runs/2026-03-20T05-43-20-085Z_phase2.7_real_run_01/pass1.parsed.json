@@ -1,0 +1,270 @@
+{
+  "pass": 1,
+  "axis": "craft_execution",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 7,
+      "rationale": "The concept of anthropomorphized frogs in a changing environment is intriguing and offers potential for exploration. However, clarity on the stakes could enhance engagement.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts for the Columbia spotted frog colony.",
+          "char_start": 0,
+          "char_end": 108
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Clarify the stakes for the frog colony in the opening lines to enhance reader investment in their plight.",
+          "expected_impact": "This will create a stronger emotional connection and urgency for the reader.",
+          "anchor_snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts for the Columbia spotted frog colony."
+        }
+      ]
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 6,
+      "rationale": "The narrative has a decent flow but lacks a strong forward momentum. The introduction of conflict is somewhat delayed.",
+      "evidence": [
+        {
+          "snippet": "But with the infiltration of the giants, their watery world felt foreign to them at times.",
+          "char_start": 108,
+          "char_end": 155
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Introduce the conflict with the giants earlier to create a stronger narrative drive from the beginning.",
+          "expected_impact": "This will hook readers more effectively and maintain their interest.",
+          "anchor_snippet": "But with the infiltration of the giants, their watery world felt foreign to them at times."
+        }
+      ]
+    },
+    {
+      "key": "character",
+      "score_0_10": 5,
+      "rationale": "While Hyla is introduced as a character, her motivations and personality are not fully developed, leaving her somewhat flat.",
+      "evidence": [
+        {
+          "snippet": "Hyla, the wisest of the elders, had been anointed crown two ice ages ago.",
+          "char_start": 276,
+          "char_end": 314
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Develop Hyla's character further by adding her internal thoughts or feelings about her role and the community's plight.",
+          "expected_impact": "This will create a more relatable and compelling character for readers to connect with.",
+          "anchor_snippet": "Hyla, the wisest of the elders, had been anointed crown two ice ages ago."
+        }
+      ]
+    },
+    {
+      "key": "voice",
+      "score_0_10": 6,
+      "rationale": "The voice is consistent but lacks distinctiveness. It could benefit from more unique phrasing or stylistic choices.",
+      "evidence": [
+        {
+          "snippet": "Froglore had it that when the world was a marshy swamp and the word hibernation did not yet exist, frogs ruled without threats.",
+          "char_start": 155,
+          "char_end": 230
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Infuse the narrative with more unique phrases or metaphors that reflect the frogs' perspective to strengthen the voice.",
+          "expected_impact": "This will create a more memorable and engaging narrative style.",
+          "anchor_snippet": "Froglore had it that when the world was a marshy swamp and the word hibernation did not yet exist, frogs ruled without threats."
+        }
+      ]
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are well-defined with vivid imagery, but transitions between them can be abrupt, affecting flow.",
+      "evidence": [
+        {
+          "snippet": "Denizens found themselves victims of habitat fragmentation, degradation, predation, and disease.",
+          "char_start": 314,
+          "char_end": 366
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Smooth transitions between scenes by adding connective phrases that guide the reader through the narrative shifts.",
+          "expected_impact": "This will enhance the overall flow and coherence of the chapter.",
+          "anchor_snippet": "Denizens found themselves victims of habitat fragmentation, degradation, predation, and disease."
+        }
+      ]
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 4,
+      "rationale": "There is a lack of direct dialogue, which limits character interaction and engagement. Dialogue could enhance character development.",
+      "evidence": [
+        {
+          "snippet": "The masses beseeched Hyla to invoke the power of the amulet.",
+          "char_start": 366,
+          "char_end": 401
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Incorporate direct dialogue among characters to reveal their personalities and emotions more vividly.",
+          "expected_impact": "This will create a more dynamic and engaging reading experience.",
+          "anchor_snippet": "The masses beseeched Hyla to invoke the power of the amulet."
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "score_0_10": 6,
+      "rationale": "Themes of environmental degradation and community struggle are present but could be more explicitly woven into the narrative.",
+      "evidence": [
+        {
+          "snippet": "The systematic removal of trees, clearing of underbrush, removal of bedrock, and pollution of their lake had transformed the terra firmascape.",
+          "char_start": 108,
+          "char_end": 182
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Weave the themes more explicitly into character motivations and conflicts to deepen their impact.",
+          "expected_impact": "This will create a richer thematic experience for readers.",
+          "anchor_snippet": "The systematic removal of trees, clearing of underbrush, removal of bedrock, and pollution of their lake had transformed the terra firmascape."
+        }
+      ]
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 8,
+      "rationale": "The world is vividly described, with a clear sense of place and history, effectively immersing the reader.",
+      "evidence": [
+        {
+          "snippet": "Nestled on a valley floor between jagged steep-faced rocks that reached to the Gorfs, it was once remote and untouched by foreign invaders.",
+          "char_start": 60,
+          "char_end": 143
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Consider adding more sensory details to enhance the immersion of the world, particularly sounds and smells.",
+          "expected_impact": "This will create an even more vivid and engaging setting for readers.",
+          "anchor_snippet": "Nestled on a valley floor between jagged steep-faced rocks that reached to the Gorfs, it was once remote and untouched by foreign invaders."
+        }
+      ]
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 5,
+      "rationale": "Pacing is uneven, with some sections feeling dense while others rush through important details, affecting overall flow.",
+      "evidence": [
+        {
+          "snippet": "Now that the leaves were more fully grown on the trees and the evenings were warmer, the outsiders with their strange skin coverings were more frequent attackers now.",
+          "char_start": 401,
+          "char_end": 493
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Adjust the pacing by breaking up dense paragraphs and varying sentence lengths to create a more balanced rhythm.",
+          "expected_impact": "This will improve readability and maintain reader engagement throughout.",
+          "anchor_snippet": "Now that the leaves were more fully grown on the trees and the evenings were warmer, the outsiders with their strange skin coverings were more frequent attackers now."
+        }
+      ]
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 6,
+      "rationale": "The prose is generally clear but occasionally becomes convoluted, hindering reader comprehension.",
+      "evidence": [
+        {
+          "snippet": "Life expectancy back then was longer than any of them could count to.",
+          "char_start": 230,
+          "char_end": 272
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Simplify complex sentences to enhance clarity and ensure that readers can easily follow the narrative.",
+          "expected_impact": "This will improve overall readability and comprehension.",
+          "anchor_snippet": "Life expectancy back then was longer than any of them could count to."
+        }
+      ]
+    },
+    {
+      "key": "tone",
+      "score_0_10": 7,
+      "rationale": "The tone is consistent and fitting for the narrative, balancing between whimsical and serious elements effectively.",
+      "evidence": [
+        {
+          "snippet": "Only the crown of the queendom had an artefact from times past.",
+          "char_start": 314,
+          "char_end": 351
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Maintain the established tone while exploring more emotional depth in character interactions to enhance engagement.",
+          "expected_impact": "This will create a richer emotional landscape for readers.",
+          "anchor_snippet": "Only the crown of the queendom had an artefact from times past."
+        }
+      ]
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 5,
+      "rationale": "The excerpt lacks a clear sense of closure, leaving readers wanting more resolution or direction.",
+      "evidence": [
+        {
+          "snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams.",
+          "char_start": 401,
+          "char_end": 455
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Provide a stronger sense of closure at the end of the chapter to give readers a satisfying conclusion or cliffhanger.",
+          "expected_impact": "This will enhance reader satisfaction and encourage continued reading.",
+          "anchor_snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams."
+        }
+      ]
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 6,
+      "rationale": "The unique premise has potential market appeal, but clearer character arcs and conflict resolution could enhance its attractiveness.",
+      "evidence": [
+        {
+          "snippet": "They could not understand why prayers went unanswered.",
+          "char_start": 366,
+          "char_end": 396
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Clarify character motivations and conflicts to increase the manuscript's appeal to potential readers and publishers.",
+          "expected_impact": "This will make the story more marketable and engaging.",
+          "anchor_snippet": "They could not understand why prayers went unanswered."
+        }
+      ]
+    }
+  ],
+  "model": "gpt-3.5-turbo",
+  "prompt_version": "pass1-craft-v1",
+  "temperature": 0.3,
+  "generated_at": "2026-03-20T05:44:07.871Z"
+}

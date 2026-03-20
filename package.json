@@ -42,7 +42,8 @@
     "evidence:phase2c": "bash scripts/evidence-phase2c.sh",
     "evidence:phase2d": "bash scripts/evidence-phase2d.sh",
     "evidence:flow1": "bash scripts/evidence-flow1.sh",
-    "a6:run": "tsx -r tsconfig-paths/register scripts/a6/run-a6-evidence.ts"
+    "a6:run": "tsx -r tsconfig-paths/register scripts/a6/run-a6-evidence.ts",
+    "phase2.7:real-run": "tsx -r tsconfig-paths/register scripts/pipeline/run-phase2-7-real-run.ts"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.0",
