@@ -1,11 +1,14 @@
 /**
- * Phase 2.7 — Pass 3 Synthesis Runner Tests
+ * Phase 2.7 — Pass 3 Synthesis Tests
  *
- * Mocks OpenAI to validate SynthesisOutput shape and deterministic fallback.
+ * Tests the parsePass3Response pure function directly (no OpenAI mock needed).
+ * Also tests runPass3Synthesis with dependency-injected completion function.
  */
 
-import { describe, it, expect, jest, beforeEach } from "@jest/globals";
+import { describe, it, expect } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import { parsePass3Response, runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -63,39 +66,89 @@ function makePass3Fixture(overrides: Record<string, unknown> = {}) {
   };
 }
 
-// ── Mock OpenAI ───────────────────────────────────────────────────────────────
+/** Helper: build a mock completion function that returns the given JSON string. */
+function mockCompletion(responseJson: string): CreateCompletionFn {
+  return async () => ({
+    choices: [{ message: { content: responseJson } }],
+  });
+}
 
-const mockCreate = jest.fn();
+/** Helper: build a mock completion function that returns null content. */
+function nullCompletion(): CreateCompletionFn {
+  return async () => ({
+    choices: [{ message: { content: null } }],
+  });
+}
 
-jest.mock("openai", () => {
-  return {
-    __esModule: true,
-    default: jest.fn().mockImplementation(() => ({
-      chat: {
-        completions: {
-          create: mockCreate,
-        },
-      },
-    })),
-  };
-});
+// ── Pure parser tests ─────────────────────────────────────────────────────────
 
-// ── Import after mock ─────────────────────────────────────────────────────────
+describe("parsePass3Response", () => {
+  const pass1 = makePassOutput(1, "craft_execution");
+  const pass2 = makePassOutput(2, "editorial_literary");
 
-import { runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+  it("returns a valid SynthesisOutput with all 13 criteria", () => {
+    const result = parsePass3Response(JSON.stringify(makePass3Fixture()), pass1, pass2);
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
-describe("runPass3Synthesis", () => {
-  beforeEach(() => {
-    mockCreate.mockReset();
+    expect(result.criteria).toHaveLength(13);
+    expect(result.criteria.map((c) => c.key)).toEqual(
+      expect.arrayContaining(CRITERIA_KEYS as unknown as string[]),
+    );
+    expect(result.overall.overall_score_0_100).toBe(70);
+    expect(result.overall.verdict).toBe("revise");
+    expect(result.metadata.pass1_model).toBe("gpt-4o-mini");
   });
 
-  it("returns a valid SynthesisOutput with all 13 criteria", async () => {
-    mockCreate.mockResolvedValueOnce({
-      choices: [{ message: { content: JSON.stringify(makePass3Fixture()) } }],
+  it("clips overall_score_0_100 to 0-100 range", () => {
+    const fixture = makePass3Fixture({
+      overall: {
+        overall_score_0_100: 150,
+        verdict: "pass",
+        one_paragraph_summary: "Good.",
+        top_3_strengths: [],
+        top_3_risks: [],
+      },
     });
 
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+
+    expect(result.overall.overall_score_0_100).toBe(100);
+  });
+
+  it("falls back to averaging pass scores when AI omits final_score_0_10", () => {
+    const fixture = makePass3Fixture();
+    // Remove final_score_0_10 from first criterion so fallback triggers
+    const first = { ...fixture.criteria[0] };
+    delete (first as Record<string, unknown>)["final_score_0_10"];
+    fixture.criteria[0] = first as typeof fixture.criteria[0];
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+
+    // First criterion should fallback to avg of craft/editorial
+    expect(result.criteria[0].final_score_0_10).toBeGreaterThanOrEqual(0);
+    expect(result.criteria[0].final_score_0_10).toBeLessThanOrEqual(10);
+  });
+
+  it("throws on invalid JSON", () => {
+    expect(() => parsePass3Response("not json", pass1, pass2)).toThrow("not valid JSON");
+  });
+
+  it("provides delta_explanation when score_delta > 2", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria[0].craft_score = 9;
+    fixture.criteria[0].editorial_score = 3;
+    fixture.criteria[0].delta_explanation = "Craft is strong but editorial insight is weak.";
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+
+    expect(result.criteria[0].score_delta).toBe(6);
+    expect(result.criteria[0].delta_explanation).toBeDefined();
+  });
+});
+
+// ── Runner integration tests (DI, no real OpenAI) ─────────────────────────────
+
+describe("runPass3Synthesis", () => {
+  it("returns parsed synthesis when given a valid completion", async () => {
     const pass1 = makePassOutput(1, "craft_execution");
     const pass2 = makePassOutput(2, "editorial_literary");
 
@@ -105,62 +158,12 @@ describe("runPass3Synthesis", () => {
       manuscriptText: "The river moved slowly through the valley.",
       title: "Test Manuscript",
       openaiApiKey: "sk-test",
+      _createCompletion: mockCompletion(JSON.stringify(makePass3Fixture())),
     });
 
     expect(result.criteria).toHaveLength(13);
-    expect(result.criteria.map((c) => c.key)).toEqual(expect.arrayContaining(CRITERIA_KEYS as unknown as string[]));
     expect(result.overall.overall_score_0_100).toBe(70);
     expect(result.overall.verdict).toBe("revise");
-    expect(result.metadata.pass1_model).toBe("gpt-4o-mini");
-  });
-
-  it("clips overall_score_0_100 to 0-100 range", async () => {
-    mockCreate.mockResolvedValueOnce({
-      choices: [
-        {
-          message: {
-            content: JSON.stringify(makePass3Fixture({ overall: { overall_score_0_100: 150, verdict: "pass", one_paragraph_summary: "Good.", top_3_strengths: [], top_3_risks: [] } })),
-          },
-        },
-      ],
-    });
-
-    const result = await runPass3Synthesis({
-      pass1: makePassOutput(1, "craft_execution"),
-      pass2: makePassOutput(2, "editorial_literary"),
-      manuscriptText: "test",
-      title: "Test",
-      openaiApiKey: "sk-test",
-    });
-
-    expect(result.overall.overall_score_0_100).toBe(100);
-  });
-
-  it("falls back to averaging pass scores when AI omits final_score_0_10", async () => {
-    const fixture = makePass3Fixture();
-    // Remove final_score_0_10 from first criterion so fallback triggers
-    const first = { ...fixture.criteria[0] };
-    delete (first as Record<string, unknown>)["final_score_0_10"];
-    fixture.criteria[0] = first as typeof fixture.criteria[0];
-
-    mockCreate.mockResolvedValueOnce({
-      choices: [{ message: { content: JSON.stringify(fixture) } }],
-    });
-
-    const pass1 = makePassOutput(1, "craft_execution");
-    const pass2 = makePassOutput(2, "editorial_literary");
-    // Both pass outputs have score_0_10=7, so avg=7
-    const result = await runPass3Synthesis({
-      pass1,
-      pass2,
-      manuscriptText: "test",
-      title: "Test",
-      openaiApiKey: "sk-test",
-    });
-
-    // First criterion should fallback to avg of craft/editorial
-    expect(result.criteria[0].final_score_0_10).toBeGreaterThanOrEqual(0);
-    expect(result.criteria[0].final_score_0_10).toBeLessThanOrEqual(10);
   });
 
   it("throws when OPENAI_API_KEY is not configured", async () => {
@@ -180,10 +183,6 @@ describe("runPass3Synthesis", () => {
   });
 
   it("throws when OpenAI returns empty content", async () => {
-    mockCreate.mockResolvedValueOnce({
-      choices: [{ message: { content: null } }],
-    });
-
     await expect(
       runPass3Synthesis({
         pass1: makePassOutput(1, "craft_execution"),
@@ -191,6 +190,7 @@ describe("runPass3Synthesis", () => {
         manuscriptText: "test",
         title: "Test",
         openaiApiKey: "sk-test",
+        _createCompletion: nullCompletion(),
       }),
     ).rejects.toThrow("Empty response from OpenAI");
   });

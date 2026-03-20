@@ -18,12 +18,23 @@ const PASS3_TEMPERATURE = 0.2;
 const PASS3_MAX_TOKENS = 5000;
 const PASS3_MODEL = "gpt-4o-mini";
 
+/** Function signature for creating a chat completion (enables DI for testing). */
+export type CreateCompletionFn = (params: {
+  model: string;
+  messages: { role: string; content: string }[];
+  temperature: number;
+  max_tokens: number;
+  response_format: { type: string };
+}) => Promise<{ choices: { message: { content: string | null } }[] }>;
+
 export interface RunPass3Options {
   pass1: SinglePassOutput;
   pass2: SinglePassOutput;
   manuscriptText: string;
   title: string;
   openaiApiKey?: string;
+  /** Override the completion function (for testing). Production callers omit this. */
+  _createCompletion?: CreateCompletionFn;
 }
 
 /**
@@ -32,12 +43,7 @@ export interface RunPass3Options {
  * Throws on OpenAI error or unparseable response.
  */
 export async function runPass3Synthesis(opts: RunPass3Options): Promise<SynthesisOutput> {
-  const apiKey = opts.openaiApiKey ?? process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("[Pass3] OPENAI_API_KEY is not configured");
-  }
-
-  const openai = new OpenAI({ apiKey, maxRetries: 0 });
+  const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
 
   const userPrompt = buildPass3UserPrompt({
     pass1Json: JSON.stringify(opts.pass1, null, 2),
@@ -46,7 +52,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     title: opts.title,
   });
 
-  const completion = await openai.chat.completions.create({
+  const completion = await createCompletion({
     model: PASS3_MODEL,
     messages: [
       { role: "system", content: PASS3_SYSTEM_PROMPT },
@@ -63,6 +69,22 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   }
 
   return parsePass3Response(responseText, opts.pass1, opts.pass2);
+}
+
+/**
+ * Build the default OpenAI completion function.
+ * Separated so the constructor is only called when no DI override is provided.
+ */
+function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
+  const apiKey = openaiApiKey ?? process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("[Pass3] OPENAI_API_KEY is not configured");
+  }
+  const openai = new OpenAI({ apiKey, maxRetries: 0 });
+  return (params) =>
+    openai.chat.completions.create(params as Parameters<typeof openai.chat.completions.create>[0]) as Promise<{
+      choices: { message: { content: string | null } }[];
+    }>;
 }
 
 export function parsePass3Response(

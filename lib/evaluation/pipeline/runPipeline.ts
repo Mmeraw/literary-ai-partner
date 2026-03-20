@@ -13,21 +13,34 @@
  *   5. Scores are integers 0-10
  */
 
-import { runPass1 } from "./runPass1";
-import { runPass2 } from "./runPass2";
-import { runPass3Synthesis } from "./runPass3Synthesis";
-import { runQualityGate } from "./qualityGate";
-import type { PipelineResult, SynthesisOutput } from "./types";
+import { runPass1 as defaultRunPass1 } from "./runPass1";
+import { runPass2 as defaultRunPass2 } from "./runPass2";
+import { runPass3Synthesis as defaultRunPass3 } from "./runPass3Synthesis";
+import { runQualityGate as defaultRunQualityGate } from "./qualityGate";
+import type { PipelineResult, SinglePassOutput, SynthesisOutput, QualityGateResult } from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
 import { PASS1_PROMPT_VERSION } from "./prompts/pass1-craft";
 import { PASS2_PROMPT_VERSION } from "./prompts/pass2-editorial";
 import { PASS3_PROMPT_VERSION } from "./prompts/pass3-synthesis";
+import type { RunPass1Options } from "./runPass1";
+import type { RunPass2Options } from "./runPass2";
+import type { RunPass3Options } from "./runPass3Synthesis";
 
 export interface RunPipelineOptions {
   manuscriptText: string;
   workType: string;
   title: string;
   openaiApiKey?: string;
+  /**
+   * Dependency injection for runner functions (testing only).
+   * Production callers omit this entirely.
+   */
+  _runners?: {
+    runPass1?: (opts: RunPass1Options) => Promise<SinglePassOutput>;
+    runPass2?: (opts: RunPass2Options) => Promise<SinglePassOutput>;
+    runPass3Synthesis?: (opts: RunPass3Options) => Promise<SynthesisOutput>;
+    runQualityGate?: (synthesis: SynthesisOutput, pass1: SinglePassOutput, pass2: SinglePassOutput) => QualityGateResult;
+  };
 }
 
 /**
@@ -38,13 +51,18 @@ export interface RunPipelineOptions {
  *   { ok: false, error, error_code, failed_at }
  */
 export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineResult> {
-  let pass1Output: Awaited<ReturnType<typeof runPass1>>;
-  let pass2Output: Awaited<ReturnType<typeof runPass2>>;
+  const _runPass1 = opts._runners?.runPass1 ?? defaultRunPass1;
+  const _runPass2 = opts._runners?.runPass2 ?? defaultRunPass2;
+  const _runPass3 = opts._runners?.runPass3Synthesis ?? defaultRunPass3;
+  const _runQualityGate = opts._runners?.runQualityGate ?? defaultRunQualityGate;
+
+  let pass1Output: SinglePassOutput;
+  let pass2Output: SinglePassOutput;
   let pass3Output: SynthesisOutput;
 
   // ── Pass 1: Craft Execution ─────────────────────────────────────────────
   try {
-    pass1Output = await runPass1({
+    pass1Output = await _runPass1({
       manuscriptText: opts.manuscriptText,
       workType: opts.workType,
       title: opts.title,
@@ -63,7 +81,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // Independence guarantee: Pass 2 receives ONLY manuscript text.
   // pass1Output is deliberately NOT passed here.
   try {
-    pass2Output = await runPass2({
+    pass2Output = await _runPass2({
       manuscriptText: opts.manuscriptText,
       workType: opts.workType,
       title: opts.title,
@@ -80,7 +98,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
   // ── Pass 3: Synthesis & Reconciliation ─────────────────────────────────
   try {
-    pass3Output = await runPass3Synthesis({
+    pass3Output = await _runPass3({
       pass1: pass1Output,
       pass2: pass2Output,
       manuscriptText: opts.manuscriptText,
@@ -97,7 +115,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   // ── Pass 4: Quality Gate (deterministic) ───────────────────────────────
-  const qualityGate = runQualityGate(pass3Output, pass1Output, pass2Output);
+  const qualityGate = _runQualityGate(pass3Output, pass1Output, pass2Output);
   if (!qualityGate.pass) {
     const failedChecks = qualityGate.checks.filter((c) => !c.passed);
     const errorCode = failedChecks[0]?.error_code ?? "QG_UNKNOWN";

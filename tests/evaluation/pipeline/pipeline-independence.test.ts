@@ -2,15 +2,16 @@
  * Phase 2.7 — Pipeline Independence Tests (spec §3.2, Non-Negotiable Rule #3)
  *
  * Proves that Pass 2 is NEVER called with Pass 1 output.
- * Mocks runPass1/runPass2/runPass3Synthesis/runQualityGate at the module level
- * to inspect call arguments without hitting OpenAI.
+ * Uses dependency injection to inspect call arguments without jest.mock.
  */
 
 import { describe, it, expect, jest, beforeEach } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import { runPipeline } from "@/lib/evaluation/pipeline/runPipeline";
 import type { SinglePassOutput, SynthesisOutput, QualityGateResult } from "@/lib/evaluation/pipeline/types";
 import type { RunPass1Options } from "@/lib/evaluation/pipeline/runPass1";
 import type { RunPass2Options } from "@/lib/evaluation/pipeline/runPass2";
+import type { RunPass3Options } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 
 // ── Fixture builders ──────────────────────────────────────────────────────────
 
@@ -68,38 +69,25 @@ function makePassingQualityGate(): QualityGateResult {
   };
 }
 
-// ── Mock module-level runners ─────────────────────────────────────────────────
+// ── Mock runners ──────────────────────────────────────────────────────────────
 
-const mockRunPass1 = jest.fn<(opts: RunPass1Options) => Promise<SinglePassOutput>>();
-const mockRunPass2 = jest.fn<(opts: RunPass2Options) => Promise<SinglePassOutput>>();
-const mockRunPass3 = jest.fn<() => Promise<SynthesisOutput>>();
-const mockRunQualityGate = jest.fn<() => QualityGateResult>();
-
-jest.mock("@/lib/evaluation/pipeline/runPass1", () => ({
-  runPass1: mockRunPass1,
-}));
-jest.mock("@/lib/evaluation/pipeline/runPass2", () => ({
-  runPass2: mockRunPass2,
-}));
-jest.mock("@/lib/evaluation/pipeline/runPass3Synthesis", () => ({
-  runPass3Synthesis: mockRunPass3,
-}));
-jest.mock("@/lib/evaluation/pipeline/qualityGate", () => ({
-  runQualityGate: mockRunQualityGate,
-}));
-
-// ── Import after mocks ────────────────────────────────────────────────────────
-
-import { runPipeline } from "@/lib/evaluation/pipeline/runPipeline";
+let mockRunPass1: jest.Mock<(opts: RunPass1Options) => Promise<SinglePassOutput>>;
+let mockRunPass2: jest.Mock<(opts: RunPass2Options) => Promise<SinglePassOutput>>;
+let mockRunPass3: jest.Mock<(opts: RunPass3Options) => Promise<SynthesisOutput>>;
+let mockRunQualityGate: jest.Mock<
+  (synthesis: SynthesisOutput, pass1: SinglePassOutput, pass2: SinglePassOutput) => QualityGateResult
+>;
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("Pipeline Independence Guarantee (spec §3.2)", () => {
   beforeEach(() => {
-    mockRunPass1.mockReset();
-    mockRunPass2.mockReset();
-    mockRunPass3.mockReset();
-    mockRunQualityGate.mockReset();
+    mockRunPass1 = jest.fn<(opts: RunPass1Options) => Promise<SinglePassOutput>>();
+    mockRunPass2 = jest.fn<(opts: RunPass2Options) => Promise<SinglePassOutput>>();
+    mockRunPass3 = jest.fn<(opts: RunPass3Options) => Promise<SynthesisOutput>>();
+    mockRunQualityGate = jest.fn<
+      (synthesis: SynthesisOutput, pass1: SinglePassOutput, pass2: SinglePassOutput) => QualityGateResult
+    >();
 
     mockRunPass1.mockResolvedValue(makeSinglePassOutput(1));
     mockRunPass2.mockResolvedValue(makeSinglePassOutput(2));
@@ -116,6 +104,12 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
       workType: "literary_fiction",
       title: "Independence Test",
       openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+        runQualityGate: mockRunQualityGate,
+      },
     });
 
     expect(mockRunPass2).toHaveBeenCalledTimes(1);
@@ -143,6 +137,12 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
       workType: "literary_fiction",
       title: "Test",
       openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+        runQualityGate: mockRunQualityGate,
+      },
     });
 
     expect(mockRunPass3).toHaveBeenCalledTimes(1);
@@ -160,6 +160,12 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
       workType: "literary_fiction",
       title: "Test",
       openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+        runQualityGate: mockRunQualityGate,
+      },
     });
 
     expect(result.ok).toBe(false);
@@ -179,6 +185,12 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
       workType: "literary_fiction",
       title: "Test",
       openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+        runQualityGate: mockRunQualityGate,
+      },
     });
 
     expect(result.ok).toBe(false);

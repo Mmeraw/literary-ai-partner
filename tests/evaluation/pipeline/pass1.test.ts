@@ -1,11 +1,14 @@
 /**
- * Phase 2.7 — Pass 1 Runner Tests
+ * Phase 2.7 — Pass 1 Tests
  *
- * Mocks OpenAI to validate SinglePassOutput shape and error handling.
+ * Tests the parsePass1Response pure function directly (no OpenAI mock needed).
+ * Also tests runPass1 with dependency-injected completion function.
  */
 
-import { describe, it, expect, jest, beforeEach } from "@jest/globals";
+import { describe, it, expect } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import { parsePass1Response, runPass1 } from "@/lib/evaluation/pipeline/runPass1";
+import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass1";
 
 // ── Fixture ──────────────────────────────────────────────────────────────────
 
@@ -28,72 +31,107 @@ function makePass1Fixture() {
   };
 }
 
-// ── Mock OpenAI ───────────────────────────────────────────────────────────────
+/** Helper: build a mock completion function that returns the given JSON string. */
+function mockCompletion(responseJson: string): CreateCompletionFn {
+  return async () => ({
+    choices: [{ message: { content: responseJson } }],
+  });
+}
 
-const mockCreate = jest.fn();
-
-jest.mock("openai", () => {
-  return {
-    __esModule: true,
-    default: jest.fn().mockImplementation(() => ({
-      chat: {
-        completions: {
-          create: mockCreate,
-        },
-      },
-    })),
+/** Helper: build a mock completion function that throws. */
+function throwingCompletion(error: Error): CreateCompletionFn {
+  return async () => {
+    throw error;
   };
-});
+}
 
-// ── Import after mock ─────────────────────────────────────────────────────────
+/** Helper: build a mock completion function that returns null content. */
+function nullCompletion(): CreateCompletionFn {
+  return async () => ({
+    choices: [{ message: { content: null } }],
+  });
+}
 
-import { runPass1 } from "@/lib/evaluation/pipeline/runPass1";
+// ── Pure parser tests ─────────────────────────────────────────────────────────
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+describe("parsePass1Response", () => {
+  it("returns a valid SinglePassOutput with all 13 criteria", () => {
+    const result = parsePass1Response(JSON.stringify(makePass1Fixture()));
 
-describe("runPass1", () => {
-  beforeEach(() => {
-    mockCreate.mockReset();
+    expect(result.pass).toBe(1);
+    expect(result.axis).toBe("craft_execution");
+    expect(result.criteria).toHaveLength(13);
+    expect(result.criteria.map((c) => c.key)).toEqual(
+      expect.arrayContaining(CRITERIA_KEYS as unknown as string[]),
+    );
+    expect(result.temperature).toBe(0.3);
   });
 
-  it("returns a valid SinglePassOutput with all 13 criteria", async () => {
-    mockCreate.mockResolvedValueOnce({
-      choices: [{ message: { content: JSON.stringify(makePass1Fixture()) } }],
+  it("clips scores to integer 0-10 range", () => {
+    const fixture = makePass1Fixture();
+    fixture.criteria[0].score_0_10 = 15; // out of range
+    fixture.criteria[1].score_0_10 = -3; // out of range
+
+    const result = parsePass1Response(JSON.stringify(fixture));
+
+    expect(result.criteria[0].score_0_10).toBe(10);
+    expect(result.criteria[1].score_0_10).toBe(0);
+  });
+
+  it("filters out criteria with unknown keys", () => {
+    const fixture = makePass1Fixture();
+    fixture.criteria.push({
+      key: "FAKE_CRITERION" as never,
+      score_0_10: 8,
+      rationale: "This should be filtered.",
+      evidence: [],
+      recommendations: [],
     });
 
+    const result = parsePass1Response(JSON.stringify(fixture));
+
+    expect(
+      result.criteria.every((c) => (CRITERIA_KEYS as readonly string[]).includes(c.key)),
+    ).toBe(true);
+    expect(result.criteria).toHaveLength(13);
+  });
+
+  it("throws on invalid JSON", () => {
+    expect(() => parsePass1Response("not json")).toThrow("not valid JSON");
+  });
+
+  it("throws on empty criteria array", () => {
+    expect(() => parsePass1Response(JSON.stringify({ criteria: [] }))).toThrow(
+      "no criteria",
+    );
+  });
+
+  it("truncates evidence snippets to 200 chars", () => {
+    const fixture = makePass1Fixture();
+    fixture.criteria[0].evidence = [{ snippet: "x".repeat(300) }];
+
+    const result = parsePass1Response(JSON.stringify(fixture));
+
+    expect(result.criteria[0].evidence[0].snippet.length).toBe(200);
+  });
+});
+
+// ── Runner integration tests (DI, no real OpenAI) ─────────────────────────────
+
+describe("runPass1", () => {
+  it("returns parsed output when given a valid completion", async () => {
     const result = await runPass1({
       manuscriptText: "The river moved slowly through the valley.",
       workType: "literary_fiction",
       title: "Test Manuscript",
       openaiApiKey: "sk-test",
+      _createCompletion: mockCompletion(JSON.stringify(makePass1Fixture())),
     });
 
     expect(result.pass).toBe(1);
     expect(result.axis).toBe("craft_execution");
     expect(result.model).toBe("gpt-4o-mini");
-    expect(result.temperature).toBe(0.3);
     expect(result.criteria).toHaveLength(13);
-    expect(result.criteria.map((c) => c.key)).toEqual(expect.arrayContaining(CRITERIA_KEYS as unknown as string[]));
-  });
-
-  it("clips scores to integer 0-10 range", async () => {
-    const fixture = makePass1Fixture();
-    fixture.criteria[0].score_0_10 = 15; // out of range
-    fixture.criteria[1].score_0_10 = -3; // out of range
-
-    mockCreate.mockResolvedValueOnce({
-      choices: [{ message: { content: JSON.stringify(fixture) } }],
-    });
-
-    const result = await runPass1({
-      manuscriptText: "test",
-      workType: "literary_fiction",
-      title: "Test",
-      openaiApiKey: "sk-test",
-    });
-
-    expect(result.criteria[0].score_0_10).toBe(10);
-    expect(result.criteria[1].score_0_10).toBe(0);
   });
 
   it("throws when OPENAI_API_KEY is not configured", async () => {
@@ -108,42 +146,26 @@ describe("runPass1", () => {
   });
 
   it("throws when OpenAI returns empty content", async () => {
-    mockCreate.mockResolvedValueOnce({
-      choices: [{ message: { content: null } }],
-    });
-
     await expect(
       runPass1({
         manuscriptText: "test",
         workType: "literary_fiction",
         title: "Test",
         openaiApiKey: "sk-test",
+        _createCompletion: nullCompletion(),
       }),
     ).rejects.toThrow("Empty response from OpenAI");
   });
 
-  it("filters out criteria with unknown keys", async () => {
-    const fixture = makePass1Fixture();
-    // Inject an unknown key
-    fixture.criteria.push({
-      key: "FAKE_CRITERION" as never,
-      score_0_10: 8,
-      rationale: "This should be filtered.",
-      evidence: [],
-      recommendations: [],
-    });
-
-    mockCreate.mockResolvedValueOnce({
-      choices: [{ message: { content: JSON.stringify(fixture) } }],
-    });
-
-    const result = await runPass1({
-      manuscriptText: "test",
-      workType: "literary_fiction",
-      title: "Test",
-      openaiApiKey: "sk-test",
-    });
-
-    expect(result.criteria.every((c) => (CRITERIA_KEYS as readonly string[]).includes(c.key))).toBe(true);
+  it("propagates OpenAI errors", async () => {
+    await expect(
+      runPass1({
+        manuscriptText: "test",
+        workType: "literary_fiction",
+        title: "Test",
+        openaiApiKey: "sk-test",
+        _createCompletion: throwingCompletion(new Error("Rate limit exceeded")),
+      }),
+    ).rejects.toThrow("Rate limit exceeded");
   });
 });
