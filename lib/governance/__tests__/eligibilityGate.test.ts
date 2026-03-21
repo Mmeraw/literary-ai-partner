@@ -91,7 +91,7 @@ describe("eligibilityGate", () => {
 
       const result = evaluateEligibilityGate(envelope);
       expect(result.eligibilityGate).toBe("BLOCK");
-      expect(result.reasons).toContain(
+      expect(result.reasons).toContainEqual(
         expect.stringContaining("below minimum")
       );
     });
