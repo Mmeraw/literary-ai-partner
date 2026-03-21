@@ -28,6 +28,12 @@ import type { RunPass3Options } from "./runPass3Synthesis";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
+  loadGovernanceInjectionMap,
+  getGovernanceCheckpointById,
+  getLlrCheckpointForStage,
+} from "@/lib/governance/injectionMap";
+import type { GovernanceCheckpoint, GovernanceInjectionMap } from "@/lib/governance/injectionMap";
+import {
   evaluateLessonsLearnedRules as defaultEvaluateLessonsLearnedRules,
   deriveLessonsLearnedEnforcementDecision as defaultDeriveLessonsLearnedEnforcementDecision,
 } from "@/lib/governance/lessonsLearned";
@@ -60,6 +66,8 @@ export interface RunPipelineOptions {
   };
   /** Dependency injection for registry loader (testing only). */
   _registryLoader?: () => CanonRegistry;
+  /** Dependency injection for governance injection map loader (testing only). */
+  _governanceInjectionMapLoader?: () => GovernanceInjectionMap;
   manuscriptId?: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   /** Dependency injection for lessons-learned engine (testing only). */
@@ -137,9 +145,26 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   const _runPass3 = opts._runners?.runPass3Synthesis ?? defaultRunPass3;
   const _runQualityGate = opts._runners?.runQualityGate ?? defaultRunQualityGate;
   const _loadRegistry = opts._registryLoader ?? loadCanonicalRegistry;
+  const _loadGovernanceInjectionMap = opts._governanceInjectionMapLoader ?? loadGovernanceInjectionMap;
   const _evaluateLessonsLearned = opts._lessonsLearned?.evaluateRules ?? defaultEvaluateLessonsLearnedRules;
   const _deriveLessonsLearnedDecision =
     opts._lessonsLearned?.deriveDecision ?? defaultDeriveLessonsLearnedEnforcementDecision;
+
+  let governanceInjectionMap: GovernanceInjectionMap;
+  try {
+    governanceInjectionMap = _loadGovernanceInjectionMap();
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Governance injection map invalid: ${String(err instanceof Error ? err.message : err)}`,
+      error_code: "GOVERNANCE_INJECTION_MAP_INVALID",
+      failed_at: "pass1",
+    };
+  }
+
+  const checkpointContext = (checkpoint: GovernanceCheckpoint): string => {
+    return ` [checkpoint=${checkpoint.id} authority=${checkpoint.authority}]`;
+  };
 
   const llrContextBase = {
     manuscript_id: opts.manuscriptId ?? `pipeline:${opts.title}`,
@@ -163,6 +188,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       stage,
     );
     const decision = _deriveLessonsLearnedDecision(report);
+    const checkpoint = getLlrCheckpointForStage(stage, governanceInjectionMap);
 
     if (decision.action === "BLOCK") {
       const failedRules = report.results
@@ -172,8 +198,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
       return {
         ok: false,
-        error: `Lessons-learned enforcement blocked at ${stage}: ${decision.reason}${failedRules ? ` (rules: ${failedRules})` : ""}`,
-        error_code: `LLR_${stage.toUpperCase()}_BLOCK`,
+        error: `Lessons-learned enforcement blocked at ${stage}: ${decision.reason}${failedRules ? ` (rules: ${failedRules})` : ""}${checkpointContext(checkpoint)}`,
+        error_code: checkpoint.blockErrorCode ?? `LLR_${stage.toUpperCase()}_BLOCK`,
         failed_at: failedAt,
       };
     }
@@ -182,13 +208,15 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   };
 
   let registry: CanonRegistry;
+  const registryBindingCheckpoint = getGovernanceCheckpointById("CANON_REGISTRY_BINDING", governanceInjectionMap);
+  const canonGateCheckpoint = getGovernanceCheckpointById("CANON_GATE", governanceInjectionMap);
   try {
     registry = _loadRegistry();
   } catch (err) {
     return {
       ok: false,
-      error: `Canonical registry binding failed: ${String(err instanceof Error ? err.message : err)}`,
-      error_code: "CANON_REGISTRY_BIND_FAILED",
+      error: `Canonical registry binding failed: ${String(err instanceof Error ? err.message : err)}${checkpointContext(registryBindingCheckpoint)}`,
+      error_code: registryBindingCheckpoint.blockErrorCode ?? "CANON_REGISTRY_BIND_FAILED",
       failed_at: "pass1",
     };
   }
@@ -196,8 +224,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   if (registry.size === 0) {
     return {
       ok: false,
-      error: "Canonical registry binding failed: registry empty",
-      error_code: "CANON_REGISTRY_EMPTY",
+      error: `Canonical registry binding failed: registry empty${checkpointContext(canonGateCheckpoint)}`,
+      error_code: canonGateCheckpoint.blockErrorCode ?? "CANON_REGISTRY_EMPTY",
       failed_at: "pass1",
     };
   }
@@ -319,12 +347,13 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // ── Pass 4: Quality Gate (deterministic) ───────────────────────────────
   const qualityGate = _runQualityGate(pass3Output, pass1Output, pass2Output);
   if (!qualityGate.pass) {
+    const qualityGateCheckpoint = getGovernanceCheckpointById("QUALITY_GATE", governanceInjectionMap);
     const failedChecks = qualityGate.checks.filter((c) => !c.passed);
     const errorCode = failedChecks[0]?.error_code ?? "QG_UNKNOWN";
     const details = failedChecks.map((c) => c.details ?? c.error_code).join("; ");
     return {
       ok: false,
-      error: `Quality gate failed: ${details}`,
+      error: `Quality gate failed: ${details}${checkpointContext(qualityGateCheckpoint)}`,
       error_code: errorCode,
       failed_at: "pass4",
     };
