@@ -295,6 +295,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     if (!result.ok) {
       expect(result.error_code).toBe("CANON_REGISTRY_BIND_FAILED");
       expect(result.failed_at).toBe("pass1");
+      expect(result.error).toContain("checkpoint=CANON_REGISTRY_BINDING");
     }
 
     expect(mockRunPass1).not.toHaveBeenCalled();
@@ -393,6 +394,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     if (!result.ok) {
       expect(result.error_code).toBe("LLR_POST_STRUCTURAL_BLOCK");
       expect(result.failed_at).toBe("pass1");
+      expect(result.error).toContain("checkpoint=LLR_POST_STRUCTURAL");
     }
 
     expect(mockRunPass2).not.toHaveBeenCalled();
@@ -438,11 +440,39 @@ describe("runPipeline (e2e with injected runners)", () => {
     if (!result.ok) {
       expect(result.error_code).toBe("LLR_PRE_ARTIFACT_GENERATION_BLOCK");
       expect(result.failed_at).toBe("pass4");
+      expect(result.error).toContain("checkpoint=LLR_PRE_ARTIFACT_GENERATION");
     }
 
     expect(mockRunPass1).toHaveBeenCalledTimes(1);
     expect(mockRunPass2).toHaveBeenCalledTimes(1);
     expect(mockRunPass3).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed when governance injection map validation fails", async () => {
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _governanceInjectionMapLoader: () => {
+        throw new Error("missing required checkpoint: QUALITY_GATE");
+      },
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error_code).toBe("GOVERNANCE_INJECTION_MAP_INVALID");
+      expect(result.failed_at).toBe("pass1");
+    }
+
+    expect(mockRunPass1).not.toHaveBeenCalled();
+    expect(mockRunPass2).not.toHaveBeenCalled();
+    expect(mockRunPass3).not.toHaveBeenCalled();
   });
 });
 
