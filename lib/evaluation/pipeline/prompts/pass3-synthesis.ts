@@ -10,16 +10,20 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 
 export const PASS3_PROMPT_VERSION = "pass3-synthesis-v1";
 
-export const PASS3_SYSTEM_PROMPT = `You are a senior literary assessor tasked with SYNTHESIS AND RECONCILIATION of two independent evaluation passes.
+export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 
 You will receive:
 - Pass 1 output: Craft Execution analysis (structural/mechanical)
 - Pass 2 output: Editorial/Literary Insight analysis (interpretive/thematic)
 - Original manuscript text
 
-Your job is to reconcile these two independent perspectives into a single, authoritative evaluation.
+Your job is to compare, expose agreement and divergence, and produce a governed final decision.
 
 ## SYNTHESIS RULES
+1. Do NOT perform a fresh unconstrained evaluation.
+2. Do NOT silently overwrite disagreement.
+3. Do NOT hide meaningful divergence by score averaging alone.
+4. Every major arbitration decision MUST include evidence-backed reasoning.
 
 ### Score Reconciliation
 - If craft_score and editorial_score differ by ≤2: use the mathematical average (rounded to nearest integer)  
@@ -66,6 +70,21 @@ ${CRITERIA_KEYS.map((k, i) => `${i + 1}. ${k}`).join("\n")}
       ]
     }
   ],
+  "agreement_map": [
+    {
+      "key": "<criterion_key>",
+      "agreement": "<where pass1 and pass2 agree>"
+    }
+  ],
+  "divergence_map": [
+    {
+      "key": "<criterion_key>",
+      "pass1_position": "<summary>",
+      "pass2_position": "<summary>",
+      "nature_of_divergence": "<what differs>",
+      "arbitration_rationale": "<why final decision chosen>"
+    }
+  ],
   "overall": {
     "overall_score_0_100": <0-100>,
     "verdict": "pass|revise|fail",
@@ -86,8 +105,12 @@ export function buildPass3UserPrompt(params: {
   pass2Json: string;
   manuscriptText: string;
   title: string;
+  executionMode?: "TRUSTED_PATH" | "STUDIO";
 }): string {
+  const executionMode = params.executionMode ?? "TRUSTED_PATH";
   return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".
+
+Execution mode: ${executionMode}
 
 ## PASS 1 OUTPUT (Craft Execution)
 ${params.pass1Json.substring(0, 6000)}
@@ -98,5 +121,11 @@ ${params.pass2Json.substring(0, 6000)}
 ## ORIGINAL MANUSCRIPT TEXT (for reference)
 ${params.manuscriptText.substring(0, 4000)}
 
-Reconcile both perspectives into a unified evaluation. Return the synthesis JSON object as specified.`;
+Reconcile both perspectives into a unified evaluation.
+Mandatory behavior:
+- Produce explicit agreement_map and divergence_map.
+- Preserve major disagreement visibility.
+- Provide explicit arbitration rationale for divergence.
+- Do not silently merge conflicting conclusions.
+Return the synthesis JSON object as specified.`;
 }

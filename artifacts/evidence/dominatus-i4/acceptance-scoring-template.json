@@ -1,0 +1,19 @@
+{
+  "gold_standard_version": "1.0",
+  "binary_checklist_version": "1.0",
+  "manuscript_id": "dominatus-i4",
+  "scoring": {
+    "canon_integrity": [],
+    "governance_integrity": [],
+    "lessons_learned": [],
+    "evaluator_discipline": [],
+    "structural_completeness": [],
+    "convergence_integrity": [],
+    "evidence_quality": [],
+    "output_integrity": [],
+    "forbidden_patterns": [],
+    "scoring_integrity": []
+  },
+  "final_decision": null,
+  "notes": ""
+}

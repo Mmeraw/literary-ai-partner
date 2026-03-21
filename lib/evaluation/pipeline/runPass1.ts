@@ -31,6 +31,7 @@ export interface RunPass1Options {
   manuscriptText: string;
   workType: string;
   title: string;
+  executionMode?: "TRUSTED_PATH" | "STUDIO";
   registry: CanonRegistry;
   model?: string;
   openaiApiKey?: string;
@@ -56,6 +57,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     manuscriptText: opts.manuscriptText,
     workType: opts.workType,
     title: opts.title,
+    executionMode: opts.executionMode,
   });
 
   const completion = await createCompletion({
