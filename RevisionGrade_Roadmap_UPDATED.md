@@ -190,6 +190,13 @@
 |  | 2.7 | Evidence & Closure | 2.7.g | Fresh live evidence run — full artifact set with upgraded pipeline | Evidence | docs/operations/evidence/runs/ | quality_gate.json + pipeline_result.json + usage.json all present. Independence gate passes. |  |  | Complete |
 |  | 2.7 | Evidence & Closure | 2.7.h | Independence gate calibration — exclude manuscript-sourced phrases from n-gram check | Code | lib/evaluation/pipeline/qualityGate.ts | Independence check no longer flags natural language convergence. Only flags actual pass-to-pass leakage. |  |  | Complete |
 |  | 2.7 | Evidence & Closure | 2.7.i | Phase 2.7 final closure — flip PHASE_2_7_EVALUATION_UPLIFT_CLOSURE.md to COMPLETED | Governance | PHASE_2_7_EVALUATION_UPLIFT_CLOSURE.md | Closure doc marked COMPLETED with all evidence artifacts referenced. |  |  | Complete |
+|  | 0.1 | Canon Registry Binding | 0.1.a | Canon registry types + static entries (16 entries) | Code | lib/governance/canonRegistry.ts |  |  |  | Complete |
+|  | 0.1 | Canon Registry Binding | 0.1.b | validateCanonicalRegistry() — fail-closed structural validation | Code | lib/governance/canonRegistry.ts |  |  |  | Complete |
+|  | 0.1 | Canon Registry Binding | 0.1.c | loadCanonicalRegistry() + readonly facade + freeze-on-boot | Code | lib/governance/canonRegistry.ts |  |  |  | Complete |
+|  | 0.1 | Canon Registry Binding | 0.1.d | Pipeline registry binding — load before passes, fail-closed | Code | lib/evaluation/pipeline/runPipeline.ts |  |  |  | Complete |
+|  | 0.1 | Canon Registry Binding | 0.1.e | Registry injection into Pass 1/2/3 — required, not optional | Code | lib/evaluation/pipeline/runPass1-3.ts |  |  |  | Complete |
+|  | 0.1 | Canon Registry Binding | 0.1.f | Input validation + per-pass timeout enforcement | Code | lib/evaluation/pipeline/runPipeline.ts |  |  |  | Complete |
+|  | 0.1 | Canon Registry Binding | 0.1.g | Tests: fail-closed binding, invalid input, timeout, registry immutability | Test | tests/evaluation/pipeline/ |  |  |  | Complete |
 
 
 # Immediate Priorities
