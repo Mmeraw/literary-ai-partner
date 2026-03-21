@@ -254,8 +254,8 @@ describe("enforcementHooks", () => {
         beforeAllowRefinement(augmented);
       } catch (err) {
         if (err instanceof GovernanceError) {
-          const details = err.details as Record<string, unknown>;
-          expect(details.eligibilityGate).toBe("BLOCK");
+          const metadata = (err.metadata as Record<string, unknown> | undefined) ?? {};
+          expect(metadata.eligibilityGate).toBe("BLOCK");
         }
       }
     });

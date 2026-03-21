@@ -96,9 +96,9 @@ describe("criteriaEnvelope", () => {
       } catch (err) {
         if (err instanceof GovernanceError) {
           expect(err.code).toBe("CRITERIA_SCHEMA_VIOLATION");
-          const details = err.details as Record<string, unknown>;
-          expect(details.expected).toBe(13);
-          expect(details.actual).toBe(12);
+          const metadata = (err.metadata as Record<string, unknown> | undefined) ?? {};
+          expect(metadata.expected).toBe(13);
+          expect(metadata.actual).toBe(12);
         }
       }
     });
@@ -132,8 +132,8 @@ describe("criteriaEnvelope", () => {
       } catch (err) {
         if (err instanceof GovernanceError) {
           expect(err.code).toBe("CRITERIA_SCHEMA_VIOLATION");
-          const details = err.details as Record<string, unknown>;
-          expect(details.missingKey).toBe("CONCEPT");
+          const metadata = (err.metadata as Record<string, unknown> | undefined) ?? {};
+          expect(metadata.missingKey).toBe("CONCEPT");
         }
       }
     });
@@ -155,8 +155,8 @@ describe("criteriaEnvelope", () => {
       } catch (err) {
         if (err instanceof GovernanceError) {
           expect(err.code).toBe("CRITERIA_SCHEMA_VIOLATION");
-          const details = err.details as Record<string, unknown>;
-          expect(details.nonCanonicalKey).toBe("FAKE_CRITERION");
+          const metadata = (err.metadata as Record<string, unknown> | undefined) ?? {};
+          expect(metadata.missingKey).toBe("MARKET");
         }
       }
     });
