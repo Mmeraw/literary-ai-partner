@@ -197,6 +197,15 @@
 |  | 0.1 | Canon Registry Binding | 0.1.e | Registry injection into Pass 1/2/3 — required, not optional | Code | lib/evaluation/pipeline/runPass1-3.ts |  |  |  | Complete |
 |  | 0.1 | Canon Registry Binding | 0.1.f | Input validation + per-pass timeout enforcement | Code | lib/evaluation/pipeline/runPipeline.ts |  |  |  | Complete |
 |  | 0.1 | Canon Registry Binding | 0.1.g | Tests: fail-closed binding, invalid input, timeout, registry immutability | Test | tests/evaluation/pipeline/ |  |  |  | Complete |
+|  | 0.2 | Lessons Learned Rule Engine | 0.2.a | Rule contract types (LessonsLearnedRule, RuleResult, Report) | Code | lib/governance/lessonsLearned/types.ts |  |  |  | Complete |
+|  | 0.2 | Lessons Learned Rule Engine | 0.2.b | 5 mandatory rules with predicate implementations (LLR-001 through LLR-005) | Code | lib/governance/lessonsLearned/ACTIVE_RULES.ts |  |  |  | Complete |
+|  | 0.2 | Lessons Learned Rule Engine | 0.2.c | Rule engine — evaluateLessonsLearnedRules() + deriveDecision() | Code | lib/governance/lessonsLearned/engine.ts |  |  |  | Complete |
+|  | 0.2 | Lessons Learned Rule Engine | 0.2.d | Pipeline injection — 4 enforcement points (post-structural, post-diagnostic, post-convergence, pre-artifact) | Code | lib/evaluation/pipeline/runPipeline.ts |  |  |  | Complete |
+|  | 0.2 | Lessons Learned Rule Engine | 0.2.e | Fail-closed block codes (LLR_POST_STRUCTURAL_BLOCK, etc.) | Code | lib/evaluation/pipeline/runPipeline.ts |  |  |  | Complete |
+|  | 0.2 | Lessons Learned Rule Engine | 0.2.f | Engine tests — 8 tests (5 rule failures, registration, block-on-error, pass) | Test | lib/governance/__tests__/lessonsLearnedEngine.test.ts |  |  |  | Complete |
+|  | 0.2 | Lessons Learned Rule Engine | 0.2.g | Pipeline integration tests — stage-block behavior | Test | tests/evaluation/pipeline/pipeline-e2e.test.ts |  |  |  | Complete |
+|  | 0.2 | Lessons Learned Rule Engine | 0.2.h | DOMINATUS failure case calibration artifact | Calibration | calibration/phase0.2/ |  |  |  | Complete |
+|  | 0.2 | Lessons Learned Rule Engine | 0.2.i | Phase 0.2 closure report | Governance | PHASE_0_2_CLOSURE_REPORT.md |  |  |  | Complete |
 
 
 # Immediate Priorities
