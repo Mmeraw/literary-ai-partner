@@ -25,6 +25,8 @@ import { PASS3_PROMPT_VERSION } from "./prompts/pass3-synthesis";
 import type { RunPass1Options } from "./runPass1";
 import type { RunPass2Options } from "./runPass2";
 import type { RunPass3Options } from "./runPass3Synthesis";
+import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
+import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 
 export interface RunPipelineOptions {
   manuscriptText: string;
@@ -32,6 +34,10 @@ export interface RunPipelineOptions {
   title: string;
   model?: string;
   openaiApiKey?: string;
+  /** Per-pass timeout. Defaults to 60s. */
+  _passTimeoutMs?: number;
+  /** Maximum accepted manuscript size. Defaults to 1,000,000 chars. */
+  _maxManuscriptChars?: number;
   /**
    * Dependency injection for runner functions (testing only).
    * Production callers omit this entirely.
@@ -42,6 +48,51 @@ export interface RunPipelineOptions {
     runPass3Synthesis?: (opts: RunPass3Options) => Promise<SynthesisOutput>;
     runQualityGate?: (synthesis: SynthesisOutput, pass1: SinglePassOutput, pass2: SinglePassOutput) => QualityGateResult;
   };
+  /** Dependency injection for registry loader (testing only). */
+  _registryLoader?: () => CanonRegistry;
+}
+
+const DEFAULT_PASS_TIMEOUT_MS = 60_000;
+const DEFAULT_MAX_MANUSCRIPT_CHARS = 1_000_000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+function validatePipelineInput(opts: RunPipelineOptions): string | null {
+  const manuscriptText = opts.manuscriptText?.trim();
+  const workType = opts.workType?.trim();
+  const title = opts.title?.trim();
+  const maxChars = opts._maxManuscriptChars ?? DEFAULT_MAX_MANUSCRIPT_CHARS;
+
+  if (!manuscriptText) return "manuscriptText is required";
+  if (!workType) return "workType is required";
+  if (!title) return "title is required";
+  if (!Number.isInteger(maxChars) || maxChars <= 0) return "_maxManuscriptChars must be a positive integer";
+  if (manuscriptText.length > maxChars) {
+    return `manuscriptText exceeds max length (${manuscriptText.length} > ${maxChars})`;
+  }
+
+  if (opts._passTimeoutMs !== undefined && (!Number.isInteger(opts._passTimeoutMs) || opts._passTimeoutMs <= 0)) {
+    return "_passTimeoutMs must be a positive integer";
+  }
+
+  return null;
 }
 
 /**
@@ -52,10 +103,44 @@ export interface RunPipelineOptions {
  *   { ok: false, error, error_code, failed_at }
  */
 export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineResult> {
+  const inputValidationError = validatePipelineInput(opts);
+  if (inputValidationError) {
+    return {
+      ok: false,
+      error: `Pipeline input validation failed: ${inputValidationError}`,
+      error_code: "PIPELINE_INPUT_INVALID",
+      failed_at: "pass1",
+    };
+  }
+
+  const passTimeoutMs = opts._passTimeoutMs ?? DEFAULT_PASS_TIMEOUT_MS;
+
   const _runPass1 = opts._runners?.runPass1 ?? defaultRunPass1;
   const _runPass2 = opts._runners?.runPass2 ?? defaultRunPass2;
   const _runPass3 = opts._runners?.runPass3Synthesis ?? defaultRunPass3;
   const _runQualityGate = opts._runners?.runQualityGate ?? defaultRunQualityGate;
+  const _loadRegistry = opts._registryLoader ?? loadCanonicalRegistry;
+
+  let registry: CanonRegistry;
+  try {
+    registry = _loadRegistry();
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Canonical registry binding failed: ${String(err instanceof Error ? err.message : err)}`,
+      error_code: "CANON_REGISTRY_BIND_FAILED",
+      failed_at: "pass1",
+    };
+  }
+
+  if (registry.size === 0) {
+    return {
+      ok: false,
+      error: "Canonical registry binding failed: registry empty",
+      error_code: "CANON_REGISTRY_EMPTY",
+      failed_at: "pass1",
+    };
+  }
 
   let pass1Output: SinglePassOutput;
   let pass2Output: SinglePassOutput;
@@ -63,18 +148,24 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
   // ── Pass 1: Craft Execution ─────────────────────────────────────────────
   try {
-    pass1Output = await _runPass1({
-      manuscriptText: opts.manuscriptText,
-      workType: opts.workType,
-      title: opts.title,
-      model: opts.model,
-      openaiApiKey: opts.openaiApiKey,
-    });
+    pass1Output = await withTimeout(
+      _runPass1({
+        manuscriptText: opts.manuscriptText,
+        workType: opts.workType,
+        title: opts.title,
+        model: opts.model,
+        openaiApiKey: opts.openaiApiKey,
+        registry,
+      }),
+      passTimeoutMs,
+      "Pass 1",
+    );
   } catch (err) {
+    const errMessage = String(err instanceof Error ? err.message : err);
     return {
       ok: false,
-      error: String(err instanceof Error ? err.message : err),
-      error_code: "PASS1_FAILED",
+      error: errMessage,
+      error_code: errMessage.includes("timed out") ? "PASS1_TIMEOUT" : "PASS1_FAILED",
       failed_at: "pass1",
     };
   }
@@ -83,37 +174,49 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // Independence guarantee: Pass 2 receives ONLY manuscript text.
   // pass1Output is deliberately NOT passed here.
   try {
-    pass2Output = await _runPass2({
-      manuscriptText: opts.manuscriptText,
-      workType: opts.workType,
-      title: opts.title,
-      model: opts.model,
-      openaiApiKey: opts.openaiApiKey,
-    });
+    pass2Output = await withTimeout(
+      _runPass2({
+        manuscriptText: opts.manuscriptText,
+        workType: opts.workType,
+        title: opts.title,
+        model: opts.model,
+        openaiApiKey: opts.openaiApiKey,
+        registry,
+      }),
+      passTimeoutMs,
+      "Pass 2",
+    );
   } catch (err) {
+    const errMessage = String(err instanceof Error ? err.message : err);
     return {
       ok: false,
-      error: String(err instanceof Error ? err.message : err),
-      error_code: "PASS2_FAILED",
+      error: errMessage,
+      error_code: errMessage.includes("timed out") ? "PASS2_TIMEOUT" : "PASS2_FAILED",
       failed_at: "pass2",
     };
   }
 
   // ── Pass 3: Synthesis & Reconciliation ─────────────────────────────────
   try {
-    pass3Output = await _runPass3({
-      pass1: pass1Output,
-      pass2: pass2Output,
-      manuscriptText: opts.manuscriptText,
-      title: opts.title,
-      model: opts.model,
-      openaiApiKey: opts.openaiApiKey,
-    });
+    pass3Output = await withTimeout(
+      _runPass3({
+        pass1: pass1Output,
+        pass2: pass2Output,
+        manuscriptText: opts.manuscriptText,
+        title: opts.title,
+        model: opts.model,
+        openaiApiKey: opts.openaiApiKey,
+        registry,
+      }),
+      passTimeoutMs,
+      "Pass 3",
+    );
   } catch (err) {
+    const errMessage = String(err instanceof Error ? err.message : err);
     return {
       ok: false,
-      error: String(err instanceof Error ? err.message : err),
-      error_code: "PASS3_FAILED",
+      error: errMessage,
+      error_code: errMessage.includes("timed out") ? "PASS3_TIMEOUT" : "PASS3_FAILED",
       failed_at: "pass3",
     };
   }

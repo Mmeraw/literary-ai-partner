@@ -13,6 +13,7 @@ import OpenAI from "openai";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS3_SYSTEM_PROMPT, PASS3_PROMPT_VERSION, buildPass3UserPrompt } from "./prompts/pass3-synthesis";
 import type { SinglePassOutput, SynthesisOutput, SynthesizedCriterion, EvidenceAnchor, CompletionUsage, PassCompletionCapture } from "./types";
+import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 
 const PASS3_TEMPERATURE = 0.2;
 const PASS3_MAX_TOKENS = 5000;
@@ -32,6 +33,7 @@ export interface RunPass3Options {
   pass2: SinglePassOutput;
   manuscriptText: string;
   title: string;
+  registry: CanonRegistry;
   model?: string;
   openaiApiKey?: string;
   /** Override the completion function (for testing). Production callers omit this. */
@@ -45,6 +47,10 @@ export interface RunPass3Options {
  * Throws on OpenAI error or unparseable response.
  */
 export async function runPass3Synthesis(opts: RunPass3Options): Promise<SynthesisOutput> {
+  if (!opts.registry || opts.registry.size === 0) {
+    throw new Error("[Pass3] Canonical registry binding missing");
+  }
+
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
   const selectedModel = opts.model ?? PASS3_MODEL;
 

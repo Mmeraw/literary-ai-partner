@@ -10,6 +10,7 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass3Response, runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
+import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -148,6 +149,8 @@ describe("parsePass3Response", () => {
 // ── Runner integration tests (DI, no real OpenAI) ─────────────────────────────
 
 describe("runPass3Synthesis", () => {
+  const registry = loadCanonicalRegistry();
+
   it("returns parsed synthesis when given a valid completion", async () => {
     const pass1 = makePassOutput(1, "craft_execution");
     const pass2 = makePassOutput(2, "editorial_literary");
@@ -157,6 +160,7 @@ describe("runPass3Synthesis", () => {
       pass2,
       manuscriptText: "The river moved slowly through the valley.",
       title: "Test Manuscript",
+      registry,
       openaiApiKey: "sk-test",
       _createCompletion: mockCompletion(JSON.stringify(makePass3Fixture())),
     });
@@ -176,6 +180,7 @@ describe("runPass3Synthesis", () => {
         pass2: makePassOutput(2, "editorial_literary"),
         manuscriptText: "test",
         title: "Test",
+        registry,
       }),
     ).rejects.toThrow("OPENAI_API_KEY is not configured");
 
@@ -189,6 +194,7 @@ describe("runPass3Synthesis", () => {
         pass2: makePassOutput(2, "editorial_literary"),
         manuscriptText: "test",
         title: "Test",
+        registry,
         openaiApiKey: "sk-test",
         _createCompletion: nullCompletion(),
       }),

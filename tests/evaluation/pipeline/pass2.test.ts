@@ -10,6 +10,7 @@ import { describe, it, expect } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass2Response, runPass2 } from "@/lib/evaluation/pipeline/runPass2";
 import type { RunPass2Options, CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass2";
+import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 
 // ── Fixture ──────────────────────────────────────────────────────────────────
 
@@ -77,11 +78,14 @@ describe("parsePass2Response", () => {
 // ── Runner integration tests (DI, no real OpenAI) ─────────────────────────────
 
 describe("runPass2", () => {
+  const registry = loadCanonicalRegistry();
+
   it("returns parsed output when given a valid completion", async () => {
     const result = await runPass2({
       manuscriptText: "She reached for the door handle, her hand trembling.",
       workType: "literary_fiction",
       title: "Test Manuscript",
+      registry,
       openaiApiKey: "sk-test",
       _createCompletion: mockCompletion(JSON.stringify(makePass2Fixture())),
     });
@@ -102,6 +106,7 @@ describe("runPass2", () => {
       manuscriptText: "test",
       workType: "literary_fiction",
       title: "Test",
+      registry,
       openaiApiKey: "sk-test",
     };
     // This is a compile-time test: if RunPass2Options had a pass1 field,
@@ -115,7 +120,7 @@ describe("runPass2", () => {
     delete process.env.OPENAI_API_KEY;
 
     await expect(
-      runPass2({ manuscriptText: "test", workType: "literary_fiction", title: "Test" }),
+      runPass2({ manuscriptText: "test", workType: "literary_fiction", title: "Test", registry }),
     ).rejects.toThrow("OPENAI_API_KEY is not configured");
 
     if (savedKey) process.env.OPENAI_API_KEY = savedKey;
@@ -131,6 +136,7 @@ describe("runPass2", () => {
         manuscriptText: "test",
         workType: "literary_fiction",
         title: "Test",
+        registry,
         openaiApiKey: "sk-test",
         _createCompletion: emptyCompletion,
       }),
