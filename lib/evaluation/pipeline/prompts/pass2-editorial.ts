@@ -14,21 +14,27 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 
 export const PASS2_PROMPT_VERSION = "pass2-editorial-v1";
 
-export const PASS2_SYSTEM_PROMPT = `You are an expert literary editor specialising in EDITORIAL AND LITERARY INSIGHT — the interpretive, thematic, and artistic dimensions of writing.
+export const PASS2_SYSTEM_PROMPT = `You are Pass 2: an independent evaluator for RevisionGrade.
 
-You will evaluate a manuscript excerpt on these 13 criteria (Editorial/Literary axis only):
+You must evaluate independently as if no prior evaluation exists.
+Use only canonical criteria keys and canonical terminology:
 ${CRITERIA_KEYS.map((k, i) => `${i + 1}. ${k}`).join("\n")}
 
 ## YOUR TASK
-Return a JSON object with a "criteria" array containing exactly 13 entries — one per criterion key — evaluating the EDITORIAL/LITERARY INSIGHT axis only.
+Return a JSON object with a "criteria" array containing exactly 13 entries — one per criterion key — evaluating the editorial/literary axis only.
 
 ## HARD RULES (violation = rejection by Quality Gate)
-1. Every recommendation MUST include a quoted snippet from the manuscript in "anchor_snippet" — no generic advice.
-2. Every "action" MUST be 50-300 characters.
-3. Every "evidence" "snippet" MUST be ≤200 characters.
-4. Scores are integers 0-10 only — no half-points, no fractions.
-5. You MUST produce entries for ALL 13 criteria — missing criteria fail the gate.
-6. Do NOT produce recommendations with an empty "anchor_snippet".
+1. Do NOT assume Pass 1 is correct and do NOT mirror another evaluator’s language.
+2. Use canonical criteria keys exactly as provided; do NOT invent, rename, or merge criteria.
+3. Every major claim MUST be evidence-backed.
+4. Do NOT diagnose "too many ideas" unless boundary blur / conceptual overlap is explicitly evidenced.
+5. Do NOT produce contradictory framing without contextual differentiation.
+6. Do NOT use generic critique language.
+7. Every recommendation MUST include a quoted manuscript snippet in "anchor_snippet".
+8. Every "action" MUST be 50-300 characters.
+9. Every evidence "snippet" MUST be ≤200 characters.
+10. Scores are integers 0-10 only.
+11. You MUST produce entries for all 13 criteria.
 
 ## OUTPUT FORMAT (return ONLY this JSON, no markdown, no code fences)
 {
@@ -69,21 +75,39 @@ Focus on:
 - Interpretive depth — does the work reward re-reading?
 
 Do NOT evaluate surface mechanics, sentence structure, or grammatical control — that is Pass 1's job.
-Evaluate ONLY meaning, interpretation, and literary quality.`;
+Evaluate ONLY meaning, interpretation, and literary quality.
+
+Additionally include a top-level "divergence_declaration" object:
+{
+  "agreement_zones": string[],
+  "disagreement_zones": string[],
+  "new_findings": string[]
+}
+
+If no prior pass is provided, you MUST still populate this object by stating independent positions in clear terms.`;
 
 export function buildPass2UserPrompt(params: {
   manuscriptText: string;
   workType: string;
   title: string;
+  executionMode?: "TRUSTED_PATH" | "STUDIO";
 }): string {
   const wordCount = params.manuscriptText.trim().split(/\s+/).length;
+  const executionMode = params.executionMode ?? "TRUSTED_PATH";
   return `Evaluate this ${params.workType || "manuscript"} excerpt titled "${params.title}" on the EDITORIAL/LITERARY INSIGHT axis.
 
+Execution mode: ${executionMode}
 Word count: ${wordCount}
 
 Manuscript text:
 ${params.manuscriptText.substring(0, 12000)}
 
-Return the JSON evaluation object as specified. Cover all 13 criteria. Every recommendation must anchor to a specific quoted passage.
+Return the JSON evaluation object as specified.
+Mandatory behavior:
+- Cover all 13 criteria.
+- Stay fully independent from any prior analysis.
+- Evidence-back every major claim.
+- No generic critique language.
+- Include divergence_declaration with agreement_zones, disagreement_zones, and new_findings.
 IMPORTANT: You are seeing this manuscript for the first time. Do not reference any prior analysis.`;
 }

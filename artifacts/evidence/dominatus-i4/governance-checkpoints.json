@@ -1,0 +1,145 @@
+[
+  {
+    "checkpoint_id": "CANON_REGISTRY_BINDING",
+    "checkpoint_type": "CANON",
+    "stage": "pipeline_boot",
+    "authority": "docs/NOMENCLATURE_CANON_v1.md",
+    "result": "PASS",
+    "error_code": null,
+    "metadata": {
+      "primary_action": "BLOCK",
+      "llr_stage": null,
+      "block_error_code": "CANON_REGISTRY_BIND_FAILED"
+    }
+  },
+  {
+    "checkpoint_id": "CANON_GATE",
+    "checkpoint_type": "CANON",
+    "stage": "pipeline_boot",
+    "authority": "AI_GOVERNANCE.md",
+    "result": "PASS",
+    "error_code": null,
+    "metadata": {
+      "primary_action": "BLOCK",
+      "llr_stage": null,
+      "block_error_code": "CANON_REGISTRY_EMPTY"
+    }
+  },
+  {
+    "checkpoint_id": "LLR_POST_STRUCTURAL",
+    "checkpoint_type": "LESSONS_LEARNED",
+    "stage": "post_pass1",
+    "authority": "Phase 0.2 Lessons Learned",
+    "result": "PASS",
+    "error_code": null,
+    "metadata": {
+      "primary_action": "BLOCK",
+      "llr_stage": "post_structural",
+      "block_error_code": "LLR_POST_STRUCTURAL_BLOCK"
+    }
+  },
+  {
+    "checkpoint_id": "LLR_POST_DIAGNOSTIC",
+    "checkpoint_type": "LESSONS_LEARNED",
+    "stage": "post_pass2",
+    "authority": "Phase 0.2 Lessons Learned",
+    "result": "PASS",
+    "error_code": null,
+    "metadata": {
+      "primary_action": "BLOCK",
+      "llr_stage": "post_diagnostic",
+      "block_error_code": "LLR_POST_DIAGNOSTIC_BLOCK"
+    }
+  },
+  {
+    "checkpoint_id": "LLR_POST_CONVERGENCE",
+    "checkpoint_type": "LESSONS_LEARNED",
+    "stage": "post_pass3",
+    "authority": "Phase 0.2 Lessons Learned",
+    "result": "PASS",
+    "error_code": null,
+    "metadata": {
+      "primary_action": "BLOCK",
+      "llr_stage": "post_convergence",
+      "block_error_code": "LLR_POST_CONVERGENCE_BLOCK"
+    }
+  },
+  {
+    "checkpoint_id": "LLR_PRE_ARTIFACT_GENERATION",
+    "checkpoint_type": "LESSONS_LEARNED",
+    "stage": "pre_pass4",
+    "authority": "Phase 0.2 Lessons Learned",
+    "result": "PASS",
+    "error_code": null,
+    "metadata": {
+      "primary_action": "BLOCK",
+      "llr_stage": "pre_artifact_generation",
+      "block_error_code": "LLR_PRE_ARTIFACT_GENERATION_BLOCK"
+    }
+  },
+  {
+    "checkpoint_id": "ELIGIBILITY_GATE",
+    "checkpoint_type": "OPERATIONS",
+    "stage": "post_evaluation_envelope",
+    "authority": "Volume II-A Eligibility Gate",
+    "result": "PASS",
+    "error_code": null,
+    "metadata": {
+      "primary_action": "BLOCK",
+      "llr_stage": null,
+      "block_error_code": "REFINEMENT_BLOCKED_BY_GATE"
+    }
+  },
+  {
+    "checkpoint_id": "QUALITY_GATE",
+    "checkpoint_type": "QUALITY",
+    "stage": "pass4",
+    "authority": "Phase 2.7 Quality Gate",
+    "result": "PASS",
+    "error_code": null,
+    "metadata": {
+      "primary_action": "BLOCK",
+      "llr_stage": null,
+      "block_error_code": "QG_UNKNOWN"
+    }
+  },
+  {
+    "checkpoint_id": "HUMAN_REVIEW_BOUNDARY",
+    "checkpoint_type": "BOUNDARY",
+    "stage": "post_pass4",
+    "authority": "Operations Runbook",
+    "result": "PASS",
+    "error_code": null,
+    "metadata": {
+      "primary_action": "AUDIT",
+      "llr_stage": null,
+      "block_error_code": null
+    }
+  },
+  {
+    "checkpoint_id": "ARTIFACT_CERTIFICATION_BOUNDARY",
+    "checkpoint_type": "BOUNDARY",
+    "stage": "artifact_certification",
+    "authority": "docs/JOB_CONTRACT_v1.md",
+    "result": "PASS",
+    "error_code": null,
+    "metadata": {
+      "primary_action": "AUDIT",
+      "llr_stage": null,
+      "block_error_code": null
+    }
+  },
+  {
+    "checkpoint_id": "FAILURE_ESCALATION_DEAD_LETTER",
+    "checkpoint_type": "OPERATIONS",
+    "stage": "failure_path",
+    "authority": "Operations Runbook",
+    "result": "PASS",
+    "error_code": null,
+    "metadata": {
+      "primary_action": "WARN",
+      "llr_stage": null,
+      "block_error_code": null
+    }
+  }
+]
