@@ -27,6 +27,16 @@ import type { RunPass2Options } from "./runPass2";
 import type { RunPass3Options } from "./runPass3Synthesis";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
+import {
+  evaluateLessonsLearnedRules as defaultEvaluateLessonsLearnedRules,
+  deriveLessonsLearnedEnforcementDecision as defaultDeriveLessonsLearnedEnforcementDecision,
+} from "@/lib/governance/lessonsLearned";
+import type {
+  RuleEvaluationInput,
+  RuleStage,
+  LessonsLearnedReport,
+  EnforcementDecision,
+} from "@/lib/governance/lessonsLearned";
 
 export interface RunPipelineOptions {
   manuscriptText: string;
@@ -50,6 +60,13 @@ export interface RunPipelineOptions {
   };
   /** Dependency injection for registry loader (testing only). */
   _registryLoader?: () => CanonRegistry;
+  manuscriptId?: string;
+  executionMode?: "TRUSTED_PATH" | "STUDIO";
+  /** Dependency injection for lessons-learned engine (testing only). */
+  _lessonsLearned?: {
+    evaluateRules?: (input: RuleEvaluationInput, stage?: RuleStage) => LessonsLearnedReport;
+    deriveDecision?: (report: LessonsLearnedReport) => EnforcementDecision;
+  };
 }
 
 const DEFAULT_PASS_TIMEOUT_MS = 60_000;
@@ -120,6 +137,49 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   const _runPass3 = opts._runners?.runPass3Synthesis ?? defaultRunPass3;
   const _runQualityGate = opts._runners?.runQualityGate ?? defaultRunQualityGate;
   const _loadRegistry = opts._registryLoader ?? loadCanonicalRegistry;
+  const _evaluateLessonsLearned = opts._lessonsLearned?.evaluateRules ?? defaultEvaluateLessonsLearnedRules;
+  const _deriveLessonsLearnedDecision =
+    opts._lessonsLearned?.deriveDecision ?? defaultDeriveLessonsLearnedEnforcementDecision;
+
+  const llrContextBase = {
+    manuscript_id: opts.manuscriptId ?? `pipeline:${opts.title}`,
+    execution_mode: opts.executionMode ?? "TRUSTED_PATH",
+    metadata: {
+      trace_id: `llr-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+    },
+  };
+
+  const enforceLessonsLearnedStage = (
+    stage: RuleStage,
+    failedAt: "pass1" | "pass2" | "pass3" | "pass4",
+    input: Omit<RuleEvaluationInput, "metadata" | "execution_mode" | "manuscript_id">,
+  ): PipelineResult | null => {
+    const report = _evaluateLessonsLearned(
+      {
+        ...llrContextBase,
+        ...input,
+      },
+      stage,
+    );
+    const decision = _deriveLessonsLearnedDecision(report);
+
+    if (decision.action === "BLOCK") {
+      const failedRules = report.results
+        .filter((r) => !r.passed && r.severity === "ERROR")
+        .map((r) => r.rule_id)
+        .join(", ");
+
+      return {
+        ok: false,
+        error: `Lessons-learned enforcement blocked at ${stage}: ${decision.reason}${failedRules ? ` (rules: ${failedRules})` : ""}`,
+        error_code: `LLR_${stage.toUpperCase()}_BLOCK`,
+        failed_at: failedAt,
+      };
+    }
+
+    return null;
+  };
 
   let registry: CanonRegistry;
   try {
@@ -170,6 +230,14 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     };
   }
 
+  {
+    const llrResult = enforceLessonsLearnedStage("post_structural", "pass1", {
+      structural_result: pass1Output,
+      registry,
+    });
+    if (llrResult) return llrResult;
+  }
+
   // ── Pass 2: Editorial/Literary Insight ──────────────────────────────────
   // Independence guarantee: Pass 2 receives ONLY manuscript text.
   // pass1Output is deliberately NOT passed here.
@@ -196,6 +264,15 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     };
   }
 
+  {
+    const llrResult = enforceLessonsLearnedStage("post_diagnostic", "pass2", {
+      structural_result: pass1Output,
+      diagnostic_result: pass2Output,
+      registry,
+    });
+    if (llrResult) return llrResult;
+  }
+
   // ── Pass 3: Synthesis & Reconciliation ─────────────────────────────────
   try {
     pass3Output = await withTimeout(
@@ -219,6 +296,24 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       error_code: errMessage.includes("timed out") ? "PASS3_TIMEOUT" : "PASS3_FAILED",
       failed_at: "pass3",
     };
+  }
+
+  {
+    const llrPostConvergence = enforceLessonsLearnedStage("post_convergence", "pass3", {
+      structural_result: pass1Output,
+      diagnostic_result: pass2Output,
+      convergence_result: pass3Output,
+      registry,
+    });
+    if (llrPostConvergence) return llrPostConvergence;
+
+    const llrPreArtifactGeneration = enforceLessonsLearnedStage("pre_artifact_generation", "pass4", {
+      structural_result: pass1Output,
+      diagnostic_result: pass2Output,
+      convergence_result: pass3Output,
+      registry,
+    });
+    if (llrPreArtifactGeneration) return llrPreArtifactGeneration;
   }
 
   // ── Pass 4: Quality Gate (deterministic) ───────────────────────────────

@@ -13,6 +13,7 @@ import type { SinglePassOutput, SynthesisOutput, QualityGateResult } from "@/lib
 import type { RunPass1Options } from "@/lib/evaluation/pipeline/runPass1";
 import type { RunPass2Options } from "@/lib/evaluation/pipeline/runPass2";
 import type { RunPass3Options } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+import type { LessonsLearnedReport, RuleStage, RuleEvaluationInput } from "@/lib/governance/lessonsLearned";
 
 // ── Fixture builders ──────────────────────────────────────────────────────────
 
@@ -351,6 +352,97 @@ describe("runPipeline (e2e with injected runners)", () => {
 
     expect(mockRunPass2).not.toHaveBeenCalled();
     expect(mockRunPass3).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when lessons-learned blocks at post_structural", async () => {
+    const evaluateRules = jest.fn<(input: RuleEvaluationInput, stage?: RuleStage) => LessonsLearnedReport>();
+    evaluateRules.mockImplementation((_input, stage) => {
+      if (stage === "post_structural") {
+        return {
+          overall_pass: false,
+          results: [
+            {
+              rule_id: "LLR-001",
+              name: "Blur, Not Multiplicity",
+              passed: false,
+              severity: "ERROR",
+              violations: [{ message: "failed", severity: "ERROR" }],
+            },
+          ],
+        };
+      }
+      return { overall_pass: true, results: [] };
+    });
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+      _lessonsLearned: {
+        evaluateRules,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error_code).toBe("LLR_POST_STRUCTURAL_BLOCK");
+      expect(result.failed_at).toBe("pass1");
+    }
+
+    expect(mockRunPass2).not.toHaveBeenCalled();
+    expect(mockRunPass3).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when lessons-learned blocks at pre_artifact_generation", async () => {
+    const evaluateRules = jest.fn<(input: RuleEvaluationInput, stage?: RuleStage) => LessonsLearnedReport>();
+    evaluateRules.mockImplementation((_input, stage) => {
+      if (stage === "pre_artifact_generation") {
+        return {
+          overall_pass: false,
+          results: [
+            {
+              rule_id: "LLR-005",
+              name: "No Generic Canon-Free Critique",
+              passed: false,
+              severity: "ERROR",
+              violations: [{ message: "failed", severity: "ERROR" }],
+            },
+          ],
+        };
+      }
+      return { overall_pass: true, results: [] };
+    });
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+      _lessonsLearned: {
+        evaluateRules,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error_code).toBe("LLR_PRE_ARTIFACT_GENERATION_BLOCK");
+      expect(result.failed_at).toBe("pass4");
+    }
+
+    expect(mockRunPass1).toHaveBeenCalledTimes(1);
+    expect(mockRunPass2).toHaveBeenCalledTimes(1);
+    expect(mockRunPass3).toHaveBeenCalledTimes(1);
   });
 });
 
