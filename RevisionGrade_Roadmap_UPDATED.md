@@ -206,6 +206,12 @@
 |  | 0.2 | Lessons Learned Rule Engine | 0.2.g | Pipeline integration tests — stage-block behavior | Test | tests/evaluation/pipeline/pipeline-e2e.test.ts |  |  |  | Complete |
 |  | 0.2 | Lessons Learned Rule Engine | 0.2.h | DOMINATUS failure case calibration artifact | Calibration | calibration/phase0.2/ |  |  |  | Complete |
 |  | 0.2 | Lessons Learned Rule Engine | 0.2.i | Phase 0.2 closure report | Governance | PHASE_0_2_CLOSURE_REPORT.md |  |  |  | Complete |
+|  | 0.3 | Governance Injection Map | 0.3.a | Injection map types + 11 required checkpoint definitions | Code | lib/governance/injectionMap.ts |  |  |  | Complete |
+|  | 0.3 | Governance Injection Map | 0.3.b | Fail-closed map validation (empty, duplicates, missing required, BLOCK without error code) | Code | lib/governance/injectionMap.ts |  |  |  | Complete |
+|  | 0.3 | Governance Injection Map | 0.3.c | Pipeline boot integration — load + validate map before passes | Code | lib/evaluation/pipeline/runPipeline.ts |  |  |  | Complete |
+|  | 0.3 | Governance Injection Map | 0.3.d | Checkpoint context in all error paths (canon, LLR, quality gate) | Code | lib/evaluation/pipeline/runPipeline.ts |  |  |  | Complete |
+|  | 0.3 | Governance Injection Map | 0.3.e | Injection map unit tests + pipeline integration tests | Test | lib/governance/__tests__/injectionMap.test.ts |  |  |  | Complete |
+|  | 0.3 | Governance Injection Map | 0.3.f | Phase 0.3 governance mapping artifact | Governance | PHASE_0_3_GOVERNANCE_INJECTION_MAP.md |  |  |  | Complete |
 
 
 # Immediate Priorities
