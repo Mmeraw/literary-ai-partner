@@ -9,6 +9,7 @@ import { describe, it, expect } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass1Response, runPass1 } from "@/lib/evaluation/pipeline/runPass1";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass1";
+import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 
 // ── Fixture ──────────────────────────────────────────────────────────────────
 
@@ -119,11 +120,14 @@ describe("parsePass1Response", () => {
 // ── Runner integration tests (DI, no real OpenAI) ─────────────────────────────
 
 describe("runPass1", () => {
+  const registry = loadCanonicalRegistry();
+
   it("returns parsed output when given a valid completion", async () => {
     const result = await runPass1({
       manuscriptText: "The river moved slowly through the valley.",
       workType: "literary_fiction",
       title: "Test Manuscript",
+      registry,
       openaiApiKey: "sk-test",
       _createCompletion: mockCompletion(JSON.stringify(makePass1Fixture())),
     });
@@ -147,6 +151,7 @@ describe("runPass1", () => {
       manuscriptText: "The river moved slowly through the valley.",
       workType: "literary_fiction",
       title: "Test Manuscript",
+      registry,
       model: "gpt-4o",
       openaiApiKey: "sk-test",
       _createCompletion: captureCompletion,
@@ -161,7 +166,7 @@ describe("runPass1", () => {
     delete process.env.OPENAI_API_KEY;
 
     await expect(
-      runPass1({ manuscriptText: "test", workType: "literary_fiction", title: "Test" }),
+      runPass1({ manuscriptText: "test", workType: "literary_fiction", title: "Test", registry }),
     ).rejects.toThrow("OPENAI_API_KEY is not configured");
 
     if (savedKey) process.env.OPENAI_API_KEY = savedKey;
@@ -173,6 +178,7 @@ describe("runPass1", () => {
         manuscriptText: "test",
         workType: "literary_fiction",
         title: "Test",
+        registry,
         openaiApiKey: "sk-test",
         _createCompletion: nullCompletion(),
       }),
@@ -185,6 +191,7 @@ describe("runPass1", () => {
         manuscriptText: "test",
         workType: "literary_fiction",
         title: "Test",
+        registry,
         openaiApiKey: "sk-test",
         _createCompletion: throwingCompletion(new Error("Rate limit exceeded")),
       }),

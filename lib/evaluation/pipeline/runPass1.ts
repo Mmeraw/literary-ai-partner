@@ -12,6 +12,7 @@ import OpenAI from "openai";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS1_SYSTEM_PROMPT, PASS1_PROMPT_VERSION, buildPass1UserPrompt } from "./prompts/pass1-craft";
 import type { SinglePassOutput, AxisCriterionResult, EvidenceAnchor, CompletionUsage, PassCompletionCapture } from "./types";
+import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 
 const PASS1_TEMPERATURE = 0.3;
 const PASS1_MAX_TOKENS = 4000;
@@ -30,6 +31,7 @@ export interface RunPass1Options {
   manuscriptText: string;
   workType: string;
   title: string;
+  registry: CanonRegistry;
   model?: string;
   openaiApiKey?: string;
   /** Override the completion function (for testing). Production callers omit this. */
@@ -43,6 +45,10 @@ export interface RunPass1Options {
  * Throws on OpenAI error or unparseable response.
  */
 export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput> {
+  if (!opts.registry || opts.registry.size === 0) {
+    throw new Error("[Pass1] Canonical registry binding missing");
+  }
+
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
   const selectedModel = opts.model ?? PASS1_MODEL;
 

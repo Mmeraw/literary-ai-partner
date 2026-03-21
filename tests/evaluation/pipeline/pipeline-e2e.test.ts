@@ -273,6 +273,85 @@ describe("runPipeline (e2e with injected runners)", () => {
       expect.objectContaining({ model: "gpt-4o" }),
     );
   });
+
+  it("fails closed when canonical registry binding fails", async () => {
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _registryLoader: () => {
+        throw new Error("registry corrupt");
+      },
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error_code).toBe("CANON_REGISTRY_BIND_FAILED");
+      expect(result.failed_at).toBe("pass1");
+    }
+
+    expect(mockRunPass1).not.toHaveBeenCalled();
+    expect(mockRunPass2).not.toHaveBeenCalled();
+    expect(mockRunPass3).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when pipeline input is invalid", async () => {
+    const result = await runPipeline({
+      manuscriptText: "   ",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error_code).toBe("PIPELINE_INPUT_INVALID");
+      expect(result.failed_at).toBe("pass1");
+    }
+
+    expect(mockRunPass1).not.toHaveBeenCalled();
+    expect(mockRunPass2).not.toHaveBeenCalled();
+    expect(mockRunPass3).not.toHaveBeenCalled();
+  });
+
+  it("fails closed with PASS1_TIMEOUT when pass exceeds timeout budget", async () => {
+    mockRunPass1.mockImplementationOnce(
+      () => new Promise<SinglePassOutput>((resolve) => setTimeout(() => resolve(makeSinglePassOutput(1)), 50)),
+    );
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _passTimeoutMs: 5,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error_code).toBe("PASS1_TIMEOUT");
+      expect(result.failed_at).toBe("pass1");
+    }
+
+    expect(mockRunPass2).not.toHaveBeenCalled();
+    expect(mockRunPass3).not.toHaveBeenCalled();
+  });
 });
 
 describe("synthesisToEvaluationResult", () => {

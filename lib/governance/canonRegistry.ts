@@ -36,13 +36,30 @@ export interface CanonRegistryEntry {
   addedAt?: string;
 }
 
+type MutableCanonRegistry = Map<string, CanonRegistryEntry>;
+
+function createReadonlyMapFacade<K, V>(source: Map<K, V>): ReadonlyMap<K, V> {
+  return Object.freeze({
+    get size() {
+      return source.size;
+    },
+    has: source.has.bind(source),
+    get: source.get.bind(source),
+    entries: source.entries.bind(source),
+    keys: source.keys.bind(source),
+    values: source.values.bind(source),
+    forEach: source.forEach.bind(source),
+    [Symbol.iterator]: source[Symbol.iterator].bind(source),
+  }) as ReadonlyMap<K, V>;
+}
+
 /**
  * The canonical registry of enforceable doctrines.
  *
  * This is the static source of truth for which rules may be enforced at runtime.
  * Entries are immutable after initialization.
  */
-const CANON_REGISTRY: Map<string, CanonRegistryEntry> = new Map([
+const CANON_REGISTRY_INTERNAL: MutableCanonRegistry = new Map([
   [
     "CRIT-CONCEPT-001",
     {
@@ -237,11 +254,68 @@ const CANON_REGISTRY: Map<string, CanonRegistryEntry> = new Map([
   ],
 ]);
 
+export type CanonRegistry = ReadonlyMap<string, CanonRegistryEntry>;
+export const CANON_REGISTRY: CanonRegistry = createReadonlyMapFacade(CANON_REGISTRY_INTERNAL);
+
+/**
+ * Phase 0.1 — validate canonical registry at runtime.
+ *
+ * Fail-closed rule: any structural integrity defect throws.
+ */
+export function validateCanonicalRegistry(): void {
+  if (CANON_REGISTRY_INTERNAL.size === 0) {
+    throw new Error("Canonical registry is empty — fail-closed");
+  }
+
+  const seen = new Set<string>();
+  for (const [key, entry] of CANON_REGISTRY_INTERNAL.entries()) {
+    if (seen.has(key)) {
+      throw new Error(`Duplicate Canon ID detected: ${key}`);
+    }
+    seen.add(key);
+
+    if (!entry.canonId || entry.canonId.trim() === "") {
+      throw new Error(`Missing canonId for registry key: ${key}`);
+    }
+
+    if (entry.canonId !== key) {
+      throw new Error(`Registry key / canonId mismatch: key=${key}, canonId=${entry.canonId}`);
+    }
+
+    if (!entry.name || entry.name.trim() === "") {
+      throw new Error(`Missing name for Canon ID: ${key}`);
+    }
+
+    if (!entry.type) {
+      throw new Error(`Missing type for Canon ID: ${key}`);
+    }
+
+    if (!entry.status) {
+      throw new Error(`Missing status for Canon ID: ${key}`);
+    }
+
+    if (!entry.sourceDocument || entry.sourceDocument.trim() === "") {
+      throw new Error(`Missing sourceDocument for Canon ID: ${key}`);
+    }
+
+    if (!entry.destination || entry.destination.trim() === "") {
+      throw new Error(`Missing destination for Canon ID: ${key}`);
+    }
+  }
+}
+
+/**
+ * Phase 0.1 runtime loader for canonical registry binding.
+ */
+export function loadCanonicalRegistry(): CanonRegistry {
+  return CANON_REGISTRY;
+}
+
 /**
  * Check if a canon is registered and ACTIVE.
  */
 export function isCanonActive(canonId: string): boolean {
-  const entry = CANON_REGISTRY.get(canonId);
+  const entry = CANON_REGISTRY_INTERNAL.get(canonId);
   return entry !== undefined && entry.status === "ACTIVE";
 }
 
@@ -250,7 +324,7 @@ export function isCanonActive(canonId: string): boolean {
  * Throws GovernanceError if not.
  */
 export function assertCanonActive(canonId: string): void {
-  const entry = CANON_REGISTRY.get(canonId);
+  const entry = CANON_REGISTRY_INTERNAL.get(canonId);
   if (!entry) {
     const { GovernanceError } = require("./errors");
     throw new GovernanceError(
@@ -273,22 +347,25 @@ export function assertCanonActive(canonId: string): void {
  * Get a registry entry by Canon ID.
  */
 export function getCanonEntry(canonId: string): CanonRegistryEntry | undefined {
-  return CANON_REGISTRY.get(canonId);
+  return CANON_REGISTRY_INTERNAL.get(canonId);
 }
 
 /**
  * List all ACTIVE canon entries.
  */
 export function listActiveCanons(): CanonRegistryEntry[] {
-  return Array.from(CANON_REGISTRY.values()).filter((entry) => entry.status === "ACTIVE");
+  return Array.from(CANON_REGISTRY_INTERNAL.values()).filter((entry) => entry.status === "ACTIVE");
 }
 
 /**
  * Freeze the registry to prevent runtime mutations.
  */
 export function freezeRegistry(): void {
-  Object.freeze(CANON_REGISTRY);
+  for (const entry of CANON_REGISTRY_INTERNAL.values()) {
+    Object.freeze(entry);
+  }
 }
 
-// Freeze on module load
+// Validate then freeze on module load (fail-closed boot behavior)
+validateCanonicalRegistry();
 freezeRegistry();

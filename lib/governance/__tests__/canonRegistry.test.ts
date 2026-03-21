@@ -7,6 +7,8 @@ import {
   CANON_REGISTRY,
   isCanonActive,
   assertCanonActive,
+  validateCanonicalRegistry,
+  loadCanonicalRegistry,
 } from "../canonRegistry";
 import { GovernanceError } from "../errors";
 
@@ -58,6 +60,22 @@ describe("canonRegistry", () => {
     it("should be frozen and immutable", () => {
       expect(Object.isFrozen(CANON_REGISTRY)).toBe(true);
     });
+
+    it("should not expose mutable map methods", () => {
+      const mutableSurface = CANON_REGISTRY as unknown as { set?: unknown; clear?: unknown; delete?: unknown };
+      expect(mutableSurface.set).toBeUndefined();
+      expect(mutableSurface.clear).toBeUndefined();
+      expect(mutableSurface.delete).toBeUndefined();
+    });
+
+    it("should validate registry integrity", () => {
+      expect(() => validateCanonicalRegistry()).not.toThrow();
+    });
+
+    it("should load registry through runtime binding loader", () => {
+      const registry = loadCanonicalRegistry();
+      expect(registry.size).toBeGreaterThan(0);
+    });
   });
 
   describe("isCanonActive", () => {
@@ -95,7 +113,7 @@ describe("canonRegistry", () => {
         assertCanonActive("FAKE-CANON-001");
       } catch (err) {
         if (err instanceof GovernanceError) {
-          expect(err.code).toBe("CANON_INACTIVE");
+          expect(err.code).toBe("CANON_NOT_FOUND");
         }
       }
     });
@@ -106,8 +124,8 @@ describe("canonRegistry", () => {
         fail("Should have thrown");
       } catch (err) {
         if (err instanceof GovernanceError) {
-          const details = err.details as Record<string, unknown>;
-          expect(details.canonId).toBe("UNKNOWN-001");
+          const metadata = err.metadata as Record<string, unknown>;
+          expect(metadata.canonId).toBe("UNKNOWN-001");
         }
       }
     });
@@ -137,11 +155,11 @@ describe("canonRegistry", () => {
     });
 
     it("governance entries should have type GOVERNANCE", () => {
-      const govIds = ["GATE-ELIGIBILITY-002", "ENV-EVAL-ARTIFACT-001"];
-      for (const id of govIds) {
-        const entry = CANON_REGISTRY.get(id);
-        expect(entry?.type).toBe("GOVERNANCE");
-      }
+      const governanceEntry = CANON_REGISTRY.get("GATE-ELIGIBILITY-002");
+      expect(governanceEntry?.type).toBe("GOVERNANCE");
+
+      const executionEntry = CANON_REGISTRY.get("ENV-EVAL-ARTIFACT-001");
+      expect(executionEntry?.type).toBe("EXECUTION");
     });
   });
 });
