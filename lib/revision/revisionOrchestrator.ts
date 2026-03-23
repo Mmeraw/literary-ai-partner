@@ -12,6 +12,11 @@ import {
 } from "./diffIntelligence";
 import { resolveConflicts, buildExecutionPlan } from "./waveConflicts";
 import { getWave, WAVE_REGISTRY } from "./waveRegistry";
+import {
+	enforceWaveSurgicalLimits,
+	buildSurgicalEnforcementReport,
+	isAllowedScope,
+} from "./surgicalEnforcement";
 
 export type OrchestratorInput = {
   chapterText: string;
@@ -21,6 +26,15 @@ export type OrchestratorInput = {
   pass2Findings?: Record<string, unknown>;
   pass3Findings?: Record<string, unknown>;
   targetWaveIds?: number[];
+};
+
+export type SurgicalEnforcementEntry = {
+	waveId: number;
+	originalCount: number;
+	allowedCount: number;
+	blockedCount: number;
+	downgradedCount: number;
+	enforcementActive: boolean;
 };
 
 export type OrchestratorResult = {
@@ -33,6 +47,7 @@ export type OrchestratorResult = {
   finalText: string;
   success: boolean;
   errors: string[];
+  surgicalEnforcementLog: SurgicalEnforcementEntry[];
 };
 
 type ChapterStructure = {
@@ -493,6 +508,7 @@ export function orchestrateRevision(input: OrchestratorInput): OrchestratorResul
         finalText: input.chapterText,
         success: false,
         errors,
+        surgicalEnforcementLog: [],
       };
     }
   } else {
@@ -508,15 +524,26 @@ export function orchestrateRevision(input: OrchestratorInput): OrchestratorResul
   executionLog.push(`[orchestrator] Final execution order contains ${waveExecutionOrder.length} waves.`);
 
   const generatedEdits: ProposedEdit[] = [];
+  const blockedByEnforcement: ProposedEdit[] = [];
+  const downgradedByEnforcement: ProposedEdit[] = [];
+  const surgicalEnforcementLog: SurgicalEnforcementEntry[] = [];
+
   for (const waveId of waveExecutionOrder) {
     const wave = getWave(waveId);
     if (!wave) {
       continue;
     }
 
-    const edits = generateEditsForWave(waveId, input.chapterText, input.revisionMode);
-    executionLog.push(`[orchestrator] Wave ${waveId} (${wave.name}) generated ${edits.length} edit(s).`);
-    generatedEdits.push(...edits);
+    const rawEdits = generateEditsForWave(waveId, input.chapterText, input.revisionMode);
+    const enforcementResult = enforceWaveSurgicalLimits(waveId, rawEdits, input.revisionMode);
+    const enforcementReport = buildSurgicalEnforcementReport(waveId, rawEdits, enforcementResult);
+    surgicalEnforcementLog.push(enforcementReport);
+    blockedByEnforcement.push(...enforcementResult.blocked);
+    downgradedByEnforcement.push(...enforcementResult.downgraded);
+    executionLog.push(
+      `[orchestrator] Wave ${waveId} (${wave.name}): raw=${rawEdits.length}, allowed=${enforcementResult.allowed.length}, blocked=${enforcementResult.blocked.length}, downgraded=${enforcementResult.downgraded.length}.`,
+    );
+    generatedEdits.push(...enforcementResult.allowed);
   }
 
   const dedupedEdits = dedupeEdits(generatedEdits);
@@ -545,7 +572,8 @@ export function orchestrateRevision(input: OrchestratorInput): OrchestratorResul
     }
   }
 
-  const skippedEdits = dedupeEdits([...diffReport.suppressedEdits, ...failedApplyEdits]);
+  appliedEdits.push(...downgradedByEnforcement);
+  const skippedEdits = dedupeEdits([...diffReport.suppressedEdits, ...failedApplyEdits, ...blockedByEnforcement]);
 
   if (appliedEdits.length === 0 && diffReport.rankedEdits.length > 0) {
     errors.push("No ranked edits could be applied to chapter text.");
@@ -553,7 +581,7 @@ export function orchestrateRevision(input: OrchestratorInput): OrchestratorResul
 
   const success = errors.length === 0;
   executionLog.push(
-    `[orchestrator] Revision completed: success=${success}, applied=${appliedEdits.length}, skipped=${skippedEdits.length}.`,
+    `[orchestrator] Revision completed: success=${success}, applied=${appliedEdits.length}, skipped=${skippedEdits.length}, enforcement entries=${surgicalEnforcementLog.length}.`,
   );
 
   return {
@@ -566,5 +594,6 @@ export function orchestrateRevision(input: OrchestratorInput): OrchestratorResul
     finalText: currentText,
     success,
     errors,
+    surgicalEnforcementLog,
   };
 }
