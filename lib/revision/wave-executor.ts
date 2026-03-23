@@ -45,6 +45,15 @@ import wave38TemporalMarkerPrecision from "@/lib/wave-modules/wave-38-temporal-m
 import wave39SpatialOrientationClarity from "@/lib/wave-modules/wave-39-spatial-orientation-clarity";
 import wave40CognitiveLoadReduction from "@/lib/wave-modules/wave-40-cognitive-load-reduction";
 import wave41BreathRhythm from "@/lib/wave-modules/wave-41-breath-rhythm";
+import wave42SceneTransitionCoherence from "@/lib/wave-modules/wave-42-scene-transition-coherence";
+import wave43SceneEntryTiming from "@/lib/wave-modules/wave-43-scene-entry-timing";
+import wave44SceneExitResonance from "@/lib/wave-modules/wave-44-scene-exit-resonance";
+import wave45ContinuityPropTracking from "@/lib/wave-modules/wave-45-continuity-prop-tracking";
+import wave46TimelineConsistency from "@/lib/wave-modules/wave-46-timeline-consistency";
+import wave47CharacterPresenceContinuity from "@/lib/wave-modules/wave-47-character-presence-continuity";
+import wave48EmotionalContinuityBetweenScenes from "@/lib/wave-modules/wave-48-emotional-continuity-between-scenes";
+import wave49SettingContinuityTexture from "@/lib/wave-modules/wave-49-setting-continuity-texture";
+import wave50CrossSceneCallbackIntegrity from "@/lib/wave-modules/wave-50-cross-scene-callback-integrity";
 import wave60FinalAuthorityPolish from "@/lib/wave-modules/wave-60-final-authority-polish";
 
 type WaveTarget = {
@@ -119,6 +128,15 @@ export const WAVE_MODULES: Record<number, WaveModule> = {
 	39: wave39SpatialOrientationClarity,
 	40: wave40CognitiveLoadReduction,
 	41: wave41BreathRhythm,
+	42: wave42SceneTransitionCoherence,
+	43: wave43SceneEntryTiming,
+	44: wave44SceneExitResonance,
+	45: wave45ContinuityPropTracking,
+	46: wave46TimelineConsistency,
+	47: wave47CharacterPresenceContinuity,
+	48: wave48EmotionalContinuityBetweenScenes,
+	49: wave49SettingContinuityTexture,
+	50: wave50CrossSceneCallbackIntegrity,
 	60: wave60FinalAuthorityPolish,
 };
 
