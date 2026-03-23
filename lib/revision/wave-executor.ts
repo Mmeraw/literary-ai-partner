@@ -5,7 +5,15 @@ import {
 } from "@/lib/revision/surgicalEnforcement";
 import { type WaveEntry, WAVE_REGISTRY } from "@/lib/revision/waveRegistry";
 import wave01Premise from "@/lib/wave-modules/wave-01-premise";
+import wave02ChapterStructure from "@/lib/wave-modules/wave-02-chapter-structure";
+import wave03SceneFunction from "@/lib/wave-modules/wave-03-scene-function";
+import wave04TimelineContinuity from "@/lib/wave-modules/wave-04-timeline-continuity";
+import wave05PovStability from "@/lib/wave-modules/wave-05-pov-stability";
+import wave06OpeningAuthority from "@/lib/wave-modules/wave-06-opening-authority";
 import wave07ActPacing from "@/lib/wave-modules/wave-07-act-pacing";
+import wave08SubplotIntegration from "@/lib/wave-modules/wave-08-subplot-integration";
+import wave09Foreshadowing from "@/lib/wave-modules/wave-09-foreshadowing";
+import wave10StructuralRedundancy from "@/lib/wave-modules/wave-10-structural-redundancy";
 import wave31Escalation from "@/lib/wave-modules/wave-31-escalation";
 import wave41BreathRhythm from "@/lib/wave-modules/wave-41-breath-rhythm";
 import wave60FinalAuthorityPolish from "@/lib/wave-modules/wave-60-final-authority-polish";
@@ -42,7 +50,15 @@ type WaveModule = (
 
 export const WAVE_MODULES: Record<number, WaveModule> = {
 	1: wave01Premise,
+	2: wave02ChapterStructure,
+	3: wave03SceneFunction,
+	4: wave04TimelineContinuity,
+	5: wave05PovStability,
+	6: wave06OpeningAuthority,
 	7: wave07ActPacing,
+	8: wave08SubplotIntegration,
+	9: wave09Foreshadowing,
+	10: wave10StructuralRedundancy,
 	31: wave31Escalation,
 	41: wave41BreathRhythm,
 	60: wave60FinalAuthorityPolish,
