@@ -24,6 +24,16 @@ import wave17CharacterArcInflectionPoints from "@/lib/wave-modules/wave-17-chara
 import wave18InteriorMonologuePrecision from "@/lib/wave-modules/wave-18-interior-monologue-precision";
 import wave19CharacterIdiolectSignatures from "@/lib/wave-modules/wave-19-character-idiolect-signatures";
 import wave20BackstoryLoadBalancing from "@/lib/wave-modules/wave-20-backstory-load-balancing";
+import wave21DialogueGoalPerLine from "@/lib/wave-modules/wave-21-dialogue-goal-per-line";
+import wave22SubtextSignalStrength from "@/lib/wave-modules/wave-22-subtext-signal-strength";
+import wave23AttributionFrictionReduction from "@/lib/wave-modules/wave-23-attribution-friction-reduction";
+import wave24DialogueBeatIntegration from "@/lib/wave-modules/wave-24-dialogue-beat-integration";
+import wave25InterruptionsAndOverlapNaturalism from "@/lib/wave-modules/wave-25-interruptions-and-overlap-naturalism";
+import wave26ExpositionInDialogueDeflation from "@/lib/wave-modules/wave-26-exposition-in-dialogue-deflation";
+import wave27ConflictEscalationThroughSpeech from "@/lib/wave-modules/wave-27-conflict-escalation-through-speech";
+import wave28DistinctSpeakerRhythm from "@/lib/wave-modules/wave-28-distinct-speaker-rhythm";
+import wave29SilenceAndOmissionPlacement from "@/lib/wave-modules/wave-29-silence-and-omission-placement";
+import wave30SceneExitDialogueHooks from "@/lib/wave-modules/wave-30-scene-exit-dialogue-hooks";
 import wave31Escalation from "@/lib/wave-modules/wave-31-escalation";
 import wave41BreathRhythm from "@/lib/wave-modules/wave-41-breath-rhythm";
 import wave60FinalAuthorityPolish from "@/lib/wave-modules/wave-60-final-authority-polish";
@@ -79,6 +89,16 @@ export const WAVE_MODULES: Record<number, WaveModule> = {
 	18: wave18InteriorMonologuePrecision,
 	19: wave19CharacterIdiolectSignatures,
 	20: wave20BackstoryLoadBalancing,
+	21: wave21DialogueGoalPerLine,
+	22: wave22SubtextSignalStrength,
+	23: wave23AttributionFrictionReduction,
+	24: wave24DialogueBeatIntegration,
+	25: wave25InterruptionsAndOverlapNaturalism,
+	26: wave26ExpositionInDialogueDeflation,
+	27: wave27ConflictEscalationThroughSpeech,
+	28: wave28DistinctSpeakerRhythm,
+	29: wave29SilenceAndOmissionPlacement,
+	30: wave30SceneExitDialogueHooks,
 	31: wave31Escalation,
 	41: wave41BreathRhythm,
 	60: wave60FinalAuthorityPolish,
