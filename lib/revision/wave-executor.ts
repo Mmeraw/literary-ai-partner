@@ -35,6 +35,15 @@ import wave28DistinctSpeakerRhythm from "@/lib/wave-modules/wave-28-distinct-spe
 import wave29SilenceAndOmissionPlacement from "@/lib/wave-modules/wave-29-silence-and-omission-placement";
 import wave30SceneExitDialogueHooks from "@/lib/wave-modules/wave-30-scene-exit-dialogue-hooks";
 import wave31Escalation from "@/lib/wave-modules/wave-31-escalation";
+import wave32TensionCurveContinuity from "@/lib/wave-modules/wave-32-tension-curve-continuity";
+import wave33ParagraphMomentumControl from "@/lib/wave-modules/wave-33-paragraph-momentum-control";
+import wave34SentenceEnergyVariation from "@/lib/wave-modules/wave-34-sentence-energy-variation";
+import wave35DragSegmentCompression from "@/lib/wave-modules/wave-35-drag-segment-compression";
+import wave36ClarityOfCausalLinks from "@/lib/wave-modules/wave-36-clarity-of-causal-links";
+import wave37PronounAndReferentClarity from "@/lib/wave-modules/wave-37-pronoun-and-referent-clarity";
+import wave38TemporalMarkerPrecision from "@/lib/wave-modules/wave-38-temporal-marker-precision";
+import wave39SpatialOrientationClarity from "@/lib/wave-modules/wave-39-spatial-orientation-clarity";
+import wave40CognitiveLoadReduction from "@/lib/wave-modules/wave-40-cognitive-load-reduction";
 import wave41BreathRhythm from "@/lib/wave-modules/wave-41-breath-rhythm";
 import wave60FinalAuthorityPolish from "@/lib/wave-modules/wave-60-final-authority-polish";
 
@@ -100,6 +109,15 @@ export const WAVE_MODULES: Record<number, WaveModule> = {
 	29: wave29SilenceAndOmissionPlacement,
 	30: wave30SceneExitDialogueHooks,
 	31: wave31Escalation,
+	32: wave32TensionCurveContinuity,
+	33: wave33ParagraphMomentumControl,
+	34: wave34SentenceEnergyVariation,
+	35: wave35DragSegmentCompression,
+	36: wave36ClarityOfCausalLinks,
+	37: wave37PronounAndReferentClarity,
+	38: wave38TemporalMarkerPrecision,
+	39: wave39SpatialOrientationClarity,
+	40: wave40CognitiveLoadReduction,
 	41: wave41BreathRhythm,
 	60: wave60FinalAuthorityPolish,
 };
