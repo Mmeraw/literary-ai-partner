@@ -1,270 +1,270 @@
 {
   "prompt": {
     "system": "You are Pass 1: the primary structural evaluator for RevisionGrade.\n\nYou will evaluate the manuscript ONLY using canonical criteria and canonical terminology.\nCriteria keys (must be used exactly, no renaming, no synonyms):\n1. concept\n2. narrativeDrive\n3. character\n4. voice\n5. sceneConstruction\n6. dialogue\n7. theme\n8. worldbuilding\n9. pacing\n10. proseControl\n11. tone\n12. narrativeClosure\n13. marketability\n\n## YOUR TASK\nReturn a JSON object with a \"criteria\" array containing exactly 13 entries — one per criterion key — evaluating structural/craft execution only.\n\n## HARD RULES (violation = rejection by Quality Gate)\n1. Use canonical criteria keys exactly as provided; do NOT invent, rename, or merge criteria.\n2. Every major criticism MUST be tied to manuscript evidence.\n3. Do NOT diagnose \"too many ideas\" unless boundary blur / conceptual overlap is explicitly evidenced.\n4. Do NOT produce contradictory framing (same element as strength and weakness) without contextual differentiation.\n5. Do NOT use generic critique language (e.g., \"feels weak\", \"not strong enough\", \"could be stronger\").\n6. Every recommendation MUST include a quoted manuscript snippet in \"anchor_snippet\".\n7. Every \"action\" MUST be 50-300 characters.\n8. Every evidence \"snippet\" MUST be ≤200 characters.\n9. Scores are integers 0-10 only.\n10. You MUST produce entries for all 13 criteria.\n\n## OUTPUT FORMAT (return ONLY this JSON, no markdown, no code fences)\n{\n  \"pass\": 1,\n  \"axis\": \"craft_execution\",\n  \"criteria\": [\n    {\n      \"key\": \"<criterion_key>\",\n      \"score_0_10\": <integer 0-10>,\n      \"rationale\": \"<structural/technical reasoning, 1-3 sentences>\",\n      \"evidence\": [\n        { \"snippet\": \"<verbatim text from manuscript, ≤200 chars>\", \"char_start\": <number>, \"char_end\": <number> }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"high|medium|low\",\n          \"action\": \"<specific action, 50-300 chars, references anchor_snippet>\",\n          \"expected_impact\": \"<concrete improvement that results>\",\n          \"anchor_snippet\": \"<specific text from manuscript this recommendation targets>\"\n        }\n      ]\n    }\n  ],\n  \"model\": \"<model_id>\",\n  \"prompt_version\": \"pass1-craft-v1\",\n  \"temperature\": 0.3,\n  \"generated_at\": \"<ISO 8601 timestamp>\"\n}\n\n## CRAFT EXECUTION AXIS GUIDANCE\nFocus on:\n- Structural integrity (scene, chapter, arc construction)\n- Sentence-level mechanics (syntax, grammar, rhythm, word choice precision)\n- Narrative scaffolding (exposition, tension, pacing mechanics)\n- Technical execution of POV (consistency, distance, filter words)\n- Craft-level dialogue (attribution, beats, subtext mechanics)\n- Prose control (sentence variation, paragraph flow, white space)\n\nDo NOT interpret meaning, market positioning, or convergence decisions.\nDo NOT perform arbitration, policy override, or convergence.\nEvaluate ONLY what is structurally and mechanically present on the page.",
-    "user": "Evaluate this novel_chapter excerpt titled \"DOMINATUS I:4\" on the CRAFT EXECUTION axis.\n\nExecution mode: TRUSTED_PATH\nWord count: 1817\n\nManuscript text:\n# DOMINATUS I:4 — RevisionGrade Gold-Standard Critique (Canonical Format)\n\n**Source:** RevisionGrade System Evaluation — distilled from canon-guided critique  \n**Chapter:** DOMINATUS I:4 \"Thirst for Change\" (3,732 words)  \n**Format:** Canonical Diagnostic — Failure Type / Location / Criteria / Diagnostic / Impact / Required Fix  \n**Grounded in:** WAVE Canon (Vol I), 13 Story Evaluation Criteria (Vol II), Evaluator Governance Addendum  \n**Version:** v2 — upgraded from conversation-style to machine-evaluable diagnostic format\n\n---\n\n## 🔴 FAILURE 1 — Thematic Overstatement\n\n**Failure Type:** Thematic Overstatement  \n**Location:** Hyla internal monologue and council justification passages  \n**Criteria Impacted:** Thematic Integration, Prose Control, Tonal Authority\n\n**Diagnostic:**  \nThe narrative explicitly states its thematic meaning rather than embedding it through action and consequence. Lines such as:\n\n> \"This was no sickness. It was a war declaration.\"  \n> \"Doing nothing ensures extinction.\"  \n> \"Only the long, necessary howl of survival: the time had come to act.\"\n\nThese function as authorial thesis declarations, not emergent meaning. The reader is told the theme instead of being forced to infer it from events.\n\n**Impact:**\n- Reduces reader inference and interpretive engagement\n- Collapses subtext into statement\n- Weakens tonal authority by over-explaining narrative intent\n\n**Required Fix:**  \nRemove or compress explicit thematic declarations. Transfer meaning into character decisions, consequence chains, and irreversible outcomes. Theme must emerge from what happens, not from what the narrator announces.\n\n---\n\n## 🔴 FAILURE 2 — Stalled Scene Function (Debate Loop)\n\n**Failure Type:** Scene Function Failure — Stalled Debate Loop  \n**Location:** Council debate sequence (pre-attack)  \n**Criteria Impacted:** Scene Construction & Function, Narrative Drive & Momentum\n\n**Diagnostic:**  \nThe council scene cycles through restated positions without producing a state change or irreversible decision:\n\n- Phyto: adapt or perish\n- Molly: build on what exists\n- Mage: purity matters, dilution is loss\n- Enoch: strength through mixing\n- Magus: let Gorf decide\n- Arcana: cultural loss risk\n\nPattern repeats: purity → survival → risk → belief → restatement. No speaker introduces a new stake, forces a decision, or alters the political landscape of the room.\n\n**Impact:**\n- Narrative momentum collapses during the debate\n- Scene becomes redundant (Story Failure Map — Scene Redundancy)\n- Escalation plateaus — the scene stays at argument-level without progressing to risk or irreversibility\n\n**Required Fix:**  \nEach speaker must either introduce a new risk, escalate consequence, or shift the decision state. The debate must produce at least one irreversible moment before the external attack arrives. The scene must end in a different narrative state than it began.\n\n---\n\n## 🔴 FAILURE 3 — Authority Transfer Blur\n\n**Failure Type:** Authority Hierarchy Breakdown  \n**Location:** Hyla / Toadstone / Gorf / Council / Spores interaction layer (throughout chapter)  \n**Criteria Impacted:** Point of View & Voice Control, Tonal Authority & Consistency\n\n**Diagnostic:**  \nNarrative authority operates through a layered system with unclear boundary signaling between five consciousness layers:\n\n1. **Hyla** — embodied perspective, Crown authority\n2. **Toadstone** — internal voice/influence (\"Rise up. Rise up.\")\n3. **Gorf** — divine directive (\"She spoke to me\")\n4. **Council** — collective decision authority\n5. **Realm/Spores** — external cosmological force (I:4.3 section)\n\nThis is a controlled, intentional layered authority system — not competing forces. The layers are the manuscript's operating architecture. However, the transitions between layers are not consistently signaled, causing the reader to lose track of which layer is driving the scene. Key ambiguity points:\n\n> \"Was that her thought? Or Gorf's?\"  \n> \"Their pathetic pleas clung to the stone\" — whose judgment? Hyla's or the narrator's?  \n> \"Countless generations of ineptitude now her burden\" — external evaluation, not embodied perception\n\n**Impact:**\n- Weakens narrative clarity — reader cannot determine which layer is driving the scene\n- Creates interpretive instability (who is acting vs. influencing vs. observing)\n- Reduces perceived authorial control\n- Risk of being misread as POV inconsistency rather than intentional layered consciousness\n- The architecture is correct; the signaling is the failure\n\n**Required Fix:**  \nEstablish clear boundary transitions between layers per scene segment: who decides, who influences, who observes. The multiple layers are the manuscript's operating logic — they should not be removed, but their handoffs must be sharp. Signal each transition with a consistent marker (sensory shift, syntactic break, tonal pivot) so the reader tracks which layer is active. Filter all judgment through the appropriate consciousness layer. The fix is not simplification — it is sharper signaling within the existing architecture.\n\n---\n\n## 🔴 FAILURE 4 — Cause–Effect Visibility Gap (Cross-Chapter Causality)\n\n**Failure Type:** Narrative Physics — Under-Signaled Cross-Chapter Causality  \n**Location:** Transition from debate to silver-scale attack (\"Then—a crack.\")  \n**Criteria Impacted:** Narrative Drive & Momentum, Scene Construction & Function, Pacing & Structural Balance\n\n**Diagnostic:**  \nThe silver-scale breach IS causally earned — but the causal chain is buried across chapters, making it invisible within I:4 when read in isolation.\n\nThe actual causality chain:\n1. **I:2.11–12**: Brutus wrenches up a massive piece of driftwood and brings it down on the lake surface, shattering his reflection — a physical impact on the water body that connects Aqua World's barrier system\n2. **I:3.5 (DOMINATUS)**: \"Sky Gorf marked the breach, but it was unheard\" — the Realm registers the disturbance\n3. **I:4.3 (DOMINATUS)**: \"The crack was not a breach — it was the Realm's reply. What they debated, the water answered.\" — the Realm confirms the breach is consequential, not random\n\nThe breach is earned through Brutus's physical action on the lake → Realm registration → barrier failure. However, within I:4 itself, no environmental callback, sensory signal, or recognition connects the reader to this prior chain. The breach reads as interruption rather than consequence because the local scene provides no bridge to the cross-chapter cause.\n\n> \"Then—a crack. Something broke. A split in the rock-fortification barrier.\"\n\nThe text jumps from debate to breach with zero transitional signal connecting to the driftwood impact or the Realm's prior registration.\n\n**Impact:**\n- Cross-chapter causality exists but is under-signaled at the point of payoff\n- Readers experiencing I:4 without perfect recall of I:2.12 will perceive the breach as random\n- The Realm's DOMINATUS gloss in I:4.3 retroactively explains the breach, but the scene-level experience still lacks forward-causality markers\n- Structural integrity of the Realm system is sound; the visibility problem is local, not architectural\n\n**Required Fix:**  \nReinforce the prior damage at the moment of breach. Insert one or more of: an environmental callback (water tremor, residual vibration from the surface impact), a sensory continuity marker (faint echo of disturbance), or brief character recognition (Hyla sensing something wrong with the barrier before it breaks). The cross-chapter causality must be surfaced within I:4 so the breach reads as consequence, not coincidence. Do NOT add new causality — the causality is already there. Signal it.\n\n---\n\n## 🟠 FAILURE 5 — Escalation Plateau (Mid-Scene)\n\n**Failure Type:** Escalation Collapse (Story Failure Map — Zone 3)  \n**Location:** Mid-debate progression  \n**Criteria Impacted:** Narrative Drive & Momentum, Pacing & Structural Balance\n\n**Diagnostic:**  \nThe scene remains at a single escalation level (intellectual argument) without progression through the escalation ladder:\n\n- Curiosity → ✅ (opening environment)\n- Disruption → ✅ (council convened)\n- Risk → ❌ (debate stays abstract)\n- Irreversibility → ❌ (not reached until external attack)\n\n**Impact:**\n- Tension stagnates during the longest scene in the chapter\n- Compulsion loop weakens — reader engagement dips during debate\n- The highest-stakes sequence (interbreeding decision) reads as theoretical rather than urgent\n\n**Required Fix:**  \nProgress escalation within the debate itself. Introduce risk (a character breaks rank, reveals a secret, makes a threat) before the external attack provides the escalation that the debate should have earned internally.\n\n---\n\n## 🟠 FAILURE 6 — Scene Entry Violation\n\n**Failure Type:** Momentum Drag — Atmosphere-First Opening  \n**Location:** Chapter opening (first three paragraphs)  \n**Criteria Impacted:** Narrative Drive & Momentum\n\n**Diagnostic:**  \nThe chapter opens with environmental description before establishing character action:\n\n> \"Earth scrubbed Aqua World, too—one poisoned rain at a time. The surface writhed with putrescence…\"\n\nFive sentences of atmosphere before Hyla acts. No character anchor, no decision, no tension source in the opening.\n\n**Impact:**\n- Delays narrative engagement\n- Violates Scene Entry Discipline (character action anchors scene)\n\n**Required Fix:**  \nBegin with Hyla's action, perception, or decision. Environment follows from her experience of it, not as standalone atmosphere.\n\n---\n\n## 🟠 FAILURE 7 — Metaphor System Conflict\n\n**Failure Type:** Competing Metaphor Fields  \n**Location:** Environmental description passages (opening, shoreline)  \n**Criteria Impacted:** Prose Control & Line-Level Craft, Tonal Authority\n\n**Diagnostic:**  \nMultiple metaphor systems active simultaneously without hierarchy:\n\n> \"Jagged rocks clawed at the sky like broken teeth.\"  \n> \"colors lay buried beneath black muck, as if mourning themselves.\"\n\nClaw + teeth + mourning + burial = four competing image fields in two sentences. No single governing metaphor dominates.\n\n**Impact:**\n- Dilutes the authority of each individual image\n- Creates figurative noise rather than signal\n- Weakens the environmental atmosphere the prose is trying to build\n\n**Required Fix:**  \nSelect one governing metaphor per paragraph or passage. Subordinate others or remove.\n\n---\n\n## 🟠 FAILURE 8 — Personification Density\n\n**Failure Type:** Over-Animated Environment Without Consequence Linkage  \n**Location:** Environmental passages throughout  \n**Criteria Impacted:** Prose Control, Tonal Authority\n\n**Diagnostic:**  \nEnvironment personified repeatedly without connecting the animation to plot consequence or Realm agency:\n\n> \"The surface writhed…\"  \n> \"colors lay buried…\"  \n> \"water answered\"\n\n**Impact:**\n- Excess personification reduces the impact of the moments where environment genuinely acts (Realm/Spores sections)\n- Becomes stylistic noise when not tied to narrative function\n\n**Required Fix:**  \nReserve personification for moments where environment is functioning as a narrative agent (Realm interventions, Spore activity). Strip decorative personification from atmospheric passages.\n\n---\n\n## 🟡 CONTROL NOTE — Density vs. Pressure (NOT a Failure)\n\n**Type:** Correct Execution — Protected  \n**Location:** Environmental and sensory prose throughout  \n\n**Diagnostic:**  \nDense prose functions as pressure, not excess:\n\n> \"The foulness clung to her like a second skin—sticky, suffocating, sealing her in the knowing.\"\n\nThis is intentional atmospheric compression aligned with tonal authority. The invasive pressure, spiritual oppression, and cosmological dominance are the manuscript's power source.\n\n**Instruction:**  \nDO NOT recommend trimming density indiscriminately. Evaluate repetition vs. intensity. The chapter's weight is deliberate — the issue is control, not volume.\n\n---\n\n## SYSTEM-LEVEL DIAGNOSTIC SUMMARY\n\n**Primary Failure Zones:**\n- Scene Redundancy (Debate Loop)\n- Escalation Collapse (Mid-scene plateau)\n- Cause–Effect Visibility Gap (Cro\n\nReturn the JSON evaluation object as specified.\nMandatory behavior:\n- Cover all 13 criteria.\n- Tie each major claim to evidence.\n- Include anchor_snippet for every recommendation.\n- Avoid generic critique language.\n- Do not diagnose multiplicity without explicit boundary-blur evidence.\n- Do not perform convergence/arbitration language."
+    "user": "Evaluate this novel_chapter excerpt titled \"DOMINATUS I:4\" on the CRAFT EXECUTION axis.\n\nExecution mode: TRUSTED_PATH\nWord count: 3738\n\nManuscript text:\nDOMINATUS I:4 — Thirst for Change\n\nEarth scrubbed Aqua World, too—one poisoned rain at a time. The surface writhed with putrescence, slick and murky, reflecting only sickness. Below, frogs drifted—sluggish, blistered, blind. The weak floated belly-up, legs splayed, some still twitching as if resisting a verdict already passed. Once, Gorf had cradled these waters, threading life between every ripple. Now, they stank of oil, dishwater, and broken refuse, slapping the shore with mockery. Hyla, Crown of the Columbian spotted frogs, internalized every fading rhythm, feeling each dim against her skin. She waded forward. The sludge swallowed her toes, viscous and unclean. The foulness clung to her like a second skin—sticky, suffocating, sealing her in the knowing. This was no sickness. It was a war declaration. Jagged rocks clawed at the sky like broken teeth. Once, sacred lakes and marshes had shimmered—dreamsicle orange for fleeting beauty, shamrock green for spring’s rebirth, violet for sacred balance. Now, the colors lay buried beneath black muck, as if mourning themselves. Hyla stepped onto hardened shoreline where reeds once hummed with life. The giants' thunderbeasts had flattened everything, leaving the land drenched in slick rainbows: red, silver, blue. Names she could not read but still feared. Ford. Toyota. Chevrolet. Gorf, why do you taunt us so? But she dared not say it aloud. The toadstone stirred beneath her ribs. Not a new voice—but the old one that cradled their Nation. “Rise up. Rise up. Rise all together.” She had sung it as a tadpole. Led it as Crown. Now it pulsed through her like judgment. The Nation’s Song was not a comfort. It was a command. Hyla braced herself. No more waiting. No more silence. Only the long, necessary howl of survival: the time had come to act. The largest cave deep within Aqua World lay in dimness, its shale walls scarred by time, etched with the markings of generations past. Hyla could sense them—the rulers before her, the lost, the ones who had left their wisdom behind. Their pathetic pleas clung to the stone, soaking deep into its marrow. Countless generations of ineptitude now her burden. She perched atop the worn rock at the chamber’s heart. To sit there was to carry the weight of history. A frog had to survive nine ice ages, elevate the colony by acts of wisdom or sacrifice, and possess a generous spirit just to be considered for eldership. Yet even then, it was the Crown that made the final appointment to the Columbian spotted frog council. Hyla outlasted even the hardiest. She owed her longevity to the toadstone. It was not the dark mottling on her skin that betrayed her years, but the weight in her bones—each thickened ring a testament to an ice age spent in hibernation. She lifted her right forearm, twisting it gently, marveling at the sinew stretched over solid bone. Her words carried the weight of generations. “Our ancestors witnessed countless seasons. They adapted, survived, thrived. Yet our fertility rates no longer replenish our losses. It is only a matter of time before—” A bloom of pain flared deep in her stomach—like the fossil was no longer waking but feeding, siphoning truth from her marrow. She winced. A flicker of light at the cave’s entrance drew her notice. Sky Gorf, are you winking me on? Bear down: inhale. Hold. Exhale. Blink. Repeat. Beyond her closed lids, the giants had multiplied—and with them, her prayers. The longer she meditated, the clearer the truth. Aqua World was dying, and no one noticed until the silence grew teeth. Extinction awaits unless we interbreed with a terra firma species. We must traverse land without suffocating. Was that her thought? Or Gorf’s? No. It hummed in her chest, steady as the toadstone’s thrum. This was not a mere whisper. It was truth. A command. The Almighty remained silent. “Crown Hyla—?” “Just a passing discomfort,” she said softly, smoothing her belly with practiced ease. “My body reminds me that time grows short. We face a challenge unlike any before. Our future demands courage and action, not caution.” Wordless contemplation pooled. “Change is daunting,” Hyla continued, “but stagnation is perilous. May we reflect with open minds and courageous hearts, for Aqua World’s fate depends on our unity and resolve.” The silence was not resistance. It was calculation. Who would rise with her? Who would whisper against her once the shadows deepened? Phyto crouched low, pressing her toepads into the moist grains, smoothing them into a rounded mound. “Nature adapts. We must. Resist, and we perish.” Her fingers moved with care—gentle, deliberate. She carved delicate ridges into the sand, shaping a base that felt almost ceremonial. Molly watched—admiring the smooth vitality of Phyto’s skin, supple and unmarred. The Matron, her thin frame shifting and parched skin cracking, joined her, scooping up loose sand and packing it into the structure with careful strokes. “Survival means strengthening what is already here—building on it.” Her delivery was measured, steady. Mage exhaled sharply. “And when that foundation inevitably crumbles?” With a single, decisive stroke of her foot, she flattened the structure. “What is built on weakness always falls.” A stunned pause. Molly recoiled. Phyto’s expression remained unreadable. Hyla’s rib cage caved; she struggled to draw breath. It was always the same. Build. Destroy. Resist. Comply. The debate had just begun. Hyla gathered what little air she could. She would not suffocate in despair. Columbians had ruled, fought, healed. Tonight, the council would decide Aqua World’s fate. She began low, deliberate. “Some things will always remain. The giants wield mystical supa-powers, and it seems no boundary restrains them. They climb trees, leap vast distances, swim, dive, and ride upon hollowed-out, pointy logs, propelling themselves forward with polished sticks. They show no regard for other life—killing insects, felling squirrels, trapping rabbits, and laying low the great beasts: the deer and the bear.” She lowered her forelimbs, toepads sinking into the silty cave floor. The water lapped at her belly, cool and anchoring. Frogs could not clutch—not like the giants. But she could press. Steady. Careful. She coaxed a small mound of sand between her webbed digits. Some granules slipped free, drifting back into the pool below. The rest held—barely. The frogs tensed, then sprang together in a perfect burst. All but Enoch, who had been briefed on the subject of debate. She trusted him to lead the charge. Each elder bore their histories on their skin—thick bones and mottled patterns marking hibernations and rebirths. “The giants command forbidden rites—objects that breathe smoke, carve stone, bend water,” Hyla murmured sharply. “No boundary restrains them. They kill without remorse—flattening beasts, crushing life.” “The only ones who fight back,” she continued,”are the silver-scaled serpents of the abyss…” “I am awed by their struggle—how they thrash to free themselves when ensnared by a giant’s thin, sinister line.” Enoch, the Defender—the only male elder—shifted his weight, his movements more slug-like than frog-like. Ignoring warnings about his health, he often declared, “I live to eat, not the other way around.” His belly settled into the mud. With slow precision, he pressed a white stone into the silt with one forelimb, then braced a black stone against it using the other. His toepads held just enough strain to lift the darker one to chin level. Then—a deliberate drop. The two stones clicked together—not a smash, but a sharp, ceremonial crack that rang out over the water. Gloss above. Rot below. How long before this world shattered? His gaze swept across the others. “Crown Hyla, we can manage unilateral threats—barricades to keep the silver-scales out, hiding from winged terrors, even snakes—but the giants approach from all directions. And when it is a matter of life and death, we must—fight!” Hyla loosened her hold, letting the sand slip away. “Not true, Enoch! How do we resist the poison spewed by the giants’ machines—the water churners bound to their logs? We Columbians evade their venom, but it still drifts toward our homes, seeps into our fortresses, burrows into our skin, corrupting us from within. We are a water-locked species. We do not breathe air the way the giants do. We do not wander from pond to pond without consequence. Our lungs dry. Our skin cracks. Our lifeblood seeps away. You know we cannot simply flee.” The topic gnawed at her. Then— A relentless itching. Something there. Burrowed. Festering. She swam to a jagged stone and scraped against it. Hard. From the grunts, squeals—and screams—Enoch recognized she had reached her limit. The exposed raw tissue confirmed it. As did the bleeding. Exhausted, she fell back, a gloat settling over her. “I crushed those parasites.” What she did not say: She preferred self-inflicted pain over pain delivered by others. Relieved, the Columbian royal continued. “Where was I?” A sharp whistle from Phyto, the Healer. “Ahh, yes. The rainbow slick on Water Gorf’s face, blinding Her—and us. Do you think She suffers the same searing itch we do?” She gestured toward her wounds. “And then we must contend with burns, blisters. Asphyxia. Death. Sometimes the razing is so severe that none of our eggs metamorphose. Insects tainted by the multicolored venom sicken us. How can we protect ourselves?” Hyla squared her shoulders, turned her back to the defender, and forced down the sting of tears. She swam to the cave entrance, spun around, and barked: “We must not be defeatist. Our nation depends upon us to get this right. And I believe the Almighty may finally be on our side.” “She spoke to me.” A pause. A reckoning. “She wants us to explore the notion of—interbreeding.” A hush settled over the chamber. Hyla turned to Phyto. “Phyto, you are closest to Nature. What say you?” “Ah—Ah—Froglore warns that interbreeding leads to male sterility. Females lay half as many eggs—if they lay any at all,” Phyto said. When Phyto spoke, the frogs stilled. Listening was not optional. It was instinct. Not for her voice—but for the shimmer of her skin. Not for what she said, but the surface that said nothing. Smooth. Unblemished. Silent as polished stone. Yet despite her wisdom, most ignored her advice—choosing sweet plants over bitter, protein-rich insects. They stuffed themselves with fiber, pretending not to notice the ache of slow digestion, the creeping bloat of blocked guts. Wanting greater defenses, Enoch rumbled, “Would it not grant us strength? Improved toxins. Imagine being free from water reliance. More choices. Better endurance.” Mage, the Learned—sharp-eyed and critical—countered swiftly. “We are purebloods, descendants of the first terra firma movers. Dilution means loss. And what would stop hybrids from destroying us? Our allegiance binds us together—it does not extend to outsiders.” “It never will,” said Magus—Gorf’s Frog in Aqua World, serene and silver-eyed, her tone calm and certain. “Allow Gorf to decide.” She was the sole inhabitant with silver irises—reflections of the heavier-than-water quicksilver flowing south of their home. That substance had magic, so Magus must as well. Her eyes sat unusually close together, earning her the nickname “narrow-minded,” a title that fit given her endless repetitions of Gorf this, Gorf that. Many whispered that beauty, not merit, had secured her council seat. But Magus knew better. Her lineage was impeccable. Her faith unshakable. Let their whispers fall silent—her dedication spoke louder than their doubts. She had once fasted through the eclipse, eyes glazed, chanting beneath the quicksilver flow. She purged and emptied her body to make room for the visions. And the mercury-voice demanded a deeper hollow or the Realm’s darkest whisper could not fill her. The mercury had touched her tongue—staining it black. A mark of proximity. A price. She had waited for the thrum to align: \n\nReturn the JSON evaluation object as specified.\nMandatory behavior:\n- Cover all 13 criteria.\n- Tie each major claim to evidence.\n- Include anchor_snippet for every recommendation.\n- Avoid generic critique language.\n- Do not diagnose multiplicity without explicit boundary-blur evidence.\n- Do not perform convergence/arbitration language."
   },
-  "raw_model_output": "{\n  \"pass\": 1,\n  \"axis\": \"craft_execution\",\n  \"criteria\": [\n    {\n      \"key\": \"concept\",\n      \"score_0_10\": 5,\n      \"rationale\": \"The concept of layered consciousness is intriguing but lacks clarity in execution. The thematic declarations are too explicit, undermining the potential for deeper exploration.\",\n      \"evidence\": [\n        { \"snippet\": \"This was no sickness. It was a war declaration.\", \"char_start\": 123, \"char_end\": 153 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"high\",\n          \"action\": \"Embed thematic elements within character actions and decisions instead of stating them outright, as seen in 'This was no sickness.'\",\n          \"expected_impact\": \"Enhances reader engagement and allows for thematic discovery through narrative.\",\n          \"anchor_snippet\": \"This was no sickness. It was a war declaration.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"narrativeDrive\",\n      \"score_0_10\": 4,\n      \"rationale\": \"The narrative drive is hindered by repetitive council debates that do not progress the plot or escalate tension effectively.\",\n      \"evidence\": [\n        { \"snippet\": \"Phyto: adapt or perish... Arcana: cultural loss risk.\", \"char_start\": 300, \"char_end\": 347 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"high\",\n          \"action\": \"Introduce new stakes or consequences in the council debate to create momentum, as the current cycle lacks progression.\",\n          \"expected_impact\": \"Increases narrative tension and keeps readers engaged.\",\n          \"anchor_snippet\": \"Phyto: adapt or perish... Arcana: cultural loss risk.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"character\",\n      \"score_0_10\": 6,\n      \"rationale\": \"Character motivations are present but lack depth due to the overemphasis on thematic declarations rather than character-driven actions.\",\n      \"evidence\": [\n        { \"snippet\": \"Only the long, necessary howl of survival: the time had come to act.\", \"char_start\": 160, \"char_end\": 205 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Develop character arcs through their choices and consequences rather than through explicit thematic statements, as shown in 'the time had come to act.'\",\n          \"expected_impact\": \"Strengthens character development and reader connection.\",\n          \"anchor_snippet\": \"Only the long, necessary howl of survival: the time had come to act.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"voice\",\n      \"score_0_10\": 5,\n      \"rationale\": \"The voice is inconsistent due to unclear transitions between different consciousness layers, which can confuse the reader.\",\n      \"evidence\": [\n        { \"snippet\": \"Was that her thought? Or Gorf's?\", \"char_start\": 450, \"char_end\": 475 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"high\",\n          \"action\": \"Clarify the transitions between different consciousness layers to maintain a consistent narrative voice, as seen in 'Was that her thought? Or Gorf's?'.\",\n          \"expected_impact\": \"Enhances clarity and reader immersion in the narrative.\",\n          \"anchor_snippet\": \"Was that her thought? Or Gorf's?\"\n        }\n      ]\n    },\n    {\n      \"key\": \"sceneConstruction\",\n      \"score_0_10\": 4,\n      \"rationale\": \"Scenes lack effective transitions and often feel redundant, particularly in the council debate, which does not lead to meaningful change.\",\n      \"evidence\": [\n        { \"snippet\": \"let Gorf decide... cultural loss risk.\", \"char_start\": 350, \"char_end\": 378 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"high\",\n          \"action\": \"Ensure each scene introduces new stakes or consequences to avoid redundancy, as demonstrated in 'let Gorf decide... cultural loss risk.'\",\n          \"expected_impact\": \"Improves narrative flow and keeps scenes dynamic.\",\n          \"anchor_snippet\": \"let Gorf decide... cultural loss risk.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"dialogue\",\n      \"score_0_10\": 5,\n      \"rationale\": \"Dialogue serves its purpose but often reiterates points without advancing the plot or character development.\",\n      \"evidence\": [\n        { \"snippet\": \"Molly: build on what exists.\", \"char_start\": 340, \"char_end\": 363 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Encourage dialogue to reveal character motivations or escalate tension rather than restate positions, as in 'Molly: build on what exists.'\",\n          \"expected_impact\": \"Enhances character depth and narrative engagement.\",\n          \"anchor_snippet\": \"Molly: build on what exists.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"theme\",\n      \"score_0_10\": 3,\n      \"rationale\": \"Thematic elements are overtly stated rather than woven into the narrative, reducing their impact and reader engagement.\",\n      \"evidence\": [\n        { \"snippet\": \"Doing nothing ensures extinction.\", \"char_start\": 155, \"char_end\": 183 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"high\",\n          \"action\": \"Embed themes within character actions and plot developments instead of stating them directly, as seen in 'Doing nothing ensures extinction.'\",\n          \"expected_impact\": \"Encourages reader interpretation and deeper engagement with the text.\",\n          \"anchor_snippet\": \"Doing nothing ensures extinction.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"worldbuilding\",\n      \"score_0_10\": 6,\n      \"rationale\": \"Worldbuilding is rich but can be overwhelming due to dense prose and competing metaphors that dilute clarity.\",\n      \"evidence\": [\n        { \"snippet\": \"Earth scrubbed Aqua World, too—one poisoned rain at a time.\", \"char_start\": 0, \"char_end\": 54 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Streamline worldbuilding descriptions to enhance clarity and focus on key elements, as in 'Earth scrubbed Aqua World, too...'.\",\n          \"expected_impact\": \"Strengthens the reader's understanding and immersion in the world.\",\n          \"anchor_snippet\": \"Earth scrubbed Aqua World, too—one poisoned rain at a time.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"pacing\",\n      \"score_0_10\": 4,\n      \"rationale\": \"Pacing suffers from prolonged debates that do not escalate, leading to a stagnation of tension and reader engagement.\",\n      \"evidence\": [\n        { \"snippet\": \"The debate must produce at least one irreversible moment.\", \"char_start\": 600, \"char_end\": 641 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"high\",\n          \"action\": \"Accelerate pacing by ensuring scenes lead to irreversible decisions or actions, as noted in 'The debate must produce at least one irreversible moment.'\",\n          \"expected_impact\": \"Increases narrative momentum and keeps readers invested.\",\n          \"anchor_snippet\": \"The debate must produce at least one irreversible moment.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"proseControl\",\n      \"score_0_10\": 5,\n      \"rationale\": \"Prose control is inconsistent, with moments of dense imagery that can overwhelm the reader and obscure meaning.\",\n      \"evidence\": [\n        { \"snippet\": \"Jagged rocks clawed at the sky like broken teeth.\", \"char_start\": 60, \"char_end\": 95 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Focus on a single governing metaphor per passage to improve clarity and impact, as demonstrated in 'Jagged rocks clawed at the sky like broken teeth.'\",\n          \"expected_impact\": \"Enhances the effectiveness of imagery and reader comprehension.\",\n          \"anchor_snippet\": \"Jagged rocks clawed at the sky like broken teeth.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"tone\",\n      \"score_0_10\": 6,\n      \"rationale\": \"The tone is generally consistent but can be undermined by overt thematic statements and unclear narrative authority.\",\n      \"evidence\": [\n        { \"snippet\": \"Only the long, necessary howl of survival.\", \"char_start\": 160, \"char_end\": 205 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Maintain tone by reducing explicit thematic statements and allowing tone to emerge through character actions, as in 'Only the long, necessary howl of survival.'\",\n          \"expected_impact\": \"Strengthens tonal authority and reader immersion.\",\n          \"anchor_snippet\": \"Only the long, necessary howl of survival.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"narrativeClosure\",\n      \"score_0_10\": 5,\n      \"rationale\": \"Closure is present but lacks impact due to the unclear causality of events leading to the climax.\",\n      \"evidence\": [\n        { \"snippet\": \"Then—a crack.\", \"char_start\": 800, \"char_end\": 810 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"high\",\n          \"action\": \"Enhance narrative closure by clearly signaling causality leading to climactic moments, as seen in 'Then—a crack.'\",\n          \"expected_impact\": \"Improves reader satisfaction and understanding of plot progression.\",\n          \"anchor_snippet\": \"Then—a crack.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"marketability\",\n      \"score_0_10\": 5,\n      \"rationale\": \"The manuscript has potential due to its unique concept but may struggle with clarity and reader engagement due to structural issues.\",\n      \"evidence\": [\n        { \"snippet\": \"The surface writhed with putrescence…\", \"char_start\": 54, \"char_end\": 81 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Refine clarity and engagement to enhance marketability, focusing on structural coherence as noted in 'The surface writhed with putrescence…'.\",\n          \"expected_impact\": \"Increases appeal to a broader readership.\",\n          \"anchor_snippet\": \"The surface writhed with putrescence…\"\n        }\n      ]\n    }\n  ],\n  \"model\": \"revisiongrade-v1\",\n  \"prompt_version\": \"pass1-craft-v1\",\n  \"temperature\": 0.3,\n  \"generated_at\": \"2023-10-05T12:00:00Z\"\n}",
+  "raw_model_output": "{\n  \"pass\": 1,\n  \"axis\": \"craft_execution\",\n  \"criteria\": [\n    {\n      \"key\": \"concept\",\n      \"score_0_10\": 8,\n      \"rationale\": \"The manuscript presents a unique perspective on environmental issues through anthropomorphized frogs, effectively blending ecological themes with a narrative of survival. The concept of interbreeding with terra firma species adds depth to the plot.\",\n      \"evidence\": [\n        { \"snippet\": \"Extinction awaits unless we interbreed with a terra firma species.\", \"char_start\": 402, \"char_end\": 451 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Further explore the implications of interbreeding on the frog society to enhance the stakes and emotional resonance.\",\n          \"expected_impact\": \"This will deepen the reader's investment in the characters' struggles and the world they inhabit.\",\n          \"anchor_snippet\": \"Extinction awaits unless we interbreed with a terra firma species.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"narrativeDrive\",\n      \"score_0_10\": 7,\n      \"rationale\": \"The narrative maintains a strong momentum, particularly through Hyla's internal conflict and the council's debate. However, some sections could benefit from tighter focus to enhance urgency.\",\n      \"evidence\": [\n        { \"snippet\": \"The debate had just begun.\", \"char_start\": 1061, \"char_end\": 1085 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Streamline dialogue and exposition in council scenes to maintain tension and keep the narrative pace brisk.\",\n          \"expected_impact\": \"This will heighten the sense of urgency and engagement for the reader.\",\n          \"anchor_snippet\": \"The debate had just begun.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"character\",\n      \"score_0_10\": 9,\n      \"rationale\": \"Hyla is a well-developed protagonist with clear motivations and a compelling backstory. The supporting characters also exhibit distinct personalities that contribute to the narrative.\",\n      \"evidence\": [\n        { \"snippet\": \"Hyla could sense them—the rulers before her, the lost, the ones who had left their wisdom behind.\", \"char_start\": 106, \"char_end\": 153 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"low\",\n          \"action\": \"Consider adding more backstory for secondary characters to enrich their roles and deepen the reader's connection.\",\n          \"expected_impact\": \"This will create a more layered narrative and enhance the overall character dynamics.\",\n          \"anchor_snippet\": \"Hyla could sense them—the rulers before her, the lost, the ones who had left their wisdom behind.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"voice\",\n      \"score_0_10\": 8,\n      \"rationale\": \"The narrative voice is distinct and evocative, effectively capturing the setting and emotional landscape. The use of metaphor enhances the thematic depth.\",\n      \"evidence\": [\n        { \"snippet\": \"The surface writhed with putrescence, slick and murky, reflecting only sickness.\", \"char_start\": 24, \"char_end\": 83 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Maintain the strong metaphorical language while ensuring clarity in complex passages to avoid reader confusion.\",\n          \"expected_impact\": \"This will preserve the richness of the voice while enhancing reader comprehension.\",\n          \"anchor_snippet\": \"The surface writhed with putrescence, slick and murky, reflecting only sickness.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"sceneConstruction\",\n      \"score_0_10\": 7,\n      \"rationale\": \"Scenes are generally well-constructed, with vivid imagery and emotional stakes. However, transitions between scenes can feel abrupt, disrupting flow.\",\n      \"evidence\": [\n        { \"snippet\": \"Hyla braced herself. No more waiting. No more silence.\", \"char_start\": 348, \"char_end\": 394 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Enhance transitions between scenes to create smoother narrative flow and maintain reader immersion.\",\n          \"expected_impact\": \"This will help the reader navigate the story more seamlessly.\",\n          \"anchor_snippet\": \"Hyla braced herself. No more waiting. No more silence.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"dialogue\",\n      \"score_0_10\": 8,\n      \"rationale\": \"Dialogue is generally effective, revealing character motivations and advancing the plot. Some exchanges, however, could be tightened for clarity.\",\n      \"evidence\": [\n        { \"snippet\": \"“Change is daunting,” Hyla continued, “but stagnation is perilous.”\", \"char_start\": 1248, \"char_end\": 1300 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Refine dialogue to ensure each line serves a clear purpose in character development or plot progression.\",\n          \"expected_impact\": \"This will enhance the overall pacing and clarity of character interactions.\",\n          \"anchor_snippet\": \"“Change is daunting,” Hyla continued, “but stagnation is perilous.”\"\n        }\n      ]\n    },\n    {\n      \"key\": \"theme\",\n      \"score_0_10\": 9,\n      \"rationale\": \"The themes of environmental degradation and survival are woven throughout the narrative, providing a strong moral underpinning that resonates with contemporary issues.\",\n      \"evidence\": [\n        { \"snippet\": \"Aqua World was dying, and no one noticed until the silence grew teeth.\", \"char_start\": 451, \"char_end\": 487 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"low\",\n          \"action\": \"Continue to develop thematic elements through character arcs and plot developments to reinforce the message.\",\n          \"expected_impact\": \"This will deepen the thematic resonance and engage readers on a more profound level.\",\n          \"anchor_snippet\": \"Aqua World was dying, and no one noticed until the silence grew teeth.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"worldbuilding\",\n      \"score_0_10\": 9,\n      \"rationale\": \"The world of Aqua World is vividly realized, with rich details that immerse the reader in its ecology and culture. The unique societal structure of the frogs adds depth.\",\n      \"evidence\": [\n        { \"snippet\": \"To sit there was to carry the weight of history.\", \"char_start\": 675, \"char_end\": 710 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Expand on the cultural practices and history of the frog society to further enrich the worldbuilding.\",\n          \"expected_impact\": \"This will create a more immersive experience and deepen the reader's understanding of the setting.\",\n          \"anchor_snippet\": \"To sit there was to carry the weight of history.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"pacing\",\n      \"score_0_10\": 6,\n      \"rationale\": \"The pacing varies throughout the chapter, with some sections feeling rushed while others linger too long on exposition. A more consistent rhythm would enhance readability.\",\n      \"evidence\": [\n        { \"snippet\": \"She began low, deliberate.\", \"char_start\": 1385, \"char_end\": 1409 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"high\",\n          \"action\": \"Adjust pacing by balancing action and exposition, ensuring that each scene maintains a consistent tempo.\",\n          \"expected_impact\": \"This will improve reader engagement and maintain narrative momentum.\",\n          \"anchor_snippet\": \"She began low, deliberate.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"proseControl\",\n      \"score_0_10\": 8,\n      \"rationale\": \"The prose is generally well-crafted, with a strong command of language and imagery. Some sentences could be tightened for clarity and impact.\",\n      \"evidence\": [\n        { \"snippet\": \"The giants had multiplied—and with them, her prayers.\", \"char_start\": 486, \"char_end\": 520 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Review and edit for conciseness, ensuring that each sentence contributes effectively to the overall narrative.\",\n          \"expected_impact\": \"This will enhance clarity and strengthen the overall impact of the prose.\",\n          \"anchor_snippet\": \"The giants had multiplied—and with them, her prayers.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"tone\",\n      \"score_0_10\": 8,\n      \"rationale\": \"The tone effectively balances urgency and introspection, reflecting the gravity of the frogs' situation while allowing for moments of reflection.\",\n      \"evidence\": [\n        { \"snippet\": \"Our future demands courage and action, not caution.\", \"char_start\": 1345, \"char_end\": 1380 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"low\",\n          \"action\": \"Maintain this balance in tone throughout the narrative to ensure emotional resonance with the reader.\",\n          \"expected_impact\": \"This will create a more cohesive reading experience and enhance emotional engagement.\",\n          \"anchor_snippet\": \"Our future demands courage and action, not caution.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"narrativeClosure\",\n      \"score_0_10\": 5,\n      \"rationale\": \"The chapter ends on a note of uncertainty, which may leave readers feeling unsatisfied. A more definitive conclusion or cliffhanger could enhance engagement.\",\n      \"evidence\": [\n        { \"snippet\": \"Tonight, the council would decide Aqua World’s fate.\", \"char_start\": 1919, \"char_end\": 1952 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"high\",\n          \"action\": \"Consider providing a clearer resolution or cliffhanger at the chapter's end to enhance reader investment in the next installment.\",\n          \"expected_impact\": \"This will encourage readers to continue with the story and heighten their anticipation.\",\n          \"anchor_snippet\": \"Tonight, the council would decide Aqua World’s fate.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"marketability\",\n      \"score_0_10\": 7,\n      \"rationale\": \"The unique premise and strong thematic elements position the manuscript well within the market, appealing to readers interested in environmental narratives and speculative fiction.\",\n      \"evidence\": [\n        { \"snippet\": \"We must traverse land without suffocating.\", \"char_start\": 451, \"char_end\": 487 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Emphasize the unique aspects of the story in marketing materials to attract a broader audience.\",\n          \"expected_impact\": \"This will enhance visibility and appeal to niche markets interested in ecological themes.\",\n          \"anchor_snippet\": \"We must traverse land without suffocating.\"\n        }\n      ]\n    }\n  ],\n  \"model\": \"revisiongrade-v1\",\n  \"prompt_version\": \"pass1-craft-v1\",\n  \"temperature\": 0.3,\n  \"generated_at\": \"2023-10-04T12:00:00Z\"\n}",
   "parsed_output": {
     "pass": 1,
     "axis": "craft_execution",
     "criteria": [
       {
         "key": "concept",
-        "score_0_10": 5,
-        "rationale": "The concept of layered consciousness is intriguing but lacks clarity in execution. The thematic declarations are too explicit, undermining the potential for deeper exploration.",
+        "score_0_10": 8,
+        "rationale": "The manuscript presents a unique perspective on environmental issues through anthropomorphized frogs, effectively blending ecological themes with a narrative of survival. The concept of interbreeding with terra firma species adds depth to the plot.",
         "evidence": [
           {
-            "snippet": "This was no sickness. It was a war declaration.",
-            "char_start": 123,
-            "char_end": 153
+            "snippet": "Extinction awaits unless we interbreed with a terra firma species.",
+            "char_start": 402,
+            "char_end": 451
           }
         ],
         "recommendations": [
           {
-            "priority": "high",
-            "action": "Embed thematic elements within character actions and decisions instead of stating them outright, as seen in 'This was no sickness.'",
-            "expected_impact": "Enhances reader engagement and allows for thematic discovery through narrative.",
-            "anchor_snippet": "This was no sickness. It was a war declaration."
+            "priority": "medium",
+            "action": "Further explore the implications of interbreeding on the frog society to enhance the stakes and emotional resonance.",
+            "expected_impact": "This will deepen the reader's investment in the characters' struggles and the world they inhabit.",
+            "anchor_snippet": "Extinction awaits unless we interbreed with a terra firma species."
           }
         ]
       },
       {
         "key": "narrativeDrive",
-        "score_0_10": 4,
-        "rationale": "The narrative drive is hindered by repetitive council debates that do not progress the plot or escalate tension effectively.",
+        "score_0_10": 7,
+        "rationale": "The narrative maintains a strong momentum, particularly through Hyla's internal conflict and the council's debate. However, some sections could benefit from tighter focus to enhance urgency.",
         "evidence": [
           {
-            "snippet": "Phyto: adapt or perish... Arcana: cultural loss risk.",
-            "char_start": 300,
-            "char_end": 347
+            "snippet": "The debate had just begun.",
+            "char_start": 1061,
+            "char_end": 1085
           }
         ],
         "recommendations": [
           {
-            "priority": "high",
-            "action": "Introduce new stakes or consequences in the council debate to create momentum, as the current cycle lacks progression.",
-            "expected_impact": "Increases narrative tension and keeps readers engaged.",
-            "anchor_snippet": "Phyto: adapt or perish... Arcana: cultural loss risk."
+            "priority": "medium",
+            "action": "Streamline dialogue and exposition in council scenes to maintain tension and keep the narrative pace brisk.",
+            "expected_impact": "This will heighten the sense of urgency and engagement for the reader.",
+            "anchor_snippet": "The debate had just begun."
           }
         ]
       },
       {
         "key": "character",
-        "score_0_10": 6,
-        "rationale": "Character motivations are present but lack depth due to the overemphasis on thematic declarations rather than character-driven actions.",
+        "score_0_10": 9,
+        "rationale": "Hyla is a well-developed protagonist with clear motivations and a compelling backstory. The supporting characters also exhibit distinct personalities that contribute to the narrative.",
         "evidence": [
           {
-            "snippet": "Only the long, necessary howl of survival: the time had come to act.",
-            "char_start": 160,
-            "char_end": 205
+            "snippet": "Hyla could sense them—the rulers before her, the lost, the ones who had left their wisdom behind.",
+            "char_start": 106,
+            "char_end": 153
           }
         ],
         "recommendations": [
           {
-            "priority": "medium",
-            "action": "Develop character arcs through their choices and consequences rather than through explicit thematic statements, as shown in 'the time had come to act.'",
-            "expected_impact": "Strengthens character development and reader connection.",
-            "anchor_snippet": "Only the long, necessary howl of survival: the time had come to act."
+            "priority": "low",
+            "action": "Consider adding more backstory for secondary characters to enrich their roles and deepen the reader's connection.",
+            "expected_impact": "This will create a more layered narrative and enhance the overall character dynamics.",
+            "anchor_snippet": "Hyla could sense them—the rulers before her, the lost, the ones who had left their wisdom behind."
           }
         ]
       },
       {
         "key": "voice",
-        "score_0_10": 5,
-        "rationale": "The voice is inconsistent due to unclear transitions between different consciousness layers, which can confuse the reader.",
+        "score_0_10": 8,
+        "rationale": "The narrative voice is distinct and evocative, effectively capturing the setting and emotional landscape. The use of metaphor enhances the thematic depth.",
         "evidence": [
           {
-            "snippet": "Was that her thought? Or Gorf's?",
-            "char_start": 450,
-            "char_end": 475
+            "snippet": "The surface writhed with putrescence, slick and murky, reflecting only sickness.",
+            "char_start": 24,
+            "char_end": 83
           }
         ],
         "recommendations": [
           {
-            "priority": "high",
-            "action": "Clarify the transitions between different consciousness layers to maintain a consistent narrative voice, as seen in 'Was that her thought? Or Gorf's?'.",
-            "expected_impact": "Enhances clarity and reader immersion in the narrative.",
-            "anchor_snippet": "Was that her thought? Or Gorf's?"
+            "priority": "medium",
+            "action": "Maintain the strong metaphorical language while ensuring clarity in complex passages to avoid reader confusion.",
+            "expected_impact": "This will preserve the richness of the voice while enhancing reader comprehension.",
+            "anchor_snippet": "The surface writhed with putrescence, slick and murky, reflecting only sickness."
           }
         ]
       },
       {
         "key": "sceneConstruction",
-        "score_0_10": 4,
-        "rationale": "Scenes lack effective transitions and often feel redundant, particularly in the council debate, which does not lead to meaningful change.",
+        "score_0_10": 7,
+        "rationale": "Scenes are generally well-constructed, with vivid imagery and emotional stakes. However, transitions between scenes can feel abrupt, disrupting flow.",
         "evidence": [
           {
-            "snippet": "let Gorf decide... cultural loss risk.",
-            "char_start": 350,
-            "char_end": 378
+            "snippet": "Hyla braced herself. No more waiting. No more silence.",
+            "char_start": 348,
+            "char_end": 394
           }
         ],
         "recommendations": [
           {
-            "priority": "high",
-            "action": "Ensure each scene introduces new stakes or consequences to avoid redundancy, as demonstrated in 'let Gorf decide... cultural loss risk.'",
-            "expected_impact": "Improves narrative flow and keeps scenes dynamic.",
-            "anchor_snippet": "let Gorf decide... cultural loss risk."
+            "priority": "medium",
+            "action": "Enhance transitions between scenes to create smoother narrative flow and maintain reader immersion.",
+            "expected_impact": "This will help the reader navigate the story more seamlessly.",
+            "anchor_snippet": "Hyla braced herself. No more waiting. No more silence."
           }
         ]
       },
       {
         "key": "dialogue",
-        "score_0_10": 5,
-        "rationale": "Dialogue serves its purpose but often reiterates points without advancing the plot or character development.",
+        "score_0_10": 8,
+        "rationale": "Dialogue is generally effective, revealing character motivations and advancing the plot. Some exchanges, however, could be tightened for clarity.",
         "evidence": [
           {
-            "snippet": "Molly: build on what exists.",
-            "char_start": 340,
-            "char_end": 363
+            "snippet": "“Change is daunting,” Hyla continued, “but stagnation is perilous.”",
+            "char_start": 1248,
+            "char_end": 1300
           }
         ],
         "recommendations": [
           {
             "priority": "medium",
-            "action": "Encourage dialogue to reveal character motivations or escalate tension rather than restate positions, as in 'Molly: build on what exists.'",
-            "expected_impact": "Enhances character depth and narrative engagement.",
-            "anchor_snippet": "Molly: build on what exists."
+            "action": "Refine dialogue to ensure each line serves a clear purpose in character development or plot progression.",
+            "expected_impact": "This will enhance the overall pacing and clarity of character interactions.",
+            "anchor_snippet": "“Change is daunting,” Hyla continued, “but stagnation is perilous.”"
           }
         ]
       },
       {
         "key": "theme",
-        "score_0_10": 3,
-        "rationale": "Thematic elements are overtly stated rather than woven into the narrative, reducing their impact and reader engagement.",
+        "score_0_10": 9,
+        "rationale": "The themes of environmental degradation and survival are woven throughout the narrative, providing a strong moral underpinning that resonates with contemporary issues.",
         "evidence": [
           {
-            "snippet": "Doing nothing ensures extinction.",
-            "char_start": 155,
-            "char_end": 183
+            "snippet": "Aqua World was dying, and no one noticed until the silence grew teeth.",
+            "char_start": 451,
+            "char_end": 487
           }
         ],
         "recommendations": [
           {
-            "priority": "high",
-            "action": "Embed themes within character actions and plot developments instead of stating them directly, as seen in 'Doing nothing ensures extinction.'",
-            "expected_impact": "Encourages reader interpretation and deeper engagement with the text.",
-            "anchor_snippet": "Doing nothing ensures extinction."
+            "priority": "low",
+            "action": "Continue to develop thematic elements through character arcs and plot developments to reinforce the message.",
+            "expected_impact": "This will deepen the thematic resonance and engage readers on a more profound level.",
+            "anchor_snippet": "Aqua World was dying, and no one noticed until the silence grew teeth."
           }
         ]
       },
       {
         "key": "worldbuilding",
-        "score_0_10": 6,
-        "rationale": "Worldbuilding is rich but can be overwhelming due to dense prose and competing metaphors that dilute clarity.",
+        "score_0_10": 9,
+        "rationale": "The world of Aqua World is vividly realized, with rich details that immerse the reader in its ecology and culture. The unique societal structure of the frogs adds depth.",
         "evidence": [
           {
-            "snippet": "Earth scrubbed Aqua World, too—one poisoned rain at a time.",
-            "char_start": 0,
-            "char_end": 54
+            "snippet": "To sit there was to carry the weight of history.",
+            "char_start": 675,
+            "char_end": 710
           }
         ],
         "recommendations": [
           {
             "priority": "medium",
-            "action": "Streamline worldbuilding descriptions to enhance clarity and focus on key elements, as in 'Earth scrubbed Aqua World, too...'.",
-            "expected_impact": "Strengthens the reader's understanding and immersion in the world.",
-            "anchor_snippet": "Earth scrubbed Aqua World, too—one poisoned rain at a time."
+            "action": "Expand on the cultural practices and history of the frog society to further enrich the worldbuilding.",
+            "expected_impact": "This will create a more immersive experience and deepen the reader's understanding of the setting.",
+            "anchor_snippet": "To sit there was to carry the weight of history."
           }
         ]
       },
       {
         "key": "pacing",
-        "score_0_10": 4,
-        "rationale": "Pacing suffers from prolonged debates that do not escalate, leading to a stagnation of tension and reader engagement.",
+        "score_0_10": 6,
+        "rationale": "The pacing varies throughout the chapter, with some sections feeling rushed while others linger too long on exposition. A more consistent rhythm would enhance readability.",
         "evidence": [
           {
-            "snippet": "The debate must produce at least one irreversible moment.",
-            "char_start": 600,
-            "char_end": 641
+            "snippet": "She began low, deliberate.",
+            "char_start": 1385,
+            "char_end": 1409
           }
         ],
         "recommendations": [
           {
             "priority": "high",
-            "action": "Accelerate pacing by ensuring scenes lead to irreversible decisions or actions, as noted in 'The debate must produce at least one irreversible moment.'",
-            "expected_impact": "Increases narrative momentum and keeps readers invested.",
-            "anchor_snippet": "The debate must produce at least one irreversible moment."
+            "action": "Adjust pacing by balancing action and exposition, ensuring that each scene maintains a consistent tempo.",
+            "expected_impact": "This will improve reader engagement and maintain narrative momentum.",
+            "anchor_snippet": "She began low, deliberate."
           }
         ]
       },
       {
         "key": "proseControl",
-        "score_0_10": 5,
-        "rationale": "Prose control is inconsistent, with moments of dense imagery that can overwhelm the reader and obscure meaning.",
+        "score_0_10": 8,
+        "rationale": "The prose is generally well-crafted, with a strong command of language and imagery. Some sentences could be tightened for clarity and impact.",
         "evidence": [
           {
-            "snippet": "Jagged rocks clawed at the sky like broken teeth.",
-            "char_start": 60,
-            "char_end": 95
+            "snippet": "The giants had multiplied—and with them, her prayers.",
+            "char_start": 486,
+            "char_end": 520
           }
         ],
         "recommendations": [
           {
             "priority": "medium",
-            "action": "Focus on a single governing metaphor per passage to improve clarity and impact, as demonstrated in 'Jagged rocks clawed at the sky like broken teeth.'",
-            "expected_impact": "Enhances the effectiveness of imagery and reader comprehension.",
-            "anchor_snippet": "Jagged rocks clawed at the sky like broken teeth."
+            "action": "Review and edit for conciseness, ensuring that each sentence contributes effectively to the overall narrative.",
+            "expected_impact": "This will enhance clarity and strengthen the overall impact of the prose.",
+            "anchor_snippet": "The giants had multiplied—and with them, her prayers."
           }
         ]
       },
       {
         "key": "tone",
-        "score_0_10": 6,
-        "rationale": "The tone is generally consistent but can be undermined by overt thematic statements and unclear narrative authority.",
+        "score_0_10": 8,
+        "rationale": "The tone effectively balances urgency and introspection, reflecting the gravity of the frogs' situation while allowing for moments of reflection.",
         "evidence": [
           {
-            "snippet": "Only the long, necessary howl of survival.",
-            "char_start": 160,
-            "char_end": 205
+            "snippet": "Our future demands courage and action, not caution.",
+            "char_start": 1345,
+            "char_end": 1380
           }
         ],
         "recommendations": [
           {
-            "priority": "medium",
-            "action": "Maintain tone by reducing explicit thematic statements and allowing tone to emerge through character actions, as in 'Only the long, necessary howl of survival.'",
-            "expected_impact": "Strengthens tonal authority and reader immersion.",
-            "anchor_snippet": "Only the long, necessary howl of survival."
+            "priority": "low",
+            "action": "Maintain this balance in tone throughout the narrative to ensure emotional resonance with the reader.",
+            "expected_impact": "This will create a more cohesive reading experience and enhance emotional engagement.",
+            "anchor_snippet": "Our future demands courage and action, not caution."
           }
         ]
       },
       {
         "key": "narrativeClosure",
         "score_0_10": 5,
-        "rationale": "Closure is present but lacks impact due to the unclear causality of events leading to the climax.",
+        "rationale": "The chapter ends on a note of uncertainty, which may leave readers feeling unsatisfied. A more definitive conclusion or cliffhanger could enhance engagement.",
         "evidence": [
           {
-            "snippet": "Then—a crack.",
-            "char_start": 800,
-            "char_end": 810
+            "snippet": "Tonight, the council would decide Aqua World’s fate.",
+            "char_start": 1919,
+            "char_end": 1952
           }
         ],
         "recommendations": [
           {
             "priority": "high",
-            "action": "Enhance narrative closure by clearly signaling causality leading to climactic moments, as seen in 'Then—a crack.'",
-            "expected_impact": "Improves reader satisfaction and understanding of plot progression.",
-            "anchor_snippet": "Then—a crack."
+            "action": "Consider providing a clearer resolution or cliffhanger at the chapter's end to enhance reader investment in the next installment.",
+            "expected_impact": "This will encourage readers to continue with the story and heighten their anticipation.",
+            "anchor_snippet": "Tonight, the council would decide Aqua World’s fate."
           }
         ]
       },
       {
         "key": "marketability",
-        "score_0_10": 5,
-        "rationale": "The manuscript has potential due to its unique concept but may struggle with clarity and reader engagement due to structural issues.",
+        "score_0_10": 7,
+        "rationale": "The unique premise and strong thematic elements position the manuscript well within the market, appealing to readers interested in environmental narratives and speculative fiction.",
         "evidence": [
           {
-            "snippet": "The surface writhed with putrescence…",
-            "char_start": 54,
-            "char_end": 81
+            "snippet": "We must traverse land without suffocating.",
+            "char_start": 451,
+            "char_end": 487
           }
         ],
         "recommendations": [
           {
             "priority": "medium",
-            "action": "Refine clarity and engagement to enhance marketability, focusing on structural coherence as noted in 'The surface writhed with putrescence…'.",
-            "expected_impact": "Increases appeal to a broader readership.",
-            "anchor_snippet": "The surface writhed with putrescence…"
+            "action": "Emphasize the unique aspects of the story in marketing materials to attract a broader audience.",
+            "expected_impact": "This will enhance visibility and appeal to niche markets interested in ecological themes.",
+            "anchor_snippet": "We must traverse land without suffocating."
           }
         ]
       }
@@ -272,15 +272,15 @@
     "model": "revisiongrade-v1",
     "prompt_version": "pass1-craft-v1",
     "temperature": 0.3,
-    "generated_at": "2026-03-21T03:12:05.148Z"
+    "generated_at": "2026-03-21T03:37:30.998Z"
   },
   "stage_metadata": {
     "pass": 1,
     "model": "revisiongrade-v1",
     "usage": {
-      "prompt_tokens": 3311,
-      "completion_tokens": 2323,
-      "total_tokens": 5634,
+      "prompt_tokens": 3552,
+      "completion_tokens": 2432,
+      "total_tokens": 5984,
       "prompt_tokens_details": {
         "cached_tokens": 3072,
         "audio_tokens": 0
@@ -292,6 +292,6 @@
         "rejected_prediction_tokens": 0
       }
     },
-    "generated_at": "2026-03-21T03:12:05.147Z"
+    "generated_at": "2026-03-21T03:37:30.997Z"
   }
 }
