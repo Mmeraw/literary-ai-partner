@@ -54,6 +54,15 @@ import wave47CharacterPresenceContinuity from "@/lib/wave-modules/wave-47-charac
 import wave48EmotionalContinuityBetweenScenes from "@/lib/wave-modules/wave-48-emotional-continuity-between-scenes";
 import wave49SettingContinuityTexture from "@/lib/wave-modules/wave-49-setting-continuity-texture";
 import wave50CrossSceneCallbackIntegrity from "@/lib/wave-modules/wave-50-cross-scene-callback-integrity";
+import wave51LineEditConcision from "@/lib/wave-modules/wave-51-line-edit-concision";
+import wave52VerbStrengthUpgrade from "@/lib/wave-modules/wave-52-verb-strength-upgrade";
+import wave53AdverbAndFilterWordTrim from "@/lib/wave-modules/wave-53-adverb-and-filter-word-trim";
+import wave54RepetitionAndEchoCleanup from "@/lib/wave-modules/wave-54-repetition-and-echo-cleanup";
+import wave55RhythmAndCadencePolish from "@/lib/wave-modules/wave-55-rhythm-and-cadence-polish";
+import wave56GrammarAndSyntaxCorrectness from "@/lib/wave-modules/wave-56-grammar-and-syntax-correctness";
+import wave57PunctuationIntentCalibration from "@/lib/wave-modules/wave-57-punctuation-intent-calibration";
+import wave58FormattingAndReadabilitySweep from "@/lib/wave-modules/wave-58-formatting-and-readability-sweep";
+import wave59FinalConsistencySweep from "@/lib/wave-modules/wave-59-final-consistency-sweep";
 import wave60FinalAuthorityPolish from "@/lib/wave-modules/wave-60-final-authority-polish";
 
 type WaveTarget = {
@@ -137,6 +146,15 @@ export const WAVE_MODULES: Record<number, WaveModule> = {
 	48: wave48EmotionalContinuityBetweenScenes,
 	49: wave49SettingContinuityTexture,
 	50: wave50CrossSceneCallbackIntegrity,
+	51: wave51LineEditConcision,
+	52: wave52VerbStrengthUpgrade,
+	53: wave53AdverbAndFilterWordTrim,
+	54: wave54RepetitionAndEchoCleanup,
+	55: wave55RhythmAndCadencePolish,
+	56: wave56GrammarAndSyntaxCorrectness,
+	57: wave57PunctuationIntentCalibration,
+	58: wave58FormattingAndReadabilitySweep,
+	59: wave59FinalConsistencySweep,
 	60: wave60FinalAuthorityPolish,
 };
 
