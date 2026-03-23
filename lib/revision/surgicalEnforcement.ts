@@ -1,6 +1,8 @@
 import { type ProposedEdit } from "./diffIntelligence";
 import { type WaveEntry, getWave, type WaveCategory } from "./waveRegistry";
 
+export type RevisionMode = "surgical" | "standard" | "deep";
+
 export type EditScope = "token" | "phrase" | "sentence" | "paragraph" | "scene" | "chapter";
 
 export const SCOPE_RANK: Record<EditScope, number> = {
@@ -68,7 +70,7 @@ function getSurgicalAllowedScopesByCategory(category: WaveCategory): Set<EditSco
 
 export function isAllowedScope(
   scope: EditScope,
-  mode: "surgical" | "standard" | "deep",
+  mode: RevisionMode,
 ): boolean {
   const rank = SCOPE_RANK[scope];
 
@@ -111,7 +113,7 @@ export function downgradeEditForSurgicalMode(edit: ProposedEdit): ProposedEdit |
 export function enforceWaveSurgicalLimits(
   waveId: number,
   edits: ProposedEdit[],
-  mode: "surgical" | "standard" | "deep",
+  mode: RevisionMode,
 ): { allowed: ProposedEdit[]; blocked: ProposedEdit[]; downgraded: ProposedEdit[] } {
   const wave: WaveEntry | undefined = getWave(waveId);
   const categoryAllowedScopes = getSurgicalAllowedScopesByCategory(wave?.category ?? "clarity");
