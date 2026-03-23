@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { insertWaveRun, updateWaveRunStatus } from "@/lib/db/waveRuns";
 import {
 	type EditScope,
 	isAllowedScope,
@@ -160,6 +162,7 @@ export const WAVE_MODULES: Record<number, WaveModule> = {
 
 export type ExecuteWaveModulesInput = {
 	pipelineRunId?: string;
+	revisionSessionId?: string;
 	text: string;
 	targets: WaveTarget[];
 	requestedWaves: number[];
@@ -194,6 +197,10 @@ async function persistWaveExecution(result: ExecuteWaveModulesResult): Promise<v
 	executionStore.set(result.pipelineRunId, result);
 }
 
+function hashText(value: string): string {
+	return createHash("sha256").update(value).digest("hex");
+}
+
 export function getPersistedWaveExecution(
 	pipelineRunId: string,
 ): ExecuteWaveModulesResult | undefined {
@@ -211,36 +218,113 @@ export async function executeWaveModules(
 		const module = WAVE_MODULES[waveNumber];
 		const wave = resolveWaveEntry(waveNumber);
 		const scope = getScopeForWave(wave);
+		const waveName = wave?.name ?? `Wave ${waveNumber}`;
+		const category = wave?.category ?? "unknown";
+
+		const persistedRun = input.revisionSessionId
+			? await insertWaveRun({
+				revision_session_id: input.revisionSessionId,
+				wave_number: waveNumber,
+				wave_name: waveName,
+				category,
+				status: "running",
+				proposed_text_hash: hashText(currentText),
+				changes_count: 0,
+				modifications: [],
+				duration_ms: 0,
+			})
+			: null;
+
+		const startedAt = Date.now();
 
 		if (!module) {
-			results.push({
+			const moduleMissingResult: WaveModuleResult = {
 				waveNumber,
 				success: false,
 				notes: "No module registered for requested wave.",
 				proposedText: currentText,
 				changes: [],
 				modifications: ["module-missing"],
-			});
+			};
+
+			results.push(moduleMissingResult);
+
+			if (persistedRun) {
+				await updateWaveRunStatus(persistedRun.id, {
+					status: "failed",
+					proposed_text_hash: hashText(moduleMissingResult.proposedText),
+					changes_count: moduleMissingResult.changes.length,
+					modifications: moduleMissingResult.modifications,
+					duration_ms: Date.now() - startedAt,
+					error_message: moduleMissingResult.notes,
+					completed_at: new Date().toISOString(),
+				});
+			}
+
 			continue;
 		}
 
 		if (!isAllowedScope(scope, input.mode)) {
-			results.push({
+			const scopeBlockedResult: WaveModuleResult = {
 				waveNumber,
 				success: false,
 				notes: `Wave blocked by surgical scope policy (${scope}).`,
 				proposedText: currentText,
 				changes: [],
 				modifications: [`scope-blocked:${scope}`],
-			});
+			};
+
+			results.push(scopeBlockedResult);
+
+			if (persistedRun) {
+				await updateWaveRunStatus(persistedRun.id, {
+					status: "failed",
+					proposed_text_hash: hashText(scopeBlockedResult.proposedText),
+					changes_count: scopeBlockedResult.changes.length,
+					modifications: scopeBlockedResult.modifications,
+					duration_ms: Date.now() - startedAt,
+					error_message: scopeBlockedResult.notes,
+					completed_at: new Date().toISOString(),
+				});
+			}
+
 			continue;
 		}
 
-		const result = await module(currentText, input.targets, input.mode);
-		results.push(result);
+		try {
+			const result = await module(currentText, input.targets, input.mode);
+			results.push(result);
 
-		if (result.success && result.proposedText !== currentText) {
-			currentText = result.proposedText;
+			if (persistedRun) {
+				await updateWaveRunStatus(persistedRun.id, {
+					status: result.success ? "completed" : "failed",
+					proposed_text_hash: hashText(result.proposedText),
+					changes_count: result.changes.length,
+					modifications: result.modifications,
+					duration_ms: Date.now() - startedAt,
+					error_message: result.success ? null : result.notes,
+					completed_at: new Date().toISOString(),
+				});
+			}
+
+			if (result.success && result.proposedText !== currentText) {
+				currentText = result.proposedText;
+			}
+		} catch (error) {
+			if (persistedRun) {
+				await updateWaveRunStatus(persistedRun.id, {
+					status: "failed",
+					proposed_text_hash: hashText(currentText),
+					changes_count: 0,
+					modifications: ["module-execution-error"],
+					duration_ms: Date.now() - startedAt,
+					error_message:
+						error instanceof Error ? error.message : "Unknown wave module execution error",
+					completed_at: new Date().toISOString(),
+				});
+			}
+
+			throw error;
 		}
 	}
 
