@@ -14,6 +14,16 @@ import wave07ActPacing from "@/lib/wave-modules/wave-07-act-pacing";
 import wave08SubplotIntegration from "@/lib/wave-modules/wave-08-subplot-integration";
 import wave09Foreshadowing from "@/lib/wave-modules/wave-09-foreshadowing";
 import wave10StructuralRedundancy from "@/lib/wave-modules/wave-10-structural-redundancy";
+import wave11NarrativeVoiceConsistency from "@/lib/wave-modules/wave-11-narrative-voice-consistency";
+import wave12PovVoiceDistinction from "@/lib/wave-modules/wave-12-pov-voice-distinction";
+import wave13DictionRegisterAlignment from "@/lib/wave-modules/wave-13-diction-register-alignment";
+import wave14EmotionalToneModulation from "@/lib/wave-modules/wave-14-emotional-tone-modulation";
+import wave15CharacterMotivationClarity from "@/lib/wave-modules/wave-15-character-motivation-clarity";
+import wave16DesireObstacleEscalation from "@/lib/wave-modules/wave-16-desire-obstacle-escalation";
+import wave17CharacterArcInflectionPoints from "@/lib/wave-modules/wave-17-character-arc-inflection-points";
+import wave18InteriorMonologuePrecision from "@/lib/wave-modules/wave-18-interior-monologue-precision";
+import wave19CharacterIdiolectSignatures from "@/lib/wave-modules/wave-19-character-idiolect-signatures";
+import wave20BackstoryLoadBalancing from "@/lib/wave-modules/wave-20-backstory-load-balancing";
 import wave31Escalation from "@/lib/wave-modules/wave-31-escalation";
 import wave41BreathRhythm from "@/lib/wave-modules/wave-41-breath-rhythm";
 import wave60FinalAuthorityPolish from "@/lib/wave-modules/wave-60-final-authority-polish";
@@ -59,6 +69,16 @@ export const WAVE_MODULES: Record<number, WaveModule> = {
 	8: wave08SubplotIntegration,
 	9: wave09Foreshadowing,
 	10: wave10StructuralRedundancy,
+	11: wave11NarrativeVoiceConsistency,
+	12: wave12PovVoiceDistinction,
+	13: wave13DictionRegisterAlignment,
+	14: wave14EmotionalToneModulation,
+	15: wave15CharacterMotivationClarity,
+	16: wave16DesireObstacleEscalation,
+	17: wave17CharacterArcInflectionPoints,
+	18: wave18InteriorMonologuePrecision,
+	19: wave19CharacterIdiolectSignatures,
+	20: wave20BackstoryLoadBalancing,
 	31: wave31Escalation,
 	41: wave41BreathRhythm,
 	60: wave60FinalAuthorityPolish,
