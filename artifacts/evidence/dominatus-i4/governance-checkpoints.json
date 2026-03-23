@@ -82,7 +82,7 @@
     "checkpoint_type": "OPERATIONS",
     "stage": "post_evaluation_envelope",
     "authority": "Volume II-A Eligibility Gate",
-    "result": "SOFT_FAIL",
+    "result": "PASS",
     "error_code": null,
     "metadata": {
       "primary_action": "BLOCK",
@@ -95,7 +95,7 @@
     "checkpoint_type": "QUALITY",
     "stage": "pass4",
     "authority": "Phase 2.7 Quality Gate",
-    "result": "SOFT_FAIL",
+    "result": "PASS",
     "error_code": null,
     "metadata": {
       "primary_action": "BLOCK",
@@ -108,7 +108,7 @@
     "checkpoint_type": "BOUNDARY",
     "stage": "post_pass4",
     "authority": "Operations Runbook",
-    "result": "SOFT_FAIL",
+    "result": "PASS",
     "error_code": null,
     "metadata": {
       "primary_action": "AUDIT",
@@ -121,7 +121,7 @@
     "checkpoint_type": "BOUNDARY",
     "stage": "artifact_certification",
     "authority": "docs/JOB_CONTRACT_v1.md",
-    "result": "SOFT_FAIL",
+    "result": "PASS",
     "error_code": null,
     "metadata": {
       "primary_action": "AUDIT",

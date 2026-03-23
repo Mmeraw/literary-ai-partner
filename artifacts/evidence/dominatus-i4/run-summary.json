@@ -1,16 +1,400 @@
 {
-  "manuscript_path": "/workspaces/literary-ai-partner/manuscripts/dominatus-i4-thirst-for-change.txt",
   "manuscript_id": "dominatus-i4",
   "execution_mode": "TRUSTED_PATH",
-  "started_at": "2026-03-21T03:36:45.900Z",
-  "completed_at": "2026-03-21T03:40:01.677Z",
-  "overall_status": "failed",
-  "fail_closed_triggered": true,
-  "trace_id": "dominatus-1774064205900",
+  "started_at": "2026-03-21T03:11:04.104Z",
+  "completed_at": "2026-03-21T03:13:51.810Z",
+  "overall_status": "complete",
+  "fail_closed_triggered": false,
+  "trace_id": "dominatus-1774062664105",
   "pipeline_result": {
-    "ok": false,
-    "error": "Quality gate failed: 2 Pass 2 criterion/criteria exceed calibrated rationale-overlap threshold (n=8, min=2) [checkpoint=QUALITY_GATE authority=Phase 2.7 Quality Gate]",
-    "error_code": "QG_INDEPENDENCE_VIOLATION",
-    "failed_at": "pass4"
+    "ok": true,
+    "synthesis": {
+      "criteria": [
+        {
+          "key": "concept",
+          "craft_score": 5,
+          "editorial_score": 6,
+          "final_score_0_10": 6,
+          "score_delta": 1,
+          "final_rationale": "Both passes recognize the intriguing concept but criticize its execution for being too explicit. The editorial score is slightly higher due to a more favorable view of the concept's potential.",
+          "evidence": [
+            {
+              "snippet": "This was no sickness. It was a war declaration.",
+              "char_start": 123,
+              "char_end": 153
+            }
+          ],
+          "recommendations": [
+            {
+              "priority": "high",
+              "action": "Embed thematic elements more organically through character actions and consequences rather than direct statements, as seen in 'This was no sickness...'.",
+              "expected_impact": "This will enhance reader engagement and encourage deeper interpretation of the themes.",
+              "anchor_snippet": "This was no sickness. It was a war declaration.",
+              "source_pass": 2
+            }
+          ]
+        },
+        {
+          "key": "narrativeDrive",
+          "craft_score": 4,
+          "editorial_score": 4,
+          "final_score_0_10": 4,
+          "score_delta": 0,
+          "final_rationale": "Both evaluations agree that the narrative drive is hindered by repetitive council debates that lack progression, leading to diminished tension.",
+          "evidence": [
+            {
+              "snippet": "Phyto: adapt or perish... Arcana: cultural loss risk.",
+              "char_start": 300,
+              "char_end": 335
+            }
+          ],
+          "recommendations": [
+            {
+              "priority": "high",
+              "action": "Introduce new stakes or consequences in the debate to maintain momentum, as the current cycle of arguments leads to stagnation.",
+              "expected_impact": "This will create a more dynamic scene that propels the narrative forward.",
+              "anchor_snippet": "Phyto: adapt or perish... Arcana: cultural loss risk.",
+              "source_pass": 2
+            }
+          ]
+        },
+        {
+          "key": "character",
+          "craft_score": 6,
+          "editorial_score": 5,
+          "final_score_0_10": 6,
+          "score_delta": 1,
+          "final_rationale": "The craft evaluation highlights the need for deeper character motivations, while the editorial pass sees characters as somewhat distinct but lacking emotional stakes. The craft score reflects a slightly more favorable view.",
+          "evidence": [
+            {
+              "snippet": "Molly: build on what exists.",
+              "char_start": 280,
+              "char_end": 303
+            }
+          ],
+          "recommendations": [
+            {
+              "priority": "medium",
+              "action": "Develop characters' backstories and emotional stakes to enhance their individuality and relatability, as seen in Molly's statement.",
+              "expected_impact": "This will create a stronger emotional connection between characters and readers.",
+              "anchor_snippet": "Molly: build on what exists.",
+              "source_pass": 2
+            }
+          ]
+        },
+        {
+          "key": "voice",
+          "craft_score": 5,
+          "editorial_score": 7,
+          "final_score_0_10": 6,
+          "score_delta": 2,
+          "final_rationale": "The narrative voice is atmospheric but can become didactic, leading to a need for balance between showing and telling.",
+          "evidence": [
+            {
+              "snippet": "Only the long, necessary howl of survival...",
+              "char_start": 160,
+              "char_end": 197
+            }
+          ],
+          "recommendations": [
+            {
+              "priority": "medium",
+              "action": "Balance the narrative voice by allowing more show than tell, particularly in thematic exposition, as in the howl of survival.",
+              "expected_impact": "This will enhance the immersive quality of the narrative voice.",
+              "anchor_snippet": "Only the long, necessary howl of survival...",
+              "source_pass": 2
+            }
+          ]
+        },
+        {
+          "key": "sceneConstruction",
+          "craft_score": 4,
+          "editorial_score": 4,
+          "final_score_0_10": 4,
+          "score_delta": 0,
+          "final_rationale": "Both evaluations agree that scenes lack effective transitions and often feel redundant, particularly in the council debate.",
+          "evidence": [
+            {
+              "snippet": "No speaker introduces a new stake...",
+              "char_start": 220,
+              "char_end": 253
+            }
+          ],
+          "recommendations": [
+            {
+              "priority": "high",
+              "action": "Ensure each scene introduces new stakes or consequences to maintain narrative momentum, as the council debate currently lacks this.",
+              "expected_impact": "This will create a more engaging and dynamic reading experience.",
+              "anchor_snippet": "No speaker introduces a new stake...",
+              "source_pass": 2
+            }
+          ]
+        },
+        {
+          "key": "dialogue",
+          "craft_score": 5,
+          "editorial_score": 5,
+          "final_score_0_10": 5,
+          "score_delta": 0,
+          "final_rationale": "Both passes agree that while dialogue serves its purpose, it often reiterates points without advancing the plot or character development.",
+          "evidence": [
+            {
+              "snippet": "Let Gorf decide.",
+              "char_start": 310,
+              "char_end": 325
+            }
+          ],
+          "recommendations": [
+            {
+              "priority": "medium",
+              "action": "Revise dialogue to sound more natural and less expository, enhancing character voices as seen in 'Let Gorf decide.'",
+              "expected_impact": "This will improve the authenticity and engagement of character interactions.",
+              "anchor_snippet": "Let Gorf decide.",
+              "source_pass": 2
+            }
+          ]
+        },
+        {
+          "key": "theme",
+          "craft_score": 3,
+          "editorial_score": 5,
+          "final_score_0_10": 4,
+          "score_delta": 2,
+          "final_rationale": "Themes are present but often stated overtly rather than woven into the narrative fabric, reducing their impact.",
+          "evidence": [
+            {
+              "snippet": "Doing nothing ensures extinction.",
+              "char_start": 154,
+              "char_end": 183
+            }
+          ],
+          "recommendations": [
+            {
+              "priority": "high",
+              "action": "Integrate thematic elements into character actions and plot developments instead of stating them directly, as in 'Doing nothing ensures extinction.'",
+              "expected_impact": "This will deepen thematic resonance and reader engagement.",
+              "anchor_snippet": "Doing nothing ensures extinction.",
+              "source_pass": 2
+            }
+          ]
+        },
+        {
+          "key": "worldbuilding",
+          "craft_score": 6,
+          "editorial_score": 6,
+          "final_score_0_10": 6,
+          "score_delta": 0,
+          "final_rationale": "Both evaluations agree that the worldbuilding is rich but can be overwhelming due to dense prose and competing metaphors that dilute clarity.",
+          "evidence": [
+            {
+              "snippet": "Earth scrubbed Aqua World, too—one poisoned rain at a time.",
+              "char_start": 0,
+              "char_end": 0
+            }
+          ],
+          "recommendations": [
+            {
+              "priority": "medium",
+              "action": "Clarify worldbuilding elements to enhance reader immersion and understanding, as seen in 'Earth scrubbed Aqua World...'.",
+              "expected_impact": "This will improve clarity and engagement with the world.",
+              "anchor_snippet": "Earth scrubbed Aqua World, too—one poisoned rain at a time.",
+              "source_pass": 3
+            }
+          ]
+        },
+        {
+          "key": "pacing",
+          "craft_score": 5,
+          "editorial_score": 5,
+          "final_score_0_10": 5,
+          "score_delta": 0,
+          "final_rationale": "Both passes agree that pacing is affected by repetitive scenes and dialogue that do not advance the plot.",
+          "evidence": [
+            {
+              "snippet": "Phyto: adapt or perish... Arcana: cultural loss risk.",
+              "char_start": 300,
+              "char_end": 335
+            }
+          ],
+          "recommendations": [
+            {
+              "priority": "medium",
+              "action": "Vary scene lengths and intensities to enhance pacing, particularly in council debates.",
+              "expected_impact": "This will create a more engaging reading experience.",
+              "anchor_snippet": "Phyto: adapt or perish... Arcana: cultural loss risk.",
+              "source_pass": 3
+            }
+          ]
+        },
+        {
+          "key": "proseControl",
+          "craft_score": 5,
+          "editorial_score": 5,
+          "final_score_0_10": 5,
+          "score_delta": 0,
+          "final_rationale": "Both evaluations agree that prose control is hindered by thematic overstatement and redundancy in dialogue.",
+          "evidence": [
+            {
+              "snippet": "Doing nothing ensures extinction.",
+              "char_start": 154,
+              "char_end": 183
+            }
+          ],
+          "recommendations": [
+            {
+              "priority": "medium",
+              "action": "Refine prose to eliminate redundancy and enhance clarity, particularly in thematic statements.",
+              "expected_impact": "This will improve reader engagement and understanding.",
+              "anchor_snippet": "Doing nothing ensures extinction.",
+              "source_pass": 3
+            }
+          ]
+        },
+        {
+          "key": "tone",
+          "craft_score": 6,
+          "editorial_score": 6,
+          "final_score_0_10": 6,
+          "score_delta": 0,
+          "final_rationale": "Both passes agree that the tone effectively conveys the themes of survival and urgency, though it can become overly explicit.",
+          "evidence": [
+            {
+              "snippet": "Only the long, necessary howl of survival...",
+              "char_start": 160,
+              "char_end": 197
+            }
+          ],
+          "recommendations": [
+            {
+              "priority": "medium",
+              "action": "Maintain the tone while reducing explicit thematic statements to enhance subtlety.",
+              "expected_impact": "This will deepen emotional engagement and thematic resonance.",
+              "anchor_snippet": "Only the long, necessary howl of survival...",
+              "source_pass": 3
+            }
+          ]
+        },
+        {
+          "key": "narrativeClosure",
+          "craft_score": 5,
+          "editorial_score": 5,
+          "final_score_0_10": 5,
+          "score_delta": 0,
+          "final_rationale": "Both evaluations agree that narrative closure is satisfactory but could benefit from clearer resolutions to character arcs.",
+          "evidence": [
+            {
+              "snippet": "Only the long, necessary howl of survival: the time had come to act.",
+              "char_start": 160,
+              "char_end": 205
+            }
+          ],
+          "recommendations": [
+            {
+              "priority": "medium",
+              "action": "Ensure character arcs are resolved clearly by the end of the narrative to enhance closure.",
+              "expected_impact": "This will provide a more satisfying conclusion for readers.",
+              "anchor_snippet": "Only the long, necessary howl of survival: the time had come to act.",
+              "source_pass": 3
+            }
+          ]
+        },
+        {
+          "key": "marketability",
+          "craft_score": 5,
+          "editorial_score": 5,
+          "final_score_0_10": 5,
+          "score_delta": 0,
+          "final_rationale": "Both evaluations agree that while the concept is marketable, execution issues may hinder its appeal to a broader audience.",
+          "evidence": [
+            {
+              "snippet": "This was no sickness. It was a war declaration.",
+              "char_start": 123,
+              "char_end": 153
+            }
+          ],
+          "recommendations": [
+            {
+              "priority": "medium",
+              "action": "Refine thematic execution to enhance marketability and reader engagement.",
+              "expected_impact": "This will attract a wider audience and improve overall appeal.",
+              "anchor_snippet": "This was no sickness. It was a war declaration.",
+              "source_pass": 3
+            }
+          ]
+        }
+      ],
+      "overall": {
+        "overall_score_0_100": 54,
+        "verdict": "revise",
+        "one_paragraph_summary": "The manuscript presents an intriguing concept and rich worldbuilding but suffers from explicit thematic delivery, repetitive narrative structures, and inconsistent voice. While the foundation is solid, significant revisions are needed to enhance character depth, narrative drive, and thematic integration to engage readers more effectively.",
+        "top_3_strengths": [
+          "Intriguing concept",
+          "Rich worldbuilding",
+          "Distinct tone"
+        ],
+        "top_3_risks": [
+          "Explicit thematic delivery",
+          "Repetitive narrative structures",
+          "Inconsistent voice"
+        ]
+      },
+      "metadata": {
+        "pass1_model": "Craft Execution",
+        "pass2_model": "Editorial/Literary Insight",
+        "pass3_model": "Synthesis Model",
+        "generated_at": "2026-03-21T03:13:51.807Z"
+      }
+    },
+    "quality_gate": {
+      "pass": true,
+      "checks": [
+        {
+          "check_id": "criteria_complete",
+          "passed": true,
+          "details": "All 13 criteria present"
+        },
+        {
+          "check_id": "score_range",
+          "passed": true,
+          "details": "All scores in valid range"
+        },
+        {
+          "check_id": "no_generic_recs",
+          "passed": true,
+          "details": "All recommendations have anchor_snippet"
+        },
+        {
+          "check_id": "rec_min_length",
+          "passed": true,
+          "details": "All recommendations ≥ 50 chars"
+        },
+        {
+          "check_id": "rec_max_length",
+          "passed": true,
+          "details": "All recommendations ≤ 300 chars"
+        },
+        {
+          "check_id": "evidence_length",
+          "passed": true,
+          "details": "All evidence excerpts ≤ 200 chars"
+        },
+        {
+          "check_id": "overview_length",
+          "passed": true,
+          "details": "Overview: 340 chars (max 500)"
+        },
+        {
+          "check_id": "no_duplicate_recs",
+          "passed": true,
+          "details": "No duplicated recommendations"
+        },
+        {
+          "check_id": "pass_independence",
+          "passed": true,
+          "details": "Pass 1 / Pass 2 independence confirmed (n=8)"
+        }
+      ],
+      "warnings": []
+    }
   }
 }

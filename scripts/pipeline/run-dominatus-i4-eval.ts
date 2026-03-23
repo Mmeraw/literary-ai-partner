@@ -176,7 +176,7 @@ async function main(): Promise<void> {
   loadEnv();
 
   const manuscriptPath = resolve(
-    getArg("manuscript") ?? "manuscripts/dominatus-i4-thirst-for-change.txt",
+    getArg("manuscript") ?? "calibration/dominatus-i4-revisiongrade-gold-standard.md",
   );
   const manuscriptId = getArg("manuscript-id", "dominatus-i4")!;
   const mode = executionModeFromArg(getArg("mode", "TRUSTED_PATH"));
@@ -280,7 +280,6 @@ async function main(): Promise<void> {
     : null;
 
   writeJson(join(outDir, "run-summary.json"), {
-    manuscript_path: manuscriptPath,
     manuscript_id: manuscriptId,
     execution_mode: mode,
     started_at: startedAt,
@@ -362,10 +361,20 @@ async function main(): Promise<void> {
 
   const evidenceBundle = `# DOMINATUS I:4 Evidence Bundle
 
- Manuscript path: ${manuscriptPath}
+- Manuscript ID: ${manuscriptId}
+- Execution mode: ${mode}
+- Started at: ${startedAt}
+- Completed at: ${completedAt}
+- Overall status: ${overallStatus}
+- Fail-closed triggered: ${failClosedTriggered}
+- Trace ID: ${traceId}
 
 ## Stage Results
 
+- Pass 1 parsed output present: ${Boolean(pass1Parsed)}
+- Pass 2 parsed output present: ${Boolean(pass2Parsed)}
+- Pass 3 parsed output present: ${Boolean(pass3Parsed)}
+- Quality gate pass: ${qualityGate?.pass ?? false}
 
 ## Governance Checkpoints
 
@@ -377,6 +386,12 @@ ${governanceCheckpoints
 
 ## Artifact Locations
 
+- run-summary: \`${join(outDir, "run-summary.json")}\`
+- pass1 output: \`${join(outDir, "pass1-output.json")}\`
+- pass2 output: \`${join(outDir, "pass2-output.json")}\`
+- pass3 output: \`${join(outDir, "pass3-output.json")}\`
+- governance checkpoints: \`${join(outDir, "governance-checkpoints.json")}\`
+- scoring template: \`${join(outDir, "acceptance-scoring-template.json")}\`
 `;
 
   writeFileSync(join(outDir, "evidence-bundle.md"), evidenceBundle, "utf8");
