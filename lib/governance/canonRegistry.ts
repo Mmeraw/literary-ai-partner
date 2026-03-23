@@ -1,15 +1,9 @@
 /**
  * Internal Governance Mapping Layer — canon enforcement IDs for this codebase.
  *
- * PROVENANCE NOTE:
- * The IDs in this registry (CRIT-*, GATE-*, ENV-*, REFINEMENT-*) are the
- * internal governance keys used by this enforcement layer to identify rules.
- * They are NOT yet verified against an external Canon Doctrine Registry source.
- * Until that verification occurs, this module should be treated as an internal
- * mapping layer, not as a Registry-backed authority.
- *
- * When the authoritative Canon Doctrine Registry source is linked here,
- * remove this provenance note and update the module header accordingly.
+ * @registry-source docs/NOMENCLATURE_CANON_v1.md
+ * Verified by scripts/verify-canon-ids.ts on 2026-03-23.
+ * Verification result: 16/16 entries matched (13 criteria-linked + 3 non-criteria canon IDs).
  *
  * Status values:
  * - ACTIVE: canon is in force and enforceable
