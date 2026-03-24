@@ -30,15 +30,17 @@ No evaluation or refinement behavior may contradict the constants, thresholds, a
 
 ---
 
-## 2. Current Authoritative Status (16 Mar 2026)
+## 2. Current Authoritative Status (24 Mar 2026)
 
 ### Repository state
 - Branch: `main`
-- PR queue: `0`
+- PR queue: `1` (#45 governance-phase2-enforcement)
 - Stage 2: **CLOSED**
 - Hydration reliability: **verified**
 - Strict apply behavior: **fail-closed and enforced**
 
+- Governance enforcement layer: **implemented** (PR #45)
+- Governance CI workflow: **live** (`.github/workflows/governance.yml`)
 ### Engine status
 - Versioned revision pipeline: **working**
 - Source immutability: **guaranteed**
@@ -141,6 +143,19 @@ revision_sessions.failure_code
 
 ### Immediate governed execution note
 Canon Enforcement Layer work is part of the immediate governed execution path for this stage, not optional follow-on work.
+
+### Governance Enforcement Layer (24 Mar 2026)
+
+The Canon Enforcement Layer is now structurally complete:
+
+- Governance modules implemented in `lib/governance/` and `lib/revision/governance/`
+- Gates: sufficiency-gate, wave-eligibility, destruction-guards, patch-integrity
+- Persistence: logGovernanceEvent, markWaveStarted/Passed/Failed/Blocked
+- Coverage verification script: `scripts/verify-governance-coverage.ts`
+- CI enforcement: `.github/workflows/governance.yml` (4 parallel jobs + fan-in gate)
+- Canon guard: `scripts/canon-guard.sh` (passes)
+- Test suites: `lib/governance/__tests__/` (7 modules)
+- PR #45 open for merge to `main`
 
 ---
 

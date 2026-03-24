@@ -1,0 +1,81 @@
+name: Governance Enforcement
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - "feat/**"
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+jobs:
+  # ===============================================================
+  # GOVERNANCE UNIT TESTS
+  # Runs all lib/governance and lib/revision/governance test suites
+  # ===============================================================
+  governance-tests:
+    name: Governance Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - name: Run governance test suite
+        run: npx jest --testPathPatterns='lib/governance/__tests__' --verbose
+      - name: Run revision governance test suite
+        run: npx jest --testPathPatterns='lib/revision/governance' --verbose --passWithNoTests
+
+  # ===============================================================
+  # GOVERNANCE COVERAGE VERIFICATION
+  # Ensures every gate is wired into the pipeline (fail-closed)
+  # ===============================================================
+  governance-coverage:
+    name: Governance Coverage Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - name: Verify governance coverage
+        run: npx tsx scripts/verify-governance-coverage.ts
+
+  # ===============================================================
+  # CANON GUARD
+  # Ensures canonical criteria and governance anchors are intact
+  # ===============================================================
+  canon-guard:
+    name: Canon Governance Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Canon governance audit
+        run: bash scripts/canon-guard.sh
+
+  # ===============================================================
+  # ENFORCEMENT SUMMARY
+  # All governance gates must pass before merge
+  # ===============================================================
+  governance-gate:
+    name: Governance Gate (all must pass)
+    needs:
+      - governance-tests
+      - governance-coverage
+      - canon-guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: All governance checks passed
+        run: echo "All governance enforcement gates passed"
