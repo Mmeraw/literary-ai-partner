@@ -3,6 +3,9 @@ import type {
   WaveEligibilityResult,
   WaveRejectionReason,
   StoryLayer,
+    GovernanceContext,
+  GovernanceResult,
+  WaveId,
   WaveLayerPolicy,
 } from './types';
 
@@ -79,4 +82,13 @@ export function validateWaveRequest(
   }
 
   return { allowed, rejected: [], status: 'PASS' };
+}
+
+
+    /**
+ * Pipeline adapter: wraps validateWaveRequest for run-revision-pipeline.ts
+ * Stub — returns pass: true (permissive) until full SceneContext is wired.
+ */
+export function checkWaveEligibility(_ctx: GovernanceContext, _waveId: WaveId): GovernanceResult {
+  return { pass: true, reason: 'Wave eligibility stub — always passes until wired' };
 }
