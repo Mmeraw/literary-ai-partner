@@ -14,6 +14,8 @@ export interface GovernanceResult {
   reason?: string;
 }
 
+export type WaveId = string;
+
 export type WaveRejectionReason =
   | 'SCENE_TYPE_BLOCK'
   | 'SCENE_FUNCTION_BLOCK'
