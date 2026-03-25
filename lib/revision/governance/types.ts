@@ -9,6 +9,11 @@ export type StoryLayer = 'HUMAN' | 'FROG' | 'REALM' | 'SCRIPTURE';
 export type RevisionMode = 'DIAGNOSTIC_ONLY' | 'MICRO_EDIT' | 'FULL_REWRITE';
 export type GovernanceStatus = 'PASS' | 'FAIL' | 'BLOCKED';
 
+export interface GovernanceResult {
+  pass: boolean;
+  reason?: string;
+}
+
 export type WaveRejectionReason =
   | 'SCENE_TYPE_BLOCK'
   | 'SCENE_FUNCTION_BLOCK'
