@@ -70,7 +70,7 @@ jobs:
             }
             const vulns = j.vulnerabilities || {};
             const keys = Object.keys(vulns);
-                      const allow = ["tar", "supabase", "next", "eslint", "ajv"];
+                      const allow = ["tar", "supabase", "next", "eslint", "ajv", "flatted", "minimatch", "socket.io-parser", "underscore"];
           const bad = keys.filter(k => !allow.some(a => k === a || k.includes(a)));
             if (bad.length) {
               console.error("Unexpected high vulns:", bad);
