@@ -11,10 +11,13 @@
  * - REPEALED: canon was explicitly revoked
  */
 
+import { GovernanceError } from "./errors";
+
 export type CanonStatus = "ACTIVE" | "ARCHIVED" | "REPEALED";
 
 export type CanonType =
-  | "CORE"
+
+      | "CORE"
   | "GOVERNANCE"
   | "EXECUTION"
   | "IMPLEMENTATION"
@@ -320,7 +323,7 @@ export function isCanonActive(canonId: string): boolean {
 export function assertCanonActive(canonId: string): void {
   const entry = CANON_REGISTRY_INTERNAL.get(canonId);
   if (!entry) {
-    const { GovernanceError } = require("./errors");
+// GovernanceError imported at top of file
     throw new GovernanceError(
       `Canon ID not found in registry: ${canonId}`,
       "CANON_NOT_FOUND",
@@ -328,7 +331,7 @@ export function assertCanonActive(canonId: string): void {
     );
   }
   if (entry.status !== "ACTIVE") {
-    const { GovernanceError } = require("./errors");
+// GovernanceError imported at top of file
     throw new GovernanceError(
       `Canon is not ACTIVE: ${canonId} (status: ${entry.status})`,
       "CANON_INACTIVE",
