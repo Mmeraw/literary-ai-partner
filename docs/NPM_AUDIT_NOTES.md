@@ -1,7 +1,7 @@
 # npm audit Governance
 
 ## Current Status
-✅ **All dependencies clean** — `npm audit` returns 0 vulnerabilities (as of 2026-02-12)
+⚠️ **4 known transitive advisories allowlisted** — `npm audit` reports high vulns in flatted, minimatch, socket.io-parser, underscore (as of 2026-03-24). See below for justification.
 
 ## Previously Approved Advisories (Now Resolved)
 
@@ -40,3 +40,25 @@ The CI workflows (`ci.yml`, `ci-staging-tests.yml`, `job-system-ci.yml`) enforce
 - Validates that known advisories are intentional and documented for audit purposes
 - Related governance: `AI_GOVERNANCE.md`, `scripts/check-gpg-disabled.js`
 
+
+## Current Known Advisories (as of 2026-03-24)
+
+### flatted
+- **Status**: KNOWN — transitive dependency
+- Vuln: Prototype pollution via crafted JSON
+- Accepted: Low risk in server-side context; no user-controlled input path
+
+### minimatch
+- **Status**: KNOWN — transitive dependency
+- Vuln: ReDoS via crafted glob patterns
+- Accepted: Not exposed to user-controlled glob input
+
+### socket.io-parser
+- **Status**: KNOWN — transitive dependency
+- Vuln: Insufficient input validation
+- Accepted: socket.io not used in production paths
+
+### underscore
+- **Status**: KNOWN — transitive dependency
+- Vuln: Arbitrary code execution via template
+- Accepted: underscore template not used with user input
