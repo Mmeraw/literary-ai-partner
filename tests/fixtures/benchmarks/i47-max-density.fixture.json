@@ -1,0 +1,39 @@
+{
+  "fixture": "i47-max-density",
+  "version": "1.0.0",
+  "benchmarkTruth": "I:47",
+  "description": "DOMINATUS I:47 — zero-compression ritual-dense passage. RevisionGrade MUST preserve 100% of ritual escalation, sensory layering, rhythm chains, and mythic tone.",
+  "source": {
+    "manuscript": "dominatus",
+    "chapter": "I:47",
+    "wordCount": 312,
+    "densityClass": "max"
+  },
+  "input": {
+    "text": "[PLACEHOLDER: actual I:47 passage text to be inserted from manuscripts/dominatus-i4-chapter.txt]",
+    "profile": "dominatus",
+    "mode": "revision"
+  },
+  "expectedBehavior": {
+    "compressionRate": 0,
+    "ritualEscalationPreserved": true,
+    "sensoryLayeringPreserved": true,
+    "rhythmChainsPreserved": true,
+    "mythicTonePreserved": true,
+    "zeroCompressionIsValidState": true
+  },
+  "failConditions": [
+    "Any compression applied to ritual-dense passage",
+    "Flattening of escalation arc",
+    "Cutting sensory layering",
+    "Breaking rhythm chains",
+    "Reducing mythic tone",
+    "Using literary_dense as catch-all classification"
+  ],
+  "passConditions": [
+    "Output identical to input (0% compression)",
+    "Density classification = max_ritual",
+    "No revision proposals generated for ritual content",
+    "Profile-specific signal recognized: dominatus.ritual_escalation"
+  ]
+}
