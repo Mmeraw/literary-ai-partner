@@ -1,18 +1,24 @@
 {
   "fixture": "ltrd-ch2-contrast",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "benchmarkTruth": "LTRD Ch.2",
   "description": "Let The River Decide Ch.2 — selective compression for moderate-density literary prose. RevisionGrade MUST apply 5-8% compression while preserving narrative texture.",
   "source": {
     "manuscript": "let-the-river-decide",
     "chapter": "Ch.2",
-    "wordCount": 4200,
-    "densityClass": "moderate"
+    "densityClass": "moderate",
+    "sourceStatus": "canonical_source_not_found_in_repo",
+    "fallbackSourceFile": "manuscripts/dominatus-i4-thirst-for-change.txt",
+    "fallbackSourceSection": "debate-sequence"
   },
   "input": {
-    "text": "[PLACEHOLDER: actual LTRD Ch.2 passage text]",
+    "textSource": "file",
+    "filePath": "manuscripts/dominatus-i4-thirst-for-change.txt",
+    "extractionMethod": "marker-bounded",
+    "startMarker": "Phyto crouched low, pressing her toepads into the moist grains, smoothing them into a rounded mound.",
+    "endMarker": "The debate had just begun.",
     "profile": "let-the-river-decide",
-    "mode": "revision"
+    "mode": "standard"
   },
   "expectedBehavior": {
     "compressionRateMin": 0.05,
