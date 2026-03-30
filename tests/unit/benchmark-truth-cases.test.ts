@@ -264,9 +264,4 @@ describe('Benchmark Truth Cases v2', () => {
     });
   });
 
-    afterAll(() => {
-    fs.writeFileSync(RESULTS_PATH, JSON.stringify(results, null, 2));
-    console.log(`Benchmark results written to ${RESULTS_PATH}`);
-    console.log(`Total: ${results.length}, Pass: ${results.filter(r => r.status === 'PASS').length}, Fail: ${results.filter(r => r.status === 'FAIL').length}`);
-  });
 });
