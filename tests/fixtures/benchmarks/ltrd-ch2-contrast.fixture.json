@@ -1,0 +1,39 @@
+{
+  "fixture": "ltrd-ch2-contrast",
+  "version": "1.0.0",
+  "benchmarkTruth": "LTRD Ch.2",
+  "description": "Let The River Decide Ch.2 — selective compression for moderate-density literary prose. RevisionGrade MUST apply 5-8% compression while preserving narrative texture.",
+  "source": {
+    "manuscript": "let-the-river-decide",
+    "chapter": "Ch.2",
+    "wordCount": 4200,
+    "densityClass": "moderate"
+  },
+  "input": {
+    "text": "[PLACEHOLDER: actual LTRD Ch.2 passage text]",
+    "profile": "let-the-river-decide",
+    "mode": "revision"
+  },
+  "expectedBehavior": {
+    "compressionRateMin": 0.05,
+    "compressionRateMax": 0.08,
+    "narrativeTexturePreserved": true,
+    "chainsawCompressionForbidden": true,
+    "overCompressionDetected": false,
+    "profileDrivenSignals": true
+  },
+  "failConditions": [
+    "Compression exceeds 8%",
+    "Compression below 5% (under-revision)",
+    "Chainsaw texture detected in output",
+    "Sensory layering removed from moderate-density passages",
+    "Generic compression applied without profile awareness"
+  ],
+  "passConditions": [
+    "Compression rate between 5-8%",
+    "Density classification = moderate_literary",
+    "Revision proposals target only low-signal passages",
+    "High-signal passages preserved intact",
+    "Profile-specific config applied: let-the-river-decide.selective_compression"
+  ]
+}
