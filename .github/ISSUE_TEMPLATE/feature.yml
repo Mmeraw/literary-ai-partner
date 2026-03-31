@@ -1,0 +1,42 @@
+name: Feature
+about: Propose a feature with runtime, benchmark, and governance impact disclosure.
+title: "feat: "
+labels:
+  - feature
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What capability is being added and why?
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and touched paths
+      description: List files/directories expected to change.
+      placeholder: |
+        - lib/revision/...
+        - tests/fixtures/benchmarks/...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: enforcement
+    attributes:
+      label: Enforcement impact
+      options:
+        - label: Classification logic impacted
+        - label: Execution barrier impacted
+        - label: Validation layer impacted
+        - label: No benchmark/chapter-specific runtime branching introduced
+
+  - type: textarea
+    id: tests
+    attributes:
+      label: Verification plan
+      description: Include compile, lint, unit, benchmark checks.
+    validations:
+      required: true

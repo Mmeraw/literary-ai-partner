@@ -1,0 +1,21 @@
+# Default owner
+* @Mmeraw
+
+# Canon / governance authority
+/AI_GOVERNANCE.md @Mmeraw
+/docs/** @Mmeraw
+/.github/workflows/** @Mmeraw
+/.github/pull_request_template.md @Mmeraw
+/.github/ISSUE_TEMPLATE/** @Mmeraw
+/.github/CODEOWNERS @Mmeraw
+
+# Runtime revision safety surface
+/lib/revision/** @Mmeraw
+/tests/unit/benchmark-truth-cases.test.ts @Mmeraw
+/tests/fixtures/benchmarks/** @Mmeraw
+/manuscripts/** @Mmeraw
+
+# Policy-as-code enforcement
+/scripts/enforce_repo_contracts.mjs @Mmeraw
+/scripts/canon-audit.sh @Mmeraw
+/scripts/canon-guard.sh @Mmeraw

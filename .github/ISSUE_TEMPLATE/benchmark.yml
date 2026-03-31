@@ -1,0 +1,43 @@
+name: Benchmark
+about: Add or update benchmark fixtures, thresholds, or harness behavior.
+title: "benchmark: "
+labels:
+  - benchmark
+body:
+  - type: textarea
+    id: benchmark_truth
+    attributes:
+      label: Benchmark truth statement
+      description: What behavior is expected and how is it measured?
+    validations:
+      required: true
+
+  - type: textarea
+    id: canonical_source
+    attributes:
+      label: Canonical source linkage
+      description: Specify manuscript file and marker bounds.
+      placeholder: |
+        manuscript: manuscripts/...
+        startMarker: ...
+        endMarker: ...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: protections
+    attributes:
+      label: Required protections
+      options:
+        - label: No fallback source status active
+        - label: Dialogue immutability preserved
+        - label: Runtime thresholds documented
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation commands
+      description: Commands that must pass for this benchmark.
+      placeholder: npm test -- tests/unit/benchmark-truth-cases.test.ts --runInBand
+    validations:
+      required: true

@@ -1,0 +1,37 @@
+name: Bug
+about: Report a defect with reproducible evidence.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+      description: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Include exact commands and commit SHA if known.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Paste logs, failing assertions, and fixture references.
+    validations:
+      required: true

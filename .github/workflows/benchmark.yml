@@ -1,0 +1,74 @@
+name: Benchmark Governance
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - "feat/**"
+      - "normalization/**"
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+jobs:
+  repo-contracts:
+    name: repo-contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - name: Enforce repo contracts
+        run: node scripts/enforce_repo_contracts.mjs
+
+  artifact-hygiene:
+    name: artifact-hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - name: Enforce artifact hygiene
+        run: node scripts/enforce_repo_contracts.mjs --artifacts-only
+
+  benchmark-truth:
+    name: benchmark-truth
+    runs-on: ubuntu-latest
+    needs: repo-contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - name: Benchmark truth harness
+        run: npm test -- tests/unit/benchmark-truth-cases.test.ts --runInBand
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-truth-report
+          path: |
+            tests/unit/benchmark-results.json
+            tests/unit/benchmark-artifacts/
+          if-no-files-found: ignore
+
+  dialogue-immutability:
+    name: dialogue-immutability
+    runs-on: ubuntu-latest
+    needs: repo-contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - name: Dialogue integrity test
+        run: npm test -- tests/unit/benchmark-truth-cases.test.ts --runInBand -t "ltrd-ch2-dialogue-stress"

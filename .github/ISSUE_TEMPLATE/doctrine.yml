@@ -1,0 +1,41 @@
+name: Doctrine / Policy
+about: Propose or amend canon/governance policy.
+title: "doctrine: "
+labels:
+  - doctrine
+body:
+  - type: textarea
+    id: policy_change
+    attributes:
+      label: Policy change
+      description: Describe the canon/governance rule change.
+    validations:
+      required: true
+
+  - type: textarea
+    id: authority
+    attributes:
+      label: Authority references
+      description: Link governing docs/contracts affected.
+      placeholder: |
+        - AI_GOVERNANCE.md
+        - docs/JOB_CONTRACT_v1.md
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: controls
+    attributes:
+      label: Control surface impact
+      options:
+        - label: Requires CI/workflow update
+        - label: Requires CODEOWNERS update
+        - label: Requires test harness update
+
+  - type: textarea
+    id: migration
+    attributes:
+      label: Migration / rollout plan
+      description: How to roll out safely and validate.
+    validations:
+      required: true
