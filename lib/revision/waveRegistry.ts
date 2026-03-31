@@ -8,7 +8,8 @@ export type WaveCategory =
 	| "polish"
 	| "scene"
 	| "character"
-	| "narrative";
+	| "narrative"
+	| "compression";
 
 export type WaveScope = "sentence" | "paragraph" | "scene" | "chapter";
 
@@ -909,6 +910,20 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 		priority: 70,
 		passSource: 3,
 		criterionIds: ["READ_ALOUD_INTEGRITY", "FINAL_QA"],
+	},
+	{
+		id: 64,
+		name: "Prose Compression",
+		category: "compression",
+		description: "Removes filler adverbs and hedge phrases from moderate-density literary prose without altering narrative texture.",
+		scope: "sentence",
+		dependencies: [],
+		conflicts: [],
+		surgicalAllowed: false,
+		maxEditRadiusSentences: 1,
+		priority: 85,
+		passSource: 2,
+		criterionIds: ["FILLER_REDUCTION", "PROSE_DENSITY"],
 	},
 ];
 

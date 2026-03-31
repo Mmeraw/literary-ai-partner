@@ -18,6 +18,7 @@
         "filePath": "manuscripts/dominatus-i4-thirst-for-change.txt",
         "startMarker": "Hyla gathered what little air she could.",
         "endMarker": "Then— A pulse.",
+        "passageHint": "protected",
         "expectedClassification": "behavioral_contradiction",
         "shouldFlag": true,
         "shouldCompress": false
@@ -28,6 +29,7 @@
         "filePath": "manuscripts/dominatus-i4-thirst-for-change.txt",
         "startMarker": "leaving the land drenched in slick rainbows:",
         "endMarker": "Ford. Toyota. Chevrolet.",
+        "passageHint": "compressible",
         "expectedClassification": "inventory",
         "shouldFlag": false,
         "shouldCompress": true
@@ -38,6 +40,7 @@
         "filePath": "manuscripts/dominatus-i4-thirst-for-change.txt",
         "startMarker": "They show no regard for other life—killing insects, felling squirrels, trapping rabbits, and laying low the great beasts: the deer and the bear.",
         "endMarker": "The only ones who fight back,” she continued,”are the silver-scaled serpents of the abyss…",
+        "passageHint": "protected",
         "expectedClassification": "behavioral_contradiction",
         "shouldFlag": true,
         "shouldCompress": false

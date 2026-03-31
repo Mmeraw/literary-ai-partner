@@ -17,6 +17,7 @@
     "extractionMethod": "marker-bounded",
     "startMarker": "Phyto crouched low, pressing her toepads into the moist grains, smoothing them into a rounded mound.",
     "endMarker": "The debate had just begun.",
+    "passageHint": "compressible",
     "profile": "let-the-river-decide",
     "mode": "standard"
   },

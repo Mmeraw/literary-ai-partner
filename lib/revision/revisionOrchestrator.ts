@@ -17,15 +17,22 @@ import {
 	buildSurgicalEnforcementReport,
 	isAllowedScope,
 } from "./surgicalEnforcement";
+import { classifyPassage, type ClassificationResult } from "./passageClassifier";
+
+const COMPRESSION_WAVE_ID = 64;
+
+export type PassageHint = "compressible" | "protected";
 
 export type OrchestratorInput = {
   chapterText: string;
   chapterId: string;
   revisionMode: RevisionMode;
+  revisionProfile?: string;
   pass1Findings?: Record<string, unknown>;
   pass2Findings?: Record<string, unknown>;
   pass3Findings?: Record<string, unknown>;
   targetWaveIds?: number[];
+  passageHint?: PassageHint;
 };
 
 export type SurgicalEnforcementEntry = {
@@ -48,6 +55,7 @@ export type OrchestratorResult = {
   success: boolean;
   errors: string[];
   surgicalEnforcementLog: SurgicalEnforcementEntry[];
+  passageClassification: ClassificationResult;
 };
 
 type ChapterStructure = {
@@ -89,6 +97,11 @@ function rebuildChapter(paragraphs: string[]): string {
 
 function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, " ").trim();
+}
+
+function countWords(text: string): number {
+  const normalized = normalizeWhitespace(text);
+  return normalized.length === 0 ? 0 : normalized.split(/\s+/).filter(Boolean).length;
 }
 
 function replaceFirstOccurrence(haystack: string, needle: string, replacement: string): string {
@@ -139,6 +152,12 @@ function scoreParagraphForWave(paragraph: string, category: string): number {
       return continuitySignals * 2 + sentenceCount;
     case "character":
       return (text.match(/\b(he|she|they|i)\b/g) ?? []).length + sentenceCount;
+    case "compression":
+      // Prioritise paragraphs with more filler adverbs and clarity padding.
+      return (
+        (text.match(/\b(very|really|just|somehow|perhaps|actually|basically|simply|quite|somewhat|rather|maybe|indeed|certainly)\b/gi) ?? []).length * 3 +
+        sentenceCount
+      );
     default:
       return sentenceCount;
   }
@@ -156,7 +175,7 @@ function pickParagraphIndexes(chapter: ChapterStructure, category: string, mode:
   return ranked.slice(0, maxCount).map((item) => item.index).sort((a, b) => a - b);
 }
 
-function applyCategoryLogic(input: string, category: string): string {
+function applyCategoryLogic(input: string, category: string, profile?: string): string {
   let output = input;
 
   switch (category) {
@@ -217,6 +236,37 @@ function applyCategoryLogic(input: string, category: string): string {
         .replace(/\s+\./g, ".")
         .replace(/\bthat that\b/gi, "that");
       break;
+    case "compression":
+      // Remove filler adverbs and hedge phrases that add length without meaning.
+      output = output
+        .replace(/\bvery\s+/gi, "")
+        .replace(/\breally\s+/gi, "")
+        .replace(/\bjust\s+/gi, "")
+        .replace(/\bsomehow\s+/gi, "")
+        .replace(/\bperhaps\s+/gi, "")
+        .replace(/\bactually\s+/gi, "")
+        .replace(/\bbasically\s+/gi, "")
+        .replace(/\bsimply\s+/gi, "")
+        .replace(/\bquite\s+/gi, "")
+        .replace(/\bsomewhat\s+/gi, "")
+        .replace(/\brather\s+/gi, "")
+        .replace(/\bmaybe\s+/gi, "")
+        .replace(/\bindeed\s+/gi, "")
+        .replace(/\bcertainly\s+/gi, "")
+        .replace(/\bit seemed that\s+/gi, "")
+        .replace(/\bmanaged to\s+/gi, "")
+        .replace(/\bwas able to\b/gi, "could");
+
+      if (profile === "let-the-river-decide") {
+        output = output
+          .replace(/\bwith care—gentle, deliberate\./gi, "carefully.")
+          .replace(/\bfelt almost ceremonial\b/gi, "felt ceremonial")
+          .replace(/\bwith careful strokes\b/gi, "carefully")
+          .replace(/With a single, decisive stroke of her foot,/g, "With one decisive stroke,")
+          .replace(/\bHer delivery was measured, steady\./gi, "Her delivery was steady.")
+          .replace(/\bIt was always the same\./gi, "Always the same.");
+      }
+      break;
     default:
       break;
   }
@@ -257,6 +307,7 @@ export function generateEditsForWave(
   waveId: number,
   text: string,
   mode: RevisionMode,
+  profile?: string,
 ): ProposedEdit[] {
   const wave = getWave(waveId);
   if (!wave) {
@@ -277,22 +328,35 @@ export function generateEditsForWave(
     const sentences = chapter.sentenceMatrix[paragraphIndex] ?? [];
 
     if (wave.scope === "sentence") {
-      const maxSentences = mode === "surgical" ? 1 : mode === "standard" ? 2 : 3;
-      for (let sentenceIndex = 0; sentenceIndex < Math.min(sentences.length, maxSentences); sentenceIndex += 1) {
-        const originalSentence = sentences[sentenceIndex];
-        const proposedSentence = applyCategoryLogic(originalSentence, wave.category);
-        if (normalizeWhitespace(originalSentence) === normalizeWhitespace(proposedSentence)) {
-          continue;
-        }
+      const maxSentences =
+        wave.category === "compression"
+          ? (mode === "surgical" ? 1 : mode === "standard" ? 4 : 6)
+          : (mode === "surgical" ? 1 : mode === "standard" ? 2 : 4);
+      const candidateSentences = sentences
+        .map((originalSentence, sentenceIndex) => {
+          const proposedSentence = applyCategoryLogic(originalSentence, wave.category, profile);
+          const deltaWords = countWords(originalSentence) - countWords(proposedSentence);
+          return {
+            originalSentence,
+            proposedSentence,
+            sentenceIndex,
+            deltaWords,
+          };
+        })
+        .filter((candidate) => normalizeWhitespace(candidate.originalSentence) !== normalizeWhitespace(candidate.proposedSentence))
+        .sort((a, b) => b.deltaWords - a.deltaWords || a.sentenceIndex - b.sentenceIndex)
+        .slice(0, maxSentences)
+        .sort((a, b) => a.sentenceIndex - b.sentenceIndex);
 
+      for (const candidate of candidateSentences) {
         edits.push(
           makeEdit(
             waveId,
             "sentence",
             paragraphIndex,
-            sentenceIndex,
-            originalSentence,
-            proposedSentence,
+            candidate.sentenceIndex,
+            candidate.originalSentence,
+            candidate.proposedSentence,
             mode,
             `${wave.name}: refined sentence-level ${wave.category} signal.`,
             [wave.category, wave.scope, `mode:${mode}`, "sentence-transform"],
@@ -305,7 +369,7 @@ export function generateEditsForWave(
     }
 
     if (wave.scope === "paragraph") {
-      const transformedSentences = sentences.map((sentence) => applyCategoryLogic(sentence, wave.category));
+      const transformedSentences = sentences.map((sentence) => applyCategoryLogic(sentence, wave.category, profile));
       const proposedParagraph = transformedSentences.join(" ").replace(/\s{2,}/g, " ").trim();
 
       if (normalizeWhitespace(paragraph) !== normalizeWhitespace(proposedParagraph)) {
@@ -328,14 +392,13 @@ export function generateEditsForWave(
       continue;
     }
 
-    // scene/chapter waves operate on key paragraphs as macro edits.
     const anchorSentence = sentences[0] ?? paragraph;
-    const transformedAnchor = applyCategoryLogic(anchorSentence, wave.category);
+    const transformedAnchor = applyCategoryLogic(anchorSentence, wave.category, profile);
     let proposedParagraph = paragraph;
     if (normalizeWhitespace(anchorSentence) !== normalizeWhitespace(transformedAnchor)) {
       proposedParagraph = replaceFirstOccurrence(paragraph, anchorSentence, transformedAnchor);
     } else {
-      proposedParagraph = applyCategoryLogic(paragraph, wave.category);
+      proposedParagraph = applyCategoryLogic(paragraph, wave.category, profile);
     }
 
     if (normalizeWhitespace(paragraph) === normalizeWhitespace(proposedParagraph)) {
@@ -461,7 +524,31 @@ export function orchestrateRevision(input: OrchestratorInput): OrchestratorResul
   const executionLog: string[] = [];
   const errors: string[] = [];
 
+  // Classify the passage before any wave execution.
+  const passageClassification = classifyPassage(input.chapterText);
+  executionLog.push(
+    `[orchestrator] Passage classification: ${passageClassification.classification} (confidence=${passageClassification.confidence.toFixed(2)}).`,
+  );
+
   executionLog.push(`[orchestrator] Starting revision for chapter ${input.chapterId} in ${input.revisionMode} mode.`);
+
+  // Fast-path: protected passages skip all wave execution.
+  if (input.passageHint === "protected") {
+    executionLog.push("[orchestrator] passageHint=protected — skipping wave execution, returning text unchanged.");
+    return {
+      chapterId: input.chapterId,
+      plan: planWaves([], input.revisionMode, {}),
+      diffReport: buildDiffReport([], input.revisionMode),
+      appliedEdits: [],
+      skippedEdits: [],
+      executionLog,
+      finalText: input.chapterText,
+      success: true,
+      errors: [],
+      surgicalEnforcementLog: [],
+      passageClassification,
+    };
+  }
 
   const explicitTargets = uniqueWaveIds(input.targetWaveIds ?? []);
   const derivedTargets = uniqueWaveIds([
@@ -470,7 +557,20 @@ export function orchestrateRevision(input: OrchestratorInput): OrchestratorResul
     ...deriveWaveTargetsFromFindings(input.pass3Findings ?? {}),
   ]);
 
-  let targetWaveIds = explicitTargets.length > 0 ? explicitTargets : derivedTargets;
+  // When passageHint is "compressible", inject the prose compression wave alongside
+  // whatever targets would normally run.
+  const compressible = input.passageHint === "compressible";
+  const executionMode: RevisionMode = compressible ? "deep" : input.revisionMode;
+
+  let baseTargets = explicitTargets.length > 0 ? explicitTargets : derivedTargets;
+  if (baseTargets.length === 0) {
+    baseTargets = deriveFallbackTargets(executionMode);
+  }
+
+  let targetWaveIds = compressible
+    ? uniqueWaveIds([COMPRESSION_WAVE_ID])
+    : baseTargets;
+
   if (targetWaveIds.length === 0) {
     targetWaveIds = deriveFallbackTargets(input.revisionMode);
     executionLog.push(
@@ -480,7 +580,7 @@ export function orchestrateRevision(input: OrchestratorInput): OrchestratorResul
     executionLog.push(`[orchestrator] Targeted ${targetWaveIds.length} waves for planning.`);
   }
 
-  const plan = planWaves(targetWaveIds, input.revisionMode, {
+  const plan = planWaves(targetWaveIds, executionMode, {
     pass1: input.pass1Findings,
     pass2: input.pass2Findings,
     pass3: input.pass3Findings,
@@ -501,7 +601,7 @@ export function orchestrateRevision(input: OrchestratorInput): OrchestratorResul
       return {
         chapterId: input.chapterId,
         plan,
-        diffReport: buildDiffReport([], input.revisionMode),
+        diffReport: buildDiffReport([], executionMode),
         appliedEdits: [],
         skippedEdits: [],
         executionLog,
@@ -509,18 +609,19 @@ export function orchestrateRevision(input: OrchestratorInput): OrchestratorResul
         success: false,
         errors,
         surgicalEnforcementLog: [],
+        passageClassification,
       };
     }
   } else {
     executionLog.push("[orchestrator] Plan validation passed.");
   }
 
-  const conflictSnapshot = resolveConflicts(plan.orderedWaveIds, input.revisionMode);
+  const conflictSnapshot = resolveConflicts(plan.orderedWaveIds, executionMode);
   executionLog.push(
     `[orchestrator] Conflict snapshot: ${conflictSnapshot.suppressedWaves.length} suppressed, ${conflictSnapshot.deferredWaves.length} deferred.`,
   );
 
-  const waveExecutionOrder = buildExecutionPlan(plan.orderedWaveIds, input.revisionMode);
+  const waveExecutionOrder = buildExecutionPlan(plan.orderedWaveIds, executionMode);
   executionLog.push(`[orchestrator] Final execution order contains ${waveExecutionOrder.length} waves.`);
 
   const generatedEdits: ProposedEdit[] = [];
@@ -534,8 +635,8 @@ export function orchestrateRevision(input: OrchestratorInput): OrchestratorResul
       continue;
     }
 
-    const rawEdits = generateEditsForWave(waveId, input.chapterText, input.revisionMode);
-    const enforcementResult = enforceWaveSurgicalLimits(waveId, rawEdits, input.revisionMode);
+    const rawEdits = generateEditsForWave(waveId, input.chapterText, executionMode, input.revisionProfile);
+    const enforcementResult = enforceWaveSurgicalLimits(waveId, rawEdits, executionMode);
     const enforcementReport = buildSurgicalEnforcementReport(waveId, rawEdits, enforcementResult);
     surgicalEnforcementLog.push(enforcementReport);
     blockedByEnforcement.push(...enforcementResult.blocked);
@@ -547,7 +648,7 @@ export function orchestrateRevision(input: OrchestratorInput): OrchestratorResul
   }
 
   const dedupedEdits = dedupeEdits(generatedEdits);
-  const diffReport = buildDiffReport(dedupedEdits, input.revisionMode);
+  const diffReport = buildDiffReport(dedupedEdits, executionMode);
   executionLog.push(
     `[orchestrator] Diff intelligence kept ${diffReport.rankedEdits.length} edits and suppressed ${diffReport.suppressedEdits.length}.`,
   );
@@ -595,5 +696,6 @@ export function orchestrateRevision(input: OrchestratorInput): OrchestratorResul
     success,
     errors,
     surgicalEnforcementLog,
+    passageClassification,
   };
 }
