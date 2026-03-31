@@ -477,6 +477,115 @@ describe('Benchmark Truth Cases v4 (runtime behavioral gate)', () => {
     expect(overallPass).toBe(true);
   });
 
+  it('ltrd-ch2-dialogue-stress: dialogue immutability under compression profile', () => {
+    const fixture = loadFixture('ltrd-ch2-dialogue-stress.fixture.json');
+    const extracted = extractBoundedPassage(
+      fixture.input.filePath,
+      fixture.input.startMarker,
+      fixture.input.endMarker,
+    );
+
+    const run = runRuntimeRevision('ltrd-ch2-dialogue', fixture, extracted.text);
+    const metrics = computeCompression(extracted.text, run.finalText);
+
+    // Failure-mode assertions: dialogue must be protected
+    const lower = Number(fixture.expectedBehavior.compressionRateMin) * 100;
+    const upper = Number(fixture.expectedBehavior.compressionRateMax) * 100;
+    const compressionInBand = metrics.compressionPercentage >= lower && metrics.compressionPercentage <= upper;
+
+    // Assertion 1: compression must be 0-2% (narration-only, dialogue untouched)
+    const dialogueCompressionOk = compressionInBand;
+
+    // Assertion 2: protected dialogue passage must remain byte-for-byte identical
+    const dialogueTextPreserved = run.finalText === extracted.text;
+
+    // Assertion 3: original line count must be preserved (no line merging)
+    const originalLineCount = extracted.text.split('\n').length;
+    const finalLineCount = run.finalText.split('\n').length;
+    const lineCountPreserved = finalLineCount === originalLineCount;
+
+    // Assertion 4: protected hint must hard-lock edits
+    const protectedZeroEdits = run.appliedEdits.length === 0;
+
+    // Assertion 5: dialogue order must be preserved (strictly implied by exact immutability)
+    const lineOrderPreserved = dialogueTextPreserved;
+
+    const pass = dialogueCompressionOk && dialogueTextPreserved && lineCountPreserved && protectedZeroEdits && lineOrderPreserved;
+
+    const summary = {
+      fixtureId: fixture.fixture,
+      caseId: 'ltrd-ch2-dialogue',
+      planner: run.plan,
+      diffReport: run.diffReport,
+      appliedEdits: run.appliedEdits,
+      skippedEdits: run.skippedEdits,
+      metrics,
+      classification: run.passageClassification.classification,
+      classificationConfidence: run.passageClassification.confidence,
+      errors: run.errors,
+      success: run.success,
+      failureModeChecks: {
+        dialogueCompressionOk,
+        dialogueTextPreserved,
+        lineCountPreserved,
+        protectedZeroEdits,
+        lineOrderPreserved,
+      },
+    };
+
+    const artifactPaths = persistCaseArtifacts(fixture.fixture, 'ltrd-ch2-dialogue', extracted.text, run.finalText, summary);
+
+    pushResult({
+      fixtureId: fixture.fixture,
+      caseId: 'ltrd-ch2-dialogue',
+      benchmarkTruth: fixture.benchmarkTruth,
+      status: pass ? 'PASS' : 'FAIL',
+      reason: pass
+        ? `Dialogue protected: compression ${metrics.compressionPercentage}% ∈ [${lower}, ${upper}], text preserved, lines intact`
+        : `Dialogue immutability failed: compression=${dialogueCompressionOk}, textPreserved=${dialogueTextPreserved}, lineOrder=${lineOrderPreserved}`,
+      profileUsed: fixture.input.profile,
+      sourcePassageLocation: extracted.sourceLocation,
+      originalPassage: extracted.text,
+      transformedPassage: run.finalText,
+      plannerDecisionSummary: {
+        orderedWaveIds: run.plan.orderedWaveIds,
+        estimatedEditCount: run.plan.estimatedEditCount,
+        applySummary: run.diffReport.applySummary,
+        estimatedRisk: run.diffReport.estimatedRisk,
+      },
+      allowedEdits: editEvidence(run.appliedEdits),
+      blockedEdits: editEvidence(run.skippedEdits),
+      compressionPercentage: metrics.compressionPercentage,
+      classificationOutput: run.passageClassification.classification,
+      diffMetrics: {
+        ...metrics,
+        originalLineCount,
+        finalLineCount,
+        lineCountDelta: finalLineCount - originalLineCount,
+      },
+      expectedOutcome: {
+        compressionPercentageRange: [lower, upper],
+        dialogueTextPreserved: true,
+        lineCountPreserved: true,
+        lineOrderPreserved: true,
+      },
+      actualOutcome: {
+        runtimeUsed: true,
+        success: run.success,
+        errors: run.errors,
+        dialogueCompressionOk,
+        dialogueTextPreserved,
+        lineCountPreserved,
+        protectedZeroEdits,
+        lineOrderPreserved,
+      },
+      artifactPaths,
+      timestamp: new Date().toISOString(),
+    });
+
+    expect(pass).toBe(true);
+  });
+
   it('core runtime has no benchmark-specific branching terms', () => {
     const coreFiles = [
       'lib/revision/wavePlanner.ts',
