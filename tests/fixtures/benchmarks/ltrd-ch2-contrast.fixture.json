@@ -1,22 +1,21 @@
 {
   "fixture": "ltrd-ch2-contrast",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "benchmarkTruth": "LTRD Ch.2",
   "description": "Let The River Decide Ch.2 — selective compression for moderate-density literary prose. RevisionGrade MUST apply 5-8% compression while preserving narrative texture.",
   "source": {
     "manuscript": "let-the-river-decide",
     "chapter": "Ch.2",
     "densityClass": "moderate",
-    "sourceStatus": "canonical_source_not_found_in_repo",
-    "fallbackSourceFile": "manuscripts/dominatus-i4-thirst-for-change.txt",
-    "fallbackSourceSection": "debate-sequence"
+    "sourceFile": "manuscripts/let-the-river-decide-ch2.txt",
+    "sourceSection": "anthony-cake-offering"
   },
   "input": {
     "textSource": "file",
-    "filePath": "manuscripts/dominatus-i4-thirst-for-change.txt",
+    "filePath": "manuscripts/let-the-river-decide-ch2.txt",
     "extractionMethod": "marker-bounded",
-    "startMarker": "Phyto crouched low, pressing her toepads into the moist grains, smoothing them into a rounded mound.",
-    "endMarker": "The debate had just begun.",
+    "startMarker": "Didn’t move until we ate—all of it.",
+    "endMarker": "Maybe something else.",
     "passageHint": "compressible",
     "profile": "let-the-river-decide",
     "mode": "standard"
