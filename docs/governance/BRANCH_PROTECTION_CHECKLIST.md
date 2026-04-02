@@ -110,12 +110,12 @@ After saving the rule, verify the following:
 
 ## Current repo caveats
 
-The governance scaffolding is ahead of full enforcement in two places:
+The governance scaffolding is intentionally conservative right now:
 
-- `npm run typecheck --if-present` currently no-ops unless a `typecheck` script is added to `package.json`
-- `npm run jobs --if-present` currently no-ops unless a `jobs` script is added to `package.json`
+- the `ci` workflow runs install, build, and test, but does **not** yet run a dedicated `typecheck` script because none is currently defined in `package.json`
+- the workflow also does **not** run a standalone `jobs` script because there is no single canonical `jobs` entrypoint in `package.json`
 
-That is acceptable for now, but those should eventually be formalized if you want stricter CI enforcement.
+That is acceptable for now, but both should be formalized later if you want stricter CI enforcement without creating misleading no-op checks.
 
 ## Migration/RLS-specific reminder
 
