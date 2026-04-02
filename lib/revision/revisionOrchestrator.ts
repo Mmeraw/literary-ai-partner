@@ -131,7 +131,7 @@ function scoreParagraphForWave(paragraph: string, category: string): number {
       return dialogueSignals * 3 + sentenceCount;
     case "pacing":
       return sentenceCount * 2 + actionSignals;
-    case "clarity":
+    case "proseControl":
     case "polish":
       return claritySignals * 2 + sentenceCount;
     case "continuity":
@@ -190,7 +190,7 @@ function applyCategoryLogic(input: string, category: string): string {
         .replace(/\bstarted to\b/gi, "")
         .replace(/\bin order to\b/gi, "to");
       break;
-    case "clarity":
+    case "proseControl":
       output = output
         .replace(/\bdue to the fact that\b/gi, "because")
         .replace(/\bat this point in time\b/gi, "now")

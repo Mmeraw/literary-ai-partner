@@ -3,7 +3,7 @@ export type WaveCategory =
 	| "voice"
 	| "dialogue"
 	| "pacing"
-	| "clarity"
+	| "proseControl"
 	| "continuity"
 	| "polish"
 	| "scene"
@@ -521,7 +521,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 36,
 		name: "Clarity of Causal Links",
-		category: "clarity",
+				category: "proseControl",
 		description: "Makes cause-effect relationships explicit where ambiguity harms comprehension.",
 		scope: "scene",
 		dependencies: [1, 5, 31],
@@ -535,7 +535,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 37,
 		name: "Pronoun and Referent Clarity",
-		category: "clarity",
+				category: "proseControl",
 		description: "Eliminates ambiguous references that force rereads or misattribution.",
 		scope: "sentence",
 		dependencies: [34, 36],
@@ -549,7 +549,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 38,
 		name: "Temporal Marker Precision",
-		category: "clarity",
+				category: "proseControl",
 		description: "Clarifies when events occur relative to prior and upcoming scene anchors.",
 		scope: "paragraph",
 		dependencies: [36],
@@ -563,7 +563,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 39,
 		name: "Spatial Orientation Clarity",
-		category: "clarity",
+				category: "proseControl",
 		description: "Improves reader spatial mapping during movement, action, and blocking shifts.",
 		scope: "scene",
 		dependencies: [36, 38],
@@ -577,7 +577,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 40,
 		name: "Cognitive Load Reduction",
-		category: "clarity",
+				category: "proseControl",
 		description: "Reduces stacked abstractions so complex ideas remain processable on first pass.",
 		scope: "paragraph",
 		dependencies: [36, 37, 39],
@@ -871,7 +871,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 61,
 		name: "Sensory Specificity Final Pass",
-		category: "clarity",
+				category: "proseControl",
 		description: "Adds precise sensory anchors where abstraction weakens scene immediacy.",
 		scope: "paragraph",
 		dependencies: [39, 55, 59],

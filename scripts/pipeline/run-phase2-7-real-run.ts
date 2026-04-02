@@ -282,6 +282,11 @@ async function main(): Promise<void> {
   };
   writeFileSync(join(outputDir, "metadata.json"), JSON.stringify(metadata, null, 2), "utf8");
 
+  let pipelineBreakSummary = "No pipeline failure, but inspect artifacts for follow-up tuning.";
+  if ("failed_at" in pipelineResult) {
+    pipelineBreakSummary = `Pipeline failed at ${pipelineResult.failed_at} with ${pipelineResult.error_code}.`;
+  }
+
   const reportMd = `# PHASE_2_7_REAL_RUN_01
 
 Input:
@@ -316,7 +321,7 @@ Quality Gate:
 
 Conclusion:
 - What broke:
-  - ${qualityGate?.pass ? "No hard quality-gate violations." : pipelineResult.ok ? "No pipeline failure, but inspect artifacts for follow-up tuning." : `Pipeline failed at ${pipelineResult.failed_at} with ${pipelineResult.error_code}.`}
+  - ${qualityGate?.pass ? "No hard quality-gate violations." : pipelineBreakSummary}
 - What needs prompt tuning:
   - Pass 1: tighten anti-generic rationale rule (require concrete anchor references in each criterion rationale).
   - Pass 2: require recommendation dedupe + stronger action specificity constraints tied to observed text behavior.

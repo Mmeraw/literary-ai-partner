@@ -133,7 +133,7 @@ export async function runRevisionPipeline(input: PipelineInput): Promise<Pipelin
 
     try {
       // Diagnostic mode: evaluate only, never patch
-      if (input.mode === 'diagnostic') {
+      if (input.mode === 'DIAGNOSTIC_ONLY') {
         wavesExecuted.push(waveId);
         await markWavePassed(runId, waveId, Date.now() - startTime);
         continue;

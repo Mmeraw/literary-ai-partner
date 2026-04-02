@@ -116,7 +116,7 @@ export function enforceWaveSurgicalLimits(
   mode: RevisionMode,
 ): { allowed: ProposedEdit[]; blocked: ProposedEdit[]; downgraded: ProposedEdit[] } {
   const wave: WaveEntry | undefined = getWave(waveId);
-  const categoryAllowedScopes = getSurgicalAllowedScopesByCategory(wave?.category ?? "clarity");
+  const categoryAllowedScopes = getSurgicalAllowedScopesByCategory(wave?.category ?? "proseControl");
 
   const allowed: ProposedEdit[] = [];
   const blocked: ProposedEdit[] = [];
