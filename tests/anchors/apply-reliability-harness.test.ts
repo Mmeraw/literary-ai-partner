@@ -48,7 +48,7 @@ function buildProposal(
     id: overrides.id ?? `${start}-${end}-${original}`,
     revision_session_id: overrides.revision_session_id ?? "session-packd",
     location_ref: overrides.location_ref ?? "loc:1",
-    rule: overrides.rule ?? "clarity",
+    rule: overrides.rule ?? "proseControl",
     action: overrides.action ?? "refine",
     original_text: overrides.original_text ?? original,
     proposed_text: overrides.proposed_text ?? replacement,

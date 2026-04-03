@@ -1,5 +1,5 @@
 export type WaveCategory =
-	| "structure"
+	| "sceneConstruction"
 	| "voice"
 	| "dialogue"
 	| "pacing"
@@ -8,7 +8,7 @@ export type WaveCategory =
 	| "polish"
 	| "scene"
 	| "character"
-	| "narrative";
+	| "narrativeDrive";
 
 export type WaveScope = "sentence" | "paragraph" | "scene" | "chapter";
 
@@ -31,7 +31,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 1,
 		name: "Story Spine Integrity",
-		category: "structure",
+		category: "sceneConstruction",
 		description: "Verifies central premise, stakes, and directional causality from opening through ending.",
 		scope: "chapter",
 		dependencies: [],
@@ -45,7 +45,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 2,
 		name: "Act Turn Placement",
-		category: "structure",
+		category: "sceneConstruction",
 		description: "Aligns first-turn, midpoint, and final-turn beats to maintain forward narrative pressure.",
 		scope: "chapter",
 		dependencies: [1],
@@ -59,7 +59,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 3,
 		name: "Inciting Incident Pressure",
-		category: "narrative",
+		category: "narrativeDrive",
 		description: "Strengthens the trigger event so protagonist action becomes inevitable rather than optional.",
 		scope: "scene",
 		dependencies: [1],
@@ -73,7 +73,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 4,
 		name: "Midpoint Reversal Calibration",
-		category: "structure",
+		category: "sceneConstruction",
 		description: "Ensures midpoint shifts objective reality and re-frames risk for the remainder of the story.",
 		scope: "chapter",
 		dependencies: [2, 3],
@@ -87,7 +87,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 5,
 		name: "Climax Causality Ladder",
-		category: "structure",
+		category: "sceneConstruction",
 		description: "Validates that climax outcomes are earned by preceding decisions, failures, and constraints.",
 		scope: "chapter",
 		dependencies: [2, 4],
@@ -101,7 +101,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 6,
 		name: "Ending Resolution Payoff",
-		category: "narrative",
+		category: "narrativeDrive",
 		description: "Confirms final movement resolves primary promise while preserving thematic residue.",
 		scope: "chapter",
 		dependencies: [5],
@@ -115,7 +115,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 7,
 		name: "POV Architecture Audit",
-		category: "narrative",
+		category: "narrativeDrive",
 		description: "Checks point-of-view allocation, handoff logic, and narrative authority consistency.",
 		scope: "chapter",
 		dependencies: [1],
@@ -129,7 +129,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 8,
 		name: "Experimental Form Weave",
-		category: "narrative",
+		category: "narrativeDrive",
 		description: "Integrates non-linear or formal experimentation without breaking reader orientation.",
 		scope: "chapter",
 		dependencies: [1],
@@ -143,7 +143,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 9,
 		name: "Theme Thread Density",
-		category: "narrative",
+		category: "narrativeDrive",
 		description: "Balances thematic recurrence so motifs accumulate without overt signaling.",
 		scope: "chapter",
 		dependencies: [1, 3],
@@ -157,7 +157,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 10,
 		name: "Narrative Promise Fulfillment",
-		category: "structure",
+		category: "sceneConstruction",
 		description: "Cross-checks opening hooks against ending delivery for trust-preserving closure.",
 		scope: "chapter",
 		dependencies: [1, 6, 9],
@@ -857,7 +857,7 @@ export const WAVE_REGISTRY: readonly WaveEntry[] = [
 	{
 		id: 60,
 		name: "Title and Chapter Hook Alignment",
-		category: "narrative",
+		category: "narrativeDrive",
 		description: "Aligns macro framing signals with delivered thematic and plot trajectories.",
 		scope: "chapter",
 		dependencies: [10, 44, 59],

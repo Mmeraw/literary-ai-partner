@@ -58,7 +58,7 @@ export default async function wave38TemporalMarkerPrecision(
 
 	const paragraphs = splitParagraphs(text);
 	const modifications: string[] = [
-		`wave-meta:category:${wave?.category ?? "clarity"}`,
+		`wave-meta:category:${wave?.category ?? "proseControl"}`,
 		`wave-meta:scope:${wave?.scope ?? "paragraph"}`,
 		...CRITERIA_IDS.map((id) => `criterion:${id}`),
 	];

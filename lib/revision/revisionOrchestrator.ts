@@ -139,6 +139,8 @@ function scoreParagraphForWave(paragraph: string, category: string): number {
       return continuitySignals * 2 + sentenceCount;
     case "character":
       return (text.match(/\b(he|she|they|i)\b/g) ?? []).length + sentenceCount;
+    case "sceneConstruction":
+    case "narrativeDrive":
     default:
       return sentenceCount;
   }
@@ -160,13 +162,13 @@ function applyCategoryLogic(input: string, category: string): string {
   let output = input;
 
   switch (category) {
-    case "structure":
+    case "sceneConstruction":
       output = output
         .replace(/\bwanted to\b/gi, "needed to")
         .replace(/\bmaybe\b/gi, "must")
         .replace(/\bin the end\b/gi, "by the end");
       break;
-    case "narrative":
+    case "narrativeDrive":
       output = output
         .replace(/\bthen\b/gi, "next")
         .replace(/\bsuddenly\b/gi, "in that moment")

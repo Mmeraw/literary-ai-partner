@@ -1,42 +1,74 @@
 import { beforeEach, describe, expect, jest, test } from "@jest/globals";
-import type { ChangeProposal } from "@/lib/revision/types";
+import type {
+  ApplyRevisionSessionResult,
+  ChangeProposal,
+  RevisionSession,
+} from "@/lib/revision/types";
+import type { ManuscriptVersionRow } from "@/lib/db/manuscriptVersions";
 
-const mockCreateDerivedVersion = jest.fn();
-const mockGetVersionById = jest.fn();
-const mockHydrateSourceVersionIfMissing = jest.fn();
-const mockTransitionRevisionSessionState = jest.fn();
-const mockGetRevisionSessionById = jest.fn();
-const mockListProposalsForSession = jest.fn();
-const mockLogRevisionEvent = jest.fn();
+type DerivedVersionInput = {
+  manuscript_id: number;
+  source_version_id: string;
+  raw_text: string;
+  word_count: number;
+};
+
+type HydratedSourceVersion = {
+  raw_text: string;
+};
+
+const mockCreateDerivedVersion = jest.fn<
+  (input: DerivedVersionInput) => Promise<Pick<ManuscriptVersionRow, "id">>
+>();
+const mockGetVersionById = jest.fn<
+  (versionId: string) => Promise<Pick<ManuscriptVersionRow, "id" | "manuscript_id" | "raw_text"> | null>
+>();
+const mockHydrateSourceVersionIfMissing = jest.fn<
+  (versionId: string, options: { persist: boolean }) => Promise<HydratedSourceVersion>
+>();
+const mockTransitionRevisionSessionState = jest.fn<
+  (
+    revisionSessionId: string,
+    input: {
+      nextStatus: string;
+      result_version_id: string;
+      proposals_created_count: number;
+      summary: Record<string, unknown>;
+    },
+  ) => Promise<void>
+>();
+const mockGetRevisionSessionById = jest.fn<
+  (revisionSessionId: string) => Promise<RevisionSession | null>
+>();
+const mockListProposalsForSession = jest.fn<
+  (revisionSessionId: string) => Promise<ChangeProposal[]>
+>();
+const mockLogRevisionEvent = jest.fn<(input: unknown) => Promise<void>>();
 
 jest.mock("@/lib/manuscripts/versions", () => ({
-  createDerivedVersion: (...args: unknown[]) => mockCreateDerivedVersion(...args),
-  getVersionById: (...args: unknown[]) => mockGetVersionById(...args),
+  createDerivedVersion: mockCreateDerivedVersion,
+  getVersionById: mockGetVersionById,
 }));
 
 jest.mock("@/lib/manuscripts/hydrateVersions", () => ({
-  hydrateSourceVersionIfMissing: (...args: unknown[]) =>
-    mockHydrateSourceVersionIfMissing(...args),
+  hydrateSourceVersionIfMissing: mockHydrateSourceVersionIfMissing,
 }));
 
 jest.mock("@/lib/revision/sessionTransitions", () => ({
-  transitionRevisionSessionState: (...args: unknown[]) =>
-    mockTransitionRevisionSessionState(...args),
+  transitionRevisionSessionState: mockTransitionRevisionSessionState,
 }));
 
 jest.mock("@/lib/revision/sessions", () => ({
-  getRevisionSessionById: (...args: unknown[]) =>
-    mockGetRevisionSessionById(...args),
-  listProposalsForSession: (...args: unknown[]) =>
-    mockListProposalsForSession(...args),
+  getRevisionSessionById: mockGetRevisionSessionById,
+  listProposalsForSession: mockListProposalsForSession,
 }));
 
 jest.mock("@/lib/revision/logRevisionEvent", () => ({
-  logRevisionEvent: (...args: unknown[]) => mockLogRevisionEvent(...args),
+  logRevisionEvent: mockLogRevisionEvent,
 }));
 
 const { applyRevisionSession } = require("@/lib/revision/apply") as {
-  applyRevisionSession: (revisionSessionId: string) => Promise<unknown>;
+  applyRevisionSession: (revisionSessionId: string) => Promise<ApplyRevisionSessionResult>;
 };
 
 function buildProposal(
@@ -55,7 +87,7 @@ function buildProposal(
     id: overrides.id ?? `${start}-${end}-${original}`,
     revision_session_id: overrides.revision_session_id ?? "session-apply",
     location_ref: overrides.location_ref ?? "loc:1",
-    rule: overrides.rule ?? "clarity",
+    rule: overrides.rule ?? "proseControl",
     action: overrides.action ?? "refine",
     original_text: overrides.original_text ?? original,
     proposed_text: overrides.proposed_text ?? replacement,
@@ -103,17 +135,17 @@ describe("applyRevisionSession atomicity", () => {
       id: "ver-source-1",
       manuscript_id: 101,
       raw_text: sourceText,
-    } as any);
+    });
 
     mockHydrateSourceVersionIfMissing.mockResolvedValue({
       raw_text: sourceText,
-    } as any);
+    });
 
     mockCreateDerivedVersion.mockResolvedValue({
       id: "ver-result-1",
-    } as any);
+    });
 
-    mockTransitionRevisionSessionState.mockResolvedValue(undefined as never);
+    mockTransitionRevisionSessionState.mockResolvedValue(undefined);
     mockLogRevisionEvent.mockResolvedValue(undefined);
   });
 
@@ -136,7 +168,7 @@ describe("applyRevisionSession atomicity", () => {
       after_context: sourceText.slice(11, Math.min(sourceText.length, 11 + 40)),
     });
 
-    mockListProposalsForSession.mockResolvedValue([p1, p2] as any);
+    mockListProposalsForSession.mockResolvedValue([p1, p2]);
 
     await expect(applyRevisionSession("session-1")).rejects.toThrow(
       /Overlapping proposals detected/,
@@ -150,7 +182,7 @@ describe("applyRevisionSession atomicity", () => {
     const p1 = buildProposal(sourceText, "beta", "BETA", { id: "p1" });
     const p2 = buildProposal(sourceText, "delta", "DELTA", { id: "p2" });
 
-    mockListProposalsForSession.mockResolvedValue([p1, p2] as any);
+    mockListProposalsForSession.mockResolvedValue([p1, p2]);
 
     const result = await applyRevisionSession("session-1");
 

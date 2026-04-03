@@ -9,11 +9,20 @@ import { describe, it, expect, jest, beforeEach } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { runPipeline, synthesisToEvaluationResult } from "@/lib/evaluation/pipeline/runPipeline";
 import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
-import type { SinglePassOutput, SynthesisOutput, QualityGateResult } from "@/lib/evaluation/pipeline/types";
+import type {
+  SinglePassOutput,
+  SynthesisOutput,
+  QualityGateResult,
+  PipelineResult,
+} from "@/lib/evaluation/pipeline/types";
 import type { RunPass1Options } from "@/lib/evaluation/pipeline/runPass1";
 import type { RunPass2Options } from "@/lib/evaluation/pipeline/runPass2";
 import type { RunPass3Options } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { LessonsLearnedReport, RuleStage, RuleEvaluationInput } from "@/lib/governance/lessonsLearned";
+
+function isPipelineFailure(result: PipelineResult): result is Extract<PipelineResult, { ok: false }> {
+  return result.ok === false;
+}
 
 // ── Fixture builders ──────────────────────────────────────────────────────────
 
@@ -158,7 +167,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isPipelineFailure(result)) {
       expect(result.error_code).toBe("PASS1_FAILED");
       expect(result.failed_at).toBe("pass1");
       expect(result.error).toContain("OpenAI network error");
@@ -181,7 +190,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isPipelineFailure(result)) {
       expect(result.error_code).toBe("PASS2_FAILED");
       expect(result.failed_at).toBe("pass2");
     }
@@ -203,7 +212,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isPipelineFailure(result)) {
       expect(result.error_code).toBe("PASS3_FAILED");
       expect(result.failed_at).toBe("pass3");
     }
@@ -225,7 +234,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isPipelineFailure(result)) {
       expect(result.error_code).toBe("QG_CRITERIA_MISSING");
       expect(result.failed_at).toBe("pass4");
     }
@@ -292,7 +301,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isPipelineFailure(result)) {
       expect(result.error_code).toBe("CANON_REGISTRY_BIND_FAILED");
       expect(result.failed_at).toBe("pass1");
       expect(result.error).toContain("checkpoint=CANON_REGISTRY_BINDING");
@@ -317,7 +326,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isPipelineFailure(result)) {
       expect(result.error_code).toBe("PIPELINE_INPUT_INVALID");
       expect(result.failed_at).toBe("pass1");
     }
@@ -346,7 +355,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isPipelineFailure(result)) {
       expect(result.error_code).toBe("PASS1_TIMEOUT");
       expect(result.failed_at).toBe("pass1");
     }
@@ -391,7 +400,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isPipelineFailure(result)) {
       expect(result.error_code).toBe("LLR_POST_STRUCTURAL_BLOCK");
       expect(result.failed_at).toBe("pass1");
       expect(result.error).toContain("checkpoint=LLR_POST_STRUCTURAL");
@@ -437,7 +446,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isPipelineFailure(result)) {
       expect(result.error_code).toBe("LLR_PRE_ARTIFACT_GENERATION_BLOCK");
       expect(result.failed_at).toBe("pass4");
       expect(result.error).toContain("checkpoint=LLR_PRE_ARTIFACT_GENERATION");
@@ -465,7 +474,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isPipelineFailure(result)) {
       expect(result.error_code).toBe("GOVERNANCE_INJECTION_MAP_INVALID");
       expect(result.failed_at).toBe("pass1");
     }

@@ -2,8 +2,7 @@ export type A6CriterionName =
   | "narrative_cohesion"
   | "character_consistency"
   | "tone_consistency"
-  | "clarity"
-  | "prose_control";
+  | "proseControl";
 
 export type A6ProvenanceEntry = {
   anchor_id: string;

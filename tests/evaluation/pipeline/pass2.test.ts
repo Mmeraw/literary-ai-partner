@@ -109,10 +109,11 @@ describe("runPass2", () => {
       registry,
       openaiApiKey: "sk-test",
     };
+    const optsRecord = opts as unknown as Record<string, unknown>;
     // This is a compile-time test: if RunPass2Options had a pass1 field,
     // this would not compile. Accessing it should fail at type level.
-    expect((opts as Record<string, unknown>)["pass1"]).toBeUndefined();
-    expect((opts as Record<string, unknown>)["pass1Output"]).toBeUndefined();
+    expect(optsRecord["pass1"]).toBeUndefined();
+    expect(optsRecord["pass1Output"]).toBeUndefined();
   });
 
   it("throws when OPENAI_API_KEY is not configured", async () => {

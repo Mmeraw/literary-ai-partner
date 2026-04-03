@@ -57,7 +57,7 @@ function getSurgicalAllowedScopesByCategory(category: WaveCategory): Set<EditSco
     return new Set<EditScope>(["phrase", "sentence"]);
   }
 
-  if (category === "structure" || category === "narrative" || category === "scene") {
+  if (category === "sceneConstruction" || category === "narrativeDrive" || category === "scene") {
     return new Set<EditScope>(["sentence"]);
   }
 

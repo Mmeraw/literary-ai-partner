@@ -92,7 +92,7 @@ describe("Phase 2.1 anchor contract", () => {
       [
         {
           location_ref: "scene:1",
-          rule: "clarity",
+            rule: "proseControl",
           action: "refine",
           original_text: "Hero enters the room and looks around carefully.",
           proposed_text: "Hero steps into the room, scanning every corner.",
@@ -157,7 +157,7 @@ describe("Phase 2.1 anchor contract", () => {
         [
           {
             location_ref: "malformed:1",
-            rule: "clarity",
+            rule: "proseControl",
             action: "refine",
             original_text: "",
             proposed_text: "Replacement text.",
@@ -175,7 +175,7 @@ describe("Phase 2.1 anchor contract", () => {
         [
           {
             location_ref: "malformed:2",
-            rule: "clarity",
+            rule: "proseControl",
             action: "refine",
             original_text: "One valid source sentence.",
             proposed_text: "",

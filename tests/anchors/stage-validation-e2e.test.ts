@@ -271,7 +271,7 @@ describe("Phase 2.5 stage validation", () => {
         candidates: [
           {
             location_ref: "scene:1",
-            rule: "clarity",
+            rule: "proseControl",
             action: "refine",
             original_text: "Hero enters the room and looks around carefully.",
             proposed_text: "Hero steps into the room, scanning every corner.",
@@ -289,7 +289,7 @@ describe("Phase 2.5 stage validation", () => {
         candidates: [
           {
             location_ref: "scene:2a",
-            rule: "clarity",
+            rule: "proseControl",
             action: "refine",
             original_text: "café stayed open late",
             proposed_text: "bistro stayed open late",
@@ -352,7 +352,7 @@ describe("Phase 2.5 stage validation", () => {
           },
           {
             location_ref: "dialogue:1b",
-            rule: "clarity",
+            rule: "proseControl",
             action: "refine",
             original_text: "Where are you?",
             proposed_text: "Where are you now?",
@@ -396,7 +396,7 @@ describe("Phase 2.5 stage validation", () => {
       {
         revision_session_id: "session-overlap",
         location_ref: "ov:1",
-        rule: "clarity",
+        rule: "proseControl",
         action: "refine",
         original_text: "bcd",
         proposed_text: "BCD",
@@ -410,7 +410,7 @@ describe("Phase 2.5 stage validation", () => {
       {
         revision_session_id: "session-overlap",
         location_ref: "ov:2",
-        rule: "clarity",
+        rule: "proseControl",
         action: "refine",
         original_text: "cde",
         proposed_text: "CDE",
@@ -434,7 +434,7 @@ describe("Phase 2.5 stage validation", () => {
             [
               {
                 location_ref: "scene:bad",
-                rule: "clarity",
+                rule: "proseControl",
                 action: "refine",
                 original_text: "Hero enters the room and looks around carefully.",
                 proposed_text: "",
