@@ -24,7 +24,7 @@ During emergency, the following gates are **required** (cannot skip):
 - [ ] Gate 7: Smoke-Loop Proof (the whole point)
 - [ ] Gate 8: Regression Safety (don't break something else)
 - [ ] Gate 10: Canon Compliance (no invariant violations)
-
+- [ ] Gate 11: Finalizer Authority (Finalizer truth gate CANNOT be bypassed — wrong output is worse than no output)
 The following gates are **deferred** (must be addressed in follow-up PR within 48h):
 - Gates 1-6, 9: Retry, state machine, idempotency, timeout, dead-letter, observability, doctrine traceability
 
