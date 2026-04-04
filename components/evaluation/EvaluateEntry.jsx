@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { appendUserActivity } from "@/lib/activity/userActivity";
 import { useJobs } from "../../lib/jobs/useJobs";
 import { getJobDisplayInfo, getJobStatusBadge } from "../../lib/jobs/ui-helpers";
 import { formatRelativeTime, formatDuration } from "../../lib/ui/time-helpers";
@@ -21,6 +22,15 @@ import CompletionBanner from "./CompletionBanner";
  */
 export default function EvaluateEntry() {
   const { jobs, isLoading, isError } = useJobs();
+
+  React.useEffect(() => {
+    appendUserActivity({
+      event: "evaluate.page.viewed",
+      route: "/evaluate",
+      href: "/evaluate",
+      linkLabel: "Open Evaluate",
+    });
+  }, []);
 
   // Loading state
   if (isLoading) {
@@ -213,6 +223,15 @@ export default function EvaluateEntry() {
                             {isComplete ? (
                               <Link
                                 href={`/evaluate/${job.id}`}
+                                onClick={() => {
+                                  appendUserActivity({
+                                    event: "evaluate.report.opened",
+                                    route: "/evaluate",
+                                    href: `/evaluate/${job.id}`,
+                                    linkLabel: "Open evaluation report",
+                                    detail: `job_id=${job.id}`,
+                                  });
+                                }}
                                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
                               >
                                 View Evaluation Report

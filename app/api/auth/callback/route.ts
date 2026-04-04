@@ -11,6 +11,6 @@ export async function GET(request: Request) {
     await supabase.auth.exchangeCodeForSession(code)
   }
 
-  // Redirect to evaluate page after successful auth
-  return NextResponse.redirect(`${origin}/evaluate`)
+  // Redirect to dashboard after successful auth
+  return NextResponse.redirect(`${origin}/dashboard`)
 }

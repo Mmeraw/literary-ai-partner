@@ -26,6 +26,12 @@ export default function Home() {
           >
             Sign In
           </Link>
+          <Link
+            href="/signup"
+            className="inline-flex items-center rounded-xl border border-indigo-300 px-6 py-3 text-indigo-700 font-medium hover:bg-indigo-50 transition"
+          >
+            Sign Up
+          </Link>
         </div>
       </section>
 

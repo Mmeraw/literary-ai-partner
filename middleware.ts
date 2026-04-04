@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { trackAuthBypass, trackAuthCheck, trackAuthRedirect } from '@/lib/auth/telemetry'
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -13,6 +14,7 @@ export async function middleware(request: NextRequest) {
     // In CI, bypass auth to prevent crash loops; in prod, fail fast
     if (process.env.CI || process.env.NODE_ENV === 'test') {
       console.warn('Supabase env vars missing in CI/test, bypassing auth')
+      trackAuthBypass('ci_test_missing_env')
       return supabaseResponse
     }
     throw new Error('NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required')
@@ -39,9 +41,25 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user: unknown = null
+  try {
+    const {
+      data: { user: authUser },
+      error,
+    } = await supabase.auth.getUser()
+
+    if (error) {
+      trackAuthCheck('error')
+      user = null
+    } else {
+      user = authUser
+      trackAuthCheck(authUser ? 'authenticated' : 'anonymous')
+    }
+  } catch {
+    // Fail closed for protected routes while preserving middleware stability.
+    trackAuthCheck('error')
+    user = null
+  }
 
   // Protected routes - redirect to login if not authenticated
   const protectedRoutes = ['/evaluate', '/dashboard', '/revise', '/convert', '/output', '/admin']
@@ -52,13 +70,15 @@ export async function middleware(request: NextRequest) {
   if (isProtectedRoute && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    trackAuthRedirect('login_required')
     return NextResponse.redirect(url)
   }
 
-  // Redirect logged-in users away from login page
-  if (request.nextUrl.pathname === '/login' && user) {
+  // Redirect logged-in users away from auth entry pages
+  if ((request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup') && user) {
     const url = request.nextUrl.clone()
-    url.pathname = '/evaluate'
+    url.pathname = '/dashboard'
+    trackAuthRedirect('already_authenticated')
     return NextResponse.redirect(url)
   }
 

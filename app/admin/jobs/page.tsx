@@ -82,7 +82,7 @@ export default function AdminJobsPage() {
       <h1 className="text-2xl font-semibold mb-4">Evaluation Jobs</h1>
 
       <div className="mb-4 flex gap-2 flex-wrap">
-        {["all", "queued", "running", "complete", "failed", "cancelled"].map((s) => (
+        {["all", "queued", "running", "complete", "failed"].map((s) => (
           <button
             key={s}
             onClick={() => { setLoading(true); setStatusFilter(s); }}
@@ -127,8 +127,6 @@ export default function AdminJobsPage() {
                           ? "bg-red-100 text-red-800"
                           : job.status === "running"
                           ? "bg-blue-100 text-blue-800"
-                          : job.status === "cancelled"
-                          ? "bg-yellow-100 text-yellow-800"
                           : "bg-gray-100 text-gray-800"
                       }`}
                     >
