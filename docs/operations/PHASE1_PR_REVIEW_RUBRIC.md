@@ -4,6 +4,8 @@
 
 **Authority:** GitHub (reviewer) + Canon doctrine + Operations Hardening Spec
 
+> **This rubric defines the minimum pass/fail philosophy.** All PRs MUST also satisfy the [Phase 1 PR Template](../../.github/PULL_REQUEST_TEMPLATE.md) and [Auto-FAIL conditions](./PR_COMPACT_GATES.md).
+
 ---
 
 ## Gate 1: Retry Discipline
