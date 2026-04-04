@@ -63,6 +63,20 @@ For each gate checked by the author, verify:
 - [ ] No invariant violations introduced
 - [ ] No undocumented behavioral changes
 
+
+### Gate 11: Finalizer Authority (hard stop)
+- [ ] No code path sets `job.status = "complete"` outside Finalizer
+- [ ] Finalizer validates ALL required artifacts before completion
+- [ ] No partial-complete states possible
+- [ ] No report render without Finalizer-approved canonical artifact
+- [ ] Finalizer decisions reconstructable from logs
+
+### Gate 12: Pass Artifact Integrity
+- [ ] pass1, pass2, pass3 artifacts stored separately (distinct IDs)
+- [ ] No early merge/collapse of pass outputs
+- [ ] Convergence step explicit and auditable
+- [ ] Missing pass artifact blocks finalization
+- [ ] Pass artifact schema validated before convergence
 ## Reviewer Verdict
 - [ ] **APPROVE** — All applicable gates pass
 - [ ] **REQUEST CHANGES** — Specific gate failures listed below
