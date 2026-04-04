@@ -125,6 +125,34 @@
 
 ---
 
+## Gate 11: Finalizer Authority (hard stop)
+
+| Check | Pass/Fail |
+|---|---|
+| No code path sets `job.status = "complete"` outside Finalizer | |
+| Finalizer validates ALL required artifacts before completion | |
+| No partial-complete states possible | |
+| No report render without Finalizer-approved canonical artifact | |
+| Finalizer decisions reconstructable from logs and persisted state | |
+
+**Hard rule:** Any PR that touches completion logic MUST prove Finalizer is sole authority.
+
+---
+
+## Gate 12: Pass Artifact Integrity
+
+| Check | Pass/Fail |
+|---|---|
+| pass1, pass2, pass3 artifacts stored separately (distinct IDs, distinct rows) | |
+| No early merge/collapse of pass outputs | |
+| Convergence step is explicit and auditable | |
+| Missing pass artifact blocks finalization | |
+| Pass artifact schema validated before convergence | |
+
+**Hard rule:** Any PR that touches pass artifacts or convergence MUST prove separation is maintained.
+
+---
+
 ## Verdict
 
 **PASS:** All applicable gates pass. PR approved for merge.
