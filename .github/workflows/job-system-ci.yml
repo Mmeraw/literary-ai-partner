@@ -57,6 +57,12 @@ jobs:
             missing=1
           fi
 
+          # Required for Supabase CLI auth during migration operations
+          if [[ -z "${{ secrets.SUPABASE_DB_PASSWORD_CI }}" ]]; then
+            echo "❌ Missing SUPABASE_DB_PASSWORD_CI"
+            missing=1
+          fi
+
           if [ "$missing" -eq 1 ]; then
             echo "secrets_ok=false" >> "$GITHUB_OUTPUT"
             echo "⚠️  Supabase proof gates cannot run (secrets missing)"
@@ -96,6 +102,7 @@ jobs:
           echo "  • SUPABASE_PROJECT_REF_CI"
           echo "  • SUPABASE_ACCESS_TOKEN_CI"
           echo "  • SUPABASE_DB_URL_CI"
+          echo "  • SUPABASE_DB_PASSWORD_CI"
           echo ""
           echo "Resolution:"
           echo "  Configure these secrets in repository settings to enable"

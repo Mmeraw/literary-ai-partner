@@ -23,6 +23,7 @@ type Params = Promise<{ jobId: string }>;
  */
 type CanonicalJobResponse = {
   id: string;
+  user_id: string;
   status: "queued" | "running" | "complete" | "failed";
   progress: number; // 0-100
   created_at: string;
@@ -89,6 +90,7 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
       ok: true,
       job: {
         id: job.id,
+        user_id: job.user_id,
         status: job.status as "queued" | "running" | "complete" | "failed",
         progress: calculateProgressPercentage(job),
         created_at: job.created_at,
