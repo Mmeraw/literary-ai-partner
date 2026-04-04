@@ -179,5 +179,5 @@ export function validateCanonicalEvaluationArtifact(raw: unknown): CanonicalEval
     throw new CanonicalEvaluationArtifactValidationError("provenance.prompt_pack_version", "must be a string or null");
   }
 
-  return raw as CanonicalEvaluationArtifact;
+  return raw as unknown as CanonicalEvaluationArtifact;
 }

@@ -114,5 +114,5 @@ export function validatePassArtifact(raw: unknown): PassArtifact {
     }
   }
 
-  return raw as PassArtifact;
+  return raw as unknown as PassArtifact;
 }

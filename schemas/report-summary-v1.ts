@@ -78,5 +78,5 @@ export function validateReportSummary(raw: unknown): ReportSummaryProjection {
     assertBoolean(r[boolField], boolField);
   }
 
-  return raw as ReportSummaryProjection;
+  return raw as unknown as ReportSummaryProjection;
 }

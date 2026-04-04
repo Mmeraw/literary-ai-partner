@@ -136,5 +136,5 @@ export function validateConvergenceArtifact(raw: unknown): ConvergenceArtifact {
     }
   }
 
-  return raw as ConvergenceArtifact;
+  return raw as unknown as ConvergenceArtifact;
 }
