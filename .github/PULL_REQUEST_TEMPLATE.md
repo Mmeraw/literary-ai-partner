@@ -15,6 +15,8 @@ Closes #___
 - [ ] Gate 8: Regression Safety
 - [ ] Gate 9: Doctrine Traceability
 - [ ] Gate 10: Canon Compliance
+- [ ] Gate 11: Finalizer Authority (hard stop)
+- [ ] Gate 12: Pass Artifact Integrity
 
 ---
 
@@ -51,5 +53,7 @@ Closes #___
 > - Silent retry loops (no logging)
 > - State transitions that skip validation
 > - Missing doctrine reference for behavioral changes
+> - Completion logic outside Finalizer
+> - Pass artifact collapse or missing separation
 >
 > **Reviewer must verify:** All checked gates pass per [PHASE1_PR_REVIEW_RUBRIC.md](../docs/operations/PHASE1_PR_REVIEW_RUBRIC.md)
