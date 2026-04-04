@@ -17,13 +17,16 @@
 | 8 | No existing test broken, no untested path added | |
 | 9 | PR references canon doc for every behavioral change | |
 | 10 | No canon violation, no undocumented invariant change | |
-
+| 11 | Finalizer is sole completion authority, no bypass possible | |
+| 12 | Pass artifacts stored separately, no collapse, convergence auditable | |
 ## Auto-Fail (any one blocks merge)
 - [ ] CI red
 - [ ] Untested changed path
 - [ ] Silent retry loop
 - [ ] Unvalidated state transition
 - [ ] Missing doctrine reference
+- [ ] Completion logic outside Finalizer
+- [ ] Pass artifact collapse or missing separation
 
 ---
 
