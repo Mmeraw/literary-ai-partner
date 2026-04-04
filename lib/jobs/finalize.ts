@@ -25,7 +25,6 @@ import type {
   FinalizeJobResult,
 } from "./finalize.types";
 import type { FailureCode } from "./failures";
-import { isTransientFailure } from "./failures";
 import {
   InvariantViolation,
   assertFinalizerAuthority,
