@@ -66,11 +66,13 @@ jobs:
           fi
 
           # Required for Supabase CLI auth during migration operations
-          if [[ -z "$SUPABASE_DB_PASSWORD_VAL" ]]; then
-            echo "❌ Missing SUPABASE_DB_PASSWORD_CI (or SUPABASE_DB_PASSWORD fallback)"
+          # DB password can be derived from DB URL at runtime; only fail if BOTH are missing
+          if [[ -z "$SUPABASE_DB_PASSWORD_VAL" && -z "$SUPABASE_DB_URL_VAL" ]]; then
+            echo "Missing SUPABASE_DB_PASSWORD_CI and no SUPABASE_DB_URL to derive from"
             missing=1
+          elif [[ -z "$SUPABASE_DB_PASSWORD_VAL" ]]; then
+            echo "SUPABASE_DB_PASSWORD not set; will derive from SUPABASE_DB_URL at runtime"
           fi
-
           if [ "$missing" -eq 1 ]; then
             echo "secrets_ok=false" >> "$GITHUB_OUTPUT"
             echo "⚠️  Supabase proof gates cannot run (secrets missing)"
