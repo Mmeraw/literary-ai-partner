@@ -70,7 +70,7 @@ export async function middleware(request: NextRequest) {
   if (!user && !isPublicPath) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/private-beta'
-    trackAuthRedirect('private_beta_gate')
+    trackAuthRedirect('login_required')
     return NextResponse.redirect(redirectUrl)
   }
 
