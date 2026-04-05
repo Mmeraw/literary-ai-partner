@@ -7,21 +7,24 @@ import type {
   JobAuditEvent,
   PassArtifact,
 } from "./finalize.types";
+import { JOB_STATUS, type JobStatus } from "./types";
 
 const FINALIZER_JOB_SELECT_FIELDS = [
   "id",
   "status",
+  "phase",
   "created_at",
   "updated_at",
   "last_error",
   "manuscript_id",
   "attempt_count",
+  "next_retry_at",
   "next_attempt_at",
   "manuscripts(user_id)",
   "progress",
 ].join(", ");
 
-const ARTIFACT_SELECT_FIELDS = "id, job_id, artifact_type, content, artifact_payload";
+const ARTIFACT_SELECT_FIELDS = "id, job_id, artifact_type, content";
 
 type SupabaseLike = NonNullable<ReturnType<typeof createAdminClient>>;
 
@@ -66,8 +69,33 @@ function extractOwnerUserId(row: any): string {
   return ownerUserId;
 }
 
+function parseJobStatus(value: unknown, jobId: string): JobStatus {
+  switch (value) {
+    case JOB_STATUS.QUEUED:
+    case JOB_STATUS.RUNNING:
+    case JOB_STATUS.COMPLETE:
+    case JOB_STATUS.FAILED:
+      return value;
+    default:
+      throw new Error(
+        `[FINALIZER-STORE] Unsupported job status '${String(value)}' for job ${jobId}`,
+      );
+  }
+}
+
+function requireTimestamp(value: unknown, fieldName: "created_at" | "updated_at", jobId: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(
+      `[FINALIZER-STORE] Job ${jobId} missing required ${fieldName} timestamp`,
+    );
+  }
+
+  return value;
+}
+
 function mapRowToFinalizerJob(row: any): EvaluationJob {
   const progress = row?.progress && typeof row.progress === "object" ? row.progress : {};
+  const jobId = String(row?.id ?? "(unknown)");
   const jobPhase =
     typeof row?.phase === "string"
       ? row.phase
@@ -110,9 +138,9 @@ function mapRowToFinalizerJob(row: any): EvaluationJob {
     ?? null;
 
   return {
-    id: String(row.id),
+    id: jobId,
     user_id: extractOwnerUserId(row),
-    status: String(row.status) as EvaluationJob["status"],
+    status: parseJobStatus(row?.status, jobId),
     phase: canonicalPhase,
     progress_percent:
       typeof row?.progress_percent === "number"
@@ -169,8 +197,8 @@ function mapRowToFinalizerJob(row: any): EvaluationJob {
       ?? (typeof progress?.summary_artifact_id === "string"
         ? progress.summary_artifact_id
         : null),
-    created_at: String(row.created_at ?? new Date().toISOString()),
-    updated_at: String(row.updated_at ?? new Date().toISOString()),
+    created_at: requireTimestamp(row?.created_at, "created_at", jobId),
+    updated_at: requireTimestamp(row?.updated_at, "updated_at", jobId),
     terminal_at:
       typeof row?.terminal_at === "string"
         ? row.terminal_at
@@ -180,7 +208,6 @@ function mapRowToFinalizerJob(row: any): EvaluationJob {
 
 function readArtifactPayload(row: any): unknown {
   if (row?.content !== undefined && row?.content !== null) return row.content;
-  if (row?.artifact_payload !== undefined && row?.artifact_payload !== null) return row.artifact_payload;
   throw new Error(
     `[FINALIZER-STORE] Artifact ${row?.id ?? "(unknown)"} missing content payload`,
   );

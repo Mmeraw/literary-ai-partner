@@ -3,6 +3,7 @@ import {
   getConvergenceArtifactById,
   getJobForFinalization,
   getPassArtifactById,
+  writeJobAuditEvent,
 } from "@/lib/jobs/store.finalizer";
 
 jest.mock("@/lib/supabase/admin");
@@ -14,8 +15,12 @@ function makeSupabaseMock(options: {
   jobRow?: any;
   artifactRow?: any;
   error?: { message: string } | null;
+  insertError?: { message: string } | null;
 }) {
+  const insert = jest.fn(async () => ({ error: options.insertError ?? options.error ?? null }));
+
   return {
+    insert,
     from: jest.fn((table: string) => {
       if (table === "evaluation_jobs") {
         return {
@@ -43,9 +48,13 @@ function makeSupabaseMock(options: {
         };
       }
 
-      return {
-        insert: jest.fn(async () => ({ error: options.error ?? null })),
-      };
+      if (table === "evaluation_job_audit_events") {
+        return {
+          insert,
+        };
+      }
+
+      throw new Error(`Unexpected table access in test: ${table}`);
     }),
   };
 }
@@ -84,8 +93,48 @@ describe("store.finalizer read paths", () => {
 
     expect(job.id).toBe("job-1");
     expect(job.user_id).toBe("user-1");
+    expect(job.status).toBe("running");
     expect(job.phase).toBe("finalizer");
     expect(job.claimed_by).toBe("worker-1");
+  });
+
+  test("fails closed on unsupported job status", async () => {
+    const supabaseMock = makeSupabaseMock({
+      jobRow: {
+        id: "job-1",
+        status: "retry_pending",
+        phase: "phase_1",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        manuscripts: { user_id: "user-1" },
+        progress: {},
+      },
+    });
+
+    mockCreateAdminClient.mockReturnValue(supabaseMock);
+
+    await expect(getJobForFinalization("job-1")).rejects.toThrow(
+      /unsupported job status/i,
+    );
+  });
+
+  test("fails closed when created_at is missing", async () => {
+    const supabaseMock = makeSupabaseMock({
+      jobRow: {
+        id: "job-1",
+        status: "running",
+        phase: "phase_1",
+        updated_at: new Date().toISOString(),
+        manuscripts: { user_id: "user-1" },
+        progress: {},
+      },
+    });
+
+    mockCreateAdminClient.mockReturnValue(supabaseMock);
+
+    await expect(getJobForFinalization("job-1")).rejects.toThrow(
+      /missing required created_at timestamp/i,
+    );
   });
 
   test("parses pass artifact payload from evaluation_artifacts", async () => {
@@ -157,5 +206,49 @@ describe("store.finalizer read paths", () => {
     await expect(getConvergenceArtifactById("conv-1")).rejects.toThrow(
       /failed schema validation/i,
     );
+  });
+
+  test("writes audit events with canonical insert payload", async () => {
+    const supabaseMock = makeSupabaseMock({});
+
+    mockCreateAdminClient.mockReturnValue(supabaseMock);
+
+    await writeJobAuditEvent({
+      job_id: "job-1",
+      event_type: "finalizer_started",
+      actor_id: "worker-1",
+      failure_code: null,
+      message: "Finalizer entered",
+      metadata: { phase: "finalizer" },
+    });
+
+    expect(supabaseMock.from).toHaveBeenCalledWith("evaluation_job_audit_events");
+    expect(supabaseMock.insert).toHaveBeenCalledWith({
+      job_id: "job-1",
+      event_type: "finalizer_started",
+      actor_id: "worker-1",
+      failure_code: null,
+      message: "Finalizer entered",
+      metadata: { phase: "finalizer" },
+    });
+  });
+
+  test("surfaces audit write errors without masking them", async () => {
+    const supabaseMock = makeSupabaseMock({
+      insertError: { message: "insert denied" },
+    });
+
+    mockCreateAdminClient.mockReturnValue(supabaseMock);
+
+    await expect(
+      writeJobAuditEvent({
+        job_id: "job-1",
+        event_type: "finalizer_failed",
+        actor_id: null,
+        failure_code: null,
+        message: "boom",
+        metadata: {},
+      }),
+    ).rejects.toThrow(/failed to write audit event: insert denied/i);
   });
 });
