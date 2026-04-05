@@ -134,6 +134,7 @@ export async function createJob(input: {
 
   const payload = {
     manuscript_id: manuscriptId,
+    user_id: input.user_id,
     job_type: JOB_TYPE_TO_DB[input.job_type] ?? input.job_type,
     status: "queued" as JobStatus,
     progress: {

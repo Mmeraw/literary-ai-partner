@@ -137,6 +137,7 @@ export async function POST(req: Request) {
       .from("evaluation_jobs")
       .insert({
         manuscript_id: manuscriptId,
+        user_id: userId,
         job_type: "evaluate_full",
         phase: PHASES.PHASE_1,
         policy_family: "standard",
