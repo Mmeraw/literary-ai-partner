@@ -5,15 +5,26 @@
 **Status:** Intentionally deferred until RevisionGrade go-live
 
 ---
+## Known Risk (Accepted)
+
+Until credential refresh is completed:
+
+- Supabase-backed migration and contract tests will fail in CI
+- Proof-gate enforcement will not validate DB-layer behavior on `main`
+- This does not affect application runtime or non-DB CI paths
+
+This risk is explicitly accepted as part of pre-launch staging posture.
 
 ## Summary
 
 We are done with code; the only remaining red is a deliberately deferred credential issue, to be resolved at go-live.
 
+Credential refresh is deferred to avoid rotating production-adjacent secrets prior to RevisionGrade go-live.
+
 ## Current State
 
 - **Proof-gate workflow logic is complete**
-- **DB password derivation from `SUPABASE_DB_URL_CI` is complete**
+- **DB password derivation from `SUPABASE_DB_URL_CI` is implemented and functioning as designed**
 - The remaining red in `Supabase-Backed Job Tests` is **not** a workflow/code defect
 - The remaining failure is a **known deferred credential-validity issue** (postgres authentication rejected by Supabase with current stored DB credentials)
 
@@ -23,6 +34,7 @@ We are done with code; the only remaining red is a deliberately deferred credent
 - **No secret refresh until launch**
 - Treat current DB-auth failure as an accepted pre-launch environment limitation
 - Revisit by updating `SUPABASE_DB_URL_CI` and/or `SUPABASE_DB_PASSWORD_CI` at go-live
+- No further PRs required for Finalizer / CI / governance layers
 
 ## Classification
 
@@ -44,3 +56,5 @@ When ready to launch RevisionGrade:
 4. Optionally add `SUPABASE_DB_PASSWORD_CI` as a standalone secret
 5. Re-run Job System CI on main
 6. Confirm all-green
+7. Verify `Supabase-Backed Job Tests` passes
+8. Verify `Enforce Proof Gates on Main` remains green with proof execution active
