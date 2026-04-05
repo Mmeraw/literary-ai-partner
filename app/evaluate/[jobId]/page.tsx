@@ -299,7 +299,11 @@ export default async function EvaluationReportPage({
       </div>
 
       <section className="mt-6">
-        <EvaluationPoller jobId={jobId} redirectOnComplete={false} />
+        <EvaluationPoller
+          jobId={jobId}
+          redirectOnComplete={false}
+          refreshOnComplete={true}
+        />
       </section>
 
       {!isComplete ? (

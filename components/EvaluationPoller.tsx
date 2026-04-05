@@ -31,6 +31,7 @@ interface PollerProps {
   refreshInterval?: number; // ms, default 1500
   redirectOnComplete?: boolean;
   redirectDelayMs?: number;
+  refreshOnComplete?: boolean;
 }
 
 export function EvaluationPoller({
@@ -40,6 +41,7 @@ export function EvaluationPoller({
   refreshInterval = 1500,
   redirectOnComplete = false,
   redirectDelayMs,
+  refreshOnComplete = false,
 }: PollerProps) {
   const router = useRouter();
   const [job, setJob] = useState<JobState | null>(null);
@@ -54,6 +56,7 @@ export function EvaluationPoller({
   const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const redirectCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const redirectDeadlineRef = useRef<number | null>(null);
+  const refreshedRef = useRef(false);
   const fetchJobRef = useRef<(() => Promise<void>) | null>(null);
   const unchangedCountRef = useRef(0);
   const networkErrorCountRef = useRef(0);
@@ -181,6 +184,13 @@ export function EvaluationPoller({
                 navigateToReport();
               }, resolvedRedirectDelayMs);
             }
+          } else if (
+            data.job.status === 'complete' &&
+            refreshOnComplete &&
+            !refreshedRef.current
+          ) {
+            refreshedRef.current = true;
+            router.refresh();
           }
 
           onComplete?.(data.job, data.job.status === 'complete');
@@ -282,6 +292,7 @@ export function EvaluationPoller({
     unchangedCountRef.current = 0;
     networkErrorCountRef.current = 0;
     redirectedRef.current = false;
+    refreshedRef.current = false;
     if (redirectTimeoutRef.current) {
       clearTimeout(redirectTimeoutRef.current);
       redirectTimeoutRef.current = null;
