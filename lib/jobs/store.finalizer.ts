@@ -260,7 +260,7 @@ export async function getPassArtifactById(artifactId: string): Promise<PassArtif
       `[FINALIZER-STORE] Pass artifact ${artifactId} failed schema validation: ${parsed.error.message}`,
     );
   }
-  return parsed.data;
+  return parsed.data as PassArtifact;
 }
 
 export async function getConvergenceArtifactById(
@@ -274,7 +274,7 @@ export async function getConvergenceArtifactById(
       `[FINALIZER-STORE] Convergence artifact ${artifactId} failed schema validation: ${parsed.error.message}`,
     );
   }
-  return parsed.data;
+  return parsed.data as ConvergenceArtifact;
 }
 
 export async function writeJobAuditEvent(
