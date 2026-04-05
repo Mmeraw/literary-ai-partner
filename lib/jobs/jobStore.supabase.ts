@@ -9,7 +9,7 @@ import {
 import { Job, JobStatus, JobType, PHASES, Phase, JOB_STATUS, JobProgress } from "./types";
 
 const JOB_SELECT_FIELDS =
-  "id, manuscript_id, job_type, status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id)";
+  "id, manuscript_id, user_id, job_type, status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id)";
 
 // Lazy-initialized Supabase client - null-safe for CI/build environments
 let _supabase: ReturnType<typeof createAdminClient> | undefined;
