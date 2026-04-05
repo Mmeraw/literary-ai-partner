@@ -25,6 +25,24 @@ export async function POST(req: Request) {
   const trace_id = generateTraceId();
   const request_id = generateTraceId();
 
+  if (process.env.NODE_ENV === "production" && process.env.USE_SUPABASE_JOBS !== "true") {
+    logger.error("Production misconfiguration: memory store disabled", {
+      trace_id,
+      request_id,
+      event: "api.jobs.create.production_memory_store_blocked",
+    });
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Server misconfiguration: USE_SUPABASE_JOBS must be true in production.",
+        trace_id,
+      },
+      { status: 503 }
+    );
+  }
+
   logger.info("Job creation request received", {
     trace_id,
     request_id,
@@ -315,6 +333,24 @@ export async function POST(req: Request) {
 export async function GET() {
   const trace_id = generateTraceId();
   const request_id = crypto.randomUUID();
+
+  if (process.env.NODE_ENV === "production" && process.env.USE_SUPABASE_JOBS !== "true") {
+    logger.error("Production misconfiguration: memory store disabled", {
+      trace_id,
+      request_id,
+      event: "api.jobs.list.production_memory_store_blocked",
+    });
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Server misconfiguration: USE_SUPABASE_JOBS must be true in production.",
+        trace_id,
+      },
+      { status: 503 }
+    );
+  }
 
   try {
     logger.info("GET /api/jobs request received", {

@@ -14,6 +14,7 @@ import { EvaluationPoller } from "@/components/EvaluationPoller";
 type Job = {
   id: string;
   user_id: string;
+  manuscripts?: { user_id: string | null } | Array<{ user_id: string | null }> | null;
   job_type?: string;
   status: "queued" | "running" | "failed" | "complete";
   phase?: string | null;
@@ -68,7 +69,7 @@ async function getJob(jobId: string): Promise<Job | null> {
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, user_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error")
+      .select("id, user_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, manuscripts(user_id)")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -81,7 +82,22 @@ async function getJob(jobId: string): Promise<Job | null> {
       return null;
     }
 
-    return job as Job;
+    const ownerUserId =
+      (job as any)?.user_id ??
+      ((job as any)?.manuscripts?.user_id ??
+        (Array.isArray((job as any)?.manuscripts)
+          ? (job as any).manuscripts[0]?.user_id
+          : null));
+
+    if (!ownerUserId || typeof ownerUserId !== "string") {
+      console.warn(`[getJob] Ownership user_id missing for job: ${jobId}`);
+      return null;
+    }
+
+    return {
+      ...(job as Job),
+      user_id: ownerUserId,
+    };
   } catch (err) {
     console.error(`[getJob] Unexpected error:`, err);
     return null;
