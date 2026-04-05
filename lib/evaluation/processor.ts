@@ -78,6 +78,15 @@ const openAiTimeoutMs = (() => {
   // Keep below Vercel maxDuration=300s so we can write failed status before platform kill.
   return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 295000 ? parsed : 240000;
 })();
+const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'gpt-4o-mini').trim() || 'gpt-4o-mini';
+const evalInputCharBudget = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_INPUT_CHAR_BUDGET || '8000', 10);
+  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 20000 ? parsed : 8000;
+})();
+const evalMaxOutputTokens = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_MAX_OUTPUT_TOKENS || '1400', 10);
+  return Number.isFinite(parsed) && parsed >= 300 && parsed <= 4000 ? parsed : 1400;
+})();
 const staleRunningMinutes = (() => {
   const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);
   return Number.isFinite(parsed) && parsed >= 1 && parsed <= 240 ? parsed : 10;
@@ -703,6 +712,26 @@ function extractCriteriaFromAIResult(aiResult: Record<string, unknown>): unknown
   console.warn('[Processor] Could not find criteria in AI response. Keys:', Object.keys(aiResult));
   return undefined;
 }
+
+function buildEvaluationExcerpt(text: string, maxChars: number): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+
+  // Preserve narrative coverage by sampling beginning/middle/end.
+  const separator = '\n\n---\n\n';
+  const separatorBudget = separator.length * 2;
+  const segmentLen = Math.max(500, Math.floor((maxChars - separatorBudget) / 3));
+
+  const start = trimmed.slice(0, segmentLen);
+  const middleStart = Math.max(0, Math.floor(trimmed.length / 2) - Math.floor(segmentLen / 2));
+  const middle = trimmed.slice(middleStart, middleStart + segmentLen);
+  const end = trimmed.slice(Math.max(0, trimmed.length - segmentLen));
+
+  return `${start}${separator}${middle}${separator}${end}`;
+}
+
 /**
  * Generate evaluation using OpenAI
  */
@@ -725,23 +754,34 @@ async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob):
 
     const manuscriptText = manuscript.content || '(No content provided)';
     const wordCount = manuscriptText.split(/\s+/).length;
+    const manuscriptExcerpt = buildEvaluationExcerpt(manuscriptText, evalInputCharBudget);
+
+    evalDebugLog('[Processor] OpenAI request contract', {
+      model: openAiModel,
+      input_char_budget: evalInputCharBudget,
+      input_chars_actual: manuscriptExcerpt.length,
+      source_chars_total: manuscriptText.length,
+      max_output_tokens: evalMaxOutputTokens,
+      timeout_ms: openAiTimeoutMs,
+      response_format: 'json_object',
+      call_shape: 'single_shot_compact',
+    });
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: openAiModel,
       messages: [
         {
           role: 'system',
           content: [
             `You are an expert literary evaluator.`,
-            `You MUST follow the WAVE Revision Guide below as the governing evaluation authority.`,
+            `You MUST follow the WAVE Revision Guide governance principles.`,
             `You MUST use the canonical 13-criteria rubric keys exactly: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability.`,
             calibration.guidance,
             `Return ONLY valid JSON matching the EvaluationResultV1 schema. No markdown, no code fences, just pure JSON.`,
-            'CRITICAL: Each criterion in the criteria array MUST use the field name "score_0_10" (NOT "score") for scores. Each criterion needs: key, score_0_10 (0-10), rationale, evidence, recommendations.',
-            'CRITICAL: Include at least one concrete evidence snippet per criterion whenever manuscript context supports it.',
-            ``,
-            `WAVE GUIDE (CANONICAL):`,
-            WAVE_GUIDE_SUMMARY,
+            'CRITICAL: Each criterion MUST include key, score_0_10, and concise rationale (1-2 sentences).',
+            'CRITICAL: Keep output concise. Include at most one evidence snippet per criterion and keep snippets under 140 chars.',
+            'CRITICAL: recommendations.quick_wins and recommendations.strategic_revisions may be empty arrays if confidence is low.',
+            'CRITICAL: Do not include extra prose outside the JSON object.',
           ].join('\n')
         },
         {
@@ -751,14 +791,14 @@ async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob):
 Word count: ${wordCount}
 
 Manuscript text:
-${manuscriptText.substring(0, 15000)}
+${manuscriptExcerpt}
 
-Provide a comprehensive evaluation with:
+Provide a concise, high-signal evaluation with:
 1. Overall verdict (pass/revise/fail) and score (0-100)
 2. One-paragraph summary
 3. Top 3 strengths and top 3 risks
-4. Scores (0-10) and rationale for all 13 canonical criteria: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability
-5. Quick wins and strategic revisions with effort/impact ratings
+4. Scores (0-10) and short rationale for all 13 canonical criteria: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability
+5. 0-2 quick wins and 0-2 strategic revisions with effort/impact ratings
 
 Return ONLY valid JSON with this exact structure (no markdown, no code fences):
 {"overview": {"verdict": "pass|revise|fail", "overall_score_0_100": <0-100>, "one_paragraph_summary": "...", "top_3_strengths": ["...", "...", "..."], "top_3_risks": ["...", "...", "..."]},
@@ -769,7 +809,8 @@ Return ONLY valid JSON with this exact structure (no markdown, no code fences):
 "recommendations": {"quick_wins": [{"action": "...", "why": "...", "effort": "low|medium|high", "impact": "low|medium|high"}], "strategic_revisions": [{"action": "...", "why": "...", "effort": "low|medium|high", "impact": "low|medium|high"}]}}`
         }
       ],
-      temperature: 0.7,
+      temperature: 0.2,
+      max_tokens: evalMaxOutputTokens,
       response_format: { type: 'json_object' }
     });
 
