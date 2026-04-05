@@ -2,6 +2,8 @@
 // Track D: Minimal Report Surface
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { headers } from "next/headers";
 import {
   CRITERIA_KEYS,
   CRITERIA_METADATA,
@@ -11,6 +13,7 @@ import { EvaluationPoller } from "@/components/EvaluationPoller";
 
 type Job = {
   id: string;
+  user_id: string;
   job_type?: string;
   status: "queued" | "running" | "failed" | "complete";
   phase?: string | null;
@@ -65,7 +68,7 @@ async function getJob(jobId: string): Promise<Job | null> {
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error")
+      .select("id, user_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -172,13 +175,33 @@ export default async function EvaluationReportPage({
   params: { jobId: string };
 }) {
   const { jobId } = params;
+
+  const sessionUser = await getAuthenticatedUser();
+  const headerOwnerId =
+    process.env.TEST_MODE === "true" && process.env.ALLOW_HEADER_USER_ID === "true"
+      ? (await headers()).get("x-user-id")?.trim() ?? null
+      : null;
+  const ownerId = sessionUser?.id ?? headerOwnerId;
+
+  if (!ownerId) {
+    return (
+      <main className="mx-auto max-w-3xl p-6">
+        <h1 className="text-2xl font-semibold">Evaluation Report</h1>
+        <div className="mt-4 rounded-md bg-yellow-50 border border-yellow-200 p-4">
+          <p className="text-sm text-yellow-800 font-medium">Please sign in to view your evaluation report.</p>
+        </div>
+        <div className="mt-6">
+          <Link href="/login" className="inline-block text-sm text-blue-600 hover:text-blue-700 underline">
+            Go to Sign In
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   const job = await getJob(jobId);
 
-  if (!job) {
-    // Check if it's an auth issue
-    // Auth is handled by the server client; if job is null, 
-    // it may be auth failure or job not found
-    const hasAccessToken = true; // Server client handles auth transparently
+  if (!job || job.user_id !== ownerId) {
 
     return (
       <main className="mx-auto max-w-3xl p-6">
@@ -186,19 +209,13 @@ export default async function EvaluationReportPage({
         <div className="mt-4 rounded-md bg-yellow-50 border border-yellow-200 p-4">
           <p className="text-sm text-yellow-800 font-medium">Unable to load evaluation</p>
           <p className="mt-2 text-sm text-yellow-700">
-            {!hasAccessToken 
-              ? "Please sign in to view your evaluation report."
-              : `We couldn't find job ${jobId}. It may have expired or been deleted.`
-            }
+            {`We couldn't find job ${jobId}. It may have expired, been deleted, or is not accessible to this account.`}
           </p>
         </div>
 
         <div className="mt-6">
-          <Link 
-            href={!hasAccessToken ? "/login" : "/evaluate"} 
-            className="inline-block text-sm text-blue-600 hover:text-blue-700 underline"
-          >
-            {!hasAccessToken ? "Go to Sign In" : "Back to Evaluate"}
+          <Link href="/evaluate" className="inline-block text-sm text-blue-600 hover:text-blue-700 underline">
+            Back to Evaluate
           </Link>
         </div>
       </main>
@@ -266,7 +283,7 @@ export default async function EvaluationReportPage({
       </div>
 
       <section className="mt-6">
-        <EvaluationPoller jobId={jobId} redirectOnComplete />
+        <EvaluationPoller jobId={jobId} redirectOnComplete={false} />
       </section>
 
       {!isComplete ? (

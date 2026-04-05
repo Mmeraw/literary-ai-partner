@@ -10,15 +10,6 @@ create table if not exists public.user_activity_events (
   href text,
   link_label text,
   created_at timestamptz not null default now(),
-ng job is Enforce Proof Gates on Main. Its message:
-
-"Supabase proof gates are required on the main branch, but secrets are not configured. Green CI without proof is worse than red CI."
-
-This guard deliberately hard-fails on main when the six Supabase CI secrets (SUPABASE_URL_CI, SUPABASE_SERVICE_ROLE_KEY_CI, SUPABASE_PROJECT_REF_CI, SUPABASE_ACCESS_TOKEN_CI, SUPABASE_DB_URL_CI, SUPABASE_DB_PASSWORD_CI) are absent from GitHub repo settings. On feature branch PRs it degraded to neutral; on main it escalates to failure by design — the governance rule is "proof gates must run or explicitly fail, no silent skipping."
-
-This is not a defect introduced by any of the four PRs. It predates this sprint. Resolution requires provisioning the Supabase CI secrets in repo settings (covered by CI_SECRETS_SETUP.md).
-
-Substantive verdict: the Finalizer stack is clean and settled on main. The only open item is the pre-existing Supabase CI secrets gap.
   constraint fk_user_activity_user
     foreign key (user_id)
     references auth.users(id)
