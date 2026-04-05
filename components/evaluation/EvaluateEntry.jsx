@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { appendUserActivity } from "@/lib/activity/userActivity";
 import { useJobs } from "../../lib/jobs/useJobs";
 import { getJobDisplayInfo, getJobStatusBadge } from "../../lib/jobs/ui-helpers";
@@ -21,6 +22,7 @@ import CompletionBanner from "./CompletionBanner";
  * 5. Click "View Evaluation Report" CTA
  */
 export default function EvaluateEntry() {
+  const router = useRouter();
   const { jobs, isLoading, isError } = useJobs();
 
   React.useEffect(() => {
@@ -75,7 +77,22 @@ export default function EvaluateEntry() {
         </div>
 
         {/* Track A: Submission Form */}
-        <ManuscriptSubmissionForm />
+        <ManuscriptSubmissionForm
+          onSubmitSuccess={(data) => {
+            const jobId = data?.job_id;
+            if (!jobId) return;
+
+            appendUserActivity({
+              event: "evaluate.job.created",
+              route: "/evaluate",
+              href: `/evaluate/${jobId}`,
+              linkLabel: "Redirect to job status",
+              detail: `job_id=${jobId}`,
+            });
+
+            router.push(`/evaluate/${jobId}`);
+          }}
+        />
 
         {/* Track C: Completion Banner */}
         {showCompletionBanner && (

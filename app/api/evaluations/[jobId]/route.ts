@@ -47,7 +47,7 @@ export async function GET(
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id,status,evaluation_result")
+      .select("id,user_id,status,evaluation_result")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -65,7 +65,11 @@ export async function GET(
       return NextResponse.json(payload, { status: 404 });
     }
 
-    // 3) Ownership: enforced by Supabase RLS via manuscripts.created_by JOIN
+    // 3) Ownership enforcement (service-role bypasses RLS; enforce explicitly)
+    if (job.user_id !== userId) {
+      const payload: Err = { ok: false, error: "Job not found" };
+      return NextResponse.json(payload, { status: 404 });
+    }
 
     // 4) Completion enforcement
     if (job.status !== "complete") {
@@ -78,7 +82,7 @@ export async function GET(
       .from("evaluation_artifacts")
       .select("content")
       .eq("job_id", jobId)
-            .eq("artifact_type", "evaluation_result_v1")
+      .eq("artifact_type", "evaluation_result_v1")
       .maybeSingle();
 
     if (artifactError) {
