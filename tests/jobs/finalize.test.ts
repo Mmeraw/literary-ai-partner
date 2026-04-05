@@ -131,9 +131,10 @@ function makeStorage(): jest.Mocked<FinalizerStorage> {
       return null;
     }),
     getConvergenceArtifact: jest.fn(async () => convergence),
-    persistCanonicalArtifact: jest.fn(async () => 'canon-1'),
-    persistSummaryProjection: jest.fn(async () => 'summary-1'),
-    markJobComplete: jest.fn(async () => undefined),
+    persistCanonicalAndSummaryAndCompleteJob: jest.fn(async () => ({
+      canonical_artifact_id: 'canon-1',
+      summary_artifact_id: 'summary-1',
+    })),
     markJobFailed: jest.fn(async () => undefined),
   };
 }
@@ -153,9 +154,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(storage.persistCanonicalArtifact).toHaveBeenCalledTimes(1);
-    expect(storage.persistSummaryProjection).toHaveBeenCalledTimes(1);
-    expect(storage.markJobComplete).toHaveBeenCalledTimes(1);
+    expect(storage.persistCanonicalAndSummaryAndCompleteJob).toHaveBeenCalledTimes(1);
     expect(storage.markJobFailed).not.toHaveBeenCalled();
   });
 

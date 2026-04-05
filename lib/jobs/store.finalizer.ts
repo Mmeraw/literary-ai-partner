@@ -2,10 +2,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ConvergenceArtifactSchema } from "@/schemas/convergence-artifact-v1";
 import { PassArtifactSchema } from "@/schemas/pass-artifact-v1";
 import type {
+  CanonicalEvaluationArtifact,
   ConvergenceArtifact,
   EvaluationJob,
   JobAuditEvent,
+  MarkJobFailedArgs,
   PassArtifact,
+  PersistCanonicalAndSummaryAndCompleteArgs,
+  PersistCanonicalAndSummaryAndCompleteResult,
+  ReportSummaryProjection,
 } from "./finalize.types";
 import { JOB_STATUS, type JobStatus } from "./types";
 
@@ -25,6 +30,8 @@ const FINALIZER_JOB_SELECT_FIELDS = [
 ].join(", ");
 
 const ARTIFACT_SELECT_FIELDS = "id, job_id, artifact_type, content";
+const FINALIZER_CANONICAL_ARTIFACT_TYPE = "evaluation_result_v1";
+const FINALIZER_SUMMARY_ARTIFACT_TYPE = "one_page_summary";
 
 type SupabaseLike = NonNullable<ReturnType<typeof createAdminClient>>;
 
@@ -233,6 +240,27 @@ async function getArtifactRowById(artifactId: string): Promise<any> {
   return data;
 }
 
+function requireCompletionIds(
+  value: unknown,
+): PersistCanonicalAndSummaryAndCompleteResult {
+  const row = Array.isArray(value) ? value[0] : value;
+  const canonicalArtifactId = row?.canonical_artifact_id;
+  const summaryArtifactId = row?.summary_artifact_id;
+
+  if (typeof canonicalArtifactId !== "string" || canonicalArtifactId.length === 0) {
+    throw new Error("[FINALIZER-STORE] Atomic completion RPC missing canonical_artifact_id");
+  }
+
+  if (typeof summaryArtifactId !== "string" || summaryArtifactId.length === 0) {
+    throw new Error("[FINALIZER-STORE] Atomic completion RPC missing summary_artifact_id");
+  }
+
+  return {
+    canonical_artifact_id: canonicalArtifactId,
+    summary_artifact_id: summaryArtifactId,
+  };
+}
+
 export async function getJobForFinalization(jobId: string): Promise<EvaluationJob> {
   const { data, error } = await supabase
     .from("evaluation_jobs")
@@ -249,6 +277,38 @@ export async function getJobForFinalization(jobId: string): Promise<EvaluationJo
   }
 
   return mapRowToFinalizerJob(data);
+}
+
+export async function persistCanonicalAndSummaryAndCompleteJob(
+  args: PersistCanonicalAndSummaryAndCompleteArgs,
+): Promise<PersistCanonicalAndSummaryAndCompleteResult> {
+  const canonicalContent: CanonicalEvaluationArtifact = {
+    ...args.canonical,
+    job_id: args.job.id,
+  };
+
+  const summaryContentCandidate: ReportSummaryProjection = {
+    ...args.summary,
+    job_id: args.job.id,
+    user_id: args.job.user_id,
+  };
+
+  const { data, error } = await supabase.rpc("finalizer_complete_job_atomic", {
+    p_job_id: args.job.id,
+    p_worker_id: args.worker_id,
+    p_canonical_artifact_type: FINALIZER_CANONICAL_ARTIFACT_TYPE,
+    p_summary_artifact_type: FINALIZER_SUMMARY_ARTIFACT_TYPE,
+    p_canonical_content: canonicalContent,
+    p_summary_content_without_canonical_id: summaryContentCandidate,
+  });
+
+  if (error) {
+    throw new Error(
+      `[FINALIZER-STORE] Atomic completion failed for job ${args.job.id}: ${error.message}`,
+    );
+  }
+
+  return requireCompletionIds(data);
 }
 
 export async function getPassArtifactById(artifactId: string): Promise<PassArtifact> {
@@ -293,5 +353,20 @@ export async function writeJobAuditEvent(
 
   if (error) {
     throw new Error(`[FINALIZER-STORE] Failed to write audit event: ${error.message}`);
+  }
+}
+
+export async function markJobFailed(args: MarkJobFailedArgs): Promise<void> {
+  const { error } = await supabase.rpc("finalizer_mark_job_failed", {
+    p_job_id: args.job_id,
+    p_worker_id: args.worker_id,
+    p_failure_code: args.failure_code,
+    p_last_error: args.last_error,
+  });
+
+  if (error) {
+    throw new Error(
+      `[FINALIZER-STORE] Failed to mark job failed for ${args.job_id}: ${error.message}`,
+    );
   }
 }

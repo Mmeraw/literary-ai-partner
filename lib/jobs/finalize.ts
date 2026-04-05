@@ -23,6 +23,9 @@ import type {
   ReportSummaryProjection,
   FinalizeJobInput,
   FinalizeJobResult,
+  PersistCanonicalAndSummaryAndCompleteArgs,
+  PersistCanonicalAndSummaryAndCompleteResult,
+  MarkJobFailedArgs,
 } from "./finalize.types";
 import type { FailureCode } from "./failures";
 import {
@@ -44,18 +47,10 @@ export interface FinalizerStorage {
   getJob(jobId: string): Promise<EvaluationJob | null>;
   getPassArtifact(artifactId: string): Promise<PassArtifact | null>;
   getConvergenceArtifact(artifactId: string): Promise<ConvergenceArtifact | null>;
-  persistCanonicalArtifact(artifact: CanonicalEvaluationArtifact): Promise<string>;
-  persistSummaryProjection(summary: ReportSummaryProjection): Promise<string>;
-  markJobComplete(args: {
-    job_id: string;
-    canonical_artifact_id: string;
-    summary_artifact_id: string;
-  }): Promise<void>;
-  markJobFailed(args: {
-    job_id: string;
-    failure_code: FailureCode;
-    last_error: string;
-  }): Promise<void>;
+  persistCanonicalAndSummaryAndCompleteJob(
+    args: PersistCanonicalAndSummaryAndCompleteArgs,
+  ): Promise<PersistCanonicalAndSummaryAndCompleteResult>;
+  markJobFailed(args: MarkJobFailedArgs): Promise<void>;
 }
 
 // === Layer 1: Pure Domain Logic ===
@@ -223,41 +218,37 @@ export async function finalizeJob(
     // Step 9: Validate canonical artifact
     validateCanonicalArtifact(canonical);
 
-    // Step 10: Persist canonical artifact
-    const canonicalArtifactId = await storage.persistCanonicalArtifact(canonical);
+    // Step 10: Build summary projection candidate (IDs finalized in write authority)
+    const summaryCandidate = buildReportSummaryProjection(job, canonical, "pending");
 
-    // Step 11: Build summary projection
-    const summary = buildReportSummaryProjection(job, canonical, canonicalArtifactId);
-
-    // Step 12: Persist summary
-    const summaryArtifactId = await storage.persistSummaryProjection(summary);
-
-    // Step 13: Pre-completion invariants
-    assertPreCompletionInvariants({
-      job_id: job.id,
-      canonical_artifact_id: canonicalArtifactId,
-      summary_artifact_id: summaryArtifactId,
+    // Step 11: Terminal atomic write authority
+    const completion = await storage.persistCanonicalAndSummaryAndCompleteJob({
+      job,
       worker_id: input.worker_id,
+      canonical,
+      summary: summaryCandidate,
     });
 
-    // Step 14: Terminal completion
-    await storage.markJobComplete({
+    // Step 12: Pre-completion invariants (post-write IDs)
+    assertPreCompletionInvariants({
       job_id: job.id,
-      canonical_artifact_id: canonicalArtifactId,
-      summary_artifact_id: summaryArtifactId,
+      canonical_artifact_id: completion.canonical_artifact_id,
+      summary_artifact_id: completion.summary_artifact_id,
+      worker_id: input.worker_id,
     });
 
     return {
       ok: true,
       job_id: job.id,
-      canonical_artifact_id: canonicalArtifactId,
-      summary_artifact_id: summaryArtifactId,
+      canonical_artifact_id: completion.canonical_artifact_id,
+      summary_artifact_id: completion.summary_artifact_id,
       final_status: "complete",
     };
   } catch (error) {
     if (error instanceof InvariantViolation) {
       await storage.markJobFailed({
         job_id: input.job_id,
+        worker_id: input.worker_id,
         failure_code: error.failureCode,
         last_error: error.message,
       });
@@ -267,6 +258,7 @@ export async function finalizeJob(
     const message = error instanceof Error ? error.message : String(error);
     await storage.markJobFailed({
       job_id: input.job_id,
+      worker_id: input.worker_id,
       failure_code: "VALIDATION_ERROR",
       last_error: message,
     });
