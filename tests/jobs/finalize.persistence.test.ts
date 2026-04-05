@@ -213,7 +213,7 @@ describe("finalize persistence authority", () => {
     const result = await finalizeJob(
       {
         job_id: "job-1",
-        worker_id: "wrong-worker",
+        worker_id: "worker-1",
         expected_status: "running",
         expected_phase: "finalizer",
       },
@@ -287,6 +287,28 @@ describe("finalize persistence authority", () => {
 
     expect(result.ok).toBe(false);
     expect(storage.persistCanonicalAndSummaryAndCompleteJob).not.toHaveBeenCalled();
-    expect(storage.markJobFailed).toHaveBeenCalledTimes(1);
+    expect(storage.markJobFailed).not.toHaveBeenCalled();
+  });
+
+  test("does not attempt failure write when authority was never established", async () => {
+    const storage = makeStorage();
+    storage.getJob.mockResolvedValueOnce({
+      ...makeJob(),
+      claimed_by: "other-worker",
+    });
+
+    const result = await finalizeJob(
+      {
+        job_id: "job-1",
+        worker_id: "worker-1",
+        expected_status: "running",
+        expected_phase: "finalizer",
+      },
+      storage,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(storage.persistCanonicalAndSummaryAndCompleteJob).not.toHaveBeenCalled();
+    expect(storage.markJobFailed).not.toHaveBeenCalled();
   });
 });

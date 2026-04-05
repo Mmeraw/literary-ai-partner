@@ -178,6 +178,8 @@ export async function finalizeJob(
   input: FinalizeJobInput,
   storage: FinalizerStorage,
 ): Promise<FinalizeJobResult> {
+  let failureWriteAuthorized = false;
+
   try {
     // Step 1: Acquire and verify authority
     const job = await storage.getJob(input.job_id);
@@ -185,6 +187,7 @@ export async function finalizeJob(
       return failResult(input.job_id, "VALIDATION_ERROR", `Job ${input.job_id} not found`);
     }
     assertFinalizerAuthority(job, input.worker_id);
+    failureWriteAuthorized = true;
 
     // Step 2: Verify pass artifact presence
     const refs = assertRequiredArtifactsPresent(job);
@@ -246,22 +249,26 @@ export async function finalizeJob(
     };
   } catch (error) {
     if (error instanceof InvariantViolation) {
-      await storage.markJobFailed({
-        job_id: input.job_id,
-        worker_id: input.worker_id,
-        failure_code: error.failureCode,
-        last_error: error.message,
-      });
+      if (failureWriteAuthorized) {
+        await storage.markJobFailed({
+          job_id: input.job_id,
+          worker_id: input.worker_id,
+          failure_code: error.failureCode,
+          last_error: error.message,
+        });
+      }
       return failResult(input.job_id, error.failureCode, error.message);
     }
     // Unknown error — classify as validation error, do not retry
     const message = error instanceof Error ? error.message : String(error);
-    await storage.markJobFailed({
-      job_id: input.job_id,
-      worker_id: input.worker_id,
-      failure_code: "VALIDATION_ERROR",
-      last_error: message,
-    });
+    if (failureWriteAuthorized) {
+      await storage.markJobFailed({
+        job_id: input.job_id,
+        worker_id: input.worker_id,
+        failure_code: "VALIDATION_ERROR",
+        last_error: message,
+      });
+    }
     return failResult(input.job_id, "VALIDATION_ERROR", message);
   }
 }
