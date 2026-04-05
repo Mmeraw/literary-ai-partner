@@ -47,7 +47,6 @@ export async function middleware(request: NextRequest) {
       data: { user: authUser },
       error,
     } = await supabase.auth.getUser()
-
     if (error) {
       trackAuthCheck('error')
       user = null
@@ -61,25 +60,26 @@ export async function middleware(request: NextRequest) {
     user = null
   }
 
-  // Protected routes - redirect to login if not authenticated
-  const protectedRoutes = ['/evaluate', '/dashboard', '/revise', '/convert', '/output', '/admin']
-  const isProtectedRoute = protectedRoutes.some(route => 
-    request.nextUrl.pathname.startsWith(route)
+  // Public paths that don't require auth (private-beta page, auth callback, API/cron)
+  const publicPaths = ['/private-beta', '/auth/callback', '/api/cron']
+  const isPublicPath = publicPaths.some(path =>
+    request.nextUrl.pathname.startsWith(path)
   )
 
-  if (isProtectedRoute && !user) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    trackAuthRedirect('login_required')
-    return NextResponse.redirect(url)
+  // If not authenticated and not on a public path, redirect to private-beta
+  if (!user && !isPublicPath) {
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/private-beta'
+    trackAuthRedirect('private_beta_gate')
+    return NextResponse.redirect(redirectUrl)
   }
 
-  // Redirect logged-in users away from auth entry pages
-  if ((request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup') && user) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
+  // Redirect logged-in users away from private-beta and auth entry pages
+  if (user && (request.nextUrl.pathname === '/private-beta' || request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup')) {
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/dashboard'
     trackAuthRedirect('already_authenticated')
-    return NextResponse.redirect(url)
+    return NextResponse.redirect(redirectUrl)
   }
 
   return supabaseResponse
