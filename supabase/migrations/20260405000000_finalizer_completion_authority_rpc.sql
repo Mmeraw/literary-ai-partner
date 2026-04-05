@@ -19,6 +19,8 @@ DECLARE
   v_job public.evaluation_jobs%ROWTYPE;
   v_phase text;
   v_claim_lease_id text;
+  v_lease_expires_at_raw text;
+  v_lease_expires_at timestamptz;
   v_now timestamptz := now();
   v_canonical_id uuid;
   v_summary_id uuid;
@@ -51,6 +53,22 @@ BEGIN
   v_claim_lease_id := COALESCE(v_job.progress->>'lease_id', '');
   IF v_claim_lease_id = '' OR v_claim_lease_id <> p_worker_id THEN
     RAISE EXCEPTION 'FINALIZER_AUTHORITY_VIOLATION: job % claim mismatch (expected %, got %)', p_job_id, p_worker_id, v_claim_lease_id;
+  END IF;
+
+  v_lease_expires_at_raw := COALESCE(v_job.progress->>'lease_expires_at', '');
+  IF v_lease_expires_at_raw = '' THEN
+    RAISE EXCEPTION 'FINALIZER_AUTHORITY_VIOLATION: job % missing lease_expires_at', p_job_id;
+  END IF;
+
+  BEGIN
+    v_lease_expires_at := v_lease_expires_at_raw::timestamptz;
+  EXCEPTION
+    WHEN others THEN
+      RAISE EXCEPTION 'FINALIZER_AUTHORITY_VIOLATION: job % has invalid lease_expires_at (%)', p_job_id, v_lease_expires_at_raw;
+  END;
+
+  IF v_lease_expires_at <= v_now THEN
+    RAISE EXCEPTION 'FINALIZER_AUTHORITY_VIOLATION: job % lease expired at %', p_job_id, v_lease_expires_at_raw;
   END IF;
 
   INSERT INTO public.evaluation_artifacts (
@@ -107,6 +125,8 @@ BEGIN
   v_progress := jsonb_set(v_progress, '{summary_artifact_id}', to_jsonb(v_summary_id::text), true);
   v_progress := jsonb_set(v_progress, '{terminal_at}', to_jsonb(v_now::text), true);
   v_progress := jsonb_set(v_progress, '{phase_status}', '"complete"'::jsonb, true);
+  v_progress := jsonb_set(v_progress, '{lease_id}', 'null'::jsonb, true);
+  v_progress := jsonb_set(v_progress, '{lease_expires_at}', 'null'::jsonb, true);
 
   UPDATE public.evaluation_jobs
   SET
