@@ -79,3 +79,62 @@ export function gatePhase2OnPhase1(readiness: Phase1Readiness): GateDecision {
 
   return { ok: true };
 }
+
+
+/**
+ * Async wrapper: fetches job data and evaluates Phase 1 gate.
+ * Returns true if Phase 2 may proceed, false if blocked.
+ */
+export async function checkPhase1GateForJob(jobId: string): Promise<boolean> {
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Check for any rejected chunks in this job's manuscript
+    const { data: job } = await supabase
+      .from("evaluation_jobs")
+      .select("manuscript_id, status, progress")
+      .eq("id", jobId)
+      .single();
+
+    if (!job) return false; // fail-closed: no job = no proceed
+
+    const { data: chunks } = await supabase
+      .from("manuscript_chunks")
+      .select("status, failure_code, last_error")
+      .eq("manuscript_id", job.manuscript_id);
+
+    const allChunks = chunks || [];
+    const totalChunks = allChunks.length;
+    const completedChunks = allChunks.filter((c: any) => c.status === "complete").length;
+    const hasRejection = allChunks.some(
+      (c: any) => c.failure_code === "EVALUATION_GATE_REJECTED"
+        || (c.last_error && c.last_error.includes("EVALUATION_GATE_REJECTED"))
+    );
+    const hasInvalid = allChunks.some((c: any) => c.status === "failed");
+
+    const readiness: Phase1Readiness = {
+      phase1status: job.progress?.phase_status === "complete"
+        ? PHASE_1_STATES.COMPLETED
+        : PHASE_1_STATES.IN_PROGRESS,
+      hasscores: completedChunks > 0,
+      coveragepercent: totalChunks > 0 ? completedChunks / totalChunks : 0,
+      evaluationvalidity: hasRejection ? "INVALID" : "VALID",
+      artifactaccepted: !hasRejection && completedChunks === totalChunks,
+      artifactrejected: hasRejection,
+      disputed: false,
+    };
+
+    const decision = gatePhase2OnPhase1(readiness);
+    if (!decision.ok) {
+      console.log("[Phase2Gate] Blocked:", decision);
+    }
+    return decision.ok;
+  } catch (err) {
+    console.error("[Phase2Gate] Error checking gate, fail-closed:", err);
+    return false; // fail-closed
+  }
+}

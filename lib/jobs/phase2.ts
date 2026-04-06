@@ -6,7 +6,7 @@ import { getChunksForJob } from "@/lib/manuscripts/chunks";
 import { JOB_STATUS, PHASES } from "./types";
 import { writeArtifact, ARTIFACT_TYPES } from "@/lib/artifacts/writeArtifact";
 import type { ReportContent, Credibility, RubricAxis } from "@/lib/evaluation/report-types";
-import { gatePhase2OnPhase1 } from "@lib/evaluation/pipeline/gatePhase2OnPhase1";
+import { checkPhase1GateForJob } from "@lib/evaluation/pipeline/gatePhase2OnPhase1";
 
 export const PHASE_2_STATES = {
   NOT_STARTED: "not_started",
@@ -341,7 +341,7 @@ export async function runPhase2(jobId: string): Promise<void> {
   }
 
       // -- EG: Fail-closed gate - block Phase 2 if Phase 1 rejected any chunk --
-    const gateOk = await gatePhase2OnPhase1(jobId);
+    const gateOk = await checkPhase1GateForJob(jobId);
     if (!gateOk) {
       console.log('[Phase2] BLOCKED by evaluation gate - Phase 1 rejection detected', { job_id: jobId });
       return;

@@ -418,13 +418,15 @@ export async function markChunkSuccess(
 export async function markChunkFailure(
   manuscriptId: number,
   chunkIndex: number,
-  errorMessage: string
+  errorMessage: string,
+  failureCode?: string
 ): Promise<void> {
   const { error } = await supabase
     .from("manuscript_chunks")
     .update({
       status: "failed",
       last_error: errorMessage,
+      ...(failureCode ? { failure_code: failureCode } : {}),
       // IMPORTANT: result_json NOT included - preserves prior success
     })
     .eq("manuscript_id", manuscriptId)

@@ -247,7 +247,11 @@ export async function runPhase1(jobId: string): Promise<void> {
         // Mark chunk as failed
         // CRITICAL: This NEVER touches result_json - preserves prior success
         const errorMessage = chunkError instanceof Error ? chunkError.message : String(chunkError);
-        await markChunkFailure(manuscriptIdNum, chunk.chunk_index, errorMessage);
+        // EG: Pass failure code for canonical rejection tracking
+            const failureCode = chunkError instanceof EvaluationGateRejectedError
+              ? chunkError.failureCode
+              : undefined;
+            await markChunkFailure(manuscriptIdNum, chunk.chunk_index, errorMessage, failureCode);
         // EG: Non-retryable gate rejection halts phase advancement
         const fc = chunkError && typeof chunkError === "object"
           ? (chunkError as any).failureCode

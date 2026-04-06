@@ -548,6 +548,7 @@ export async function setJobFailed(
         message: errorEnvelope.retryable
           ? `Max retries exhausted (${maxAttempts})`
           : 'Non-retryable error',
+            error_code: errorEnvelope.code || "UNKNOWN",
       },
     };
   }
