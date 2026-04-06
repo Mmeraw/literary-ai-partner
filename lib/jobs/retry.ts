@@ -26,6 +26,11 @@ export type RetryConfig = {
 /**
  * Calculate next retry delay with exponential backoff + jitter.
  */
+// -- EG: Failure codes that must never be retried --
+const NON_RETRYABLE_FAILURE_CODES = new Set([
+  'EVALUATION_GATE_REJECTED',
+]);
+
 export function calculateRetryDelay(
   retry_count: number,
   config: RetryConfig = {}
@@ -55,7 +60,16 @@ export async function scheduleRetry(
   const job = await getJob(jobId);
   
   if (!job) {
-    return { success: false, error: "Job not found" };
+    return { success: false, error: "Job not found" }
+
+    // -- EG: Refuse retry for gate-rejected jobs --
+    const fc = job?.progress?.failure_code || job?.progress?.error_code;
+    if (fc && NON_RETRYABLE_FAILURE_CODES.has(fc)) {
+      console.log('RetryBlocked: non-retryable failure code', { job_id: jobId, failure_code: fc });
+      return { success: false, error: `Non-retryable failure: ${fc}` };
+    }
+
+    ;
   }
 
   const prevRetryRaw = job.progress?.retry_count;
@@ -128,6 +142,13 @@ export async function scheduleRetry(
  * Jobs are retry-eligible when status=failed with next_retry_at marker.
  */
 export function canRetryNow(job: Job): boolean {
+    // -- EG: Never retry gate-rejected jobs --
+    const fc = job.progress?.failure_code || job.progress?.error_code;
+    if (fc && NON_RETRYABLE_FAILURE_CODES.has(fc)) {
+      return false;
+    }
+
+    
   if (job.status !== JOB_STATUS.FAILED || !job.progress?.next_retry_at) {
     return false;
   }

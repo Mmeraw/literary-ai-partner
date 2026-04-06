@@ -16,6 +16,7 @@
  */
 
 import { getSupabaseAdminClient } from "@/lib/supabase";
+import { gatePhase2OnPhase1 } from "@lib/evaluation/pipeline/gatePhase2OnPhase1";
 import {
 	orchestrateRevision,
 	type OrchestratorInput,
@@ -174,7 +175,26 @@ export async function runWaveEngine(
 		targetWaveIds,
 	};
 
-	// Run the full orchestration pipeline.
+	// -- EG: Verify no Pass 1 gate rejections before orchestrating revisions --
+    // Check pass1Findings for any EVALUATION_GATE_REJECTED status
+    const hasGateRejection = Array.isArray(pass1Findings) && pass1Findings.some(
+      (f: any) => f?.failure_code === 'EVALUATION_GATE_REJECTED' ||
+                  f?.status === 'EVALUATION_GATE_REJECTED' ||
+                  f?.gateResult?.pass === false
+    );
+    if (hasGateRejection) {
+      return {
+        orchestratorResult: {
+          status: 'blocked',
+          reason: 'Pass 1 evaluation gate rejected one or more chunks - revision blocked',
+          gateRejected: true,
+        } as any,
+        revisionSessionId: revisionSessionId ?? null,
+        persisted: false,
+      };
+    }
+
+    // Run the full orchestration pipeline.
 	const orchestratorResult = orchestrateRevision(orchestratorInput);
 
 	// Optionally persist results if a session id is provided.

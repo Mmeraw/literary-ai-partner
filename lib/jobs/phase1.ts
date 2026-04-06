@@ -64,6 +64,8 @@ import {
   markChunkFailure,
 } from "@/lib/manuscripts/chunks";
 import { createLlmClient } from "@/lib/llm/client";
+import { runEvaluationGates, adaptResultToCriteria } from "@/lib/evaluation/pipeline/gates";
+import { EvaluationGateRejectedError } from "@lib/evaluation/pipeline/failures";
 
 export async function runPhase1(jobId: string): Promise<void> {
   const phase1_start = Date.now();
@@ -226,7 +228,17 @@ export async function runPhase1(jobId: string): Promise<void> {
           phase: 1,
         });
 
-        // Mark chunk as done with result
+        // -- EG: Run evaluation gate BEFORE marking success --
+            const criteria = adaptResultToCriteria(result.resultJson as any);
+            const gateResult = runEvaluationGates(criteria);
+            if (!gateResult.passed) {
+              throw new EvaluationGateRejectedError(
+                `Chunk ${chunk.chunk_index} rejected by evaluation gate: ${gateResult.violations.map((v: any) => v.message || v.rule).join(', ')}`,
+                { chunkIndex: chunk.chunk_index, violations: gateResult.violations }
+              );
+            }
+
+            // Mark chunk as done with result
         // This is the ONLY place that writes result_json
         await markChunkSuccess(manuscriptIdNum, chunk.chunk_index, result.resultJson as any, jobId);
 
@@ -236,6 +248,13 @@ export async function runPhase1(jobId: string): Promise<void> {
         // CRITICAL: This NEVER touches result_json - preserves prior success
         const errorMessage = chunkError instanceof Error ? chunkError.message : String(chunkError);
         await markChunkFailure(manuscriptIdNum, chunk.chunk_index, errorMessage);
+        // EG: Non-retryable gate rejection halts phase advancement
+        const fc = chunkError && typeof chunkError === "object"
+          ? (chunkError as any).failureCode
+          : undefined;
+        if (fc === "EVALUATION_GATE_REJECTED") {
+          throw chunkError; // re-throw to halt the entire phase
+        }
 
         console.error("Phase1ChunkError", {
           job_id: jobId,
