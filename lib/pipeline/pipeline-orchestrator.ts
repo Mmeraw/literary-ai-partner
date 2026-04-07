@@ -16,7 +16,7 @@
  */
 
 import { getSupabaseAdminClient } from "@/lib/supabase";
-import { gatePhase2OnPhase1 } from "@lib/evaluation/pipeline/gatePhase2OnPhase1";
+import { gatePhase2OnPhase1 } from "@/lib/evaluation/pipeline/gatePhase2OnPhase1";
 import {
 	orchestrateRevision,
 	type OrchestratorInput,

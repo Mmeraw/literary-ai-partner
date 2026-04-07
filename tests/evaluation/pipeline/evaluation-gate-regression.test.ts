@@ -11,11 +11,11 @@
  *     6. No old weighted/aggregate path remains reachable
  */
 
-import { runEvaluationGates, adaptResultToCriteria } from "@lib/evaluation/pipeline/gates";
-import { EvaluationGateRejectedError } from "@lib/evaluation/pipeline/failures";
-import { FAILURE_CODES, FAILURE_CODE_SET } from "@lib/evaluation/pipeline/failures";
-import { gatePhase2OnPhase1 } from "@lib/evaluation/pipeline/gatePhase2OnPhase1";
-import type { GateResult } from "@lib/evaluation/pipeline/gates";
+import { runEvaluationGates, adaptResultToCriteria } from "@/lib/evaluation/pipeline/gates";
+import { EvaluationGateRejectedError } from "@/lib/evaluation/pipeline/failures";
+import { FAILURE_CODES, FAILURE_CODE_SET } from "@/lib/evaluation/pipeline/failures";
+import { gatePhase2OnPhase1 } from "@/lib/evaluation/pipeline/gatePhase2OnPhase1";
+import type { GateResult } from "@/lib/evaluation/pipeline/gates";
 
 // ── Test 1: Gate rejects when criteria fail ──
 describe("EG: Evaluation Gate Rejection", () => {

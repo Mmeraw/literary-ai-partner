@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+// // <reference types="jest" //
 // lib/jobs/phase1.test.ts
 // Use CommonJS require so Jest (CJS mode) can execute this file.
 const { PHASE_1_STATES, canTransitionPhase1 } = require("./phase1");

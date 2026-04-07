@@ -6,7 +6,7 @@ import { getChunksForJob } from "@/lib/manuscripts/chunks";
 import { JOB_STATUS, PHASES } from "./types";
 import { writeArtifact, ARTIFACT_TYPES } from "@/lib/artifacts/writeArtifact";
 import type { ReportContent, Credibility, RubricAxis } from "@/lib/evaluation/report-types";
-import { checkPhase1GateForJob } from "@lib/evaluation/pipeline/gatePhase2OnPhase1";
+import { checkPhase1GateForJob } from "@/lib/evaluation/pipeline/gatePhase2OnPhase1";
 
 export const PHASE_2_STATES = {
   NOT_STARTED: "not_started",

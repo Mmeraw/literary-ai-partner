@@ -4,6 +4,7 @@
 
 import * as metrics from "./metrics";
 import { PHASES, JOB_STATUS } from "./types";
+import { calculateNextAttemptAt } from "./retryBackoff";
 
 // Helper functions for type-safe unknown handling
 function asNumber(v: unknown, fallback: number): number {
@@ -65,7 +66,7 @@ import {
 } from "@/lib/manuscripts/chunks";
 import { createLlmClient } from "@/lib/llm/client";
 import { runEvaluationGates, adaptResultToCriteria } from "@/lib/evaluation/pipeline/gates";
-import { EvaluationGateRejectedError } from "@lib/evaluation/pipeline/failures";
+import { EvaluationGateRejectedError } from "@/lib/evaluation/pipeline/failures";
 
 export async function runPhase1(jobId: string): Promise<void> {
   const phase1_start = Date.now();
@@ -360,7 +361,7 @@ export async function runPhase1(jobId: string): Promise<void> {
     const max_retries = 3;
 
     if (retry_count <= max_retries) {
-      const next_retry_at = new Date(Date.now() + retry_count * 60 * 1000).toISOString(); // backoff 1min, 2min, 3min
+      const next_retry_at = calculateNextAttemptAt(retry_count); // delegates to retryBackoff.ts
 
       await updateJob(jobId, {
         status: JOB_STATUS.FAILED,

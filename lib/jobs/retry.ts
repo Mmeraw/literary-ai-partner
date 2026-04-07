@@ -1,20 +1,28 @@
 /**
  * Retry Logic with Exponential Backoff + Jitter
- * 
+ *
  * Implements production-grade retry logic:
  * - Exponential backoff with cap
  * - Jitter to prevent thundering herd
- * - Top-level fields (not in progress JSON)
+ * - Status remains FAILED until retry pickup
  * - Respects max_retries
+ * - Blocks non-retryable governance failures
  */
 
 import { getJob, updateJob } from "./store";
 import { JOB_STATUS, PHASES } from "./types";
-import type { Job } from "./types";
-import * as metrics from "./metrics";
+import type { Job, JobProgress } from "./types";
+import {
+  calculateNextAttemptAt,
+  getBackoffDelay,
+  hasExhaustedRetries,
+} from "./retryBackoff";
+import {
+  assertValidFailureCode,
+  isTransientFailure,
+  type FailureCode,
+} from "./failures";
 
-const DEFAULT_BASE_DELAY_MS = 1000; // 1 second
-const DEFAULT_MAX_DELAY_MS = 60000; // 60 seconds
 const DEFAULT_MAX_RETRIES = 3;
 
 export type RetryConfig = {
@@ -23,29 +31,57 @@ export type RetryConfig = {
   max_retries?: number;
 };
 
+function asFiniteNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function normalizeRetryCount(value: unknown): number {
+  const count = asFiniteNumber(value, 0);
+  return count >= 0 ? Math.floor(count) : 0;
+}
+
+function getFailureCode(job: Job): FailureCode | undefined {
+  const progress = (job.progress ?? {}) as Record<string, unknown>;
+
+  const rawFailureCode =
+    typeof progress.failure_code === "string"
+      ? progress.failure_code
+      : typeof progress.error_code === "string"
+        ? progress.error_code
+        : undefined;
+
+  if (!rawFailureCode) return undefined;
+
+  try {
+    assertValidFailureCode(rawFailureCode);
+    return rawFailureCode;
+  } catch {
+    return undefined;
+  }
+}
+
+function isRetryableFailureCode(code: FailureCode | undefined): boolean {
+  if (!code) return true;
+  return isTransientFailure(code);
+}
+
+function msToWholeSeconds(value: number | undefined): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return Math.max(1, Math.floor(value / 1000));
+}
+
 /**
  * Calculate next retry delay with exponential backoff + jitter.
+ * Kept for external consumers; delegates to retryBackoff.
  */
-// -- EG: Failure codes that must never be retried --
-const NON_RETRYABLE_FAILURE_CODES = new Set([
-  'EVALUATION_GATE_REJECTED',
-]);
-
 export function calculateRetryDelay(
   retry_count: number,
   config: RetryConfig = {}
 ): number {
-  const base = config.base_delay_ms ?? DEFAULT_BASE_DELAY_MS;
-  const max = config.max_delay_ms ?? DEFAULT_MAX_DELAY_MS;
-
-  // Exponential backoff with cap
-  let delay = Math.min(max, base * Math.pow(2, retry_count));
-
-  // Add jitter: random between 0.8x and 1.2x
-  const jitter = 0.8 + Math.random() * 0.4;
-  delay = Math.floor(delay * jitter);
-
-  return delay;
+  const baseDelaySeconds = msToWholeSeconds(config.base_delay_ms) ?? 30;
+  const maxDelaySeconds = msToWholeSeconds(config.max_delay_ms) ?? 1800;
+  const rawDelay = getBackoffDelay(retry_count, baseDelaySeconds);
+  return Math.min(maxDelaySeconds, rawDelay) * 1000;
 }
 
 /**
@@ -55,71 +91,90 @@ export function calculateRetryDelay(
 export async function scheduleRetry(
   jobId: string,
   error: string,
-  config: RetryConfig = {}
+  config: RetryConfig = {},
 ): Promise<{ success: boolean; next_retry_at?: string; error?: string }> {
   const job = await getJob(jobId);
-  
+
   if (!job) {
-    return { success: false, error: "Job not found" }
-
-    // -- EG: Refuse retry for gate-rejected jobs --
-    const fc = job?.progress?.failure_code || job?.progress?.error_code;
-    if (fc && NON_RETRYABLE_FAILURE_CODES.has(fc)) {
-      console.log('RetryBlocked: non-retryable failure code', { job_id: jobId, failure_code: fc });
-      return { success: false, error: `Non-retryable failure: ${fc}` };
-    }
-
-    ;
+    return { success: false, error: "Job not found" };
   }
 
-  const prevRetryRaw = job.progress?.retry_count;
-  const prevRetry =
-    typeof prevRetryRaw === "number" && Number.isFinite(prevRetryRaw) ? prevRetryRaw : 0;
-
-  const retry_count = prevRetry + 1;
-  const max_retries = config.max_retries ?? DEFAULT_MAX_RETRIES;
-
-  // Check if max retries exceeded
-  if (retry_count > max_retries) {
-    console.log("MaxRetriesExceeded", {
+  const failureCode = getFailureCode(job);
+  if (!isRetryableFailureCode(failureCode)) {
+    console.log("RetryBlockedNonRetryableFailure", {
       job_id: jobId,
-      retry_count,
-      max_retries,
+      failure_code: failureCode,
     });
-
-    await updateJob(jobId, {
-      status: "failed",
-      progress: {
-        ...job.progress,
-        error_code: "max_retries_exceeded",
-        last_error: `Max retries exceeded (${max_retries}): ${error}`,
-        retry_count,
-      },
-      updated_at: new Date().toISOString(),
-    });
-
-    return { 
-      success: false, 
-      error: `Max retries exceeded (${max_retries})` 
+    return {
+      success: false,
+      error: `Non-retryable failure: ${failureCode}`,
     };
   }
 
-  // Calculate next retry time
-  const delay_ms = calculateRetryDelay(retry_count, config);
-  const next_retry_at = new Date(Date.now() + delay_ms).toISOString();
+  const currentRetryCount = normalizeRetryCount(
+    (job.progress as Record<string, unknown> | undefined)?.retry_count,
+  );
+  const retryCount = currentRetryCount + 1;
+  const maxRetries = Math.max(0, Math.floor(config.max_retries ?? DEFAULT_MAX_RETRIES));
 
-  // Keep status as failed (CANON) but mark with next_retry_at for daemon pickup
+  if (hasExhaustedRetries(retryCount, maxRetries)) {
+    console.log("MaxRetriesExceeded", {
+      job_id: jobId,
+      retry_count: retryCount,
+      max_retries: maxRetries,
+    });
+
+    const updated = await updateJob(jobId, {
+      status: JOB_STATUS.FAILED,
+      progress: {
+        ...(job.progress),
+        error_code: "MAX_RETRIES_EXCEEDED",
+        last_error: `Max retries exceeded (${maxRetries}): ${error}`,
+        retry_count: retryCount,
+        next_retry_at: null,
+        retry_phase:
+          ((job.progress as Record<string, unknown> | undefined)?.phase as string | undefined) ||
+          PHASES.PHASE_1,
+        lease_id: null,
+        lease_expires_at: null,
+      } as JobProgress,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (!updated) {
+      return { success: false, error: "Failed to update job after max retries exceeded" };
+    }
+
+    return {
+      success: false,
+      error: `Max retries exceeded (${maxRetries})`,
+    };
+  }
+
+  const baseDelaySeconds = msToWholeSeconds(config.base_delay_ms);
+  const maxDelaySeconds = msToWholeSeconds(config.max_delay_ms);
+
+  const nextRetryAt = calculateNextAttemptAt(
+    retryCount,
+    baseDelaySeconds,
+    maxDelaySeconds,
+  );
+
+  const delaySeconds = getBackoffDelay(retryCount, baseDelaySeconds);
+
   const updated = await updateJob(jobId, {
     status: JOB_STATUS.FAILED,
     progress: {
-      ...job.progress,
-      retry_count,
-      next_retry_at,
+      ...(job.progress),
+      retry_count: retryCount,
+      next_retry_at: nextRetryAt,
       last_error: error,
-      retry_phase: job.progress?.phase || PHASES.PHASE_1,
-      lease_id: null, // Clear lease when retrying
+      retry_phase:
+        ((job.progress as Record<string, unknown> | undefined)?.phase as string | undefined) ||
+        PHASES.PHASE_1,
+      lease_id: null,
       lease_expires_at: null,
-    },
+    } as JobProgress,
     updated_at: new Date().toISOString(),
   });
 
@@ -129,12 +184,13 @@ export async function scheduleRetry(
 
   console.log("JobScheduledForRetry", {
     job_id: jobId,
-    retry_count,
-    next_retry_at,
-    delay_ms,
+    retry_count: retryCount,
+    next_retry_at: nextRetryAt,
+    delay_seconds: delaySeconds,
+    failure_code: failureCode ?? null,
   });
 
-  return { success: true, next_retry_at };
+  return { success: true, next_retry_at: nextRetryAt };
 }
 
 /**
@@ -142,31 +198,35 @@ export async function scheduleRetry(
  * Jobs are retry-eligible when status=failed with next_retry_at marker.
  */
 export function canRetryNow(job: Job): boolean {
-    // -- EG: Never retry gate-rejected jobs --
-    const fc = job.progress?.failure_code || job.progress?.error_code;
-    if (fc && NON_RETRYABLE_FAILURE_CODES.has(fc)) {
-      return false;
-    }
-
-    
-  if (job.status !== JOB_STATUS.FAILED || !job.progress?.next_retry_at) {
+  if (job.status !== JOB_STATUS.FAILED) {
     return false;
   }
 
-  const nextRetryAt = job.progress.next_retry_at;
-  if (typeof nextRetryAt !== 'string') {
+  const failureCode = getFailureCode(job);
+  if (!isRetryableFailureCode(failureCode)) {
     return false;
   }
 
-  return new Date(nextRetryAt) <= new Date();
+  const progress = (job.progress ?? {}) as Record<string, unknown>;
+  const nextRetryAtRaw = progress.next_retry_at;
+
+  if (typeof nextRetryAtRaw !== "string" || nextRetryAtRaw.length === 0) {
+    return false;
+  }
+
+  const nextRetryAtMs = new Date(nextRetryAtRaw).getTime();
+  if (!Number.isFinite(nextRetryAtMs)) {
+    return false;
+  }
+
+  return nextRetryAtMs <= Date.now();
 }
 
 /**
  * Get all jobs eligible for retry.
  */
 export async function getRetryableJobs(): Promise<Job[]> {
-    const { getAllJobs } = await import("./store");
+  const { getAllJobs } = await import("./store");
   const allJobs = await getAllJobs();
-  
   return allJobs.filter(canRetryNow);
 }
