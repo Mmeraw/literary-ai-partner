@@ -36,9 +36,10 @@ BEGIN
     v_clamped_ttl := GREATEST(30, LEAST(COALESCE(p_lease_seconds, 300), 900));
     
     -- Atomic claim with FOR UPDATE SKIP LOCKED
+    -- JOB_CONTRACT_v1: queued → running (canonical status value)
     UPDATE public.evaluation_jobs j
     SET 
-        status = 'processing',
+        status = 'running',
         worker_id = p_worker_id,
         lease_token = gen_random_uuid(),
         lease_until = p_now + make_interval(secs => v_clamped_ttl),
