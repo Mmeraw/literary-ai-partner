@@ -243,8 +243,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     pass1Output = await withTimeout(
       _runPass1({
         manuscriptText: opts.manuscriptText,
-        workType: workType,
-        title: title,
+        workType: opts.workType,
+        title: opts.title,
         executionMode: opts.executionMode,
         model: opts.model,
         openaiApiKey: opts.openaiApiKey,
@@ -278,8 +278,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     pass2Output = await withTimeout(
       _runPass2({
         manuscriptText: opts.manuscriptText,
-        workType: workType,
-        title: title,
+        workType: opts.workType,
+        title: opts.title,
         executionMode: opts.executionMode,
         model: opts.model,
         openaiApiKey: opts.openaiApiKey,
@@ -314,7 +314,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         pass1: pass1Output,
         pass2: pass2Output,
         manuscriptText: opts.manuscriptText,
-        title: title,
+        title: opts.title,
         executionMode: opts.executionMode,
         model: opts.model,
         openaiApiKey: opts.openaiApiKey,
@@ -402,8 +402,7 @@ export interface SynthesisToEvaluationResultOptions {
     project_id?: number;
     user_id: string;
   };
-  governance?: Record<string, unknown>;
-  };
+}
 
 /**
  * Map a SynthesisOutput (Phase 2.7 pipeline result) to EvaluationResultV1
@@ -494,8 +493,8 @@ export function synthesisToEvaluationResult(
     governance: {
       confidence: 0.85,
       warnings: [],
-      crossCheck: opts.governance?.crossCheck ?? null,
-        pass4Governance: opts.governance?.pass4Governance ?? null,
+      crossCheck: crossCheckResult,
+        pass4Governance,
       limitations: ["Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"],
       policy_family: "multi-pass-dual-axis",
     },
