@@ -364,11 +364,11 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     if (opts.perplexityApiKey) {
       try {
         crossCheckResult = await runPerplexityCrossCheck({
-          openaiCriteria: synthesis.criteria,
-          openaiSynthesis: synthesis.overall?.one_paragraph_summary ?? "",
-          manuscriptExcerpt: manuscriptText,
-          workType: workType,
-          title: title,
+          openaiCriteria: pass3Output.criteria,
+          openaiSynthesis: pass3Output.overall?.one_paragraph_summary ?? "",
+          manuscriptExcerpt: opts.manuscriptText,
+          workType: opts.workType,
+          title: opts.title,
           perplexityApiKey: opts.perplexityApiKey,
         });
       } catch (err) {
@@ -402,7 +402,8 @@ export interface SynthesisToEvaluationResultOptions {
     project_id?: number;
     user_id: string;
   };
-}
+  governance?: Record<string, unknown>;
+  };
 
 /**
  * Map a SynthesisOutput (Phase 2.7 pipeline result) to EvaluationResultV1
@@ -493,8 +494,8 @@ export function synthesisToEvaluationResult(
     governance: {
       confidence: 0.85,
       warnings: [],
-      crossCheck: crossCheckResult,
-        pass4Governance,
+      crossCheck: opts.governance?.crossCheck ?? null,
+        pass4Governance: opts.governance?.pass4Governance ?? null,
       limitations: ["Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"],
       policy_family: "multi-pass-dual-axis",
     },

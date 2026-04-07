@@ -128,7 +128,7 @@ export type PassCompletionCapture = {
 // ── Pipeline result ──────────────────────────────────────────────────────────
 
 export type PipelineResult =
-  | { ok: true; synthesis: SynthesisOutput; quality_gate: QualityGateResult }
+  | { ok: true; synthesis: SynthesisOutput; quality_gate: QualityGateResult; governance?: Record<string, unknown>; recommendations?: Record<string, unknown> }
   | {
       ok: false;
       error: string;

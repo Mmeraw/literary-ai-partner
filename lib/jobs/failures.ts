@@ -13,6 +13,9 @@ export const FAILURE_CODES = [
   'UPSTREAM_ERROR',
   'RATE_LIMITED',
   'INTERNAL_ERROR',
+  'STATE_TRANSITION_INVALID',
+  'LEASE_EXPIRED',
+  'SCHEMA_ERROR',
 ] as const;
 
 export type FailureCode = typeof FAILURE_CODES[number];

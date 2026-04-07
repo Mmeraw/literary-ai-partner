@@ -27,7 +27,7 @@ export const FAILURE_CODES = [
 
 export type FailureCode = (typeof FAILURE_CODES)[number];
 
-const FAILURE_CODE_SET: ReadonlySet<string> = new Set(FAILURE_CODES);
+export const FAILURE_CODE_SET: ReadonlySet<string> = new Set(FAILURE_CODES);
 
 const TRANSIENT_CODES: ReadonlySet<FailureCode> = new Set([
   "TRANSIENT_NETWORK",
