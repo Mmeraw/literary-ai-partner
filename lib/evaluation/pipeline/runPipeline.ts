@@ -17,6 +17,7 @@ import { runPass1 as defaultRunPass1 } from "./runPass1";
 import { runPass2 as defaultRunPass2 } from "./runPass2";
 import { runPass3Synthesis as defaultRunPass3 } from "./runPass3Synthesis";
 import { runPerplexityCrossCheck, CrossCheckOutput } from "./perplexityCrossCheck";
+import { evaluatePass4Governance } from "@/lib/evaluation/governance/evaluatePass4Governance";
 import { runQualityGate as defaultRunQualityGate } from "./qualityGate";
 import type { PipelineResult, SinglePassOutput, SynthesisOutput, QualityGateResult } from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
@@ -357,6 +358,28 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     const failedChecks = qualityGate.checks.filter((c) => !c.passed);
     const errorCode = failedChecks[0]?.error_code ?? "QG_UNKNOWN";
     const details = failedChecks.map((c) => c.details ?? c.error_code).join("; ");
+
+    // --- Pass 4: Perplexity Cross-Check (optional, fail-soft) ---
+    let crossCheckResult: CrossCheckOutput | undefined;
+    if (opts.perplexityApiKey) {
+      try {
+        crossCheckResult = await runPerplexityCrossCheck({
+          openaiCriteria: synthesis.criteria,
+          openaiSynthesis: synthesis.overall?.one_paragraph_summary ?? "",
+          manuscriptExcerpt: manuscriptText,
+          workType: workType,
+          title: title,
+          perplexityApiKey: opts.perplexityApiKey,
+        });
+      } catch (err) {
+        console.warn(
+          "[Pass4] Perplexity cross-check failed (non-fatal):",
+          err instanceof Error ? err.message : String(err)
+        );
+      }
+    }
+    const pass4Governance = evaluatePass4Governance(crossCheckResult);
+
     return {
       ok: false,
       error: `Quality gate failed: ${details}${checkpointContext(qualityGateCheckpoint)}`,
@@ -470,7 +493,8 @@ export function synthesisToEvaluationResult(
     governance: {
       confidence: 0.85,
       warnings: [],
-      crossCheck: undefined as CrossCheckOutput | undefined,
+      crossCheck: crossCheckResult,
+        pass4Governance,
       limitations: ["Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"],
       policy_family: "multi-pass-dual-axis",
     },
