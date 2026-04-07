@@ -243,8 +243,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     pass1Output = await withTimeout(
       _runPass1({
         manuscriptText: opts.manuscriptText,
-        workType: opts.workType,
-        title: opts.title,
+        workType: workType,
+        title: title,
         executionMode: opts.executionMode,
         model: opts.model,
         openaiApiKey: opts.openaiApiKey,
@@ -278,8 +278,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     pass2Output = await withTimeout(
       _runPass2({
         manuscriptText: opts.manuscriptText,
-        workType: opts.workType,
-        title: opts.title,
+        workType: workType,
+        title: title,
         executionMode: opts.executionMode,
         model: opts.model,
         openaiApiKey: opts.openaiApiKey,
@@ -314,7 +314,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         pass1: pass1Output,
         pass2: pass2Output,
         manuscriptText: opts.manuscriptText,
-        title: opts.title,
+        title: title,
         executionMode: opts.executionMode,
         model: opts.model,
         openaiApiKey: opts.openaiApiKey,
@@ -364,11 +364,11 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     if (opts.perplexityApiKey) {
       try {
         crossCheckResult = await runPerplexityCrossCheck({
-          openaiCriteria: pass3Output.criteria,
-          openaiSynthesis: pass3Output.overall?.one_paragraph_summary ?? "",
-          manuscriptExcerpt: opts.manuscriptText,
-          workType: opts.workType,
-          title: opts.title,
+          openaiCriteria: synthesis.criteria,
+          openaiSynthesis: synthesis.overall?.one_paragraph_summary ?? "",
+          manuscriptExcerpt: manuscriptText,
+          workType: workType,
+          title: title,
           perplexityApiKey: opts.perplexityApiKey,
         });
       } catch (err) {
