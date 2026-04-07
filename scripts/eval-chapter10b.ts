@@ -1,3 +1,15 @@
+/**
+ * ⚠️ DEPRECATED: This script uses an outdated PipelineResult API
+ *
+ * PipelineResult is now a discriminated union:
+ *  { ok: false; error: string; ... } | { ok: true; synthesis: ...; ... }
+ *
+ * This script directly accesses properties that only exist on the success branch.
+ * It is kept for reference only and will not be fixed unless explicitly requested.
+ *
+ * To update: wrap all property access in `if (result.ok) { /* access success branch */ }`
+ */
+
 import { runPipeline } from "../lib/evaluation/pipeline/runPipeline";
 import { canonRegistry } from "../lib/governance/canonRegistry";
 import * as fs from "fs";

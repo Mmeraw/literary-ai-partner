@@ -1,4 +1,4 @@
-import { PHASE_1_STATES, type Phase1State } from "./phase1";
+import { PHASE_1_STATES, type Phase1State } from "@/lib/jobs/phase1";
 import type { ValidityState } from "@/lib/governance/types";
 
 export type Phase1Readiness = {
