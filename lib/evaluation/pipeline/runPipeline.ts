@@ -45,6 +45,10 @@ import type {
   LessonsLearnedReport,
   EnforcementDecision,
 } from "@/lib/governance/lessonsLearned";
+import type { GovernanceDecision } from "@/lib/evaluation/governance/evaluatePass4Governance";
+
+// Pass 4 governance result type — derived from evaluatePass4Governance return
+type Pass4GovernanceResult = GovernanceDecision;
 
 export interface RunPipelineOptions {
   manuscriptText: string;
@@ -237,6 +241,9 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   let pass1Output: SinglePassOutput;
   let pass2Output: SinglePassOutput;
   let pass3Output: SynthesisOutput;
+  // Pass 4 state — owned exclusively by runPipeline(), passed explicitly to adapter
+  let crossCheckResult: CrossCheckOutput | undefined;
+  let pass4Governance: Pass4GovernanceResult | undefined;
 
   // ── Pass 1: Craft Execution ─────────────────────────────────────────────
   try {
@@ -359,27 +366,6 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     const errorCode = failedChecks[0]?.error_code ?? "QG_UNKNOWN";
     const details = failedChecks.map((c) => c.details ?? c.error_code).join("; ");
 
-    // --- Pass 4: Perplexity Cross-Check (optional, fail-soft) ---
-    let crossCheckResult: CrossCheckOutput | undefined;
-    if (opts.perplexityApiKey) {
-      try {
-        crossCheckResult = await runPerplexityCrossCheck({
-          openaiCriteria: synthesis.criteria,
-          openaiSynthesis: synthesis.overall?.one_paragraph_summary ?? "",
-          manuscriptExcerpt: manuscriptText,
-          workType: workType,
-          title: title,
-          perplexityApiKey: opts.perplexityApiKey,
-        });
-      } catch (err) {
-        console.warn(
-          "[Pass4] Perplexity cross-check failed (non-fatal):",
-          err instanceof Error ? err.message : String(err)
-        );
-      }
-    }
-    const pass4Governance = evaluatePass4Governance(crossCheckResult);
-
     return {
       ok: false,
       error: `Quality gate failed: ${details}${checkpointContext(qualityGateCheckpoint)}`,
@@ -388,7 +374,57 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     };
   }
 
-  return { ok: true, synthesis: pass3Output, quality_gate: qualityGate };
+  // ── Pass 4b: Optional external cross-check + governance ─────────────────
+  // Cross-check runs only on the success path (quality gate already passed).
+  // Fail-soft on execution; fail-hard if governance decision is not ok.
+  if (opts.perplexityApiKey) {
+    try {
+      // Map SynthesizedCriterion[] → Record<CriterionKey, OpenAICriterionInput>
+      const criteriaRecord = Object.fromEntries(
+        pass3Output.criteria.map((c) => [
+          c.key,
+          {
+            score: c.final_score_0_10,
+            rationale: c.final_rationale,
+            evidence: c.evidence.map((e) => e.snippet).filter(Boolean),
+          } satisfies import("./perplexityCrossCheck").OpenAICriterionInput,
+        ]),
+      ) as Record<import("./perplexityCrossCheck").CriterionKey, import("./perplexityCrossCheck").OpenAICriterionInput>;
+
+      crossCheckResult = await runPerplexityCrossCheck({
+        openaiCriteria: criteriaRecord,
+        openaiSynthesis: pass3Output.overall?.one_paragraph_summary ?? "",
+        manuscriptExcerpt: opts.manuscriptText,
+        workType: opts.workType,
+        title: opts.title,
+        perplexityApiKey: opts.perplexityApiKey,
+      });
+    } catch (err) {
+      console.warn(
+        "[Pass4] Perplexity cross-check failed (non-fatal):",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  pass4Governance = evaluatePass4Governance(crossCheckResult);
+
+  if (pass4Governance && !pass4Governance.ok) {
+    return {
+      ok: false,
+      error: `Pass 4 governance failed: ${pass4Governance.message ?? pass4Governance.blockCode ?? "unknown governance error"}`,
+      error_code: pass4Governance.blockCode ?? "PASS4_GOVERNANCE_FAILED",
+      failed_at: "pass4",
+    };
+  }
+
+  return {
+    ok: true,
+    synthesis: pass3Output,
+    quality_gate: qualityGate,
+    cross_check: crossCheckResult,
+    pass4_governance: pass4Governance,
+  };
 }
 
 // ── EvaluationResultV1 Adapter ────────────────────────────────────────────────
@@ -402,6 +438,10 @@ export interface SynthesisToEvaluationResultOptions {
     project_id?: number;
     user_id: string;
   };
+  /** Pass 4 cross-check result — must be threaded from runPipeline(), never inferred */
+  crossCheckResult?: CrossCheckOutput;
+  /** Pass 4 governance decision — must be threaded from runPipeline(), never inferred */
+  pass4Governance?: Pass4GovernanceResult;
 }
 
 /**
@@ -411,7 +451,7 @@ export interface SynthesisToEvaluationResultOptions {
 export function synthesisToEvaluationResult(
   opts: SynthesisToEvaluationResultOptions,
 ): EvaluationResultV1 {
-  const { synthesis, ids } = opts;
+  const { synthesis, ids, crossCheckResult, pass4Governance } = opts;
 
   const criteria: EvaluationResultV1["criteria"] = synthesis.criteria.map((c) => ({
     key: c.key,
@@ -493,10 +533,10 @@ export function synthesisToEvaluationResult(
     governance: {
       confidence: 0.85,
       warnings: [],
-      crossCheck: crossCheckResult,
-        pass4Governance,
       limitations: ["Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"],
       policy_family: "multi-pass-dual-axis",
+      // Pass 4 governance data is returned on PipelineResult, not stored on EvaluationResultV1
+      // Callers who need it read it from the pipeline success result directly.
     },
   };
 }

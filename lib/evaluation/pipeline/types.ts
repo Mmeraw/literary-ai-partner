@@ -128,7 +128,15 @@ export type PassCompletionCapture = {
 // ── Pipeline result ──────────────────────────────────────────────────────────
 
 export type PipelineResult =
-  | { ok: true; synthesis: SynthesisOutput; quality_gate: QualityGateResult; governance?: Record<string, unknown>; recommendations?: Record<string, unknown> }
+  | {
+      ok: true;
+      synthesis: SynthesisOutput;
+      quality_gate: QualityGateResult;
+      /** Populated when perplexityApiKey provided and cross-check succeeded */
+      cross_check?: import("./perplexityCrossCheck").CrossCheckOutput;
+      /** Always present after quality gate passes; undefined only if evaluatePass4Governance throws */
+      pass4_governance?: import("@/lib/evaluation/governance/evaluatePass4Governance").GovernanceDecision;
+    }
   | {
       ok: false;
       error: string;

@@ -1,4 +1,4 @@
-import { PHASE_1_STATES, type Phase1State } from "@/lib/jobs/phase1";
+import { PHASE_1_STATES, type Phase1State } from "./phase1";
 import type { ValidityState } from "@/lib/governance/types";
 
 export type Phase1Readiness = {
@@ -119,7 +119,7 @@ export async function checkPhase1GateForJob(jobId: string): Promise<boolean> {
     const readiness: Phase1Readiness = {
       phase1status: job.progress?.phase_status === "complete"
         ? PHASE_1_STATES.COMPLETED
-        : PHASE_1_STATES.RUNNING,
+        : PHASE_1_STATES.IN_PROGRESS,
       hasscores: completedChunks > 0,
       coveragepercent: totalChunks > 0 ? completedChunks / totalChunks : 0,
       evaluationvalidity: hasRejection ? "INVALID" : "VALID",

@@ -212,8 +212,6 @@ export type EvaluationResultV1 = {
       repro_anchor?: string;
     };
   };
-    /** Allow extensible governance fields (crossCheck, pass4Governance, etc.) */
-    [key: string]: unknown;
 };
 
 /**
