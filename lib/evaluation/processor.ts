@@ -68,6 +68,7 @@ import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistenc
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const openaiApiKey = process.env.OPENAI_API_KEY;
+const perplexityApiKey = process.env.PERPLEXITY_API_KEY ?? "";
 const evalDebugEnabled = process.env.EVAL_DEBUG === '1';
 const evalMinManuscriptChars = (() => {
   const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_CHARS || '200', 10);
@@ -78,7 +79,7 @@ const openAiTimeoutMs = (() => {
   // Keep below Vercel maxDuration=300s so we can write failed status before platform kill.
   return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 295000 ? parsed : 240000;
 })();
-const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'gpt-4o-mini').trim() || 'gpt-4o-mini';
+const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'o3').trim() || 'o3';
 const evalInputCharBudget = (() => {
   const parsed = Number.parseInt(process.env.EVAL_INPUT_CHAR_BUDGET || '8000', 10);
   return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 20000 ? parsed : 8000;

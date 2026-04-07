@@ -16,6 +16,7 @@
 import { runPass1 as defaultRunPass1 } from "./runPass1";
 import { runPass2 as defaultRunPass2 } from "./runPass2";
 import { runPass3Synthesis as defaultRunPass3 } from "./runPass3Synthesis";
+import { runPerplexityCrossCheck, CrossCheckOutput } from "./perplexityCrossCheck";
 import { runQualityGate as defaultRunQualityGate } from "./qualityGate";
 import type { PipelineResult, SinglePassOutput, SynthesisOutput, QualityGateResult } from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
@@ -50,6 +51,8 @@ export interface RunPipelineOptions {
   title: string;
   model?: string;
   openaiApiKey?: string;
+  /** Optional: Perplexity API key. When provided, enables Pass 4 cross-check via sonar-reasoning-pro. */
+  perplexityApiKey?: string;
   /** Per-pass timeout. Defaults to 60s. */
   _passTimeoutMs?: number;
   /** Maximum accepted manuscript size. Defaults to 1,000,000 chars. */
@@ -467,6 +470,7 @@ export function synthesisToEvaluationResult(
     governance: {
       confidence: 0.85,
       warnings: [],
+      crossCheck: undefined as CrossCheckOutput | undefined,
       limitations: ["Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"],
       policy_family: "multi-pass-dual-axis",
     },

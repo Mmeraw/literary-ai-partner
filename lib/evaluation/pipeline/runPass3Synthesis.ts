@@ -17,7 +17,7 @@ import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 
 const PASS3_TEMPERATURE = 0.2;
 const PASS3_MAX_TOKENS = 5000;
-const PASS3_MODEL = "gpt-4o-mini";
+const PASS3_MODEL = "o3";
 
 /** Function signature for creating a chat completion (enables DI for testing). */
 export type CreateCompletionFn = (params: {
