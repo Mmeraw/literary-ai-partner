@@ -2,11 +2,10 @@
   "name": "literary-ai-partner",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/supabase-cli:1": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
   "forwardPorts": [3000, 54321, 54322, 54323],
-  "postCreateCommand": "npm install",
+  "postCreateCommand": "npm install && npm install -g supabase",
   "customizations": {
     "vscode": {
       "extensions": [
