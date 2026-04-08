@@ -8,6 +8,8 @@ import { writeArtifact, ARTIFACT_TYPES } from "@/lib/artifacts/writeArtifact";
 import type { ReportContent, Credibility, RubricAxis } from "@/lib/evaluation/report-types";
 import { checkPhase1GateForJob } from "@/lib/evaluation/pipeline/gatePhase2OnPhase1";
 
+const LEGACY_PHASE2_RUNTIME_ENABLED = process.env.ENABLE_LEGACY_PHASE2_RUNTIME === "1";
+
 export const PHASE_2_STATES = {
   NOT_STARTED: "not_started",
   RUNNING: "running",
@@ -333,6 +335,13 @@ async function persistOutput(
 }
 
 export async function runPhase2(jobId: string): Promise<void> {
+  if (!LEGACY_PHASE2_RUNTIME_ENABLED) {
+    throw new Error(
+      "Legacy lib/jobs/phase2 runtime is disabled. Canonical execution is processor -> runPipeline. " +
+      "Set ENABLE_LEGACY_PHASE2_RUNTIME=1 only for controlled migration use.",
+    );
+  }
+
   const phase2Start = Date.now();
 
   let job = await getJob(jobId);

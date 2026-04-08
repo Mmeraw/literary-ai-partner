@@ -1,14 +1,10 @@
 // @ts-nocheck
 /**
- * DEPRECATED: This script uses an outdated PipelineResult API
+ * Chapter 10b focused evaluation runner.
  *
- * PipelineResult is now a discriminated union:
- *  { ok: false; error: string; ... } | { ok: true; synthesis: ...; ... }
- *
- * This script directly accesses properties that only exist on the success branch.
- * It is kept for reference only and will not be fixed unless explicitly requested.
- *
- * To update: wrap all property access in if (result.ok) { / * access success branch * / }
+ * Uses canonical Phase 2.7 pipeline contract:
+ * PipelineResult = { ok: true, synthesis, quality_gate, cross_check?, pass4_governance? }
+ *               | { ok: false, error, error_code, failed_at }
  */
 
 import { runPipeline } from "../lib/evaluation/pipeline/runPipeline";
@@ -117,6 +113,14 @@ async function main() {
     perplexityApiKey: perplexityKey || undefined,
   });
 
+  if (result.ok === false) {
+    throw new Error(
+      `Pipeline failed at ${result.failed_at}: [${result.error_code}] ${result.error}`,
+    );
+  }
+
+  const synthesis = result.synthesis;
+
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`Evaluation complete in ${elapsed}s\n`);
 
@@ -141,16 +145,19 @@ async function main() {
   console.log("   13-CRITERION SCORES (out of 10)  ");
   console.log("=====================================");
 
-  const criteria = result.criteria ?? {};
+  const criteriaMap = Object.fromEntries(
+    synthesis.criteria.map((c) => [c.key, c]),
+  ) as Record<string, (typeof synthesis.criteria)[number] | undefined>;
+
   for (const [key, label] of Object.entries(criteriaLabels)) {
-    const c = criteria[key];
-    const score = c?.score ?? "N/A";
+    const c = criteriaMap[key];
+    const score = c?.final_score_0_10 ?? "N/A";
     const bar = typeof score === "number" ? "█".repeat(Math.round(score)) + "░".repeat(10 - Math.round(score)) : "";
     console.log(`  ${label.padEnd(24)} ${String(score).padStart(3)}/10  ${bar}`);
   }
 
-  const scores = Object.values(criteria)
-    .map((c: any) => c?.score)
+  const scores = synthesis.criteria
+    .map((c) => c.final_score_0_10)
     .filter((s): s is number => typeof s === "number");
   const avg = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2) : "N/A";
   console.log("─────────────────────────────────────");
@@ -158,38 +165,44 @@ async function main() {
   console.log("=====================================");
 
   // --- Top 3 risks ---
-  if (result.top_3_risks?.length) {
+  if (synthesis.overall.top_3_risks?.length) {
     console.log("\n⚠  TOP RISKS FLAGGED BY PIPELINE:");
-    result.top_3_risks.forEach((r: any, i: number) => {
-      console.log(`  ${i + 1}. [${r.criterionKey}] ${r.summary}`);
+    synthesis.overall.top_3_risks.forEach((risk, i) => {
+      console.log(`  ${i + 1}. ${risk}`);
     });
   }
 
   // --- Synthesis / editorial summary ---
-  if (result.synthesis) {
-    console.log("\n── SYNTHESIS VERDICT ─────────────────");
-    console.log(result.synthesis);
-  }
+  console.log("\n── SYNTHESIS VERDICT ─────────────────");
+  console.log(`  Verdict   : ${synthesis.overall.verdict}`);
+  console.log(`  Score     : ${synthesis.overall.overall_score_0_100}/100`);
+  console.log(`  Summary   : ${synthesis.overall.one_paragraph_summary}`);
 
   // --- Governance / EG gate result ---
-  const gov = result.governance;
+  const gov = result.pass4_governance;
   if (gov) {
     console.log("\n── EVALUATION GATE ───────────────────");
-    console.log(`  Confidence : ${gov.confidence}`);
-    if (gov.warnings?.length) gov.warnings.forEach((w: string) => console.log(`  ⚠ ${w}`));
-    if (gov.limitations?.length) gov.limitations.forEach((l: string) => console.log(`  ℹ ${l}`));
+    console.log(`  OK         : ${gov.ok}`);
+    if (gov.blockCode) console.log(`  Block code : ${gov.blockCode}`);
+    if (gov.message) console.log(`  Message    : ${gov.message}`);
   }
 
   // --- Recommendations ---
-  if (result.recommendations?.length) {
+  const recommendations = synthesis.criteria
+    .flatMap((c) => c.recommendations.map((r) => ({ criterion: c.key, ...r })))
+    .slice(0, 5);
+
+  if (recommendations.length) {
     console.log("\n── RECOMMENDATIONS ───────────────────");
-    result.recommendations.slice(0, 5).forEach((r: any, i: number) => {
-      console.log(`  ${i + 1}. ${r}`);
+    recommendations.forEach((r, i) => {
+      console.log(
+        `  ${i + 1}. [${r.criterion}] (${r.priority}) ${r.action} → ${r.expected_impact}`,
+      );
     });
   }
 
   // --- Cross-check (Pass 4) ---
-  const cc = (result as any).crossCheck;
+  const cc = result.cross_check;
   if (cc) {
     console.log("\n── PERPLEXITY CROSS-CHECK (sonar-reasoning-pro) ──");
     console.log(`  Agreement : ${cc.overallAgreement}`);
@@ -213,7 +226,13 @@ async function main() {
 
   // Save full output to JSON
   const outPath = path.join("scripts", "eval-chapter10b-result.json");
-  fs.writeFileSync(outPath, JSON.stringify(result, null, 2));
+  fs.writeFileSync(outPath, JSON.stringify({
+    ok: result.ok,
+    synthesis,
+    quality_gate: result.quality_gate,
+    cross_check: result.cross_check,
+    pass4_governance: result.pass4_governance,
+  }, null, 2));
   console.log(`\nFull result saved → ${outPath}`);
 }
 

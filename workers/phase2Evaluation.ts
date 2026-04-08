@@ -23,6 +23,8 @@ import {
   buildOpenAITemperatureParam,
 } from '@/lib/evaluation/policy';
 
+const LEGACY_PHASE2_WORKER_ENABLED = process.env.ENABLE_LEGACY_PHASE2_WORKER === '1';
+
 /**
  * Circuit Breaker Types for OpenAI resilience
  */
@@ -352,6 +354,13 @@ export async function executePhase2Evaluation(
   context: EvaluationContext,
   log: LogFn
 ): Promise<EvaluationResult> {
+  if (!LEGACY_PHASE2_WORKER_ENABLED) {
+    throw new Error(
+      'Legacy phase2 evaluation path is disabled. Canonical execution is processor -> runPipeline. ' +
+      'Set ENABLE_LEGACY_PHASE2_WORKER=1 only for controlled migration use.',
+    );
+  }
+
   const startTime = Date.now();
 
   log('info', 'Starting Phase 2 evaluation (OpenAI)', {
