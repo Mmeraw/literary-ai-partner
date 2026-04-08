@@ -414,12 +414,21 @@ async function fallbackRenewLease(
 export async function completeJob(jobId: string, result: any): Promise<boolean> {
     const supabase = getSupabaseClient();
   const now = new Date().toISOString();
+  const chunkCount =
+    typeof result?.metadata?.chunks_processed === 'number'
+      ? result.metadata.chunks_processed
+      : typeof result?.chunks_processed === 'number'
+        ? result.chunks_processed
+        : null;
 
   const { error } = await supabase
     .from('evaluation_jobs')
     .update({
       status: 'complete',
+      phase_status: 'complete',
       evaluation_result: result,
+      total_units: chunkCount,
+      completed_units: chunkCount,
       updated_at: now,
       lease_token: null,
       lease_until: null,
@@ -442,7 +451,8 @@ export async function failJob(jobId: string, error: string): Promise<boolean> {
     .from('evaluation_jobs')
     .update({
       status: 'failed',
-      error: error,
+      phase_status: 'failed',
+      last_error: error,
       updated_at: now,
       lease_token: null,
       lease_until: null,

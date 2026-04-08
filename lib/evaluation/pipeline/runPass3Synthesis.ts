@@ -14,6 +14,11 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS3_SYSTEM_PROMPT, PASS3_PROMPT_VERSION, buildPass3UserPrompt } from "./prompts/pass3-synthesis";
 import type { SinglePassOutput, SynthesisOutput, SynthesizedCriterion, EvidenceAnchor, CompletionUsage, PassCompletionCapture } from "./types";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
+import {
+  buildOpenAIOutputTokenParam,
+  buildOpenAITemperatureParam,
+  getCanonicalPipelineModel,
+} from "@/lib/evaluation/policy";
 
 const PASS3_TEMPERATURE = 0.2;
 const PASS3_MAX_TOKENS = 5000;
@@ -23,8 +28,9 @@ const PASS3_MODEL = "o3";
 export type CreateCompletionFn = (params: {
   model: string;
   messages: { role: string; content: string }[];
-  temperature: number;
-  max_tokens: number;
+  temperature?: number;
+  max_tokens?: number;
+  max_completion_tokens?: number;
   response_format: { type: string };
 }) => Promise<{ choices: { message: { content: string | null } }[]; usage?: CompletionUsage }>;
 
@@ -53,7 +59,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   }
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
-  const selectedModel = opts.model ?? PASS3_MODEL;
+  const selectedModel = getCanonicalPipelineModel(opts.model ?? PASS3_MODEL);
 
   const userPrompt = buildPass3UserPrompt({
     pass1Json: JSON.stringify(opts.pass1, null, 2),
@@ -69,8 +75,8 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
       { role: "system", content: PASS3_SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
     ],
-    temperature: PASS3_TEMPERATURE,
-    max_tokens: PASS3_MAX_TOKENS,
+    ...buildOpenAITemperatureParam(selectedModel, PASS3_TEMPERATURE),
+    ...buildOpenAIOutputTokenParam(selectedModel, PASS3_MAX_TOKENS),
     response_format: { type: "json_object" },
   });
 

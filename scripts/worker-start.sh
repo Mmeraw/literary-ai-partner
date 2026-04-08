@@ -27,6 +27,14 @@ fi
 
 echo "🔍 Worker pre-flight checks..."
 
+if [ "${ENABLE_LEGACY_PHASE2_WORKER:-0}" != "1" ]; then
+  echo "❌ Legacy Phase 2 worker is disabled by default."
+  echo "   Canonical execution path is processor -> runPipeline."
+  echo "   To start this legacy worker intentionally, run:"
+  echo "   ENABLE_LEGACY_PHASE2_WORKER=1 ./scripts/worker-start.sh"
+  exit 1
+fi
+
 # Check if PID file exists and process is still running
 if [ -f "$PID_FILE" ]; then
   OLD_PID="$(cat "$PID_FILE" || true)"

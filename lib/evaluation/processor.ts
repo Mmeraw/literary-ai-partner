@@ -64,6 +64,17 @@ import { validateEvaluationResult } from '@/schemas/evaluation-result-v1';
 import { CRITERIA_KEYS, type CriterionKey } from '@/schemas/criteria-keys';
 import { WAVE_GUIDE_SUMMARY, WAVE_GUIDE_VERSION } from './WAVE_GUIDE';
 import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistence';
+import {
+  runPipeline,
+  synthesisToEvaluationResult,
+} from '@/lib/evaluation/pipeline/runPipeline';
+import {
+  buildOpenAIOutputTokenParam,
+  buildOpenAITemperatureParam,
+  getCanonicalPipelineModel,
+  getExternalAdjudicationMode,
+} from '@/lib/evaluation/policy';
+import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -88,6 +99,7 @@ const evalMaxOutputTokens = (() => {
   const parsed = Number.parseInt(process.env.EVAL_MAX_OUTPUT_TOKENS || '1400', 10);
   return Number.isFinite(parsed) && parsed >= 300 && parsed <= 4000 ? parsed : 1400;
 })();
+const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
 const staleRunningMinutes = (() => {
   const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);
   return Number.isFinite(parsed) && parsed >= 1 && parsed <= 240 ? parsed : 10;
@@ -763,6 +775,7 @@ async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob):
       input_chars_actual: manuscriptExcerpt.length,
       source_chars_total: manuscriptText.length,
       max_output_tokens: evalMaxOutputTokens,
+      token_limit_param: Object.keys(buildOpenAIOutputTokenParam(openAiModel, evalMaxOutputTokens))[0],
       timeout_ms: openAiTimeoutMs,
       response_format: 'json_object',
       call_shape: 'single_shot_compact',
@@ -810,8 +823,8 @@ Return ONLY valid JSON with this exact structure (no markdown, no code fences):
 "recommendations": {"quick_wins": [{"action": "...", "why": "...", "effort": "low|medium|high", "impact": "low|medium|high"}], "strategic_revisions": [{"action": "...", "why": "...", "effort": "low|medium|high", "impact": "low|medium|high"}]}}`
         }
       ],
-      temperature: 0.2,
-      max_tokens: evalMaxOutputTokens,
+      ...buildOpenAITemperatureParam(openAiModel, 0.2),
+      ...buildOpenAIOutputTokenParam(openAiModel, evalMaxOutputTokens),
       response_format: { type: 'json_object' }
     });
 
@@ -1024,12 +1037,18 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     const progressState =
       job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
 
-    const markRunning = async (message: string) => {
+    const markRunning = async (
+      message: string,
+      completedUnits: number,
+      phase: 'phase_1' | 'phase_2' = 'phase_1',
+    ) => {
       const now = new Date().toISOString();
       const nextProgress = {
         ...progressState,
-        phase: 'phase_1',
+        phase,
         phase_status: 'running',
+        total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+        completed_units: completedUnits,
         message,
         last_heartbeat_at: now,
       };
@@ -1040,7 +1059,10 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         .from('evaluation_jobs')
         .update({
           status: 'running',
+          phase,
           phase_status: 'running',
+          total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+          completed_units: completedUnits,
           progress: nextProgress,
           started_at: job.started_at ?? now,
           last_heartbeat: now,
@@ -1055,8 +1077,19 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       const now = new Date().toISOString();
       const nextProgress = {
         ...progressState,
-        phase: 'phase_1',
+        phase:
+          progressState.phase === 'phase_2' || progressState.phase === 'phase_1'
+            ? progressState.phase
+            : 'phase_1',
         phase_status: 'failed',
+        total_units:
+          typeof progressState.total_units === 'number'
+            ? progressState.total_units
+            : EVALUATION_PROGRESS_TOTAL_UNITS,
+        completed_units:
+          typeof progressState.completed_units === 'number'
+            ? progressState.completed_units
+            : 0,
         message: 'Evaluation failed',
         failed_at: now,
       };
@@ -1068,7 +1101,10 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           .from('evaluation_jobs')
           .update({
             status: 'failed',
+            phase: nextProgress.phase,
             phase_status: 'failed',
+            total_units: nextProgress.total_units,
+            completed_units: nextProgress.completed_units,
             progress: nextProgress,
             last_error: errorMessage,
             updated_at: now,
@@ -1080,7 +1116,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     };
 
     // 2. Update status to running
-    await markRunning('Fetching manuscript');
+    await markRunning('Fetching manuscript', 0);
 
     console.log(`[Processor] Job ${jobId} status updated to running`);
 
@@ -1121,13 +1157,82 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       content: resolvedManuscriptText,
     };
 
-    // 4. Generate evaluation using AI (fail-closed; no mock fallback)
-    await markRunning('Generating evaluation with AI');
-    const evaluationResult = await generateAIEvaluation(manuscriptWithContent, job);
+    // 4. Canonical evaluation via governed multi-pass pipeline (fail-closed)
+    await markRunning('Running canonical evaluation pipeline', 1);
 
-    console.log(`[Processor] Evaluation generated for job ${jobId}`);
+    const externalMode = getExternalAdjudicationMode();
+    if ((externalMode === 'required' || externalMode === 'veto') && !perplexityApiKey) {
+      const missingCrossCheckConfigError =
+        `External adjudication mode '${externalMode}' requires PERPLEXITY_API_KEY`;
+      await markFailed(missingCrossCheckConfigError);
 
-    await markRunning('Persisting evaluation artifacts');
+      return { success: false, error: missingCrossCheckConfigError };
+    }
+
+    const pipelineResult = await runPipeline({
+      manuscriptText: manuscriptWithContent.content || '',
+      workType: manuscriptWithContent.work_type || 'novel',
+      title: manuscriptWithContent.title,
+      model: getCanonicalPipelineModel(openAiModel),
+      openaiApiKey,
+      perplexityApiKey: perplexityApiKey || undefined,
+      manuscriptId: String(manuscriptWithContent.id),
+      executionMode: 'TRUSTED_PATH',
+    });
+
+    if (!pipelineResult.ok) {
+      const pipelineError = `[Pipeline:${pipelineResult.failed_at}] ${pipelineResult.error_code} ${pipelineResult.error}`;
+      await markFailed(pipelineError);
+
+      return { success: false, error: pipelineError };
+    }
+
+    if ((externalMode === 'required' || externalMode === 'veto') && !pipelineResult.cross_check) {
+      const missingCrossCheckResultError =
+        `External adjudication mode '${externalMode}' requires cross-check output`;
+      await markFailed(missingCrossCheckResultError);
+
+      return { success: false, error: missingCrossCheckResultError };
+    }
+
+    const evaluationResult = synthesisToEvaluationResult({
+      synthesis: pipelineResult.synthesis,
+      ids: {
+        evaluation_run_id: crypto.randomUUID(),
+        job_id: job.id,
+        manuscript_id: manuscript.id,
+        user_id: manuscript.user_id,
+      },
+      crossCheckResult: pipelineResult.cross_check,
+      pass4Governance: pipelineResult.pass4_governance,
+    });
+
+    const promptCoverage = summarizePromptCoverage(manuscriptWithContent.content || '');
+    evaluationResult.metrics.manuscript = {
+      ...evaluationResult.metrics.manuscript,
+      word_count: promptCoverage.sourceWords,
+      char_count: promptCoverage.sourceChars,
+      genre: manuscriptWithContent.work_type || 'Unknown',
+    };
+    evaluationResult.metrics.processing = {
+      ...evaluationResult.metrics.processing,
+      segment_count: promptCoverage.truncated ? 3 : 1,
+    };
+    evaluationResult.governance.limitations = [
+      promptCoverage.truncated
+        ? `Pass 1 and Pass 2 analyzed a sampled prompt window (~${promptCoverage.analyzedWords} of ${promptCoverage.sourceWords} words; ${promptCoverage.budgetChars}-char budget).`
+        : `Pass 1 and Pass 2 analyzed the full submission (${promptCoverage.sourceWords} words).`,
+      'Pass 3 synthesis uses a compressed manuscript reference window for arbitration context.',
+      ...evaluationResult.governance.limitations.filter(
+        (item) =>
+          item !== 'Single-chunk evaluation; multi-chunk synthesis in Phase 2.8' &&
+          item !== 'Full manuscript context may not be captured if truncated',
+      ),
+    ];
+
+    console.log(`[Processor] Canonical pipeline evaluation generated for job ${jobId}`);
+
+    await markRunning('Persisting evaluation artifacts', 2, 'phase_2');
 
     const completionTime = new Date().toISOString();
     const existingProgress = { ...progressState };
@@ -1179,10 +1284,14 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         status: 'complete',
         phase: 'phase_2',
         phase_status: 'complete',
+        total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+        completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
         progress: {
           ...existingProgress,
           phase: 'phase_2',
           phase_status: 'complete',
+          total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+          completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
           message: 'Evaluation completed',
           finished_at: completionTime,
         },
@@ -1218,6 +1327,14 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         .from('evaluation_jobs')
         .update({
           status: 'failed',
+          total_units:
+            typeof job.progress?.total_units === 'number'
+              ? job.progress.total_units
+              : EVALUATION_PROGRESS_TOTAL_UNITS,
+          completed_units:
+            typeof job.progress?.completed_units === 'number'
+              ? job.progress.completed_units
+              : 0,
           phase_status: 'failed',
           last_error: errorMessage,
           updated_at: now,

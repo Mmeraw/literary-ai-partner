@@ -26,6 +26,7 @@ export interface JobState {
 
 interface PollerProps {
   jobId: string;
+  initialJob?: JobState | null;
   userId?: string;
   onComplete?: (job: JobState, isSuccess: boolean) => void;
   refreshInterval?: number; // ms, default 1500
@@ -36,6 +37,7 @@ interface PollerProps {
 
 export function EvaluationPoller({
   jobId,
+  initialJob = null,
   userId,
   onComplete,
   refreshInterval = 1500,
@@ -44,7 +46,7 @@ export function EvaluationPoller({
   refreshOnComplete = false,
 }: PollerProps) {
   const router = useRouter();
-  const [job, setJob] = useState<JobState | null>(null);
+  const [job, setJob] = useState<JobState | null>(initialJob);
   const [error, setError] = useState<string | null>(null);
   const [transientError, setTransientError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(true);
@@ -282,7 +284,7 @@ export function EvaluationPoller({
   }, [fetchJob, isPolling]);
 
   useEffect(() => {
-    setJob(null);
+    setJob(initialJob);
     setError(null);
     setTransientError(null);
     setIsPolling(true);
@@ -302,7 +304,7 @@ export function EvaluationPoller({
       redirectCountdownIntervalRef.current = null;
     }
     redirectDeadlineRef.current = null;
-  }, [jobId, userId, refreshInterval]);
+  }, [initialJob, jobId, userId, refreshInterval]);
 
   const formatUserSafeError = (value: string) =>
     value.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 600);

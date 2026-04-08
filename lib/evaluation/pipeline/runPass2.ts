@@ -15,6 +15,11 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS2_SYSTEM_PROMPT, PASS2_PROMPT_VERSION, buildPass2UserPrompt } from "./prompts/pass2-editorial";
 import type { SinglePassOutput, AxisCriterionResult, EvidenceAnchor, CompletionUsage, PassCompletionCapture } from "./types";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
+import {
+  buildOpenAIOutputTokenParam,
+  buildOpenAITemperatureParam,
+  getCanonicalPipelineModel,
+} from "@/lib/evaluation/policy";
 
 const PASS2_TEMPERATURE = 0.3;
 const PASS2_MAX_TOKENS = 4000;
@@ -24,8 +29,9 @@ const PASS2_MODEL = "o3";
 export type CreateCompletionFn = (params: {
   model: string;
   messages: { role: string; content: string }[];
-  temperature: number;
-  max_tokens: number;
+  temperature?: number;
+  max_tokens?: number;
+  max_completion_tokens?: number;
   response_format: { type: string };
 }) => Promise<{ choices: { message: { content: string | null } }[]; usage?: CompletionUsage }>;
 
@@ -61,7 +67,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   }
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
-  const selectedModel = opts.model ?? PASS2_MODEL;
+  const selectedModel = getCanonicalPipelineModel(opts.model ?? PASS2_MODEL);
 
   const userPrompt = buildPass2UserPrompt({
     manuscriptText: opts.manuscriptText,
@@ -76,8 +82,8 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
       { role: "system", content: PASS2_SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
     ],
-    temperature: PASS2_TEMPERATURE,
-    max_tokens: PASS2_MAX_TOKENS,
+    ...buildOpenAITemperatureParam(selectedModel, PASS2_TEMPERATURE),
+    ...buildOpenAIOutputTokenParam(selectedModel, PASS2_MAX_TOKENS),
     response_format: { type: "json_object" },
   });
 

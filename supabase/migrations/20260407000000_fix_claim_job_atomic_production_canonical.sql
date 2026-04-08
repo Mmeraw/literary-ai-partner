@@ -1,3 +1,4 @@
+
 -- Emergency production fix: Restore canonical claim_job_atomic
 -- Date: 2026-04-07
 -- Issue: Two broken overloads setting non-canonical 'processing' status

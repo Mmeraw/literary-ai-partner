@@ -117,8 +117,19 @@ describe("processEvaluationJob short-text fail-closed", () => {
     expect(OpenAIMock).not.toHaveBeenCalled();
     expect(createCompletionMock).not.toHaveBeenCalled();
 
+    const runningUpdate = supabaseStub.evaluationJobUpdates[0] as UpdatePayload;
+    expect(runningUpdate).toMatchObject({
+      status: "running",
+      total_units: 3,
+      completed_units: 0,
+    });
+
     const finalUpdate = supabaseStub.evaluationJobUpdates.at(-1) as UpdatePayload;
-    expect(finalUpdate).toMatchObject({ status: "failed" });
+    expect(finalUpdate).toMatchObject({
+      status: "failed",
+      total_units: 3,
+      completed_units: 0,
+    });
     expect(String(finalUpdate.last_error || "")).toMatch(/minimum 200/i);
   });
 });
