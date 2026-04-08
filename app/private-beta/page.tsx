@@ -28,6 +28,22 @@ export default function PrivateBetaPage() {
         <p style={{ lineHeight: 1.6, color: '#999' }}>
           RevisionGrade is currently in private beta and not accepting new users.
         </p>
+        <a
+          href="/login"
+          style={{
+            display: 'inline-block',
+            marginTop: '1rem',
+            padding: '0.65rem 1rem',
+            borderRadius: '10px',
+            border: '1px solid #4f46e5',
+            backgroundColor: '#4f46e5',
+            color: '#fff',
+            textDecoration: 'none',
+            fontWeight: 600,
+          }}
+        >
+          Internal Tester Sign In
+        </a>
         <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#666' }}>
           If you have an account, access has been restricted. Contact the administrator for questions.
         </p>
