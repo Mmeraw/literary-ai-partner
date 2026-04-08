@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * DEPRECATED: This script uses an outdated PipelineResult API
  *
