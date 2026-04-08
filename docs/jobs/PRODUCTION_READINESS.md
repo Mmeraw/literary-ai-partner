@@ -1,5 +1,13 @@
 # Job System Production Readiness
 
+> ⚠️ **Canonical runtime supersession (2026-04):**
+> This document is a job-system reliability reference.
+> Canonical evaluation runtime authority is defined in:
+> `docs/CANONICAL_RUNTIME_OPERATIONS.md`
+>
+> For evaluation execution authority, use:
+> `entrypoints -> lib/evaluation/processor.ts -> lib/evaluation/pipeline/runPipeline.ts -> evaluation_artifacts`.
+
 ## Overview
 
 The job system is production-ready with four enhancement tracks:
@@ -339,7 +347,7 @@ METRICS_BACKEND=console # Default: console (supports custom)
 **Integration Points:**
 - `app/api/jobs/route.ts` - Job creation
 - `lib/jobs/phase1.ts` - Phase 1 completion/failure
-- `lib/jobs/phase2.ts` - Phase 2 completion/failure
+- `lib/evaluation/processor.ts` - Canonical evaluation completion/failure writes
 
 **Tests:** `scripts/jobs-test-metrics.mjs`
 - No-op when disabled

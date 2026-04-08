@@ -1,7 +1,17 @@
-# OpenAI Integration — Drop-In Ready
+# OpenAI Integration — Legacy Phase 2C Reference
 
-**Status**: Integrated as of 2026-01-27  
-**Mode**: Graceful degradation (simulated if no API key, real if key present)
+> ⚠️ **Legacy/Quarantine Notice (2026-04 canonical cutover):**
+> This document describes the historical `workers/phase2Evaluation.ts` integration path.
+> It is not the canonical runtime evaluator authority.
+>
+> Canonical evaluator authority is now:
+> `processor.ts -> runPipeline.ts`
+>
+> See:
+> `docs/CANONICAL_RUNTIME_OPERATIONS.md`
+
+**Status**: Historical integration notes (quarantined path)
+**Mode**: Migration-only reference
 
 ## What Was Added
 

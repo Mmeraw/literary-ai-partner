@@ -1,10 +1,17 @@
 # Worker Daemon Runbook
 
-**Status**: Production-grade worker daemon operational as of 2026-01-27
+> ⚠️ **Legacy/Quarantine Notice (2026-04 canonical cutover):**
+> This runbook documents the legacy `workers/phase2Worker.ts` path for controlled migration only.
+> It is **not** the canonical production evaluation runtime.
+>
+> Authoritative runtime operations are documented in:
+> `docs/CANONICAL_RUNTIME_OPERATIONS.md`
 
-## 🎯 The Worker Contract
+**Status**: Quarantined legacy worker daemon (kill-switch gated)
 
-The Phase 2 worker daemon processes evaluation jobs from the `evaluation_jobs` table with the following guarantees:
+## 🎯 Legacy Worker Contract (Quarantine Only)
+
+The legacy Phase 2 worker daemon processes evaluation jobs from the `evaluation_jobs` table with the following guarantees (migration mode only):
 
 - **Exactly-once** job execution (atomic claim via `FOR UPDATE SKIP LOCKED`)
 - **Deterministic** lifecycle (start/stop/restart)
@@ -14,7 +21,10 @@ The Phase 2 worker daemon processes evaluation jobs from the `evaluation_jobs` t
 
 ---
 
-## 🚀 Operations
+## 🚀 Operations (Legacy Path Only)
+
+> Canonical production path does **not** require this daemon.
+> To invoke legacy mode intentionally, `ENABLE_LEGACY_PHASE2_WORKER=1` must be set.
 
 ### Start Worker
 ```bash

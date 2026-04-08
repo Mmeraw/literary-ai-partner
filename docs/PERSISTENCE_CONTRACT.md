@@ -1,5 +1,15 @@
 # Persistence Contract — Phase 2C-4 Canonical Rules
 
+> ⚠️ **Scope Clarification (2026-04 canonical cutover):**
+> This document defines the historical Phase 2C provider-call persistence contract for
+> the legacy worker execution path (`workers/phase2Worker.ts` + `workers/phase2Evaluation.ts`).
+>
+> Current canonical evaluation runtime for production is:
+> `processor.ts -> runPipeline.ts -> evaluation_artifacts (evaluation_result_v1)`
+>
+> See:
+> `docs/CANONICAL_RUNTIME_OPERATIONS.md`
+
 **Status:** ✅ LOCKED (non-negotiable audit rules)  
 **Related:** [docs/PHASE2C4_PERSISTENCE.md](PHASE2C4_PERSISTENCE.md), [workers/phase2Worker.ts](workers/phase2Worker.ts) lines 255-290, 325-345
 

@@ -440,7 +440,31 @@ jobs:
           else
             echo "❌ supabase db push failed (exit $SUPABASE_EXIT). Last 200 lines of log:"
             tail -200 scripts-artifacts/supabase-db-push.log || true
-            exit "$SUPABASE_EXIT"
+
+            # Fallback: if password-auth path fails but DB URL is present, retry direct DB URL push.
+            # This avoids false negatives when SUPABASE_DB_PASSWORD drifts but DB URL secret is valid.
+            if [[ -n "${SUPABASE_DB_URL_CI:-}" ]]; then
+              echo "↻ Retrying migrations via direct --db-url path"
+              : > scripts-artifacts/supabase-db-push-fallback.log
+
+              set +o pipefail
+              (yes || true) | supabase db push --db-url "$SUPABASE_DB_URL_CI" --include-all 2>&1 | tee -a scripts-artifacts/supabase-db-push-fallback.log
+              FALLBACK_PIPESTAT=("${PIPESTATUS[@]}")
+              set -o pipefail
+
+              FALLBACK_EXIT="${FALLBACK_PIPESTAT[1]:-99}"
+              echo "Fallback pipeline exit codes: yes=${FALLBACK_PIPESTAT[0]:-NA}, supabase=${FALLBACK_EXIT}, tee=${FALLBACK_PIPESTAT[2]:-NA}"
+
+              if [[ "$FALLBACK_EXIT" -eq 0 ]]; then
+                echo "✅ Fallback db push via --db-url succeeded"
+              else
+                echo "❌ Fallback db push failed (exit $FALLBACK_EXIT). Last 200 lines of fallback log:"
+                tail -200 scripts-artifacts/supabase-db-push-fallback.log || true
+                exit "$FALLBACK_EXIT"
+              fi
+            else
+              exit "$SUPABASE_EXIT"
+            fi
           fi
 
           echo "→ Forcing PostgREST schema cache reload via SQL notification"
