@@ -60,8 +60,16 @@ export async function middleware(request: NextRequest) {
     user = null
   }
 
-  // Public paths that don't require auth (private-beta page, auth callback, API/cron)
-  const publicPaths = ['/private-beta', '/auth/callback', '/api/cron', '/api/workers']
+  // Public paths that don't require auth.
+  // Keep private beta landing public; allow login + auth callback for authorized testers.
+  const publicPaths = [
+    '/private-beta',
+    '/login',
+    '/api/auth/callback',
+    '/auth/callback',
+    '/api/cron',
+    '/api/workers',
+  ]
   const isPublicPath = publicPaths.some(path =>
     request.nextUrl.pathname.startsWith(path)
   )
