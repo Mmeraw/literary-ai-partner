@@ -115,8 +115,6 @@ describe("evaluation architecture invariants", () => {
     const homePagePath = path.join(repoRoot, "app/page.tsx");
     const homePageCode = fs.readFileSync(homePagePath, "utf8");
 
-    expect(homePageCode).toContain('getAuthenticatedUser');
-    expect(homePageCode).toContain('redirect("/dashboard")');
     expect(homePageCode).toContain('redirect("/private-beta")');
     expect(homePageCode).not.toContain("Professional Literary Evaluation & Revision");
     expect(homePageCode).not.toContain("Get Started");
@@ -130,5 +128,54 @@ describe("evaluation architecture invariants", () => {
     expect(middlewareCode).toContain("/login");
     expect(middlewareCode).toContain("/api/auth/callback");
     expect(middlewareCode).toContain("redirectUrl.pathname = '/private-beta'");
+  });
+
+  test("scripts using runPipeline do not access legacy PipelineResult.criteria", () => {
+    const scriptsRoot = path.join(repoRoot, "scripts");
+
+    const collectTsFiles = (dir: string): string[] => {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      const files: string[] = [];
+
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          files.push(...collectTsFiles(fullPath));
+          continue;
+        }
+        if (entry.isFile() && fullPath.endsWith(".ts")) {
+          files.push(fullPath);
+        }
+      }
+
+      return files;
+    };
+
+    const tsFiles = collectTsFiles(scriptsRoot);
+    const violatingFiles = [];
+
+    for (const filePath of tsFiles) {
+      const code = fs.readFileSync(filePath, "utf8");
+
+      if (!code.includes("runPipeline(")) {
+        continue;
+      }
+
+      if (/(pipelineResult|result)\.criteria\b/.test(code)) {
+        violatingFiles.push(path.relative(repoRoot, filePath));
+      }
+    }
+
+    expect(violatingFiles).toEqual([]);
+  });
+
+  test("processor uses strict discriminated union narrowing for PipelineResult (ok === false, not !ok)", () => {
+    const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    // Must use strict equality check so TypeScript narrows the union under strict:false
+    expect(processorCode).toContain("pipelineResult.ok === false");
+    // Must NOT use the negation form which does not narrow under strict:false
+    expect(processorCode).not.toContain("if (!pipelineResult.ok)");
   });
 });

@@ -58,7 +58,6 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { validateEvaluationResult } from '@/schemas/evaluation-result-v1';
 import { CRITERIA_KEYS, type CriterionKey } from '@/schemas/criteria-keys';
@@ -69,8 +68,6 @@ import {
   synthesisToEvaluationResult,
 } from '@/lib/evaluation/pipeline/runPipeline';
 import {
-  buildOpenAIOutputTokenParam,
-  buildOpenAITemperatureParam,
   getCanonicalPipelineModel,
   getExternalAdjudicationMode,
 } from '@/lib/evaluation/policy';
@@ -85,20 +82,7 @@ const evalMinManuscriptChars = (() => {
   const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_CHARS || '200', 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 200;
 })();
-const openAiTimeoutMs = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || '240000', 10);
-  // Keep below Vercel maxDuration=300s so we can write failed status before platform kill.
-  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 295000 ? parsed : 240000;
-})();
 const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'o3').trim() || 'o3';
-const evalInputCharBudget = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_INPUT_CHAR_BUDGET || '8000', 10);
-  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 20000 ? parsed : 8000;
-})();
-const evalMaxOutputTokens = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_MAX_OUTPUT_TOKENS || '1400', 10);
-  return Number.isFinite(parsed) && parsed >= 300 && parsed <= 4000 ? parsed : 1400;
-})();
 const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
 const staleRunningMinutes = (() => {
   const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);
@@ -726,234 +710,6 @@ function extractCriteriaFromAIResult(aiResult: Record<string, unknown>): unknown
   return undefined;
 }
 
-function buildEvaluationExcerpt(text: string, maxChars: number): string {
-  const trimmed = text.trim();
-  if (trimmed.length <= maxChars) {
-    return trimmed;
-  }
-
-  // Preserve narrative coverage by sampling beginning/middle/end.
-  const separator = '\n\n---\n\n';
-  const separatorBudget = separator.length * 2;
-  const segmentLen = Math.max(500, Math.floor((maxChars - separatorBudget) / 3));
-
-  const start = trimmed.slice(0, segmentLen);
-  const middleStart = Math.max(0, Math.floor(trimmed.length / 2) - Math.floor(segmentLen / 2));
-  const middle = trimmed.slice(middleStart, middleStart + segmentLen);
-  const end = trimmed.slice(Math.max(0, trimmed.length - segmentLen));
-
-  return `${start}${separator}${middle}${separator}${end}`;
-}
-
-/**
- * Generate evaluation using OpenAI
- */
-async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob): Promise<EvaluationResultV1> {
-  if (!openaiApiKey) {
-    throw new Error('[Processor] OPENAI_API_KEY is not configured (fail-closed, no mock fallback)');
-  }
-
-  const openai = new OpenAI({
-    apiKey: openaiApiKey,
-    timeout: openAiTimeoutMs,
-    maxRetries: 0,
-  });
-  const now = new Date().toISOString();
-  const startTime = Date.now();
-  const calibration = getCalibrationProfile(manuscript.work_type);
-
-  try {
-    console.log(`[Processor] Calling OpenAI API for manuscript ${manuscript.id}`);
-
-    const manuscriptText = manuscript.content || '(No content provided)';
-    const wordCount = manuscriptText.split(/\s+/).length;
-    const manuscriptExcerpt = buildEvaluationExcerpt(manuscriptText, evalInputCharBudget);
-
-    evalDebugLog('[Processor] OpenAI request contract', {
-      model: openAiModel,
-      input_char_budget: evalInputCharBudget,
-      input_chars_actual: manuscriptExcerpt.length,
-      source_chars_total: manuscriptText.length,
-      max_output_tokens: evalMaxOutputTokens,
-      token_limit_param: Object.keys(buildOpenAIOutputTokenParam(openAiModel, evalMaxOutputTokens))[0],
-      timeout_ms: openAiTimeoutMs,
-      response_format: 'json_object',
-      call_shape: 'single_shot_compact',
-    });
-
-    const completion = await openai.chat.completions.create({
-      model: openAiModel,
-      messages: [
-        {
-          role: 'system',
-          content: [
-            `You are an expert literary evaluator.`,
-            `You MUST follow the WAVE Revision Guide governance principles.`,
-            `You MUST use the canonical 13-criteria rubric keys exactly: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability.`,
-            calibration.guidance,
-            `Return ONLY valid JSON matching the EvaluationResultV1 schema. No markdown, no code fences, just pure JSON.`,
-            'CRITICAL: Each criterion MUST include key, score_0_10, and concise rationale (1-2 sentences).',
-            'CRITICAL: Keep output concise. Include at most one evidence snippet per criterion and keep snippets under 140 chars.',
-            'CRITICAL: recommendations.quick_wins and recommendations.strategic_revisions may be empty arrays if confidence is low.',
-            'CRITICAL: Do not include extra prose outside the JSON object.',
-          ].join('\n')
-        },
-        {
-          role: 'user',
-          content: `Evaluate this ${manuscript.work_type || 'manuscript'} titled "${manuscript.title}".
-
-Word count: ${wordCount}
-
-Manuscript text:
-${manuscriptExcerpt}
-
-Provide a concise, high-signal evaluation with:
-1. Overall verdict (pass/revise/fail) and score (0-100)
-2. One-paragraph summary
-3. Top 3 strengths and top 3 risks
-4. Scores (0-10) and short rationale for all 13 canonical criteria: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability
-5. 0-2 quick wins and 0-2 strategic revisions with effort/impact ratings
-
-Return ONLY valid JSON with this exact structure (no markdown, no code fences):
-{"overview": {"verdict": "pass|revise|fail", "overall_score_0_100": <0-100>, "one_paragraph_summary": "...", "top_3_strengths": ["...", "...", "..."], "top_3_risks": ["...", "...", "..."]},
-"criteria": [
-  {"key":"concept","score_0_10":<0-10>,"rationale":"...","evidence":[{"snippet":"..."}],"recommendations":[{"priority":"high|medium|low","action":"...","expected_impact":"..."}]},
-  ...exactly 13 entries covering all canonical keys
-],
-"recommendations": {"quick_wins": [{"action": "...", "why": "...", "effort": "low|medium|high", "impact": "low|medium|high"}], "strategic_revisions": [{"action": "...", "why": "...", "effort": "low|medium|high", "impact": "low|medium|high"}]}}`
-        }
-      ],
-      ...buildOpenAITemperatureParam(openAiModel, 0.2),
-      ...buildOpenAIOutputTokenParam(openAiModel, evalMaxOutputTokens),
-      response_format: { type: 'json_object' }
-    });
-
-    const responseText = completion.choices[0]?.message?.content;
-    if (!responseText) {
-      throw new Error('Empty response from OpenAI');
-    }
-
-    evalDebugLog(`[Processor] OpenAI response received (${responseText.length} chars)`);
-
-    // Parse OpenAI response
-    const aiResult = JSON.parse(responseText);
-    evalDebugLog("[Processor] AI response keys:", Object.keys(aiResult), "criteria type:", typeof aiResult.criteria, "isArray:", Array.isArray(aiResult.criteria));
-    evalDebugLog("[Processor] AI response preview:", responseText.substring(0, 500));
-
-    const normalizationDiagnostics: NormalizationDiagnostics = {
-      usedLegacyScoreCount: 0,
-      missingScoreCount: 0,
-      clampedScoreCount: 0,
-      overviewFallbackUsed: false,
-      recommendationsFallbackUsed: false,
-    };
-
-    // Build EvaluationResultV1
-    const result: EvaluationResultV1 = {
-      schema_version: "evaluation_result_v1",
-      ids: {
-        evaluation_run_id: crypto.randomUUID(),
-        job_id: job.id,
-        manuscript_id: manuscript.id,
-        user_id: manuscript.user_id,
-      },
-      generated_at: now,
-      engine: {
-        model: completion.model,
-        provider: "openai",
-        prompt_version: WAVE_GUIDE_VERSION,
-      },
-      overview: normalizeOverviewFromAIResult(aiResult, normalizationDiagnostics),
-      criteria: normalizeCriteria(extractCriteriaFromAIResult(aiResult), normalizationDiagnostics),
-      recommendations: normalizeRecommendationsFromAIResult(aiResult, normalizationDiagnostics),
-      metrics: {
-        manuscript: {
-          word_count: wordCount,
-          char_count: manuscriptText.length,
-          genre: manuscript.work_type || 'Unknown',
-          target_audience:
-            isRecord(aiResult.metrics) &&
-            isRecord(aiResult.metrics.manuscript) &&
-            typeof aiResult.metrics.manuscript.target_audience === 'string'
-              ? aiResult.metrics.manuscript.target_audience
-              : 'General'
-        },
-        processing: {
-          segment_count: 1,
-          total_tokens_estimated: completion.usage?.total_tokens || 0,
-          runtime_ms: Date.now() - startTime
-        }
-      },
-      artifacts: [],
-      governance: {
-        confidence: 0.90,
-        warnings: [],
-        limitations: [
-          `Analysis based on ${Math.min(wordCount, 3750)} words`,
-          'Full manuscript context may not be captured if truncated'
-        ],
-        policy_family: calibration.policyFamily
-      }
-    };
-
-    if (result.criteria.length !== CRITERIA_KEYS.length) {
-      throw new Error(
-        `[Processor] AI criteria normalization failed (expected ${CRITERIA_KEYS.length}, got ${result.criteria.length})`,
-      );
-    }
-
-    const qualitySignals = assessEvaluationQuality(result.criteria);
-    if (qualitySignals.warnings.length > 0) {
-      result.governance.warnings.push(...qualitySignals.warnings);
-      result.governance.confidence = clamp(
-        result.governance.confidence - qualitySignals.confidencePenalty,
-        0.55,
-        0.95,
-      );
-
-      evalDebugLog('[Processor] Evaluation quality diagnostics', {
-        evidence_coverage_ratio: qualitySignals.evidenceCoverageRatio,
-        score_spread: qualitySignals.scoreSpread,
-        has_uniform_scores: qualitySignals.hasUniformScores,
-        has_low_variance_scores: qualitySignals.hasLowVarianceScores,
-        default_zero_count: qualitySignals.defaultZeroCount,
-        confidence_penalty: qualitySignals.confidencePenalty,
-      });
-    }
-
-    if (
-      normalizationDiagnostics.usedLegacyScoreCount > 0 ||
-      normalizationDiagnostics.missingScoreCount > 0 ||
-      normalizationDiagnostics.clampedScoreCount > 0 ||
-      normalizationDiagnostics.overviewFallbackUsed ||
-      normalizationDiagnostics.recommendationsFallbackUsed
-    ) {
-      evalDebugLog('[Processor] AI normalization diagnostics', {
-        used_legacy_score_count: normalizationDiagnostics.usedLegacyScoreCount,
-        missing_score_count: normalizationDiagnostics.missingScoreCount,
-        clamped_score_count: normalizationDiagnostics.clampedScoreCount,
-        overview_fallback_used: normalizationDiagnostics.overviewFallbackUsed,
-        recommendations_fallback_used: normalizationDiagnostics.recommendationsFallbackUsed,
-      });
-    }
-
-    // Validate result before returning (fail-closed governance enforcement)
-    const validation = validateEvaluationResult(result);
-    if (!validation.valid) {
-      console.error('[Processor] AI result failed canon validation:', validation.errors);
-      throw new Error(`[Processor] AI result failed governance validation (fail-closed): ${validation.errors}`);
-    }
-
-    console.log(`[Processor] AI evaluation completed in ${Date.now() - startTime}ms`);
-    return result;
-
-  } catch (error) {
-    console.error(`[Processor] OpenAI evaluation failed:`, error);
-    // Fail-closed: re-throw so caller marks job as failed
-    throw error;
-  }
-}
-
 export async function failStaleRunningJobs(): Promise<{
   staleFound: number;
   failed: number;
@@ -1035,7 +791,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     }
 
     const progressState =
-          job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
+      job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
 
     const markRunning = async (
       message: string,
@@ -1180,8 +936,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       executionMode: 'TRUSTED_PATH',
     });
 
-    if (!pipelineResult.ok) {
-      const pipelineError = `[Pipeline:${(pipelineResult as any).failed_at || 'unknown'}] ${(pipelineResult as any).error_code || 'ERR'} ${(pipelineResult as any).error || 'Pipeline failed'}`;
+    if (pipelineResult.ok === false) {
+      const pipelineError = `[Pipeline:${pipelineResult.failed_at}] ${pipelineResult.error_code} ${pipelineResult.error}`;
       await markFailed(pipelineError);
 
       return { success: false, error: pipelineError };
@@ -1327,8 +1083,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         .from('evaluation_jobs')
         .update({
           status: 'failed',
-                  total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-        completed_units: 0,
+          total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+          completed_units: 0,
           phase_status: 'failed',
           last_error: errorMessage,
           updated_at: now,
