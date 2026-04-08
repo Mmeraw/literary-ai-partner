@@ -1181,7 +1181,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     });
 
     if (!pipelineResult.ok) {
-      const pipelineError = `[Pipeline:${pipelineResult.failed_at}] ${pipelineResult.error_code} ${pipelineResult.error}`;
+      const pipelineError = `[Pipeline:${(pipelineResult as any).failed_at || 'unknown'}] ${(pipelineResult as any).error_code || 'ERR'} ${(pipelineResult as any).error || 'Pipeline failed'}`;
       await markFailed(pipelineError);
 
       return { success: false, error: pipelineError };
