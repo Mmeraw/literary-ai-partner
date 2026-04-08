@@ -50,8 +50,19 @@ function makeSynthesis(summary: string, strengths: string[], risks: string[]): S
       final_score_0_10: 7,
       score_delta: 0,
       final_rationale: `${summary} [${key}]`,
+      pressure_points: ["Narrative pressure accumulates around this criterion."],
+      decision_points: ["The chapter commits to a clear direction for this criterion."],
+      consequence_status: "landed" as const,
       evidence: [],
-      recommendations: [],
+      recommendations: [
+        {
+          priority: "medium" as const,
+          action: `Address the ${key} dimension by grounding in specific textual evidence.`,
+          expected_impact: "Increases specificity and reader connection.",
+          anchor_snippet: '"test"',
+          source_pass: 3 as const,
+        },
+      ],
     })),
     overall: {
       overall_score_0_100: 70,
@@ -78,8 +89,19 @@ function makeGenericSynthesis(summary: string, strengths: string[], risks: strin
       final_score_0_10: 7,
       score_delta: 0,
       final_rationale: summary,
+      pressure_points: ["Narrative pressure accumulates around this criterion."],
+      decision_points: ["The chapter commits to a clear direction for this criterion."],
+      consequence_status: "landed" as const,
       evidence: [],
-      recommendations: [],
+      recommendations: [
+        {
+          priority: "medium" as const,
+          action: `Address the ${key} dimension by grounding in specific textual evidence.`,
+          expected_impact: "Increases specificity and reader connection.",
+          anchor_snippet: '"test"',
+          source_pass: 3 as const,
+        },
+      ],
     })),
     overall: {
       overall_score_0_100: 70,

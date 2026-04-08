@@ -51,8 +51,19 @@ function makeSynthesisOutput(): SynthesisOutput {
       final_score_0_10: 7,
       score_delta: 0,
       final_rationale: `Synthesized rationale for ${key}.`,
+      pressure_points: ["Narrative pressure accumulates around this criterion."],
+      decision_points: ["The chapter commits to a clear direction for this criterion."],
+      consequence_status: "landed" as const,
       evidence: [],
-      recommendations: [],
+      recommendations: [
+        {
+          priority: "medium" as const,
+          action: `Strengthen the ${key} dimension with more targeted evidence from the manuscript text.`,
+          expected_impact: "Increases specificity and reader connection.",
+          anchor_snippet: '"test"',
+          source_pass: 3 as const,
+        },
+      ],
     })),
     overall: {
       overall_score_0_100: 70,
@@ -156,7 +167,7 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
     });
 
     expect(mockRunPass3).toHaveBeenCalledTimes(1);
-  const pass3CallArg = mockRunPass3.mock.calls[0][0] as unknown as Record<string, unknown>;
+    const pass3CallArg = mockRunPass3.mock.calls[0][0] as unknown as Record<string, unknown>;
     // Pass 3 should receive pass1 and pass2
     expect(pass3CallArg["pass1"]).toBeDefined();
     expect(pass3CallArg["pass2"]).toBeDefined();
