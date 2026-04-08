@@ -164,6 +164,28 @@ export function parsePass3Response(
 
     const evidence: EvidenceAnchor[] = parseEvidenceArray(rawEntry?.["evidence"]);
     const recommendations = parseRecommendations(rawEntry?.["recommendations"]);
+    const pressurePoints = parseStringArray(rawEntry?.["pressure_points"], 3);
+    const decisionPoints = parseStringArray(rawEntry?.["decision_points"], 3);
+    const consequenceStatus = parseConsequenceStatus(rawEntry?.["consequence_status"], delta, finalScore);
+    const deferredRiskRaw = String(rawEntry?.["deferred_consequence_risk"] ?? "").trim();
+
+    const fallbackPressurePoint = evidence[0]?.snippet
+      ? `Pressure signal observed in: "${evidence[0].snippet.substring(0, 120)}"`
+      : `Pressure signal inferred for ${key} from combined craft/editorial analysis.`;
+
+    const fallbackDecisionPoint =
+      craftScore > editorialScore
+        ? `Decision inflection favors craft signal for ${key}.`
+        : editorialScore > craftScore
+          ? `Decision inflection favors editorial signal for ${key}.`
+          : `Decision inflection resolves as balanced craft/editorial synthesis for ${key}.`;
+
+    const deferredRisk =
+      consequenceStatus === "deferred"
+        ? (deferredRiskRaw ||
+            `Deferred consequence risk: unresolved ${key} pressure may compound and degrade downstream payoff.`)
+            .substring(0, 280)
+        : undefined;
 
     criteria.push({
       key,
@@ -174,6 +196,10 @@ export function parsePass3Response(
       delta_explanation:
         delta > 2 ? String(rawEntry?.["delta_explanation"] ?? "Axes diverge significantly.") : undefined,
       final_rationale: String(rawEntry?.["final_rationale"] ?? p1c?.rationale ?? ""),
+      pressure_points: pressurePoints.length > 0 ? pressurePoints : [fallbackPressurePoint],
+      decision_points: decisionPoints.length > 0 ? decisionPoints : [fallbackDecisionPoint],
+      consequence_status: consequenceStatus,
+      deferred_consequence_risk: deferredRisk,
       evidence,
       recommendations,
     });
@@ -251,4 +277,27 @@ function parseRecommendations(raw: unknown): SynthesizedCriterion["recommendatio
         source_pass: (sourcePass === 1 || sourcePass === 2 ? sourcePass : 3) as 1 | 2 | 3,
       };
     });
+}
+
+function parseStringArray(raw: unknown, maxItems: number): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((entry) => String(entry ?? "").trim())
+    .filter((entry) => entry.length > 0)
+    .slice(0, maxItems);
+}
+
+function parseConsequenceStatus(
+  raw: unknown,
+  scoreDelta: number,
+  finalScore: number,
+): SynthesizedCriterion["consequence_status"] {
+  const normalized = String(raw ?? "").trim().toLowerCase();
+  if (normalized === "landed" || normalized === "deferred" || normalized === "dissipated") {
+    return normalized;
+  }
+
+  if (scoreDelta >= 3) return "deferred";
+  if (finalScore <= 4) return "dissipated";
+  return "landed";
 }

@@ -259,15 +259,25 @@ function enforceEG9(criteria: EvaluationCriterion[]): GateViolation[] {
 // ---------------------------------------------------------------
 
 export function runEvaluationGates(
-  criteria: EvaluationCriterion[],
+  criteria: EvaluationCriterion[] | null | undefined,
   ctx: GateContext = {},
 ): GateResult {
+  const normalizedCriteria = Array.isArray(criteria) ? criteria : [];
+
   const violations: GateViolation[] = [
-    ...enforceEG6(criteria, ctx),
-    ...enforceEG7(criteria),
-    ...enforceEG8(criteria),
-    ...enforceEG9(criteria),
+    ...enforceEG6(normalizedCriteria, ctx),
+    ...enforceEG7(normalizedCriteria),
+    ...enforceEG8(normalizedCriteria),
+    ...enforceEG9(normalizedCriteria),
   ];
+
+  if (!Array.isArray(criteria)) {
+    violations.push({
+      gate: "EG-8",
+      message: "Criteria payload missing or invalid (expected non-empty criteria array)",
+    });
+  }
+
   return {
     passed: violations.length === 0,
     validity: violations.length === 0 ? "VALID" : "INVALID",
@@ -298,26 +308,74 @@ const SCHEMA_TO_CANON: Record<string, CriterionKey> = {
   marketability: "MARKET",
 };
 
+const LEGACY_SCORE_LABEL_TO_CANON: Record<string, CriterionKey> = {
+  "Narrative Architecture": "CONCEPT",
+  "Character Interiority": "CHARACTER",
+  "Dialogue Authenticity": "DIALOGUE",
+  "Prose Rhythm & Musicality": "PROSE",
+  "Symbolic Layering": "THEME",
+  "Emotional Calibration": "TONE",
+  "Tension & Pacing": "PACING",
+  "Sensory Immersion": "WORLD",
+  "Thematic Coherence": "CLOSURE",
+  "Point of View Integrity": "POVVOICE",
+  "Reader Engagement": "MOMENTUM",
+  "Subtext & Implication": "SCENE",
+  "Voice Distinctiveness": "MARKET",
+};
+
 export function adaptResultToCriteria(
   resultJson: Record<string, unknown>,
 ): EvaluationCriterion[] | null {
   const raw = resultJson?.criteria;
-  if (!Array.isArray(raw) || raw.length === 0) return null;
+  if (Array.isArray(raw) && raw.length > 0) {
+    const criteria: EvaluationCriterion[] = [];
+    for (const item of raw) {
+      if (typeof item !== "object" || item === null) continue;
+      const rec = item as Record<string, unknown>;
+
+      const schemaKey = String(rec.key ?? "");
+      const canonKey = SCHEMA_TO_CANON[schemaKey];
+      if (!canonKey) continue;
+
+      const score = Number(rec.score_0_10 ?? rec.score ?? 0);
+      const evidence: EvidenceItem[] = Array.isArray(rec.evidence)
+        ? (rec.evidence as Record<string, unknown>[]).map((e) => ({
+            anchor_snippet: String(e.anchor_snippet ?? e.snippet ?? ""),
+            location_hint: e.location_hint ? String(e.location_hint) : undefined,
+          }))
+        : [];
+
+      criteria.push({
+        criterionKey: canonKey,
+        score,
+        evidence,
+        reasoning: {
+          mechanism: String(rec.mechanism ?? rec.rationale ?? ""),
+          effect: String(rec.effect ?? ""),
+          falsePositiveCheck: String(rec.false_positive_check ?? rec.falsePositiveCheck ?? ""),
+        },
+      });
+    }
+
+    return criteria.length > 0 ? criteria : null;
+  }
+
+  const legacyScores = resultJson?.scores;
+  if (!legacyScores || typeof legacyScores !== "object" || Array.isArray(legacyScores)) {
+    return null;
+  }
 
   const criteria: EvaluationCriterion[] = [];
-  for (const item of raw) {
-    if (typeof item !== "object" || item === null) continue;
-    const rec = item as Record<string, unknown>;
+  for (const [legacyLabel, value] of Object.entries(legacyScores as Record<string, unknown>)) {
+    const canonKey = LEGACY_SCORE_LABEL_TO_CANON[legacyLabel];
+    if (!canonKey || typeof value !== "object" || value === null) continue;
 
-    const schemaKey = String(rec.key ?? "");
-    const canonKey = SCHEMA_TO_CANON[schemaKey];
-    if (!canonKey) continue;
-
-    const score = Number(rec.score_0_10 ?? rec.score ?? 0);
+    const rec = value as Record<string, unknown>;
+    const score = Number(rec.score ?? 0);
     const evidence: EvidenceItem[] = Array.isArray(rec.evidence)
-      ? (rec.evidence as Record<string, unknown>[]).map((e) => ({
-          anchor_snippet: String(e.anchor_snippet ?? ""),
-          location_hint: e.location_hint ? String(e.location_hint) : undefined,
+      ? (rec.evidence as unknown[]).map((snippet) => ({
+          anchor_snippet: String(snippet ?? ""),
         }))
       : [];
 
@@ -326,9 +384,9 @@ export function adaptResultToCriteria(
       score,
       evidence,
       reasoning: {
-        mechanism: String(rec.mechanism ?? rec.rationale ?? ""),
-        effect: String(rec.effect ?? ""),
-        falsePositiveCheck: String(rec.false_positive_check ?? rec.falsePositiveCheck ?? ""),
+        mechanism: String(rec.justification ?? ""),
+        effect: "",
+        falsePositiveCheck: "",
       },
     });
   }

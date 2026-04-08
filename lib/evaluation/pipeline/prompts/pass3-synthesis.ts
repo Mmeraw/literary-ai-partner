@@ -14,7 +14,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v2";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v3";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 
@@ -31,6 +31,8 @@ Your job is to compare, expose agreement and divergence, and produce a governed 
 3. Do NOT hide meaningful divergence by score averaging alone.
 4. Every major arbitration decision MUST include evidence-backed reasoning.
 5. Preserve narrative-mode awareness: do NOT flatten documentary/dossier/reflective chapters into generic scene-work judgments.
+6. For each criterion, explicitly trace: pressure signal -> decision inflection -> consequence trajectory.
+7. Do NOT leave consequence state implicit; classify each criterion as landed, deferred, or dissipated.
 
 ### Score Reconciliation
 - If craft_score and editorial_score differ by ≤2: use the mathematical average (rounded to nearest integer)  
@@ -62,7 +64,11 @@ ${CRITERIA_KEYS.map((k, i) => `${i + 1}. ${k}`).join("\n")}
       "final_score_0_10": <integer 0-10>,
       "score_delta": <|craft_score - editorial_score|>,
       "delta_explanation": "<required if score_delta > 2, otherwise omit>",
-      "final_rationale": "<synthesized reasoning from both axes, 2-4 sentences>",
+      "final_rationale": "<synthesized reasoning from both axes, 2-4 sentences including pressure->decision->consequence logic>",
+      "pressure_points": ["<where pressure enters/escalates>", "<optional second point>"],
+      "decision_points": ["<decision reached or avoided>", "<optional second point>"],
+      "consequence_status": "landed|deferred|dissipated",
+      "deferred_consequence_risk": "<required when consequence_status=deferred>",
       "evidence": [
         { "snippet": "<verbatim, ≤200 chars>", "char_start": <number>, "char_end": <number> }
       ],
@@ -140,5 +146,8 @@ Mandatory behavior:
 - Do not silently merge conflicting conclusions.
 - Preserve narrative-mode distinctions when reconciling pacing, narrativeDrive, and character judgments.
 - If a chapter accumulates pressure through archives, reflection, or system mapping, distinguish that from true absence of movement.
+- For each criterion, identify concrete pressure, then the chapter-level decision (or non-decision), then the resulting consequence.
+- If consequence is deferred, name the risk and expected downstream cost explicitly.
+- Populate pressure_points, decision_points, consequence_status, and (when deferred) deferred_consequence_risk for every criterion.
 Return the synthesis JSON object as specified.`;
 }

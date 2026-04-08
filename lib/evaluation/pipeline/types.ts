@@ -62,6 +62,14 @@ export type SynthesizedCriterion = {
   /** Required when score_delta > 2 */
   delta_explanation?: string;
   final_rationale: string;
+  /** Where narrative pressure enters or accumulates for this criterion */
+  pressure_points: string[];
+  /** Where a decision (or non-decision) is reached */
+  decision_points: string[];
+  /** Whether consequence lands now, is deferred, or dissipates */
+  consequence_status: "landed" | "deferred" | "dissipated";
+  /** Required when consequence_status is deferred */
+  deferred_consequence_risk?: string;
   evidence: EvidenceAnchor[];
   recommendations: {
     priority: "high" | "medium" | "low";

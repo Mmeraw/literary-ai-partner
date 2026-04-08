@@ -13,6 +13,7 @@
  *   QG_LONG_OVERVIEW      — one_paragraph_summary > 500 chars
  *   QG_CRITERIA_MISSING   — output does not contain all 13 criteria
  *   QG_SCORE_RANGE        — score not in integer 0-10
+ *   QG_CONSEQUENCE_CONTRACT — missing pressure/decision/consequence contract fields
  *   QG_INDEPENDENCE_VIOLATION — Pass 2 reuses non-manuscript rationale phrasing from Pass 1
  */
 
@@ -90,6 +91,31 @@ export function runQualityGate(
       badScores.length > 0
         ? `Invalid scores (must be integer 0-10): ${badScores.join(", ")}`
         : "All scores in valid range",
+  });
+
+  // ── Check 2b: Consequence-aware contract completeness ───────────────────
+  const consequenceContractViolations: string[] = [];
+  for (const c of synthesis.criteria) {
+    const hasPressure = Array.isArray(c.pressure_points) && c.pressure_points.some((p) => p.trim().length > 0);
+    const hasDecision = Array.isArray(c.decision_points) && c.decision_points.some((d) => d.trim().length > 0);
+    const hasValidStatus = c.consequence_status === "landed" || c.consequence_status === "deferred" || c.consequence_status === "dissipated";
+    const deferredRiskPresent =
+      c.consequence_status !== "deferred" ||
+      (typeof c.deferred_consequence_risk === "string" && c.deferred_consequence_risk.trim().length >= 20);
+
+    if (!hasPressure || !hasDecision || !hasValidStatus || !deferredRiskPresent) {
+      consequenceContractViolations.push(c.key);
+    }
+  }
+
+  checks.push({
+    check_id: "consequence_contract",
+    passed: consequenceContractViolations.length === 0,
+    error_code: consequenceContractViolations.length > 0 ? "QG_CONSEQUENCE_CONTRACT" : undefined,
+    details:
+      consequenceContractViolations.length > 0
+        ? `Missing/invalid pressure→decision→consequence fields on: ${consequenceContractViolations.join(", ")}`
+        : "All criteria include pressure_points, decision_points, consequence_status, and deferred risk when required",
   });
 
   // ── Check 3: No generic recommendations (missing anchor_snippet) ─────────
