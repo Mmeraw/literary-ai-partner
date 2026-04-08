@@ -11,7 +11,7 @@
  */
 
 import { runPipeline } from "../lib/evaluation/pipeline/runPipeline";
-import { canonRegistry } from "../lib/governance/canonRegistry";
+import { CANON_REGISTRY } from "../lib/governance/canonRegistry";
 import * as fs from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
@@ -112,7 +112,7 @@ async function main() {
     workType: "literary-fiction",
     title: "Chapter 10b – Council Members and Minutes",
     executionMode: "TRUSTED_PATH",
-    registry: canonRegistry,
+    registry: CANON_REGISTRY,
     openaiApiKey: apiKey,
     model: "o3",
     perplexityApiKey: perplexityKey || undefined,
