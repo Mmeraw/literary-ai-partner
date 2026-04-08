@@ -1035,7 +1035,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     }
 
     const progressState =
-      (null as any) && typeof (null as any) === 'object' ? { ...(null as any) } : {};
+          job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
 
     const markRunning = async (
       message: string,
@@ -1327,14 +1327,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         .from('evaluation_jobs')
         .update({
           status: 'failed',
-          total_units:
-            typeof (null as any)?.total_units === 'number'
-              ? (null as any).total_units
-              : EVALUATION_PROGRESS_TOTAL_UNITS,
-          completed_units:
-            typeof (null as any)?.completed_units === 'number'
-              ? (null as any).completed_units
-              : 0,
+                  total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+        completed_units: 0,
           phase_status: 'failed',
           last_error: errorMessage,
           updated_at: now,
