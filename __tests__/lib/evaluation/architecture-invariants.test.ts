@@ -169,6 +169,62 @@ describe("evaluation architecture invariants", () => {
     expect(violatingFiles).toEqual([]);
   });
 
+  test("evaluation runtime uses canonical job status vocabulary (never 'completed')", () => {
+    const rootsToScan = [
+      path.join(repoRoot, "lib/evaluation"),
+      path.join(repoRoot, "app/api/jobs"),
+      path.join(repoRoot, "app/api/admin/jobs"),
+      path.join(repoRoot, "app/api/workers/process-evaluations"),
+      path.join(repoRoot, "workers"),
+    ];
+
+    const collectCodeFiles = (dir: string): string[] => {
+      if (!fs.existsSync(dir)) {
+        return [];
+      }
+
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      const files: string[] = [];
+
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          files.push(...collectCodeFiles(fullPath));
+          continue;
+        }
+
+        if (entry.isFile() && /\.(ts|tsx)$/.test(fullPath)) {
+          files.push(fullPath);
+        }
+      }
+
+      return files;
+    };
+
+    const runtimeFiles = rootsToScan.flatMap(collectCodeFiles);
+    const violations: Array<{ file: string; reason: string }> = [];
+
+    for (const filePath of runtimeFiles) {
+      const code = fs.readFileSync(filePath, "utf8");
+
+      if (/status\s*:\s*['\"]completed['\"]/.test(code)) {
+        violations.push({
+          file: path.relative(repoRoot, filePath),
+          reason: "contains status: 'completed'",
+        });
+      }
+
+      if (/phase_status\s*:\s*['\"]completed['\"]/.test(code)) {
+        violations.push({
+          file: path.relative(repoRoot, filePath),
+          reason: "contains phase_status: 'completed'",
+        });
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
   test("processor uses strict discriminated union narrowing for PipelineResult (ok === false, not !ok)", () => {
     const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
     const processorCode = fs.readFileSync(processorPath, "utf8");
