@@ -100,6 +100,16 @@ export type SynthesisOutput = {
     pass3_model: string;
     generated_at: string;
   };
+  /** TRUTH ENFORCEMENT: Was manuscript truncated/sampled for evaluation? */
+  partial_evaluation: boolean;
+  /** Coverage metadata: proves system doesn't lie about what was analyzed */
+  coverage_scope?: {
+    sourceChars: number;
+    sourceWords: number;
+    analyzedChars: number;
+    analyzedWords: number;
+    strategy: "full_text" | "sampled_beginning_middle_end";
+  };
 };
 
 // ── Pass 4: Quality gate result ──────────────────────────────────────────────

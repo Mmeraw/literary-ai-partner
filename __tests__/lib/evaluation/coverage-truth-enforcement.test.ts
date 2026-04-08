@@ -31,11 +31,9 @@ describe("Coverage-Truth Enforcement — No Silent Truncation", () => {
 
     // Extract SynthesisOutput interface
     const synthesisMatch = source.match(
-      /export type SynthesisOutput = \{[\s\S]*?\};/
+      /export type SynthesisOutput = \{[\s\S]*?\};\n\n\/\/ ── Pass 4/
     );
-    expect(synthesisMatch).toBeTruthy(
-      "SynthesisOutput type should be exported"
-    );
+    expect(synthesisMatch).toBeTruthy();
 
     if (synthesisMatch) {
       const synthesisType = synthesisMatch[0];
@@ -46,11 +44,7 @@ describe("Coverage-Truth Enforcement — No Silent Truncation", () => {
           synthesisType
         );
 
-      if (!hasCoverageField) {
-        console.warn(
-          "⚠️  MISSING: SynthesisOutput lacks coverage-truth field. System can't disclose whether evaluation is complete or partial."
-        );
-      }
+      expect(hasCoverageField).toBe(true);
     }
   });
 
@@ -78,20 +72,11 @@ describe("Coverage-Truth Enforcement — No Silent Truncation", () => {
     );
     const source = await fs.readFile(promptFile, "utf-8");
 
-    const disclosureMatch = source.match(
-      /export function buildCoverageDisclosure[\s\S]*?return.*?;/
-    );
-    expect(disclosureMatch).toBeTruthy(
-      "buildCoverageDisclosure should exist"
-    );
-
-    if (disclosureMatch) {
-      const disclosure = disclosureMatch[0];
-      // Should mention "full submission" for complete coverage
-      expect(disclosure).toMatch(/full[\s\w]*submission/i);
-      // Should mention "sampled" for truncated text
-      expect(disclosure).toMatch(/sampled/i);
-    }
+    expect(source).toMatch(/export function buildCoverageDisclosure/);
+    // Should mention "full submission" for complete coverage
+    expect(source).toMatch(/full[\s\w]*submission/i);
+    // Should mention "sampled" for truncated text
+    expect(source).toMatch(/sampled/i);
   });
 
   test("Pass 3 synthesis includes coverage disclosure in the user prompt", async () => {
@@ -176,9 +161,7 @@ describe("Coverage-Truth Enforcement — No Silent Truncation", () => {
 
     // Should define a single budget constant used by all passes
     const budgetMatch = source.match(/DEFAULT.*BUDGET|PASS.*BUDGET/i);
-    expect(budgetMatch).toBeTruthy(
-      "Should have a named budget constant"
-    );
+    expect(budgetMatch).toBeTruthy();
 
     // That constant should be exported for tests
     expect(source).toMatch(/export.*BUDGET/i);

@@ -19,6 +19,7 @@ import {
   buildOpenAITemperatureParam,
   getCanonicalPipelineModel,
 } from "@/lib/evaluation/policy";
+import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from "./promptInput";
 
 const PASS3_TEMPERATURE = 0.2;
 const PASS3_MAX_TOKENS = 5000;
@@ -68,6 +69,10 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     title: opts.title,
     executionMode: opts.executionMode,
   });
+  
+  // Compute coverage metadata (for truth enforcement)
+  const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
+  const coverage = summarizePromptCoverage(opts.manuscriptText, synthesisBudget);
 
   const completion = await createCompletion({
     model: selectedModel,
@@ -93,7 +98,20 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     generated_at: new Date().toISOString(),
   });
 
-  return parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel);
+  const synthesis = parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel);
+  
+  // Truth enforcement: attach coverage metadata proving whether evaluation was complete or partial
+  return {
+    ...synthesis,
+    partial_evaluation: coverage.truncated,
+    coverage_scope: {
+      sourceChars: coverage.sourceChars,
+      sourceWords: coverage.sourceWords,
+      analyzedChars: coverage.analyzedChars,
+      analyzedWords: coverage.analyzedWords,
+      strategy: coverage.strategy,
+    },
+  };
 }
 
 /**
@@ -248,6 +266,7 @@ export function parsePass3Response(
       pass3_model: String(rawMeta["pass3_model"] ?? fallbackModel),
       generated_at: new Date().toISOString(),
     },
+    partial_evaluation: false, // will be overridden by runPass3Synthesis with real value
   };
 }
 
