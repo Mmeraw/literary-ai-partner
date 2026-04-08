@@ -17,6 +17,12 @@ import {
   forceUpdateChunk,
 } from "./test-helpers/manuscript-factory";
 
+const hasSupabaseEnv =
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+const runDbIntegration = process.env.RUN_DB_INTEGRATION_TESTS === "1";
+const describeOrSkip = hasSupabaseEnv && runDbIntegration ? describe : describe.skip;
+
 /**
  * TEST 1: Atomic Double-Claim Contention
  *
@@ -28,7 +34,7 @@ import {
  * attempt_count increments by exactly 1.
  * Status transitions from pending → processing.
  */
-describe("Chunk Stability: Atomic Claiming (Contract Test 1)", () => {
+describeOrSkip("Chunk Stability: Atomic Claiming (Contract Test 1)", () => {
   test("only one worker can claim the same chunk under concurrent load", async () => {
     // SETUP: Create manuscript with one pending chunk
     const { manuscriptId, chunks } = await createTestManuscriptWithChunks({
@@ -100,7 +106,7 @@ describe("Chunk Stability: Atomic Claiming (Contract Test 1)", () => {
  * 5. Stuck chunk is returned (eligible for reclaim)
  * 6. New worker claims it successfully (no double-processing)
  */
-describe("Chunk Stability: Crash Recovery (Contract Test 2)", () => {
+describeOrSkip("Chunk Stability: Crash Recovery (Contract Test 2)", () => {
   test("processing chunks stuck beyond lease become eligible for recovery", async () => {
     const { manuscriptId, chunks } =
       await createTestManuscriptWithChunks({
@@ -198,7 +204,7 @@ describe("Chunk Stability: Crash Recovery (Contract Test 2)", () => {
  * - status cannot regress
  * - attempt_count is immutable
  */
-describe("Chunk Stability: Terminal Immutability (Contract Test 3)", () => {
+describeOrSkip("Chunk Stability: Terminal Immutability (Contract Test 3)", () => {
   test("done chunks cannot be claimed and are immutable", async () => {
     const { chunks } = await createTestManuscriptWithChunks({
       chunkCount: 1,
@@ -284,7 +290,7 @@ describe("Chunk Stability: Terminal Immutability (Contract Test 3)", () => {
  * A realistic scenario: chunk is processing, worker crashes, new worker
  * recovers it and claims it successfully.
  */
-describe("Chunk Stability: Full Crash-Recovery Cycle (Integration)", () => {
+describeOrSkip("Chunk Stability: Full Crash-Recovery Cycle (Integration)", () => {
   test("chunk survives worker crash and is successfully reprocessed", async () => {
     const { manuscriptId, chunks } =
       await createTestManuscriptWithChunks({

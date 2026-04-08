@@ -13,6 +13,8 @@ describe("evaluation architecture invariants", () => {
     expect(processorCode).toContain("runPipeline");
     expect(processorCode).toContain("synthesisToEvaluationResult");
     expect(processorCode).toContain("await runPipeline(");
+    expect(processorCode).not.toContain("generateAIEvaluation(");
+    expect(processorCode).not.toContain("import OpenAI from");
   });
 
   test("evaluation compatibility logic is centralized in shared policy module", () => {
@@ -70,6 +72,31 @@ describe("evaluation architecture invariants", () => {
     expect(code).not.toContain("@/lib/jobs/phase2");
   });
 
+  test("production entrypoints do not import legacy phase2 evaluator authorities", () => {
+    const filesToProtect = [
+      "app/api/workers/process-evaluations/route.ts",
+      "app/api/admin/jobs/[jobId]/run-phase2/route.ts",
+      "app/api/jobs/[jobId]/run-phase2/route.ts",
+      "lib/evaluation/processor.ts",
+    ];
+
+    const forbiddenImportPatterns = [
+      /workers\/phase2Worker/,
+      /workers\/phase2Evaluation/,
+      /@\/lib\/jobs\/phase2/,
+      /@\/lib\/evaluation\/phase2/,
+    ];
+
+    for (const relativePath of filesToProtect) {
+      const filePath = path.join(repoRoot, relativePath);
+      const code = fs.readFileSync(filePath, "utf8");
+
+      for (const pattern of forbiddenImportPatterns) {
+        expect(code).not.toMatch(pattern);
+      }
+    }
+  });
+
   test("legacy phase2 worker is hard-disabled unless explicitly re-enabled", () => {
     const workerPath = path.join(repoRoot, "workers/phase2Worker.ts");
     const workerCode = fs.readFileSync(workerPath, "utf8");
@@ -82,5 +109,26 @@ describe("evaluation architecture invariants", () => {
     const workerStartCode = fs.readFileSync(workerStartScript, "utf8");
     expect(workerStartCode).toContain("ENABLE_LEGACY_PHASE2_WORKER");
     expect(workerStartCode).toContain("Legacy Phase 2 worker is disabled by default");
+  });
+
+  test("root page remains fail-closed behind private-beta gate", () => {
+    const homePagePath = path.join(repoRoot, "app/page.tsx");
+    const homePageCode = fs.readFileSync(homePagePath, "utf8");
+
+    expect(homePageCode).toContain('getAuthenticatedUser');
+    expect(homePageCode).toContain('redirect("/dashboard")');
+    expect(homePageCode).toContain('redirect("/private-beta")');
+    expect(homePageCode).not.toContain("Professional Literary Evaluation & Revision");
+    expect(homePageCode).not.toContain("Get Started");
+  });
+
+  test("middleware keeps private-beta lock while allowing tester login flow", () => {
+    const middlewarePath = path.join(repoRoot, "middleware.ts");
+    const middlewareCode = fs.readFileSync(middlewarePath, "utf8");
+
+    expect(middlewareCode).toContain("/private-beta");
+    expect(middlewareCode).toContain("/login");
+    expect(middlewareCode).toContain("/api/auth/callback");
+    expect(middlewareCode).toContain("redirectUrl.pathname = '/private-beta'");
   });
 });

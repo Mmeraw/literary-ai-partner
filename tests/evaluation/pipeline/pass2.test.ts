@@ -11,6 +11,7 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass2Response, runPass2 } from "@/lib/evaluation/pipeline/runPass2";
 import type { RunPass2Options, CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass2";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
+import { getCanonicalPipelineModel } from "@/lib/evaluation/policy";
 
 // ── Fixture ──────────────────────────────────────────────────────────────────
 
@@ -92,7 +93,7 @@ describe("runPass2", () => {
 
     expect(result.pass).toBe(2);
     expect(result.axis).toBe("editorial_literary");
-    expect(result.model).toBe("gpt-4o-mini");
+    expect(result.model).toBe(getCanonicalPipelineModel("o3"));
     expect(result.temperature).toBe(0.3);
     expect(result.criteria).toHaveLength(13);
     expect(result.criteria.map((c) => c.key)).toEqual(

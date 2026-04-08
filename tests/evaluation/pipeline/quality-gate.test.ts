@@ -20,6 +20,9 @@ function makeCriterion(key: (typeof CRITERIA_KEYS)[number], overrides: Partial<S
     final_score_0_10: 7,
     score_delta: 0,
     final_rationale: "The passage demonstrates competent handling of this criterion.",
+    pressure_points: ["Pressure builds around this criterion as scene stakes escalate."],
+    decision_points: ["The chapter commits to a clear direction for this criterion."],
+    consequence_status: "landed",
     evidence: [{ snippet: "The river moved slowly through the valley." }],
     recommendations: [
       {

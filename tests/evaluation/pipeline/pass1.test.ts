@@ -10,6 +10,7 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass1Response, runPass1 } from "@/lib/evaluation/pipeline/runPass1";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass1";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
+import { getCanonicalPipelineModel } from "@/lib/evaluation/policy";
 
 // ── Fixture ──────────────────────────────────────────────────────────────────
 
@@ -134,7 +135,7 @@ describe("runPass1", () => {
 
     expect(result.pass).toBe(1);
     expect(result.axis).toBe("craft_execution");
-    expect(result.model).toBe("gpt-4o-mini");
+    expect(result.model).toBe(getCanonicalPipelineModel("o3"));
     expect(result.criteria).toHaveLength(13);
   });
 
