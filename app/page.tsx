@@ -1,10 +1,5 @@
 import { redirect } from "next/navigation";
-import { getAuthenticatedUser } from "@/lib/auth/getAuthenticatedUser";
 
-export default async function Home() {
-  const user = await getAuthenticatedUser();
-  if (user) {
-    redirect("/dashboard");
-  }
+export default function Home() {
   redirect("/private-beta");
 }
