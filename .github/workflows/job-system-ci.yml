@@ -380,7 +380,7 @@ jobs:
           version: latest
 
       - name: Apply migrations to CI Supabase
-              continue-on-error: true
+      continue-on-error: true
         run: |
           set -euo pipefail
 
