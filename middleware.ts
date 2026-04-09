@@ -71,6 +71,7 @@ export async function middleware(request: NextRequest) {
     '/api/workers',
         '/api/health',
         '/api/jobs',
+        '/api/dev/metrics-smoke',
   ]
   const isPublicPath = publicPaths.some(path =>
     request.nextUrl.pathname.startsWith(path)
