@@ -1,5 +1,33 @@
 # Gate A5 Flow 1 — CI Fix & Closure Summary
 
+## Addendum — 2026-04-09 (Final CI Recovery Confirmation)
+
+**Status**: ✅ **CONFIRMED GREEN** (7/7 workflows)
+
+### Decisive Fix Chain
+
+1. **Workflow parse unblock** — `38b95d9`
+  - Fixed YAML indentation in `.github/workflows/job-system-ci.yml`
+  - Corrected `continue-on-error: true` indentation so CI could parse and execute
+
+2. **Smoke-test contract alignment** — `75e4f6e`
+  - Updated `scripts/jobs-supabase-contract-smoke.mjs` to accept both post-claim statuses:
+    - from: `job.status !== "processing"`
+    - to: `!["processing", "running"].includes(job.status)`
+  - Updated assertion/log text to `processing|running` and `queued → processing/running`
+
+### Outcome Verified
+
+- ✅ Security — Secret Scan
+- ✅ Canon Guard
+- ✅ CI (staging tests)
+- ✅ Governance Enforcement
+- ✅ CI
+- ✅ Job System CI
+- ✅ Flow 1 Proof Pack
+
+**Operational conclusion**: secrets are valid, migrations apply, and Supabase DB contract smoke tests pass on `main`.
+
 **Final Status**: ✅ **CLOSED** (All CI workflows green)  
 **Closure Date**: 2026-02-19  
 **Final Commit**: `3c7323d` (docs: close Gate A5 Flow 1 (CI verified green))
