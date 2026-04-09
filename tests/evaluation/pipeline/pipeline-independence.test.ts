@@ -78,6 +78,7 @@ function makeSynthesisOutput(): SynthesisOutput {
       pass3_model: "gpt-4o-mini",
       generated_at: new Date().toISOString(),
     },
+      partial_evaluation: false,
   };
 }
 
