@@ -409,7 +409,7 @@ jobs:
           # Expected remote migration IDs are the first underscore-delimited token in filenames:
           # e.g. 20260131000000_admin_retry_job_atomic_rpc.sql -> 20260131000000
           # We mark any remote migration IDs not present locally as reverted.
-          supabase migration list --linked \
+          supabase migration list --db-url "$SUPABASE_DB_URL_CI" \
             | grep -oE '20[0-9]{12}' \
             | sort -u \
             | while read -r migration; do
@@ -425,7 +425,7 @@ jobs:
           : > scripts-artifacts/supabase-db-push.log
           
           set +o pipefail
-          (yes || true) | supabase db push --include-all 2>&1 | tee -a scripts-artifacts/supabase-db-push.log
+          (yes || true) | supabase db push --db-url "$SUPABASE_DB_URL_CI" --include-all 2>&1 | tee -a scripts-artifacts/supabase-db-push.log
           PIPESTAT=("${PIPESTATUS[@]}")
           set -o pipefail
           
