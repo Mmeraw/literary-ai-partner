@@ -130,3 +130,24 @@
 ---
 
 *This matrix is evidence-only. No canon or code changes authorized until explicit decisions are made per row.*
+
+## AUDIT LOG
+
+### 2026-04-10 — Question 4 Runtime Trace Complete
+
+**IIA-INVARIANT-01: WAVE may not run when eligibility_gate = BLOCK**
+
+**VERDICT: MATCHED**
+
+Evidence chain:
+- `lib/governance/eligibilityGate.ts`: Gate function returns PASS/BLOCK. Constants match canon (WCS=7.0, STRUCTURAL_FAIL=5, AGENT_READY=8.5)
+- `lib/governance/enforcementHooks.ts` line 69: `beforeAllowRefinement()` throws `GovernanceError` with code `REFINEMENT_BLOCKED_BY_GATE` when `eligibility_gate === "BLOCK"`
+- `lib/governance/evaluationBridge.ts` line 176: Production caller invokes `beforeAllowRefinement(envelope)` with comment "Hard block if not eligible"
+- `lib/governance/__tests__/enforcementHooks.test.ts`: 8+ unit test assertions
+- `lib/evaluation/__tests__/governanceIntegration.test.ts`: Integration test explicitly verifies "beforeAllowRefinement() blocks refinement when eligibility_gate = BLOCK" and "Fail-closed behavior is maintained end-to-end"
+
+Reclassify: UNVERIFIED -> MATCHED. Also reclassify IIA-GATE-01, IIA-GATE-02, IIA-GATE-03 to MATCHED (constants confirmed in eligibilityGate.ts).
+
+Updated counts: MATCHED=6, UNVERIFIED=18, TOTAL=28.
+
+Remaining high-priority: 3 items (Questions 1, 2, 3). Question 1 next.
