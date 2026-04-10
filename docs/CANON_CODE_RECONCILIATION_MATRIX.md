@@ -414,6 +414,28 @@ Evidence:
 Updated final counts: MATCHED=15, PARTIAL=10, DRIFTED=0, CODE-ONLY=2, CANON-ONLY=0, UNVERIFIED=1, TOTAL=28.
 ---
 
+### IIA-WEIGHT-01 Reclassification: DRIFTED -> MATCHED
+
+**What changed:** A single row reclassification, not an architectural change.
+
+**Why:** The earlier DRIFTED verdict was based on an incomplete read of the weighting logic. Code uses `SUM(score * weight)`. Canon states `SUM(score x weight) / SUM(weights)`. These formulas differ only if weights do not sum to 1.0. The later trace found that `CRITERION_WEIGHT_MAP` in `canonicalCriteria.ts` is enforced to sum to exactly 1.0 at module load, fail-closed. So the two formulas are mathematically equivalent in this implementation.
+
+**Impact on final table:**
+- MATCHED goes up by 1 (14 -> 15)
+- DRIFTED goes down to 0 (1 -> 0)
+- The matrix becomes fully classified except for one non-code item (ASM-STRUCT-02)
+
+**Final state:**
+- 15 MATCHED: canon and code align clearly
+- 10 PARTIAL: alignment exists but with gaps, drift at boundaries, or missing hardening
+- 2 CODE-ONLY: code behavior exists without canon support
+- 1 UNVERIFIED: cannot be settled from code alone (ASM-STRUCT-02 — document-structure question)
+- 0 DRIFTED: no row currently shows a direct canon/code contradiction severe enough to keep that label
+
+**Caution:** 0 DRIFTED does not mean "everything is good." It means unresolved issues are now concentrated in the PARTIAL bucket, which is where the real work still lives. For example, IIA-PIPE-02 staying PARTIAL matters more than the disappearance of a DRIFTED label, because it still leaves a real authority/logging gap.
+
+**Short read:** One earlier mismatch was mathematically false once the weight invariant was checked, and that cleaned up the matrix significantly.
+
 ### 2026-04-10 — RUNTIME BLOCK: Phase 1 → Phase 2 Handoff Failure
 
 **Status:** ACTIVE DEBUG — reconciliation work paused until resolved
