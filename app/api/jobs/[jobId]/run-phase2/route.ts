@@ -26,7 +26,17 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
     return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
   }
 
-  if (job.status !== "queued") {
+  // FIX(a): Accept canonical Phase 1-complete handoff state for Phase 2 entry
+  // Root cause: candidate filter expects status=running + phase1 complete,
+  // but execution gate expected status=queued. These are contradictory.
+  // See CANON_CODE_RECONCILIATION_MATRIX.md § ROOT CAUSE IDENTIFIED.
+  const progress = job.progress && typeof job.progress === 'object' ? job.progress as Record<string, unknown> : {};
+  const isPhase1Complete =
+    job.status === "running" &&
+    (job.phase === "phase_1" || progress.phase === "phase_1") &&
+    (job.phase_status === "complete" || progress.phase_status === "complete");
+
+  if (job.status !== "queued" && !isPhase1Complete) {
     if (!force) {
       const eligibility = canRunPhase(job, PHASES.PHASE_2);
       return NextResponse.json(
@@ -34,11 +44,15 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
           ok: false,
           error:
             eligibility.reason ||
-            `Job must be queued for canonical execution. Current status=${job.status}`,
+            `Job must be queued or Phase 1 complete for Phase 2 execution. Current status=${job.status}`,
         },
         { status: 409 }
       );
     }
+  }
+
+  // Requeue to 'queued' if not already queued (handles both force and canonical handoff)
+  if (job.status !== "queued") {
 
     const { error: requeueError } = await supabase
       .from("evaluation_jobs")

@@ -596,3 +596,40 @@ All static code verdicts remain valid. Only runtime-dependent confirmations are 
 #### Decision Required
 
 Select fix option (a), (b), or (c) and implement. Option (a) is lowest risk — single file change, no state model redesign.
+
+### 2026-04-10 — FIX IMPLEMENTED: Option (a) Phase 2 Entry Gate Aligned
+
+**Status:** IMPLEMENTED — awaiting live proof
+
+#### Decision
+
+Option (a) selected: Align the Phase 2 entry gate to accept the canonical Phase 1-complete handoff state.
+
+**Rationale:**
+- Preserves the truth that Phase 1 has already acquired and is still holding the job in a running lifecycle
+- Respects the canonical handoff state already proven: status=running + phase_status=complete
+- Avoids inventing a backwards state transition from running to queued (option b)
+- Keeps the fix local to the orchestration gate rather than broadening processor semantics (option c)
+- Single file change, no state model redesign
+
+#### Implementation
+
+**File changed:** `app/api/jobs/[jobId]/run-phase2/route.ts`
+
+**What changed:**
+1. Added `isPhase1Complete` detection: checks `status === "running"` + `phase === "phase_1"` + `phase_status === "complete"` (from both top-level fields and progress object)
+2. Modified gate: jobs rejected only if NOT queued AND NOT Phase 1 complete (unless force flag)
+3. When Phase 1-complete job enters, existing requeue-to-queued logic fires before calling `processEvaluationJob()`, so processor gate is satisfied without processor modification
+
+**Files NOT changed:**
+- `lib/evaluation/processor.ts` — processor gate unchanged; requeue happens before processor is called
+- No state model changes, no new status values, no new database columns
+
+#### Verification Required
+
+Three success conditions from the original debug entry must be proven in one live run:
+1. Job reaches terminal `success`
+2. `pipeline_layers` appear in the job/API response
+3. Evaluation artifacts persist durably
+
+Until verified, runtime-sensitive matrix rows (IIA-PERSIST-01, III-PIPE-05, IIA-PIPE-01, IIA-PIPE-02) remain at current PARTIAL status.
