@@ -174,3 +174,22 @@ Reclassify: III-PIPE-04 UNVERIFIED -> PARTIAL (protection exists but lacks defen
 Updated counts: MATCHED=6, PARTIAL=3, UNVERIFIED=17, TOTAL=28.
 
 Remaining high-priority: 2 items (Questions 2, 3). Question 2 next.
+
+### 2026-04-10 — Question 2 Runtime Trace Complete
+
+**WAVE-EXEC-02: Two parallel WAVE execution surfaces**
+
+**VERDICT: CODE-ONLY (confirmed)**
+
+Evidence chain:
+- `lib/revision/engine.ts`: Active revision engine. `startRevisionEngine()` is called from API route `app/api/internal/revisions/start/route.ts`. Handles revision session lifecycle: findings → proposals → apply. Has governance eligibility gate via `checkRefinementEligibilityByEvaluationRun()`.
+- `lib/pipeline/wave-execution-layer.ts`: Wave planning/persistence layer. Exports `executeWaveLayer()` which derives wave targets from all pass findings, builds wave plan via `wavePlanner`, persists plan to `revision_sessions.summary`.
+- **Critical finding**: `executeWaveLayer()` has **zero callers** in the entire codebase (code search confirmed). It is exported but unwired infrastructure.
+- `startRevisionEngine` has active callers (API route). `executeWaveLayer` has none.
+- The two surfaces serve complementary purposes (session lifecycle vs. wave plan construction), not competing execution paths.
+
+Analysis: These are not dangerous parallel paths — `wave-execution-layer.ts` is dormant infrastructure awaiting wiring. The real question is architectural: should `engine.ts` call `executeWaveLayer()` for wave planning, or is the current engine approach (findings → proposals without explicit wave planning) the intended design?
+
+Status: CODE-ONLY confirmed. Decision needed: (a) wire `executeWaveLayer` into the engine's revision path, (b) remove it as dead code, or (c) document it as reserved for future WAVE system expansion.
+
+Remaining high-priority: 1 item (Question 3). Question 3 next.
