@@ -249,6 +249,79 @@ const CANON_REGISTRY_INTERNAL: MutableCanonRegistry = new Map([
       addedAt: "2026-02-01",
     },
   ],
+
+  [
+    "WAVE-31-LW",
+    {
+      canonId: "WAVE-31-LW",
+      name: "Chapter-Ending Pressure Doctrine",
+      type: "GOVERNANCE",
+      status: "ACTIVE",
+      sourceDocument: "Lost World Lessons Doctrine Addendum",
+      destination: "chapter-ending-analyzer, wave planner ending pressure gates",
+      addedAt: "2026-04-10",
+    },
+  ],
+  [
+    "WAVE-55-L",
+    {
+      canonId: "WAVE-55-L",
+      name: "Selective Authority Compression Doctrine",
+      type: "GOVERNANCE",
+      status: "ACTIVE",
+      sourceDocument: "Lost World Lessons Doctrine Addendum",
+      destination: "diff-intelligence, ritual-protection, wave safety matrix",
+      addedAt: "2026-04-10",
+    },
+  ],
+  [
+    "RITUAL-EDITOR-1",
+    {
+      canonId: "RITUAL-EDITOR-1",
+      name: "Ritual Arbitration Doctrine",
+      type: "GOVERNANCE",
+      status: "ACTIVE",
+      sourceDocument: "Lost World Lessons Doctrine Addendum",
+      destination: "REC-1A logic, escalation-analyzer",
+      addedAt: "2026-04-10",
+    },
+  ],
+  [
+    "VOICE-LAW-1",
+    {
+      canonId: "VOICE-LAW-1",
+      name: "Voice Ownership Doctrine",
+      type: "GOVERNANCE",
+      status: "ACTIVE",
+      sourceDocument: "Lost World Lessons Doctrine Addendum",
+      destination: "voice-mode-analyzer, voice-drift",
+      addedAt: "2026-04-10",
+    },
+  ],
+  [
+    "ANCHOR-LAW-1",
+    {
+      canonId: "ANCHOR-LAW-1",
+      name: "Anchor Line Protection Doctrine",
+      type: "GOVERNANCE",
+      status: "ACTIVE",
+      sourceDocument: "Lost World Lessons Doctrine Addendum",
+      destination: "anchor-lock, author-intent",
+      addedAt: "2026-04-10",
+    },
+  ],
+  [
+    "JUDGMENT-LAW-1",
+    {
+      canonId: "JUDGMENT-LAW-1",
+      name: "System Judgment Doctrine",
+      type: "GOVERNANCE",
+      status: "ACTIVE",
+      sourceDocument: "Lost World Lessons Doctrine Addendum",
+      destination: "revision-orchestrator, diff-intelligence",
+      addedAt: "2026-04-10",
+    },
+  ],
 ]);
 
 export type CanonRegistry = ReadonlyMap<string, CanonRegistryEntry>;
