@@ -394,7 +394,7 @@ Evidence:
 | Canon ID | Previous Status | New Status | Key Finding |
 |----------|----------------|------------|-------------|
 | IIA-SCORE-01 | UNVERIFIED | MATCHED | Runtime enforces integer [1..10] via Number.isInteger() |
-| IIA-WEIGHT-01 | UNVERIFIED | DRIFTED | Code omits SUM(weights) normalization from WCS formula |
+| IIA-WEIGHT-01 | UNVERIFIED | MATCHED | Weights sum to 1.0 (enforced at module load); SUM(score*weight) = canon WCS formula |
 | IIA-EVAL-01 | UNVERIFIED | MATCHED | validateCriteriaEnvelope enforces 13 criteria + score validation |
 | III-PIPE-01 | UNVERIFIED | MATCHED | Sequential Pass 1->2->3->4 confirmed in runPipeline.ts |
 | III-PIPE-02 | UNVERIFIED | MATCHED | Fail-closed + gatePhase2OnPhase1 + LLR stages enforce ordering |
@@ -411,8 +411,7 @@ Evidence:
 | CPDR-001-01 | UNVERIFIED | MATCHED | Volume V Section VII confirmed in file header |
 | CPDR-001-02 | UNVERIFIED | PARTIAL | Behavior implemented but no CPDR-001 traceability in code |
 
-Updated final counts: MATCHED=14, PARTIAL=10, DRIFTED=1, CODE-ONLY=2, CANON-ONLY=0, UNVERIFIED=1, TOTAL=28.
-
+Updated final counts: MATCHED=15, PARTIAL=10, DRIFTED=0, CODE-ONLY=2, CANON-ONLY=0, UNVERIFIED=1, TOTAL=28.
 ---
 
 ### 2026-04-10 — RUNTIME BLOCK: Phase 1 → Phase 2 Handoff Failure
