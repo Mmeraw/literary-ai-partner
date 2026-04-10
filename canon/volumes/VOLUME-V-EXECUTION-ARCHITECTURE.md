@@ -1069,3 +1069,47 @@ RevisionGrade guarantees:
 -   Canon is enforceable
 
 All system outputs are subject to governance validation as defined in this section.
+
+---
+
+## APPENDIX — RUNTIME STATE SYNCHRONIZATION LAW
+
+### V.RS1 — Single State Model
+
+All components MUST operate on the same canonical state model:
+
+- routes
+- workers
+- pipelines
+- gates
+
+### V.RS2 — Atomic Phase Boundary
+
+Phase completion MUST be written atomically.
+
+No intermediate observable state may exist where:
+
+- completion evidence is present
+- but phase is still marked running
+
+### V.RS3 — Async Execution Constraint
+
+Async triggers (API routes):
+
+- MUST NOT perform long-running work inline
+- MUST return immediately (202)
+- MUST NOT mutate canonical completion state
+
+### V.RS4 — Lease & Heartbeat Consistency
+
+Lease expiration MUST NOT leave system in:
+
+- running state with no worker
+- completed work without completion state
+
+### V.RS5 — Worker Termination Contract
+
+Workers MUST:
+
+- finalize state explicitly on exit
+- never leave partial terminal signals

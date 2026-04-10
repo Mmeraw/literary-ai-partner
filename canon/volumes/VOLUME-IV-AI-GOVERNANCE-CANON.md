@@ -1282,4 +1282,45 @@ A governance lead and an engineer, neither of whom know the system author, can:
   Any            Archived            Retention policy or user request   System/User   Yes
   ---------------------------------------------------------------------------------------------
 
+
+---
+
+## VOLUME IV — AI GOVERNANCE CANON
+
+## APPENDIX — STATE INTEGRITY ENFORCEMENT
+
+### IV.GS1 — STATE_INTEGRITY_VIOLATION (New Code)
+
+**Trigger when:**
+
+- illegal mixed state detected
+- mismatched phase vs progress state
+- orphan completion markers
+- vocabulary inconsistency
+- contradictory lifecycle fields
+
+### IV.GS2 — Enforcement Behavior (Fail-Closed)
+
+**On violation:**
+
+- block phase advancement
+- emit structured governance error
+- attach conflicting field snapshot
+- log violation in governance log
+
+### IV.GS3 — Audit Requirement
+
+**All violations MUST include:**
+
+- job_id
+- phase
+- conflicting fields
+- canonical rule violated
+
+### IV.GS4 — No Silent Correction
+
+System MUST NOT auto-correct invalid state silently.
+
+All correction requires explicit write with audit trace.
+
 **END OF DOCUMENT**
