@@ -539,3 +539,60 @@ Rows that depend on runtime artifact truth cannot be fully verified until this h
 - IIA-PIPE-01 / IIA-PIPE-02 (two-AI contract, divergence logging) — PARTIAL, need live pipeline trace
 
 All other reconciliation verdicts (static code inspection) remain valid.
+
+---
+
+### 2026-04-10 — ROOT CAUSE IDENTIFIED: Phase 1 → Phase 2 Status Mismatch
+
+**Status:** ROOT CAUSE FOUND — fix required
+
+#### Evidence Chain
+
+1. `app/api/internal/jobs/route.ts` (GET handler, line ~47): Phase 2 candidates are filtered by `status === "running" && progress.phase === PHASES.PHASE_1 && progress.phase_status === "complete"`. This correctly identifies jobs where Phase 1 finished but Phase 2 hasn't started.
+
+2. `app/api/jobs/[jobId]/run-phase2/route.ts` (line ~24): The run-phase2 endpoint checks `job.status !== "queued"` — if the job is NOT queued and `force` flag is not set, it returns HTTP 409 (conflict).
+
+3. `lib/evaluation/processor.ts` (processEvaluationJob, line ~500): The processor also gates on `job.status !== 'queued'` — returns `{ success: false }` if status is not `queued`.
+
+4. `scripts/worker-daemon.mjs` (handleTriggerResponse): The worker daemon receives HTTP 409 and classifies it as `not_eligible` — does NOT retry.
+
+#### Failure Sequence
+
+1. Phase 1 completes → job has `status: "running"`, `progress.phase: "phase_1"`, `progress.phase_status: "complete"`
+2. Worker daemon correctly identifies job as `phase2_candidate` (status=running, phase=phase_1, phase_status=complete)
+3. Worker calls `POST /api/jobs/[jobId]/run-phase2` (no `force` flag)
+4. run-phase2 route checks `job.status !== "queued"` → status is "running" → returns HTTP 409
+5. Worker treats 409 as `not_eligible`, does not retry
+6. Job sits in `running` state until `failStaleRunningJobs()` marks it `failed`
+7. `pipeline_layers` never appear, evaluation artifacts never persist
+
+#### Root Cause
+
+Status model mismatch between three components:
+- **Candidate filter** expects: `status=running + phase=phase_1 + phase_status=complete`
+- **Execution gate** expects: `status=queued`
+- These are contradictory. A job cannot simultaneously be `running` and `queued`.
+
+#### Fix Options
+
+**(a) Preferred — Align run-phase2 gate with candidate filter:**
+In `app/api/jobs/[jobId]/run-phase2/route.ts`, change the gate to accept jobs that match the Phase 2 candidate criteria (status=running, phase=phase_1, phase_status=complete) in addition to status=queued.
+
+**(b) Alternative — Phase 1 completion requeues:**
+When Phase 1 completes, set `status: "queued"` instead of leaving it `running`. This requires the Phase 1 completion path to explicitly requeue.
+
+**(c) Alternative — processEvaluationJob accepts running:**
+Modify `processEvaluationJob()` to accept `status === "running"` when called from the Phase 2 path.
+
+#### Impact on Reconciliation Matrix
+
+This fix unblocks runtime verification of:
+- IIA-PERSIST-01 (artifact persistence at runtime)
+- III-PIPE-05 (output persistence between stages)
+- IIA-PIPE-01 / IIA-PIPE-02 (live pipeline trace)
+
+All static code verdicts remain valid. Only runtime-dependent confirmations are blocked.
+
+#### Decision Required
+
+Select fix option (a), (b), or (c) and implement. Option (a) is lowest risk — single file change, no state model redesign.
