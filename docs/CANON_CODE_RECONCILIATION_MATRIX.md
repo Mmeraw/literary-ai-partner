@@ -54,15 +54,15 @@
 | IIA-CRITERIA-02 | No additional criteria may be invented at runtime | VOL-II-A Sec 2 | schemas/criteria-keys.ts | scripts/verify-canon-schema.sh | MATCHED | None | Schema enforces strict key set |
 | IIA-SCORE-01 | Each criterion scored 1-10 integer scale, no half-points | VOL-II-A Sec 3 | lib/evaluation/pipeline/types.ts | N/A | UNVERIFIED | Verify score type is integer-only in pipeline types | Need type inspection |
 | IIA-WEIGHT-01 | WCS = SUM(score x weight) / SUM(weights) | VOL-II-A Sec 4 | lib/governance/criteriaEnvelope.ts | N/A | UNVERIFIED | Verify WCS calculation matches formula | Need code trace |
-| IIA-GATE-01 | WAVE_ELIGIBILITY_MIN_WCS = 7.0 | VOL-II-A Sec 5 | lib/governance/eligibilityGate.ts | N/A | UNVERIFIED | Verify constant value in eligibilityGate.ts | Need constant check |
-| IIA-GATE-02 | STRUCTURAL_FAIL_THRESHOLD = 5 for fail-fast | VOL-II-A Sec 5 | lib/governance/eligibilityGate.ts | N/A | UNVERIFIED | Verify threshold constant | Need constant check |
-| IIA-GATE-03 | AGENT_READY_WCS = 8.5 | VOL-II-A Sec 5 | lib/governance/eligibilityGate.ts | N/A | UNVERIFIED | Verify constant | Need constant check |
+| IIA-GATE-01 | WAVE_ELIGIBILITY_MIN_WCS = 7.0 | VOL-II-A Sec 5 | lib/governance/eligibilityGate.ts | N/A | MATCHED | Verify constant value in eligibilityGate.ts | Need constant check |
+| IIA-GATE-02 | STRUCTURAL_FAIL_THRESHOLD = 5 for fail-fast | VOL-II-A Sec 5 | lib/governance/eligibilityGate.ts | N/A | MATCHED | Verify threshold constant | Need constant check |
+| IIA-GATE-03 | AGENT_READY_WCS = 8.5 | VOL-II-A Sec 5 | lib/governance/eligibilityGate.ts | N/A | MATCHED | Verify constant | Need constant check |
 | IIA-ROUTING-01 | Criteria-to-WAVE routing map governs wave target selection | VOL-II-A Sec 6 | lib/revision/wavePlanner.ts, lib/pipeline/wave-execution-layer.ts | N/A | UNVERIFIED | Verify routing map in code matches canon table | Need field mapping |
 | IIA-EVAL-01 | Evaluation envelope must contain all 13 criteria with defined JSON shape | VOL-II-A Sec 7 | lib/governance/criteriaEnvelope.ts | N/A | UNVERIFIED | Verify envelope schema matches canon | Need schema comparison |
 | IIA-PERSIST-01 | Artifacts stored in evaluation_artifacts as jsonb | VOL-II-A Sec 8 | supabase/ migrations | N/A | UNVERIFIED | Verify Supabase schema has evaluation_artifacts table | Need migration check |
 | IIA-PIPE-01 | AI System 1 generates, AI System 2 audits before artifact write | VOL-II-A Sec 9 | lib/evaluation/pipeline/runPass1.ts, runPass2.ts, runPass3Synthesis.ts | N/A | UNVERIFIED | Verify two-AI pipeline contract in pass execution | Need code trace |
 | IIA-PIPE-02 | Divergence must be logged, not silently collapsed | VOL-II-A Sec 9 | lib/evaluation/pipeline/runPass3Synthesis.ts | N/A | UNVERIFIED | Verify divergence logging in Pass 3 synthesis | Need code trace |
-| IIA-INVARIANT-01 | WAVE may not run when eligibility_gate = BLOCK | VOL-II-A Sec 10 | lib/governance/eligibilityGate.ts, lib/revision/engine.ts | N/A | UNVERIFIED | Verify WAVE gating enforcement | HIGH PRIORITY --- ChatGPT tracing this |
+| IIA-INVARIANT-01 | WAVE may not run when eligibility_gate = BLOCK | VOL-II-A Sec 10 | lib/governance/eligibilityGate.ts, lib/revision/engine.ts | N/A | MATCHED | Verify WAVE gating enforcement | HIGH PRIORITY --- ChatGPT tracing this |
 
 ---
 
@@ -76,7 +76,7 @@
 | III-PIPE-01 | Pipeline is Pass 1 then Pass 2 then Pass 3 then WAVE | VOL-III Pipeline Arch | lib/evaluation/pipeline/runPipeline.ts | N/A | UNVERIFIED | Verify sequential pass ordering in runPipeline | Need code trace |
 | III-PIPE-02 | No stage may be skipped | VOL-III Pipeline Arch | lib/evaluation/pipeline/gatePhase2OnPhase1.ts | N/A | UNVERIFIED | Verify gate enforcement between passes | Need code trace |
 | III-PIPE-03 | WAVE execution permitted only after Pass 1-3 convergence | VOL-III Pipeline Arch | lib/pipeline/wave-execution-layer.ts, lib/revision/wavePlanner.ts | N/A | PARTIAL | DRIFT SIGNAL: wavePlanner derives targets from all 3 passes, not just converged output | ChatGPT traced this --- see analysis |
-| III-PIPE-04 | WAVE must not bypass Pass III convergence | VOL-III Pipeline Arch | lib/revision/engine.ts, lib/pipeline/wave-execution-layer.ts | N/A | UNVERIFIED | HIGH PRIORITY: Can WAVE execute without valid Pass 3? | ChatGPT actively tracing |
+| III-PIPE-04 | WAVE must not bypass Pass III convergence | VOL-III Pipeline Arch | lib/revision/engine.ts, lib/pipeline/wave-execution-layer.ts | N/A | PARTIAL | HIGH PRIORITY: Can WAVE execute without valid Pass 3? | ChatGPT actively tracing |
 | III-PIPE-05 | All outputs must be persisted before advancing | VOL-III Pipeline Arch | lib/evaluation/pipeline/runPipeline.ts | N/A | UNVERIFIED | Verify artifact persistence between stages | Need code trace |
 
 ---
@@ -110,12 +110,12 @@
 
 | Status | Count |
 |--------|-------|
-| MATCHED | 2 |
-| PARTIAL | 2 |
+| MATCHED | 6 |
+| PARTIAL | 3 |
 | DRIFTED | 0 |
 | CODE-ONLY | 2 |
 | CANON-ONLY | 0 |
-| UNVERIFIED | 22 |
+| UNVERIFIED | 17 |
 | **TOTAL** | **28** |
 
 ---
@@ -151,3 +151,26 @@ Reclassify: UNVERIFIED -> MATCHED. Also reclassify IIA-GATE-01, IIA-GATE-02, IIA
 Updated counts: MATCHED=6, UNVERIFIED=18, TOTAL=28.
 
 Remaining high-priority: 3 items (Questions 1, 2, 3). Question 1 next.
+
+### 2026-04-10 — Question 1 Runtime Trace Complete
+
+**III-PIPE-04: WAVE must not bypass Pass III convergence**
+
+**VERDICT: PARTIAL**
+
+Evidence chain:
+- `lib/evaluation/pipeline/runPipeline.ts`: Pipeline orchestrator runs Pass 1 → Pass 2 → Pass 3 → Pass 4 sequentially. If Pass 3 fails, returns `{ ok: false, failed_at: "pass3" }` immediately. Pipeline invariant #3: "Fails closed — any pass failure → job FAILED, no artifact persisted."
+- `lib/revision/engine.ts`: `startRevisionEngine()` calls `checkRefinementEligibilityByEvaluationRun()` as first action (comment: "MANDATORY: Check governance eligibility before entering refinement path"). `finalizeRevisionEngine()` also calls this check.
+- `lib/governance/evaluationBridge.ts`: `checkRefinementEligibilityByEvaluationRun()` fetches `evaluation_result_v1` artifact from `evaluation_artifacts` table. If Pass 3 failed, no artifact exists (pipeline fail-closed), so throws `REFINEMENT_BLOCKED_BY_GATE`.
+- `lib/pipeline/wave-execution-layer.ts`: `executeWaveLayer()` accepts `pass3_findings` as **optional** parameter. `deriveAllPassTargets()` defaults missing pass3 to `{}`. No independent Pass 3 completion check exists in this layer.
+- `lib/jobs/gates.ts`: `gatePhase2OnPhase1()` gates Phase 2 on Phase 1 completion, but no equivalent `gateWaveOnPass3()` function exists.
+
+Analysis: WAVE cannot execute without Pass 3 through the normal pipeline+engine path because the evaluation artifact won't exist if Pass 3 failed. However, `wave-execution-layer.ts` does NOT independently verify Pass 3 completion — it trusts its caller. This is caller-discipline enforcement, not self-enforcing defense-in-depth.
+
+Risk: If any future caller invokes `executeWaveLayer()` directly without going through the engine's eligibility check, WAVE could run with partial/missing Pass 3 data.
+
+Reclassify: III-PIPE-04 UNVERIFIED -> PARTIAL (protection exists but lacks defense-in-depth at wave-execution-layer boundary).
+
+Updated counts: MATCHED=6, PARTIAL=3, UNVERIFIED=17, TOTAL=28.
+
+Remaining high-priority: 2 items (Questions 2, 3). Question 2 next.
