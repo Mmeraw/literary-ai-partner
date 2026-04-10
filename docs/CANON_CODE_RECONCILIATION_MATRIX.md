@@ -412,3 +412,62 @@ Evidence:
 | CPDR-001-02 | UNVERIFIED | PARTIAL | Behavior implemented but no CPDR-001 traceability in code |
 
 Updated final counts: MATCHED=14, PARTIAL=10, DRIFTED=1, CODE-ONLY=2, CANON-ONLY=0, UNVERIFIED=1, TOTAL=28.
+
+---
+
+### 2026-04-10 — RUNTIME BLOCK: Phase 1 → Phase 2 Handoff Failure
+
+**Status:** ACTIVE DEBUG — reconciliation work paused until resolved
+**Priority:** P0 — blocks all runtime-sensitive reconciliation rows
+
+#### Doctrine Claim Under Test
+
+Runtime layer truth is visible through job completion, `pipeline_layers`, and persisted artifacts.
+
+#### Observed Runtime Path
+
+```
+Job created → Phase 1 completes canonically → Phase 2 starts →
+processor marks running → manuscript fetched → job fails →
+no pipeline_layers / no artifacts
+```
+
+#### Proven Facts
+
+- **Not memory-mode**: Supabase-backed job creation works once harness uses real `auth.users` identity
+- **Not FK-blocked user creation**: resolved in prior session
+- **Not front-door route failure**: Phase 2 route triggers successfully
+- **Not initial manuscript lookup failure**: manuscript fetched successfully in processor
+
+#### Open Hypotheses (unranked)
+
+1. chunk/job linkage mismatch affecting downstream lookup or resume logic
+2. Phase 2 failure before aggregation begins
+3. failure during layer assembly
+4. failure during artifact persistence
+5. fail-closed gate after manuscript fetch but before persistence
+
+#### Next Debugging Checks (ordered)
+
+1. Find the first processor log/error after "Manuscript fetched."
+2. Add one temporary trace at each boundary:
+   - before local synthesis
+   - after local synthesis
+   - before aggregation
+   - after aggregation
+   - before manuscript synthesis
+   - before artifact persistence
+3. Verify whether downstream Phase 2 code actually requires `manuscript_chunks.job_id`, or merely warns on its absence
+4. Re-run the live proof and require all three success conditions:
+   - job completes
+   - `pipeline_layers` appears
+   - artifacts persist
+
+#### Reconciliation Impact
+
+Rows that depend on runtime artifact truth cannot be fully verified until this handoff is fixed:
+- IIA-PERSIST-01 (artifacts stored as jsonb) — MATCHED statically, untested at runtime
+- III-PIPE-05 (outputs persisted before advancing) — PARTIAL, runtime confirmation blocked
+- IIA-PIPE-01 / IIA-PIPE-02 (two-AI contract, divergence logging) — PARTIAL, need live pipeline trace
+
+All other reconciliation verdicts (static code inspection) remain valid.
