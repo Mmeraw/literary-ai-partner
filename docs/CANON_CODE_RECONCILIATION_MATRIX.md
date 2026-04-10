@@ -633,3 +633,53 @@ Three success conditions from the original debug entry must be proven in one liv
 3. Evaluation artifacts persist durably
 
 Until verified, runtime-sensitive matrix rows (IIA-PERSIST-01, III-PIPE-05, IIA-PIPE-01, IIA-PIPE-02) remain at current PARTIAL status.
+
+### 2026-04-10 — Post-Fix Risk Register: queued Semantic and Monotonic-Narrative Requirement
+
+**Status:** OPEN — must be validated in live proof run
+
+#### Risk 1: queued Status Semantic Shift
+
+**Observation:** The fix causes `run-phase2` to requeue a `running` job back to `queued` before calling `processEvaluationJob()`. This is a valid bridge, but it changes what `queued` can mean in practice:
+
+- **Before fix:** `queued` = "no execution has ever started for this job"
+- **After fix:** `queued` = "ready for next executor" (can apply to a job mid-lifecycle)
+
+**Risk surface — any component that treats `queued` as proof of pre-execution only is now exposed:**
+
+| Component | Risk | Severity |
+|---|---|---|
+| Lease ownership / retry logic | Could re-trigger Phase 1 if worker sees `queued` without checking phase markers | HIGH |
+| Duplicate Phase 2 triggers | If worker daemon polls for `queued` jobs and triggers Phase 1 on them, a Phase 1-complete job could be re-run | HIGH |
+| Dashboard / audit logs | May display `running → queued → running` as a confusing regression rather than a handoff | LOW |
+| Invariant checks | Any assertion `status=queued implies phase_status=queued` will fail for Phase 1-complete handoff jobs | MEDIUM |
+
+**Mitigation already present:** The `run-phase2` route is `INTERNAL ONLY` (service role auth required). The worker daemon calls it explicitly. Phase markers (`phase=phase_1`, `phase_status=complete`) are preserved during the requeue window, so any reader with access to phase fields can distinguish handoff-queued from fresh-queued.
+
+**What the live proof run must confirm:**
+- No duplicate Phase 1 trigger fires during or after the `running → queued` transition
+- Job record shows clean `queued` window followed immediately by `running` (Phase 2), not a restart of Phase 1
+- Worker daemon does not re-enter Phase 1 on a Phase 1-complete job that briefly appears `queued`
+
+#### Risk 2: Monotonic-Narrative Requirement (Tightened Verification)
+
+The original three verification conditions (terminal success, pipeline_layers visible, artifacts persisted) are necessary but not sufficient. The proof run must also show:
+
+**4. The job record tells a clean, intelligible story end to end:**
+- `queued` → `running` (Phase 1) → `running` (Phase 2, after handoff requeue) → `complete`
+- No phase regressions (Phase 2 must not revert to Phase 1 markers)
+- No gaps in heartbeat_at timestamps suggesting silent failure recovery
+- `last_error` must be NULL at terminal success
+- `progress.phase_status` must end as `complete`, not `running` or `failed`
+- `pipeline_layers` in the job record must reflect all three passes, not a partial run
+
+**This condition is not decoration.** If the job ends `complete` but the record shows a `running → queued` window followed by ambiguous phase markers, the fix has created a semantic liability that will surface later under load or in monitoring.
+
+#### Acceptance Condition (Revised — 4 conditions, not 3)
+
+Do not treat this as proven until one clean live run satisfies all four:
+
+1. Job reaches terminal `success`
+2. `pipeline_layers` appear in the job/API response with all passes represented
+3. Evaluation artifacts persist durably in `evaluation_artifacts`
+4. Job record shows clean monotonic phase progression with no semantic regressions, null `last_error`, and intelligible timestamps
