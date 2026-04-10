@@ -193,3 +193,37 @@ Analysis: These are not dangerous parallel paths — `wave-execution-layer.ts` i
 Status: CODE-ONLY confirmed. Decision needed: (a) wire `executeWaveLayer` into the engine's revision path, (b) remove it as dead code, or (c) document it as reserved for future WAVE system expansion.
 
 Remaining high-priority: 1 item (Question 3). Question 3 next.
+
+### 2026-04-10 — Question 3 Runtime Trace Complete
+
+**III-PIPE-03: WAVE execution permitted only after Pass 1-3 convergence**
+
+**VERDICT: PARTIAL (DRIFT SIGNAL confirmed)**
+
+Evidence chain:
+- `lib/revision/wavePlanner.ts` lines ~130-140: `planWaves()` function derives wave targets from ALL three passes independently: `derivedFromPass1`, `derivedFromPass2`, `derivedFromPass3`, then merges them with `normalizedTargets = [...targetWaveIds, ...derivedFromPass1, ...derivedFromPass2, ...derivedFromPass3]`.
+- `lib/pipeline/wave-execution-layer.ts`: `deriveAllPassTargets()` mirrors this pattern, merging targets from pass1, pass2, and pass3 findings independently.
+- `deriveWaveTargetsFromFindings()` in wavePlanner.ts: Extracts criterion tokens from arbitrary finding objects and matches them against `WAVE_REGISTRY` criterion IDs. Works identically on Pass 1, Pass 2, or Pass 3 data.
+- Canon (VOL-III Pipeline Arch) states WAVE execution is "permitted only after Pass 1-3 convergence" — implying only converged (Pass 3) output should drive targeting.
+- Code deliberately uses pre-convergence signals (Pass 1 and Pass 2 independently) PLUS converged output (Pass 3) for richer wave targeting.
+
+Analysis: This is an intentional design divergence, not an accidental bypass. The code provides richer signal by not discarding Pass 1/2 findings that may not surface in the converged Pass 3 output. However, canon is clear that convergence should be the gate. The drift is real but the code's approach may be superior.
+
+Decision needed: (a) Update canon to explicitly authorize all-pass merged targeting, or (b) Restrict `planWaves()` and `deriveAllPassTargets()` to use only Pass 3 converged output.
+
+Status: PARTIAL confirmed. Drift signal validated with code evidence.
+
+---
+
+## ALL 4 HIGH-PRIORITY QUESTIONS RESOLVED
+
+| Question | Canon ID | Verdict | Key Finding |
+|----------|----------|---------|-------------|
+| Q4 | IIA-INVARIANT-01 | MATCHED | Eligibility gate enforcement chain fully wired with tests |
+| Q1 | III-PIPE-04 | PARTIAL | Pipeline fail-closed prevents it, but wave-execution-layer lacks independent gate |
+| Q2 | WAVE-EXEC-02 | CODE-ONLY | executeWaveLayer has zero callers — dormant infrastructure |
+| Q3 | III-PIPE-03 | PARTIAL | Code uses all-pass merged targeting vs. canon's convergence-only requirement |
+
+Final counts: MATCHED=6, PARTIAL=3, CODE-ONLY=2, UNVERIFIED=17, TOTAL=28.
+
+Next phase: Systematic trace of remaining 17 UNVERIFIED rows.
