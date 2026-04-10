@@ -436,57 +436,104 @@ Updated final counts: MATCHED=15, PARTIAL=10, DRIFTED=0, CODE-ONLY=2, CANON-ONLY
 
 **Short read:** One earlier mismatch was mathematically false once the weight invariant was checked, and that cleaned up the matrix significantly.
 
-### 2026-04-10 — RUNTIME BLOCK: Phase 1 → Phase 2 Handoff Failure
+### 2026-04-10 — Runtime Debug Entry: Phase 1 → Phase 2 Handoff Failure
 
 **Status:** ACTIVE DEBUG — reconciliation work paused until resolved
 **Priority:** P0 — blocks all runtime-sensitive reconciliation rows
 
-#### Doctrine Claim Under Test
+#### Claim Under Test
 
-Runtime layer truth is visible through job completion, `pipeline_layers`, and persisted artifacts.
+A Phase 1-complete job can hand off into Phase 2, execute the evaluation pipeline, surface `pipeline_layers`, and persist evaluation artifacts.
 
 #### Observed Runtime Path
 
-```
-Job created → Phase 1 completes canonically → Phase 2 starts →
-processor marks running → manuscript fetched → job fails →
-no pipeline_layers / no artifacts
-```
+Live Supabase-backed proof now advances through the following sequence:
+
+1. Job creation succeeds with a real persisted user identity.
+2. Phase 1 runs and reaches canonical completion.
+3. `run-phase2` returns 202.
+4. Processor starts and marks job `running`.
+5. Manuscript fetch succeeds.
+6. Job later ends `failed`.
+7. `pipeline_layers` never appear.
+8. No evaluation artifacts are persisted.
 
 #### Proven Facts
 
-- **Not memory-mode**: Supabase-backed job creation works once harness uses real `auth.users` identity
-- **Not FK-blocked user creation**: resolved in prior session
-- **Not front-door route failure**: Phase 2 route triggers successfully
+This failure is not currently explained by:
+
+- **Not memory-mode job store**: Supabase-backed job creation works once harness uses real `auth.users` identity
+- **Not `evaluation_jobs.user_id` foreign-key failure**: resolved in prior session
+- **Not front-door route rejection**: Phase 2 route triggers successfully
 - **Not initial manuscript lookup failure**: manuscript fetched successfully in processor
 
-#### Open Hypotheses (unranked)
+Those earlier blockers have been passed in the newer trace.
 
-1. chunk/job linkage mismatch affecting downstream lookup or resume logic
-2. Phase 2 failure before aggregation begins
-3. failure during layer assembly
-4. failure during artifact persistence
-5. fail-closed gate after manuscript fetch but before persistence
+#### What Is Not Yet Proven
 
-#### Next Debugging Checks (ordered)
+The warning:
+
+```
+[Phase1] WARNING: No chunks found with job_id=...
+```
+
+is real, but current evidence does not prove it is the final root cause. It may be diagnostic-only, resume-related, or a downstream dependency trigger. That remains open.
+
+#### Best Current Diagnosis
+
+The failure band lies after manuscript fetch and before any successful Phase 2 outputs become durable, most likely in one of these regions:
+
+1. local synthesis
+2. aggregation
+3. manuscript synthesis
+4. pipeline-layer assembly
+5. artifact persistence
+
+The current observability gap suggests that at least one Phase 2 failure path may be returning failure state without emitting a durable processor error trace.
+
+#### Lead Hypothesis
+
+Chunk/job linkage remains the lead suspect because it may affect downstream Phase 2 lookup, grouping, resume semantics, or persistence expectations.
+
+#### Competing Hypothesis
+
+An internal Phase 2 step is failing after manuscript fetch even when Phase 1 completion is canonical, independent of `manuscript_chunks.job_id`.
+
+#### Immediate Next Action
 
 1. Find the first processor log/error after "Manuscript fetched."
-2. Add one temporary trace at each boundary:
-   - before local synthesis
-   - after local synthesis
-   - before aggregation
-   - after aggregation
-   - before manuscript synthesis
-   - before artifact persistence
-3. Verify whether downstream Phase 2 code actually requires `manuscript_chunks.job_id`, or merely warns on its absence
-4. Re-run the live proof and require all three success conditions:
-   - job completes
-   - `pipeline_layers` appears
-   - artifacts persist
+2. Add temporary trace markers at exact execution boundaries:
+    - before local synthesis
+    - after local synthesis
+    - before aggregation
+    - after aggregation
+    - before manuscript synthesis
+    - after manuscript synthesis
+    - before pipeline-layer assembly
+    - after pipeline-layer assembly
+    - before artifact persistence
+    - after artifact persistence
+    - on every non-throw failure return path
+3. Log any returned `{ success: false, ... }` result from `processEvaluationJob`, not just thrown exceptions.
+4. Verify whether downstream Phase 2 code actually requires `manuscript_chunks.job_id`, or merely warns on its absence.
+5. Re-run the live proof and require all three success conditions.
+
+#### Acceptance Condition for Closeout
+
+Do not treat this as fixed until one live run proves all three:
+
+- job reaches terminal `success`
+- `pipeline_layers` appear in the job/API response
+- evaluation artifacts persist durably
+
+#### Current Blocker Statement
+
+Runtime-sensitive repo/code reconciliation is blocked by a live Phase 1 → Phase 2 handoff failure. Chunk/job linkage is the lead suspect, but the root cause is not yet proven.
 
 #### Reconciliation Impact
 
 Rows that depend on runtime artifact truth cannot be fully verified until this handoff is fixed:
+
 - IIA-PERSIST-01 (artifacts stored as jsonb) — MATCHED statically, untested at runtime
 - III-PIPE-05 (outputs persisted before advancing) — PARTIAL, runtime confirmation blocked
 - IIA-PIPE-01 / IIA-PIPE-02 (two-AI contract, divergence logging) — PARTIAL, need live pipeline trace
