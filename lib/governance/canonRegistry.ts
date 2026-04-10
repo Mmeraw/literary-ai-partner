@@ -322,6 +322,42 @@ const CANON_REGISTRY_INTERNAL: MutableCanonRegistry = new Map([
       addedAt: "2026-04-10",
     },
   ],
+  [
+    'VOL-III-EVAL-PIPELINE',
+    {
+      canonId: 'VOL-III-EVAL-PIPELINE',
+      name: 'Evaluation Pipeline Architecture (Pass System)',
+      type: 'GOVERNANCE',
+      status: 'ACTIVE',
+      sourceDocument: 'Volume III Evaluation Pipeline Architecture',
+      destination: 'pipeline-orchestrator, pass system, state machine',
+      addedAt: '2026-03-22',
+    },
+  ],
+  [
+    'VOL-I-II-ADDENDUM-MERGED',
+    {
+      canonId: 'VOL-I-II-ADDENDUM-MERGED',
+      name: 'Merged Prose Authority and Enforcement Canon (I.23-I.35, II.15-II.21)',
+      type: 'GOVERNANCE',
+      status: 'ACTIVE',
+      sourceDocument: 'Volume I/II Merged Addendums',
+      destination: 'prose validators, enforcement gates',
+      addedAt: '2026-03-22',
+    },
+  ],
+  [
+    'CTRL-WAVE-EXEC-LAYER-MAP',
+    {
+      canonId: 'CTRL-WAVE-EXEC-LAYER-MAP',
+      name: 'WAVE System Execution Layer Map (HOW vs WHEN)',
+      type: 'GOVERNANCE',
+      status: 'ACTIVE',
+      sourceDocument: 'Wave System Execution Layer Map',
+      destination: 'architecture reference, system integration',
+      addedAt: '2026-03-23',
+    },
+  ],
 ]);
 
 export type CanonRegistry = ReadonlyMap<string, CanonRegistryEntry>;
