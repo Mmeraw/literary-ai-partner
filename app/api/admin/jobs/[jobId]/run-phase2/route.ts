@@ -42,18 +42,17 @@ export async function POST(
         ? (jobRow.progress as Record<string, unknown>)
         : {};
 
+    // Canon truth lives in progress.*, not top-level phase helpers.
     const isPhase1CompleteHandoff =
       jobRow.status === "running" &&
-      (jobRow.phase === "phase_1" || progress.phase === "phase_1") &&
-      (jobRow.phase_status === "complete" || progress.phase_status === "complete");
+      progress.phase === "phase_1" &&
+      progress.phase_status === "complete";
 
-    const isQueued = jobRow.status === "queued";
-
-    if (!isQueued && !isPhase1CompleteHandoff && !force) {
+    if (!isPhase1CompleteHandoff && !force) {
       const payload: Err = {
         ok: false,
         error: "Job is not eligible for Phase 2 trigger",
-        details: `status=${jobRow.status}, phase=${jobRow.phase}, phase_status=${jobRow.phase_status}`,
+        details: `status=${jobRow.status}, phase=${progress.phase}, phase_status=${progress.phase_status}`,
       };
       return NextResponse.json(payload, { status: 409 });
     }
@@ -63,15 +62,25 @@ export async function POST(
     const updatePayload = {
       status: "queued",
       phase: "phase_2",
-      phase_status: "triggered",
+      phase_status: "queued",
       last_error: null,
       updated_at: now,
     };
 
-    const { error: updateError } = await supabase
+    let updateQuery = supabase
       .from("evaluation_jobs")
       .update(updatePayload)
-      .eq("id", jobId);
+      .eq("id", jobId)
+      .select("id");
+
+    if (!force) {
+      updateQuery = updateQuery
+        .eq("status", "running")
+        .eq("phase", "phase_1")
+        .eq("phase_status", "complete");
+    }
+
+    const { data: updatedRows, error: updateError } = await updateQuery;
 
     if (updateError) {
       const payload: Err = {
@@ -80,6 +89,16 @@ export async function POST(
         details: updateError.message,
       };
       return NextResponse.json(payload, { status: 500 });
+    }
+
+    if (!updatedRows || updatedRows.length !== 1) {
+      const payload: Err = {
+        ok: false,
+        error: force
+          ? "Phase 2 trigger failed: job row was not updated."
+          : "Phase 2 trigger lost race or job state changed before update.",
+      };
+      return NextResponse.json(payload, { status: 409 });
     }
 
     console.log("AdminPhase2Triggered", {
