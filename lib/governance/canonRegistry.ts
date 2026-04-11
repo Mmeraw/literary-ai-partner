@@ -358,7 +358,7 @@ const CANON_REGISTRY_INTERNAL: MutableCanonRegistry = new Map([
       addedAt: '2026-03-23',
     },
       ],
-    [[
+  [
         'VOL-III-PIPELINE-API-JSON-SCHEMA',
     {
       canonId: 'VOL-III-PIPELINE-API-JSON-SCHEMA',
