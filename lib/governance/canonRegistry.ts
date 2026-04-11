@@ -358,8 +358,8 @@ const CANON_REGISTRY_INTERNAL: MutableCanonRegistry = new Map([
       addedAt: '2026-03-23',
     },
       ],
-  [
-    'VOL-III-PIPELINE-API-JSON-SCHEMA',
+    [[
+        'VOL-III-PIPELINE-API-JSON-SCHEMA',
     {
       canonId: 'VOL-III-PIPELINE-API-JSON-SCHEMA',
       name: 'Volume III — Pipeline API JSON Schema',
@@ -369,6 +369,9 @@ const CANON_REGISTRY_INTERNAL: MutableCanonRegistry = new Map([
       destination: 'evaluation pipeline, API contracts',
       addedAt: '2026-04-10',
     },
+      ],
+  [
+    'VOL-III-FINAL-PIPELINE-DIAGRAM',
     {
       canonId: 'VOL-III-FINAL-PIPELINE-DIAGRAM',
       name: 'Volume III — Final Pipeline Diagram + State Model',
@@ -378,6 +381,9 @@ const CANON_REGISTRY_INTERNAL: MutableCanonRegistry = new Map([
       destination: 'evaluation pipeline, state management',
       addedAt: '2026-04-10',
     },
+      ],
+  [
+    'VOL-III-EVAL-PIPELINE-PASS-SYSTEM',
     {
       canonId: 'VOL-III-EVAL-PIPELINE-PASS-SYSTEM',
       name: 'Volume III — Evaluation Pipeline Architecture (Pass System)',
@@ -387,6 +393,9 @@ const CANON_REGISTRY_INTERNAL: MutableCanonRegistry = new Map([
       destination: 'evaluation pipeline, pass architecture',
       addedAt: '2026-04-10',
     },
+      ],
+  [
+    'VOL-II-A-PR-PROMPT-RUNTIME',
     {
       canonId: 'VOL-II-A-PR-PROMPT-RUNTIME',
       name: 'Volume II-A-PR — Prompt Runtime Binding Spec',
@@ -396,6 +405,9 @@ const CANON_REGISTRY_INTERNAL: MutableCanonRegistry = new Map([
       destination: 'prompt engineering, runtime binding',
       addedAt: '2026-04-10',
     },
+      ],
+  [
+    'RG-EVAL-RUNTIME-GOVERNANCE',
     {
       canonId: 'RG-EVAL-RUNTIME-GOVERNANCE',
       name: 'RevisionGrade Evaluation & Runtime Governance v1.0.0',
