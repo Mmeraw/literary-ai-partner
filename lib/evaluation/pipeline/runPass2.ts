@@ -103,7 +103,7 @@ export type CreateCompletionFn = (params: {
   max_tokens?: number;
   max_completion_tokens?: number;
   response_format: { type: string };
-}) => Promise<{ choices: { message: { content: string | null } }[]; usage?: CompletionUsage }>;
+}) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage }>;
 
 export interface RunPass2Options {
   /**
@@ -215,7 +215,7 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
       params as Parameters<typeof openai.chat.completions.create>[0],
       { timeout: OPENAI_TIMEOUT_MS },
     ) as Promise<{
-      choices: { message: { content: string | null } }[];
+      choices: CompletionChoice[];
       usage?: CompletionUsage;
     }>;
 }
