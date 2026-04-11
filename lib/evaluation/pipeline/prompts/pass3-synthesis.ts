@@ -3,7 +3,7 @@
  *
  * Pass 3 reconciles Pass 1 (craft) and Pass 2 (editorial) outputs,
  * producing a unified dual-axis evaluation.
- * Temperature: 0.2.  Max tokens: 5000.
+ * Temperature: 0.2.  Max tokens: environment-tunable (default 9000).
  */
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
@@ -130,10 +130,10 @@ Execution mode: ${executionMode}
 ${buildCoverageDisclosure(coverage, "Pass 3 manuscript reference coverage")}
 
 ## PASS 1 OUTPUT (Craft Execution)
-${params.pass1Json.substring(0, 6000)}
+${params.pass1Json.substring(0, 4000)}
 
 ## PASS 2 OUTPUT (Editorial/Literary Insight)
-${params.pass2Json.substring(0, 6000)}
+${params.pass2Json.substring(0, 4000)}
 
 ## ORIGINAL MANUSCRIPT TEXT (for reference)
 ${promptWindow}

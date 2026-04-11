@@ -786,8 +786,21 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: `Job not found: ${jobError?.message}` };
     }
 
-    if (job.status !== 'queued') {
-      return { success: false, error: `Job status is ${job.status}, not queued` };
+    const progress =
+      job.progress && typeof job.progress === 'object'
+        ? (job.progress as Record<string, unknown>)
+        : {};
+
+    const isPhase1CompleteHandoff =
+      job.status === 'running' &&
+      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
+      (job.phase_status === 'complete' || progress.phase_status === 'complete');
+
+    if (job.status !== 'queued' && !isPhase1CompleteHandoff) {
+      return {
+        success: false,
+        error: `Job not eligible for processing. status=${job.status}, phase=${job.phase}, phase_status=${job.phase_status}`,
+      };
     }
 
     const progressState =
@@ -925,6 +938,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: missingCrossCheckConfigError };
     }
 
+    console.log(`[Processor] ${jobId}: ENTER runPipeline model=${getCanonicalPipelineModel(openAiModel)}`);
     const pipelineResult = await runPipeline({
       manuscriptText: manuscriptWithContent.content || '',
       workType: manuscriptWithContent.work_type || 'novel',
@@ -935,9 +949,16 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       manuscriptId: String(manuscriptWithContent.id),
       executionMode: 'TRUSTED_PATH',
     });
+    console.log(
+      `[Processor] ${jobId}: EXIT runPipeline ok=${pipelineResult.ok}` +
+        (pipelineResult.ok === false
+          ? ` failed_at=${pipelineResult.failed_at} code=${pipelineResult.error_code}`
+          : ''),
+    );
 
     if (pipelineResult.ok === false) {
       const pipelineError = `[Pipeline:${pipelineResult.failed_at}] ${pipelineResult.error_code} ${pipelineResult.error}`;
+      console.error(`[Processor] Pipeline failed for job ${jobId}: ${pipelineError}`);
       await markFailed(pipelineError);
 
       return { success: false, error: pipelineError };
@@ -962,6 +983,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       crossCheckResult: pipelineResult.cross_check,
       pass4Governance: pipelineResult.pass4_governance,
     });
+    console.log(
+      `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
+    );
 
     const promptCoverage = summarizePromptCoverage(manuscriptWithContent.content || '');
     evaluationResult.metrics.manuscript = {
@@ -1015,6 +1039,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     }
 
     try {
+      console.log(
+        `[Processor] ${jobId}: ENTER upsertEvaluationArtifact manuscriptId=${job.manuscript_id}`,
+      );
       const artifactId = await upsertEvaluationArtifact({
         supabase,
         jobId: job.id,
@@ -1025,6 +1052,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         artifactVersion: 'evaluation_result_v1',
       });
 
+      console.log(`[Processor] ${jobId}: EXIT upsertEvaluationArtifact id=${artifactId}`);
       console.log(`[Processor] Canonical artifact upserted: ${artifactId}`);
     } catch (artifactError) {
       const errorMsg = artifactError instanceof Error ? artifactError.message : String(artifactError);
@@ -1034,6 +1062,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     }
 
     // 6. Store evaluation result and mark complete only after artifact exists
+    console.log(`[Processor] ${jobId}: ENTER completion update`);
     const { error: updateError } = await supabase
       .from('evaluation_jobs')
       .update({
@@ -1060,6 +1089,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         updated_at: completionTime
       })
       .eq('id', jobId);
+    console.log(
+      `[Processor] ${jobId}: EXIT completion update error=${updateError ? updateError.message : 'none'}`,
+    );
 
     if (updateError) {
       await markFailed(`Completion update failed: ${updateError.message}`);
@@ -1117,6 +1149,7 @@ export async function processQueuedJobs(): Promise<{
     .from('evaluation_jobs')
     .select('id')
     .eq('status', 'queued')
+    .eq('phase_status', 'triggered')
     .order('created_at', { ascending: true })
     .limit(10); // Process max 10 jobs per run
 

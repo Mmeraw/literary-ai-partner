@@ -22,6 +22,76 @@ import {
 const PASS1_TEMPERATURE = 0.3;
 const PASS1_MAX_TOKENS = 4000;
 const PASS1_MODEL = "o3";
+const OPENAI_TIMEOUT_MS = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || "120000", 10);
+  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 120_000 ? parsed : 120_000;
+})();
+
+type CompletionChoice = {
+  message?: {
+    content?: unknown;
+    refusal?: unknown;
+  };
+  finish_reason?: unknown;
+};
+
+function extractResponseText(content: unknown): string {
+  if (typeof content === "string") {
+    return content.trim();
+  }
+
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  return content
+    .map((part) => {
+      if (typeof part === "string") {
+        return part;
+      }
+      if (typeof part !== "object" || part === null) {
+        return "";
+      }
+
+      const record = part as Record<string, unknown>;
+      if (typeof record.text === "string") {
+        return record.text;
+      }
+      if (typeof record.content === "string") {
+        return record.content;
+      }
+      return "";
+    })
+    .join("")
+    .trim();
+}
+
+function buildEmptyResponseDiagnostic(params: {
+  model: string;
+  completion: { choices?: unknown; usage?: CompletionUsage };
+  firstChoice: CompletionChoice | undefined;
+  rawContent: unknown;
+}): string {
+  const { model, completion, firstChoice, rawContent } = params;
+  const usage = completion.usage;
+  const finishReason =
+    typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
+  const contentType =
+    rawContent === null ? "null" : Array.isArray(rawContent) ? "array" : typeof rawContent;
+  const refusal =
+    typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined;
+  const choiceCount = Array.isArray(completion.choices) ? completion.choices.length : 0;
+
+  return (
+    `[Pass1] Empty response from OpenAI ` +
+    `(model=${model} finish_reason=${finishReason} content_type=${contentType} choices=${choiceCount} ` +
+    `max_output_tokens=${PASS1_MAX_TOKENS}` +
+    `${typeof usage?.prompt_tokens === "number" ? ` prompt_tokens=${usage.prompt_tokens}` : ""}` +
+    `${typeof usage?.completion_tokens === "number" ? ` completion_tokens=${usage.completion_tokens}` : ""}` +
+    `${typeof usage?.total_tokens === "number" ? ` total_tokens=${usage.total_tokens}` : ""}` +
+    `${refusal ? ` refusal=${JSON.stringify(refusal).slice(0, 120)}` : ""})`
+  );
+}
 
 /** Function signature for creating a chat completion (enables DI for testing). */
 export type CreateCompletionFn = (params: {
@@ -66,6 +136,8 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     executionMode: opts.executionMode,
   });
 
+  console.log(`[Pass1] completion request model=${selectedModel}`);
+
   const completion = await createCompletion({
     model: selectedModel,
     messages: [
@@ -77,9 +149,34 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     response_format: { type: "json_object" },
   });
 
-  const responseText = completion.choices[0]?.message?.content;
-  if (!responseText) {
-    throw new Error("[Pass1] Empty response from OpenAI");
+  const firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
+  const rawContent = firstChoice?.message?.content;
+  const responseText = extractResponseText(rawContent);
+
+  if (responseText.trim().length === 0) {
+    const diagnosticMessage = buildEmptyResponseDiagnostic({
+      model: selectedModel,
+      completion,
+      firstChoice,
+      rawContent,
+    });
+
+    console.error("[Pass1] Completion boundary diagnostic", {
+      model: selectedModel,
+      hasChoices: Array.isArray((completion as { choices?: unknown }).choices),
+      choiceCount: Array.isArray((completion as { choices?: unknown[] }).choices)
+        ? (completion as { choices: unknown[] }).choices.length
+        : 0,
+      finishReason:
+        typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown",
+      contentType: rawContent === null ? "null" : Array.isArray(rawContent) ? "array" : typeof rawContent,
+      contentPreview: typeof rawContent === "string" ? rawContent.slice(0, 160) : undefined,
+      usage: completion.usage,
+      maxOutputTokens: PASS1_MAX_TOKENS,
+      refusal:
+        typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined,
+    });
+    throw new Error(diagnosticMessage);
   }
 
   opts._onCompletion?.({
@@ -102,9 +199,12 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
   if (!apiKey) {
     throw new Error("[Pass1] OPENAI_API_KEY is not configured");
   }
-  const openai = new OpenAI({ apiKey, maxRetries: 0 });
+  const openai = new OpenAI({ apiKey, maxRetries: 0, timeout: OPENAI_TIMEOUT_MS });
   return (params) =>
-    openai.chat.completions.create(params as Parameters<typeof openai.chat.completions.create>[0]) as Promise<{
+    openai.chat.completions.create(
+      params as Parameters<typeof openai.chat.completions.create>[0],
+      { timeout: OPENAI_TIMEOUT_MS },
+    ) as Promise<{
       choices: { message: { content: string | null } }[];
       usage?: CompletionUsage;
     }>;

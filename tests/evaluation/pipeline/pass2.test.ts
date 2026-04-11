@@ -41,6 +41,27 @@ function mockCompletion(responseJson: string): CreateCompletionFn {
   });
 }
 
+/** Helper: build a mock completion function that returns structured content parts. */
+function arrayContentCompletion(responseJson: string): CreateCompletionFn {
+  return async () => ({
+    choices: [
+      {
+        message: {
+          content: [{ type: "output_text", text: responseJson }],
+        },
+      },
+    ],
+  });
+}
+
+/** Helper: build a mock completion with finish metadata but no usable content. */
+function lengthLimitedEmptyCompletion(): CreateCompletionFn {
+  return async () => ({
+    choices: [{ message: { content: null }, finish_reason: "length" }],
+    usage: { prompt_tokens: 650, completion_tokens: 4000, total_tokens: 4650 },
+  });
+}
+
 // ── Pure parser tests ─────────────────────────────────────────────────────────
 
 describe("parsePass2Response", () => {
@@ -143,5 +164,31 @@ describe("runPass2", () => {
         _createCompletion: emptyCompletion,
       }),
     ).rejects.toThrow();
+  });
+
+  it("accepts structured content-part arrays when the provider does not return a flat string", async () => {
+    const result = await runPass2({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: arrayContentCompletion(JSON.stringify(makePass2Fixture())),
+    });
+
+    expect(result.criteria).toHaveLength(13);
+  });
+
+  it("includes finish_reason and token usage in enriched empty-response errors", async () => {
+    await expect(
+      runPass2({
+        manuscriptText: "test",
+        workType: "literary_fiction",
+        title: "Test",
+        registry,
+        openaiApiKey: "sk-test",
+        _createCompletion: lengthLimitedEmptyCompletion(),
+      }),
+    ).rejects.toThrow("finish_reason=length");
   });
 });

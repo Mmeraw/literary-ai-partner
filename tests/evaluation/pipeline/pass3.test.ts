@@ -81,6 +81,27 @@ function nullCompletion(): CreateCompletionFn {
   });
 }
 
+/** Helper: build a mock completion function that returns content parts rather than a flat string. */
+function arrayContentCompletion(responseJson: string): CreateCompletionFn {
+  return async () => ({
+    choices: [
+      {
+        message: {
+          content: [{ type: "output_text", text: responseJson }],
+        },
+      },
+    ],
+  });
+}
+
+/** Helper: build a mock completion function that returns an empty response with finish metadata. */
+function lengthLimitedEmptyCompletion(): CreateCompletionFn {
+  return async () => ({
+    choices: [{ message: { content: null }, finish_reason: "length" }],
+    usage: { prompt_tokens: 1234, completion_tokens: 8000, total_tokens: 9234 },
+  });
+}
+
 // ── Pure parser tests ─────────────────────────────────────────────────────────
 
 describe("parsePass3Response", () => {
@@ -199,6 +220,35 @@ describe("runPass3Synthesis", () => {
         _createCompletion: nullCompletion(),
       }),
     ).rejects.toThrow("Empty response from OpenAI");
+  });
+
+  it("accepts content-part arrays when the provider returns structured content", async () => {
+    const result = await runPass3Synthesis({
+      pass1: makePassOutput(1, "craft_execution"),
+      pass2: makePassOutput(2, "editorial_literary"),
+      manuscriptText: "test",
+      title: "Test",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: arrayContentCompletion(JSON.stringify(makePass3Fixture())),
+    });
+
+    expect(result.criteria).toHaveLength(13);
+    expect(result.overall.verdict).toBe("revise");
+  });
+
+  it("surfaces finish_reason and token metadata when the response is empty", async () => {
+    await expect(
+      runPass3Synthesis({
+        pass1: makePassOutput(1, "craft_execution"),
+        pass2: makePassOutput(2, "editorial_literary"),
+        manuscriptText: "test",
+        title: "Test",
+        registry,
+        openaiApiKey: "sk-test",
+        _createCompletion: lengthLimitedEmptyCompletion(),
+      }),
+    ).rejects.toThrow("finish_reason=length");
   });
 });
 

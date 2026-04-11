@@ -22,8 +22,89 @@ import {
 import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from "./promptInput";
 
 const PASS3_TEMPERATURE = 0.2;
-const PASS3_MAX_TOKENS = 5000;
+const PASS3_MAX_TOKENS = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_PASS3_MAX_TOKENS || "9000", 10);
+  return Number.isFinite(parsed) && parsed >= 2000 && parsed <= 20000 ? parsed : 9000;
+})();
 const PASS3_MODEL = "o3";
+const OPENAI_TIMEOUT_MS = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || "120000", 10);
+  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 120_000 ? parsed : 120_000;
+})();
+
+type CompletionChoice = {
+  message?: {
+    content?: unknown;
+    refusal?: unknown;
+  };
+  finish_reason?: unknown;
+};
+
+function extractResponseText(content: unknown): string {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  return content
+    .map((part) => {
+      if (typeof part === "string") {
+        return part;
+      }
+      if (typeof part !== "object" || part === null) {
+        return "";
+      }
+
+      const record = part as Record<string, unknown>;
+      if (typeof record.text === "string") {
+        return record.text;
+      }
+
+      if (typeof record.content === "string") {
+        return record.content;
+      }
+
+      return "";
+    })
+    .join("")
+    .trim();
+}
+
+function buildEmptyResponseDiagnostic(params: {
+  model: string;
+  completion: { choices?: unknown; usage?: CompletionUsage };
+  firstChoice: CompletionChoice | undefined;
+  rawContent: unknown;
+  coverage: ReturnType<typeof summarizePromptCoverage>;
+  pass1Chars: number;
+  pass2Chars: number;
+}): string {
+  const { model, completion, firstChoice, rawContent, coverage, pass1Chars, pass2Chars } = params;
+  const usage = completion.usage;
+  const finishReason =
+    typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
+  const contentType =
+    rawContent === null ? "null" : Array.isArray(rawContent) ? "array" : typeof rawContent;
+  const refusal =
+    typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined;
+  const choiceCount = Array.isArray(completion.choices) ? completion.choices.length : 0;
+  const likelyBudgetPressure = finishReason === "length" ? " budget_exhausted_likely=true" : "";
+
+  return (
+    `[Pass3] Empty response from OpenAI ` +
+    `(model=${model} finish_reason=${finishReason} content_type=${contentType} choices=${choiceCount} ` +
+    `max_output_tokens=${PASS3_MAX_TOKENS} pass1_chars=${pass1Chars} pass2_chars=${pass2Chars} ` +
+    `reference_chars=${coverage.analyzedChars} source_chars=${coverage.sourceChars}` +
+    `${typeof usage?.prompt_tokens === "number" ? ` prompt_tokens=${usage.prompt_tokens}` : ""}` +
+    `${typeof usage?.completion_tokens === "number" ? ` completion_tokens=${usage.completion_tokens}` : ""}` +
+    `${typeof usage?.total_tokens === "number" ? ` total_tokens=${usage.total_tokens}` : ""}` +
+    `${refusal ? ` refusal=${JSON.stringify(refusal).slice(0, 120)}` : ""}` +
+    `${likelyBudgetPressure})`
+  );
+}
 
 /** Function signature for creating a chat completion (enables DI for testing). */
 export type CreateCompletionFn = (params: {
@@ -62,9 +143,12 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
   const selectedModel = getCanonicalPipelineModel(opts.model ?? PASS3_MODEL);
 
+  const pass1Json = JSON.stringify(opts.pass1, null, 2);
+  const pass2Json = JSON.stringify(opts.pass2, null, 2);
+
   const userPrompt = buildPass3UserPrompt({
-    pass1Json: JSON.stringify(opts.pass1, null, 2),
-    pass2Json: JSON.stringify(opts.pass2, null, 2),
+    pass1Json,
+    pass2Json,
     manuscriptText: opts.manuscriptText,
     title: opts.title,
     executionMode: opts.executionMode,
@@ -73,6 +157,8 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   // Compute coverage metadata (for truth enforcement)
   const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
   const coverage = summarizePromptCoverage(opts.manuscriptText, synthesisBudget);
+
+  console.log(`[Pass3] completion request model=${selectedModel}`);
 
   const completion = await createCompletion({
     model: selectedModel,
@@ -85,9 +171,40 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     response_format: { type: "json_object" },
   });
 
-  const responseText = completion.choices[0]?.message?.content;
-  if (!responseText) {
-    throw new Error("[Pass3] Empty response from OpenAI");
+  const firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
+  const rawContent = firstChoice?.message?.content;
+  const responseText = extractResponseText(rawContent);
+
+  if (responseText.trim().length === 0) {
+    const diagnosticMessage = buildEmptyResponseDiagnostic({
+      model: selectedModel,
+      completion,
+      firstChoice,
+      rawContent,
+      coverage,
+      pass1Chars: pass1Json.length,
+      pass2Chars: pass2Json.length,
+    });
+
+    console.error("[Pass3] Completion boundary diagnostic", {
+      model: selectedModel,
+      hasChoices: Array.isArray((completion as { choices?: unknown }).choices),
+      choiceCount: Array.isArray((completion as { choices?: unknown[] }).choices)
+        ? (completion as { choices: unknown[] }).choices.length
+        : 0,
+      finishReason:
+        typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown",
+      contentType: rawContent === null ? "null" : typeof rawContent,
+      contentPreview: typeof rawContent === "string" ? rawContent.slice(0, 160) : undefined,
+      usage: completion.usage,
+      pass1Chars: pass1Json.length,
+      pass2Chars: pass2Json.length,
+      promptCoverage: coverage,
+      maxOutputTokens: PASS3_MAX_TOKENS,
+      refusal:
+        typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined,
+    });
+    throw new Error(diagnosticMessage);
   }
 
   opts._onCompletion?.({
@@ -123,9 +240,12 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
   if (!apiKey) {
     throw new Error("[Pass3] OPENAI_API_KEY is not configured");
   }
-  const openai = new OpenAI({ apiKey, maxRetries: 0 });
+  const openai = new OpenAI({ apiKey, maxRetries: 0, timeout: OPENAI_TIMEOUT_MS });
   return (params) =>
-    openai.chat.completions.create(params as Parameters<typeof openai.chat.completions.create>[0]) as Promise<{
+    openai.chat.completions.create(
+      params as Parameters<typeof openai.chat.completions.create>[0],
+      { timeout: OPENAI_TIMEOUT_MS },
+    ) as Promise<{
       choices: { message: { content: string | null } }[];
       usage?: CompletionUsage;
     }>;
