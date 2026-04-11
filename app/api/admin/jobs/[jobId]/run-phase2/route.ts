@@ -2,23 +2,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { processEvaluationJob } from "@/lib/evaluation/processor";
 import { getDevHeaderActor } from "@/lib/auth/devHeaderActor";
 
-type Ok = { ok: true; job_id: string; phase2: "canonical_pipeline_complete" };
 type Err = { ok: false; error: string; details?: string };
 
 export async function POST(
   req: NextRequest,
   ctx: { params: { jobId: string } }
 ) {
-  // 1) Admin gate: dev header actor (test-mode only) OR production auth
+  // Admin gate: dev header actor OR production auth
   const actor = getDevHeaderActor(req);
-  if (actor?.isAdmin) {
-    // Dev-only admin bypass: TEST_MODE + ALLOW_HEADER_USER_ID are both true
-    // and actor has admin signal — continue to phase2 logic
-  } else {
-    // Production path: require real Supabase session + admin role
+  if (!actor?.isAdmin) {
     const denied = await requireAdmin(req);
     if (denied) return denied;
   }
@@ -30,7 +24,7 @@ export async function POST(
 
     const { data: jobRow, error: jobReadError } = await supabase
       .from("evaluation_jobs")
-      .select("id,status,last_error")
+      .select("id,status,phase,phase_status,progress,last_error")
       .eq("id", jobId)
       .single();
 
@@ -43,58 +37,89 @@ export async function POST(
       return NextResponse.json(payload, { status: 404 });
     }
 
-    if (jobRow.status !== "queued") {
-      if (!force) {
-        const payload: Err = {
-          ok: false,
-          error: "Job must be queued to run canonical phase2",
-          details: `Current status=${jobRow.status}. Re-run with ?force=1 to requeue and execute.`,
-        };
-        return NextResponse.json(payload, { status: 409 });
-      }
+    const progress =
+      jobRow.progress && typeof jobRow.progress === "object"
+        ? (jobRow.progress as Record<string, unknown>)
+        : {};
 
-      const { error: requeueError } = await supabase
-        .from("evaluation_jobs")
-        .update({
-          status: "queued",
-          phase: "phase_1",
-          phase_status: "queued",
-          last_error: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", jobId);
+    // Canon truth lives in progress.*, not top-level phase helpers.
+    const isPhase1CompleteHandoff =
+      jobRow.status === "running" &&
+      progress.phase === "phase_1" &&
+      progress.phase_status === "complete";
 
-      if (requeueError) {
-        const payload: Err = {
-          ok: false,
-          error: "Failed to requeue job",
-          details: requeueError.message,
-        };
-        return NextResponse.json(payload, { status: 500 });
-      }
-    }
-
-    const result = await processEvaluationJob(jobId);
-
-    if (!result.success) {
+    if (!isPhase1CompleteHandoff && !force) {
       const payload: Err = {
         ok: false,
-        error: "Failed to run canonical phase2",
-        details: result.error,
+        error: "Job is not eligible for Phase 2 trigger",
+        details: `status=${jobRow.status}, phase=${progress.phase}, phase_status=${progress.phase_status}`,
+      };
+      return NextResponse.json(payload, { status: 409 });
+    }
+
+    const now = new Date().toISOString();
+
+    const updatePayload = {
+      status: "queued",
+      phase: "phase_2",
+      phase_status: "queued",
+      last_error: null,
+      updated_at: now,
+    };
+
+    let updateQuery = supabase
+      .from("evaluation_jobs")
+      .update(updatePayload)
+      .eq("id", jobId)
+      .select("id");
+
+    if (!force) {
+      updateQuery = updateQuery
+        .eq("status", "running")
+        .eq("phase", "phase_1")
+        .eq("phase_status", "complete");
+    }
+
+    const { data: updatedRows, error: updateError } = await updateQuery;
+
+    if (updateError) {
+      const payload: Err = {
+        ok: false,
+        error: "Failed to queue job for worker execution",
+        details: updateError.message,
       };
       return NextResponse.json(payload, { status: 500 });
     }
 
-    const payload: Ok = {
-      ok: true,
+    if (!updatedRows || updatedRows.length !== 1) {
+      const payload: Err = {
+        ok: false,
+        error: force
+          ? "Phase 2 trigger failed: job row was not updated."
+          : "Phase 2 trigger lost race or job state changed before update.",
+      };
+      return NextResponse.json(payload, { status: 409 });
+    }
+
+    console.log("AdminPhase2Triggered", {
       job_id: jobId,
-      phase2: "canonical_pipeline_complete",
-    };
-    return NextResponse.json(payload, { status: 200 });
+      trigger_time: now,
+      force,
+    });
+
+    return NextResponse.json(
+      {
+        ok: true,
+        job_id: jobId,
+        status: "queued",
+        phase2: "canonical_pipeline_queued",
+      },
+      { status: 202 }
+    );
   } catch (err) {
     const payload: Err = {
       ok: false,
-      error: "Failed to run phase2",
+      error: "Failed to trigger phase2",
       details: err instanceof Error ? err.message : "Unknown error",
     };
     return NextResponse.json(payload, { status: 500 });

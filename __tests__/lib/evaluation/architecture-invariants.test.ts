@@ -41,7 +41,7 @@ describe("evaluation architecture invariants", () => {
     }
   });
 
-  test("run-phase2 API routes are wired to canonical processor path", () => {
+  test("run-phase2 API routes are pure queue triggers (no inline execution)", () => {
     const runPhase2Routes = [
       "app/api/admin/jobs/[jobId]/run-phase2/route.ts",
       "app/api/jobs/[jobId]/run-phase2/route.ts",
@@ -51,10 +51,20 @@ describe("evaluation architecture invariants", () => {
       const filePath = path.join(repoRoot, relativePath);
       const code = fs.readFileSync(filePath, "utf8");
 
-      expect(code).toContain("processEvaluationJob");
-      expect(code).toContain("@/lib/evaluation/processor");
+      // Routes must NOT inline-execute the pipeline
+      expect(code).not.toContain("processEvaluationJob");
+      expect(code).not.toContain("@/lib/evaluation/processor");
       expect(code).not.toContain("runPhase2Aggregation");
       expect(code).not.toContain("@/lib/jobs/phase2");
+      // Routes must write canonical phase_2 queue state
+      expect(code).toContain('phase: "phase_2"');
+      expect(code).toContain('phase_status: "queued"');
+      // Non-force updates must use CAS predicates (no loose update-by-id)
+      expect(code).toContain('.eq("status", "running")');
+      expect(code).toContain('.eq("phase", "phase_1")');
+      expect(code).toContain('.eq("phase_status", "complete")');
+      expect(code).toContain("canonical_pipeline_queued");
+      expect(code).toContain("status: 202");
     }
   });
 

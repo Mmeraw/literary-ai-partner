@@ -14,14 +14,14 @@ import { GovernanceError } from "../errors";
 
 describe("canonRegistry", () => {
   describe("CANON_REGISTRY", () => {
-    it("should have exactly 16 ACTIVE entries", () => {
+    it("should have exactly 30 ACTIVE entries", () => {
       let activeCount = 0;
       for (const entry of CANON_REGISTRY.values()) {
         if (entry.status === "ACTIVE") {
           activeCount++;
         }
       }
-      expect(activeCount).toBe(16);
+      expect(activeCount).toBe(30);
     });
 
     it("should include all 13 canonical criteria", () => {
