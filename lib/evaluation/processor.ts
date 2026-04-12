@@ -72,6 +72,7 @@ import {
   getExternalAdjudicationMode,
 } from '@/lib/evaluation/policy';
 import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
+import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -87,6 +88,16 @@ const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
 const staleRunningMinutes = (() => {
   const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);
   return Number.isFinite(parsed) && parsed >= 1 && parsed <= 240 ? parsed : 10;
+})();
+const evalContextContaminationGuardEnabled = (() => {
+  const raw = (process.env.EVAL_CONTEXT_CONTAMINATION_GUARD || 'auto').trim().toLowerCase();
+  if (raw === 'true' || raw === '1' || raw === 'yes' || raw === 'on') {
+    return true;
+  }
+  if (raw === 'false' || raw === '0' || raw === 'no' || raw === 'off') {
+    return false;
+  }
+  return process.env.NODE_ENV === 'production';
 })();
 
 interface EvaluationJob {
@@ -986,6 +997,23 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     console.log(
       `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
     );
+
+    if (evalContextContaminationGuardEnabled) {
+      const contaminationCheck = detectContextContamination({
+        sourceText: manuscriptWithContent.content || '',
+        evaluationResult,
+      });
+
+      if (contaminationCheck.contaminated) {
+        console.error(`[Processor] ${jobId}: context contamination detected`, {
+          offending_entities: contaminationCheck.offendingEntities,
+          reasons: contaminationCheck.reasons,
+        });
+        await markFailed('CONTEXT_CONTAMINATION_DETECTED');
+
+        return { success: false, error: 'CONTEXT_CONTAMINATION_DETECTED' };
+      }
+    }
 
     const promptCoverage = summarizePromptCoverage(manuscriptWithContent.content || '');
     evaluationResult.metrics.manuscript = {
