@@ -53,7 +53,7 @@ export class StubLlmClient implements LlmClient {
     // All 13 schema-layer keys — mapped by adaptResultToCriteria() via SCHEMA_TO_CANON
     const criteriaKeys = [
       "concept",
-      "momentum",
+      "narrativeDrive",
       "character",
       "voice",
       "sceneConstruction",
