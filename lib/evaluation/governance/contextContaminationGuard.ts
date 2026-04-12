@@ -74,14 +74,8 @@ const SAFE_EVALUATION_WORDS_LIST = Object.freeze([
   "criteria",
   "foundation",
   "foundations",
-  "sustain",
-  "softens",
-  "passages",
   "clearer",
-  "they",
-  "their",
   "them",
-  "strong",
   "clear",
   "effective",
   "weak",
@@ -92,8 +86,6 @@ const HARD_FAIL_TOKENS = Object.freeze([
   "maria",
   "cartel",
   "sinaloa",
-  "father",
-  "daughter",
 ]);
 
 const TOKEN_PATTERN = /[a-z]+/g;
