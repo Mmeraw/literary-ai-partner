@@ -14,6 +14,8 @@
  *   QG_CRITERIA_MISSING   — output does not contain all 13 criteria
  *   QG_SCORE_RANGE        — score not in integer 0-10
  *   QG_CONSEQUENCE_CONTRACT — missing pressure/decision/consequence contract fields
+ *   QG_THIN_RATIONALE      — criterion rationale < 40 chars
+ *   QG_LOW_EVIDENCE_COVERAGE — too many criteria lack substantive evidence snippets
  *   QG_INDEPENDENCE_VIOLATION — Pass 2 reuses non-manuscript rationale phrasing from Pass 1
  */
 
@@ -26,6 +28,9 @@ export const QG_MAX_EVIDENCE_LENGTH = 200;
 export const QG_MAX_OVERVIEW_LENGTH = 500;
 export const QG_INDEPENDENCE_NGRAM_SIZE = 8;
 export const QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION = 2;
+export const QG_MIN_RATIONALE_LENGTH = 40;
+export const QG_MIN_EVIDENCE_COVERED_CRITERIA = 10;
+export const QG_MIN_EVIDENCE_SNIPPET_LENGTH = 20;
 
 function tokenizeForOverlap(text: string): string[] {
   return text
@@ -218,7 +223,45 @@ export function runQualityGate(
         : "No duplicated recommendations",
   });
 
-  // ── Check 8: Pass independence (rationale phrasing only; calibrated) ─────
+  // ── Check 8: Rationale coverage (≥40 chars per criterion) ───────────────
+  const thinRationales: string[] = [];
+  for (const c of synthesis.criteria) {
+    if (c.final_rationale.trim().length < QG_MIN_RATIONALE_LENGTH) {
+      thinRationales.push(`${c.key} (${c.final_rationale.trim().length} chars)`);
+    }
+  }
+  checks.push({
+    check_id: "rationale_coverage",
+    passed: thinRationales.length === 0,
+    error_code: thinRationales.length > 0 ? "QG_THIN_RATIONALE" : undefined,
+    details:
+      thinRationales.length > 0
+        ? `${thinRationales.length} criterion/criteria have rationale < ${QG_MIN_RATIONALE_LENGTH} chars: ${thinRationales.join(", ")}`
+        : `All criteria have substantive rationale (≥ ${QG_MIN_RATIONALE_LENGTH} chars)`,
+  });
+
+  // ── Check 9: Evidence coverage (≥10 of 13 must have ≥1 snippet ≥20 chars) ──
+  const maxPermittedGaps = CRITERIA_KEYS.length - QG_MIN_EVIDENCE_COVERED_CRITERIA;
+  const underEvidenced: string[] = [];
+  for (const c of synthesis.criteria) {
+    const hasSubstantiveEvidence = c.evidence.some(
+      (e) => e.snippet.trim().length >= QG_MIN_EVIDENCE_SNIPPET_LENGTH,
+    );
+    if (!hasSubstantiveEvidence) {
+      underEvidenced.push(c.key);
+    }
+  }
+  checks.push({
+    check_id: "evidence_coverage",
+    passed: underEvidenced.length <= maxPermittedGaps,
+    error_code: underEvidenced.length > maxPermittedGaps ? "QG_LOW_EVIDENCE_COVERAGE" : undefined,
+    details:
+      underEvidenced.length > 0
+        ? `${underEvidenced.length} criterion/criteria lack substantive evidence: ${underEvidenced.join(", ")} (max ${maxPermittedGaps} permitted)`
+        : "All criteria have substantive evidence",
+  });
+
+  // ── Check 10: Pass independence (rationale phrasing only; calibrated) ────
   if (pass1 && pass2) {
     const ngramSize = QG_INDEPENDENCE_NGRAM_SIZE;
 
