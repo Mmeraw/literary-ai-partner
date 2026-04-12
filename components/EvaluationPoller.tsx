@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getProgressDisplay } from '@/components/evaluation-poller-display';
 import { useRouter } from 'next/navigation';
 
 /**
@@ -356,21 +357,26 @@ export function EvaluationPoller({
           <p className={`text-lg font-semibold ${statusColor}`}>{statusLabel}</p>
         </div>
 
-        {/* Progress Bar */}
-        {job.status !== 'queued' && job.status !== 'complete' && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-700">Progress</p>
-              <p className="text-sm text-gray-600">{job.progress}%</p>
+                {/* Progress Bar */}
+        {(() => {
+          const pd = getProgressDisplay(job);
+          if (!pd) return null;
+          return (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-gray-700">{pd.label}</p>
+                <p className="text-sm text-gray-600">{pd.valueLabel}</p>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-300 ${pd.indeterminate ? 'bg-gray-400 animate-pulse' : 'bg-blue-600'}`}
+                  style={{ width: pd.indeterminate ? '100%' : `${pd.percentage}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-500">{pd.helperText}</p>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${job.progress}%` }}
-              />
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Timestamps */}
         <div className="grid grid-cols-2 gap-4 text-sm">
