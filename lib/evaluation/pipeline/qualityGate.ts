@@ -15,11 +15,13 @@
  *   QG_SCORE_RANGE        — score not in integer 0-10
  *   QG_CONSEQUENCE_CONTRACT — missing pressure/decision/consequence contract fields
  *   QG_THIN_RATIONALE      — criterion rationale < 40 chars
+ *   QG_PLACEHOLDER_RATIONALE — criterion rationale includes known placeholder phrasing
  *   QG_LOW_EVIDENCE_COVERAGE — too many criteria lack substantive evidence snippets
+ *   QG_MISSING_REQUIRED_EVIDENCE — required spine criteria missing substantive evidence snippets
  *   QG_INDEPENDENCE_VIOLATION — Pass 2 reuses non-manuscript rationale phrasing from Pass 1
  */
 
-import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
 import type { SynthesisOutput, QualityGateResult, QualityGateCheck, SinglePassOutput } from "./types";
 
 export const QG_MIN_REC_LENGTH = 50;
@@ -31,6 +33,34 @@ export const QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION = 2;
 export const QG_MIN_RATIONALE_LENGTH = 40;
 export const QG_MIN_EVIDENCE_COVERED_CRITERIA = 10;
 export const QG_MIN_EVIDENCE_SNIPPET_LENGTH = 20;
+export const QG_PLACEHOLDER_RATIONALE_PATTERNS = Object.freeze([
+  "not directly scored",
+  "no explicit evaluation supplied",
+  "default neutral score",
+  "neither pass supplied",
+  "placeholder",
+]);
+export const QG_SPINE_CRITERIA_REQUIRED_EVIDENCE = Object.freeze<CriterionKey[]>([
+  "concept",
+  "narrativeDrive",
+  "character",
+  "voice",
+  "sceneConstruction",
+]);
+
+export type QualityGateFailureTelemetry = {
+  total_failed_checks: number;
+  failures_by_error_code: Record<string, number>;
+  failed_check_ids: string[];
+};
+
+function normalizeForPhraseMatch(text: string): string {
+  return (text || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function hasSubstantiveEvidence(evidence: Array<{ snippet: string }>): boolean {
+  return evidence.some((e) => e.snippet.trim().length >= QG_MIN_EVIDENCE_SNIPPET_LENGTH);
+}
 
 function tokenizeForOverlap(text: string): string[] {
   return text
@@ -240,14 +270,32 @@ export function runQualityGate(
         : `All criteria have substantive rationale (≥ ${QG_MIN_RATIONALE_LENGTH} chars)`,
   });
 
+  // ── Check 8b: Placeholder rationale phrase detection ───────────────────
+  const placeholderRationales: string[] = [];
+  for (const c of synthesis.criteria) {
+    const normalizedRationale = normalizeForPhraseMatch(c.final_rationale);
+    const matchedPattern = QG_PLACEHOLDER_RATIONALE_PATTERNS.find((pattern) =>
+      normalizedRationale.includes(pattern),
+    );
+    if (matchedPattern) {
+      placeholderRationales.push(`${c.key} (matched: "${matchedPattern}")`);
+    }
+  }
+  checks.push({
+    check_id: "placeholder_rationale",
+    passed: placeholderRationales.length === 0,
+    error_code: placeholderRationales.length > 0 ? "QG_PLACEHOLDER_RATIONALE" : undefined,
+    details:
+      placeholderRationales.length > 0
+        ? `${placeholderRationales.length} criterion/criteria contain placeholder rationale language: ${placeholderRationales.join(", ")}`
+        : "No known placeholder rationale patterns detected",
+  });
+
   // ── Check 9: Evidence coverage (≥10 of 13 must have ≥1 snippet ≥20 chars) ──
   const maxPermittedGaps = CRITERIA_KEYS.length - QG_MIN_EVIDENCE_COVERED_CRITERIA;
   const underEvidenced: string[] = [];
   for (const c of synthesis.criteria) {
-    const hasSubstantiveEvidence = c.evidence.some(
-      (e) => e.snippet.trim().length >= QG_MIN_EVIDENCE_SNIPPET_LENGTH,
-    );
-    if (!hasSubstantiveEvidence) {
+    if (!hasSubstantiveEvidence(c.evidence)) {
       underEvidenced.push(c.key);
     }
   }
@@ -259,6 +307,24 @@ export function runQualityGate(
       underEvidenced.length > 0
         ? `${underEvidenced.length} criterion/criteria lack substantive evidence: ${underEvidenced.join(", ")} (max ${maxPermittedGaps} permitted)`
         : "All criteria have substantive evidence",
+  });
+
+  // ── Check 9b: Spine criteria must always include substantive evidence ───
+  const missingRequiredEvidence: string[] = [];
+  for (const requiredKey of QG_SPINE_CRITERIA_REQUIRED_EVIDENCE) {
+    const criterion = synthesis.criteria.find((c) => c.key === requiredKey);
+    if (!criterion || !hasSubstantiveEvidence(criterion.evidence)) {
+      missingRequiredEvidence.push(requiredKey);
+    }
+  }
+  checks.push({
+    check_id: "required_evidence_spine",
+    passed: missingRequiredEvidence.length === 0,
+    error_code: missingRequiredEvidence.length > 0 ? "QG_MISSING_REQUIRED_EVIDENCE" : undefined,
+    details:
+      missingRequiredEvidence.length > 0
+        ? `Required spine criteria missing substantive evidence: ${missingRequiredEvidence.join(", ")}`
+        : "All required spine criteria include substantive evidence",
   });
 
   // ── Check 10: Pass independence (rationale phrasing only; calibrated) ────
@@ -329,5 +395,21 @@ export function runQualityGate(
     pass: failedHardChecks.length === 0,
     checks,
     warnings,
+  };
+}
+
+export function summarizeQualityGateFailures(checks: QualityGateCheck[]): QualityGateFailureTelemetry {
+  const failedChecks = checks.filter((c) => !c.passed);
+  const failuresByErrorCode: Record<string, number> = {};
+
+  for (const check of failedChecks) {
+    const errorCode = check.error_code ?? "QG_UNKNOWN";
+    failuresByErrorCode[errorCode] = (failuresByErrorCode[errorCode] ?? 0) + 1;
+  }
+
+  return {
+    total_failed_checks: failedChecks.length,
+    failures_by_error_code: failuresByErrorCode,
+    failed_check_ids: failedChecks.map((c) => c.check_id),
   };
 }
