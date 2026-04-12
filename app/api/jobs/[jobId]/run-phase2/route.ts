@@ -55,7 +55,7 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
   const updatePayload = {
     status: "queued",
     phase: "phase_2",
-    phase_status: "queued",
+    phase_status: "triggered",
     last_error: null,
     updated_at: now,
   };
