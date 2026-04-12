@@ -33,6 +33,7 @@ Your job is to compare, expose agreement and divergence, and produce a governed 
 5. Preserve narrative-mode awareness: do NOT flatten documentary/dossier/reflective chapters into generic scene-work judgments.
 6. For each criterion, explicitly trace: pressure signal -> decision inflection -> consequence trajectory.
 7. Do NOT leave consequence state implicit; classify each criterion as landed, deferred, or dissipated.
+8. Never emit canned fallback rationale phrases (e.g., "neither pass supplied", "default neutral score", "placeholder").
 
 ### Score Reconciliation
 - If craft_score and editorial_score differ by ≤2: use the mathematical average (rounded to nearest integer)  

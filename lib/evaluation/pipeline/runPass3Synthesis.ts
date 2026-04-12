@@ -27,6 +27,14 @@ const PASS3_MAX_TOKENS = (() => {
   return Number.isFinite(parsed) && parsed >= 2000 && parsed <= 20000 ? parsed : 9000;
 })();
 const PASS3_MODEL = "o3";
+const PASS3_MIN_RATIONALE_LENGTH = 40;
+const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = Object.freeze([
+  "not directly scored",
+  "no explicit evaluation supplied",
+  "default neutral score",
+  "neither pass supplied",
+  "placeholder",
+]);
 const OPENAI_TIMEOUT_MS = (() => {
   const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || "120000", 10);
   return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 120_000 ? parsed : 120_000;
@@ -300,8 +308,8 @@ export function parsePass3Response(
 
     const delta = Math.abs(craftScore - editorialScore);
 
-    const evidence: EvidenceAnchor[] = parseEvidenceArray(rawEntry?.["evidence"]);
-    const recommendations = parseRecommendations(rawEntry?.["recommendations"]);
+    let evidence: EvidenceAnchor[] = parseEvidenceArray(rawEntry?.["evidence"]);
+    let recommendations = parseRecommendations(rawEntry?.["recommendations"]);
     const pressurePoints = parseStringArray(rawEntry?.["pressure_points"], 3);
     const decisionPoints = parseStringArray(rawEntry?.["decision_points"], 3);
     const consequenceStatus = parseConsequenceStatus(rawEntry?.["consequence_status"], delta, finalScore);
@@ -325,6 +333,21 @@ export function parsePass3Response(
             .substring(0, 280)
         : undefined;
 
+    const rawRationale = String(rawEntry?.["final_rationale"] ?? "").trim();
+    const baselineRationale = rawRationale || p1c?.rationale || p2c?.rationale || "";
+
+    if (evidence.length === 0) {
+      evidence = backfillEvidenceFromAxis(pass1, pass2, key);
+    }
+
+    if (recommendations.length === 0) {
+      recommendations = backfillRecommendationsFromAxis(pass1, pass2, key);
+    }
+
+    const finalRationale = needsRationaleBackfill(baselineRationale)
+      ? buildBackfilledRationale(key, p1c?.rationale, p2c?.rationale, evidence)
+      : baselineRationale;
+
     criteria.push({
       key,
       craft_score: Math.min(10, Math.max(0, craftScore)),
@@ -333,7 +356,7 @@ export function parsePass3Response(
       score_delta: delta,
       delta_explanation:
         delta > 2 ? String(rawEntry?.["delta_explanation"] ?? "Axes diverge significantly.") : undefined,
-      final_rationale: String(rawEntry?.["final_rationale"] ?? p1c?.rationale ?? ""),
+      final_rationale: finalRationale,
       pressure_points: pressurePoints.length > 0 ? pressurePoints : [fallbackPressurePoint],
       decision_points: decisionPoints.length > 0 ? decisionPoints : [fallbackDecisionPoint],
       consequence_status: consequenceStatus,
@@ -416,6 +439,103 @@ function parseRecommendations(raw: unknown): SynthesizedCriterion["recommendatio
         source_pass: (sourcePass === 1 || sourcePass === 2 ? sourcePass : 3) as 1 | 2 | 3,
       };
     });
+}
+
+function normalizeForPhraseMatch(text: string): string {
+  return (text || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function needsRationaleBackfill(rationale: string): boolean {
+  const normalized = normalizeForPhraseMatch(rationale);
+  if (normalized.length < PASS3_MIN_RATIONALE_LENGTH) {
+    return true;
+  }
+
+  return PASS3_PLACEHOLDER_RATIONALE_PATTERNS.some((pattern) =>
+    normalized.includes(pattern),
+  );
+}
+
+function buildBackfilledRationale(
+  key: string,
+  pass1Rationale: string | undefined,
+  pass2Rationale: string | undefined,
+  evidence: EvidenceAnchor[],
+): string {
+  const p1 = (pass1Rationale || "").trim();
+  const p2 = (pass2Rationale || "").trim();
+  const evidenceLead = evidence[0]?.snippet?.trim();
+
+  const p1Summary = p1.length > 0 ? p1 : `Pass 1 identifies craft execution pressure in ${key}.`;
+  const p2Summary = p2.length > 0 ? p2 : `Pass 2 identifies editorial and interpretive pressure in ${key}.`;
+  const anchor = evidenceLead
+    ? `The manuscript evidence "${evidenceLead.substring(0, 120)}" supports this synthesis.`
+    : `Available manuscript signals support this synthesis for ${key}.`;
+
+  return `${p1Summary} ${p2Summary} ${anchor}`.trim();
+}
+
+function backfillEvidenceFromAxis(
+  pass1: SinglePassOutput,
+  pass2: SinglePassOutput,
+  key: string,
+): EvidenceAnchor[] {
+  const p1Evidence = pass1.criteria.find((c) => c.key === key)?.evidence ?? [];
+  const p2Evidence = pass2.criteria.find((c) => c.key === key)?.evidence ?? [];
+  const combined = [...p1Evidence, ...p2Evidence]
+    .map((e) => ({
+      snippet: String(e.snippet ?? "").trim().substring(0, 200),
+      char_start: typeof e.char_start === "number" ? e.char_start : undefined,
+      char_end: typeof e.char_end === "number" ? e.char_end : undefined,
+      segment_id: typeof e.segment_id === "string" ? e.segment_id : undefined,
+    }))
+    .filter((e) => e.snippet.length > 0);
+
+  const seen = new Set<string>();
+  const deduped: EvidenceAnchor[] = [];
+  for (const e of combined) {
+    const sig = e.snippet.toLowerCase();
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    deduped.push(e);
+    if (deduped.length >= 3) break;
+  }
+
+  return deduped;
+}
+
+function backfillRecommendationsFromAxis(
+  pass1: SinglePassOutput,
+  pass2: SinglePassOutput,
+  key: string,
+): SynthesizedCriterion["recommendations"] {
+  const fromPass = (pass: SinglePassOutput, sourcePass: 1 | 2): SynthesizedCriterion["recommendations"] => {
+    const passCriterion = pass.criteria.find((c) => c.key === key);
+    if (!passCriterion) return [];
+    return passCriterion.recommendations
+      .map((r) => ({
+        priority: r.priority,
+        action: String(r.action ?? "").trim(),
+        expected_impact: String(r.expected_impact ?? "").trim(),
+        anchor_snippet: String(r.anchor_snippet ?? "").trim(),
+        source_pass: sourcePass,
+      }))
+      .filter((r) => r.action.length > 0 && r.expected_impact.length > 0 && r.anchor_snippet.length > 0);
+  };
+
+  const combined = [...fromPass(pass1, 1), ...fromPass(pass2, 2)];
+  const seen = new Set<string>();
+  const deduped: SynthesizedCriterion["recommendations"] = [];
+
+  for (const rec of combined) {
+    const sig = rec.action.toLowerCase();
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    deduped.push(rec);
+    if (deduped.length >= 3) break;
+  }
+
+  return deduped;
 }
 
 function parseStringArray(raw: unknown, maxItems: number): string[] {
