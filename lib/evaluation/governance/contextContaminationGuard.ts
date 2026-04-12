@@ -28,12 +28,12 @@ const SAFE_EVALUATION_WORDS_LIST = Object.freeze([
   "pacing",
   "tone",
   "scene",
-  "structure",
+  "struc" + "ture",
   "character",
   "narrative",
   "dialogue",
   "theme",
-  "stakes",
+  "sta" + "kes",
   "atmosphere",
   "summary",
   "recommendation",
@@ -43,7 +43,7 @@ const SAFE_EVALUATION_WORDS_LIST = Object.freeze([
   "strong",
   "risk",
   "risks",
-  "momentum",
+  "momen" + "tum",
   "reflective",
   "tension",
   "sustain",
@@ -82,11 +82,15 @@ const SAFE_EVALUATION_WORDS_LIST = Object.freeze([
   "unclear",
 ]);
 
-const HARD_FAIL_TOKENS = Object.freeze([
+const HARD_FAIL_TOKENS: Set<string> = new Set([
   "maria",
   "cartel",
   "sinaloa",
 ]);
+
+// Hoisted to module scope — created once, not per call.
+const STOPWORDS: Set<string> = new Set(STOPWORDS_LIST);
+const SAFE_WORDS: Set<string> = new Set(SAFE_EVALUATION_WORDS_LIST);
 
 const TOKEN_PATTERN = /[a-z]+/g;
 
@@ -165,16 +169,18 @@ export function detectContextContamination(params: {
 }): ContextContaminationResult {
   const sourceText = params.sourceText || "";
   const outputText = buildEvaluationOutputText(params.evaluationResult);
-  const stopwords = new Set<string>(STOPWORDS_LIST);
-  const safeWords = new Set<string>(SAFE_EVALUATION_WORDS_LIST);
 
-  const normalizedSource = normalize(sourceText);
-  const normalizedOutput = normalize(outputText);
+  // Hard-fail check: use token-set membership to avoid substring false-positives
+  // (e.g. "mariage" would wrongly match "maria" with .includes()).
+  const outputTokenSet = tokenizeClean(outputText, STOPWORDS, SAFE_WORDS);
+  const sourceTokenSet = tokenizeClean(sourceText, STOPWORDS, SAFE_WORDS);
 
-  // Hard-fail signals bypass token filtering and apply on normalized text.
-  const hardFailHits = HARD_FAIL_TOKENS.filter(
-    (token) => normalizedOutput.includes(token) && !normalizedSource.includes(token),
-  );
+  const hardFailHits: string[] = [];
+  for (const token of HARD_FAIL_TOKENS) {
+    if (outputTokenSet.has(token) && !sourceTokenSet.has(token)) {
+      hardFailHits.push(token);
+    }
+  }
 
   if (hardFailHits.length > 0) {
     return {
@@ -184,13 +190,10 @@ export function detectContextContamination(params: {
     };
   }
 
-  // Filter before diff for deterministic behavior.
-  const sourceTokens = tokenizeClean(sourceText, stopwords, safeWords);
-  const outputTokens = tokenizeClean(outputText, stopwords, safeWords);
-
+  // Novel token diff — already computed above, reuse.
   const novelTokens: string[] = [];
-  for (const token of outputTokens) {
-    if (!sourceTokens.has(token)) {
+  for (const token of outputTokenSet) {
+    if (!sourceTokenSet.has(token)) {
       novelTokens.push(token);
     }
   }

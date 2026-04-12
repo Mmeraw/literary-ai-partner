@@ -20,7 +20,7 @@ const mockGetDevHeaderActor = getDevHeaderActor as jest.MockedFunction<typeof ge
 describe("POST /api/evaluate input contract", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetDevHeaderActor.mockReturnValue({ userId: "user-1", source: "header" });
+    mockGetDevHeaderActor.mockReturnValue({ userId: "user-1", isAdmin: false });
   });
 
   test("returns 400 when both manuscript_id and manuscript_text are provided", async () => {
