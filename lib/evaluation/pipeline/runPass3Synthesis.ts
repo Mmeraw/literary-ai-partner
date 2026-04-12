@@ -20,6 +20,7 @@ import {
   getCanonicalPipelineModel,
 } from "@/lib/evaluation/policy";
 import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from "./promptInput";
+import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 
 const PASS3_TEMPERATURE = 0.2;
 const PASS3_MAX_TOKENS = (() => {
@@ -28,13 +29,7 @@ const PASS3_MAX_TOKENS = (() => {
 })();
 const PASS3_MODEL = "o3";
 const PASS3_MIN_RATIONALE_LENGTH = 40;
-const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = Object.freeze([
-  "not directly scored",
-  "no explicit evaluation supplied",
-  "default neutral score",
-  "neither pass supplied",
-  "placeholder",
-]);
+const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
 const OPENAI_TIMEOUT_MS = (() => {
   const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || "120000", 10);
   return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 120_000 ? parsed : 120_000;

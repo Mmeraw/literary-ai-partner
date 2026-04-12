@@ -22,6 +22,7 @@
  */
 
 import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
+import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 import type { SynthesisOutput, QualityGateResult, QualityGateCheck, SinglePassOutput } from "./types";
 
 export const QG_MIN_REC_LENGTH = 50;
@@ -33,13 +34,7 @@ export const QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION = 2;
 export const QG_MIN_RATIONALE_LENGTH = 40;
 export const QG_MIN_EVIDENCE_COVERED_CRITERIA = 10;
 export const QG_MIN_EVIDENCE_SNIPPET_LENGTH = 20;
-export const QG_PLACEHOLDER_RATIONALE_PATTERNS = Object.freeze([
-  "not directly scored",
-  "no explicit evaluation supplied",
-  "default neutral score",
-  "neither pass supplied",
-  "placeholder",
-]);
+export const QG_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
 export const QG_SPINE_CRITERIA_REQUIRED_EVIDENCE = Object.freeze<CriterionKey[]>([
   "concept",
   "narrativeDrive",
