@@ -144,7 +144,6 @@ export async function runPhase1(jobId: string): Promise<void> {
   // Canonical progress init — do NOT mark the whole job COMPLETE here
   // (lease acquire already set status="running")
   await updateJob(jobId, {
-    status: JOB_STATUS.RUNNING,
     progress: {
       message: `Initializing Phase 1 - ${eligibleChunks.length} chunks to process (${doneChunks} already done)`,
       total_units: allChunks.length,
@@ -391,11 +390,9 @@ export async function runPhase1(jobId: string): Promise<void> {
       });
     }
   } else if (final_phase_status === PHASE_1_STATES.COMPLETED) {
-    // Phase 1 completed (either fully or partially)
-    // IMPORTANT: worker is done; job should not remain "running"
-    // Queue the job for Phase 2 and clear lease immediately.
+    // Phase 1 completed (either fully or partially).
+    // Do not mutate lifecycle status here; update execution/progress fields only.
     await updateJob(jobId, {
-      status: JOB_STATUS.QUEUED,
       progress: {
         message,
         finished_at,
@@ -412,7 +409,6 @@ export async function runPhase1(jobId: string): Promise<void> {
   } else {
     // RUNNING state - work remains, allow resume
     await updateJob(jobId, {
-      status: JOB_STATUS.RUNNING,
       progress: {
         message,
         phase: PHASES.PHASE_1,

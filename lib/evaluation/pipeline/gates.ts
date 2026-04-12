@@ -6,6 +6,7 @@ import type { ValidityState } from "@/lib/governance/types";
 // EG-9 (Structural completeness)
 
 import type { CriterionKey } from "@/lib/governance/canonicalCriteria";
+import type { CriterionKey as SchemaCriterionKey } from "@/schemas/criteria-keys";
 import {
   CANONICAL_CRITERIA,
   STRUCTURAL_CRITERIA,
@@ -292,9 +293,9 @@ export function runEvaluationGates(
 //  Returns null if resultJson has no parseable criteria.
 // ---------------------------------------------------------------
 
-const SCHEMA_TO_CANON: Record<string, CriterionKey> = {
+const SCHEMA_TO_CANON: Record<SchemaCriterionKey, CriterionKey> = {
   concept: "CONCEPT",
-  momentum: "MOMENTUM",
+  narrativeDrive: "MOMENTUM",
   character: "CHARACTER",
   voice: "POVVOICE",
   sceneConstruction: "SCENE",
@@ -334,7 +335,11 @@ export function adaptResultToCriteria(
       if (typeof item !== "object" || item === null) continue;
       const rec = item as Record<string, unknown>;
 
-      const schemaKey = String(rec.key ?? "");
+      const schemaKeyRaw = String(rec.key ?? "");
+      if (!Object.prototype.hasOwnProperty.call(SCHEMA_TO_CANON, schemaKeyRaw)) {
+        continue;
+      }
+      const schemaKey = schemaKeyRaw as SchemaCriterionKey;
       const canonKey = SCHEMA_TO_CANON[schemaKey];
       if (!canonKey) continue;
 
