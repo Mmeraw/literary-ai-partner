@@ -1,4 +1,5 @@
 // LLM client interface and stub implementation for Phase 1 evaluation
+import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 
 export interface LlmClient {
   evaluateChunk(input: {
@@ -50,24 +51,8 @@ export class StubLlmClient implements LlmClient {
     // Derive a base score (5–9) deterministically so all structural criteria pass EG-9 (min 4)
     const baseScore = ((wordCount + charCount) % 5) + 5;
 
-    // All 13 schema-layer keys — mapped by adaptResultToCriteria() via SCHEMA_TO_CANON
-    const criteriaKeys = [
-      "concept",
-      "narrativeDrive",
-      "character",
-      "voice",
-      "sceneConstruction",
-      "dialogue",
-      "theme",
-      "worldbuilding",
-      "pacing",
-      "proseControl",
-      "tone",
-      "narrativeClosure",
-      "marketability",
-    ] as const;
-
-    const criteria = criteriaKeys.map((key, idx) => {
+    // Canonical schema-layer keys from single source of truth.
+    const criteria = CRITERIA_KEYS.map((key, idx) => {
       const score_0_10 = ((baseScore + idx) % 5) + 5; // 5–9, always >= 4
       return {
         key,
