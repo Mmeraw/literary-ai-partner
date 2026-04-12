@@ -11,6 +11,7 @@ import {
   QG_MIN_RATIONALE_LENGTH,
   QG_MIN_EVIDENCE_COVERED_CRITERIA,
   QG_MIN_EVIDENCE_SNIPPET_LENGTH,
+  summarizeQualityGateFailures,
 } from "@/lib/evaluation/pipeline/qualityGate";
 import type { SynthesisOutput, SynthesizedCriterion } from "@/lib/evaluation/pipeline/types";
 
@@ -183,5 +184,64 @@ describe("Quality Gate — coverage enforcement", () => {
     );
     expect(check).toBeDefined();
     expect(check!.passed).toBe(true);
+  });
+
+  test("fails QG_PLACEHOLDER_RATIONALE for canned fallback language", () => {
+    const overrides = CRITERIA_KEYS.map((_, i) =>
+      i === 0
+        ? {
+            final_rationale:
+              "Neither pass supplied enough direct evidence to score this criterion confidently, so this remains unresolved.",
+          }
+        : {},
+    );
+    const synthesis = makeSynthesis(overrides);
+    const result = runQualityGate(synthesis);
+
+    const check = result.checks.find(
+      (c) => c.check_id === "placeholder_rationale",
+    );
+    expect(check).toBeDefined();
+    expect(check!.passed).toBe(false);
+    expect(check!.error_code).toBe("QG_PLACEHOLDER_RATIONALE");
+    expect(result.pass).toBe(false);
+  });
+
+  test("fails QG_MISSING_REQUIRED_EVIDENCE when a spine criterion lacks evidence", () => {
+    const overrides = CRITERIA_KEYS.map((key) =>
+      key === "concept" ? { evidence: [] } : {},
+    );
+    const synthesis = makeSynthesis(overrides);
+    const result = runQualityGate(synthesis);
+
+    const check = result.checks.find(
+      (c) => c.check_id === "required_evidence_spine",
+    );
+    expect(check).toBeDefined();
+    expect(check!.passed).toBe(false);
+    expect(check!.error_code).toBe("QG_MISSING_REQUIRED_EVIDENCE");
+    expect(result.pass).toBe(false);
+  });
+
+  test("summarizes failed checks into telemetry counters", () => {
+    const overrides = CRITERIA_KEYS.map((key) =>
+      key === "concept"
+        ? {
+            final_rationale:
+              "Neither pass supplied enough direct evidence to score this criterion confidently, so this remains unresolved.",
+            evidence: [],
+          }
+        : {},
+    );
+    const synthesis = makeSynthesis(overrides);
+    const result = runQualityGate(synthesis);
+
+    const telemetry = summarizeQualityGateFailures(result.checks);
+    expect(telemetry.total_failed_checks).toBeGreaterThanOrEqual(2);
+    expect(telemetry.failures_by_error_code.QG_PLACEHOLDER_RATIONALE).toBe(1);
+    expect(telemetry.failures_by_error_code.QG_MISSING_REQUIRED_EVIDENCE).toBe(1);
+    expect(telemetry.failed_check_ids).toEqual(
+      expect.arrayContaining(["placeholder_rationale", "required_evidence_spine"]),
+    );
   });
 });

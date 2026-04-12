@@ -18,7 +18,10 @@ import { runPass2 as defaultRunPass2 } from "./runPass2";
 import { runPass3Synthesis as defaultRunPass3 } from "./runPass3Synthesis";
 import { runPerplexityCrossCheck, CrossCheckOutput } from "./perplexityCrossCheck";
 import { evaluatePass4Governance } from "@/lib/evaluation/governance/evaluatePass4Governance";
-import { runQualityGate as defaultRunQualityGate } from "./qualityGate";
+import {
+  runQualityGate as defaultRunQualityGate,
+  summarizeQualityGateFailures,
+} from "./qualityGate";
 import type { PipelineResult, SinglePassOutput, SynthesisOutput, QualityGateResult } from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
 import { PASS1_PROMPT_VERSION } from "./prompts/pass1-craft";
@@ -365,6 +368,14 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     const failedChecks = qualityGate.checks.filter((c) => !c.passed);
     const errorCode = failedChecks[0]?.error_code ?? "QG_UNKNOWN";
     const details = failedChecks.map((c) => c.details ?? c.error_code).join("; ");
+    const qualityGateTelemetry = summarizeQualityGateFailures(qualityGate.checks);
+
+    console.warn("[Pipeline][QualityGate] failure", {
+      manuscript_id: opts.manuscriptId ?? null,
+      work_type: opts.workType,
+      title: opts.title,
+      ...qualityGateTelemetry,
+    });
 
     return {
       ok: false,
