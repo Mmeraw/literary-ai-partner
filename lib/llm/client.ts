@@ -42,24 +42,56 @@ export class StubLlmClient implements LlmClient {
     // Deterministic "analysis" based on text content
     const wordCount = text.split(/\s+/).filter(Boolean).length;
     const charCount = text.length;
-    const score = ((wordCount + charCount) % 10) + 1;
-    
-    // Extract first sentence for summary
-    const firstSentence = text.split(/[.!?]/)[0]?.trim() || "No content";
+
+    // Extract a short anchor snippet directly from the chunk text (EG-6 compliance)
+    const words = text.split(/\s+/).filter(Boolean);
+    const anchorSnippet = words.slice(0, 12).join(" ") || "No content provided";
+
+    // Derive a base score (5–9) deterministically so all structural criteria pass EG-9 (min 4)
+    const baseScore = ((wordCount + charCount) % 5) + 5;
+
+    // All 13 schema-layer keys — mapped by adaptResultToCriteria() via SCHEMA_TO_CANON
+    const criteriaKeys = [
+      "concept",
+      "narrativeDrive",
+      "character",
+      "voice",
+      "sceneConstruction",
+      "dialogue",
+      "theme",
+      "worldbuilding",
+      "pacing",
+      "proseControl",
+      "tone",
+      "narrativeClosure",
+      "marketability",
+    ] as const;
+
+    const criteria = criteriaKeys.map((key, idx) => {
+      const score_0_10 = ((baseScore + idx) % 5) + 5; // 5–9, always >= 4
+      return {
+        key,
+        score_0_10,
+        evidence: [
+          {
+            anchor_snippet: anchorSnippet,
+            location_hint: `chunk:${chunkId}`,
+          },
+        ],
+        mechanism: `Stub analysis for ${key}: text exhibits ${wordCount} words with measurable structural density.`,
+        effect: `Narrative impact assessed at score ${score_0_10}/10 based on lexical composition.`,
+        false_positive_check: `Verified stub criterion ${key} against chunk ${chunkId}; no fabricated content.`,
+      };
+    });
 
     const resultJson = {
       jobId,
       chunkId,
       phase,
-      score,
       wordCount,
       charCount,
-      keyIssues: [
-        `Stub issue 1: Consider pacing (score: ${score}/10)`,
-        `Stub issue 2: Character development opportunity detected`,
-      ],
-      summary: `Analyzed ${wordCount} words. Opening: "${firstSentence.substring(0, 50)}${firstSentence.length > 50 ? '...' : ''}"`,
       timestamp: new Date().toISOString(),
+      criteria,
     };
 
     return {
