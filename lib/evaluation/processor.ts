@@ -1009,7 +1009,12 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           offending_entities: contaminationCheck.offendingEntities,
           reasons: contaminationCheck.reasons,
         });
-        await markFailed('CONTEXT_CONTAMINATION_DETECTED');
+        const contaminationDetail = JSON.stringify({
+          code: 'CONTEXT_CONTAMINATION_DETECTED',
+          offending_entities: contaminationCheck.offendingEntities.slice(0, 10),
+          reasons: contaminationCheck.reasons.slice(0, 10),
+        });
+        await markFailed(contaminationDetail);
 
         return { success: false, error: 'CONTEXT_CONTAMINATION_DETECTED' };
       }
