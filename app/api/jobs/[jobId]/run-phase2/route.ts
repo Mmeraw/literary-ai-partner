@@ -102,7 +102,7 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
     );
   }
 
-  console.log("Phase2Triggered", {
+  console.log("Phase2Queued", {
     job_id: jobId,
     trigger_time: now,
     force,

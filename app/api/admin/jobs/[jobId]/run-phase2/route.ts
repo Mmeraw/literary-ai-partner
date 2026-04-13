@@ -101,7 +101,7 @@ export async function POST(
       return NextResponse.json(payload, { status: 409 });
     }
 
-    console.log("AdminPhase2Triggered", {
+    console.log("AdminPhase2Queued", {
       job_id: jobId,
       trigger_time: now,
       force,
