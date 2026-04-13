@@ -110,6 +110,40 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): 
   });
 }
 
+function nowMs(): number {
+  return Date.now();
+}
+
+type PipelineTimings = {
+  total_ms?: number;
+  pass1_ms?: number;
+  pass2_ms?: number;
+  pass3_ms?: number;
+  pass4_ms?: number;
+};
+
+function logPipelineTimings(
+  stage: "success" | "failure",
+  meta: {
+    manuscriptId?: string;
+    title: string;
+    workType: string;
+    failedAt?: "pass1" | "pass2" | "pass3" | "pass4";
+    errorCode?: string;
+    timings: PipelineTimings;
+  },
+): void {
+  console.log("[Pipeline][Timings]", {
+    stage,
+    manuscript_id: meta.manuscriptId ?? null,
+    title: meta.title,
+    work_type: meta.workType,
+    failed_at: meta.failedAt ?? null,
+    error_code: meta.errorCode ?? null,
+    ...meta.timings,
+  });
+}
+
 function validatePipelineInput(opts: RunPipelineOptions): string | null {
   const manuscriptText = opts.manuscriptText?.trim();
   const workType = opts.workType?.trim();
@@ -150,6 +184,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   const passTimeoutMs = opts._passTimeoutMs ?? DEFAULT_PASS_TIMEOUT_MS;
+  const pipelineStartMs = nowMs();
+  const timings: PipelineTimings = {};
 
   const _runPass1 = opts._runners?.runPass1 ?? defaultRunPass1;
   const _runPass2 = opts._runners?.runPass2 ?? defaultRunPass2;
@@ -250,6 +286,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
   // ── Pass 1: Craft Execution ─────────────────────────────────────────────
   try {
+    const pass1StartMs = nowMs();
     pass1Output = await withTimeout(
       _runPass1({
         manuscriptText: opts.manuscriptText,
@@ -263,12 +300,23 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       passTimeoutMs,
       "Pass 1",
     );
+    timings.pass1_ms = nowMs() - pass1StartMs;
   } catch (err) {
     const errMessage = String(err instanceof Error ? err.message : err);
+    const errorCode = errMessage.includes("timed out") ? "PASS1_TIMEOUT" : "PASS1_FAILED";
+    timings.total_ms = nowMs() - pipelineStartMs;
+    logPipelineTimings("failure", {
+      manuscriptId: opts.manuscriptId,
+      title: opts.title,
+      workType: opts.workType,
+      failedAt: "pass1",
+      errorCode,
+      timings,
+    });
     return {
       ok: false,
       error: errMessage,
-      error_code: errMessage.includes("timed out") ? "PASS1_TIMEOUT" : "PASS1_FAILED",
+      error_code: errorCode,
       failed_at: "pass1",
     };
   }
@@ -285,6 +333,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // Independence guarantee: Pass 2 receives ONLY manuscript text.
   // pass1Output is deliberately NOT passed here.
   try {
+    const pass2StartMs = nowMs();
     pass2Output = await withTimeout(
       _runPass2({
         manuscriptText: opts.manuscriptText,
@@ -298,12 +347,23 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       passTimeoutMs,
       "Pass 2",
     );
+    timings.pass2_ms = nowMs() - pass2StartMs;
   } catch (err) {
     const errMessage = String(err instanceof Error ? err.message : err);
+    const errorCode = errMessage.includes("timed out") ? "PASS2_TIMEOUT" : "PASS2_FAILED";
+    timings.total_ms = nowMs() - pipelineStartMs;
+    logPipelineTimings("failure", {
+      manuscriptId: opts.manuscriptId,
+      title: opts.title,
+      workType: opts.workType,
+      failedAt: "pass2",
+      errorCode,
+      timings,
+    });
     return {
       ok: false,
       error: errMessage,
-      error_code: errMessage.includes("timed out") ? "PASS2_TIMEOUT" : "PASS2_FAILED",
+      error_code: errorCode,
       failed_at: "pass2",
     };
   }
@@ -319,6 +379,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
   // ── Pass 3: Synthesis & Reconciliation ─────────────────────────────────
   try {
+    const pass3StartMs = nowMs();
     pass3Output = await withTimeout(
       _runPass3({
         pass1: pass1Output,
@@ -333,12 +394,23 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       passTimeoutMs,
       "Pass 3",
     );
+    timings.pass3_ms = nowMs() - pass3StartMs;
   } catch (err) {
     const errMessage = String(err instanceof Error ? err.message : err);
+    const errorCode = errMessage.includes("timed out") ? "PASS3_TIMEOUT" : "PASS3_FAILED";
+    timings.total_ms = nowMs() - pipelineStartMs;
+    logPipelineTimings("failure", {
+      manuscriptId: opts.manuscriptId,
+      title: opts.title,
+      workType: opts.workType,
+      failedAt: "pass3",
+      errorCode,
+      timings,
+    });
     return {
       ok: false,
       error: errMessage,
-      error_code: errMessage.includes("timed out") ? "PASS3_TIMEOUT" : "PASS3_FAILED",
+      error_code: errorCode,
       failed_at: "pass3",
     };
   }
@@ -362,7 +434,9 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   // ── Pass 4: Quality Gate (deterministic) ───────────────────────────────
+  const pass4StartMs = nowMs();
   const qualityGate = _runQualityGate(pass3Output, pass1Output, pass2Output);
+  timings.pass4_ms = nowMs() - pass4StartMs;
   if (!qualityGate.pass) {
     const qualityGateCheckpoint = getGovernanceCheckpointById("QUALITY_GATE", governanceInjectionMap);
     const failedChecks = qualityGate.checks.filter((c) => !c.passed);
@@ -375,6 +449,16 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       work_type: opts.workType,
       title: opts.title,
       ...qualityGateTelemetry,
+    });
+
+    timings.total_ms = nowMs() - pipelineStartMs;
+    logPipelineTimings("failure", {
+      manuscriptId: opts.manuscriptId,
+      title: opts.title,
+      workType: opts.workType,
+      failedAt: "pass4",
+      errorCode,
+      timings,
     });
 
     return {
@@ -421,13 +505,32 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   pass4Governance = evaluatePass4Governance(crossCheckResult);
 
   if (pass4Governance && !pass4Governance.ok) {
+    const errorCode = pass4Governance.blockCode ?? "PASS4_GOVERNANCE_FAILED";
+    timings.total_ms = nowMs() - pipelineStartMs;
+    logPipelineTimings("failure", {
+      manuscriptId: opts.manuscriptId,
+      title: opts.title,
+      workType: opts.workType,
+      failedAt: "pass4",
+      errorCode,
+      timings,
+    });
+
     return {
       ok: false,
       error: `Pass 4 governance failed: ${pass4Governance.message ?? pass4Governance.blockCode ?? "unknown governance error"}`,
-      error_code: pass4Governance.blockCode ?? "PASS4_GOVERNANCE_FAILED",
+      error_code: errorCode,
       failed_at: "pass4",
     };
   }
+
+  timings.total_ms = nowMs() - pipelineStartMs;
+  logPipelineTimings("success", {
+    manuscriptId: opts.manuscriptId,
+    title: opts.title,
+    workType: opts.workType,
+    timings,
+  });
 
   return {
     ok: true,
