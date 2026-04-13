@@ -59,6 +59,16 @@ const JOB_TYPE_FROM_DB: Record<string, JobType> = {
 const CANON_JOB_STATUS_VALUES = new Set(Object.values(JOB_STATUS));
 const CANON_PHASE_VALUES = new Set(Object.values(PHASES));
 
+const DEFAULT_LEASE_TIMEOUT_SECONDS = (() => {
+  const raw =
+    process.env.JOB_PHASE_LEASE_TIMEOUT_SECONDS ??
+    process.env.JOB_LEASE_TIMEOUT_SECONDS ??
+    "300";
+  const parsed = Number.parseInt(raw, 10);
+  // Clamp to [30s, 15m] for safety; default is 5 minutes.
+  return Number.isFinite(parsed) ? Math.min(900, Math.max(30, parsed)) : 300;
+})();
+
 function assertCanonicalStatusValue(value: string): asserts value is JobStatus {
   if (!CANON_JOB_STATUS_VALUES.has(value as JobStatus)) {
     throw new Error(
@@ -310,7 +320,7 @@ export async function safeUpdateJobStatus(
 export async function acquireLeaseForPhase1(
   id: string,
   leaseId: string,
-  ttlSeconds = 300,
+  ttlSeconds = DEFAULT_LEASE_TIMEOUT_SECONDS,
 ): Promise<Job | null> {
   const { data, error } = await supabase.rpc("claim_evaluation_job_phase1", {
     p_job_id: id,
@@ -331,7 +341,7 @@ export async function acquireLeaseForPhase1(
 export async function acquireLeaseForPhase2(
   id: string,
   leaseId: string,
-  ttlSeconds = 300,
+  ttlSeconds = DEFAULT_LEASE_TIMEOUT_SECONDS,
 ): Promise<Job | null> {
   const existing = await getJob(id);
   if (!existing) return null;
@@ -375,6 +385,65 @@ export async function acquireLeaseForPhase2(
 
   if (!isLeaseFree && !isLeaseExpired) {
     return null;
+  }
+
+  // Dead lease hardening: if a lease is expired and no heartbeat has been
+  // recorded beyond lease expiry, classify and fail the job (fail-closed).
+  if (isLeaseExpired) {
+    const heartbeatAt =
+      typeof existing.last_heartbeat === "string" ? new Date(existing.last_heartbeat) : null;
+    const leaseExpiryTime = leaseExpiresAt?.getTime() ?? 0;
+    const heartbeatTime = heartbeatAt?.getTime() ?? 0;
+    const deadLease = !heartbeatAt || heartbeatTime <= leaseExpiryTime;
+
+    if (deadLease) {
+      const nowIso = new Date().toISOString();
+      const errorMessage =
+        "Lease expired with no heartbeat; marking job failed to prevent stuck running state";
+
+      await supabase
+        .from("evaluation_jobs")
+        .update({
+          status: JOB_STATUS.FAILED,
+          last_error: errorMessage,
+          failure_envelope: {
+            error_code: "LEASE_EXPIRED",
+            code: "LEASE_EXPIRED",
+            message: errorMessage,
+            retryable: false,
+            phase: PHASES.PHASE_2,
+            provider: null,
+            occurred_at: nowIso,
+            context: {
+              lease_id: existingLeaseId,
+              lease_expires_at: leaseExpiresAtRaw ?? null,
+              last_heartbeat: existing.last_heartbeat,
+            },
+          },
+          progress: {
+            ...existing.progress,
+            phase: PHASES.PHASE_2,
+            phase_status: JOB_STATUS.FAILED,
+            message: "Phase 2 lease expired without heartbeat",
+            error_code: "LEASE_EXPIRED",
+            lease_id: null,
+            lease_expires_at: null,
+            finished_at: nowIso,
+          },
+          updated_at: nowIso,
+        })
+        .eq("id", id)
+        .eq("status", JOB_STATUS.RUNNING);
+
+      console.warn("[Phase2LeaseDeadJobFailed]", {
+        job_id: id,
+        lease_id: existingLeaseId,
+        lease_expires_at: leaseExpiresAtRaw,
+        last_heartbeat: existing.last_heartbeat,
+      });
+
+      return null;
+    }
   }
 
   if (isLeaseExpired) {
