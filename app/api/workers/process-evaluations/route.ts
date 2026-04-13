@@ -271,7 +271,8 @@ export async function GET(request: NextRequest) {
     }
     
     // Process queued jobs
-    const results = await processQueuedJobs();
+    const workerId = crypto.randomUUID();
+    const results = await processQueuedJobs(workerId);
     const durationMs = Date.now() - startTime;
     
     structuredLog({
@@ -281,7 +282,9 @@ export async function GET(request: NextRequest) {
       message: 'Worker completed successfully',
       data: {
         authMethod: auth.method,
+        workerId,
         durationMs,
+        claimed: results.claimed,
         processed: results.processed,
         succeeded: results.succeeded,
         failed: results.failed,
@@ -292,7 +295,9 @@ export async function GET(request: NextRequest) {
       success: true,
       traceId,
       authMethod: auth.method,
+      workerId,
       durationMs,
+      claimed: results.claimed,
       processed: results.processed,
       succeeded: results.succeeded,
       failed: results.failed,
