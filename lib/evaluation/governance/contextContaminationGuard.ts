@@ -94,13 +94,37 @@ const SAFE_WORDS: Set<string> = new Set(SAFE_EVALUATION_WORDS_LIST);
 
 const TOKEN_PATTERN = /[a-z]+/g;
 
+function parseIntEnv(name: string, fallback: number, min: number, max: number): number {
+  const parsed = Number.parseInt(process.env[name] || String(fallback), 10);
+  return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
+}
+
+function parseFloatEnv(name: string, fallback: number, min: number, max: number): number {
+  const parsed = Number.parseFloat(process.env[name] || String(fallback));
+  return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
+}
+
+const MIN_TOKEN_LENGTH = parseIntEnv("EVAL_CONTEXT_CONTAMINATION_MIN_TOKEN_LENGTH", 4, 3, 12);
+
 const NOVEL_ENTITY_THRESHOLD = (() => {
-  const parsed = Number.parseInt(
-    process.env.EVAL_CONTEXT_CONTAMINATION_ENTITY_THRESHOLD || "1",
-    10,
-  );
-  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 10 ? parsed : 1;
+  return parseIntEnv("EVAL_CONTEXT_CONTAMINATION_ENTITY_THRESHOLD", 1, 1, 50);
 })();
+
+const NOVEL_ENTITY_RATIO_THRESHOLD = parseFloatEnv(
+  "EVAL_CONTEXT_CONTAMINATION_NOVEL_RATIO_THRESHOLD",
+  0.35,
+  0.05,
+  1,
+);
+
+const NOVEL_RATIO_MIN_COUNT = parseIntEnv(
+  "EVAL_CONTEXT_CONTAMINATION_NOVEL_RATIO_MIN_COUNT",
+  3,
+  1,
+  50,
+);
+
+const MAX_REPORTED_ENTITIES = parseIntEnv("EVAL_CONTEXT_CONTAMINATION_MAX_REPORTED", 25, 1, 100);
 
 export type ContextContaminationResult = {
   contaminated: boolean;
@@ -126,7 +150,7 @@ function tokenizeClean(text: string, stop: Set<string>, safe: Set<string>): Set<
   const result = new Set<string>();
 
   for (const token of tokens) {
-    if (token.length < 4) continue;
+    if (token.length < MIN_TOKEN_LENGTH) continue;
     if (stop.has(token)) continue;
     if (safe.has(token)) continue;
     result.add(token);
@@ -183,9 +207,10 @@ export function detectContextContamination(params: {
   }
 
   if (hardFailHits.length > 0) {
+    hardFailHits.sort();
     return {
       contaminated: true,
-      offendingEntities: hardFailHits,
+      offendingEntities: hardFailHits.slice(0, MAX_REPORTED_ENTITIES),
       reasons: hardFailHits.map((token) => `Hard contamination token detected: ${token}`),
     };
   }
@@ -198,11 +223,23 @@ export function detectContextContamination(params: {
     }
   }
 
-  if (novelTokens.length >= NOVEL_ENTITY_THRESHOLD) {
+  novelTokens.sort();
+
+  const novelRatio = outputTokenSet.size > 0 ? novelTokens.length / outputTokenSet.size : 0;
+  const countTriggered = novelTokens.length >= NOVEL_ENTITY_THRESHOLD;
+  const ratioTriggered =
+    novelTokens.length >= NOVEL_RATIO_MIN_COUNT && novelRatio >= NOVEL_ENTITY_RATIO_THRESHOLD;
+
+  if (countTriggered || ratioTriggered) {
+    const limitedNovelTokens = novelTokens.slice(0, MAX_REPORTED_ENTITIES);
+
     return {
       contaminated: true,
-      offendingEntities: novelTokens,
-      reasons: novelTokens.map((token) => `Novel token not in source: ${token}`),
+      offendingEntities: limitedNovelTokens,
+      reasons: [
+        `Novel token count ${novelTokens.length}/${outputTokenSet.size} and ratio ${novelRatio.toFixed(2)} exceeded contamination threshold`,
+        ...limitedNovelTokens.map((token) => `Novel token not in source: ${token}`),
+      ],
     };
   }
 

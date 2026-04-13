@@ -103,6 +103,22 @@ describe("context contamination guard", () => {
     expect(check.offendingEntities).toEqual(expect.arrayContaining(["maria"]));
   });
 
+  test("does not false-positive on substring matches (mariage vs maria)", () => {
+    const sourceText = [
+      "Cliff piloted the skiff across Carpenter Lake.",
+      "At Minto, the narrator reflects on erased foundations.",
+    ].join(" ");
+
+    const result = makeResult(
+      "The narrator reflects on a difficult mariage and uncertain future near Carpenter Lake.",
+      ["Reflective tension remains coherent."],
+    );
+
+    const check = detectContextContamination({ sourceText, evaluationResult: result });
+
+    expect(check.offendingEntities).not.toContain("maria");
+  });
+
   test("buildEvaluationOutputText includes overview, rationale, and recommendation surfaces", () => {
     const result = makeResult("Minto chapter has strong atmosphere.", ["Needs clearer stakes."]);
     const text = buildEvaluationOutputText(result);
@@ -137,5 +153,19 @@ describe("context contamination guard", () => {
       expect(contaminatedCheck.contaminated).toBe(true);
       expect(contaminatedCheck.offendingEntities).toEqual(expect.arrayContaining(["maria"]));
     }
+  });
+
+  test("returns deterministically sorted offending entities", () => {
+    const sourceText = "Cliff piloted the skiff across Carpenter Lake.";
+    const result = makeResult(
+      "zebraline aurorafield cliffstone marineroad",
+      ["quartzline amberlight silverpath"],
+    );
+
+    const check = detectContextContamination({ sourceText, evaluationResult: result });
+    const sorted = [...check.offendingEntities].sort();
+
+    expect(check.contaminated).toBe(true);
+    expect(check.offendingEntities).toEqual(sorted);
   });
 });
