@@ -76,6 +76,23 @@ export async function runPhase1(jobId: string): Promise<void> {
     throw new Error("Job not found");
   }
 
+  const initialProgress = job.progress ?? { phase: null, phase_status: null };
+  const isPhase1QueuedCandidate =
+    job.status === JOB_STATUS.QUEUED &&
+    initialProgress.phase === PHASES.PHASE_1 &&
+    (initialProgress.phase_status === PHASE_1_STATES.QUEUED ||
+      initialProgress.phase_status === "triggered");
+
+  if (!isPhase1QueuedCandidate) {
+    console.log("Phase1RejectedNotEligible", {
+      job_id: jobId,
+      status: job.status,
+      phase: initialProgress.phase,
+      phase_status: initialProgress.phase_status,
+    });
+    return;
+  }
+
   // Initialize LLM client (stub or real based on env)
   const llmClient = createLlmClient();
 

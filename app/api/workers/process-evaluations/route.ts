@@ -7,6 +7,8 @@
  * 1. Vercel Cron: x-vercel-cron=1 + x-vercel-id (platform validation)
  * 2. Manual trigger: Authorization: Bearer <CRON_SECRET>
  * 3. Dev testing: ?secret=<CRON_SECRET> (NODE_ENV=development only)
+ * 4. Dev proof mode (opt-in): Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
+ *    when NODE_ENV=development and WORKER_ALLOW_SERVICE_ROLE_DEV=1
  * 
  * GET /api/workers/process-evaluations
  * GET /api/workers/process-evaluations?dry_run=1  (returns counts without processing)
@@ -17,6 +19,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { processQueuedJobs } from '@/lib/evaluation/processor';
+import { checkServiceRoleAuth } from '@/lib/auth/api';
 import crypto from 'crypto';
 
 // Force Node.js runtime (required for crypto module)
@@ -94,6 +97,9 @@ function isVercelCronInvocation(req: NextRequest): boolean {
 function checkAuthorization(req: NextRequest): { authorized: boolean; method: string; secretTooLong: boolean } {
   const expectedSecret = process.env.CRON_SECRET || '';
   const bearer = extractBearer(req.headers.get('authorization'));
+  const allowDevServiceRole =
+    process.env.NODE_ENV === 'development' &&
+    process.env.WORKER_ALLOW_SERVICE_ROLE_DEV === '1';
   
   // Method 1: Vercel Cron invocation (highest trust)
   if (isVercelCronInvocation(req)) {
@@ -124,6 +130,11 @@ function checkAuthorization(req: NextRequest): { authorized: boolean; method: st
       }
     }
   }
+
+  // Method 4: Development-only service-role auth (explicit opt-in)
+  if (allowDevServiceRole && checkServiceRoleAuth(req)) {
+    return { authorized: true, method: 'dev_service_role', secretTooLong: false };
+  }
   
   return { authorized: false, method: 'none', secretTooLong: false };
 }
@@ -143,6 +154,7 @@ function getAuthDebugContext(req: NextRequest): Record<string, unknown> {
     xVercelCronIs1: req.headers.get('x-vercel-cron') === '1',
     hasXVercelId: !!req.headers.get('x-vercel-id'),
     uaStartsWithVercelCron: req.headers.get('user-agent')?.startsWith('vercel-cron') ?? false,
+    allowDevServiceRole: process.env.WORKER_ALLOW_SERVICE_ROLE_DEV === '1',
   };
 }
 

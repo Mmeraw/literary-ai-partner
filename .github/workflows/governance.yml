@@ -66,6 +66,22 @@ jobs:
         run: bash scripts/canon-guard.sh
 
   # ===============================================================
+  # PHASE INTEGRITY GUARD
+  # Locks regression coverage for phase routing and worker auth boundaries
+  # ===============================================================
+  phase-integrity-guard:
+    name: Phase Integrity Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - name: Run phase integrity guard
+        run: npm run guard:phase-integrity
+
+  # ===============================================================
   # ENFORCEMENT SUMMARY
   # All governance gates must pass before merge
   # ===============================================================
@@ -75,6 +91,7 @@ jobs:
       - governance-tests
       - governance-coverage
       - canon-guard
+      - phase-integrity-guard
     runs-on: ubuntu-latest
     steps:
       - name: All governance checks passed
