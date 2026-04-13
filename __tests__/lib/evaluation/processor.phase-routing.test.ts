@@ -17,7 +17,7 @@ describe("processEvaluationJob phase routing guard", () => {
     process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = "optional";
   });
 
-  test("rejects queued phase_2 jobs as not eligible for Phase 1 processor path", async () => {
+  test("routes queued phase_2 jobs through phase_2 execution path (no phase_1 rejection)", async () => {
     const queuedPhase2Job = {
       id: "job-phase2-queued",
       manuscript_id: 42,
@@ -32,6 +32,10 @@ describe("processEvaluationJob phase routing guard", () => {
       created_at: new Date().toISOString(),
     };
 
+    const updateMock = jest.fn(() => ({
+      eq: () => ({ error: null }),
+    }));
+
     const supabaseStub = {
       from(table: string) {
         if (table === "evaluation_jobs") {
@@ -39,6 +43,17 @@ describe("processEvaluationJob phase routing guard", () => {
             select: () => ({
               eq: () => ({
                 single: async () => ({ data: queuedPhase2Job, error: null }),
+              }),
+            }),
+            update: updateMock,
+          };
+        }
+
+        if (table === "manuscripts") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({ data: null, error: { message: "not found" } }),
               }),
             }),
           };
@@ -54,7 +69,12 @@ describe("processEvaluationJob phase routing guard", () => {
     const result = await processEvaluationJob("job-phase2-queued");
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain("Job not eligible for processing");
+    expect(result.error).toContain("Manuscript not found");
+    expect(result.error).not.toContain("Job not eligible for processing");
+
+    const firstUpdatePayload = updateMock.mock.calls[0]?.[0];
+    expect(firstUpdatePayload?.phase).toBe("phase_2");
+    expect(firstUpdatePayload?.phase_status).toBe("running");
   });
 
   test("allows queued phase_1 jobs to continue into processor flow", async () => {

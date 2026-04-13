@@ -814,7 +814,14 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         progress.phase_status === 'triggered' ||
         progress.phase_status === 'queued');
 
-    if (!isPhase1QueuedCandidate && !isPhase1CompleteHandoff) {
+    const isPhase2QueuedCandidate =
+      job.status === 'queued' &&
+      (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
+      (job.phase_status === 'triggered' || progress.phase_status === 'triggered');
+
+    const executionPhase: 'phase_1' | 'phase_2' = isPhase2QueuedCandidate ? 'phase_2' : 'phase_1';
+
+    if (!isPhase1QueuedCandidate && !isPhase1CompleteHandoff && !isPhase2QueuedCandidate) {
       return {
         success: false,
         error: `Job not eligible for processing. status=${job.status}, phase=${job.phase}, phase_status=${job.phase_status}`,
@@ -867,7 +874,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         phase:
           progressState.phase === 'phase_2' || progressState.phase === 'phase_1'
             ? progressState.phase
-            : 'phase_1',
+            : executionPhase,
         phase_status: 'failed',
         total_units:
           typeof progressState.total_units === 'number'
@@ -903,7 +910,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     };
 
     // 2. Update status to running
-    await markRunning('Fetching manuscript', 0);
+    await markRunning('Fetching manuscript', 0, executionPhase);
 
     console.log(`[Processor] Job ${jobId} status updated to running`);
 
@@ -945,7 +952,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     };
 
     // 4. Canonical evaluation via governed multi-pass pipeline (fail-closed)
-    await markRunning('Running canonical evaluation pipeline', 1);
+    await markRunning('Running canonical evaluation pipeline', 1, executionPhase);
 
     const externalMode = getExternalAdjudicationMode();
     if ((externalMode === 'required' || externalMode === 'veto') && !perplexityApiKey) {
@@ -1187,10 +1194,10 @@ export async function processQueuedJobs(): Promise<{
   // Fetch all queued jobs
   const { data: jobs, error } = await supabase
     .from('evaluation_jobs')
-    .select('id')
+    .select('id,phase')
     .eq('status', 'queued')
-    .eq('phase', 'phase_1')
     .eq('phase_status', 'triggered')
+    .in('phase', ['phase_1', 'phase_2'])
     .order('created_at', { ascending: true })
     .limit(10); // Process max 10 jobs per run
 
@@ -1204,7 +1211,14 @@ export async function processQueuedJobs(): Promise<{
     return { processed: 0, succeeded: 0, failed: 0, errors: [] };
   }
 
+  const phaseBreakdown = jobs.reduce<Record<string, number>>((acc, row) => {
+    const phase = typeof row.phase === 'string' ? row.phase : 'unknown';
+    acc[phase] = (acc[phase] || 0) + 1;
+    return acc;
+  }, {});
+
   console.log(`[Processor] Found ${jobs.length} queued job(s)`);
+  console.log(`[Processor] Queued candidate counts by phase: ${JSON.stringify(phaseBreakdown)}`);
 
   const results = {
     processed: jobs.length,
