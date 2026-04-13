@@ -946,6 +946,20 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: shortContentError };
     }
 
+    // Context binding assertion: prove the fetched manuscript belongs to this job
+    // before any pipeline invocation (fail-closed isolation guarantee).
+    const fetchedManuscriptId = (manuscript as Manuscript).id;
+    if (
+      !Number.isFinite(fetchedManuscriptId) ||
+      fetchedManuscriptId <= 0 ||
+      fetchedManuscriptId !== job.manuscript_id
+    ) {
+      const bindingError =
+        `Context binding failure: job.manuscript_id=${job.manuscript_id} does not match fetched manuscript.id=${fetchedManuscriptId}`;
+      await markFailed(bindingError);
+      return { success: false, error: bindingError };
+    }
+
     const manuscriptWithContent: Manuscript = {
       ...(manuscript as Manuscript),
       content: resolvedManuscriptText,

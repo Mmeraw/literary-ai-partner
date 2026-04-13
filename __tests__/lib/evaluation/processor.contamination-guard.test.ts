@@ -58,6 +58,8 @@ function makeSupabaseStub() {
     manuscript_id: 789,
     job_type: "evaluate_full",
     status: "queued",
+    phase: "phase_1",
+    phase_status: "triggered",
     created_at: new Date().toISOString(),
     progress: {},
   };
