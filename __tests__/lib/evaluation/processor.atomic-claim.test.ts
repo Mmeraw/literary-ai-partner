@@ -91,6 +91,8 @@ describe('claimQueuedJobs', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
     process.env.OPENAI_API_KEY = 'sk-test';
+    process.env.EVAL_PASS_TIMEOUT_MS = '180000';
+    process.env.EVAL_OPENAI_TIMEOUT_MS = '180000';
     process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = 'optional';
   });
 
@@ -107,12 +109,13 @@ describe('claimQueuedJobs', () => {
     createClientMock.mockReturnValue(stub);
 
     const { claimQueuedJobs } = await import('../../../lib/evaluation/processor');
-    const result = await claimQueuedJobs('worker-abc');
+    const result = await claimQueuedJobs({ workerId: 'worker-abc' });
 
     expect(stub.rpc).toHaveBeenCalledWith('claim_evaluation_jobs', {
-      p_worker_id: 'worker-abc',
       p_batch_size: expect.any(Number),
-      p_lease_secs: 180,
+      p_worker_id: 'worker-abc',
+      p_lease_token: expect.any(String),
+      p_lease_expires_at: expect.any(String),
     });
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('job-claimed-1');
@@ -124,7 +127,7 @@ describe('claimQueuedJobs', () => {
     createClientMock.mockReturnValue(stub);
 
     const { claimQueuedJobs } = await import('../../../lib/evaluation/processor');
-    const result = await claimQueuedJobs('worker-abc');
+    const result = await claimQueuedJobs({ workerId: 'worker-abc' });
 
     expect(result).toHaveLength(0);
   });
@@ -137,7 +140,7 @@ describe('claimQueuedJobs', () => {
 
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const { claimQueuedJobs } = await import('../../../lib/evaluation/processor');
-    const result = await claimQueuedJobs('worker-abc');
+    const result = await claimQueuedJobs({ workerId: 'worker-abc' });
 
     expect(result).toHaveLength(0);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('RPC unavailable'));
@@ -153,10 +156,38 @@ describe('claimQueuedJobs', () => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const { claimQueuedJobs } = await import('../../../lib/evaluation/processor');
 
-    await expect(claimQueuedJobs('worker-abc')).rejects.toMatchObject({
+    await expect(claimQueuedJobs({ workerId: 'worker-abc' })).rejects.toMatchObject({
       message: 'connection refused',
     });
     errorSpy.mockRestore();
+  });
+
+  test('parallel claim calls can return disjoint IDs across workers', async () => {
+    const rpc = jest
+      .fn()
+      .mockImplementation((_fn: string, params: { p_worker_id: string }) => {
+        if (params.p_worker_id === 'worker-a') {
+          return Promise.resolve({
+            data: [{ id: 'a1', phase: 'phase_1' }, { id: 'a2', phase: 'phase_2' }],
+            error: null,
+          });
+        }
+        return Promise.resolve({
+          data: [{ id: 'b1', phase: 'phase_1' }, { id: 'b2', phase: 'phase_2' }],
+          error: null,
+        });
+      });
+    createClientMock.mockReturnValue({ rpc, from: jest.fn() } as any);
+
+    const { claimQueuedJobs } = await import('../../../lib/evaluation/processor');
+    const [a, b] = await Promise.all([
+      claimQueuedJobs({ workerId: 'worker-a' }),
+      claimQueuedJobs({ workerId: 'worker-b' }),
+    ]);
+
+    const aIds = new Set(a.map((row) => row.id));
+    const overlap = b.map((row) => row.id).filter((id) => aIds.has(id));
+    expect(overlap).toHaveLength(0);
   });
 });
 
@@ -171,6 +202,8 @@ describe('processQueuedJobs — atomic claim path', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
     process.env.OPENAI_API_KEY = 'sk-test';
+    process.env.EVAL_PASS_TIMEOUT_MS = '180000';
+    process.env.EVAL_OPENAI_TIMEOUT_MS = '180000';
     process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = 'optional';
   });
 
@@ -222,7 +255,7 @@ describe('processQueuedJobs — atomic claim path', () => {
     }), { virtual: true });
 
     const { processQueuedJobs } = await import('../../../lib/evaluation/processor');
-    const result = await processQueuedJobs('worker-xyz');
+    const result = await processQueuedJobs({ workerId: 'worker-xyz' });
 
     expect(result.claimed).toBe(2);
     expect(result.processed).toBe(2);
@@ -255,7 +288,7 @@ describe('processQueuedJobs — atomic claim path', () => {
     createClientMock.mockReturnValue(stub);
 
     const { processQueuedJobs } = await import('../../../lib/evaluation/processor');
-    const result = await processQueuedJobs('worker-xyz');
+    const result = await processQueuedJobs({ workerId: 'worker-xyz' });
 
     expect(result.claimed).toBe(0);
     expect(result.processed).toBe(0);
@@ -297,6 +330,37 @@ describe('processQueuedJobs — atomic claim path', () => {
       p_worker_id: expect.any(String),
     }));
   });
+
+  test('enforces bounded batch size guard (1..5) at process entry', async () => {
+    const stub = {
+      rpc: jest.fn().mockResolvedValue({ data: [], error: null }),
+      from: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnThis(),
+          not: jest.fn().mockReturnThis(),
+          lt: jest.fn().mockReturnThis(),
+          in: jest.fn().mockReturnThis(),
+          order: jest.fn().mockReturnThis(),
+          limit: jest.fn().mockResolvedValue({ data: [], error: null }),
+        }),
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnThis(),
+          in: jest.fn().mockReturnThis(),
+          select: jest.fn().mockResolvedValue({ data: [], error: null }),
+        }),
+      }),
+    };
+
+    createClientMock.mockReturnValue(stub as any);
+
+    const { processQueuedJobs } = await import('../../../lib/evaluation/processor');
+    await processQueuedJobs({ workerId: 'worker-xyz', batchSize: 999 });
+
+    expect(stub.rpc).toHaveBeenCalledWith(
+      'claim_evaluation_jobs',
+      expect.objectContaining({ p_batch_size: 5 }),
+    );
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────
@@ -310,6 +374,8 @@ describe('processEvaluationJob — pre-claimed running job eligibility', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
     process.env.OPENAI_API_KEY = 'sk-test';
+    process.env.EVAL_PASS_TIMEOUT_MS = '180000';
+    process.env.EVAL_OPENAI_TIMEOUT_MS = '180000';
     process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = 'optional';
   });
 
@@ -420,6 +486,8 @@ describe('failStaleRunningJobs — expired lease recovery', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
     process.env.OPENAI_API_KEY = 'sk-test';
+    process.env.EVAL_PASS_TIMEOUT_MS = '180000';
+    process.env.EVAL_OPENAI_TIMEOUT_MS = '180000';
   });
 
   test('auto-fails jobs with expired lease_expires_at', async () => {

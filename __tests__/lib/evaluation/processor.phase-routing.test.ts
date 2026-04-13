@@ -14,6 +14,8 @@ describe("processEvaluationJob phase routing guard", () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
     process.env.OPENAI_API_KEY = "sk-test-key";
+    process.env.EVAL_PASS_TIMEOUT_MS = "180000";
+    process.env.EVAL_OPENAI_TIMEOUT_MS = "180000";
     process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = "optional";
   });
 

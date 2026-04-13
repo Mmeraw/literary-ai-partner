@@ -116,7 +116,7 @@ const staleRunningMinutes = (() => {
 })();
 const evalWorkerBatchSize = (() => {
   const parsed = Number.parseInt(process.env.EVAL_WORKER_BATCH_SIZE || '5', 10);
-  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 25 ? parsed : 5;
+  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 5 ? parsed : 5;
 })();
 const evalContextContaminationGuardEnabled = (() => {
   const raw = (process.env.EVAL_CONTEXT_CONTAMINATION_GUARD || 'auto').trim().toLowerCase();
@@ -764,8 +764,9 @@ export async function failStaleRunningJobs(): Promise<{
     .from('evaluation_jobs')
     .select('id')
     .eq('status', 'running')
-    .lt('updated_at', cutoff)
-    .order('updated_at', { ascending: true })
+    .not('last_heartbeat_at', 'is', null)
+    .lt('last_heartbeat_at', cutoff)
+    .order('last_heartbeat_at', { ascending: true })
     .limit(25);
 
   if (ageError) {
@@ -1273,14 +1274,31 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
  * Falls back to an empty array if the RPC is unavailable (graceful degradation).
  */
 export async function claimQueuedJobs(
-  workerId: string,
+  options: {
+    workerId: string;
+    batchSize?: number;
+    leaseMs?: number;
+  },
 ): Promise<Array<{ id: string; phase: string }>> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+  const workerId = options.workerId;
+  const batchSizeRaw = Number(options.batchSize ?? evalWorkerBatchSize);
+  const leaseMsRaw = Number(options.leaseMs ?? 180_000);
+  const batchSize = Number.isFinite(batchSizeRaw)
+    ? Math.min(5, Math.max(1, Math.floor(batchSizeRaw)))
+    : 5;
+  const leaseMs = Number.isFinite(leaseMsRaw)
+    ? Math.min(180_000, Math.max(30_000, Math.floor(leaseMsRaw)))
+    : 180_000;
+  const leaseToken = randomUUID();
+  const leaseExpiresAt = new Date(Date.now() + leaseMs).toISOString();
+
   const { data, error } = await supabase.rpc('claim_evaluation_jobs', {
+    p_batch_size: batchSize,
     p_worker_id: workerId,
-    p_batch_size: evalWorkerBatchSize,
-    p_lease_secs: 180,
+    p_lease_token: leaseToken,
+    p_lease_expires_at: leaseExpiresAt,
   });
 
   if (error) {
@@ -1308,14 +1326,20 @@ export async function claimQueuedJobs(
 /**
  * Process all queued evaluation jobs
  */
-export async function processQueuedJobs(workerId?: string): Promise<{
+export async function processQueuedJobs(options?: {
+  workerId?: string;
+  batchSize?: number;
+  leaseMs?: number;
+}): Promise<{
   processed: number;
   succeeded: number;
   failed: number;
   claimed: number;
   errors: Array<{ jobId: string; error: string }>;
 }> {
-  const effectiveWorkerId = workerId ?? randomUUID();
+  const effectiveWorkerId = options?.workerId ?? randomUUID();
+  const requestedBatchSize = options?.batchSize ?? evalWorkerBatchSize;
+  const requestedLeaseMs = options?.leaseMs ?? 180_000;
 
   // Safety net: recover jobs left in running due to platform hard timeout/crash.
   await failStaleRunningJobs();
@@ -1323,7 +1347,11 @@ export async function processQueuedJobs(workerId?: string): Promise<{
   // Atomically claim a batch of queued jobs via SKIP LOCKED RPC.
   let jobs: Array<{ id: string; phase: string }> = [];
   try {
-    jobs = await claimQueuedJobs(effectiveWorkerId);
+    jobs = await claimQueuedJobs({
+      workerId: effectiveWorkerId,
+      batchSize: requestedBatchSize,
+      leaseMs: requestedLeaseMs,
+    });
   } catch {
     // If claiming fails hard, return early rather than silently double-processing.
     console.error('[Processor] Fatal error during job claiming; aborting batch');

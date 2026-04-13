@@ -14,6 +14,9 @@ ALTER TABLE public.evaluation_jobs
   ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ;
 
 ALTER TABLE public.evaluation_jobs
+  ADD COLUMN IF NOT EXISTS lease_token TEXT;
+
+ALTER TABLE public.evaluation_jobs
   ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMPTZ;
 
 -- Index: quickly find expired leases for failStaleRunningJobs recovery
@@ -23,7 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_evaluation_jobs_lease_expires_at
 
 -- Index: support queued claiming queries (status + phase + phase_status)
 CREATE INDEX IF NOT EXISTS idx_evaluation_jobs_claim_queue
-  ON public.evaluation_jobs (status, phase, phase_status, created_at)
+  ON public.evaluation_jobs (status, phase_status, created_at)
   WHERE status = 'queued';
 
 COMMENT ON COLUMN public.evaluation_jobs.claimed_by IS
@@ -31,6 +34,9 @@ COMMENT ON COLUMN public.evaluation_jobs.claimed_by IS
 
 COMMENT ON COLUMN public.evaluation_jobs.claimed_at IS
   'PR B: Timestamp when the processor worker claimed this job atomically.';
+
+COMMENT ON COLUMN public.evaluation_jobs.lease_token IS
+  'PR B: Lease token for claim ownership during processor execution.';
 
 COMMENT ON COLUMN public.evaluation_jobs.lease_expires_at IS
   'PR B: Processor claim lease expiry. Jobs with expired leases are eligible for recovery by failStaleRunningJobs().';
