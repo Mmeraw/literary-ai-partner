@@ -84,6 +84,10 @@ const evalMinManuscriptChars = (() => {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 200;
 })();
 const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'o3').trim() || 'o3';
+const evalPassTimeoutMs = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_PASS_TIMEOUT_MS || '180000', 10);
+  return Number.isFinite(parsed) && parsed >= 10_000 && parsed <= 180_000 ? parsed : 180_000;
+})();
 const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
 const staleRunningMinutes = (() => {
   const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);
@@ -981,7 +985,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: missingCrossCheckConfigError };
     }
 
-    console.log(`[Processor] ${jobId}: ENTER runPipeline model=${getCanonicalPipelineModel(openAiModel)}`);
+    console.log(`[Processor] ${jobId}: ENTER runPipeline model=${getCanonicalPipelineModel(openAiModel)} passTimeoutMs=${evalPassTimeoutMs}`);
     const pipelineResult = await runPipeline({
       manuscriptText: manuscriptWithContent.content || '',
       workType: manuscriptWithContent.work_type || 'novel',
@@ -991,6 +995,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       perplexityApiKey: perplexityApiKey || undefined,
       manuscriptId: String(manuscriptWithContent.id),
       executionMode: 'TRUSTED_PATH',
+      _passTimeoutMs: evalPassTimeoutMs,
     });
     console.log(
       `[Processor] ${jobId}: EXIT runPipeline ok=${pipelineResult.ok}` +
