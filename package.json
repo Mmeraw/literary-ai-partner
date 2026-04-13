@@ -43,6 +43,7 @@
     "revision:smoke:stage2": "node scripts/revision-stage2-smoke.mjs",
     "evidence:phase2c": "bash scripts/evidence-phase2c.sh",
     "evidence:phase2d": "bash scripts/evidence-phase2d.sh",
+    "evidence:phase2-handoff": "WORKER_ALLOW_SERVICE_ROLE_DEV=1 node scripts/evidence-phase2-handoff-proof.mjs",
     "evidence:flow1": "bash scripts/evidence-flow1.sh",
     "a6:run": "tsx -r tsconfig-paths/register scripts/a6/run-a6-evidence.ts",
     "phase2.7:real-run": "tsx -r tsconfig-paths/register scripts/pipeline/run-phase2-7-real-run.ts",

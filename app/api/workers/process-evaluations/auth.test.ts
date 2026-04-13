@@ -201,6 +201,34 @@ describe('Process Evaluations Worker Auth', () => {
       
       expect(response.status).toBe(401);
     });
+
+    it('should allow service-role bearer in development when dev gate is enabled', async () => {
+      setEnv('NODE_ENV', 'development');
+      setEnv('WORKER_ALLOW_SERVICE_ROLE_DEV', '1');
+      setEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
+
+      const req = createMockRequest({
+        headers: { authorization: 'Bearer service-role-key' },
+      });
+      const response = await GET(req);
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.authMethod).toBe('dev_service_role');
+    });
+
+    it('should reject service-role bearer in production even when dev gate is enabled', async () => {
+      setEnv('NODE_ENV', 'production');
+      setEnv('WORKER_ALLOW_SERVICE_ROLE_DEV', '1');
+      setEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
+
+      const req = createMockRequest({
+        headers: { authorization: 'Bearer service-role-key' },
+      });
+      const response = await GET(req);
+
+      expect(response.status).toBe(401);
+    });
   });
 
   describe('Dry Run Mode', () => {
