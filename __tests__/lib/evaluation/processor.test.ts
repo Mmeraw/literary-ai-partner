@@ -1,3 +1,6 @@
+process.env.EVAL_PASS_TIMEOUT_MS = "180000";
+process.env.EVAL_OPENAI_TIMEOUT_MS = "180000";
+
 const {
   normalizeCriteria,
   normalizeOverviewFromAIResult,

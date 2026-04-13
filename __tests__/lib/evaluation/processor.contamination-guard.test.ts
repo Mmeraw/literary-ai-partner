@@ -59,9 +59,9 @@ function makeSupabaseStub() {
     job_type: "evaluate_full",
     status: "queued",
     phase: "phase_1",
-    phase_status: "triggered",
+    phase_status: "queued",
     created_at: new Date().toISOString(),
-    progress: {},
+    progress: { phase: "phase_1", phase_status: "queued" },
   };
 
   const manuscript = {
@@ -143,6 +143,8 @@ describe("processEvaluationJob contamination guard enforcement", () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
     process.env.OPENAI_API_KEY = "sk-test-key";
+    process.env.EVAL_PASS_TIMEOUT_MS = "180000";
+    process.env.EVAL_OPENAI_TIMEOUT_MS = "180000";
     process.env.EVAL_CONTEXT_CONTAMINATION_GUARD = "true";
     process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = "optional";
   });

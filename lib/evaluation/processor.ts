@@ -57,6 +57,7 @@
  * ─────────────────────────────────────────────────────────────────────
  */
 
+import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { validateEvaluationResult } from '@/schemas/evaluation-result-v1';
@@ -112,6 +113,10 @@ const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
 const staleRunningMinutes = (() => {
   const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);
   return Number.isFinite(parsed) && parsed >= 1 && parsed <= 240 ? parsed : 10;
+})();
+const evalWorkerBatchSize = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_WORKER_BATCH_SIZE || '5', 10);
+  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 5 ? parsed : 5;
 })();
 const evalContextContaminationGuardEnabled = (() => {
   const raw = (process.env.EVAL_CONTEXT_CONTAMINATION_GUARD || 'auto').trim().toLowerCase();
@@ -751,33 +756,56 @@ export async function failStaleRunningJobs(): Promise<{
   ids: string[];
 }> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const now = new Date().toISOString();
   const cutoff = new Date(Date.now() - staleRunningMinutes * 60_000).toISOString();
 
-  const { data: staleJobs, error: staleError } = await supabase
+  // Collect IDs: stale by updated_at cutoff OR expired claim lease
+  const { data: staleByAge, error: ageError } = await supabase
     .from('evaluation_jobs')
-    .select('id, updated_at')
+    .select('id')
     .eq('status', 'running')
-    .lt('updated_at', cutoff)
-    .order('updated_at', { ascending: true })
+    .not('last_heartbeat_at', 'is', null)
+    .lt('last_heartbeat_at', cutoff)
+    .order('last_heartbeat_at', { ascending: true })
     .limit(25);
 
-  if (staleError) {
-    console.warn('[Processor] Failed to check stale running jobs:', staleError.message);
+  if (ageError) {
+    console.warn('[Processor] Failed to check stale running jobs (age):', ageError.message);
     return { staleFound: 0, failed: 0, ids: [] };
   }
 
-  if (!staleJobs || staleJobs.length === 0) {
+  // Also collect jobs with expired claim leases (lease_expires_at in the past)
+  const { data: staleByLease, error: leaseError } = await supabase
+    .from('evaluation_jobs')
+    .select('id')
+    .eq('status', 'running')
+    .not('lease_expires_at', 'is', null)
+    .lt('lease_expires_at', now)
+    .order('lease_expires_at', { ascending: true })
+    .limit(25);
+
+  if (leaseError) {
+    console.warn('[Processor] Failed to check stale running jobs (lease):', leaseError.message);
+  }
+
+  // Merge unique IDs from both sources
+  const ageIds = (staleByAge ?? []).map((r) => r.id);
+  const leaseIds = (staleByLease ?? []).map((r) => r.id);
+  const staleIds = Array.from(new Set([...ageIds, ...leaseIds]));
+
+  if (staleIds.length === 0) {
     return { staleFound: 0, failed: 0, ids: [] };
   }
 
-  const staleIds = staleJobs.map((row) => row.id);
-  const now = new Date().toISOString();
   const { data: failedRows, error: failError } = await supabase
     .from('evaluation_jobs')
     .update({
       status: 'failed',
       last_error:
         'Auto-failed stale running job: worker timed out or crashed before completion update',
+      claimed_by: null,
+      claimed_at: null,
+      lease_expires_at: null,
       updated_at: now,
     })
     .in('id', staleIds)
@@ -841,9 +869,31 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
       (job.phase_status === 'queued' || progress.phase_status === 'queued');
 
-    const executionPhase: 'phase_1' | 'phase_2' = isPhase2QueuedCandidate ? 'phase_2' : 'phase_1';
+    // Pre-claimed running jobs: atomically claimed by the processor (claimed_by is set,
+    // phase_status=running, lease not yet expired). These were transitioned queued->running
+    // by claim_evaluation_jobs RPC before being handed to this function.
+    const isPhase1PreClaimed =
+      job.status === 'running' &&
+      !!job.claimed_by &&
+      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
+      (job.phase_status === 'running' || progress.phase_status === 'running');
 
-    if (!isPhase1QueuedCandidate && !isPhase1CompleteHandoff && !isPhase2QueuedCandidate) {
+    const isPhase2PreClaimed =
+      job.status === 'running' &&
+      !!job.claimed_by &&
+      (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
+      (job.phase_status === 'running' || progress.phase_status === 'running');
+
+    const executionPhase: 'phase_1' | 'phase_2' =
+      isPhase2QueuedCandidate || isPhase2PreClaimed ? 'phase_2' : 'phase_1';
+
+    if (
+      !isPhase1QueuedCandidate &&
+      !isPhase1CompleteHandoff &&
+      !isPhase2QueuedCandidate &&
+      !isPhase1PreClaimed &&
+      !isPhase2PreClaimed
+    ) {
       return {
         success: false,
         error: `Job not eligible for processing. status=${job.status}, phase=${job.phase}, phase_status=${job.phase_status}`,
@@ -1219,37 +1269,98 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 }
 
 /**
+ * Atomically claim a batch of queued evaluation jobs using the claim_evaluation_jobs RPC.
+ * Returns an array of claimed job objects (id + phase).
+ * Falls back to an empty array if the RPC is unavailable (graceful degradation).
+ */
+export async function claimQueuedJobs(
+  options: {
+    workerId: string;
+    batchSize?: number;
+    leaseMs?: number;
+  },
+): Promise<Array<{ id: string; phase: string }>> {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  const workerId = options.workerId;
+  const batchSizeRaw = Number(options.batchSize ?? evalWorkerBatchSize);
+  const leaseMsRaw = Number(options.leaseMs ?? 180_000);
+  const batchSize = Number.isFinite(batchSizeRaw)
+    ? Math.min(5, Math.max(1, Math.floor(batchSizeRaw)))
+    : 5;
+  const leaseMs = Number.isFinite(leaseMsRaw)
+    ? Math.min(180_000, Math.max(30_000, Math.floor(leaseMsRaw)))
+    : 180_000;
+  const leaseToken = randomUUID();
+  const leaseExpiresAt = new Date(Date.now() + leaseMs).toISOString();
+
+  const { data, error } = await supabase.rpc('claim_evaluation_jobs', {
+    p_batch_size: batchSize,
+    p_worker_id: workerId,
+    p_lease_token: leaseToken,
+    p_lease_expires_at: leaseExpiresAt,
+  });
+
+  if (error) {
+    const msg = error.message || '';
+    // Graceful degradation: if the RPC doesn't exist yet, return empty so the
+    // caller can fall through to the legacy SELECT path.
+    if (msg.includes('function') || msg.includes('does not exist') || msg.includes('schema cache')) {
+      console.warn('[Processor] claim_evaluation_jobs RPC unavailable, falling back to legacy SELECT');
+      return [];
+    }
+    console.error('[Processor] claim_evaluation_jobs RPC error:', error);
+    throw error;
+  }
+
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  return (data as Array<{ id: string; phase: string }>).map((row) => ({
+    id: row.id,
+    phase: row.phase,
+  }));
+}
+
+/**
  * Process all queued evaluation jobs
  */
-export async function processQueuedJobs(): Promise<{
+export async function processQueuedJobs(options?: {
+  workerId?: string;
+  batchSize?: number;
+  leaseMs?: number;
+}): Promise<{
   processed: number;
   succeeded: number;
   failed: number;
+  claimed: number;
   errors: Array<{ jobId: string; error: string }>;
 }> {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const effectiveWorkerId = options?.workerId ?? randomUUID();
+  const requestedBatchSize = options?.batchSize ?? evalWorkerBatchSize;
+  const requestedLeaseMs = options?.leaseMs ?? 180_000;
 
   // Safety net: recover jobs left in running due to platform hard timeout/crash.
   await failStaleRunningJobs();
 
-  // Fetch all queued jobs
-  const { data: jobs, error } = await supabase
-    .from('evaluation_jobs')
-    .select('id,phase')
-    .eq('status', 'queued')
-    .eq('phase_status', 'queued')
-    .in('phase', ['phase_1', 'phase_2'])
-    .order('created_at', { ascending: true })
-    .limit(10); // Process max 10 jobs per run
-
-  if (error) {
-    console.error('[Processor] Error fetching queued jobs:', error);
-    return { processed: 0, succeeded: 0, failed: 0, errors: [] };
+  // Atomically claim a batch of queued jobs via SKIP LOCKED RPC.
+  let jobs: Array<{ id: string; phase: string }> = [];
+  try {
+    jobs = await claimQueuedJobs({
+      workerId: effectiveWorkerId,
+      batchSize: requestedBatchSize,
+      leaseMs: requestedLeaseMs,
+    });
+  } catch {
+    // If claiming fails hard, return early rather than silently double-processing.
+    console.error('[Processor] Fatal error during job claiming; aborting batch');
+    return { processed: 0, succeeded: 0, failed: 0, claimed: 0, errors: [] };
   }
 
-  if (!jobs || jobs.length === 0) {
-    console.log('[Processor] No queued jobs found');
-    return { processed: 0, succeeded: 0, failed: 0, errors: [] };
+  if (jobs.length === 0) {
+    console.log('[Processor] No queued jobs claimed');
+    return { processed: 0, succeeded: 0, failed: 0, claimed: 0, errors: [] };
   }
 
   const phaseBreakdown = jobs.reduce<Record<string, number>>((acc, row) => {
@@ -1258,17 +1369,18 @@ export async function processQueuedJobs(): Promise<{
     return acc;
   }, {});
 
-  console.log(`[Processor] Found ${jobs.length} queued job(s)`);
-  console.log(`[Processor] Queued candidate counts by phase: ${JSON.stringify(phaseBreakdown)}`);
+  console.log(`[Processor] Claimed ${jobs.length} job(s) for worker ${effectiveWorkerId}`);
+  console.log(`[Processor] Claimed job phase breakdown: ${JSON.stringify(phaseBreakdown)}`);
 
   const results = {
     processed: jobs.length,
+    claimed: jobs.length,
     succeeded: 0,
     failed: 0,
     errors: [] as Array<{ jobId: string; error: string }>
   };
 
-  // Process each job sequentially
+  // Process each claimed job sequentially
   for (const job of jobs) {
     const result = await processEvaluationJob(job.id);
     
@@ -1280,7 +1392,7 @@ export async function processQueuedJobs(): Promise<{
     }
   }
 
-  console.log(`[Processor] Completed: ${results.succeeded} succeeded, ${results.failed} failed`);
+  console.log(`[Processor] Completed: ${results.succeeded} succeeded, ${results.failed} failed (claimed: ${results.claimed})`);
 
   return results;
 }

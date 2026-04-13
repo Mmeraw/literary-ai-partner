@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { processQueuedJobs } from '@/lib/evaluation/processor';
 import { checkServiceRoleAuth } from '@/lib/auth/api';
 import crypto from 'crypto';
+import os from 'os';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
@@ -36,7 +37,9 @@ const CONFIG = {
   // Maximum execution time before timeout (Vercel hobby: 10s, pro: 60s)
   MAX_EXECUTION_MS: 55000,
   // Batch size for processing
-  BATCH_SIZE: 10,
+  BATCH_SIZE: 5,
+  // Lease duration for atomically claimed jobs
+  LEASE_MS: 180000,
 } as const;
 
 // ============================================================================
@@ -169,6 +172,13 @@ function generateTraceId(): string {
   return crypto.randomUUID();
 }
 
+function buildWorkerId(traceId: string): string {
+  const env = process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown-env';
+  const host = process.env.HOSTNAME || os.hostname() || 'unknown-host';
+  const tracePart = traceId.slice(0, 12);
+  return `${env}:${host}:${tracePart}`;
+}
+
 /**
  * Structured log entry
  */
@@ -271,7 +281,12 @@ export async function GET(request: NextRequest) {
     }
     
     // Process queued jobs
-    const results = await processQueuedJobs();
+    const workerId = buildWorkerId(traceId);
+    const results = await processQueuedJobs({
+      workerId,
+      batchSize: CONFIG.BATCH_SIZE,
+      leaseMs: CONFIG.LEASE_MS,
+    });
     const durationMs = Date.now() - startTime;
     
     structuredLog({
@@ -281,7 +296,9 @@ export async function GET(request: NextRequest) {
       message: 'Worker completed successfully',
       data: {
         authMethod: auth.method,
+        workerId,
         durationMs,
+        claimed: results.claimed,
         processed: results.processed,
         succeeded: results.succeeded,
         failed: results.failed,
@@ -292,7 +309,9 @@ export async function GET(request: NextRequest) {
       success: true,
       traceId,
       authMethod: auth.method,
+      workerId,
       durationMs,
+      claimed: results.claimed,
       processed: results.processed,
       succeeded: results.succeeded,
       failed: results.failed,
