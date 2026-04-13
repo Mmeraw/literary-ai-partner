@@ -18,14 +18,12 @@ import {
   buildOpenAITemperatureParam,
   getCanonicalPipelineModel,
 } from "@/lib/evaluation/policy";
+import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 
 const PASS1_TEMPERATURE = 0.3;
 const PASS1_MAX_TOKENS = 4000;
 const PASS1_MODEL = "o3";
-const OPENAI_TIMEOUT_MS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || "180000", 10);
-  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 180_000 ? parsed : 180_000;
-})();
+const OPENAI_TIMEOUT_MS = getEvalOpenAiTimeoutMs();
 
 type CompletionChoice = {
   message?: {

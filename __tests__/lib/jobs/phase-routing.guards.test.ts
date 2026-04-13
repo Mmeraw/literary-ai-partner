@@ -12,7 +12,7 @@ describe("phase routing guards for queued jobs", () => {
       status: "queued",
       progress: {
         phase: "phase_2",
-        phase_status: "triggered",
+        phase_status: "queued",
         total_units: null,
         completed_units: null,
       },
@@ -32,12 +32,12 @@ describe("phase routing guards for queued jobs", () => {
       {
         id: "job-phase1",
         status: "queued",
-        progress: { phase: "phase_1", phase_status: "triggered" },
+        progress: { phase: "phase_1", phase_status: "queued" },
       },
       {
         id: "job-phase2",
         status: "queued",
-        progress: { phase: "phase_2", phase_status: "triggered" },
+        progress: { phase: "phase_2", phase_status: "queued" },
       },
       {
         id: "job-phase2-eligible",

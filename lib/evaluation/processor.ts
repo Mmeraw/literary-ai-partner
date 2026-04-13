@@ -72,6 +72,11 @@ import {
   getCanonicalPipelineModel,
   getExternalAdjudicationMode,
 } from '@/lib/evaluation/policy';
+import {
+  assertEvalTimeoutConfig,
+  getEvalOpenAiTimeoutMs,
+  getEvalPassTimeoutMs,
+} from '@/lib/evaluation/config';
 import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 
@@ -96,19 +101,9 @@ const evalMinManuscriptChars = (() => {
   return 200 * 5; // 200 words default
 })();
 const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'o3').trim() || 'o3';
-const evalPassTimeoutMs = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS_TIMEOUT_MS || '180000', 10);
-  return Number.isFinite(parsed) && parsed >= 10_000 && parsed <= 180_000 ? parsed : 180_000;
-})();
-const evalOpenAiTimeoutMs = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || '180000', 10);
-  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 180_000 ? parsed : 180_000;
-})();
-if (evalOpenAiTimeoutMs < evalPassTimeoutMs) {
-  throw new Error(
-    `[CONFIG_ERROR] EVAL_OPENAI_TIMEOUT_MS (${evalOpenAiTimeoutMs}) must be >= EVAL_PASS_TIMEOUT_MS (${evalPassTimeoutMs})`,
-  );
-}
+const evalPassTimeoutMs = getEvalPassTimeoutMs();
+const evalOpenAiTimeoutMs = getEvalOpenAiTimeoutMs();
+assertEvalTimeoutConfig();
 const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
 const staleRunningMinutes = (() => {
   const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);

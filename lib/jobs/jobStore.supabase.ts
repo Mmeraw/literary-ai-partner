@@ -7,6 +7,7 @@ import {
   validateProgressSchema,
 } from "./canon";
 import { Job, JobStatus, JobType, PHASES, Phase, JOB_STATUS, JobProgress } from "./types";
+import { getLeaseTimeoutSeconds } from "./config";
 
 const JOB_SELECT_FIELDS =
   "id, manuscript_id, user_id, job_type, status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id)";
@@ -59,15 +60,7 @@ const JOB_TYPE_FROM_DB: Record<string, JobType> = {
 const CANON_JOB_STATUS_VALUES = new Set(Object.values(JOB_STATUS));
 const CANON_PHASE_VALUES = new Set(Object.values(PHASES));
 
-const DEFAULT_LEASE_TIMEOUT_SECONDS = (() => {
-  const raw =
-    process.env.JOB_PHASE_LEASE_TIMEOUT_SECONDS ??
-    process.env.JOB_LEASE_TIMEOUT_SECONDS ??
-    "300";
-  const parsed = Number.parseInt(raw, 10);
-  // Clamp to [30s, 15m] for safety; default is 5 minutes.
-  return Number.isFinite(parsed) ? Math.min(900, Math.max(30, parsed)) : 300;
-})();
+const DEFAULT_LEASE_TIMEOUT_SECONDS = getLeaseTimeoutSeconds();
 
 function assertCanonicalStatusValue(value: string): asserts value is JobStatus {
   if (!CANON_JOB_STATUS_VALUES.has(value as JobStatus)) {

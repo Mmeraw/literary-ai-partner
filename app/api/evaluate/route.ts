@@ -156,7 +156,7 @@ export async function POST(req: Request) {
         user_id: userId,
         job_type: "evaluate_full",
         phase: PHASES.PHASE_1,
-      phase_status: "triggered",
+        phase_status: "queued",
         policy_family: "standard",
         voice_preservation_level: "balanced",
         english_variant: "us",

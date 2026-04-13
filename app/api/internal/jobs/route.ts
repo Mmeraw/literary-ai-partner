@@ -35,7 +35,7 @@ export function selectEligibleJobs(allJobs: Awaited<ReturnType<typeof getAllJobs
     (j) =>
       j.status === "queued" &&
       j.progress?.phase === PHASES.PHASE_1 &&
-      (j.progress?.phase_status === "queued" || j.progress?.phase_status === "triggered"),
+      j.progress?.phase_status === "queued",
   );
 
   const phase2Candidates = allJobs.filter(
