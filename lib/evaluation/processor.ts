@@ -80,14 +80,34 @@ const openaiApiKey = process.env.OPENAI_API_KEY;
 const perplexityApiKey = process.env.PERPLEXITY_API_KEY ?? "";
 const evalDebugEnabled = process.env.EVAL_DEBUG === '1';
 const evalMinManuscriptChars = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_CHARS || '200', 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 200;
+  if (process.env.EVAL_MIN_MANUSCRIPT_WORDS) {
+    const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_WORDS, 10);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      // Convert words to chars (avg ~5 chars/word)
+      return parsed * 5;
+    }
+  }
+  if (process.env.EVAL_MIN_MANUSCRIPT_CHARS) {
+    console.warn(
+      '[Processor] EVAL_MIN_MANUSCRIPT_CHARS is deprecated. Use EVAL_MIN_MANUSCRIPT_WORDS instead. Defaulting to 200 words.',
+    );
+  }
+  return 200 * 5; // 200 words default
 })();
 const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'o3').trim() || 'o3';
 const evalPassTimeoutMs = (() => {
   const parsed = Number.parseInt(process.env.EVAL_PASS_TIMEOUT_MS || '180000', 10);
   return Number.isFinite(parsed) && parsed >= 10_000 && parsed <= 180_000 ? parsed : 180_000;
 })();
+const evalOpenAiTimeoutMs = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || '180000', 10);
+  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 180_000 ? parsed : 180_000;
+})();
+if (evalOpenAiTimeoutMs < evalPassTimeoutMs) {
+  throw new Error(
+    `[CONFIG_ERROR] EVAL_OPENAI_TIMEOUT_MS (${evalOpenAiTimeoutMs}) must be >= EVAL_PASS_TIMEOUT_MS (${evalPassTimeoutMs})`,
+  );
+}
 const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
 const staleRunningMinutes = (() => {
   const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);
@@ -814,14 +834,12 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     const isPhase1QueuedCandidate =
       job.status === 'queued' &&
       (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
-      (job.phase_status === 'triggered' ||
-        progress.phase_status === 'triggered' ||
-        progress.phase_status === 'queued');
+      (job.phase_status === 'queued' || progress.phase_status === 'queued');
 
     const isPhase2QueuedCandidate =
       job.status === 'queued' &&
       (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
-      (job.phase_status === 'triggered' || progress.phase_status === 'triggered');
+      (job.phase_status === 'queued' || progress.phase_status === 'queued');
 
     const executionPhase: 'phase_1' | 'phase_2' = isPhase2QueuedCandidate ? 'phase_2' : 'phase_1';
 
@@ -1219,7 +1237,7 @@ export async function processQueuedJobs(): Promise<{
     .from('evaluation_jobs')
     .select('id,phase')
     .eq('status', 'queued')
-    .eq('phase_status', 'triggered')
+    .eq('phase_status', 'queued')
     .in('phase', ['phase_1', 'phase_2'])
     .order('created_at', { ascending: true })
     .limit(10); // Process max 10 jobs per run
