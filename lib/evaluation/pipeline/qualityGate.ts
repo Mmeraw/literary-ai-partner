@@ -350,18 +350,25 @@ export function runQualityGate(
     const violations: string[] = [];
     for (const c of pass2.criteria) {
       let overlapCount = 0;
+      const overlapSamples: string[] = [];
       for (const gram of collectNgrams(c.rationale, ngramSize)) {
         if (evidenceNgrams.has(gram)) {
           continue;
         }
         if (pass1Ngrams.has(gram)) {
           overlapCount += 1;
+          if (overlapSamples.length < 5 && !overlapSamples.includes(gram)) {
+            overlapSamples.push(gram);
+          }
         }
       }
 
       if (overlapCount >= QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION) {
+        const sampleText = overlapSamples.length > 0
+          ? ` [samples: ${overlapSamples.map((s) => `"${s}"`).join(" | ")}]`
+          : "";
         violations.push(
-          `${c.key}: ${overlapCount} shared non-evidence ${ngramSize}-gram(s) with Pass 1 rationale`,
+          `${c.key}: ${overlapCount} shared non-evidence ${ngramSize}-gram(s) with Pass 1 rationale${sampleText}`,
         );
       }
     }
