@@ -24,7 +24,8 @@ const STOPWORDS_LIST = Object.freeze([
 
 // Known cross-manuscript bleed markers from historical contamination incidents.
 // This list is static and narrow — do NOT expand into a general novel-token check.
-// A future cross-manuscript NER index will supersede this when available.
+// When a cross-manuscript NER index is available it will replace this list entirely;
+// no fallback behaviour should be retained at that point.
 const HARD_FAIL_TOKENS: Set<string> = new Set([
   "maria",
   "cartel",
