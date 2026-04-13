@@ -11,7 +11,8 @@ function readEnv(path) {
     const line = raw.trim();
     if (!line || line.startsWith('#') || !line.includes('=')) continue;
     const i = line.indexOf('=');
-    out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+    const value = line.slice(i + 1).trim().replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1');
+    out[line.slice(0, i).trim()] = value;
   }
   return out;
 }
@@ -78,7 +79,7 @@ async function ensureOwner() {
     body: JSON.stringify({ id: OWNER_ID, email: 'phase2-proof-owner@test.local', email_confirm: true }),
   });
 
-  if (create.status !== 200) {
+  if (create.status !== 200 && create.status !== 201) {
     throw new Error(`Owner create failed: ${create.status} ${await create.text()}`);
   }
 }
@@ -219,7 +220,11 @@ if (!handoff) {
 proof.phase2_trigger = await postService(`/api/jobs/${proof.job_id}/run-phase2`);
 console.log('[phase2_trigger]', proof.phase2_trigger.status, proof.phase2_trigger.body.slice(0, 200));
 
+console.log('[DEBUG] NOTE: worker dev-service-role auth depends on the server process env, not just this script env.');
 let terminal = null;
+console.log("[DEBUG] BASE_URL:", BASE_URL);
+console.log("[DEBUG] hasServiceRoleKey:", !!SRK);
+console.log("[DEBUG] allowDevServiceRole:", WORKER_ALLOW_SERVICE_ROLE_DEV);
 for (let i = 0; i < PHASE2_MAX_POLLS; i++) {
   const tick = await tickWorker();
   console.log('[worker_tick]', i, tick.status, tick.body);
