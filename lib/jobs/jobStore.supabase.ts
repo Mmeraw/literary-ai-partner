@@ -394,7 +394,7 @@ export async function acquireLeaseForPhase2(
       const errorMessage =
         "Lease expired with no heartbeat; marking job failed to prevent stuck running state";
 
-      await supabase
+      const { data: failedRow, error: failError } = await supabase
         .from("evaluation_jobs")
         .update({
           status: JOB_STATUS.FAILED,
@@ -426,14 +426,29 @@ export async function acquireLeaseForPhase2(
           updated_at: nowIso,
         })
         .eq("id", id)
-        .eq("status", JOB_STATUS.RUNNING);
+        .eq("status", JOB_STATUS.RUNNING)
+        .select(JOB_SELECT_FIELDS)
+        .maybeSingle();
 
-      console.warn("[Phase2LeaseDeadJobFailed]", {
-        job_id: id,
-        lease_id: existingLeaseId,
-        lease_expires_at: leaseExpiresAtRaw,
-        last_heartbeat: existing.last_heartbeat,
-      });
+      if (failError) {
+        throw new Error(`Failed to classify dead phase2 lease: ${failError.message}`);
+      }
+
+      if (failedRow) {
+        console.warn("[Phase2LeaseDeadJobFailed]", {
+          job_id: id,
+          lease_id: existingLeaseId,
+          lease_expires_at: leaseExpiresAtRaw,
+          last_heartbeat: existing.last_heartbeat,
+        });
+      } else {
+        console.warn("[Phase2LeaseDeadJobLostRace]", {
+          job_id: id,
+          lease_id: existingLeaseId,
+          lease_expires_at: leaseExpiresAtRaw,
+          last_heartbeat: existing.last_heartbeat,
+        });
+      }
 
       return null;
     }
@@ -447,49 +462,18 @@ export async function acquireLeaseForPhase2(
     );
   }
 
-  const expiresAt = new Date(now.getTime() + ttlSeconds * 1000).toISOString();
-
-  // If resuming, do NOT rewrite phase/phase_status; keep them stable.
-  // If entering from phase1/complete, flip into phase2/running.
-  const mergedProgress = isPhase2Resumable
-    ? {
-        ...existing.progress,
-        lease_id: leaseId,
-        lease_expires_at: expiresAt,
-      }
-    : {
-        ...existing.progress,
-        lease_id: leaseId,
-        lease_expires_at: expiresAt,
-        phase: PHASES.PHASE_2,
-        phase_status: "running",
-      };
-
-  // Optimistic concurrency: prevents concurrent lease acquires / progress stomps
-  const { data, error } = await supabase
-    .from("evaluation_jobs")
-    .update({
-      progress: mergedProgress,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .eq("status", "running")
-    .eq("updated_at", existing.updated_at)
-    .or(
-      [
-        "and(progress->>phase.eq.phase_1,progress->>phase_status.eq.complete)",
-        "and(progress->>phase.eq.phase_2,progress->>phase_status.eq.running)",
-      ].join(","),
-    )
-    .select(JOB_SELECT_FIELDS)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("claim_evaluation_job_phase2", {
+    p_job_id: id,
+    p_lease_id: leaseId,
+    p_ttl_seconds: ttlSeconds,
+  });
 
   if (error) {
-    throw new Error(`Failed to acquire phase2 lease: ${error.message}`);
+    throw new Error(`claim_evaluation_job_phase2 RPC failed: ${error.message}`);
   }
 
-  if (!data) return null;
-  return mapDbRowToJob(data);
+  if (!data || data.length === 0) return null;
+  return mapDbRowToJob(data[0]);
 }
 
 export async function incrementCounter(

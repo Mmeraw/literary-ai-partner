@@ -35,31 +35,34 @@ function makeDbJobRow(overrides: Partial<DbRow> = {}): DbRow {
 
 function buildSupabaseStub(opts: {
   getJobRow: DbRow;
+  rpcResultRows?: DbRow[] | null;
+  rpcError?: { message: string } | null;
   updateResultRow?: DbRow | null;
 }) {
   const updatePayloads: Array<Record<string, unknown>> = [];
 
-  const maybeSingle = jest
+  const getJobMaybeSingle = jest
     .fn()
-    .mockResolvedValueOnce({ data: opts.getJobRow, error: null })
-    .mockResolvedValue({ data: opts.updateResultRow ?? opts.getJobRow, error: null });
+    .mockResolvedValue({ data: opts.getJobRow, error: null });
+
+  const updateMaybeSingle = jest
+    .fn()
+    .mockResolvedValue({ data: opts.updateResultRow ?? null, error: null });
 
   const updateBuilder: any = {
     eq: jest.fn(function () {
-      return this;
-    }),
-    or: jest.fn(function () {
       return this;
     }),
     select: jest.fn(function () {
       this._hasSelect = true;
       return this;
     }),
-    maybeSingle,
+    maybeSingle: updateMaybeSingle,
     _hasSelect: false,
   };
 
   const supabase = {
+    rpc: jest.fn().mockResolvedValue({ data: opts.rpcResultRows ?? [], error: opts.rpcError ?? null }),
     from: jest.fn().mockImplementation((table: string) => {
       if (table !== "evaluation_jobs") {
         throw new Error(`Unexpected table: ${table}`);
@@ -68,7 +71,7 @@ function buildSupabaseStub(opts: {
       return {
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
-            maybeSingle,
+            maybeSingle: getJobMaybeSingle,
           }),
         }),
         update: jest.fn((payload: Record<string, unknown>) => {
@@ -100,7 +103,7 @@ describe("acquireLeaseForPhase2 lease timeout hardening", () => {
       },
     });
 
-    const updateRow = makeDbJobRow({
+    const claimedRow = makeDbJobRow({
       progress: {
         phase: "phase_2",
         phase_status: "running",
@@ -111,7 +114,7 @@ describe("acquireLeaseForPhase2 lease timeout hardening", () => {
 
     const { supabase, updatePayloads } = buildSupabaseStub({
       getJobRow: row,
-      updateResultRow: updateRow,
+      rpcResultRows: [claimedRow],
     });
     createAdminClientMock.mockReturnValue(supabase as any);
 
@@ -122,14 +125,12 @@ describe("acquireLeaseForPhase2 lease timeout hardening", () => {
     const after = Date.now();
 
     expect(result).not.toBeNull();
-    expect(updatePayloads.length).toBeGreaterThan(0);
-
-    const progress = updatePayloads[0].progress as Record<string, unknown>;
-    const expires = new Date(String(progress.lease_expires_at)).getTime();
-    const minExpected = before + 295_000;
-    const maxExpected = after + 305_000;
-    expect(expires).toBeGreaterThanOrEqual(minExpected);
-    expect(expires).toBeLessThanOrEqual(maxExpected);
+    expect(updatePayloads).toHaveLength(0);
+    expect(supabase.rpc).toHaveBeenCalledWith("claim_evaluation_job_phase2", {
+      p_job_id: "job-1",
+      p_lease_id: "lease-new",
+      p_ttl_seconds: 300,
+    });
   });
 
   test("marks dead expired lease as failed with LEASE_EXPIRED classification", async () => {
@@ -146,9 +147,10 @@ describe("acquireLeaseForPhase2 lease timeout hardening", () => {
       last_heartbeat: null,
     });
 
+    const failedRow = makeDbJobRow({ status: "failed" });
     const { supabase, updatePayloads } = buildSupabaseStub({
       getJobRow: row,
-      updateResultRow: null,
+      updateResultRow: failedRow,
     });
     createAdminClientMock.mockReturnValue(supabase as any);
 
@@ -157,6 +159,7 @@ describe("acquireLeaseForPhase2 lease timeout hardening", () => {
 
     expect(result).toBeNull();
     expect(updatePayloads.length).toBe(1);
+    expect(supabase.rpc).not.toHaveBeenCalled();
     expect(updatePayloads[0]).toMatchObject({
       status: "failed",
       failure_envelope: expect.objectContaining({
@@ -187,7 +190,7 @@ describe("acquireLeaseForPhase2 lease timeout hardening", () => {
       last_heartbeat: heartbeat,
     });
 
-    const updateRow = makeDbJobRow({
+    const claimedRow = makeDbJobRow({
       progress: {
         phase: "phase_2",
         phase_status: "running",
@@ -199,7 +202,7 @@ describe("acquireLeaseForPhase2 lease timeout hardening", () => {
 
     const { supabase, updatePayloads } = buildSupabaseStub({
       getJobRow: row,
-      updateResultRow: updateRow,
+      rpcResultRows: [claimedRow],
     });
     createAdminClientMock.mockReturnValue(supabase as any);
 
@@ -207,8 +210,41 @@ describe("acquireLeaseForPhase2 lease timeout hardening", () => {
     const result = await acquireLeaseForPhase2("job-1", "lease-new", 300);
 
     expect(result).not.toBeNull();
-    expect(updatePayloads.length).toBe(1);
-    expect(updatePayloads[0]).not.toHaveProperty("status", "failed");
-    expect((updatePayloads[0].progress as Record<string, unknown>).lease_id).toBe("lease-new");
+    expect(updatePayloads).toHaveLength(0);
+    expect(supabase.rpc).toHaveBeenCalledWith("claim_evaluation_job_phase2", {
+      p_job_id: "job-1",
+      p_lease_id: "lease-new",
+      p_ttl_seconds: 300,
+    });
+  });
+
+  test("logs lost-race outcome when dead-lease failure write updates zero rows", async () => {
+    const expiredAt = new Date(Date.now() - 60_000).toISOString();
+    const row = makeDbJobRow({
+      progress: {
+        phase: "phase_1",
+        phase_status: "complete",
+        lease_id: "lease-old",
+        lease_expires_at: expiredAt,
+      },
+      last_heartbeat: null,
+    });
+
+    const { supabase } = buildSupabaseStub({
+      getJobRow: row,
+      updateResultRow: null,
+    });
+    createAdminClientMock.mockReturnValue(supabase as any);
+
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const { acquireLeaseForPhase2 } = await import("../../../lib/jobs/jobStore.supabase");
+    const result = await acquireLeaseForPhase2("job-1", "lease-new", 300);
+
+    expect(result).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[Phase2LeaseDeadJobLostRace]",
+      expect.objectContaining({ job_id: "job-1", lease_id: "lease-old" }),
+    );
+    warnSpy.mockRestore();
   });
 });
