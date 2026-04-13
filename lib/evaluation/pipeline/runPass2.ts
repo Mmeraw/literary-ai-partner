@@ -25,8 +25,8 @@ const PASS2_TEMPERATURE = 0.3;
 const PASS2_MAX_TOKENS = 4000;
 const PASS2_MODEL = "o3";
 const OPENAI_TIMEOUT_MS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || "120000", 10);
-  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 300_000 ? parsed : 120_000;
+  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || "180000", 10);
+  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 180_000 ? parsed : 180_000;
 })();
 
 type CompletionChoice = {

@@ -86,7 +86,7 @@ const evalMinManuscriptChars = (() => {
 const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'o3').trim() || 'o3';
 const evalPassTimeoutMs = (() => {
   const parsed = Number.parseInt(process.env.EVAL_PASS_TIMEOUT_MS || '180000', 10);
-  return Number.isFinite(parsed) && parsed >= 10_000 ? parsed : 180_000;
+  return Number.isFinite(parsed) && parsed >= 10_000 && parsed <= 180_000 ? parsed : 180_000;
 })();
 const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
 const staleRunningMinutes = (() => {
