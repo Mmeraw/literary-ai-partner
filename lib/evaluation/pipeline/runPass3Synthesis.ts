@@ -32,7 +32,7 @@ const PASS3_MIN_RATIONALE_LENGTH = 40;
 const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
 const OPENAI_TIMEOUT_MS = (() => {
   const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || "120000", 10);
-  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 120_000 ? parsed : 120_000;
+  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 300_000 ? parsed : 120_000;
 })();
 
 type CompletionChoice = {
