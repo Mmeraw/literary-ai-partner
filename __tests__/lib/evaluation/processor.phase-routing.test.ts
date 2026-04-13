@@ -1,0 +1,113 @@
+export {};
+
+const createClientMock = jest.fn();
+
+jest.mock("@supabase/supabase-js", () => ({
+  createClient: (...args: any[]) => createClientMock(...args),
+}));
+
+describe("processEvaluationJob phase routing guard", () => {
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
+    process.env.OPENAI_API_KEY = "sk-test-key";
+    process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = "optional";
+  });
+
+  test("rejects queued phase_2 jobs as not eligible for Phase 1 processor path", async () => {
+    const queuedPhase2Job = {
+      id: "job-phase2-queued",
+      manuscript_id: 42,
+      job_type: "evaluate_full",
+      status: "queued",
+      phase: "phase_2",
+      phase_status: "triggered",
+      progress: {
+        phase: "phase_2",
+        phase_status: "triggered",
+      },
+      created_at: new Date().toISOString(),
+    };
+
+    const supabaseStub = {
+      from(table: string) {
+        if (table === "evaluation_jobs") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({ data: queuedPhase2Job, error: null }),
+              }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table access: ${table}`);
+      },
+    };
+
+    createClientMock.mockReturnValue(supabaseStub);
+
+    const { processEvaluationJob } = await import("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-phase2-queued");
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Job not eligible for processing");
+  });
+
+  test("allows queued phase_1 jobs to continue into processor flow", async () => {
+    const queuedPhase1Job = {
+      id: "job-phase1-queued",
+      manuscript_id: 84,
+      job_type: "evaluate_full",
+      status: "queued",
+      phase: "phase_1",
+      phase_status: "triggered",
+      progress: {
+        phase: "phase_1",
+        phase_status: "queued",
+      },
+      created_at: new Date().toISOString(),
+    };
+
+    const supabaseStub = {
+      from(table: string) {
+        if (table === "evaluation_jobs") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({ data: queuedPhase1Job, error: null }),
+              }),
+            }),
+            update: () => ({
+              eq: () => ({ error: null }),
+            }),
+          };
+        }
+
+        if (table === "manuscripts") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({ data: null, error: { message: "not found" } }),
+              }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table access: ${table}`);
+      },
+    };
+
+    createClientMock.mockReturnValue(supabaseStub);
+
+    const { processEvaluationJob } = await import("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-phase1-queued");
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Manuscript not found");
+    expect(result.error).not.toContain("Job not eligible for processing");
+  });
+});

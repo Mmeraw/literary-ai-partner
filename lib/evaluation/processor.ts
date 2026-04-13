@@ -807,7 +807,14 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
       (job.phase_status === 'complete' || progress.phase_status === 'complete');
 
-    if (job.status !== 'queued' && !isPhase1CompleteHandoff) {
+    const isPhase1QueuedCandidate =
+      job.status === 'queued' &&
+      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
+      (job.phase_status === 'triggered' ||
+        progress.phase_status === 'triggered' ||
+        progress.phase_status === 'queued');
+
+    if (!isPhase1QueuedCandidate && !isPhase1CompleteHandoff) {
       return {
         success: false,
         error: `Job not eligible for processing. status=${job.status}, phase=${job.phase}, phase_status=${job.phase_status}`,
@@ -1182,6 +1189,7 @@ export async function processQueuedJobs(): Promise<{
     .from('evaluation_jobs')
     .select('id')
     .eq('status', 'queued')
+    .eq('phase', 'phase_1')
     .eq('phase_status', 'triggered')
     .order('created_at', { ascending: true })
     .limit(10); // Process max 10 jobs per run
