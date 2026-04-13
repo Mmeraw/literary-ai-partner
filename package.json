@@ -15,6 +15,7 @@
     "docs:verify": "bash scripts/verification-contract.sh",
     "docs:runtime:guard": "bash scripts/verify-canonical-runtime-authority.sh",
     "verify:zero-drift": "bash scripts/verify-zero-drift.sh",
+    "guard:clean-tree": "bash scripts/guard-clean-tree.sh",
     "test": "jest",
     "test:ci": "jest --silent",
     "test:polling": "jest --testPathPatterns=polling",
