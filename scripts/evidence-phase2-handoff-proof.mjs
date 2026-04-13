@@ -229,6 +229,18 @@ for (let i = 0; i < PHASE2_MAX_POLLS; i++) {
   const tick = await tickWorker();
   console.log('[worker_tick]', i, tick.status, tick.body);
 
+  if (tick.status === 401) {
+    proof.blocker =
+      'Worker tick returned 401 Unauthorized. Server was likely not started with WORKER_ALLOW_SERVICE_ROLE_DEV=1. ' +
+      'Proof is invalid for Phase 2 execution: pipeline was never exercised.';
+    proof.proven_now =
+      'Proof invalid: worker auth failed before Phase 2 could be exercised. ' +
+      'PASS1_TIMEOUT behavior is untested. Restart server with WORKER_ALLOW_SERVICE_ROLE_DEV=1 and rerun.';
+    console.log('\n[PROOF_SUMMARY]');
+    console.log(JSON.stringify(proof, null, 2));
+    process.exit(1);
+  }
+
   const snap = await readJob(proof.job_id, `phase2_poll_${i}`);
   proof.transition_trace.push({
     poll: i,
