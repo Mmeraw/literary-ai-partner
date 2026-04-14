@@ -32,13 +32,13 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key-for-build"
 
+      - name: Gate replay (strict codes)
+        run: npm run gate:replay -- --run-dir docs/operations/evidence/runs/2026-04-14_ch11b_final_v7_live_replay_4000e_rerun_gatecheck
+
       - name: Test
         run: npm test -- --runInBand --no-coverage --bail
         env:
           CI: true
-
-      - name: Gate replay (strict codes)
-        run: npm run gate:replay -- --run-dir docs/operations/evidence/runs/2026-04-14_ch11b_final_v7_live_replay_4000e_rerun_gatecheck
 
   governance:
     runs-on: ubuntu-latest
