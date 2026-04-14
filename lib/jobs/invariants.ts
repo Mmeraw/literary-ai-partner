@@ -136,6 +136,16 @@ export function enforceAnchorIntegrity(
             `Pass ${artifact.pass_id} criterion ${criterion.criterion_id}: phantom anchor`,
           );
         }
+        if (
+          anchor.start_offset !== null
+          && anchor.end_offset !== null
+          && anchor.end_offset < anchor.start_offset
+        ) {
+          throw new InvariantViolation(
+            "ANCHOR_CONTRACT_VIOLATION",
+            `Pass ${artifact.pass_id} criterion ${criterion.criterion_id}: invalid anchor offsets`,
+          );
+        }
       }
     }
   }
