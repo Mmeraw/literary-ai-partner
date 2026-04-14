@@ -157,9 +157,11 @@ describe("context contamination guard", () => {
 
   test("returns deterministically sorted offending entities", () => {
     const sourceText = "Cliff piloted the skiff across Carpenter Lake.";
+    // All three HARD_FAIL_TOKENS present in output but absent from source.
+    // Verifies that the returned list is sorted regardless of Set iteration order.
     const result = makeResult(
-      "zebraline aurorafield cliffstone marineroad",
-      ["quartzline amberlight silverpath"],
+      "Maria coordinates cartel logistics while Sinaloa operatives close in.",
+      [],
     );
 
     const check = detectContextContamination({ sourceText, evaluationResult: result });

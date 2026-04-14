@@ -1,5 +1,12 @@
 import type { Job, Phase } from "./types";
-import { JOB_STATUS, PHASES } from "./types";
+import { PHASES } from "./types";
+import type {
+  CanonicalEvaluationArtifact,
+  EvaluationJob,
+  PersistCanonicalAndSummaryAndCompleteResult,
+  ReportSummaryProjection,
+} from "./finalize.types";
+import type { FailureCode } from "./failures";
 import {
   createJob as memCreateJob,
   getJob as memGetJob,
@@ -69,6 +76,55 @@ export {
   incrementCounter,
   setJobFailed,
 };
+
+export type PersistCanonicalAndSummaryAndCompleteJobArgs = {
+  job: EvaluationJob;
+  worker_id: string;
+  canonical: CanonicalEvaluationArtifact;
+  summary: ReportSummaryProjection;
+};
+
+export type MarkFinalizerJobFailedArgs = {
+  job_id: string;
+  worker_id: string;
+  failure_code: FailureCode;
+  last_error: string;
+};
+
+let _finalizerStoreModule: any = null;
+
+const loadFinalizerStore = async () => {
+  if (!_finalizerStoreModule) {
+    _finalizerStoreModule = await import("./store.finalizer");
+  }
+  return _finalizerStoreModule;
+};
+
+export async function persistCanonicalAndSummaryAndCompleteJob(
+  args: PersistCanonicalAndSummaryAndCompleteJobArgs,
+): Promise<PersistCanonicalAndSummaryAndCompleteResult> {
+  if (!USE_SUPABASE) {
+    throw new Error(
+      "[FINALIZER-STORE] Completion authority unavailable without Supabase backing",
+    );
+  }
+
+  const store = await loadFinalizerStore();
+  return store.persistCanonicalAndSummaryAndCompleteJob(args);
+}
+
+export async function markJobFailed(
+  args: MarkFinalizerJobFailedArgs,
+): Promise<void> {
+  if (!USE_SUPABASE) {
+    throw new Error(
+      "[FINALIZER-STORE] markJobFailed unavailable without Supabase backing",
+    );
+  }
+
+  const store = await loadFinalizerStore();
+  return store.markJobFailed(args);
+}
 
 export function canRunPhase(
   job: Job,

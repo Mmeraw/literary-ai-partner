@@ -78,9 +78,7 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
     updateQuery = updateQuery
       .eq("status", "running")
       .eq("phase", "phase_1")
-      .eq("phase_status", "complete")
-      .filter("progress->>phase", "eq", "phase_1")
-      .filter("progress->>phase_status", "eq", "complete");
+      .eq("phase_status", "complete");
   }
 
   const { data, error } = await updateQuery;
@@ -104,7 +102,7 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
     );
   }
 
-  console.log("Phase2Triggered", {
+  console.log("Phase2Queued", {
     job_id: jobId,
     trigger_time: now,
     force,

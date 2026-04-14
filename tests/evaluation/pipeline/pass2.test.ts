@@ -135,6 +135,23 @@ describe("parsePass2Response", () => {
     );
   });
 
+  it("classifies clearly truncated response with JSON_PARSE_FAILED_TRUNCATED", () => {
+    // A response that starts like JSON but is cut off before closing brace
+    expect(() => parsePass2Response('{"key": "value')).toThrow("JSON_PARSE_FAILED_TRUNCATED");
+  });
+
+  it("classifies malformed JSON ending with } as JSON_PARSE_FAILED_MALFORMED", () => {
+    expect(() => parsePass2Response('{ this: is invalid }')).toThrow("JSON_PARSE_FAILED_MALFORMED");
+  });
+
+  it("strips markdown json fences before parse", () => {
+    const fixture = makePass2Fixture();
+    const fenced = "```json\n" + JSON.stringify(fixture) + "\n```";
+    const result = parsePass2Response(fenced);
+    expect(result.pass).toBe(2);
+    expect(result.criteria).toHaveLength(13);
+  });
+
   it("throws on empty criteria array", () => {
     expect(() => parsePass2Response(JSON.stringify({ criteria: [] }))).toThrow("no criteria");
   });

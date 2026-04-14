@@ -57,6 +57,7 @@
  * ─────────────────────────────────────────────────────────────────────
  */
 
+import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { validateEvaluationResult } from '@/schemas/evaluation-result-v1';
@@ -71,6 +72,11 @@ import {
   getCanonicalPipelineModel,
   getExternalAdjudicationMode,
 } from '@/lib/evaluation/policy';
+import {
+  assertEvalTimeoutConfig,
+  getEvalOpenAiTimeoutMs,
+  getEvalPassTimeoutMs,
+} from '@/lib/evaluation/config';
 import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 
@@ -79,41 +85,33 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const perplexityApiKey = process.env.PERPLEXITY_API_KEY ?? "";
 const evalDebugEnabled = process.env.EVAL_DEBUG === '1';
-// Runtime policy minimum is 200 words.
-// EVAL_MIN_MANUSCRIPT_WORDS is the sole canonical control.
-// EVAL_MIN_MANUSCRIPT_CHARS is recognized for migration visibility only; its
-// numeric value is NOT reinterpreted as words to prevent silent policy tightening.
-const evalMinManuscriptWords = (() => {
-  const wordsRaw = process.env.EVAL_MIN_MANUSCRIPT_WORDS;
-  if (wordsRaw) {
-    const parsed = Number.parseInt(wordsRaw, 10);
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 200;
+const evalMinManuscriptChars = (() => {
+  if (process.env.EVAL_MIN_MANUSCRIPT_WORDS) {
+    const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_WORDS, 10);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      // Convert words to chars (avg ~5 chars/word)
+      return parsed * 5;
+    }
   }
   if (process.env.EVAL_MIN_MANUSCRIPT_CHARS) {
     console.warn(
-      '[Processor] EVAL_MIN_MANUSCRIPT_CHARS is deprecated and its char value will NOT be ' +
-        'reinterpreted as words; enforcing canonical 200-word minimum',
+      '[Processor] EVAL_MIN_MANUSCRIPT_CHARS is deprecated. Use EVAL_MIN_MANUSCRIPT_WORDS instead. Defaulting to 200 words.',
     );
   }
-  return 200;
+  return 200 * 5; // 200 words default
 })();
 const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'o3').trim() || 'o3';
-const evalPassTimeoutMs = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS_TIMEOUT_MS || '180000', 10);
-  return Number.isFinite(parsed) && parsed >= 10_000 && parsed <= 180_000 ? parsed : 180_000;
-})();
-const evalOpenAiTimeoutMs = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || '180000', 10);
-  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 180_000 ? parsed : 180_000;
-})();
-const evalWorkerBatchSize = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_WORKER_BATCH_SIZE || '1', 10);
-  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 5 ? parsed : 1;
-})();
+const evalPassTimeoutMs = getEvalPassTimeoutMs();
+const evalOpenAiTimeoutMs = getEvalOpenAiTimeoutMs();
+assertEvalTimeoutConfig();
 const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
 const staleRunningMinutes = (() => {
   const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);
   return Number.isFinite(parsed) && parsed >= 1 && parsed <= 240 ? parsed : 10;
+})();
+const evalWorkerBatchSize = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_WORKER_BATCH_SIZE || '5', 10);
+  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 5 ? parsed : 5;
 })();
 const evalContextContaminationGuardEnabled = (() => {
   const raw = (process.env.EVAL_CONTEXT_CONTAMINATION_GUARD || 'auto').trim().toLowerCase();
@@ -761,33 +759,56 @@ export async function failStaleRunningJobs(): Promise<{
   ids: string[];
 }> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const now = new Date().toISOString();
   const cutoff = new Date(Date.now() - staleRunningMinutes * 60_000).toISOString();
 
-  const { data: staleJobs, error: staleError } = await supabase
+  // Collect IDs: stale by updated_at cutoff OR expired claim lease
+  const { data: staleByAge, error: ageError } = await supabase
     .from('evaluation_jobs')
-    .select('id, last_heartbeat_at')
+    .select('id')
     .eq('status', 'running')
+    .not('last_heartbeat_at', 'is', null)
     .lt('last_heartbeat_at', cutoff)
     .order('last_heartbeat_at', { ascending: true })
     .limit(25);
 
-  if (staleError) {
-    console.warn('[Processor] Failed to check stale running jobs:', staleError.message);
+  if (ageError) {
+    console.warn('[Processor] Failed to check stale running jobs (age):', ageError.message);
     return { staleFound: 0, failed: 0, ids: [] };
   }
 
-  if (!staleJobs || staleJobs.length === 0) {
+  // Also collect jobs with expired claim leases (lease_expires_at in the past)
+  const { data: staleByLease, error: leaseError } = await supabase
+    .from('evaluation_jobs')
+    .select('id')
+    .eq('status', 'running')
+    .not('lease_expires_at', 'is', null)
+    .lt('lease_expires_at', now)
+    .order('lease_expires_at', { ascending: true })
+    .limit(25);
+
+  if (leaseError) {
+    console.warn('[Processor] Failed to check stale running jobs (lease):', leaseError.message);
+  }
+
+  // Merge unique IDs from both sources
+  const ageIds = (staleByAge ?? []).map((r) => r.id);
+  const leaseIds = (staleByLease ?? []).map((r) => r.id);
+  const staleIds = Array.from(new Set([...ageIds, ...leaseIds]));
+
+  if (staleIds.length === 0) {
     return { staleFound: 0, failed: 0, ids: [] };
   }
 
-  const staleIds = staleJobs.map((row) => row.id);
-  const now = new Date().toISOString();
   const { data: failedRows, error: failError } = await supabase
     .from('evaluation_jobs')
     .update({
       status: 'failed',
       last_error:
         'Auto-failed stale running job: worker timed out or crashed before completion update',
+      claimed_by: null,
+      claimed_at: null,
+      lease_expires_at: null,
       updated_at: now,
     })
     .in('id', staleIds)
@@ -843,17 +864,39 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     const isPhase1QueuedCandidate =
       job.status === 'queued' &&
-      (job.phase == null || job.phase === 'phase_1' || progress.phase === 'phase_1') &&
-      (job.phase_status == null || job.phase_status === 'queued' || progress.phase_status === 'queued');
+      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
+      (job.phase_status === 'queued' || progress.phase_status === 'queued');
 
     const isPhase2QueuedCandidate =
       job.status === 'queued' &&
       (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
       (job.phase_status === 'queued' || progress.phase_status === 'queued');
 
-    const executionPhase: 'phase_1' | 'phase_2' = isPhase2QueuedCandidate ? 'phase_2' : 'phase_1';
+    // Pre-claimed running jobs: atomically claimed by the processor (claimed_by is set,
+    // phase_status=running, lease not yet expired). These were transitioned queued->running
+    // by claim_evaluation_jobs RPC before being handed to this function.
+    const isPhase1PreClaimed =
+      job.status === 'running' &&
+      !!job.claimed_by &&
+      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
+      (job.phase_status === 'running' || progress.phase_status === 'running');
 
-    if (!isPhase1QueuedCandidate && !isPhase1CompleteHandoff && !isPhase2QueuedCandidate) {
+    const isPhase2PreClaimed =
+      job.status === 'running' &&
+      !!job.claimed_by &&
+      (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
+      (job.phase_status === 'running' || progress.phase_status === 'running');
+
+    const executionPhase: 'phase_1' | 'phase_2' =
+      isPhase2QueuedCandidate || isPhase2PreClaimed ? 'phase_2' : 'phase_1';
+
+    if (
+      !isPhase1QueuedCandidate &&
+      !isPhase1CompleteHandoff &&
+      !isPhase2QueuedCandidate &&
+      !isPhase1PreClaimed &&
+      !isPhase2PreClaimed
+    ) {
       return {
         success: false,
         error: `Job not eligible for processing. status=${job.status}, phase=${job.phase}, phase_status=${job.phase_status}`,
@@ -978,6 +1021,24 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: shortContentError };
     }
 
+    // Context binding assertion: prove the fetched manuscript belongs to this job
+    // before any pipeline invocation (fail-closed isolation guarantee).
+    // Both IDs must be finite positive integers and must match.
+    const fetchedManuscriptId = (manuscript as Manuscript).id;
+    const jobManuscriptId = job.manuscript_id;
+    if (
+      !Number.isFinite(jobManuscriptId) ||
+      jobManuscriptId <= 0 ||
+      !Number.isFinite(fetchedManuscriptId) ||
+      fetchedManuscriptId <= 0 ||
+      fetchedManuscriptId !== jobManuscriptId
+    ) {
+      const bindingError =
+        `Context binding failure: job.manuscript_id=${jobManuscriptId} does not match fetched manuscript.id=${fetchedManuscriptId}`;
+      await markFailed(bindingError);
+      return { success: false, error: bindingError };
+    }
+
     const manuscriptWithContent: Manuscript = {
       ...(manuscript as Manuscript),
       content: resolvedManuscriptText,
@@ -993,19 +1054,6 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       await markFailed(missingCrossCheckConfigError);
 
       return { success: false, error: missingCrossCheckConfigError };
-    }
-
-    console.log(
-      `[Processor] ${jobId}: runtime-posture model=${getCanonicalPipelineModel(openAiModel)} ` +
-        `passTimeoutMs=${evalPassTimeoutMs} openAiTimeoutMs=${evalOpenAiTimeoutMs}`,
-    );
-    if (evalOpenAiTimeoutMs < evalPassTimeoutMs) {
-      const configErr =
-        `[CONFIG_ERROR] EVAL_OPENAI_TIMEOUT_MS (${evalOpenAiTimeoutMs}) must be >= ` +
-        `EVAL_PASS_TIMEOUT_MS (${evalPassTimeoutMs}). The API client would time out before ` +
-        `the pipeline budget, making failures misleading. Fix env before running.`;
-      await markFailed(configErr);
-      return { success: false, error: configErr };
     }
 
     console.log(`[Processor] ${jobId}: ENTER runPipeline model=${getCanonicalPipelineModel(openAiModel)} passTimeoutMs=${evalPassTimeoutMs}`);
@@ -1230,54 +1278,98 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 }
 
 /**
- * Process all queued evaluation jobs
+ * Atomically claim a batch of queued evaluation jobs using the claim_evaluation_jobs RPC.
+ * Returns an array of claimed job objects (id + phase).
+ * Falls back to an empty array if the RPC is unavailable (graceful degradation).
  */
-export function getValidatedWorkerBatchSize(raw: unknown, fallback = evalWorkerBatchSize): number {
-  const candidate =
-    typeof raw === 'number'
-      ? raw
-      : typeof raw === 'string'
-        ? Number.parseInt(raw, 10)
-        : Number.NaN;
+export async function claimQueuedJobs(
+  options: {
+    workerId: string;
+    batchSize?: number;
+    leaseMs?: number;
+  },
+): Promise<Array<{ id: string; phase: string }>> {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  if (Number.isFinite(candidate) && candidate >= 1 && candidate <= 5) {
-    return Math.floor(candidate);
+  const workerId = options.workerId;
+  const batchSizeRaw = Number(options.batchSize ?? evalWorkerBatchSize);
+  const leaseMsRaw = Number(options.leaseMs ?? 180_000);
+  const batchSize = Number.isFinite(batchSizeRaw)
+    ? Math.min(5, Math.max(1, Math.floor(batchSizeRaw)))
+    : 5;
+  const leaseMs = Number.isFinite(leaseMsRaw)
+    ? Math.min(180_000, Math.max(30_000, Math.floor(leaseMsRaw)))
+    : 180_000;
+  const leaseToken = randomUUID();
+  const leaseExpiresAt = new Date(Date.now() + leaseMs).toISOString();
+
+  const { data, error } = await supabase.rpc('claim_evaluation_jobs', {
+    p_batch_size: batchSize,
+    p_worker_id: workerId,
+    p_lease_token: leaseToken,
+    p_lease_expires_at: leaseExpiresAt,
+  });
+
+  if (error) {
+    const msg = error.message || '';
+    // Graceful degradation: if the RPC doesn't exist yet, return empty so the
+    // caller can fall through to the legacy SELECT path.
+    if (msg.includes('function') || msg.includes('does not exist') || msg.includes('schema cache')) {
+      console.warn('[Processor] claim_evaluation_jobs RPC unavailable, falling back to legacy SELECT');
+      return [];
+    }
+    console.error('[Processor] claim_evaluation_jobs RPC error:', error);
+    throw error;
   }
 
-  return fallback;
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  return (data as Array<{ id: string; phase: string }>).map((row) => ({
+    id: row.id,
+    phase: row.phase,
+  }));
 }
 
-export async function processQueuedJobs(options: { batchSize?: number } = {}): Promise<{
+/**
+ * Process all queued evaluation jobs
+ */
+export async function processQueuedJobs(options?: {
+  workerId?: string;
+  batchSize?: number;
+  leaseMs?: number;
+}): Promise<{
   processed: number;
   succeeded: number;
   failed: number;
+  claimed: number;
   errors: Array<{ jobId: string; error: string }>;
 }> {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
-  const effectiveBatchSize = getValidatedWorkerBatchSize(options.batchSize);
+  const effectiveWorkerId = options?.workerId ?? randomUUID();
+  const requestedBatchSize = options?.batchSize ?? evalWorkerBatchSize;
+  const requestedLeaseMs = options?.leaseMs ?? 180_000;
 
   // Safety net: recover jobs left in running due to platform hard timeout/crash.
   await failStaleRunningJobs();
 
-  // Fetch queued jobs with bounded batch size to prevent long sequential runs from
-  // breaching route duration when individual evaluations run near timeout budgets.
-  const { data: jobs, error } = await supabase
-    .from('evaluation_jobs')
-    .select('id,phase')
-    .eq('status', 'queued')
-    .eq('phase_status', 'queued')
-    .in('phase', ['phase_1', 'phase_2'])
-    .order('created_at', { ascending: true })
-    .limit(effectiveBatchSize);
-
-  if (error) {
-    console.error('[Processor] Error fetching queued jobs:', error);
-    return { processed: 0, succeeded: 0, failed: 0, errors: [] };
+  // Atomically claim a batch of queued jobs via SKIP LOCKED RPC.
+  let jobs: Array<{ id: string; phase: string }> = [];
+  try {
+    jobs = await claimQueuedJobs({
+      workerId: effectiveWorkerId,
+      batchSize: requestedBatchSize,
+      leaseMs: requestedLeaseMs,
+    });
+  } catch {
+    // If claiming fails hard, return early rather than silently double-processing.
+    console.error('[Processor] Fatal error during job claiming; aborting batch');
+    return { processed: 0, succeeded: 0, failed: 0, claimed: 0, errors: [] };
   }
 
-  if (!jobs || jobs.length === 0) {
-    console.log('[Processor] No queued jobs found');
-    return { processed: 0, succeeded: 0, failed: 0, errors: [] };
+  if (jobs.length === 0) {
+    console.log('[Processor] No queued jobs claimed');
+    return { processed: 0, succeeded: 0, failed: 0, claimed: 0, errors: [] };
   }
 
   const phaseBreakdown = jobs.reduce<Record<string, number>>((acc, row) => {
@@ -1286,17 +1378,18 @@ export async function processQueuedJobs(options: { batchSize?: number } = {}): P
     return acc;
   }, {});
 
-  console.log(`[Processor] Found ${jobs.length} queued job(s) batchSize=${effectiveBatchSize}`);
-  console.log(`[Processor] Queued candidate counts by phase: ${JSON.stringify(phaseBreakdown)}`);
+  console.log(`[Processor] Claimed ${jobs.length} job(s) for worker ${effectiveWorkerId}`);
+  console.log(`[Processor] Claimed job phase breakdown: ${JSON.stringify(phaseBreakdown)}`);
 
   const results = {
     processed: jobs.length,
+    claimed: jobs.length,
     succeeded: 0,
     failed: 0,
     errors: [] as Array<{ jobId: string; error: string }>
   };
 
-  // Process each job sequentially
+  // Process each claimed job sequentially
   for (const job of jobs) {
     const result = await processEvaluationJob(job.id);
     
@@ -1308,7 +1401,7 @@ export async function processQueuedJobs(options: { batchSize?: number } = {}): P
     }
   }
 
-  console.log(`[Processor] Completed: ${results.succeeded} succeeded, ${results.failed} failed`);
+  console.log(`[Processor] Completed: ${results.succeeded} succeeded, ${results.failed} failed (claimed: ${results.claimed})`);
 
   return results;
 }

@@ -22,7 +22,7 @@
  *    • MDM responsibility:
  *      Work Type × Matrix Version → applicability status (R / O / NA / C)
  *
- *    • Registry responsibility:
+ *  • Registry responsibility:
  *      Criterion identity, stability, and semantic meaning
  *
  * 3. Any MDM matrix referencing a key NOT present in CRITERIA_KEYS

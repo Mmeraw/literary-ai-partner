@@ -19,10 +19,7 @@ import {
   buildOpenAITemperatureParam,
   getCanonicalPipelineModel,
 } from "@/lib/evaluation/policy";
-import {
-  JsonBoundaryError,
-  parseJsonObjectBoundary,
-} from "./jsonParseBoundary";
+import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from "./promptInput";
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 
@@ -34,10 +31,7 @@ const PASS3_MAX_TOKENS = (() => {
 const PASS3_MODEL = "o3";
 const PASS3_MIN_RATIONALE_LENGTH = 40;
 const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
-const OPENAI_TIMEOUT_MS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || "180000", 10);
-  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 180_000 ? parsed : 180_000;
-})();
+const OPENAI_TIMEOUT_MS = getEvalOpenAiTimeoutMs();
 
 type CompletionChoice = {
   message?: {
@@ -215,6 +209,17 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     throw new Error(diagnosticMessage);
   }
 
+  // P0: Check finish_reason — log a warning if the model stopped due to token limit
+  const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined;
+  if (finishReason === "length") {
+    console.warn("[Pass3] finish_reason=length — output may be truncated", {
+      model: selectedModel,
+      maxOutputTokens: PASS3_MAX_TOKENS,
+      responseLen: responseText.length,
+      usage: completion.usage,
+    });
+  }
+
   opts._onCompletion?.({
     pass: 3,
     raw_text: responseText,
@@ -298,34 +303,28 @@ export function parsePass3Response(
   pass2: SinglePassOutput,
   fallbackModel = PASS3_MODEL,
 ): SynthesisOutput {
-  if (process.env.EVAL_DEBUG === "1") {
-    console.debug("[Pass3] Pre-parse raw preview", {
-      raw_head: raw.slice(0, 200),
-      raw_tail: raw.slice(-120),
-    });
+  // P0: Log raw response preview before parse
+  console.log(`[Pass3] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
+
+  // P1: Strip markdown fences (e.g. ```json ... ```)
+  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+
+  // P1: Truncation detection — a well-formed JSON object must end with "}"
+  if (!stripped.endsWith("}")) {
+    throw new Error(
+      `[Pass3] JSON_PARSE_FAILED_TRUNCATED: Response is not valid JSON (appears truncated, does not end with "}")`,
+    );
   }
+
   let parsed: unknown;
   try {
-    const boundary = parseJsonObjectBoundary<Record<string, unknown>>(raw, {
-      label: "[Pass3] response",
-    });
-    parsed = boundary.value;
-  } catch (error) {
-    if (error instanceof JsonBoundaryError) {
-      console.error("[Pass3] JSON parse failed", {
-        classification: error.code,
-        candidates_found: error.candidatesFound ?? null,
-        raw_head: error.raw.slice(0, 500),
-        raw_tail: error.raw.slice(-250),
-        normalized_tail: error.normalized.slice(-200),
-      });
-      throw error;
-    }
-    throw error;
+    parsed = JSON.parse(stripped);
+  } catch {
+    throw new Error("[Pass3] JSON_PARSE_FAILED_MALFORMED: Response is not valid JSON (malformed JSON)");
   }
 
   if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("[Pass3] Response is not a JSON object");
+    throw new Error("[Pass3] JSON_PARSE_FAILED_NO_OBJECT: Response is not a JSON object");
   }
 
   const obj = parsed as Record<string, unknown>;

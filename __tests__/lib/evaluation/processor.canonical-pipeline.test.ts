@@ -42,8 +42,10 @@ function makeSupabaseStub() {
     manuscript_id: 456,
     job_type: "evaluate_full",
     status: "queued",
+    phase: "phase_1",
+    phase_status: "queued",
     created_at: new Date().toISOString(),
-    progress: {},
+    progress: { phase: "phase_1", phase_status: "queued" },
   };
 
   const manuscript = {
@@ -96,6 +98,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
     process.env.OPENAI_API_KEY = "sk-test-key";
+    process.env.EVAL_PASS_TIMEOUT_MS = "180000";
+    process.env.EVAL_OPENAI_TIMEOUT_MS = "180000";
     process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = "optional";
     // Ensure timeout config passes the invariant check (openAi >= pass)
     process.env.EVAL_PASS_TIMEOUT_MS = "180000";

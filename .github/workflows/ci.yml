@@ -2,13 +2,41 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - feat/**
+      - fix/**
+      - chore/**
   pull_request:
-    branches: [main, develop]
   workflow_dispatch:
-    # Smoke tests gated to push-to-main only (flaky infra checks)
 
 jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key-for-build"
+
+      - name: Test
+        run: npm test -- --runInBand --no-coverage --bail
+        env:
+          CI: true
+
   governance:
     runs-on: ubuntu-latest
     env:
@@ -48,12 +76,10 @@ jobs:
         shell: bash
         run: |
           set -eu
-          # Fast path: no high vulns.
           if npm audit --audit-level=high >/dev/null 2>&1; then
             echo "npm audit (high) clean ✅"
             exit 0
           fi
-          # Controlled path: audit is failing; pipe JSON directly to validation script.
           (npm audit --json 2>&1 || true) | node -e '
             const fs = require("fs");
             const data = fs.readFileSync(0, "utf8");
@@ -90,7 +116,6 @@ jobs:
           exit 0
       - run: npm run build
         env:
-          # Dummy vars for CI build (actual Supabase CI URL would require secrets)
           NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key-for-build"
       - run: npm test

@@ -66,3 +66,37 @@ Architecture invariants enforce:
 - worker entrypoint remains canonical
 
 See: `__tests__/lib/evaluation/architecture-invariants.test.ts`
+
+## Phase 2 Queue Handoff Contract
+
+The following state is **required** when a route queues a job for Phase 2 execution. Any deviation is a canonical drift defect.
+
+| Field | Required Value | Notes |
+|-------|---------------|-------|
+| `status` | `"queued"` | Top-level job status |
+| `phase` | `"phase_2"` | Top-level phase |
+| `phase_status` | `"queued"` | **Must be `"queued"` — `"triggered"` is not a canonical runtime state** |
+| `progress.phase` | `"phase_2"` | Must mirror top-level phase |
+| `progress.phase_status` | `"queued"` | Must mirror top-level phase_status |
+
+### Canonical non-state: "triggered"
+
+`"triggered"` is an event word describing the act of queueing. It is **not** a persisted queue state.
+
+- The canonical persisted queue state is `"queued"`.
+- Worker queries must select on `phase_status = 'queued'`, never `'triggered'`.
+- Any code writing `phase_status: "triggered"` to the database is a defect.
+
+### Timeout Configuration Invariant
+
+`EVAL_OPENAI_TIMEOUT_MS` must always be `>=` `EVAL_PASS_TIMEOUT_MS`. The processor enforces this at startup with a hard throw:
+
+```
+[CONFIG_ERROR] EVAL_OPENAI_TIMEOUT_MS (<value>) must be >= EVAL_PASS_TIMEOUT_MS (<value>)
+```
+
+Recommended production values:
+```
+EVAL_PASS_TIMEOUT_MS=180000
+EVAL_OPENAI_TIMEOUT_MS=180000
+```

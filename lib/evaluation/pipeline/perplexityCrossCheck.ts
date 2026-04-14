@@ -374,32 +374,36 @@ Now return the independent adjudication as JSON.`;
     ? raw.choices[0].finish_reason
     : "unknown";
 
-  let parsedJson: unknown;
-  try {
-    const boundary = parseJsonObjectBoundary<Record<string, unknown>>(rawContent, {
-      label: "[Pass4] response",
-      maxRawChars: 150_000,
+  // P0: Check finish_reason — log a warning if the model stopped due to token limit
+  const finishReason = raw?.choices?.[0]?.finish_reason;
+  if (finishReason === "length") {
+    console.warn("[Pass4] finish_reason=length — Perplexity output may be truncated", {
+      model: PERPLEXITY_MODEL,
+      rawContentLen: rawContent.length,
     });
-    parsedJson = boundary.value;
-  } catch (error) {
-    if (error instanceof JsonBoundaryError) {
-      console.error("[Pass4] JSON parse failed", {
-        classification: error.code,
-        finish_reason: finishReason,
-        candidates_found: error.candidatesFound ?? null,
-        raw_head: error.raw.slice(0, 1000),
-        raw_tail: error.raw.slice(-500),
-        normalized_tail: error.normalized.slice(-200),
-      });
-      throw new Error(`[Pass4] JSON parse/validation failed: ${error.code}`);
-    }
-    throw error;
+  }
+
+  // P0: Log raw response preview before parse
+  console.log(`[Pass4] raw Perplexity response preview len=${rawContent.length}: ${rawContent.slice(0, 200)}`);
+
+  const extractedJson = extractFirstJsonObject(rawContent);
+
+  // P1: Truncation detection — a well-formed JSON object must end with "}"
+  if (!extractedJson.trim().endsWith("}")) {
+    throw new Error(
+      `[Pass4] JSON_PARSE_FAILED_TRUNCATED: Response is not valid JSON (appears truncated, does not end with "}")`,
+    );
   }
 
   let parsed: PerplexityResponseShape;
   try {
     parsed = validateParsedResponse(parsedJson);
   } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error(
+        `[Pass4] JSON_PARSE_FAILED_MALFORMED: JSON parse failed: ${error.message}`
+      );
+    }
     throw new Error(
       `[Pass4] JSON parse/validation failed: ${(error as Error).message}`
     );

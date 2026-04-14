@@ -7,6 +7,7 @@ import {
   validateProgressSchema,
 } from "./canon";
 import { Job, JobStatus, JobType, PHASES, Phase, JOB_STATUS, JobProgress } from "./types";
+import { getLeaseTimeoutSeconds } from "./config";
 
 const JOB_SELECT_FIELDS =
   "id, manuscript_id, user_id, job_type, status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id)";
@@ -58,6 +59,8 @@ const JOB_TYPE_FROM_DB: Record<string, JobType> = {
 
 const CANON_JOB_STATUS_VALUES = new Set(Object.values(JOB_STATUS));
 const CANON_PHASE_VALUES = new Set(Object.values(PHASES));
+
+const DEFAULT_LEASE_TIMEOUT_SECONDS = getLeaseTimeoutSeconds();
 
 function assertCanonicalStatusValue(value: string): asserts value is JobStatus {
   if (!CANON_JOB_STATUS_VALUES.has(value as JobStatus)) {
@@ -310,7 +313,7 @@ export async function safeUpdateJobStatus(
 export async function acquireLeaseForPhase1(
   id: string,
   leaseId: string,
-  ttlSeconds = 300,
+  ttlSeconds = DEFAULT_LEASE_TIMEOUT_SECONDS,
 ): Promise<Job | null> {
   const { data, error } = await supabase.rpc("claim_evaluation_job_phase1", {
     p_job_id: id,
@@ -331,7 +334,7 @@ export async function acquireLeaseForPhase1(
 export async function acquireLeaseForPhase2(
   id: string,
   leaseId: string,
-  ttlSeconds = 300,
+  ttlSeconds = DEFAULT_LEASE_TIMEOUT_SECONDS,
 ): Promise<Job | null> {
   const existing = await getJob(id);
   if (!existing) return null;
@@ -377,6 +380,80 @@ export async function acquireLeaseForPhase2(
     return null;
   }
 
+  // Dead lease hardening: if a lease is expired and no heartbeat has been
+  // recorded beyond lease expiry, classify and fail the job (fail-closed).
+  if (isLeaseExpired) {
+    const heartbeatAt =
+      typeof existing.last_heartbeat === "string" ? new Date(existing.last_heartbeat) : null;
+    const leaseExpiryTime = leaseExpiresAt?.getTime() ?? 0;
+    const heartbeatTime = heartbeatAt?.getTime() ?? 0;
+    const deadLease = !heartbeatAt || heartbeatTime <= leaseExpiryTime;
+
+    if (deadLease) {
+      const nowIso = new Date().toISOString();
+      const errorMessage =
+        "Lease expired with no heartbeat; marking job failed to prevent stuck running state";
+
+      const { data: failedRow, error: failError } = await supabase
+        .from("evaluation_jobs")
+        .update({
+          status: JOB_STATUS.FAILED,
+          last_error: errorMessage,
+          failure_envelope: {
+            error_code: "LEASE_EXPIRED",
+            code: "LEASE_EXPIRED",
+            message: errorMessage,
+            retryable: false,
+            phase: PHASES.PHASE_2,
+            provider: null,
+            occurred_at: nowIso,
+            context: {
+              lease_id: existingLeaseId,
+              lease_expires_at: leaseExpiresAtRaw ?? null,
+              last_heartbeat: existing.last_heartbeat,
+            },
+          },
+          progress: {
+            ...existing.progress,
+            phase: PHASES.PHASE_2,
+            phase_status: JOB_STATUS.FAILED,
+            message: "Phase 2 lease expired without heartbeat",
+            error_code: "LEASE_EXPIRED",
+            lease_id: null,
+            lease_expires_at: null,
+            finished_at: nowIso,
+          },
+          updated_at: nowIso,
+        })
+        .eq("id", id)
+        .eq("status", JOB_STATUS.RUNNING)
+        .select(JOB_SELECT_FIELDS)
+        .maybeSingle();
+
+      if (failError) {
+        throw new Error(`Failed to classify dead phase2 lease: ${failError.message}`);
+      }
+
+      if (failedRow) {
+        console.warn("[Phase2LeaseDeadJobFailed]", {
+          job_id: id,
+          lease_id: existingLeaseId,
+          lease_expires_at: leaseExpiresAtRaw,
+          last_heartbeat: existing.last_heartbeat,
+        });
+      } else {
+        console.warn("[Phase2LeaseDeadJobLostRace]", {
+          job_id: id,
+          lease_id: existingLeaseId,
+          lease_expires_at: leaseExpiresAtRaw,
+          last_heartbeat: existing.last_heartbeat,
+        });
+      }
+
+      return null;
+    }
+  }
+
   if (isLeaseExpired) {
     console.log(
       `[Phase2LeaseExpired] job_id=${id} old_lease_id=${existingLeaseId} resuming_from=${
@@ -385,49 +462,18 @@ export async function acquireLeaseForPhase2(
     );
   }
 
-  const expiresAt = new Date(now.getTime() + ttlSeconds * 1000).toISOString();
-
-  // If resuming, do NOT rewrite phase/phase_status; keep them stable.
-  // If entering from phase1/complete, flip into phase2/running.
-  const mergedProgress = isPhase2Resumable
-    ? {
-        ...existing.progress,
-        lease_id: leaseId,
-        lease_expires_at: expiresAt,
-      }
-    : {
-        ...existing.progress,
-        lease_id: leaseId,
-        lease_expires_at: expiresAt,
-        phase: PHASES.PHASE_2,
-        phase_status: "running",
-      };
-
-  // Optimistic concurrency: prevents concurrent lease acquires / progress stomps
-  const { data, error } = await supabase
-    .from("evaluation_jobs")
-    .update({
-      progress: mergedProgress,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .eq("status", "running")
-    .eq("updated_at", existing.updated_at)
-    .or(
-      [
-        "and(progress->>phase.eq.phase_1,progress->>phase_status.eq.complete)",
-        "and(progress->>phase.eq.phase_2,progress->>phase_status.eq.running)",
-      ].join(","),
-    )
-    .select(JOB_SELECT_FIELDS)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("claim_evaluation_job_phase2", {
+    p_job_id: id,
+    p_lease_id: leaseId,
+    p_ttl_seconds: ttlSeconds,
+  });
 
   if (error) {
-    throw new Error(`Failed to acquire phase2 lease: ${error.message}`);
+    throw new Error(`claim_evaluation_job_phase2 RPC failed: ${error.message}`);
   }
 
-  if (!data) return null;
-  return mapDbRowToJob(data);
+  if (!data || data.length === 0) return null;
+  return mapDbRowToJob(data[0]);
 }
 
 export async function incrementCounter(

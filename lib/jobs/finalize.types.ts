@@ -184,6 +184,25 @@ export type FinalizeJobResult =
       reason: string;
     };
 
+export interface PersistCanonicalAndSummaryAndCompleteArgs {
+  job: EvaluationJob;
+  worker_id: string;
+  canonical: CanonicalEvaluationArtifact;
+  summary: ReportSummaryProjection;
+}
+
+export interface PersistCanonicalAndSummaryAndCompleteResult {
+  canonical_artifact_id: string;
+  summary_artifact_id: string;
+}
+
+export interface MarkJobFailedArgs {
+  job_id: string;
+  worker_id: string;
+  failure_code: FailureCode;
+  last_error: string;
+}
+
 // === Evaluation Job (extended with Finalizer fields) ===
 
 export interface EvaluationJob {

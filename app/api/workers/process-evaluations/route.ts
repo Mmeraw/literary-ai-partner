@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { processQueuedJobs } from '@/lib/evaluation/processor';
 import { checkServiceRoleAuth } from '@/lib/auth/api';
 import crypto from 'crypto';
+import os from 'os';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
@@ -33,11 +34,12 @@ export const maxDuration = 300;
 // ============================================================================
 
 const CONFIG = {
-  MAX_DURATION_SECONDS: maxDuration,
-  WORKER_BATCH_SIZE: (() => {
-    const parsed = Number.parseInt(process.env.EVAL_WORKER_BATCH_SIZE || '1', 10);
-    return Number.isFinite(parsed) && parsed >= 1 && parsed <= 5 ? parsed : 1;
-  })(),
+  // Maximum execution time before timeout (Vercel hobby: 10s, pro: 60s)
+  MAX_EXECUTION_MS: 55000,
+  // Batch size for processing
+  BATCH_SIZE: 5,
+  // Lease duration for atomically claimed jobs
+  LEASE_MS: 180000,
 } as const;
 
 // ============================================================================
@@ -170,6 +172,13 @@ function generateTraceId(): string {
   return crypto.randomUUID();
 }
 
+function buildWorkerId(traceId: string): string {
+  const env = process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown-env';
+  const host = process.env.HOSTNAME || os.hostname() || 'unknown-host';
+  const tracePart = traceId.slice(0, 12);
+  return `${env}:${host}:${tracePart}`;
+}
+
 /**
  * Structured log entry
  */
@@ -272,8 +281,13 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    // Process queued jobs using bounded batch size.
-    const results = await processQueuedJobs({ batchSize: CONFIG.WORKER_BATCH_SIZE });
+    // Process queued jobs
+    const workerId = buildWorkerId(traceId);
+    const results = await processQueuedJobs({
+      workerId,
+      batchSize: CONFIG.BATCH_SIZE,
+      leaseMs: CONFIG.LEASE_MS,
+    });
     const durationMs = Date.now() - startTime;
     
     structuredLog({
@@ -283,7 +297,9 @@ export async function GET(request: NextRequest) {
       message: 'Worker completed successfully',
       data: {
         authMethod: auth.method,
+        workerId,
         durationMs,
+        claimed: results.claimed,
         processed: results.processed,
         succeeded: results.succeeded,
         failed: results.failed,
@@ -295,7 +311,9 @@ export async function GET(request: NextRequest) {
       success: true,
       traceId,
       authMethod: auth.method,
+      workerId,
       durationMs,
+      claimed: results.claimed,
       processed: results.processed,
       succeeded: results.succeeded,
       failed: results.failed,

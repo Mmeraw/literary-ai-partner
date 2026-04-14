@@ -1,4 +1,27 @@
 /**
+ * Canonical lease-timeout policy for job phase execution.
+ *
+ * Env precedence:
+ * 1) JOB_PHASE_LEASE_TIMEOUT_SECONDS
+ * 2) JOB_LEASE_TIMEOUT_SECONDS (legacy compatibility)
+ * 3) default 300s
+ *
+ * Clamped to [30s, 900s] for safety.
+ */
+export function getLeaseTimeoutSeconds(): number {
+  const raw =
+    process.env.JOB_PHASE_LEASE_TIMEOUT_SECONDS ??
+    process.env.JOB_LEASE_TIMEOUT_SECONDS ??
+    "300";
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) {
+    return 300;
+  }
+
+  return Math.min(900, Math.max(30, parsed));
+}
+/**
  * Job System Configuration
  *
  * Central configuration and startup validation for job system.
