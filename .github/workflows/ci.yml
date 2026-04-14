@@ -37,6 +37,9 @@ jobs:
         env:
           CI: true
 
+      - name: Gate replay (strict codes)
+        run: npm run gate:replay -- --run-dir docs/operations/evidence/runs/2026-04-14_ch11b_final_v7_live_replay_4000e_rerun_gatecheck
+
   governance:
     runs-on: ubuntu-latest
     env:
