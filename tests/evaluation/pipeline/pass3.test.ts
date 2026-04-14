@@ -154,6 +154,22 @@ describe("parsePass3Response", () => {
     expect(() => parsePass3Response("not json", pass1, pass2)).toThrow("not valid JSON");
   });
 
+  it("classifies clearly truncated response with JSON_PARSE_FAILED_TRUNCATED", () => {
+    // A response that starts like JSON but is cut off before closing brace
+    expect(() => parsePass3Response('{"key": "value"', pass1, pass2)).toThrow("JSON_PARSE_FAILED_TRUNCATED");
+  });
+
+  it("classifies malformed JSON ending with } as JSON_PARSE_FAILED_MALFORMED", () => {
+    expect(() => parsePass3Response('{ this: is invalid }', pass1, pass2)).toThrow("JSON_PARSE_FAILED_MALFORMED");
+  });
+
+  it("strips markdown json fences before parse", () => {
+    const fixture = makePass3Fixture();
+    const fenced = "```json\n" + JSON.stringify(fixture) + "\n```";
+    const result = parsePass3Response(fenced, pass1, pass2);
+    expect(result.criteria).toHaveLength(13);
+  });
+
   it("provides delta_explanation when score_delta > 2", () => {
     const fixture = makePass3Fixture();
     fixture.criteria[0].craft_score = 9;

@@ -208,6 +208,17 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     throw new Error(diagnosticMessage);
   }
 
+  // P0: Check finish_reason — log a warning if the model stopped due to token limit
+  const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined;
+  if (finishReason === "length") {
+    console.warn("[Pass3] finish_reason=length — output may be truncated", {
+      model: selectedModel,
+      maxOutputTokens: PASS3_MAX_TOKENS,
+      responseLen: responseText.length,
+      usage: completion.usage,
+    });
+  }
+
   opts._onCompletion?.({
     pass: 3,
     raw_text: responseText,
@@ -258,15 +269,28 @@ export function parsePass3Response(
   pass2: SinglePassOutput,
   fallbackModel = PASS3_MODEL,
 ): SynthesisOutput {
+  // P0: Log raw response preview before parse
+  console.log(`[Pass3] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
+
+  // P1: Strip markdown fences (e.g. ```json ... ```)
+  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+
+  // P1: Truncation detection — a well-formed JSON object must end with "}"
+  if (!stripped.endsWith("}")) {
+    throw new Error(
+      `[Pass3] JSON_PARSE_FAILED_TRUNCATED: Response is not valid JSON (appears truncated, does not end with "}")`,
+    );
+  }
+
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(stripped);
   } catch {
-    throw new Error("[Pass3] Response is not valid JSON");
+    throw new Error("[Pass3] JSON_PARSE_FAILED_MALFORMED: Response is not valid JSON (malformed JSON)");
   }
 
   if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("[Pass3] Response is not a JSON object");
+    throw new Error("[Pass3] JSON_PARSE_FAILED_NO_OBJECT: Response is not a JSON object");
   }
 
   const obj = parsed as Record<string, unknown>;
