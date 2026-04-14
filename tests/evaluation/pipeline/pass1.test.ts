@@ -123,6 +123,31 @@ describe("parsePass1Response", () => {
     expect(() => parsePass1Response("not json")).toThrow("not valid JSON");
   });
 
+  it("classifies clearly truncated response with JSON_PARSE_FAILED_TRUNCATED", () => {
+    // A response that starts like JSON but is cut off before closing brace
+    expect(() => parsePass1Response('{"key": "value')).toThrow("JSON_PARSE_FAILED_TRUNCATED");
+  });
+
+  it("classifies malformed JSON ending with } as JSON_PARSE_FAILED_MALFORMED", () => {
+    expect(() => parsePass1Response('{ this: is invalid }')).toThrow("JSON_PARSE_FAILED_MALFORMED");
+  });
+
+  it("strips markdown json fences before parse", () => {
+    const fixture = makePass1Fixture();
+    const fenced = "```json\n" + JSON.stringify(fixture) + "\n```";
+    const result = parsePass1Response(fenced);
+    expect(result.pass).toBe(1);
+    expect(result.criteria).toHaveLength(13);
+  });
+
+  it("strips plain markdown fences before parse", () => {
+    const fixture = makePass1Fixture();
+    const fenced = "```\n" + JSON.stringify(fixture) + "\n```";
+    const result = parsePass1Response(fenced);
+    expect(result.pass).toBe(1);
+    expect(result.criteria).toHaveLength(13);
+  });
+
   it("throws on empty criteria array", () => {
     expect(() => parsePass1Response(JSON.stringify({ criteria: [] }))).toThrow(
       "no criteria",

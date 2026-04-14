@@ -384,12 +384,36 @@ Now return the independent adjudication as JSON.`;
   const raw = await response.json();
   const rawContent: string = raw?.choices?.[0]?.message?.content ?? "";
 
+  // P0: Check finish_reason — log a warning if the model stopped due to token limit
+  const finishReason = raw?.choices?.[0]?.finish_reason;
+  if (finishReason === "length") {
+    console.warn("[Pass4] finish_reason=length — Perplexity output may be truncated", {
+      model: PERPLEXITY_MODEL,
+      rawContentLen: rawContent.length,
+    });
+  }
+
+  // P0: Log raw response preview before parse
+  console.log(`[Pass4] raw Perplexity response preview len=${rawContent.length}: ${rawContent.slice(0, 200)}`);
+
   const extractedJson = extractFirstJsonObject(rawContent);
+
+  // P1: Truncation detection — a well-formed JSON object must end with "}"
+  if (!extractedJson.trim().endsWith("}")) {
+    throw new Error(
+      `[Pass4] JSON_PARSE_FAILED_TRUNCATED: Response is not valid JSON (appears truncated, does not end with "}")`,
+    );
+  }
 
   let parsed: PerplexityResponseShape;
   try {
     parsed = validateParsedResponse(JSON.parse(extractedJson));
   } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error(
+        `[Pass4] JSON_PARSE_FAILED_MALFORMED: JSON parse failed: ${error.message}`
+      );
+    }
     throw new Error(
       `[Pass4] JSON parse/validation failed: ${(error as Error).message}`
     );

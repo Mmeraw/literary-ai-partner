@@ -177,6 +177,17 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     throw new Error(diagnosticMessage);
   }
 
+  // P0: Check finish_reason — log a warning if the model stopped due to token limit
+  const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined;
+  if (finishReason === "length") {
+    console.warn("[Pass1] finish_reason=length — output may be truncated", {
+      model: selectedModel,
+      maxOutputTokens: PASS1_MAX_TOKENS,
+      responseLen: responseText.length,
+      usage: completion.usage,
+    });
+  }
+
   opts._onCompletion?.({
     pass: 1,
     raw_text: responseText,
@@ -217,15 +228,28 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
  * @throws on invalid structure, empty criteria, or parse errors
  */
 export function parsePass1Response(raw: string, fallbackModel = PASS1_MODEL): SinglePassOutput {
+  // P0: Log raw response preview before parse
+  console.log(`[Pass1] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
+
+  // P1: Strip markdown fences (e.g. ```json ... ```)
+  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+
+  // P1: Truncation detection — a well-formed JSON object must end with "}"
+  if (!stripped.endsWith("}")) {
+    throw new Error(
+      `[Pass1] JSON_PARSE_FAILED_TRUNCATED: Response is not valid JSON (appears truncated, does not end with "}")`,
+    );
+  }
+
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(stripped);
   } catch {
-    throw new Error("[Pass1] Response is not valid JSON");
+    throw new Error("[Pass1] JSON_PARSE_FAILED_MALFORMED: Response is not valid JSON (malformed JSON)");
   }
 
   if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("[Pass1] Response is not a JSON object");
+    throw new Error("[Pass1] JSON_PARSE_FAILED_NO_OBJECT: Response is not a JSON object");
   }
 
   const obj = parsed as Record<string, unknown>;
