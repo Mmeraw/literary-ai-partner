@@ -177,6 +177,13 @@ describe("chooseBestCandidate", () => {
     expect(chooseBestCandidate([withoutCriteria, withCriteria])).toBe(withCriteria);
   });
 
+  it("does not match key names found only inside string values", () => {
+    // "criteria" appears in a string value, not as a key — should not boost score
+    const withValueMention = "{\"description\":\"contains the word criteria\"}";
+    const withActualKey = "{\"criteria\":[]}";
+    expect(chooseBestCandidate([withValueMention, withActualKey])).toBe(withActualKey);
+  });
+
   it("prefers longer candidates when key scores are equal", () => {
     const short = "{\"a\":1}";
     const long = "{\"a\":1,\"b\":2,\"c\":3,\"d\":4,\"e\":5}";

@@ -210,9 +210,14 @@ export function extractBalancedJsonObjects(input: string): string[] {
 
 const PREFERRED_KEYS = ["criteria", "score", "reasoning", "confidence", "overall"] as const;
 
+// Pre-compiled patterns matching `"key":` or `"key" :` (not values containing key name)
+const PREFERRED_KEY_PATTERNS: RegExp[] = PREFERRED_KEYS.map(
+  (k) => new RegExp(`"${k}"\\s*:`),
+);
+
 /**
  * Choose the best candidate from a list of extracted JSON object strings.
- * Scores by presence of preferred keys + logarithmic string length.
+ * Scores by presence of preferred keys (using key-colon pattern) + logarithmic string length.
  */
 export function chooseBestCandidate(candidates: string[]): string | null {
   if (candidates.length === 0) return null;
@@ -223,8 +228,8 @@ export function chooseBestCandidate(candidates: string[]): string | null {
 
   for (const candidate of candidates) {
     let score = 0;
-    for (const key of PREFERRED_KEYS) {
-      if (candidate.includes(`"${key}"`)) score += 10;
+    for (const pattern of PREFERRED_KEY_PATTERNS) {
+      if (pattern.test(candidate)) score += 10;
     }
     score += Math.log(candidate.length + 1);
 

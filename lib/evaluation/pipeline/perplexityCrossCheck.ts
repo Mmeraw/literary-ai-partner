@@ -128,7 +128,11 @@ export type CrossCheckPayload = {
 export function isCrossCheckPayload(value: unknown): value is CrossCheckPayload {
   if (typeof value !== "object" || value === null) return false;
   const obj = value as Record<string, unknown>;
-  return typeof obj["criteria"] === "object" && obj["criteria"] !== null;
+  return (
+    typeof obj["criteria"] === "object" &&
+    obj["criteria"] !== null &&
+    !Array.isArray(obj["criteria"])
+  );
 }
 
 function assertScore(score: unknown, key: string): number {

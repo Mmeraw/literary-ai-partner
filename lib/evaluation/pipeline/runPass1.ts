@@ -246,13 +246,7 @@ export function finalizePass1FromResponse(raw: string, fallbackModel = PASS1_MOD
 
   function isEvaluationResultV1(value: unknown): asserts value is Record<string, unknown> {
     if (typeof value !== "object" || value === null || !("criteria" in (value as object))) {
-      throw new JsonBoundaryError({
-        message: "[Pass1] JSON_PARSE_FAILED_NO_OBJECT: Response is not valid JSON (missing criteria key)",
-        code: "NO_OBJECT",
-        raw: "",
-        normalized: "",
-        candidate: null,
-      });
+      throw new Error("Response is not valid JSON (missing criteria key)");
     }
   }
 
@@ -282,8 +276,8 @@ export function finalizePass1FromResponse(raw: string, fallbackModel = PASS1_MOD
 
   if (rawCriteria.length === 0) {
     throw new JsonBoundaryError({
-      message: "[Pass1] JSON_PARSE_FAILED_MALFORMED: Response contains no criteria",
-      code: "MALFORMED",
+      message: "[Pass1] JSON_PARSE_FAILED_NO_OBJECT: Response contains no criteria",
+      code: "NO_OBJECT",
       raw: result.raw,
       normalized: result.normalized,
       candidate: result.candidate,
