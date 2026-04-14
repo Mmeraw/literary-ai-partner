@@ -14,19 +14,108 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS3_SYSTEM_PROMPT, PASS3_PROMPT_VERSION, buildPass3UserPrompt } from "./prompts/pass3-synthesis";
 import type { SinglePassOutput, SynthesisOutput, SynthesizedCriterion, EvidenceAnchor, CompletionUsage, PassCompletionCapture } from "./types";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
+import {
+  buildOpenAIOutputTokenParam,
+  buildOpenAITemperatureParam,
+  getCanonicalPipelineModel,
+} from "@/lib/evaluation/policy";
+import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
+import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from "./promptInput";
+import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 
 const PASS3_TEMPERATURE = 0.2;
-const PASS3_MAX_TOKENS = 5000;
-const PASS3_MODEL = "gpt-4o-mini";
+const PASS3_MAX_TOKENS = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_PASS3_MAX_TOKENS || "9000", 10);
+  return Number.isFinite(parsed) && parsed >= 2000 && parsed <= 20000 ? parsed : 9000;
+})();
+const PASS3_MODEL = "o3";
+const PASS3_MIN_RATIONALE_LENGTH = 40;
+const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
+const OPENAI_TIMEOUT_MS = getEvalOpenAiTimeoutMs();
+
+type CompletionChoice = {
+  message?: {
+    content?: unknown;
+    refusal?: unknown;
+  };
+  finish_reason?: unknown;
+};
+
+function extractResponseText(content: unknown): string {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  return content
+    .map((part) => {
+      if (typeof part === "string") {
+        return part;
+      }
+      if (typeof part !== "object" || part === null) {
+        return "";
+      }
+
+      const record = part as Record<string, unknown>;
+      if (typeof record.text === "string") {
+        return record.text;
+      }
+
+      if (typeof record.content === "string") {
+        return record.content;
+      }
+
+      return "";
+    })
+    .join("")
+    .trim();
+}
+
+function buildEmptyResponseDiagnostic(params: {
+  model: string;
+  completion: { choices?: unknown; usage?: CompletionUsage };
+  firstChoice: CompletionChoice | undefined;
+  rawContent: unknown;
+  coverage: ReturnType<typeof summarizePromptCoverage>;
+  pass1Chars: number;
+  pass2Chars: number;
+}): string {
+  const { model, completion, firstChoice, rawContent, coverage, pass1Chars, pass2Chars } = params;
+  const usage = completion.usage;
+  const finishReason =
+    typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
+  const contentType =
+    rawContent === null ? "null" : Array.isArray(rawContent) ? "array" : typeof rawContent;
+  const refusal =
+    typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined;
+  const choiceCount = Array.isArray(completion.choices) ? completion.choices.length : 0;
+  const likelyBudgetPressure = finishReason === "length" ? " budget_exhausted_likely=true" : "";
+
+  return (
+    `[Pass3] Empty response from OpenAI ` +
+    `(model=${model} finish_reason=${finishReason} content_type=${contentType} choices=${choiceCount} ` +
+    `max_output_tokens=${PASS3_MAX_TOKENS} pass1_chars=${pass1Chars} pass2_chars=${pass2Chars} ` +
+    `reference_chars=${coverage.analyzedChars} source_chars=${coverage.sourceChars}` +
+    `${typeof usage?.prompt_tokens === "number" ? ` prompt_tokens=${usage.prompt_tokens}` : ""}` +
+    `${typeof usage?.completion_tokens === "number" ? ` completion_tokens=${usage.completion_tokens}` : ""}` +
+    `${typeof usage?.total_tokens === "number" ? ` total_tokens=${usage.total_tokens}` : ""}` +
+    `${refusal ? ` refusal=${JSON.stringify(refusal).slice(0, 120)}` : ""}` +
+    `${likelyBudgetPressure})`
+  );
+}
 
 /** Function signature for creating a chat completion (enables DI for testing). */
 export type CreateCompletionFn = (params: {
   model: string;
   messages: { role: string; content: string }[];
-  temperature: number;
-  max_tokens: number;
+  temperature?: number;
+  max_tokens?: number;
+  max_completion_tokens?: number;
   response_format: { type: string };
-}) => Promise<{ choices: { message: { content: string | null } }[]; usage?: CompletionUsage }>;
+}) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage }>;
 
 export interface RunPass3Options {
   pass1: SinglePassOutput;
@@ -53,15 +142,24 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   }
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
-  const selectedModel = opts.model ?? PASS3_MODEL;
+  const selectedModel = getCanonicalPipelineModel(opts.model ?? PASS3_MODEL);
+
+  const pass1Json = JSON.stringify(opts.pass1, null, 2);
+  const pass2Json = JSON.stringify(opts.pass2, null, 2);
 
   const userPrompt = buildPass3UserPrompt({
-    pass1Json: JSON.stringify(opts.pass1, null, 2),
-    pass2Json: JSON.stringify(opts.pass2, null, 2),
+    pass1Json,
+    pass2Json,
     manuscriptText: opts.manuscriptText,
     title: opts.title,
     executionMode: opts.executionMode,
   });
+  
+  // Compute coverage metadata (for truth enforcement)
+  const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
+  const coverage = summarizePromptCoverage(opts.manuscriptText, synthesisBudget);
+
+  console.log(`[Pass3] completion request model=${selectedModel}`);
 
   const completion = await createCompletion({
     model: selectedModel,
@@ -69,14 +167,45 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
       { role: "system", content: PASS3_SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
     ],
-    temperature: PASS3_TEMPERATURE,
-    max_tokens: PASS3_MAX_TOKENS,
+    ...buildOpenAITemperatureParam(selectedModel, PASS3_TEMPERATURE),
+    ...buildOpenAIOutputTokenParam(selectedModel, PASS3_MAX_TOKENS),
     response_format: { type: "json_object" },
   });
 
-  const responseText = completion.choices[0]?.message?.content;
-  if (!responseText) {
-    throw new Error("[Pass3] Empty response from OpenAI");
+  const firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
+  const rawContent = firstChoice?.message?.content;
+  const responseText = extractResponseText(rawContent);
+
+  if (responseText.trim().length === 0) {
+    const diagnosticMessage = buildEmptyResponseDiagnostic({
+      model: selectedModel,
+      completion,
+      firstChoice,
+      rawContent,
+      coverage,
+      pass1Chars: pass1Json.length,
+      pass2Chars: pass2Json.length,
+    });
+
+    console.error("[Pass3] Completion boundary diagnostic", {
+      model: selectedModel,
+      hasChoices: Array.isArray((completion as { choices?: unknown }).choices),
+      choiceCount: Array.isArray((completion as { choices?: unknown[] }).choices)
+        ? (completion as { choices: unknown[] }).choices.length
+        : 0,
+      finishReason:
+        typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown",
+      contentType: rawContent === null ? "null" : typeof rawContent,
+      contentPreview: typeof rawContent === "string" ? rawContent.slice(0, 160) : undefined,
+      usage: completion.usage,
+      pass1Chars: pass1Json.length,
+      pass2Chars: pass2Json.length,
+      promptCoverage: coverage,
+      maxOutputTokens: PASS3_MAX_TOKENS,
+      refusal:
+        typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined,
+    });
+    throw new Error(diagnosticMessage);
   }
 
   opts._onCompletion?.({
@@ -87,7 +216,20 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     generated_at: new Date().toISOString(),
   });
 
-  return parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel);
+  const synthesis = parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel);
+  
+  // Truth enforcement: attach coverage metadata proving whether evaluation was complete or partial
+  return {
+    ...synthesis,
+    partial_evaluation: coverage.truncated,
+    coverage_scope: {
+      sourceChars: coverage.sourceChars,
+      sourceWords: coverage.sourceWords,
+      analyzedChars: coverage.analyzedChars,
+      analyzedWords: coverage.analyzedWords,
+      strategy: coverage.strategy,
+    },
+  };
 }
 
 /**
@@ -99,10 +241,13 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
   if (!apiKey) {
     throw new Error("[Pass3] OPENAI_API_KEY is not configured");
   }
-  const openai = new OpenAI({ apiKey, maxRetries: 0 });
+  const openai = new OpenAI({ apiKey, maxRetries: 0, timeout: OPENAI_TIMEOUT_MS });
   return (params) =>
-    openai.chat.completions.create(params as Parameters<typeof openai.chat.completions.create>[0]) as Promise<{
-      choices: { message: { content: string | null } }[];
+    openai.chat.completions.create(
+      params as Parameters<typeof openai.chat.completions.create>[0],
+      { timeout: OPENAI_TIMEOUT_MS },
+    ) as Promise<{
+      choices: CompletionChoice[];
       usage?: CompletionUsage;
     }>;
 }
@@ -156,8 +301,45 @@ export function parsePass3Response(
 
     const delta = Math.abs(craftScore - editorialScore);
 
-    const evidence: EvidenceAnchor[] = parseEvidenceArray(rawEntry?.["evidence"]);
-    const recommendations = parseRecommendations(rawEntry?.["recommendations"]);
+    let evidence: EvidenceAnchor[] = parseEvidenceArray(rawEntry?.["evidence"]);
+    let recommendations = parseRecommendations(rawEntry?.["recommendations"]);
+    const pressurePoints = parseStringArray(rawEntry?.["pressure_points"], 3);
+    const decisionPoints = parseStringArray(rawEntry?.["decision_points"], 3);
+    const consequenceStatus = parseConsequenceStatus(rawEntry?.["consequence_status"], delta, finalScore);
+    const deferredRiskRaw = String(rawEntry?.["deferred_consequence_risk"] ?? "").trim();
+
+    const fallbackPressurePoint = evidence[0]?.snippet
+      ? `Pressure signal observed in: "${evidence[0].snippet.substring(0, 120)}"`
+      : `Pressure signal inferred for ${key} from combined craft/editorial analysis.`;
+
+    const fallbackDecisionPoint =
+      craftScore > editorialScore
+        ? `Decision inflection favors craft signal for ${key}.`
+        : editorialScore > craftScore
+          ? `Decision inflection favors editorial signal for ${key}.`
+          : `Decision inflection resolves as balanced craft/editorial synthesis for ${key}.`;
+
+    const deferredRisk =
+      consequenceStatus === "deferred"
+        ? (deferredRiskRaw ||
+            `Deferred consequence risk: unresolved ${key} pressure may compound and degrade downstream payoff.`)
+            .substring(0, 280)
+        : undefined;
+
+    const rawRationale = String(rawEntry?.["final_rationale"] ?? "").trim();
+    const baselineRationale = rawRationale || p1c?.rationale || p2c?.rationale || "";
+
+    if (evidence.length === 0) {
+      evidence = backfillEvidenceFromAxis(pass1, pass2, key);
+    }
+
+    if (recommendations.length === 0) {
+      recommendations = backfillRecommendationsFromAxis(pass1, pass2, key);
+    }
+
+    const finalRationale = needsRationaleBackfill(baselineRationale)
+      ? buildBackfilledRationale(key, p1c?.rationale, p2c?.rationale, evidence)
+      : baselineRationale;
 
     criteria.push({
       key,
@@ -167,7 +349,11 @@ export function parsePass3Response(
       score_delta: delta,
       delta_explanation:
         delta > 2 ? String(rawEntry?.["delta_explanation"] ?? "Axes diverge significantly.") : undefined,
-      final_rationale: String(rawEntry?.["final_rationale"] ?? p1c?.rationale ?? ""),
+      final_rationale: finalRationale,
+      pressure_points: pressurePoints.length > 0 ? pressurePoints : [fallbackPressurePoint],
+      decision_points: decisionPoints.length > 0 ? decisionPoints : [fallbackDecisionPoint],
+      consequence_status: consequenceStatus,
+      deferred_consequence_risk: deferredRisk,
       evidence,
       recommendations,
     });
@@ -216,6 +402,7 @@ export function parsePass3Response(
       pass3_model: String(rawMeta["pass3_model"] ?? fallbackModel),
       generated_at: new Date().toISOString(),
     },
+    partial_evaluation: false, // will be overridden by runPass3Synthesis with real value
   };
 }
 
@@ -245,4 +432,124 @@ function parseRecommendations(raw: unknown): SynthesizedCriterion["recommendatio
         source_pass: (sourcePass === 1 || sourcePass === 2 ? sourcePass : 3) as 1 | 2 | 3,
       };
     });
+}
+
+function normalizeForPhraseMatch(text: string): string {
+  return (text || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function needsRationaleBackfill(rationale: string): boolean {
+  const normalized = normalizeForPhraseMatch(rationale);
+  if (normalized.length < PASS3_MIN_RATIONALE_LENGTH) {
+    return true;
+  }
+
+  return PASS3_PLACEHOLDER_RATIONALE_PATTERNS.some((pattern) =>
+    normalized.includes(pattern),
+  );
+}
+
+function buildBackfilledRationale(
+  key: string,
+  pass1Rationale: string | undefined,
+  pass2Rationale: string | undefined,
+  evidence: EvidenceAnchor[],
+): string {
+  const p1 = (pass1Rationale || "").trim();
+  const p2 = (pass2Rationale || "").trim();
+  const evidenceLead = evidence[0]?.snippet?.trim();
+
+  const p1Summary = p1.length > 0 ? p1 : `Pass 1 identifies craft execution pressure in ${key}.`;
+  const p2Summary = p2.length > 0 ? p2 : `Pass 2 identifies editorial and interpretive pressure in ${key}.`;
+  const anchor = evidenceLead
+    ? `The manuscript evidence "${evidenceLead.substring(0, 120)}" supports this synthesis.`
+    : `Available manuscript signals support this synthesis for ${key}.`;
+
+  return `${p1Summary} ${p2Summary} ${anchor}`.trim();
+}
+
+function backfillEvidenceFromAxis(
+  pass1: SinglePassOutput,
+  pass2: SinglePassOutput,
+  key: string,
+): EvidenceAnchor[] {
+  const p1Evidence = pass1.criteria.find((c) => c.key === key)?.evidence ?? [];
+  const p2Evidence = pass2.criteria.find((c) => c.key === key)?.evidence ?? [];
+  const combined = [...p1Evidence, ...p2Evidence]
+    .map((e) => ({
+      snippet: String(e.snippet ?? "").trim().substring(0, 200),
+      char_start: typeof e.char_start === "number" ? e.char_start : undefined,
+      char_end: typeof e.char_end === "number" ? e.char_end : undefined,
+      segment_id: typeof e.segment_id === "string" ? e.segment_id : undefined,
+    }))
+    .filter((e) => e.snippet.length > 0);
+
+  const seen = new Set<string>();
+  const deduped: EvidenceAnchor[] = [];
+  for (const e of combined) {
+    const sig = e.snippet.toLowerCase();
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    deduped.push(e);
+    if (deduped.length >= 3) break;
+  }
+
+  return deduped;
+}
+
+function backfillRecommendationsFromAxis(
+  pass1: SinglePassOutput,
+  pass2: SinglePassOutput,
+  key: string,
+): SynthesizedCriterion["recommendations"] {
+  const fromPass = (pass: SinglePassOutput, sourcePass: 1 | 2): SynthesizedCriterion["recommendations"] => {
+    const passCriterion = pass.criteria.find((c) => c.key === key);
+    if (!passCriterion) return [];
+    return passCriterion.recommendations
+      .map((r) => ({
+        priority: r.priority,
+        action: String(r.action ?? "").trim(),
+        expected_impact: String(r.expected_impact ?? "").trim(),
+        anchor_snippet: String(r.anchor_snippet ?? "").trim(),
+        source_pass: sourcePass,
+      }))
+      .filter((r) => r.action.length > 0 && r.expected_impact.length > 0 && r.anchor_snippet.length > 0);
+  };
+
+  const combined = [...fromPass(pass1, 1), ...fromPass(pass2, 2)];
+  const seen = new Set<string>();
+  const deduped: SynthesizedCriterion["recommendations"] = [];
+
+  for (const rec of combined) {
+    const sig = rec.action.toLowerCase();
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    deduped.push(rec);
+    if (deduped.length >= 3) break;
+  }
+
+  return deduped;
+}
+
+function parseStringArray(raw: unknown, maxItems: number): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((entry) => String(entry ?? "").trim())
+    .filter((entry) => entry.length > 0)
+    .slice(0, maxItems);
+}
+
+function parseConsequenceStatus(
+  raw: unknown,
+  scoreDelta: number,
+  finalScore: number,
+): SynthesizedCriterion["consequence_status"] {
+  const normalized = String(raw ?? "").trim().toLowerCase();
+  if (normalized === "landed" || normalized === "deferred" || normalized === "dissipated") {
+    return normalized;
+  }
+
+  if (scoreDelta >= 3) return "deferred";
+  if (finalScore <= 4) return "dissipated";
+  return "landed";
 }

@@ -50,6 +50,8 @@ describe("prompt pack governance specs", () => {
     expect(PASS3_SYSTEM_PROMPT).toContain("divergence_map");
     expect(PASS3_SYSTEM_PROMPT).toContain("arbitration_rationale");
     expect(PASS3_SYSTEM_PROMPT).toContain("Do NOT silently overwrite disagreement");
+    expect(PASS3_SYSTEM_PROMPT).toContain("pressure signal -> decision inflection -> consequence trajectory");
+    expect(PASS3_SYSTEM_PROMPT).toContain("pressure->decision->consequence logic");
 
     const userPrompt = buildPass3UserPrompt({
       pass1Json: "{\"criteria\":[]}",
@@ -61,5 +63,7 @@ describe("prompt pack governance specs", () => {
 
     expect(userPrompt).toContain("Execution mode: TRUSTED_PATH");
     expect(userPrompt).toContain("Produce explicit agreement_map and divergence_map");
+    expect(userPrompt).toContain("identify concrete pressure, then the chapter-level decision (or non-decision), then the resulting consequence");
+    expect(userPrompt).toContain("If consequence is deferred, name the risk and expected downstream cost explicitly");
   });
 });

@@ -67,6 +67,9 @@ function makeSynthesisOutput(): SynthesisOutput {
       final_score_0_10: 7,
       score_delta: 1,
       final_rationale: `Synthesized analysis for ${key}: craft and editorial perspectives converge.`,
+      pressure_points: ["Narrative pressure accumulates around this criterion."],
+      decision_points: ["The chapter makes a concrete decision at this criterion."],
+      consequence_status: "landed" as const,
       evidence: [{ snippet: "The river moved slowly through the valley." }],
       recommendations: [
         {
@@ -92,6 +95,7 @@ function makeSynthesisOutput(): SynthesisOutput {
       pass3_model: "gpt-4o-mini",
       generated_at: new Date().toISOString(),
     },
+      partial_evaluation: false,
   };
 }
 
@@ -495,6 +499,9 @@ describe("synthesisToEvaluationResult", () => {
         final_score_0_10: 7,
         score_delta: 1,
         final_rationale: `Rationale for ${key}.`,
+        pressure_points: ["Narrative pressure accumulates around this criterion."],
+        decision_points: ["The chapter makes a concrete decision at this criterion."],
+        consequence_status: "landed" as const,
         evidence: [{ snippet: "The river moved slowly." }],
         recommendations: [
           {
@@ -526,6 +533,7 @@ describe("synthesisToEvaluationResult", () => {
         pass3_model: "gpt-4o-mini",
         generated_at: new Date().toISOString(),
       },
+          partial_evaluation: false,
     };
 
     const result = synthesisToEvaluationResult({

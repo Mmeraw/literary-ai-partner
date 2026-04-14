@@ -7,8 +7,13 @@
  */
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import {
+  buildCoverageDisclosure,
+  buildPromptInputWindow,
+  summarizePromptCoverage,
+} from "../promptInput";
 
-export const PASS1_PROMPT_VERSION = "pass1-craft-v1";
+export const PASS1_PROMPT_VERSION = "pass1-craft-v2";
 
 export const PASS1_SYSTEM_PROMPT = `You are Pass 1: the primary structural evaluator for RevisionGrade.
 
@@ -30,6 +35,9 @@ Return a JSON object with a "criteria" array containing exactly 13 entries — o
 8. Every evidence "snippet" MUST be ≤200 characters.
 9. Scores are integers 0-10 only.
 10. You MUST produce entries for all 13 criteria.
+11. You MUST detect the dominant narrative mode before evaluating pacing, narrative drive, and scene construction.
+12. Do NOT treat investigative/dossier, reflective, epistolary, or braided-hybrid chapters as failed scene work simply because they accumulate pressure differently.
+13. If you lower narrativeDrive, pacing, or character, specify whether the issue is weak consequence, weak escalation, repetitive documentary accumulation, or genuinely thin characterization.
 
 ## OUTPUT FORMAT (return ONLY this JSON, no markdown, no code fences)
 {
@@ -56,7 +64,13 @@ Return a JSON object with a "criteria" array containing exactly 13 entries — o
   "model": "<model_id>",
   "prompt_version": "${PASS1_PROMPT_VERSION}",
   "temperature": 0.3,
-  "generated_at": "<ISO 8601 timestamp>"
+  "generated_at": "<ISO 8601 timestamp>",
+  "narrative_mode_assessment": {
+    "dominant_mode": "scene_driven|investigative_dossier|reflective|braided_hybrid|epistolary_documentary|other",
+    "mode_confidence": "low|medium|high",
+    "mode_rationale": "<how the text is operating on the page>",
+    "pressure_profile": "<where pressure accumulates or fails to convert>"
+  }
 }
 
 ## CRAFT EXECUTION AXIS GUIDANCE
@@ -80,13 +94,16 @@ export function buildPass1UserPrompt(params: {
 }): string {
   const wordCount = params.manuscriptText.trim().split(/\s+/).length;
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
+  const promptWindow = buildPromptInputWindow(params.manuscriptText);
+  const coverage = summarizePromptCoverage(params.manuscriptText);
   return `Evaluate this ${params.workType || "manuscript"} excerpt titled "${params.title}" on the CRAFT EXECUTION axis.
 
 Execution mode: ${executionMode}
 Word count: ${wordCount}
+${buildCoverageDisclosure(coverage)}
 
 Manuscript text:
-${params.manuscriptText.substring(0, 12000)}
+${promptWindow}
 
 Return the JSON evaluation object as specified.
 Mandatory behavior:
@@ -95,5 +112,8 @@ Mandatory behavior:
 - Include anchor_snippet for every recommendation.
 - Avoid generic critique language.
 - Do not diagnose multiplicity without explicit boundary-blur evidence.
-- Do not perform convergence/arbitration language.`;
+- Do not perform convergence/arbitration language.
+- First identify the dominant narrative mode and evaluate craft relative to that mode.
+- If the chapter is documentary, dossier-driven, or reflective, judge whether pressure accumulates with intention before penalizing it for not being scene-first.
+- When criticizing pacing or drive, distinguish accumulation without discharge from true structural drift.`;
 }

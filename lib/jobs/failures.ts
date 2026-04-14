@@ -1,57 +1,56 @@
 /**
- * Failure Code Taxonomy — RevisionGrade Phase 1
- * 
- * Classified failure codes for structured error handling.
- * Retry is ONLY allowed for transient codes.
+ * Failure codes for the job pipeline.
+ * Source of truth for retryability decisions.
+ * EVALUATION_GATE_REJECTED is non-transient: never retry.
  */
 
-export type FailureCode =
-  // Transient (retry allowed)
-  | "TRANSIENT_NETWORK"
-  | "TRANSIENT_UPSTREAM"
-  | "RATE_LIMITED"
-  // Non-transient (fail closed, no retry)
-  | "VALIDATION_ERROR"
-  | "SCHEMA_ERROR"
-  | "GOVERNANCE_BLOCK"
-  | "ANCHOR_CONTRACT_VIOLATION"
-  | "MISSING_PASS_ARTIFACT"
-  | "PASS_CONVERGENCE_FAILURE"
-  | "CANONICAL_ARTIFACT_WRITE_FAILED"
-  | "SUMMARY_PROJECTION_FAILED"
-  | "LEASE_EXPIRED"
-  | "STATE_TRANSITION_INVALID"
-  | "RLS_BLOCKED"
-  | "MANUAL_REVIEW_REQUIRED";
+export const FAILURE_CODES = [
+  // Transient / retriable
+  'TIMEOUT',
+  'UPSTREAM_ERROR',
+  'RATE_LIMITED',
+  'INTERNAL_ERROR',
+  // Non-transient / terminal
+  'EVALUATION_GATE_REJECTED',
+  'MAX_RETRIES_EXCEEDED',
+  'INVALID_INPUT',
+  'SCHEMA_VALIDATION_FAILED',
+  // Finalizer authority & invariant codes
+  'STATE_TRANSITION_INVALID',
+  'LEASE_EXPIRED',
+  'MISSING_PASS_ARTIFACT',
+  'PASS_CONVERGENCE_FAILURE',
+  'ANCHOR_CONTRACT_VIOLATION',
+  'GOVERNANCE_BLOCK',
+  'SCHEMA_ERROR',
+  'VALIDATION_ERROR',
+  'CANONICAL_ARTIFACT_WRITE_FAILED',
+  'SUMMARY_PROJECTION_FAILED',
+] as const;
 
-const TRANSIENT_CODES: ReadonlySet<FailureCode> = new Set([
-  "TRANSIENT_NETWORK",
-  "TRANSIENT_UPSTREAM",
-  "RATE_LIMITED",
+export type FailureCode = typeof FAILURE_CODES[number];
+
+const NON_TRANSIENT_CODES = new Set<FailureCode>([
+  'EVALUATION_GATE_REJECTED',
+  'MAX_RETRIES_EXCEEDED',
+  'INVALID_INPUT',
+  'SCHEMA_VALIDATION_FAILED',
+  // Finalizer invariant failures are always terminal (wrong output is worse than no output)
+  'STATE_TRANSITION_INVALID',
+  'ANCHOR_CONTRACT_VIOLATION',
+  'GOVERNANCE_BLOCK',
+  'SCHEMA_ERROR',
+  'VALIDATION_ERROR',
+  'CANONICAL_ARTIFACT_WRITE_FAILED',
+  'SUMMARY_PROJECTION_FAILED',
 ]);
 
-export function isTransientFailure(code: FailureCode): boolean {
-  return TRANSIENT_CODES.has(code);
-}
-
-export function isNonTransientFailure(code: FailureCode): boolean {
-  return !TRANSIENT_CODES.has(code);
-}
-
-/**
- * Assert that a failure code is valid.
- * Throws if the code is not in the taxonomy.
- */
-export function assertValidFailureCode(code: string): asserts code is FailureCode {
-  const ALL_CODES: string[] = [
-    "TRANSIENT_NETWORK", "TRANSIENT_UPSTREAM", "RATE_LIMITED",
-    "VALIDATION_ERROR", "SCHEMA_ERROR", "GOVERNANCE_BLOCK",
-    "ANCHOR_CONTRACT_VIOLATION", "MISSING_PASS_ARTIFACT",
-    "PASS_CONVERGENCE_FAILURE", "CANONICAL_ARTIFACT_WRITE_FAILED",
-    "SUMMARY_PROJECTION_FAILED", "LEASE_EXPIRED",
-    "STATE_TRANSITION_INVALID", "RLS_BLOCKED", "MANUAL_REVIEW_REQUIRED",
-  ];
-  if (!ALL_CODES.includes(code)) {
-    throw new Error(`Invalid failure code: ${code}`);
+export function assertValidFailureCode(raw: string): asserts raw is FailureCode {
+  if (!(FAILURE_CODES as readonly string[]).includes(raw)) {
+    throw new Error(`Unknown failure code: ${raw}`);
   }
+}
+
+export function isTransientFailure(code: FailureCode): boolean {
+  return !NON_TRANSIENT_CODES.has(code);
 }

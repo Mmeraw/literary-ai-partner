@@ -80,7 +80,8 @@ npm run evidence:phase2c
 npx tsc --noEmit workers/phase2Evaluation.ts
 ```
 
-See [docs/PERSISTENCE_CONTRACT.md](./docs/PERSISTENCE_CONTRACT.md) for Phase 2C contract.
+See [docs/CANONICAL_RUNTIME_OPERATIONS.md](./docs/CANONICAL_RUNTIME_OPERATIONS.md) for current runtime authority,
+and [docs/PERSISTENCE_CONTRACT.md](./docs/PERSISTENCE_CONTRACT.md) for legacy Phase 2C persistence history.
 
 ## 📚 Documentation
 

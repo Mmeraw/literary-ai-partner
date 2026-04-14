@@ -15,19 +15,93 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS2_SYSTEM_PROMPT, PASS2_PROMPT_VERSION, buildPass2UserPrompt } from "./prompts/pass2-editorial";
 import type { SinglePassOutput, AxisCriterionResult, EvidenceAnchor, CompletionUsage, PassCompletionCapture } from "./types";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
+import {
+  buildOpenAIOutputTokenParam,
+  buildOpenAITemperatureParam,
+  getCanonicalPipelineModel,
+} from "@/lib/evaluation/policy";
+import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 
 const PASS2_TEMPERATURE = 0.3;
 const PASS2_MAX_TOKENS = 4000;
-const PASS2_MODEL = "gpt-4o-mini";
+const PASS2_MODEL = "o3";
+const OPENAI_TIMEOUT_MS = getEvalOpenAiTimeoutMs();
+
+type CompletionChoice = {
+  message?: {
+    content?: unknown;
+    refusal?: unknown;
+  };
+  finish_reason?: unknown;
+};
+
+function extractResponseText(content: unknown): string {
+  if (typeof content === "string") {
+    return content.trim();
+  }
+
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  return content
+    .map((part) => {
+      if (typeof part === "string") {
+        return part;
+      }
+      if (typeof part !== "object" || part === null) {
+        return "";
+      }
+
+      const record = part as Record<string, unknown>;
+      if (typeof record.text === "string") {
+        return record.text;
+      }
+      if (typeof record.content === "string") {
+        return record.content;
+      }
+      return "";
+    })
+    .join("")
+    .trim();
+}
+
+function buildEmptyResponseDiagnostic(params: {
+  model: string;
+  completion: { choices?: unknown; usage?: CompletionUsage };
+  firstChoice: CompletionChoice | undefined;
+  rawContent: unknown;
+}): string {
+  const { model, completion, firstChoice, rawContent } = params;
+  const usage = completion.usage;
+  const finishReason =
+    typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
+  const contentType =
+    rawContent === null ? "null" : Array.isArray(rawContent) ? "array" : typeof rawContent;
+  const refusal =
+    typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined;
+  const choiceCount = Array.isArray(completion.choices) ? completion.choices.length : 0;
+
+  return (
+    `[Pass2] Empty response from OpenAI ` +
+    `(model=${model} finish_reason=${finishReason} content_type=${contentType} choices=${choiceCount} ` +
+    `max_output_tokens=${PASS2_MAX_TOKENS}` +
+    `${typeof usage?.prompt_tokens === "number" ? ` prompt_tokens=${usage.prompt_tokens}` : ""}` +
+    `${typeof usage?.completion_tokens === "number" ? ` completion_tokens=${usage.completion_tokens}` : ""}` +
+    `${typeof usage?.total_tokens === "number" ? ` total_tokens=${usage.total_tokens}` : ""}` +
+    `${refusal ? ` refusal=${JSON.stringify(refusal).slice(0, 120)}` : ""})`
+  );
+}
 
 /** Function signature for creating a chat completion (enables DI for testing). */
 export type CreateCompletionFn = (params: {
   model: string;
   messages: { role: string; content: string }[];
-  temperature: number;
-  max_tokens: number;
+  temperature?: number;
+  max_tokens?: number;
+  max_completion_tokens?: number;
   response_format: { type: string };
-}) => Promise<{ choices: { message: { content: string | null } }[]; usage?: CompletionUsage }>;
+}) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage }>;
 
 export interface RunPass2Options {
   /**
@@ -61,7 +135,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   }
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
-  const selectedModel = opts.model ?? PASS2_MODEL;
+  const selectedModel = getCanonicalPipelineModel(opts.model ?? PASS2_MODEL);
 
   const userPrompt = buildPass2UserPrompt({
     manuscriptText: opts.manuscriptText,
@@ -70,20 +144,47 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     executionMode: opts.executionMode,
   });
 
+  console.log(`[Pass2] completion request model=${selectedModel}`);
+
   const completion = await createCompletion({
     model: selectedModel,
     messages: [
       { role: "system", content: PASS2_SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
     ],
-    temperature: PASS2_TEMPERATURE,
-    max_tokens: PASS2_MAX_TOKENS,
+    ...buildOpenAITemperatureParam(selectedModel, PASS2_TEMPERATURE),
+    ...buildOpenAIOutputTokenParam(selectedModel, PASS2_MAX_TOKENS),
     response_format: { type: "json_object" },
   });
 
-  const responseText = completion.choices[0]?.message?.content;
-  if (!responseText) {
-    throw new Error("[Pass2] Empty response from OpenAI");
+  const firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
+  const rawContent = firstChoice?.message?.content;
+  const responseText = extractResponseText(rawContent);
+
+  if (responseText.trim().length === 0) {
+    const diagnosticMessage = buildEmptyResponseDiagnostic({
+      model: selectedModel,
+      completion,
+      firstChoice,
+      rawContent,
+    });
+
+    console.error("[Pass2] Completion boundary diagnostic", {
+      model: selectedModel,
+      hasChoices: Array.isArray((completion as { choices?: unknown }).choices),
+      choiceCount: Array.isArray((completion as { choices?: unknown[] }).choices)
+        ? (completion as { choices: unknown[] }).choices.length
+        : 0,
+      finishReason:
+        typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown",
+      contentType: rawContent === null ? "null" : Array.isArray(rawContent) ? "array" : typeof rawContent,
+      contentPreview: typeof rawContent === "string" ? rawContent.slice(0, 160) : undefined,
+      usage: completion.usage,
+      maxOutputTokens: PASS2_MAX_TOKENS,
+      refusal:
+        typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined,
+    });
+    throw new Error(diagnosticMessage);
   }
 
   opts._onCompletion?.({
@@ -106,10 +207,13 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
   if (!apiKey) {
     throw new Error("[Pass2] OPENAI_API_KEY is not configured");
   }
-  const openai = new OpenAI({ apiKey, maxRetries: 0 });
+  const openai = new OpenAI({ apiKey, maxRetries: 0, timeout: OPENAI_TIMEOUT_MS });
   return (params) =>
-    openai.chat.completions.create(params as Parameters<typeof openai.chat.completions.create>[0]) as Promise<{
-      choices: { message: { content: string | null } }[];
+    openai.chat.completions.create(
+      params as Parameters<typeof openai.chat.completions.create>[0],
+      { timeout: OPENAI_TIMEOUT_MS },
+    ) as Promise<{
+      choices: CompletionChoice[];
       usage?: CompletionUsage;
     }>;
 }

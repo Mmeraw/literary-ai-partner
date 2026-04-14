@@ -4,6 +4,7 @@
 
 import * as metrics from "./metrics";
 import { PHASES, JOB_STATUS } from "./types";
+import { calculateNextAttemptAt } from "./retryBackoff";
 
 // Helper functions for type-safe unknown handling
 function asNumber(v: unknown, fallback: number): number {
@@ -64,6 +65,8 @@ import {
   markChunkFailure,
 } from "@/lib/manuscripts/chunks";
 import { createLlmClient } from "@/lib/llm/client";
+import { runEvaluationGates, adaptResultToCriteria } from "@/lib/evaluation/pipeline/gates";
+import { EvaluationGateRejectedError } from "@/lib/evaluation/pipeline/failures";
 
 export async function runPhase1(jobId: string): Promise<void> {
   const phase1_start = Date.now();
@@ -71,6 +74,22 @@ export async function runPhase1(jobId: string): Promise<void> {
   let job = await getJob(jobId);
   if (!job) {
     throw new Error("Job not found");
+  }
+
+  const initialProgress = job.progress ?? { phase: null, phase_status: null };
+  const isPhase1QueuedCandidate =
+    job.status === JOB_STATUS.QUEUED &&
+    initialProgress.phase === PHASES.PHASE_1 &&
+    initialProgress.phase_status === PHASE_1_STATES.QUEUED;
+
+  if (!isPhase1QueuedCandidate) {
+    console.log("Phase1RejectedNotEligible", {
+      job_id: jobId,
+      status: job.status,
+      phase: initialProgress.phase,
+      phase_status: initialProgress.phase_status,
+    });
+    return;
   }
 
   // Initialize LLM client (stub or real based on env)
@@ -141,7 +160,6 @@ export async function runPhase1(jobId: string): Promise<void> {
   // Canonical progress init — do NOT mark the whole job COMPLETE here
   // (lease acquire already set status="running")
   await updateJob(jobId, {
-    status: JOB_STATUS.RUNNING,
     progress: {
       message: `Initializing Phase 1 - ${eligibleChunks.length} chunks to process (${doneChunks} already done)`,
       total_units: allChunks.length,
@@ -226,7 +244,17 @@ export async function runPhase1(jobId: string): Promise<void> {
           phase: 1,
         });
 
-        // Mark chunk as done with result
+        // -- EG: Run evaluation gate BEFORE marking success --
+            const criteria = adaptResultToCriteria(result.resultJson as any);
+            const gateResult = runEvaluationGates(criteria);
+            if (!gateResult.passed) {
+              throw new EvaluationGateRejectedError(
+                `Chunk ${chunk.chunk_index} rejected by evaluation gate: ${gateResult.violations.map((v: any) => v.message || v.rule).join(', ')}`,
+                { chunkIndex: chunk.chunk_index, violations: gateResult.violations }
+              );
+            }
+
+            // Mark chunk as done with result
         // This is the ONLY place that writes result_json
         await markChunkSuccess(manuscriptIdNum, chunk.chunk_index, result.resultJson as any, jobId);
 
@@ -235,7 +263,18 @@ export async function runPhase1(jobId: string): Promise<void> {
         // Mark chunk as failed
         // CRITICAL: This NEVER touches result_json - preserves prior success
         const errorMessage = chunkError instanceof Error ? chunkError.message : String(chunkError);
-        await markChunkFailure(manuscriptIdNum, chunk.chunk_index, errorMessage);
+        // EG: Pass failure code for canonical rejection tracking
+            const failureCode = chunkError instanceof EvaluationGateRejectedError
+              ? chunkError.failureCode
+              : undefined;
+            await markChunkFailure(manuscriptIdNum, chunk.chunk_index, errorMessage, failureCode);
+        // EG: Non-retryable gate rejection halts phase advancement
+        const fc = chunkError && typeof chunkError === "object"
+          ? (chunkError as any).failureCode
+          : undefined;
+        if (fc === "EVALUATION_GATE_REJECTED") {
+          throw chunkError; // re-throw to halt the entire phase
+        }
 
         console.error("Phase1ChunkError", {
           job_id: jobId,
@@ -337,7 +376,7 @@ export async function runPhase1(jobId: string): Promise<void> {
     const max_retries = 3;
 
     if (retry_count <= max_retries) {
-      const next_retry_at = new Date(Date.now() + retry_count * 60 * 1000).toISOString(); // backoff 1min, 2min, 3min
+      const next_retry_at = calculateNextAttemptAt(retry_count); // delegates to retryBackoff.ts
 
       await updateJob(jobId, {
         status: JOB_STATUS.FAILED,
@@ -367,11 +406,9 @@ export async function runPhase1(jobId: string): Promise<void> {
       });
     }
   } else if (final_phase_status === PHASE_1_STATES.COMPLETED) {
-    // Phase 1 completed (either fully or partially)
-    // IMPORTANT: worker is done; job should not remain "running"
-    // Queue the job for Phase 2 and clear lease immediately.
+    // Phase 1 completed (either fully or partially).
+    // Do not mutate lifecycle status here; update execution/progress fields only.
     await updateJob(jobId, {
-      status: JOB_STATUS.QUEUED,
       progress: {
         message,
         finished_at,
@@ -388,7 +425,6 @@ export async function runPhase1(jobId: string): Promise<void> {
   } else {
     // RUNNING state - work remains, allow resume
     await updateJob(jobId, {
-      status: JOB_STATUS.RUNNING,
       progress: {
         message,
         phase: PHASES.PHASE_1,

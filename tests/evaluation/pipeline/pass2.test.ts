@@ -11,6 +11,7 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass2Response, runPass2 } from "@/lib/evaluation/pipeline/runPass2";
 import type { RunPass2Options, CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass2";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
+import { getCanonicalPipelineModel } from "@/lib/evaluation/policy";
 
 // ── Fixture ──────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,27 @@ function makePass2Fixture() {
 function mockCompletion(responseJson: string): CreateCompletionFn {
   return async () => ({
     choices: [{ message: { content: responseJson } }],
+  });
+}
+
+/** Helper: build a mock completion function that returns structured content parts. */
+function arrayContentCompletion(responseJson: string): CreateCompletionFn {
+  return async () => ({
+    choices: [
+      {
+        message: {
+          content: [{ type: "output_text", text: responseJson }],
+        },
+      },
+    ],
+  });
+}
+
+/** Helper: build a mock completion with finish metadata but no usable content. */
+function lengthLimitedEmptyCompletion(): CreateCompletionFn {
+  return async () => ({
+    choices: [{ message: { content: null }, finish_reason: "length" }],
+    usage: { prompt_tokens: 650, completion_tokens: 4000, total_tokens: 4650 },
   });
 }
 
@@ -92,7 +114,7 @@ describe("runPass2", () => {
 
     expect(result.pass).toBe(2);
     expect(result.axis).toBe("editorial_literary");
-    expect(result.model).toBe("gpt-4o-mini");
+    expect(result.model).toBe(getCanonicalPipelineModel("o3"));
     expect(result.temperature).toBe(0.3);
     expect(result.criteria).toHaveLength(13);
     expect(result.criteria.map((c) => c.key)).toEqual(
@@ -142,5 +164,31 @@ describe("runPass2", () => {
         _createCompletion: emptyCompletion,
       }),
     ).rejects.toThrow();
+  });
+
+  it("accepts structured content-part arrays when the provider does not return a flat string", async () => {
+    const result = await runPass2({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: arrayContentCompletion(JSON.stringify(makePass2Fixture())),
+    });
+
+    expect(result.criteria).toHaveLength(13);
+  });
+
+  it("includes finish_reason and token usage in enriched empty-response errors", async () => {
+    await expect(
+      runPass2({
+        manuscriptText: "test",
+        workType: "literary_fiction",
+        title: "Test",
+        registry,
+        openaiApiKey: "sk-test",
+        _createCompletion: lengthLimitedEmptyCompletion(),
+      }),
+    ).rejects.toThrow("finish_reason=length");
   });
 });

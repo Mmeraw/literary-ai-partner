@@ -2,7 +2,6 @@ import {
   __resetFinalizerStoreForTests,
   getConvergenceArtifactById,
   getJobForFinalization,
-  markJobFailed,
   getPassArtifactById,
   persistCanonicalAndSummaryAndCompleteJob,
   writeJobAuditEvent,

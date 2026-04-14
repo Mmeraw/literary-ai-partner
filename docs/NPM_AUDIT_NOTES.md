@@ -1,7 +1,7 @@
 # npm audit Governance
 
 ## Current Status
-⚠️ **8 known transitive advisories / audit keys allowlisted** — current audit output may surface `flatted`, `minimatch`, `socket.io-parser`, `underscore`, `brace-expansion`, `picomatch`, `@xmldom/xmldom`, and `lodash` (as of 2026-04-02). See below for justification.
+⚠️ **9 known transitive advisories / audit keys allowlisted** — current audit output may surface `flatted`, `minimatch`, `socket.io-parser`, `underscore`, `brace-expansion`, `picomatch`, `@xmldom/xmldom`, `lodash`, and `axios` (as of 2026-04-02). See below for justification.
 
 ## Previously Approved Advisories (Now Resolved)
 
@@ -82,3 +82,9 @@ The CI workflows (`ci.yml`, `ci-staging-tests.yml`, `job-system-ci.yml`) enforce
 - **Status**: KNOWN — transitive dependency / audit key
 - Vuln: audit key may surface through transitive chain depending on npm audit output
 - Accepted: retained temporarily while upstream dependency chain is stabilized and tracked via CI
+
+
+### axios
+- **Status**: KNOWN — transitive dependency / new high vuln
+- Vuln: New high-severity axios vulnerability surfaced in npm audit
+- Accepted: Added to audit allowlist; transitive dependency not directly exposed to user input

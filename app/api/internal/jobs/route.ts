@@ -30,6 +30,27 @@ function checkServiceRole(req: Request): boolean {
   return authHeader === expectedKey || serviceRoleHeader === expectedServiceRole;
 }
 
+export function selectEligibleJobs(allJobs: Awaited<ReturnType<typeof getAllJobs>>) {
+  const phase1Candidates = allJobs.filter(
+    (j) =>
+      j.status === "queued" &&
+      j.progress?.phase === PHASES.PHASE_1 &&
+      j.progress?.phase_status === "queued",
+  );
+
+  const phase2Candidates = allJobs.filter(
+    (j) =>
+      j.status === "running" &&
+      j.progress?.phase === PHASES.PHASE_1 &&
+      j.progress?.phase_status === "complete", // Must match PHASE_1_STATES.COMPLETED
+  );
+
+  return {
+    phase1Candidates,
+    phase2Candidates,
+  };
+}
+
 export async function GET(req: Request) {
   if (!checkServiceRole(req)) {
     return NextResponse.json(
@@ -40,15 +61,7 @@ export async function GET(req: Request) {
 
   try {
     const allJobs = await getAllJobs();
-    
-    // Filter to only eligible work (don't spam completed/failed jobs)
-    const phase1Candidates = allJobs.filter(j => j.status === "queued");
-    
-    const phase2Candidates = allJobs.filter(j => 
-      j.status === "running" &&
-      j.progress?.phase === PHASES.PHASE_1 &&
-      j.progress?.phase_status === "complete"  // Must match PHASE_1_STATES.COMPLETED
-    );
+    const { phase1Candidates, phase2Candidates } = selectEligibleJobs(allJobs);
 
     return NextResponse.json(
       { 

@@ -47,8 +47,14 @@ const supabase = getSupabaseAdminClient();
 const MAX_ARTIFACT_SIZE_MB = 5;
 const MAX_ARTIFACT_SIZE_BYTES = MAX_ARTIFACT_SIZE_MB * 1024 * 1024;
 
-// Skip in smoke-test mode (or whichever mode you use to avoid DB-heavy suites)
-const describeOrSkip = process.env.TEST_MODE === "true" ? describe.skip : describe;
+// Skip in smoke-test mode and default local runs unless DB integration is explicitly enabled.
+const hasSupabase =
+  !!supabase &&
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+const runDbIntegration = process.env.RUN_DB_INTEGRATION_TESTS === "1";
+const describeOrSkip =
+  process.env.TEST_MODE === "true" || !hasSupabase || !runDbIntegration ? describe.skip : describe;
 
 // Generate a large evaluation artifact simulating a chunked manuscript evaluation (deterministic)
 function generateLargeArtifact(chunkCount: number) {

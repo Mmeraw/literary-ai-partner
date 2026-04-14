@@ -145,6 +145,7 @@ npm test -- --verbose
 
 - **[SUPABASE_PROJECTS.md](./SUPABASE_PROJECTS.md)** - Complete project configuration
 - **[JOB_CONTRACT_v1.md](./JOB_CONTRACT_v1.md)** - Job state machine rules
+- **[WHITE_GLOVE_FACTORY.md](./WHITE_GLOVE_FACTORY.md)** - PR/release excellence playbook (checklists, go/no-go, rollback)
 - **[DEPLOYMENT_QUICK_REFERENCE.md](../DEPLOYMENT_QUICK_REFERENCE.md)** - Deployment guide
 - **[README.md](../README.md)** - Main project documentation
 

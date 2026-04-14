@@ -14,13 +14,17 @@ import { createTestManuscript } from "./tests/test-helpers/manuscript-factory";
 import { claimNextJob } from "./workers/claimJob";
 
 const supabase = getSupabaseAdminClient();
-const hasSupabase = !!supabase;
+const hasSupabase =
+  !!supabase &&
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+const runDbIntegration = process.env.RUN_DB_INTEGRATION_TESTS === "1";
 
 // CI smoke-test detection: skip integration tests in any CI environment
 // Uses TEST_MODE as primary check, CI env var as fallback (set automatically by GitHub Actions)
 const isCi = process.env.CI === "true";
 const isCiSmoke = process.env.TEST_MODE === "true" || isCi;
-const shouldRun = hasSupabase && !isCiSmoke;
+const shouldRun = hasSupabase && runDbIntegration && !isCiSmoke;
 const run = shouldRun ? describe : describe.skip;
 
 run("Phase 2D-1 Atomic claim concurrency", () => {

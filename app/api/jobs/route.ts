@@ -25,6 +25,24 @@ export async function POST(req: Request) {
   const trace_id = generateTraceId();
   const request_id = generateTraceId();
 
+  if (process.env.NODE_ENV === "production" && process.env.USE_SUPABASE_JOBS !== "true") {
+    logger.error("Production misconfiguration: memory store disabled", {
+      trace_id,
+      request_id,
+      event: "api.jobs.create.production_memory_store_blocked",
+    });
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Server misconfiguration: USE_SUPABASE_JOBS must be true in production.",
+        trace_id,
+      },
+      { status: 503 }
+    );
+  }
+
   logger.info("Job creation request received", {
     trace_id,
     request_id,
@@ -75,6 +93,32 @@ export async function POST(req: Request) {
         {
           ok: false,
           error: "Missing required fields: manuscript_id or manuscript_text",
+          trace_id,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Reject ambiguous input: both manuscript_id and manuscript_text together creates
+    // a silent staleness hazard — the existing row would be used and the submitted text
+    // ignored without any error, causing the wrong manuscript to be evaluated.
+    if (
+      manuscript_id !== undefined &&
+      manuscript_id !== null &&
+      typeof manuscript_text === "string" &&
+      manuscript_text.trim().length > 0
+    ) {
+      logger.warn("Job creation validation failed: ambiguous manuscript input", {
+        trace_id,
+        request_id,
+        event: "api.jobs.create.ambiguous_manuscript_input",
+      });
+
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Ambiguous manuscript source: provide either manuscript_id or manuscript_text, not both.",
           trace_id,
         },
         { status: 400 }
@@ -315,6 +359,24 @@ export async function POST(req: Request) {
 export async function GET() {
   const trace_id = generateTraceId();
   const request_id = crypto.randomUUID();
+
+  if (process.env.NODE_ENV === "production" && process.env.USE_SUPABASE_JOBS !== "true") {
+    logger.error("Production misconfiguration: memory store disabled", {
+      trace_id,
+      request_id,
+      event: "api.jobs.list.production_memory_store_blocked",
+    });
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Server misconfiguration: USE_SUPABASE_JOBS must be true in production.",
+        trace_id,
+      },
+      { status: 503 }
+    );
+  }
 
   try {
     logger.info("GET /api/jobs request received", {

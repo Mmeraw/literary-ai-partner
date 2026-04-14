@@ -1,4 +1,12 @@
 # Governance Authority Chain Reference
+
+> ⚠️ **Supersession Notice (2026-04):**
+> Portions of this document describe pre-cutover architecture and are retained for historical/audit context.
+> Current binding runtime authority for execution flow is:
+> `docs/CANONICAL_RUNTIME_OPERATIONS.md`
+>
+> If any section here conflicts with canonical runtime operations or current architecture invariants,
+> treat this document as historical and follow canonical runtime operations.
 **Version:** 1.0.0  
 **Date:** 2026-02-21  
 **Purpose:** Document the binding authority chain for WAVE evaluation and artifact persistence
@@ -249,4 +257,5 @@ Before production deployment, verify:
 
 **End Governance Authority Chain Reference — Version 1.0.0**
 
-**Authority**: This document is binding on all platform implementations. If platform behavior conflicts with this chain, the platform is non-compliant.
+**Authority**: Historical governance reference. Runtime execution authority is governed by
+`docs/CANONICAL_RUNTIME_OPERATIONS.md`, `docs/JOB_CONTRACT_v1.md`, and enforced architecture invariants.

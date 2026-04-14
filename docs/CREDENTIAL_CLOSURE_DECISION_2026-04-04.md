@@ -1,7 +1,7 @@
 # Credential Closure Decision
 
-**Date:** 2026-04-04  
-**Author:** Michael J. Meraw  
+**Date:** 2026-04-04
+**Author:** Michael J. Meraw
 **Status:** Intentionally deferred until RevisionGrade go-live
 
 ---
@@ -62,11 +62,11 @@ Credential refresh is deferred to avoid rotating production-adjacent secrets pri
 
 When ready to launch RevisionGrade:
 
-1. Go to Supabase Dashboard → Project Settings → Database  
-2. Copy the current connection string (with valid password)  
-3. Update `SUPABASE_DB_URL_CI` in GitHub → Settings → Secrets → Actions  
-4. Optionally add `SUPABASE_DB_PASSWORD_CI` as a standalone secret  
-5. Re-run Job System CI on main  
-6. Confirm all-green  
-7. Verify `Supabase-Backed Job Tests` passes  
-8. Verify `Enforce Proof Gates on Main` remains green with proof execution active  
+1. Go to Supabase Dashboard → Project Settings → Database
+2. Copy the current connection string (with valid password)
+3. Update `SUPABASE_DB_URL_CI` in GitHub → Settings → Secrets → Actions
+4. Optionally add `SUPABASE_DB_PASSWORD_CI` as a standalone secret
+5. Re-run Job System CI on main
+6. Confirm all-green
+7. Verify `Supabase-Backed Job Tests` passes
+8. Verify `Enforce Proof Gates on Main` remains green with proof execution active

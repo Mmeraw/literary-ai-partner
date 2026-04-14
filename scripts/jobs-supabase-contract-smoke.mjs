@@ -256,10 +256,10 @@ async function testClaimContention(jobId) {
   if (error) throw new Error(`Failed to fetch job: ${error.message}`);
 
   // Verify invariants
-  if (job.status !== "processing") {
-    throw new Error(`Expected status=processing, got ${job.status}`);
+  if (!["processing", "running"].includes(job.status)) {
+    throw new Error(`Expected status=processing|running, got ${job.status}`);
   }
-  console.log(`  ✅ Status transitioned: queued → processing`);
+  console.log(`  ✅ Status transitioned: queued → processing/running`);
 
   if (!job.lease_token) {
     throw new Error("Expected lease_token to be set");
