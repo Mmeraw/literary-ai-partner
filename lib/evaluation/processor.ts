@@ -862,15 +862,21 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
       (job.phase_status === 'complete' || progress.phase_status === 'complete');
 
+    const isQueueEligiblePhaseStatus =
+      job.phase_status === 'queued' ||
+      progress.phase_status === 'queued' ||
+      job.phase_status === 'triggered' ||
+      progress.phase_status === 'triggered';
+
     const isPhase1QueuedCandidate =
       job.status === 'queued' &&
       (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
-      (job.phase_status === 'queued' || progress.phase_status === 'queued');
+      isQueueEligiblePhaseStatus;
 
     const isPhase2QueuedCandidate =
       job.status === 'queued' &&
       (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
-      (job.phase_status === 'queued' || progress.phase_status === 'queued');
+      isQueueEligiblePhaseStatus;
 
     // Pre-claimed running jobs: atomically claimed by the processor (claimed_by is set,
     // phase_status=running, lease not yet expired). These were transitioned queued->running
@@ -1312,11 +1318,33 @@ export async function claimQueuedJobs(
 
   if (error) {
     const msg = error.message || '';
-    // Graceful degradation: if the RPC doesn't exist yet, return empty so the
-    // caller can fall through to the legacy SELECT path.
+    // Graceful degradation: if the RPC doesn't exist yet, use legacy SELECT claim.
     if (msg.includes('function') || msg.includes('does not exist') || msg.includes('schema cache')) {
       console.warn('[Processor] claim_evaluation_jobs RPC unavailable, falling back to legacy SELECT');
-      return [];
+
+      const { data: fallbackRows, error: fallbackError } = await supabase
+        .from('evaluation_jobs')
+        .select('id,phase,status,phase_status,progress,created_at')
+        .eq('status', 'queued')
+        .in('phase', ['phase_1', 'phase_2'])
+        .order('created_at', { ascending: true })
+        .limit(batchSize);
+
+      if (fallbackError) {
+        console.error('[Processor] Legacy SELECT fallback failed:', fallbackError);
+        throw fallbackError;
+      }
+
+      if (!fallbackRows || fallbackRows.length === 0) {
+        return [];
+      }
+
+      return (fallbackRows as Array<Record<string, unknown>>)
+        .filter((row) => typeof row.id === 'string')
+        .map((row) => ({
+          id: row.id as string,
+          phase: typeof row.phase === 'string' ? row.phase : 'phase_1',
+        }));
     }
     console.error('[Processor] claim_evaluation_jobs RPC error:', error);
     throw error;
