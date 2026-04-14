@@ -1,4 +1,5 @@
 import { finalizeJob, type FinalizerStorage } from '@/lib/jobs/finalize';
+import { describe, expect, jest, test } from '@jest/globals';
 import type {
   ConvergenceArtifact,
   EvaluationJob,
@@ -131,9 +132,10 @@ function makeStorage(): jest.Mocked<FinalizerStorage> {
       return null;
     }),
     getConvergenceArtifact: jest.fn(async () => convergence),
-    persistCanonicalArtifact: jest.fn(async () => 'canon-1'),
-    persistSummaryProjection: jest.fn(async () => 'summary-1'),
-    markJobComplete: jest.fn(async () => undefined),
+    persistCanonicalAndSummaryAndCompleteJob: jest.fn(async () => ({
+      canonical_artifact_id: 'canon-1',
+      summary_artifact_id: 'summary-1',
+    })),
     markJobFailed: jest.fn(async () => undefined),
   };
 }
@@ -153,9 +155,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(storage.persistCanonicalArtifact).toHaveBeenCalledTimes(1);
-    expect(storage.persistSummaryProjection).toHaveBeenCalledTimes(1);
-    expect(storage.markJobComplete).toHaveBeenCalledTimes(1);
+    expect(storage.persistCanonicalAndSummaryAndCompleteJob).toHaveBeenCalledTimes(1);
     expect(storage.markJobFailed).not.toHaveBeenCalled();
   });
 
@@ -177,7 +177,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (result.ok === false) {
       expect(result.failure_code).toBe('MISSING_PASS_ARTIFACT');
     }
     expect(storage.markJobFailed).toHaveBeenCalledTimes(1);
@@ -205,7 +205,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (result.ok === false) {
       expect(result.failure_code).toBe('PASS_CONVERGENCE_FAILURE');
     }
   });
@@ -234,7 +234,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (result.ok === false) {
       expect(result.failure_code).toBe('ANCHOR_CONTRACT_VIOLATION');
     }
   });
@@ -262,7 +262,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (result.ok === false) {
       expect(result.failure_code).toBe('GOVERNANCE_BLOCK');
     }
   });
