@@ -1,4 +1,5 @@
 import { finalizeJob, type FinalizerStorage } from '@/lib/jobs/finalize';
+import { describe, expect, jest, test } from '@jest/globals';
 import type {
   ConvergenceArtifact,
   EvaluationJob,
@@ -176,7 +177,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (result.ok === false) {
       expect(result.failure_code).toBe('MISSING_PASS_ARTIFACT');
     }
     expect(storage.markJobFailed).toHaveBeenCalledTimes(1);
@@ -204,7 +205,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (result.ok === false) {
       expect(result.failure_code).toBe('PASS_CONVERGENCE_FAILURE');
     }
   });
@@ -233,7 +234,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (result.ok === false) {
       expect(result.failure_code).toBe('ANCHOR_CONTRACT_VIOLATION');
     }
   });
@@ -261,7 +262,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (result.ok === false) {
       expect(result.failure_code).toBe('GOVERNANCE_BLOCK');
     }
   });
