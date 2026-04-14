@@ -24,6 +24,9 @@
 import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 import type { SynthesisOutput, QualityGateResult, QualityGateCheck, SinglePassOutput } from "./types";
+import { analyzePovRendering } from "@/lib/evaluation/pov/analyzePovRendering";
+import { analyzeDialogueAttribution } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
+import { validatePovCriterionEvidence } from "@/lib/evaluation/pov/validatePovCriterionEvidence";
 
 export const QG_MIN_REC_LENGTH = 50;
 export const QG_MAX_REC_LENGTH = 300;
@@ -42,6 +45,19 @@ export const QG_SPINE_CRITERIA_REQUIRED_EVIDENCE = Object.freeze<CriterionKey[]>
   "character",
   "voice",
   "sceneConstruction",
+]);
+export const QG_POV_MECHANISM_MARKERS = Object.freeze([
+  "integrated",
+  "italics",
+  "thought",
+  "cognition",
+  "quotation",
+  "quote",
+  "audible",
+  "attribution",
+  "dialogue tag",
+  "speaker",
+  "pov",
 ]);
 
 export type QualityGateFailureTelemetry = {
@@ -91,6 +107,7 @@ export function runQualityGate(
   synthesis: SynthesisOutput,
   pass1?: SinglePassOutput,
   pass2?: SinglePassOutput,
+  manuscriptText?: string,
 ): QualityGateResult {
   const checks: QualityGateCheck[] = [];
   const warnings: string[] = [];
@@ -326,6 +343,69 @@ export function runQualityGate(
         ? `Required spine criteria missing substantive evidence: ${missingRequiredEvidence.join(", ")}`
         : "All required spine criteria include substantive evidence",
   });
+
+  // ── Check 9c: POV/Dialogue rendering audit (manuscript-aware) ─────────
+  if (manuscriptText && manuscriptText.trim().length > 0) {
+    const pov = analyzePovRendering({
+      manuscriptText,
+      isClosePov: true,
+      povMode: "first_person",
+    });
+    const dialogue = analyzeDialogueAttribution({ manuscriptText });
+    const hasActionablePovSignals =
+      pov.findings.some((f) => f.severity !== "info") ||
+      dialogue.findings.some((f) => f.severity !== "info");
+
+    if (hasActionablePovSignals) {
+      const pack = validatePovCriterionEvidence({
+        criterion: "voice",
+        pov,
+        dialogue,
+        requiredEvidencePresent: false,
+      });
+
+      checks.push({
+        check_id: "pov_rendering_evidence_pack",
+        passed: pack.requiredEvidencePresent,
+        error_code: pack.requiredEvidencePresent ? undefined : "QG_POV_MISSING_EVIDENCE",
+        details: pack.requiredEvidencePresent
+          ? "POV/dialogue diagnostic evidence pack present"
+          : `POV/dialogue evidence pack invalid: ${pack.invalidReason ?? "unknown"}`,
+      });
+
+      const voiceCriterion = synthesis.criteria.find((c) => c.key === "voice");
+      const dialogueCriterion = synthesis.criteria.find((c) => c.key === "dialogue");
+      const voiceRationale = (voiceCriterion?.final_rationale ?? "").toLowerCase();
+      const dialogueRationale = (dialogueCriterion?.final_rationale ?? "").toLowerCase();
+      const hasVoiceMechanismMarker = QG_POV_MECHANISM_MARKERS.some((m) => voiceRationale.includes(m));
+      const hasDialogueMechanismMarker = [
+        "attribution",
+        "tag",
+        "speaker",
+        "quote",
+        "dialogue",
+        "beat",
+      ].some((m) => dialogueRationale.includes(m));
+
+      checks.push({
+        check_id: "voice_mechanism_specificity",
+        passed: hasVoiceMechanismMarker,
+        error_code: hasVoiceMechanismMarker ? undefined : "QG_POV_GENERIC_REASONING",
+        details: hasVoiceMechanismMarker
+          ? "Voice rationale includes POV/rendering mechanism language"
+          : "Voice rationale lacks explicit POV/rendering mechanism language",
+      });
+
+      checks.push({
+        check_id: "dialogue_attribution_specificity",
+        passed: hasDialogueMechanismMarker,
+        error_code: hasDialogueMechanismMarker ? undefined : "QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED",
+        details: hasDialogueMechanismMarker
+          ? "Dialogue rationale includes attribution/rendering mechanism language"
+          : "Dialogue rationale lacks attribution/rendering mechanism language",
+      });
+    }
+  }
 
   // ── Check 10: Pass independence (rationale phrasing only; calibrated) ────
   if (pass1 && pass2) {

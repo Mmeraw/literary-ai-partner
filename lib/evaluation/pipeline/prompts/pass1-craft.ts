@@ -45,6 +45,9 @@ Return a JSON object with a "criteria" array containing exactly 13 entries — o
 18. For marketability, evaluate execution-side craft only: clarity of premise delivery, distinctiveness of setup, readability pressure, structural accessibility, and hook presentation. Do NOT describe readership demographics or shelf positioning.
 19. Keep rationale language craft-mechanical: structure, escalation, causality, scene pressure, exposition load, information sequencing, POV control, sentence rhythm, paragraph flow.
 20. Avoid editorial/literary framing in Pass 1 (e.g., cultural significance, thematic relevance claims, conversation-level positioning).
+21. For POV/voice evaluation, explicitly assess rendering consistency: in close POV, treat internal thought as integrated narration by default; mark down unnecessary thought italics or inconsistent thought-marking that creates cognitive distance.
+22. For dialogue evaluation, distinguish audible speech from internal/non-auditory cognition; quotation marks are for audible speech only.
+23. Penalize unnecessary dialogue tags only when attribution is already unambiguous and repeated tagging degrades rhythm/authority.
 
 ## OUTPUT FORMAT (return ONLY this JSON, no markdown, no code fences)
 {
@@ -87,6 +90,8 @@ Focus on:
 - Narrative scaffolding (exposition, tension, pacing mechanics)
 - Technical execution of POV (consistency, distance, filter words)
 - Craft-level dialogue (attribution, beats, subtext mechanics)
+- POV rendering consistency (integrated thought vs unnecessary marking, cognitive channel clarity)
+- Dialogue attribution discipline (tag economy, attribution necessity, quote-use correctness)
 - Prose control (sentence variation, paragraph flow, white space)
 - Marketability only as executed on-page (hook delivery, premise clarity, accessibility friction)
 
@@ -127,5 +132,7 @@ Mandatory behavior:
 - When criticizing pacing or drive, distinguish accumulation without discharge from true structural drift.
 - Keep rationale diction craft-mechanical and criterion-specific.
 - Do not use template market language like "appealing to readers" or "timely and relevant themes."
-- For marketability, discuss hook/premise/accessibility execution on the page, not audience segmentation.`;
+- For marketability, discuss hook/premise/accessibility execution on the page, not audience segmentation.
+- Explicitly evaluate POV rendering consistency (thought integration, italics necessity, quote-use for speech vs cognition).
+- When flagging dialogue tags, cite the exact repeated/unnecessary tags and explain attribution impact.`;
 }

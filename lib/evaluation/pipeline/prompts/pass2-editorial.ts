@@ -50,6 +50,7 @@ Return a JSON object with a "criteria" array containing exactly 13 entries — o
 19. For marketability, discuss editorial positioning, readership crossover, comparative shelf logic, ambition-to-audience fit, and literary-commercial alignment.
 20. Do NOT default to page-level craft mechanics language (hook delivery, premise clarity, accessibility friction) in Pass 2 rationale unless explicitly analyzing how craft choices affect editorial positioning.
 21. If two criteria reach similar conclusions, vary diction and analytical frame; repeated sentence stems across criteria are not allowed.
+22. When evaluating voice/tone authority, account for POV rendering clarity (integrated thought vs marked thought, speech vs non-auditory cognition boundaries) only insofar as it affects interpretive authority and reader trust.
 
 ## OUTPUT FORMAT (return ONLY this JSON, no markdown, no code fences)
 {
@@ -140,5 +141,6 @@ IMPORTANT: You are seeing this manuscript for the first time. Do not reference a
 - Distinguish "character shown through institutional role or decision pressure" from "character absent on the page."
 - Use editorial/literary diction, not craft-mechanics diction.
 - Do not use template phrasing like "appealing to readers interested in..." or "timely and relevant themes."
-- For marketability, discuss positioning, readership crossover, and literary-commercial fit rather than page-level hook mechanics.`;
+- For marketability, discuss positioning, readership crossover, and literary-commercial fit rather than page-level hook mechanics.
+- If voice authority is impacted by POV rendering choices, name the cognitive-channel effect (distance, ambiguity, intrusion contrast) rather than giving generic voice praise/critique.`;
 }

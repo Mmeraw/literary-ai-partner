@@ -76,7 +76,12 @@ export interface RunPipelineOptions {
     runPass1?: (opts: RunPass1Options) => Promise<SinglePassOutput>;
     runPass2?: (opts: RunPass2Options) => Promise<SinglePassOutput>;
     runPass3Synthesis?: (opts: RunPass3Options) => Promise<SynthesisOutput>;
-    runQualityGate?: (synthesis: SynthesisOutput, pass1: SinglePassOutput, pass2: SinglePassOutput) => QualityGateResult;
+    runQualityGate?: (
+      synthesis: SynthesisOutput,
+      pass1: SinglePassOutput,
+      pass2: SinglePassOutput,
+      manuscriptText?: string,
+    ) => QualityGateResult;
   };
   /** Dependency injection for registry loader (testing only). */
   _registryLoader?: () => CanonRegistry;
@@ -591,7 +596,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   const pass4StartMs = nowMs();
-  const qualityGate = _runQualityGate(pass3Output, pass1Output, pass2Output);
+  const qualityGate = _runQualityGate(pass3Output, pass1Output, pass2Output, opts.manuscriptText);
   timings.pass4_ms = nowMs() - pass4StartMs;
   if (!qualityGate.pass) {
     const qualityGateCheckpoint = getGovernanceCheckpointById("QUALITY_GATE", governanceInjectionMap);
