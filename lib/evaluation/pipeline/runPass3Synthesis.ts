@@ -22,6 +22,9 @@ import {
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from "./promptInput";
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
+import { parseJsonObjectBoundary, JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
+import { buildJsonBoundaryEvidence } from "@/lib/llm/jsonBoundaryTelemetry";
+import { persistPassEvidence } from "@/lib/llm/persistPassEvidence";
 
 const PASS3_TEMPERATURE = 0.2;
 const PASS3_MAX_TOKENS = (() => {
@@ -269,31 +272,47 @@ export function parsePass3Response(
   pass2: SinglePassOutput,
   fallbackModel = PASS3_MODEL,
 ): SynthesisOutput {
+  return finalizePass3FromResponse(raw, pass1, pass2, fallbackModel);
+}
+
+/**
+ * Finalize Pass 3 from a raw response string using the shared JSON parse boundary.
+ * Builds and persists evidence on both success and failure.
+ * Label: "Pass3 synthesis result"
+ *
+ * @throws JsonBoundaryError on all parse failures (never bare Error)
+ */
+export function finalizePass3FromResponse(
+  raw: string,
+  pass1: SinglePassOutput,
+  pass2: SinglePassOutput,
+  fallbackModel = PASS3_MODEL,
+): SynthesisOutput {
   // P0: Log raw response preview before parse
   console.log(`[Pass3] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
 
-  // P1: Strip markdown fences (e.g. ```json ... ```)
-  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+  const result = parseJsonObjectBoundary(raw, "Pass3 synthesis result");
 
-  // P1: Truncation detection — a well-formed JSON object must end with "}"
-  if (!stripped.endsWith("}")) {
-    throw new Error(
-      `[Pass3] JSON_PARSE_FAILED_TRUNCATED: Response is not valid JSON (appears truncated, does not end with "}")`,
-    );
+  const evidence = buildJsonBoundaryEvidence({
+    raw: result.raw,
+    normalized: result.normalized,
+    candidate: result.candidate,
+    candidatesFound: result.candidatesFound,
+    parseFailureCode: result.ok === false ? result.error.code : null,
+    parseFailureMessage: result.ok === false ? result.error.message : null,
+  });
+
+  persistPassEvidence({
+    pass: "pass3",
+    status: result.ok ? "ok" : "failed",
+    evidence: evidence as unknown as Record<string, unknown>,
+  });
+
+  if (result.ok === false) {
+    throw result.error;
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stripped);
-  } catch {
-    throw new Error("[Pass3] JSON_PARSE_FAILED_MALFORMED: Response is not valid JSON (malformed JSON)");
-  }
-
-  if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("[Pass3] JSON_PARSE_FAILED_NO_OBJECT: Response is not a JSON object");
-  }
-
-  const obj = parsed as Record<string, unknown>;
+  const obj = result.value as Record<string, unknown>;
   const rawCriteria = Array.isArray(obj["criteria"]) ? (obj["criteria"] as unknown[]) : [];
 
   // Build a lookup from key → pass outputs (deterministic fallback)

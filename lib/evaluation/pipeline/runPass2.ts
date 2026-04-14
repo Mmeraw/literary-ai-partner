@@ -21,6 +21,9 @@ import {
   getCanonicalPipelineModel,
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
+import { parseJsonObjectBoundary, JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
+import { buildJsonBoundaryEvidence } from "@/lib/llm/jsonBoundaryTelemetry";
+import { persistPassEvidence } from "@/lib/llm/persistPassEvidence";
 
 const PASS2_TEMPERATURE = 0.3;
 const PASS2_MAX_TOKENS = 4000;
@@ -235,38 +238,66 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
  *
  * @param raw Unknown JSON object from OpenAI
  * @returns Validated SinglePassOutput with axis="editorial_literary"
- * @throws on invalid structure, empty criteria, or parse errors
+ * @throws JsonBoundaryError on parse failures
  */
 export function parsePass2Response(raw: string, fallbackModel = PASS2_MODEL): SinglePassOutput {
+  return finalizePass2FromResponse(raw, fallbackModel);
+}
+
+/**
+ * Finalize Pass 2 from a raw response string using the shared JSON parse boundary.
+ * Builds and persists evidence on both success and failure.
+ *
+ * @throws JsonBoundaryError on all parse failures (never bare Error)
+ */
+export function finalizePass2FromResponse(raw: string, fallbackModel = PASS2_MODEL): SinglePassOutput {
   // P0: Log raw response preview before parse
   console.log(`[Pass2] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
 
-  // P1: Strip markdown fences (e.g. ```json ... ```)
-  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
-
-  // P1: Truncation detection — a well-formed JSON object must end with "}"
-  if (!stripped.endsWith("}")) {
-    throw new Error(
-      `[Pass2] JSON_PARSE_FAILED_TRUNCATED: Response is not valid JSON (appears truncated, does not end with "}")`,
-    );
+  function isEvaluationResultV1(value: unknown): asserts value is Record<string, unknown> {
+    if (typeof value !== "object" || value === null || !("criteria" in (value as object))) {
+      throw new JsonBoundaryError({
+        message: "[Pass2] JSON_PARSE_FAILED_NO_OBJECT: Response is not valid JSON (missing criteria key)",
+        code: "NO_OBJECT",
+        raw: "",
+        normalized: "",
+        candidate: null,
+      });
+    }
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stripped);
-  } catch {
-    throw new Error("[Pass2] JSON_PARSE_FAILED_MALFORMED: Response is not valid JSON (malformed JSON)");
+  const result = parseJsonObjectBoundary(raw, "Pass2", { validate: isEvaluationResultV1 });
+
+  const evidence = buildJsonBoundaryEvidence({
+    raw: result.raw,
+    normalized: result.normalized,
+    candidate: result.candidate,
+    candidatesFound: result.candidatesFound,
+    parseFailureCode: result.ok === false ? result.error.code : null,
+    parseFailureMessage: result.ok === false ? result.error.message : null,
+  });
+
+  persistPassEvidence({
+    pass: "pass2",
+    status: result.ok ? "ok" : "failed",
+    evidence: evidence as unknown as Record<string, unknown>,
+  });
+
+  if (result.ok === false) {
+    throw result.error;
   }
 
-  if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("[Pass2] JSON_PARSE_FAILED_NO_OBJECT: Response is not a JSON object");
-  }
-
-  const obj = parsed as Record<string, unknown>;
+  const obj = result.value as Record<string, unknown>;
   const rawCriteria = Array.isArray(obj["criteria"]) ? (obj["criteria"] as unknown[]) : [];
 
   if (rawCriteria.length === 0) {
-    throw new Error("[Pass2] Response contains no criteria");
+    throw new JsonBoundaryError({
+      message: "[Pass2] JSON_PARSE_FAILED_MALFORMED: Response contains no criteria",
+      code: "MALFORMED",
+      raw: result.raw,
+      normalized: result.normalized,
+      candidate: result.candidate,
+    });
   }
 
   const criteria: AxisCriterionResult[] = [];
@@ -276,7 +307,7 @@ export function parsePass2Response(raw: string, fallbackModel = PASS2_MODEL): Si
     const key = String(c["key"] ?? "");
     if (!(CRITERIA_KEYS as readonly string[]).includes(key)) continue;
 
-    const evidence: EvidenceAnchor[] = Array.isArray(c["evidence"])
+    const evidenceAnchors: EvidenceAnchor[] = Array.isArray(c["evidence"])
       ? (c["evidence"] as unknown[]).map((e) => {
           const ev = e as Record<string, unknown>;
           return {
@@ -307,7 +338,7 @@ export function parsePass2Response(raw: string, fallbackModel = PASS2_MODEL): Si
       key: key as AxisCriterionResult["key"],
       score_0_10: Math.min(10, Math.max(0, score)),
       rationale: String(c["rationale"] ?? ""),
-      evidence,
+      evidence: evidenceAnchors,
       recommendations,
     });
   }

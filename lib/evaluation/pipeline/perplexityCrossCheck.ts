@@ -14,6 +14,10 @@
  * This pass is diagnostic/adjudicative. It does NOT perform WAVE refinement.
  */
 
+import { parseJsonObjectBoundary, JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
+import { buildJsonBoundaryEvidence } from "@/lib/llm/jsonBoundaryTelemetry";
+import { persistPassEvidence } from "@/lib/llm/persistPassEvidence";
+
 export type CriterionKey =
   | "concept"
   | "narrativeDrive"
@@ -114,24 +118,17 @@ const CRITERION_KEYS: CriterionKey[] = [
   "emotionalResonance",
   "marketability",
 ];
-function extractFirstJsonObject(rawContent: string): string {
-  const trimmed = rawContent.trim();
+// ── CrossCheck payload types ──────────────────────────────────────────────────
 
-  if (!trimmed) {
-    throw new Error("[Pass4] Empty response body from Perplexity.");
-  }
+export type CrossCheckPayload = {
+  criteria: Record<CriterionKey, PerplexityCriterionResponse>;
+  synthesisNote: string;
+};
 
-  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  const candidate = fencedMatch?.[1] ?? trimmed;
-  const objectMatch = candidate.match(/({[\s\S]*})/);
-
-  if (!objectMatch) {
-    throw new Error(
-      `[Pass4] Could not find JSON object in Perplexity response: ${trimmed.slice(0, 400)}`
-    );
-  }
-
-  return objectMatch[1];
+export function isCrossCheckPayload(value: unknown): value is CrossCheckPayload {
+  if (typeof value !== "object" || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  return typeof obj["criteria"] === "object" && obj["criteria"] !== null;
 }
 
 function assertScore(score: unknown, key: string): number {
@@ -396,24 +393,45 @@ Now return the independent adjudication as JSON.`;
   // P0: Log raw response preview before parse
   console.log(`[Pass4] raw Perplexity response preview len=${rawContent.length}: ${rawContent.slice(0, 200)}`);
 
-  const extractedJson = extractFirstJsonObject(rawContent);
+  const boundaryResult = parseJsonObjectBoundary(rawContent, "Pass4", {
+    maxRawChars: 150_000,
+  });
 
-  // P1: Truncation detection — a well-formed JSON object must end with "}"
-  if (!extractedJson.trim().endsWith("}")) {
+  const boundaryEvidence = buildJsonBoundaryEvidence({
+    raw: boundaryResult.raw,
+    normalized: boundaryResult.normalized,
+    candidate: boundaryResult.candidate,
+    candidatesFound: boundaryResult.candidatesFound,
+    parseFailureCode: boundaryResult.ok === false ? boundaryResult.error.code : null,
+    parseFailureMessage: boundaryResult.ok === false ? boundaryResult.error.message : null,
+    telemetry: {
+      provider: "perplexity",
+      model: PERPLEXITY_MODEL,
+      finishReason: typeof finishReason === "string" ? finishReason : undefined,
+      promptTokens: raw?.usage?.prompt_tokens,
+      completionTokens: raw?.usage?.completion_tokens,
+      totalTokens: raw?.usage?.total_tokens,
+      latencyMs: undefined,
+    },
+  });
+
+  persistPassEvidence({
+    pass: "pass4",
+    status: boundaryResult.ok ? "ok" : "failed",
+    evidence: boundaryEvidence as unknown as Record<string, unknown>,
+  });
+
+  if (boundaryResult.ok === false) {
     throw new Error(
-      `[Pass4] JSON_PARSE_FAILED_TRUNCATED: Response is not valid JSON (appears truncated, does not end with "}")`,
+      `[Pass4] CROSSCHECK_JSON_BOUNDARY_FAILED: ${boundaryResult.error.message}`
     );
   }
 
   let parsed: PerplexityResponseShape;
   try {
-    parsed = validateParsedResponse(JSON.parse(extractedJson));
+    parsed = validateParsedResponse(boundaryResult.value);
   } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error(
-        `[Pass4] JSON_PARSE_FAILED_MALFORMED: JSON parse failed: ${error.message}`
-      );
-    }
+    if (error instanceof JsonBoundaryError) throw error;
     throw new Error(
       `[Pass4] JSON parse/validation failed: ${(error as Error).message}`
     );
