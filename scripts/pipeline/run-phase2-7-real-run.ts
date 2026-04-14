@@ -44,6 +44,13 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function positiveIntOrUndefined(raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return parsed;
+}
+
 function inferTitle(inputPath: string): string {
   const fileName = inputPath.split("/").pop() ?? "manuscript";
   return fileName.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim() || "Untitled Manuscript";
@@ -128,6 +135,9 @@ async function main(): Promise<void> {
   const title = getArg("title") ?? inferTitle(sourcePath);
   const workType = getArg("work-type", "novel_chapter")!;
   const model = getArg("model", "gpt-4o-mini")!;
+  const passTimeoutMs =
+    positiveIntOrUndefined(getArg("pass-timeout-ms")) ??
+    positiveIntOrUndefined(process.env.EVAL_PASS_TIMEOUT_MS);
 
   const outputDir =
     getArg("output-dir") ??
@@ -156,6 +166,7 @@ async function main(): Promise<void> {
     title,
     model,
     openaiApiKey,
+    _passTimeoutMs: passTimeoutMs,
     _runners: {
       runPass1: async (opts) => {
         const result = await runPass1({
@@ -275,6 +286,7 @@ async function main(): Promise<void> {
     source_title: title,
     work_type: workType,
     model,
+    pass_timeout_ms: passTimeoutMs ?? null,
     word_count: wordCount,
     generated_at: new Date().toISOString(),
     output_dir: outputDir,

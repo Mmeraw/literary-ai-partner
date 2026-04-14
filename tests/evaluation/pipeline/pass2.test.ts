@@ -89,7 +89,50 @@ describe("parsePass2Response", () => {
   });
 
   it("throws on invalid JSON", () => {
-    expect(() => parsePass2Response("not json")).toThrow("not valid JSON");
+    expect(() => parsePass2Response("not json")).toThrow("JSON_PARSE_FAILED_NO_OBJECT");
+  });
+
+  it("parses JSON wrapped in markdown code fence", () => {
+    const fixture = makePass2Fixture();
+    const fenced = "```json\n" + JSON.stringify(fixture) + "\n```";
+    const result = parsePass2Response(fenced);
+    expect(result.axis).toBe("editorial_literary");
+    expect(result.criteria).toHaveLength(13);
+  });
+
+  it("parses JSON preceded by prose preamble", () => {
+    const fixture = makePass2Fixture();
+    const withProse = "Here is the requested analysis:\n" + JSON.stringify(fixture);
+    const result = parsePass2Response(withProse);
+    expect(result.axis).toBe("editorial_literary");
+    expect(result.criteria).toHaveLength(13);
+  });
+
+  it("parses JSON when prose includes brace-noise before payload", () => {
+    const fixture = makePass2Fixture();
+    const withBraceNoise = "Note: avoid {purple prose} unless justified.\n" + JSON.stringify(fixture);
+    const result = parsePass2Response(withBraceNoise);
+    expect(result.axis).toBe("editorial_literary");
+    expect(result.criteria).toHaveLength(13);
+  });
+
+  it("selects the criteria payload when multiple JSON objects are present", () => {
+    const fixture = makePass2Fixture();
+    const withTwoObjects = JSON.stringify({ meta: "draft" }) + "\n" + JSON.stringify(fixture);
+    const result = parsePass2Response(withTwoObjects);
+    expect(result.axis).toBe("editorial_literary");
+    expect(result.criteria).toHaveLength(13);
+  });
+
+  it("classifies truncated JSON parse failures", () => {
+    const truncated = JSON.stringify(makePass2Fixture()).slice(0, -20);
+    expect(() => parsePass2Response(truncated)).toThrow("JSON_PARSE_FAILED_TRUNCATED");
+  });
+
+  it("classifies non-JSON parse failures", () => {
+    expect(() => parsePass2Response("Narrative analysis only with no object payload")).toThrow(
+      "JSON_PARSE_FAILED_NO_OBJECT",
+    );
   });
 
   it("classifies clearly truncated response with JSON_PARSE_FAILED_TRUNCATED", () => {

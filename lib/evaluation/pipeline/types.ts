@@ -140,6 +140,8 @@ export type PassCompletionCapture = {
   raw_text: string;
   model: string;
   usage?: CompletionUsage;
+  finish_reason?: string;
+  request_id?: string;
   generated_at: string;
 };
 
@@ -160,4 +162,14 @@ export type PipelineResult =
       error: string;
       error_code: string;
       failed_at: "pass1" | "pass2" | "pass3" | "pass4";
+      failure_details?: {
+        json_boundary?: {
+          code: string;
+          candidates_found?: number;
+          raw_head?: string;
+          raw_tail?: string;
+          normalized_tail?: string;
+          candidate_tail?: string;
+        };
+      };
     };

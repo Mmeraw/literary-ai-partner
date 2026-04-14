@@ -1,0 +1,6 @@
+{
+  "ok": false,
+  "error": "Quality gate failed: 1 Pass 2 criterion/criteria exceed calibrated rationale-overlap threshold (n=8, min=3) [checkpoint=QUALITY_GATE authority=Phase 2.7 Quality Gate]",
+  "error_code": "QG_INDEPENDENCE_VIOLATION",
+  "failed_at": "pass4"
+}

@@ -30,7 +30,8 @@ export const QG_MAX_REC_LENGTH = 300;
 export const QG_MAX_EVIDENCE_LENGTH = 200;
 export const QG_MAX_OVERVIEW_LENGTH = 500;
 export const QG_INDEPENDENCE_NGRAM_SIZE = 8;
-export const QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION = 2;
+export const QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION = 6;
+export const QG_INDEPENDENCE_RATIONALE_PREVIEW_CHARS = 320;
 export const QG_MIN_RATIONALE_LENGTH = 40;
 export const QG_MIN_EVIDENCE_COVERED_CRITERIA = 10;
 export const QG_MIN_EVIDENCE_SNIPPET_LENGTH = 20;
@@ -76,6 +77,10 @@ function collectNgrams(text: string, n: number): string[] {
     grams.push(words.slice(i, i + n).join(" "));
   }
   return grams;
+}
+
+function previewRationale(text: string): string {
+  return text.replace(/\s+/g, " ").trim().slice(0, QG_INDEPENDENCE_RATIONALE_PREVIEW_CHARS);
 }
 
 /**
@@ -325,6 +330,7 @@ export function runQualityGate(
   // ── Check 10: Pass independence (rationale phrasing only; calibrated) ────
   if (pass1 && pass2) {
     const ngramSize = QG_INDEPENDENCE_NGRAM_SIZE;
+    const pass1ByKey = new Map(pass1.criteria.map((c) => [c.key, c]));
 
     // Exclude manuscript-sourced phrase overlap by filtering any n-gram
     // that appears inside evidence snippets from either pass.
@@ -350,18 +356,29 @@ export function runQualityGate(
     const violations: string[] = [];
     for (const c of pass2.criteria) {
       let overlapCount = 0;
+      const overlapSamples: string[] = [];
       for (const gram of collectNgrams(c.rationale, ngramSize)) {
         if (evidenceNgrams.has(gram)) {
           continue;
         }
         if (pass1Ngrams.has(gram)) {
           overlapCount += 1;
+          if (overlapSamples.length < 5 && !overlapSamples.includes(gram)) {
+            overlapSamples.push(gram);
+          }
         }
       }
 
       if (overlapCount >= QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION) {
+        const sampleText = overlapSamples.length > 0
+          ? ` [samples: ${overlapSamples.map((s) => `"${s}"`).join(" | ")}]`
+          : "";
+        const pass1Rationale = pass1ByKey.get(c.key)?.rationale ?? "";
+        const rationaleText =
+          ` [pass1_rationale="${previewRationale(pass1Rationale)}"]` +
+          ` [pass2_rationale="${previewRationale(c.rationale)}"]`;
         violations.push(
-          `${c.key}: ${overlapCount} shared non-evidence ${ngramSize}-gram(s) with Pass 1 rationale`,
+          `${c.key}: ${overlapCount} shared non-evidence ${ngramSize}-gram(s) with Pass 1 rationale${sampleText}${rationaleText}`,
         );
       }
     }

@@ -1,0 +1,481 @@
+{
+  "criteria": [
+    {
+      "key": "concept",
+      "craft_score": 8,
+      "editorial_score": 8,
+      "final_score_0_10": 8,
+      "score_delta": 0,
+      "final_rationale": "Both passes recognize the concept's strength in linking environmental exploitation and colonial legacies, emphasizing its thematic depth. This shared understanding reinforces the narrative's critical engagement with systemic injustices.",
+      "pressure_points": [
+        "Pressure signal observed in: \"It’s not new... Same script. New uniforms.\""
+      ],
+      "decision_points": [
+        "Decision inflection resolves as balanced craft/editorial synthesis for concept."
+      ],
+      "consequence_status": "landed",
+      "evidence": [
+        {
+          "snippet": "It’s not new... Same script. New uniforms.",
+          "char_start": 284,
+          "char_end": 305
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider further developing the historical context to deepen the reader's understanding of the ongoing impact of colonialism.",
+          "expected_impact": "Enhanced thematic resonance and reader engagement with the socio-political implications.",
+          "anchor_snippet": "It’s not new... Same script. New uniforms.",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "narrativeDrive",
+      "craft_score": 7,
+      "editorial_score": 7,
+      "final_score_0_10": 7,
+      "score_delta": 0,
+      "final_rationale": "Both evaluations agree that the narrative maintains tension through the protagonist's investigative journey, though some sections feel less dynamic. The consistent recognition of rising stakes indicates a solid narrative structure.",
+      "pressure_points": [
+        "Pressure signal observed in: \"The people on the land pay the highest price.\""
+      ],
+      "decision_points": [
+        "Decision inflection resolves as balanced craft/editorial synthesis for narrativeDrive."
+      ],
+      "consequence_status": "landed",
+      "evidence": [
+        {
+          "snippet": "The people on the land pay the highest price.",
+          "char_start": 549,
+          "char_end": 580
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Introduce more immediate consequences for the characters' discoveries to heighten urgency and emotional stakes.",
+          "expected_impact": "Increased reader investment in the narrative and character outcomes.",
+          "anchor_snippet": "The people on the land pay the highest price.",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "character",
+      "craft_score": 6,
+      "editorial_score": 6,
+      "final_score_0_10": 6,
+      "score_delta": 0,
+      "final_rationale": "Both passes identify the characters as somewhat flat, lacking depth and emotional stakes. The need for clearer motivations and backstories is consistently highlighted, indicating a shared concern for character development.",
+      "pressure_points": [
+        "Pressure signal observed in: \"I think it proves the river remembers.\""
+      ],
+      "decision_points": [
+        "Decision inflection resolves as balanced craft/editorial synthesis for character."
+      ],
+      "consequence_status": "landed",
+      "evidence": [
+        {
+          "snippet": "I think it proves the river remembers.",
+          "char_start": 633,
+          "char_end": 661
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Develop the protagonist's personal connection to the land and its history to create a stronger emotional anchor for their journey.",
+          "expected_impact": "Greater emotional resonance and reader empathy for the character's plight.",
+          "anchor_snippet": "I think it proves the river remembers.",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "voice",
+      "craft_score": 8,
+      "editorial_score": 8,
+      "final_score_0_10": 8,
+      "score_delta": 0,
+      "final_rationale": "Both evaluations commend the distinctive and evocative narrative voice that conveys thematic weight. The consistent recognition of the voice's effectiveness indicates a strong alignment in this area.",
+      "pressure_points": [
+        "Pressure signal observed in: \"The air smelled faintly of baked dust, cedar, and paper...\""
+      ],
+      "decision_points": [
+        "Decision inflection resolves as balanced craft/editorial synthesis for voice."
+      ],
+      "consequence_status": "landed",
+      "evidence": [
+        {
+          "snippet": "The air smelled faintly of baked dust, cedar, and paper...",
+          "char_start": 54,
+          "char_end": 90
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Maintain the strong voice while ensuring it remains accessible to a broader audience, possibly by simplifying complex ideas.",
+          "expected_impact": "Wider appeal without sacrificing the narrative's integrity.",
+          "anchor_snippet": "The air smelled faintly of baked dust, cedar, and paper...",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "sceneConstruction",
+      "craft_score": 7,
+      "editorial_score": 7,
+      "final_score_0_10": 7,
+      "score_delta": 0,
+      "final_rationale": "Both passes agree on the strength of scene construction, noting well-utilized sensory details but also abrupt transitions. This shared perspective indicates a solid foundation with room for improvement in narrative flow.",
+      "pressure_points": [
+        "Pressure signal observed in: \"The electric heater popped in the corner...\""
+      ],
+      "decision_points": [
+        "Decision inflection resolves as balanced craft/editorial synthesis for sceneConstruction."
+      ],
+      "consequence_status": "landed",
+      "evidence": [
+        {
+          "snippet": "The electric heater popped in the corner...",
+          "char_start": 0,
+          "char_end": 41
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Enhance transitions between scenes to improve narrative flow and maintain reader engagement.",
+          "expected_impact": "A more cohesive reading experience that keeps the reader immersed.",
+          "anchor_snippet": "The electric heater popped in the corner...",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "dialogue",
+      "craft_score": 8,
+      "editorial_score": 8,
+      "final_score_0_10": 8,
+      "score_delta": 0,
+      "final_rationale": "Both evaluations praise the natural flow of dialogue, which effectively conveys character relationships and thematic concerns. This consensus highlights the dialogue's role in enhancing narrative authenticity.",
+      "pressure_points": [
+        "Pressure signal observed in: \"Sounds familiar.\""
+      ],
+      "decision_points": [
+        "Decision inflection resolves as balanced craft/editorial synthesis for dialogue."
+      ],
+      "consequence_status": "landed",
+      "evidence": [
+        {
+          "snippet": "Sounds familiar.",
+          "char_start": 329,
+          "char_end": 344
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Consider adding more varied dialogue tags to further differentiate character voices and enhance clarity.",
+          "expected_impact": "Improved character distinction and engagement in conversations.",
+          "anchor_snippet": "Sounds familiar.",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "craft_score": 9,
+      "editorial_score": 9,
+      "final_score_0_10": 9,
+      "score_delta": 0,
+      "final_rationale": "Both passes recognize the powerful themes of environmental exploitation and colonialism, emphasizing their relevance and depth. This alignment underscores the narrative's critical engagement with these issues.",
+      "pressure_points": [
+        "Pressure signal observed in: \"The people on the land pay the highest price.\""
+      ],
+      "decision_points": [
+        "Decision inflection resolves as balanced craft/editorial synthesis for theme."
+      ],
+      "consequence_status": "landed",
+      "evidence": [
+        {
+          "snippet": "The people on the land pay the highest price.",
+          "char_start": 549,
+          "char_end": 580
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Continue to explore these themes through character experiences and conflicts to deepen their impact.",
+          "expected_impact": "This will enhance thematic resonance and reader reflection.",
+          "anchor_snippet": "the people on the land pay the highest price.",
+          "source_pass": 1
+        },
+        {
+          "priority": "medium",
+          "action": "Explore additional thematic layers, such as personal stories of those affected, to enrich the narrative's impact.",
+          "expected_impact": "A more nuanced exploration of the themes that invites deeper reader reflection.",
+          "anchor_snippet": "The language is the same. The mitigation’s the same.",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "worldbuilding",
+      "craft_score": 7,
+      "editorial_score": 6,
+      "final_score_0_10": 7,
+      "score_delta": 1,
+      "final_rationale": "While both passes acknowledge the worldbuilding's effectiveness, Pass 2 suggests it could be enhanced. The decision to lean towards the craft score reflects a stronger emphasis on the existing depth of the world.",
+      "pressure_points": [
+        "The setting's cultural and environmental significance is established."
+      ],
+      "decision_points": [
+        "The narrative successfully immerses the reader in the world."
+      ],
+      "consequence_status": "landed",
+      "evidence": [
+        {
+          "snippet": "The Maya call them sacred.",
+          "char_start": 179,
+          "char_end": 197
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Expand on cultural elements or historical context to further enrich the world and deepen reader immersion.",
+          "expected_impact": "This will create a more layered and engaging world for the reader.",
+          "anchor_snippet": "The air smelled faintly of baked dust, cedar, and paper",
+          "source_pass": 1
+        },
+        {
+          "priority": "medium",
+          "action": "Incorporate more cultural context about the locations to deepen the reader's connection to the setting.",
+          "expected_impact": "Richer worldbuilding that enhances thematic exploration.",
+          "anchor_snippet": "Across limestone that’s basically a sponge.",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "pacing",
+      "craft_score": 6,
+      "editorial_score": 7,
+      "final_score_0_10": 6,
+      "score_delta": 1,
+      "final_rationale": "Craft evaluation indicates some pacing issues due to documentary-like sections, while the editorial perspective suggests a more fluid narrative. The final score reflects a cautious approach to pacing improvements.",
+      "pressure_points": [
+        "Sections feel documentary-like, impacting narrative flow."
+      ],
+      "decision_points": [
+        "The pacing could be tightened to enhance engagement."
+      ],
+      "consequence_status": "deferred",
+      "deferred_consequence_risk": "If pacing issues persist, reader engagement may wane.",
+      "evidence": [
+        {
+          "snippet": "The Maya call them sacred.",
+          "char_start": 153,
+          "char_end": 179
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Introduce more immediate stakes or personal consequences for the characters to enhance narrative urgency and engagement.",
+          "expected_impact": "This will create a stronger emotional investment in the unfolding events.",
+          "anchor_snippet": "The Maya call them sacred.",
+          "source_pass": 1
+        }
+      ]
+    },
+    {
+      "key": "proseControl",
+      "craft_score": 7,
+      "editorial_score": 8,
+      "final_score_0_10": 7,
+      "score_delta": 1,
+      "final_rationale": "Craft evaluation notes effective prose but suggests areas for refinement, while the editorial perspective highlights overall strength. The final score reflects a balance between strengths and areas for improvement.",
+      "pressure_points": [
+        "Prose effectively conveys themes and emotions."
+      ],
+      "decision_points": [
+        "The prose could be polished for clarity and impact."
+      ],
+      "consequence_status": "deferred",
+      "deferred_consequence_risk": "If prose control is not refined, clarity may suffer.",
+      "evidence": [
+        {
+          "snippet": "The air smelled faintly of baked dust, cedar, and paper...",
+          "char_start": 54,
+          "char_end": 90
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Streamline complex sentences to enhance clarity and maintain reader engagement throughout the narrative.",
+          "expected_impact": "This will improve overall readability and flow of the text.",
+          "anchor_snippet": "Promises of jobs that vanish the day the last rail spike’s in.",
+          "source_pass": 1
+        },
+        {
+          "priority": "medium",
+          "action": "Review for opportunities to tighten prose, enhancing clarity and maintaining reader engagement.",
+          "expected_impact": "More impactful writing that keeps the reader focused on the narrative.",
+          "anchor_snippet": "A pencil sat beside the fresh hunting regulations printout...",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "tone",
+      "craft_score": 8,
+      "editorial_score": 8,
+      "final_score_0_10": 8,
+      "score_delta": 0,
+      "final_rationale": "Both passes agree on the tone's effectiveness in conveying urgency and concern for environmental issues. This shared perspective highlights the narrative's emotional weight.",
+      "pressure_points": [
+        "Pressure signal observed in: \"The people on the land pay the highest price.\""
+      ],
+      "decision_points": [
+        "Decision inflection resolves as balanced craft/editorial synthesis for tone."
+      ],
+      "consequence_status": "landed",
+      "evidence": [
+        {
+          "snippet": "The people on the land pay the highest price.",
+          "char_start": 549,
+          "char_end": 580
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Ensure that the tone remains consistent throughout, particularly in more expository sections, to maintain emotional impact.",
+          "expected_impact": "This will enhance the narrative's overall coherence and emotional resonance.",
+          "anchor_snippet": "the language is the same. The mitigation’s the same.",
+          "source_pass": 1
+        },
+        {
+          "priority": "low",
+          "action": "Maintain the established tone while ensuring it remains consistent throughout the narrative.",
+          "expected_impact": "Sustained emotional engagement and thematic clarity.",
+          "anchor_snippet": "And it’s not in the habit of forgiving.",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "narrativeClosure",
+      "craft_score": 7,
+      "editorial_score": 6,
+      "final_score_0_10": 7,
+      "score_delta": 1,
+      "final_rationale": "Craft evaluation suggests a strong sense of closure, while the editorial perspective indicates room for improvement. The final score reflects a balance, leaning towards the craft's stronger closure.",
+      "pressure_points": [
+        "The narrative concludes with a powerful statement."
+      ],
+      "decision_points": [
+        "The closure could be more explicitly tied to character arcs."
+      ],
+      "consequence_status": "deferred",
+      "deferred_consequence_risk": "If closure is not strengthened, reader satisfaction may diminish.",
+      "evidence": [
+        {
+          "snippet": "I think it proves the river remembers.",
+          "char_start": 633,
+          "char_end": 661
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Provide a more definitive closing statement or setup for the next chapter to enhance narrative continuity and reader investment.",
+          "expected_impact": "This will create a stronger sense of closure and anticipation for future developments.",
+          "anchor_snippet": "And it’s not in the habit of forgiving.",
+          "source_pass": 1
+        },
+        {
+          "priority": "medium",
+          "action": "Consider providing a clearer resolution to the character's journey or thematic exploration to enhance closure.",
+          "expected_impact": "A more satisfying conclusion that reinforces the chapter's themes.",
+          "anchor_snippet": "The river remembers.",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "marketability",
+      "craft_score": 7,
+      "editorial_score": 6,
+      "final_score_0_10": 7,
+      "score_delta": 1,
+      "final_rationale": "Craft evaluation suggests strong market potential due to relevant themes, while editorial notes some concerns. The final score reflects a cautious optimism about marketability.",
+      "pressure_points": [
+        "The themes resonate with current environmental concerns."
+      ],
+      "decision_points": [
+        "The narrative's relevance could attract a broad audience."
+      ],
+      "consequence_status": "landed",
+      "evidence": [
+        {
+          "snippet": "The people on the land pay the highest price.",
+          "char_start": 549,
+          "char_end": 580
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Streamline exposition and clarify complex ideas to enhance accessibility and maintain reader engagement.",
+          "expected_impact": "This will improve the manuscript's appeal to a wider audience.",
+          "anchor_snippet": "Promises of tourism, but the hotels go to outsiders.",
+          "source_pass": 1
+        },
+        {
+          "priority": "medium",
+          "action": "Highlight the unique angle of environmental parallels in marketing materials to attract a broader audience.",
+          "expected_impact": "Increased visibility and interest from diverse readerships.",
+          "anchor_snippet": "Doesn’t matter the century. Doesn’t matter the latitude.",
+          "source_pass": 2
+        }
+      ]
+    }
+  ],
+  "overall": {
+    "overall_score_0_100": 74,
+    "verdict": "revise",
+    "one_paragraph_summary": "The manuscript presents a compelling exploration of environmental exploitation and colonial legacies, with strong thematic depth and narrative voice. However, character development, pacing, and narrative closure require attention to enhance reader engagement and emotional resonance. Overall, the work shows promise but needs revisions to reach its full potential.",
+    "top_3_strengths": [
+      "Strong thematic exploration of environmental issues",
+      "Distinctive and evocative narrative voice",
+      "Effective scene construction with sensory details"
+    ],
+    "top_3_risks": [
+      "Flat character development lacking emotional stakes",
+      "Pacing issues affecting narrative flow",
+      "Need for stronger narrative closure"
+    ]
+  },
+  "metadata": {
+    "pass1_model": "Craft Execution",
+    "pass2_model": "Editorial/Literary Insight",
+    "pass3_model": "Synthesis Model",
+    "generated_at": "2026-04-14T18:24:00.791Z"
+  },
+  "partial_evaluation": false,
+  "coverage_scope": {
+    "sourceChars": 6612,
+    "sourceWords": 1002,
+    "analyzedChars": 6612,
+    "analyzedWords": 1002,
+    "strategy": "full_text"
+  }
+}

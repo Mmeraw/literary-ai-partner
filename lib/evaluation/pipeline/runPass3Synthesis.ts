@@ -144,8 +144,9 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
   const selectedModel = getCanonicalPipelineModel(opts.model ?? PASS3_MODEL);
 
-  const pass1Json = JSON.stringify(opts.pass1, null, 2);
-  const pass2Json = JSON.stringify(opts.pass2, null, 2);
+  // Compact JSON reduces prompt token load and latency while preserving content.
+  const pass1Json = JSON.stringify(opts.pass1);
+  const pass2Json = JSON.stringify(opts.pass2);
 
   const userPrompt = buildPass3UserPrompt({
     pass1Json,
@@ -224,10 +225,43 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     raw_text: responseText,
     model: selectedModel,
     usage: completion.usage,
+    finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined,
+    request_id:
+      typeof (completion as { request_id?: unknown }).request_id === "string"
+        ? (completion as { request_id: string }).request_id
+        : typeof (completion as { id?: unknown }).id === "string"
+        ? (completion as { id: string }).id
+        : undefined,
     generated_at: new Date().toISOString(),
   });
 
-  const synthesis = parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel);
+  const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
+  const requestId =
+    typeof (completion as { request_id?: unknown }).request_id === "string"
+      ? (completion as { request_id: string }).request_id
+      : typeof (completion as { id?: unknown }).id === "string"
+      ? (completion as { id: string }).id
+      : undefined;
+
+  let synthesis: SynthesisOutput;
+  try {
+    synthesis = parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel);
+  } catch (error) {
+    console.error("[Pass3] Parse boundary diagnostic", {
+      title: opts.title,
+      model: selectedModel,
+      request_id: requestId ?? null,
+      finish_reason: finishReason,
+      usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
+      usage_completion_tokens: completion.usage?.completion_tokens ?? null,
+      usage_total_tokens: completion.usage?.total_tokens ?? null,
+      output_chars: responseText.length,
+      raw_head: responseText.slice(0, 1000),
+      raw_tail: responseText.slice(-500),
+      error_message: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
   
   // Truth enforcement: attach coverage metadata proving whether evaluation was complete or partial
   return {

@@ -70,6 +70,7 @@ export async function middleware(request: NextRequest) {
     '/api/cron',
     '/api/workers',
         '/api/health',
+        '/api/evaluate',
         '/api/jobs',
         '/api/dev/metrics-smoke',
   ]

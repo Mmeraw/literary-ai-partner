@@ -1,0 +1,350 @@
+{
+  "criteria": [
+    {
+      "key": "concept",
+      "craft_score": 8,
+      "editorial_score": 8,
+      "final_score_0_10": 8,
+      "score_delta": 0,
+      "final_rationale": "Both passes recognize the concept's strength in linking environmental exploitation across cultures, emphasizing a universal pattern of colonialism. The decision to maintain a high score reflects the compelling thematic depth that invites reader reflection.",
+      "pressure_points": ["The juxtaposition of environmental issues across different cultures."],
+      "decision_points": ["Recognition of thematic depth and interconnectedness."],
+      "consequence_status": "landed",
+      "evidence": [
+        { "snippet": "‘Same pattern. Everywhere.’", "char_start": 116, "char_end": 138 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Further clarify the interconnectedness of the two cases by deepening the exploration of local impacts, enhancing the emotional weight of the concept.",
+          "expected_impact": "This will strengthen the reader's engagement with the overarching theme.",
+          "anchor_snippet": "‘Same pattern. Everywhere.’",
+          "source_pass": 1
+        },
+        {
+          "priority": "medium",
+          "action": "Expand on the historical context of the environmental impacts to deepen the reader's understanding of the ongoing consequences.",
+          "expected_impact": "Enhancing historical context will enrich the thematic resonance and emotional weight of the narrative.",
+          "anchor_snippet": "Go back centuries. Colonial period — hacienda owners and Spanish encomenderos...",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "narrativeDrive",
+      "craft_score": 7,
+      "editorial_score": 7,
+      "final_score_0_10": 7,
+      "score_delta": 0,
+      "final_rationale": "Both evaluations agree that the narrative maintains tension through the protagonist's investigation, although exposition occasionally slows the pace. The decision to keep the score consistent reflects a shared understanding of the narrative's strengths and weaknesses.",
+      "pressure_points": ["Expository sections that slow momentum."],
+      "decision_points": ["Recognition of the need for tighter pacing."],
+      "consequence_status": "landed",
+      "evidence": [
+        { "snippet": "‘They’re reading from the same script.’", "char_start": 482, "char_end": 511 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Reduce the length of expository sections to maintain narrative momentum, ensuring each detail serves the escalating tension.",
+          "expected_impact": "This will enhance the urgency and engagement throughout the narrative.",
+          "anchor_snippet": "‘They’re reading from the same script.’",
+          "source_pass": 1
+        },
+        {
+          "priority": "medium",
+          "action": "Introduce more immediate consequences of the protagonist's findings to heighten urgency and engagement.",
+          "expected_impact": "Increased immediacy will enhance narrative tension and reader investment in the outcome.",
+          "anchor_snippet": "I was still buzzing from the afternoon’s search...",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "character",
+      "craft_score": 6,
+      "editorial_score": 6,
+      "final_score_0_10": 6,
+      "score_delta": 0,
+      "final_rationale": "Both passes indicate that character development is functional but lacks depth, particularly regarding motivations and emotional stakes. The decision to maintain a score of 6 reflects a consensus on the need for deeper character exploration.",
+      "pressure_points": ["Limited emotional depth and character motivations."],
+      "decision_points": ["Acknowledgment of the need for more character development."],
+      "consequence_status": "landed",
+      "evidence": [
+        { "snippet": "Cliff didn’t interrupt.", "char_start": 328, "char_end": 349 }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Develop Cliff’s character further by adding internal thoughts or backstory to create a more dynamic interaction and deepen reader investment.",
+          "expected_impact": "This will enhance emotional resonance and character relatability.",
+          "anchor_snippet": "Cliff didn’t interrupt.",
+          "source_pass": 1
+        },
+        {
+          "priority": "high",
+          "action": "Incorporate more internal monologue or emotional reactions to enhance character depth and reader connection.",
+          "expected_impact": "Greater emotional engagement will make the characters' struggles more relatable and impactful.",
+          "anchor_snippet": "I think it proves the river remembers...",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "voice",
+      "craft_score": 8,
+      "editorial_score": 8,
+      "final_score_0_10": 8,
+      "score_delta": 0,
+      "final_rationale": "Both evaluations commend the distinct and consistent voice that conveys urgency and concern. The decision to keep the score at 8 reflects agreement on the effectiveness of the narrative voice.",
+      "pressure_points": ["The distinct and evocative narrative voice."],
+      "decision_points": ["Recognition of the effective blending of urgency and reflection."],
+      "consequence_status": "landed",
+      "evidence": [
+        { "snippet": "‘It’s not new,’ I said.", "char_start": 422, "char_end": 440 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Maintain the strong voice while exploring more varied sentence structures to enhance rhythm and engagement.",
+          "expected_impact": "This will create a more dynamic reading experience.",
+          "anchor_snippet": "‘It’s not new,’ I said.",
+          "source_pass": 1
+        },
+        {
+          "priority": "low",
+          "action": "Maintain the current voice while exploring more varied sentence structures to enhance rhythm and flow.",
+          "expected_impact": "Improved rhythm will enhance the reading experience and maintain engagement.",
+          "anchor_snippet": "The electric heater popped in the corner...",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "sceneConstruction",
+      "craft_score": 7,
+      "editorial_score": 7,
+      "final_score_0_10": 7,
+      "score_delta": 0,
+      "final_rationale": "Both passes agree on the well-constructed scenes with vivid details, though they note that some transitions could be smoother. The decision to keep the score at 7 reflects a shared understanding of the scene construction's strengths and areas for improvement.",
+      "pressure_points": ["Vivid details that ground the reader."],
+      "decision_points": ["Recognition of the need for smoother transitions."],
+      "consequence_status": "landed",
+      "evidence": [
+        { "snippet": "The electric heater popped in the corner...", "char_start": 0, "char_end": 54 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Enhance transitions between scenes and dialogue to improve flow and maintain reader immersion.",
+          "expected_impact": "This will create a more cohesive narrative experience.",
+          "anchor_snippet": "The electric heater popped in the corner...",
+          "source_pass": 1
+        },
+        {
+          "priority": "medium",
+          "action": "Integrate more dynamic actions or reactions from characters within scenes to enhance immediacy and engagement.",
+          "expected_impact": "Increased character activity will create a more immersive reading experience.",
+          "anchor_snippet": "Cliff leaned forward, squinting as if proximity could change the words.",
+          "source_pass": 2
+        }
+      ]
+    },
+    {
+      "key": "dialogue",
+      "craft_score": 8,
+      "editorial_score": 8,
+      "final_score_0_10": 8,
+      "score_delta": 0,
+      "final_rationale": "Both evaluations praise the natural and effective dialogue that advances the plot and reveals character perspectives. The decision to maintain a score of 8 reflects agreement on the dialogue's effectiveness.",
+      "pressure_points": ["Dialogue that conveys urgency and tension."],
+      "decision_points": ["Recognition of dialogue's role in character development."],
+      "consequence_status": "landed",
+      "evidence": [
+        { "snippet": "‘Sounds familiar.’", "char_start": 324, "char_end": 340 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Consider adding more subtext to dialogue to deepen character interactions and reveal underlying tensions.",
+          "expected_impact": "This will enhance the complexity of character relationships.",
+          "anchor_snippet": "‘Sounds familiar.’",
+          "source_pass": 1
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "craft_score": 9,
+      "editorial_score": 9,
+      "final_score_0_10": 9,
+      "score_delta": 0,
+      "final_rationale": "Both passes agree on the compelling themes of environmental exploitation and colonial legacy, noting their strong integration into the narrative. The decision to maintain a score of 9 reflects a consensus on the thematic strength.",
+      "pressure_points": ["The interwoven themes of exploitation and legacy."],
+      "decision_points": ["Recognition of the themes' impact on the narrative."],
+      "consequence_status": "landed",
+      "evidence": [
+        { "snippet": "Doesn’t matter the century. Doesn’t matter the latitude. The people on the land pay the highest price.", "char_start": 1041, "char_end": 1094 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "craft_score": 7,
+      "editorial_score": 7,
+      "final_score_0_10": 7,
+      "score_delta": 0,
+      "final_rationale": "Both evaluations recognize the effective use of setting to reflect character emotions and the broader themes. The decision to keep the score at 7 reflects agreement on the worldbuilding's effectiveness.",
+      "pressure_points": ["The setting's role in reflecting emotional states."],
+      "decision_points": ["Recognition of the need for deeper worldbuilding."],
+      "consequence_status": "landed",
+      "evidence": [
+        { "snippet": "The heater pinged again, as if marking time we didn’t have.", "char_start": 930, "char_end": 966 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "craft_score": 6,
+      "editorial_score": 6,
+      "final_score_0_10": 6,
+      "score_delta": 0,
+      "final_rationale": "Both passes indicate that pacing is hindered by exposition-heavy dialogue and slower moments. The decision to maintain a score of 6 reflects a shared understanding of the pacing issues.",
+      "pressure_points": ["Exposition-heavy dialogue that slows pacing."],
+      "decision_points": ["Recognition of the need for tighter pacing."],
+      "consequence_status": "landed",
+      "evidence": [
+        { "snippet": "The Mackenzie Dam will do to Robert’s people exactly what the Mayan Train is doing to the Maya...", "char_start": 407, "char_end": 463 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "proseControl",
+      "craft_score": 7,
+      "editorial_score": 7,
+      "final_score_0_10": 7,
+      "score_delta": 0,
+      "final_rationale": "Both evaluations agree on the clarity and effectiveness of prose, though they note opportunities for improvement in rhythm and structure. The decision to keep the score at 7 reflects a consensus on prose control.",
+      "pressure_points": ["The clarity and effectiveness of prose."],
+      "decision_points": ["Recognition of the need for varied sentence structures."],
+      "consequence_status": "landed",
+      "evidence": [
+        { "snippet": "The air smelled faintly of baked dust, cedar, and paper that had been sitting too long in the dark.", "char_start": 55, "char_end": 113 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "craft_score": 8,
+      "editorial_score": 8,
+      "final_score_0_10": 8,
+      "score_delta": 0,
+      "final_rationale": "Both passes commend the tone for effectively conveying urgency and concern. The decision to maintain a score of 8 reflects agreement on the tone's effectiveness.",
+      "pressure_points": ["The tone's ability to convey urgency."],
+      "decision_points": ["Recognition of the tone's alignment with subject matter."],
+      "consequence_status": "landed",
+      "evidence": [
+        { "snippet": "‘Acceptable national standards,’ he muttered. ‘For killing what’s sacred.’", "char_start": 930, "char_end": 966 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "craft_score": 7,
+      "editorial_score": 7,
+      "final_score_0_10": 7,
+      "score_delta": 0,
+      "final_rationale": "Both evaluations agree that the narrative closure is effective but could benefit from a stronger resolution. The decision to keep the score at 7 reflects a consensus on the closure's effectiveness.",
+      "pressure_points": ["The effectiveness of the narrative closure."],
+      "decision_points": ["Recognition of the need for a stronger resolution."],
+      "consequence_status": "landed",
+      "evidence": [
+        { "snippet": "‘I think it proves the river remembers,’ I said. ‘And it’s not in the habit of forgiving.’", "char_start": 1000, "char_end": 1036 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "marketability",
+      "craft_score": 7,
+      "editorial_score": 7,
+      "final_score_0_10": 7,
+      "score_delta": 0,
+      "final_rationale": "Both passes agree that the manuscript has strong market potential due to its relevant themes and engaging narrative. The decision to keep the score at 7 reflects a consensus on marketability.",
+      "pressure_points": ["The relevance of themes to contemporary issues."],
+      "decision_points": ["Recognition of the manuscript's market potential."],
+      "consequence_status": "landed",
+      "evidence": [
+        { "snippet": "The people on the land pay the highest price.", "char_start": 1041, "char_end": 1094 }
+      ],
+      "recommendations": []
+    }
+  ],
+  "agreement_map": [
+    {
+      "key": "concept",
+      "agreement": "Both passes recognize the thematic depth and interconnectedness of environmental exploitation."
+    },
+    {
+      "key": "narrativeDrive",
+      "agreement": "Both evaluations agree on the narrative's tension and the impact of exposition on pacing."
+    },
+    {
+      "key": "character",
+      "agreement": "Both passes indicate a need for deeper character development and emotional engagement."
+    },
+    {
+      "key": "voice",
+      "agreement": "Both evaluations commend the distinct and effective narrative voice."
+    },
+    {
+      "key": "sceneConstruction",
+      "agreement": "Both passes recognize the vivid details but note the need for smoother transitions."
+    },
+    {
+      "key": "dialogue",
+      "agreement": "Both evaluations praise the natural dialogue that advances the plot and reveals character perspectives."
+    },
+    {
+      "key": "theme",
+      "agreement": "Both passes agree on the compelling themes of environmental exploitation and colonial legacy."
+    },
+    {
+      "key": "worldbuilding",
+      "agreement": "Both evaluations recognize the effective use of setting to reflect character emotions."
+    },
+    {
+      "key": "pacing",
+      "agreement": "Both passes indicate that pacing is hindered by exposition-heavy dialogue."
+    },
+    {
+      "key": "proseControl",
+      "agreement": "Both evaluations agree on the clarity and effectiveness of prose."
+    },
+    {
+      "key": "tone",
+      "agreement": "Both passes commend the tone for effectively conveying urgency and concern."
+    },
+    {
+      "key": "narrativeClosure",
+      "agreement": "Both evaluations agree that the narrative closure is effective but could benefit from a stronger resolution."
+    },
+    {
+      "key": "marketability",
+      "agreement": "Both passes agree that the manuscript has strong market potential."
+    }
+  ],
+  "divergence_map": [],
+  "overall": {
+    "overall_score_0_100": 77,
+    "verdict": "pass",
+    "one_paragraph_summary": "The manuscript effectively explores themes of environmental exploitation and colonial legacy through a compelling narrative structure. While character depth and pacing require attention, the strong voice, vivid scenes, and relevant themes contribute to its market potential. Overall, the manuscript demonstrates significant strengths that warrant publication with revisions.",
+    "top_3_strengths": ["Compelling thematic exploration", "Distinct narrative voice", "Vivid scene construction"],
+    "top_3_risks": ["Limited character depth", "Pacing issues due to exposition", "Need for stronger narrative resolution"]
+  },
+  "metadata": {
+    "pass1_model": "Craft Execution",
+    "pass2_model": "Editorial/Literary Insight",
+    "pass3_model": "Synthesis Model",
+    "generated_at": "2023-10-05T12:00:00Z"
+  }
+}

@@ -1,0 +1,222 @@
+{
+  "pass": 1,
+  "axis": "craft_execution",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 8,
+      "rationale": "The concept of drawing parallels between environmental exploitation in different regions is compelling and well-executed. The use of specific examples enhances the thematic depth.",
+      "evidence": [
+        { "snippet": "It should. Swap limestone for permafrost and glacier-fed rivers.", "char_start": 157, "char_end": 194 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Further develop the implications of these parallels to deepen the reader's understanding of the broader consequences of environmental policies.",
+          "expected_impact": "This will enhance thematic resonance and reader engagement.",
+          "anchor_snippet": "It should. Swap limestone for permafrost and glacier-fed rivers."
+        }
+      ]
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 7,
+      "rationale": "The narrative maintains a strong drive through escalating tension as the characters uncover systemic exploitation. However, some sections feel like exposition rather than active conflict.",
+      "evidence": [
+        { "snippet": "I’d come out with something else entirely. Not a detour. A mirror.", "char_start": 90, "char_end": 134 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Introduce more immediate stakes or consequences for the characters to enhance the narrative drive and create urgency.",
+          "expected_impact": "This will create a more dynamic reading experience and heighten tension.",
+          "anchor_snippet": "I’d come out with something else entirely. Not a detour. A mirror."
+        }
+      ]
+    },
+    {
+      "key": "character",
+      "score_0_10": 6,
+      "rationale": "Characterization is primarily conveyed through dialogue and exposition, which limits depth. Cliff's reactions are somewhat passive, reducing engagement with his motivations.",
+      "evidence": [
+        { "snippet": "Cliff didn’t interrupt.", "char_start": 137, "char_end": 158 }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Develop Cliff's backstory or emotional responses to the discussion to create a more layered character and enhance reader connection.",
+          "expected_impact": "This will enrich character dynamics and increase reader investment in their journey.",
+          "anchor_snippet": "Cliff didn’t interrupt."
+        }
+      ]
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "The narrative voice is distinct and effectively conveys urgency and concern for environmental issues. The integration of factual elements with personal reflection enhances authenticity.",
+      "evidence": [
+        { "snippet": "It’s not new,” I said. “Go back centuries.", "char_start": 266, "char_end": 293 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Maintain the strong voice while ensuring that it does not overshadow character development or narrative flow.",
+          "expected_impact": "This will preserve the engaging tone while balancing character depth.",
+          "anchor_snippet": "It’s not new,” I said. “Go back centuries."
+        }
+      ]
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are well-detailed and immersive, yet some transitions between exposition and dialogue lack fluidity, disrupting the scene's momentum.",
+      "evidence": [
+        { "snippet": "I turned my laptop toward him, showing headlines cached before the Wi-Fi could choke.", "char_start": 181, "char_end": 224 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Enhance transitions between scenes and dialogue to maintain momentum and improve flow.",
+          "expected_impact": "This will create a more cohesive reading experience and maintain reader engagement.",
+          "anchor_snippet": "I turned my laptop toward him, showing headlines cached before the Wi-Fi could choke."
+        }
+      ]
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 8,
+      "rationale": "Dialogue effectively conveys conflict and thematic elements, with subtext present in exchanges. However, some lines could be more varied in rhythm to enhance engagement.",
+      "evidence": [
+        { "snippet": "‘Acceptable national standards,’” he muttered. “For killing what’s sacred.", "char_start": 290, "char_end": 319 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Vary dialogue rhythm and pacing to enhance emotional impact and keep the reader engaged.",
+          "expected_impact": "This will create a more dynamic interaction between characters.",
+          "anchor_snippet": "‘Acceptable national standards,’” he muttered. “For killing what’s sacred."
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "score_0_10": 9,
+      "rationale": "The theme of environmental exploitation and colonialism is articulated powerfully through the characters' dialogue and reflections, creating a strong moral framework.",
+      "evidence": [
+        { "snippet": "The people on the land pay the highest price.", "char_start": 486, "char_end": 516 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Continue to weave thematic elements throughout the narrative to reinforce the message without overt exposition.",
+          "expected_impact": "This will deepen thematic resonance and maintain reader engagement.",
+          "anchor_snippet": "The people on the land pay the highest price."
+        }
+      ]
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 8,
+      "rationale": "Worldbuilding is strong, with vivid descriptions of locations and environmental issues that enhance the narrative's realism. However, some details could be more integrated into character experiences.",
+      "evidence": [
+        { "snippet": "The air smelled faintly of baked dust, cedar, and paper that had been sitting too long in the dark.", "char_start": 37, "char_end": 107 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Integrate worldbuilding elements more closely with character actions and emotions to enhance immersion.",
+          "expected_impact": "This will create a more cohesive and engaging narrative experience.",
+          "anchor_snippet": "The air smelled faintly of baked dust, cedar, and paper that had been sitting too long in the dark."
+        }
+      ]
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 6,
+      "rationale": "Pacing fluctuates between exposition-heavy sections and dialogue, which can slow momentum. Some scenes linger too long on details without advancing the narrative.",
+      "evidence": [
+        { "snippet": "I’d gone in chasing the Mackenzie Dam’s paper trail: land leases, environmental review schedules...", "char_start": 111, "char_end": 171 }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Trim exposition-heavy sections to maintain narrative momentum and ensure pacing aligns with character urgency.",
+          "expected_impact": "This will create a more engaging and fluid reading experience.",
+          "anchor_snippet": "I’d gone in chasing the Mackenzie Dam’s paper trail: land leases, environmental review schedules..."
+        }
+      ]
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 7,
+      "rationale": "Prose is generally clear and descriptive, but some sentences are overly complex, which can hinder readability. Simplifying these would enhance clarity.",
+      "evidence": [
+        { "snippet": "The heater pinged again, as if marking time we didn’t have.", "char_start": 511, "char_end": 542 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Simplify overly complex sentences to improve clarity and maintain reader engagement.",
+          "expected_impact": "This will enhance readability and ensure the narrative flows smoothly.",
+          "anchor_snippet": "The heater pinged again, as if marking time we didn’t have."
+        }
+      ]
+    },
+    {
+      "key": "tone",
+      "score_0_10": 8,
+      "rationale": "The tone effectively conveys urgency and concern for environmental issues, aligning well with the narrative's themes. It maintains a serious yet reflective quality.",
+      "evidence": [
+        { "snippet": "I think it proves the river remembers,” I said. “And it’s not in the habit of forgiving.", "char_start": 546, "char_end": 592 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Maintain the established tone while ensuring it does not overshadow character interactions or narrative progression.",
+          "expected_impact": "This will preserve the emotional weight of the narrative.",
+          "anchor_snippet": "I think it proves the river remembers,” I said. “And it’s not in the habit of forgiving."
+        }
+      ]
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 7,
+      "rationale": "The chapter concludes with a strong thematic statement, but the narrative lacks a clear resolution or transition to the next conflict, leaving some threads dangling.",
+      "evidence": [
+        { "snippet": "The people on the land pay the highest price.", "char_start": 486, "char_end": 516 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Provide a clearer transition or resolution to the chapter's conflicts to enhance narrative closure and set up future developments.",
+          "expected_impact": "This will create a more satisfying reading experience and maintain narrative momentum.",
+          "anchor_snippet": "The people on the land pay the highest price."
+        }
+      ]
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 7,
+      "rationale": "The premise is engaging and the execution is clear, but some exposition-heavy sections may hinder accessibility for readers unfamiliar with the context.",
+      "evidence": [
+        { "snippet": "Community consultations have been conducted in all relevant administrative zones...", "char_start": 354, "char_end": 399 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Streamline exposition to enhance clarity and accessibility for a broader audience, ensuring the premise is immediately engaging.",
+          "expected_impact": "This will improve the overall readability and hook potential readers more effectively.",
+          "anchor_snippet": "Community consultations have been conducted in all relevant administrative zones..."
+        }
+      ]
+    }
+  ],
+  "model": "revisiongrade-v1",
+  "prompt_version": "pass1-craft-v4",
+  "temperature": 0.3,
+  "generated_at": "2023-10-04T12:00:00Z",
+  "narrative_mode_assessment": {
+    "dominant_mode": "reflective",
+    "mode_confidence": "high",
+    "mode_rationale": "The text operates primarily through character reflections and dialogues that explore systemic issues, with a focus on thematic depth.",
+    "pressure_profile": "Pressure accumulates through

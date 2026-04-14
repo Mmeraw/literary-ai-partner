@@ -1,0 +1,15 @@
+{
+  "ok": false,
+  "error": "[Pass1] response extraction failed: JSON_PARSE_FAILED_TRUNCATED",
+  "error_code": "PASS1_JSON_PARSE_FAILED_TRUNCATED",
+  "failed_at": "pass1",
+  "failure_details": {
+    "json_boundary": {
+      "code": "JSON_PARSE_FAILED_TRUNCATED",
+      "candidates_found": 0,
+      "raw_head": "{\n  \"pass\": 1,\n  \"axis\": \"craft_execution\",\n  \"criteria\": [\n    {\n      \"key\": \"concept\",\n      \"score_0_10\": 8,\n      \"rationale\": \"The concept of drawing parallels between environmental exploitation in different regions is compelling and well-executed. The use of specific examples enhances the thematic depth.\",\n      \"evidence\": [\n        { \"snippet\": \"It should. Swap limestone for permafrost and glacier-fed rivers.\", \"char_start\": 157, \"char_end\": 194 }\n      ],\n      \"recommendations\": [\n        {\n          \"priority\": \"medium\",\n          \"action\": \"Further develop the implications of these parallels to deepen the reader's understanding of the broader consequences of environmental policies.\",\n          \"expected_impact\": \"This will enhance thematic resonance and reader engagement.\",\n          \"anchor_snippet\": \"It should. Swap limestone for permafrost and glacier-fed rivers.\"\n        }\n      ]\n    },\n    {\n      \"key\": \"narrativeDrive\",\n      \"score_0_10\": 7,\n      \"rationale\": \"Th",
+      "raw_tail": "t administrative zones...\"\n        }\n      ]\n    }\n  ],\n  \"model\": \"revisiongrade-v1\",\n  \"prompt_version\": \"pass1-craft-v4\",\n  \"temperature\": 0.3,\n  \"generated_at\": \"2023-10-04T12:00:00Z\",\n  \"narrative_mode_assessment\": {\n    \"dominant_mode\": \"reflective\",\n    \"mode_confidence\": \"high\",\n    \"mode_rationale\": \"The text operates primarily through character reflections and dialogues that explore systemic issues, with a focus on thematic depth.\",\n    \"pressure_profile\": \"Pressure accumulates through",
+      "normalized_tail": "tive\",\n    \"mode_confidence\": \"high\",\n    \"mode_rationale\": \"The text operates primarily through character reflections and dialogues that explore systemic issues, with a focus on thematic depth.\",\n    \"pressure_profile\": \"Pressure accumulates through"
+    }
+  }
+}

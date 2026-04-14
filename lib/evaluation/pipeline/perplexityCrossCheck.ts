@@ -14,6 +14,11 @@
  * This pass is diagnostic/adjudicative. It does NOT perform WAVE refinement.
  */
 
+import {
+  JsonBoundaryError,
+  parseJsonObjectBoundary,
+} from "./jsonParseBoundary";
+
 export type CriterionKey =
   | "concept"
   | "narrativeDrive"
@@ -87,6 +92,7 @@ export interface CrossCheckOutput {
   criteria: Record<CriterionKey, CrossCheckCriterionResult>;
   perplexitySynthesisNote: string;
   canonValid: boolean;
+  warnings?: string[];
   rawPerplexityResponse?: string;
 }
 
@@ -114,25 +120,6 @@ const CRITERION_KEYS: CriterionKey[] = [
   "emotionalResonance",
   "marketability",
 ];
-function extractFirstJsonObject(rawContent: string): string {
-  const trimmed = rawContent.trim();
-
-  if (!trimmed) {
-    throw new Error("[Pass4] Empty response body from Perplexity.");
-  }
-
-  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  const candidate = fencedMatch?.[1] ?? trimmed;
-  const objectMatch = candidate.match(/({[\s\S]*})/);
-
-  if (!objectMatch) {
-    throw new Error(
-      `[Pass4] Could not find JSON object in Perplexity response: ${trimmed.slice(0, 400)}`
-    );
-  }
-
-  return objectMatch[1];
-}
 
 function assertScore(score: unknown, key: string): number {
   if (typeof score !== "number" || Number.isNaN(score)) {
@@ -383,6 +370,9 @@ Now return the independent adjudication as JSON.`;
 
   const raw = await response.json();
   const rawContent: string = raw?.choices?.[0]?.message?.content ?? "";
+  const finishReason = typeof raw?.choices?.[0]?.finish_reason === "string"
+    ? raw.choices[0].finish_reason
+    : "unknown";
 
   // P0: Check finish_reason — log a warning if the model stopped due to token limit
   const finishReason = raw?.choices?.[0]?.finish_reason;
@@ -407,7 +397,7 @@ Now return the independent adjudication as JSON.`;
 
   let parsed: PerplexityResponseShape;
   try {
-    parsed = validateParsedResponse(JSON.parse(extractedJson));
+    parsed = validateParsedResponse(parsedJson);
   } catch (error) {
     if (error instanceof SyntaxError) {
       throw new Error(

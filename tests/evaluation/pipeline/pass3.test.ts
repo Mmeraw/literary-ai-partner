@@ -151,7 +151,7 @@ describe("parsePass3Response", () => {
   });
 
   it("throws on invalid JSON", () => {
-    expect(() => parsePass3Response("not json", pass1, pass2)).toThrow("not valid JSON");
+    expect(() => parsePass3Response("not json", pass1, pass2)).toThrow("JSON_PARSE_FAILED_NO_OBJECT");
   });
 
   it("classifies clearly truncated response with JSON_PARSE_FAILED_TRUNCATED", () => {

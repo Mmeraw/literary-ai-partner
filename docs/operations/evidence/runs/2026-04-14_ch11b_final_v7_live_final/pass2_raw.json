@@ -1,0 +1,230 @@
+{
+  "pass": 2,
+  "axis": "editorial_literary",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 8,
+      "rationale": "The manuscript explores the parallels between environmental exploitation in different regions, particularly through the lens of Indigenous displacement. This thematic depth invites critical reflection on colonial legacies.",
+      "evidence": [
+        { "snippet": "‘Same playbook? Same pattern. Everywhere.’", "char_start": 182, "char_end": 213 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider expanding on the historical context to deepen the reader's understanding of the ongoing implications of these patterns.",
+          "expected_impact": "This will enhance the thematic resonance and provide a richer narrative framework.",
+          "anchor_snippet": "‘Go back centuries. Colonial period — hacienda owners...’"
+        }
+      ]
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 7,
+      "rationale": "The narrative builds tension through the protagonist's discovery of environmental injustices, paralleling past and present. However, the pacing occasionally stalls as exposition takes precedence over immediate conflict.",
+      "evidence": [
+        { "snippet": "‘It’s not new,’ I said. ‘Go back centuries.’", "char_start": 303, "char_end": 330 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Integrate more immediate stakes or personal consequences for the protagonist to enhance urgency and engagement.",
+          "expected_impact": "This will create a more compelling narrative arc and maintain reader interest.",
+          "anchor_snippet": "‘I think it proves the river remembers...’"
+        }
+      ]
+    },
+    {
+      "key": "character",
+      "score_0_10": 6,
+      "rationale": "Characterization is primarily conveyed through dialogue and shared history, yet the emotional stakes remain somewhat muted. The protagonist's motivations could be more vividly expressed.",
+      "evidence": [
+        { "snippet": "‘Exactly. Doesn’t matter the century.’", "char_start": 465, "char_end": 493 }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Develop the protagonist's internal conflict or personal stakes related to the environmental issues to enhance emotional engagement.",
+          "expected_impact": "This will deepen reader investment in the character's journey and the narrative's stakes.",
+          "anchor_snippet": "‘And you think this proves the river decides?’"
+        }
+      ]
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "The narrative voice is distinct and reflective, effectively blending personal insight with broader social commentary. This creates a strong sense of authenticity.",
+      "evidence": [
+        { "snippet": "‘It’s not in the habit of forgiving.’", "char_start": 994, "char_end": 1021 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Maintain this strong voice while ensuring that it does not overshadow character development.",
+          "expected_impact": "This will preserve the narrative's emotional depth alongside its thematic weight.",
+          "anchor_snippet": "‘I think it proves the river remembers...’"
+        }
+      ]
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are well-constructed with vivid sensory details that ground the reader in the setting. However, some scenes could benefit from more dynamic action or conflict to heighten engagement.",
+      "evidence": [
+        { "snippet": "‘The air smelled faintly of baked dust, cedar, and paper...’", "char_start": 56, "char_end": 93 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Incorporate more active moments or interactions that drive the plot forward within scenes.",
+          "expected_impact": "This will enhance reader immersion and maintain narrative momentum.",
+          "anchor_snippet": "‘Cliff leaned forward, squinting as if proximity could change the words.’"
+        }
+      ]
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 9,
+      "rationale": "Dialogue is sharp and serves to reveal character motivations and thematic concerns effectively. It feels natural and contributes to the narrative's tension.",
+      "evidence": [
+        { "snippet": "‘Sounds familiar.’", "char_start": 198, "char_end": 214 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Continue to refine dialogue to ensure it remains impactful and relevant to character development.",
+          "expected_impact": "This will sustain the high quality of character interactions throughout the narrative.",
+          "anchor_snippet": "‘“Same playbook?” “Same pattern. Everywhere.”’"
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "score_0_10": 8,
+      "rationale": "The themes of environmental degradation and colonialism are interwoven effectively, prompting critical reflection on historical and contemporary injustices.",
+      "evidence": [
+        { "snippet": "‘The people on the land pay the highest price.’", "char_start": 775, "char_end": 804 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Explore additional thematic layers, such as resilience or community response, to enrich the narrative's complexity.",
+          "expected_impact": "This will provide a more nuanced exploration of the themes presented.",
+          "anchor_snippet": "‘The Maya call them sacred.’"
+        }
+      ]
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 7,
+      "rationale": "Worldbuilding is effective, particularly in establishing the environmental and cultural contexts. However, further depth regarding the characters' backgrounds could enhance immersion.",
+      "evidence": [
+        { "snippet": "‘The Mackenzie Dam will do to Robert’s people exactly what the Mayan Train is doing to the Maya.’", "char_start": 327, "char_end": 375 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Provide more background on the characters' histories and connections to the land to deepen the worldbuilding.",
+          "expected_impact": "This will create a richer context for the characters' actions and motivations.",
+          "anchor_snippet": "‘The people on the land pay the highest price.’"
+        }
+      ]
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 6,
+      "rationale": "Pacing fluctuates, with sections of dense exposition slowing the narrative momentum. The balance between dialogue and narrative summary needs refinement.",
+      "evidence": [
+        { "snippet": "‘Community consultations have been conducted in all relevant administrative zones...’", "char_start": 654, "char_end": 706 }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Streamline exposition and integrate it more organically into the dialogue to maintain narrative flow.",
+          "expected_impact": "This will enhance the pacing and keep readers engaged throughout the chapter.",
+          "anchor_snippet": "‘The air smelled faintly of baked dust...’"
+        }
+      ]
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 8,
+      "rationale": "The prose is evocative and rich in sensory detail, effectively conveying mood and setting. It maintains a strong literary quality throughout.",
+      "evidence": [
+        { "snippet": "‘The heater pinged again, as if marking time we didn’t have.’", "char_start": 898, "char_end": 926 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Continue to refine prose for clarity and impact, ensuring it serves the narrative's emotional and thematic goals.",
+          "expected_impact": "This will maintain the high standard of writing and enhance reader engagement.",
+          "anchor_snippet": "‘The air smelled faintly of baked dust...’"
+        }
+      ]
+    },
+    {
+      "key": "tone",
+      "score_0_10": 8,
+      "rationale": "The tone is appropriately somber and reflective, aligning well with the themes of loss and environmental degradation. It invites contemplation without becoming overly bleak.",
+      "evidence": [
+        { "snippet": "‘And in the final report, it’ll all be filed under ‘mitigation measures.’’", "char_start": 376, "char_end": 415 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Ensure the tone remains consistent throughout, balancing somber reflections with moments of hope or resilience.",
+          "expected_impact": "This will enrich the emotional landscape of the narrative.",
+          "anchor_snippet": "‘I think it proves the river remembers.’"
+        }
+      ]
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 7,
+      "rationale": "The chapter concludes with a strong thematic statement, but it could benefit from a more explicit resolution or reflection on the characters' next steps.",
+      "evidence": [
+        { "snippet": "‘And it’s not in the habit of forgiving.’", "char_start": 994, "char_end": 1021 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider adding a brief reflection or action that indicates the protagonist's path forward after this realization.",
+          "expected_impact": "This will provide a more satisfying closure and set the stage for future developments.",
+          "anchor_snippet": "‘I think it proves the river remembers.’"
+        }
+      ]
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 8,
+      "rationale": "The manuscript has strong market potential, appealing to readers interested in environmental issues, Indigenous rights, and historical narratives. Its thematic depth aligns well with current literary trends.",
+      "evidence": [
+        { "snippet": "‘The people on the land pay the highest price.’", "char_start": 775, "char_end": 804 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Position the manuscript within the growing market for eco-literature and Indigenous narratives to attract a broader audience.",
+          "expected_impact": "This will enhance its visibility and appeal in a competitive literary landscape.",
+          "anchor_snippet": "‘Same playbook? Same pattern. Everywhere.’"
+        }
+      ]
+    }
+  ],
+  "model": "editorial_literary_v1",
+  "prompt_version": "pass2-editorial-v4",
+  "temperature": 0.3,
+  "generated_at": "2023-10-10T12:00:00Z",
+  "narrative_mode_assessment": {
+    "dominant_mode": "reflective",
+    "mode_confidence": "high",
+    "mode_rationale": "The text primarily reflects on historical and contemporary environmental issues through dialogue and exposition, allowing for thematic exploration.",
+    "pressure_profile": "Pressure accumulates through the protagonist's revelations and the stark parallels drawn between different environmental crises.",
+    "character_expression_mode": "dialogue_action"
+  },
+  "divergence_declaration": {
+    "agreement_zones": [],
+    "disagreement_zones": [],
+    "new_findings": []
+  }
+}

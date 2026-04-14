@@ -19,6 +19,7 @@ import type { RunPass1Options } from "@/lib/evaluation/pipeline/runPass1";
 import type { RunPass2Options } from "@/lib/evaluation/pipeline/runPass2";
 import type { RunPass3Options } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { LessonsLearnedReport, RuleStage, RuleEvaluationInput } from "@/lib/governance/lessonsLearned";
+import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
 
 function isPipelineFailure(result: PipelineResult): result is Extract<PipelineResult, { ok: false }> {
   return result.ok === false;
@@ -178,6 +179,36 @@ describe("runPipeline (e2e with injected runners)", () => {
     }
   });
 
+  it("returns pass-specific typed code when Pass 1 throws JsonBoundaryError", async () => {
+    mockRunPass1.mockRejectedValueOnce(
+      new JsonBoundaryError({
+        code: "JSON_PARSE_FAILED_NO_OBJECT",
+        message: "[Pass1] response parse failed",
+        raw: "not json",
+        normalized: "not json",
+      }),
+    );
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PASS1_JSON_PARSE_FAILED_NO_OBJECT");
+      expect(result.failed_at).toBe("pass1");
+      expect(result.failure_details?.json_boundary?.code).toBe("JSON_PARSE_FAILED_NO_OBJECT");
+    }
+  });
+
   it("returns ok=false with PASS2_FAILED when Pass 2 throws", async () => {
     mockRunPass2.mockRejectedValueOnce(new Error("Rate limit exceeded"));
 
@@ -197,6 +228,36 @@ describe("runPipeline (e2e with injected runners)", () => {
     if (isPipelineFailure(result)) {
       expect(result.error_code).toBe("PASS2_FAILED");
       expect(result.failed_at).toBe("pass2");
+    }
+  });
+
+  it("returns pass-specific typed code when Pass 2 throws JsonBoundaryError", async () => {
+    mockRunPass2.mockRejectedValueOnce(
+      new JsonBoundaryError({
+        code: "JSON_PARSE_FAILED_TRUNCATED",
+        message: "[Pass2] response parse failed",
+        raw: '{"criteria":[{"key":"concept"',
+        normalized: '{"criteria":[{"key":"concept"',
+      }),
+    );
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PASS2_JSON_PARSE_FAILED_TRUNCATED");
+      expect(result.failed_at).toBe("pass2");
+      expect(result.failure_details?.json_boundary?.code).toBe("JSON_PARSE_FAILED_TRUNCATED");
     }
   });
 
@@ -222,6 +283,36 @@ describe("runPipeline (e2e with injected runners)", () => {
     }
   });
 
+  it("returns pass-specific typed code when Pass 3 throws JsonBoundaryError", async () => {
+    mockRunPass3.mockRejectedValueOnce(
+      new JsonBoundaryError({
+        code: "JSON_PARSE_FAILED_MALFORMED",
+        message: "[Pass3] response parse failed",
+        raw: '{"criteria":[{"key":"concept",}]',
+        normalized: '{"criteria":[{"key":"concept",}]',
+      }),
+    );
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PASS3_JSON_PARSE_FAILED_MALFORMED");
+      expect(result.failed_at).toBe("pass3");
+      expect(result.failure_details?.json_boundary?.code).toBe("JSON_PARSE_FAILED_MALFORMED");
+    }
+  });
+
   it("returns ok=false with quality gate error code when QG rejects output", async () => {
     mockRunPass3.mockResolvedValueOnce(makeTruncatedSynthesisOutput());
 
@@ -244,6 +335,60 @@ describe("runPipeline (e2e with injected runners)", () => {
     }
   });
 
+  it("dedupes duplicate recommendation actions pre-gate so quality gate can pass", async () => {
+    const synthesisWithDupes = makeSynthesisOutput();
+    const duplicateAction =
+      'Refine the concept dimension to bring craft and editorial perspectives into alignment.';
+
+    synthesisWithDupes.criteria[0].recommendations = [
+      {
+        priority: "medium",
+        action: duplicateAction,
+        expected_impact: "Elevates overall evaluation quality.",
+        anchor_snippet: '"slowly"',
+        source_pass: 3,
+      },
+    ];
+
+    synthesisWithDupes.criteria[1].recommendations = [
+      {
+        priority: "medium",
+        action: duplicateAction,
+        expected_impact: "Elevates overall evaluation quality.",
+        anchor_snippet: '"slowly"',
+        source_pass: 3,
+      },
+    ];
+
+    // Guardrail: raw synthesis should fail duplicate check without pre-gate dedupe.
+    const rawGate = runQualityGate(synthesisWithDupes, makeSinglePassOutput(1), makeSinglePassOutput(2));
+    expect(rawGate.pass).toBe(false);
+    expect(rawGate.checks.find((c) => c.error_code === "QG_DUPLICATE_REC")).toBeDefined();
+
+    mockRunPass3.mockResolvedValueOnce(synthesisWithDupes);
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.quality_gate.pass).toBe(true);
+      const recs0 = result.synthesis.criteria[0].recommendations;
+      const recs1 = result.synthesis.criteria[1].recommendations;
+      expect(recs0).toHaveLength(1);
+      expect(recs1).toHaveLength(0);
+    }
+  });
+
   it("Pass 1 failure prevents Pass 2 and Pass 3 from running", async () => {
     mockRunPass1.mockRejectedValueOnce(new Error("fail"));
 
@@ -259,7 +404,7 @@ describe("runPipeline (e2e with injected runners)", () => {
       },
     });
 
-    expect(mockRunPass2).not.toHaveBeenCalled();
+    // Pass 1 + Pass 2 run in parallel by design; Pass 3 must not execute.
     expect(mockRunPass3).not.toHaveBeenCalled();
   });
 
@@ -364,7 +509,6 @@ describe("runPipeline (e2e with injected runners)", () => {
       expect(result.failed_at).toBe("pass1");
     }
 
-    expect(mockRunPass2).not.toHaveBeenCalled();
     expect(mockRunPass3).not.toHaveBeenCalled();
   });
 
@@ -410,7 +554,8 @@ describe("runPipeline (e2e with injected runners)", () => {
       expect(result.error).toContain("checkpoint=LLR_POST_STRUCTURAL");
     }
 
-    expect(mockRunPass2).not.toHaveBeenCalled();
+    // Pass 2 runs in parallel with Pass 1; post_structural block happens before Pass 3.
+    expect(mockRunPass2).toHaveBeenCalledTimes(1);
     expect(mockRunPass3).not.toHaveBeenCalled();
   });
 
@@ -489,9 +634,9 @@ describe("runPipeline (e2e with injected runners)", () => {
   });
 });
 
-describe("synthesisToEvaluationResult", () => {
-  it("maps SynthesisOutput to EvaluationResultV1 shape", () => {
-    const synthesis: SynthesisOutput = {
+describe("synthesisToEvaluationResult adapter", () => {
+  function makeAdapterSynthesisOutput(): SynthesisOutput {
+    return {
       criteria: CRITERIA_KEYS.map((key) => ({
         key,
         craft_score: 7,
@@ -533,8 +678,12 @@ describe("synthesisToEvaluationResult", () => {
         pass3_model: "gpt-4o-mini",
         generated_at: new Date().toISOString(),
       },
-          partial_evaluation: false,
+      partial_evaluation: false,
     };
+  }
+
+  it("maps SynthesisOutput to EvaluationResultV1 shape", () => {
+    const synthesis: SynthesisOutput = makeAdapterSynthesisOutput();
 
     const result = synthesisToEvaluationResult({
       synthesis,
@@ -551,7 +700,89 @@ describe("synthesisToEvaluationResult", () => {
     expect(result.recommendations.quick_wins.length).toBeGreaterThan(0);
     expect(result.recommendations.strategic_revisions.length).toBeGreaterThan(0);
     expect(result.governance.policy_family).toBe("multi-pass-dual-axis");
+    expect(result.governance.warnings).toEqual([]);
+    expect(result.governance.confidence).toBe(0.85);
     expect(result.ids.evaluation_run_id).toBe("run-test-123");
     expect(result.ids.manuscript_id).toBe(42);
+  });
+
+  it("adds INCOMPLETE_CRITERIA_SET warning and downgrades confidence for placeholder zero-score clusters", () => {
+    const synthesis = makeAdapterSynthesisOutput();
+
+    const degradedKeys = new Set(CRITERIA_KEYS.slice(0, 6));
+    synthesis.criteria = synthesis.criteria.map((criterion) => {
+      if (!degradedKeys.has(criterion.key)) return criterion;
+
+      return {
+        ...criterion,
+        final_score_0_10: 0,
+        final_rationale:
+          "The chapter did not provide a specific score or analysis for this criterion based on available evidence.",
+        evidence: [],
+        recommendations: [],
+      };
+    });
+
+    const result = synthesisToEvaluationResult({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-placeholder-cluster",
+        manuscript_id: 99,
+        user_id: "user-abc",
+      },
+    });
+
+    expect(result.criteria).toHaveLength(13);
+    expect(result.governance.warnings.some((w) => w.includes("INCOMPLETE_CRITERIA_SET"))).toBe(true);
+    expect(result.governance.warnings.some((w) => w.includes("placeholder_cluster_count=6"))).toBe(true);
+    expect(result.governance.confidence).toBe(0.7);
+  });
+
+  it("adds distinguishable missing-keys warning details when criteria are absent", () => {
+    const synthesis = makeAdapterSynthesisOutput();
+    const expectedMissing = CRITERIA_KEYS.slice(-2);
+    synthesis.criteria = synthesis.criteria.slice(0, 11);
+
+    const result = synthesisToEvaluationResult({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-missing-keys",
+        manuscript_id: 100,
+        user_id: "user-abc",
+      },
+    });
+
+    expect(result.criteria).toHaveLength(11);
+    const missingWarning = result.governance.warnings.find((w) => w.includes("missing_keys="));
+    expect(missingWarning).toBeDefined();
+    for (const key of expectedMissing) {
+      expect(missingWarning).toContain(key);
+    }
+    expect(result.governance.confidence).toBeCloseTo(0.65, 5);
+  });
+
+  it("keeps a stable evaluation object shape for downstream consumers when incomplete warnings are present", () => {
+    const synthesis = makeAdapterSynthesisOutput();
+    synthesis.criteria = synthesis.criteria.slice(0, 10);
+
+    const result = synthesisToEvaluationResult({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-stable-shape",
+        manuscript_id: 101,
+        user_id: "user-abc",
+      },
+    });
+
+    expect(result.schema_version).toBe("evaluation_result_v1");
+    expect(result.overview).toEqual(
+      expect.objectContaining({
+        verdict: expect.any(String),
+        overall_score_0_100: expect.any(Number),
+      }),
+    );
+    expect(Array.isArray(result.criteria)).toBe(true);
+    expect(Array.isArray(result.governance.warnings)).toBe(true);
+    expect(result.governance.warnings.some((w) => w.includes("INCOMPLETE_CRITERIA_SET"))).toBe(true);
   });
 });

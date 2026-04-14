@@ -1,0 +1,56 @@
+=== AUDIT: Pass Runner JSON Parse Brittleness ===
+Issue: https://github.com/Mmeraw/literary-ai-partner/issues/122
+Date: 2026-04-13T22:26:53Z
+
+--- [1] MAX_TOKENS comment/constant mismatches ---
+Looking for files where header comment token count != constant value...
+
+FILE: lib/evaluation/pipeline/runPass2.ts
+  Comments mentioning tokens:
+10: * Max tokens: 4000
+  Constants:
+25:const PASS2_MAX_TOKENS = 4000;
+126:    `max_output_tokens=${PASS2_MAX_TOKENS}` +
+193:  const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, PASS2_MAX_TOKENS);
+241:      maxOutputTokens: PASS2_MAX_TOKENS,
+
+FILE: lib/evaluation/pipeline/runPass1.ts
+  Comments mentioning tokens:
+8: * Max tokens: 4000
+  Constants:
+23:const PASS1_MAX_TOKENS = 2500;
+92:    `max_output_tokens=${PASS1_MAX_TOKENS}` +
+149:  const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, PASS1_MAX_TOKENS);
+197:      maxOutputTokens: PASS1_MAX_TOKENS,
+
+FILE: lib/evaluation/pipeline/runPass3Synthesis.ts
+  Comments mentioning tokens:
+9: * Max tokens: 5000
+  Constants:
+26:const PASS3_MAX_TOKENS = (() => {
+27:  const parsed = Number.parseInt(process.env.EVAL_PASS3_MAX_TOKENS || "9000", 10);
+115:    `max_output_tokens=${PASS3_MAX_TOKENS} pass1_chars=${pass1Chars} pass2_chars=${pass2Chars} ` +
+187:    ...buildOpenAIOutputTokenParam(selectedModel, PASS3_MAX_TOKENS),
+220:      maxOutputTokens: PASS3_MAX_TOKENS,
+
+--- [2] Bare JSON.parse catch-and-throw (no classification) ---
+Files with JSON.parse followed by generic throw (no error class)...
+  OFFENDER: lib/evaluation/pipeline/runPass2.ts:357 -- bare JSON.parse with generic error
+  OFFENDER: lib/evaluation/pipeline/runPass1.ts:298 -- bare JSON.parse with generic error
+  OFFENDER: lib/evaluation/pipeline/runPass3Synthesis.ts:280 -- bare JSON.parse with generic error
+
+--- [3] Missing finish_reason check near parse logic ---
+  OFFENDER: lib/evaluation/pipeline/perplexityCrossCheck.ts -- has JSON.parse but no finish_reason check
+
+--- [4] Missing raw response logging before JSON.parse ---
+  OFFENDER: lib/evaluation/pipeline/runPass2.ts:357 -- no raw response log before JSON.parse
+  OFFENDER: lib/evaluation/pipeline/runPass1.ts:298 -- no raw response log before JSON.parse
+  OFFENDER: lib/evaluation/pipeline/perplexityCrossCheck.ts:391 -- no raw response log before JSON.parse
+  OFFENDER: lib/evaluation/pipeline/runPass3Synthesis.ts:280 -- no raw response log before JSON.parse
+
+--- [5] Missing markdown fence stripping ---
+
+--- [6] response_format: json_object without truncation guard ---
+  OFFENDER: lib/evaluation/pipeline/runPass1.ts -- uses json_object mode but no truncation detection
+
+=== AUDIT COMPLETE ===

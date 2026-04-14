@@ -527,9 +527,17 @@ async function resolveManuscriptText(
 
 export function isManuscriptTextLongEnough(
   text: string,
-  minChars = evalMinManuscriptChars,
+  minWords = evalMinManuscriptWords,
 ): boolean {
-  return text.trim().length >= minChars;
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return minWords <= 0;
+  }
+
+  // Use word-boundary matching rather than split(/\s+/) to avoid overcounting
+  // malformed whitespace-heavy text or undercounting punctuation-dense content.
+  const wordCount = (trimmed.match(/\b\w+\b/g) || []).length;
+  return wordCount >= minWords;
 }
 
 function normalizeCriterionEntry(
@@ -1004,10 +1012,10 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: contentError };
     }
 
-    if (!isManuscriptTextLongEnough(resolvedManuscriptText, evalMinManuscriptChars)) {
+    if (!isManuscriptTextLongEnough(resolvedManuscriptText, evalMinManuscriptWords)) {
       const shortContentError =
-        `Manuscript text too short for reliable evaluation: ${resolvedManuscriptText.trim().length} chars ` +
-        `(minimum ${evalMinManuscriptChars})`;
+        `Manuscript text too short for reliable evaluation: ${resolvedManuscriptText.trim().split(/\s+/).length} words ` +
+        `(minimum ${evalMinManuscriptWords})`;
       await markFailed(shortContentError);
 
       return { success: false, error: shortContentError };
@@ -1053,6 +1061,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       manuscriptText: manuscriptWithContent.content || '',
       workType: manuscriptWithContent.work_type || 'novel',
       title: manuscriptWithContent.title,
+      jobId: String(job.id),
       model: getCanonicalPipelineModel(openAiModel),
       openaiApiKey,
       perplexityApiKey: perplexityApiKey || undefined,
@@ -1068,7 +1077,12 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     );
 
     if (pipelineResult.ok === false) {
-      const pipelineError = `[Pipeline:${pipelineResult.failed_at}] ${pipelineResult.error_code} ${pipelineResult.error}`;
+      const serializedFailureDetails = pipelineResult.failure_details
+        ? JSON.stringify(pipelineResult.failure_details).slice(0, 1500)
+        : null;
+      const pipelineError =
+        `[Pipeline:${pipelineResult.failed_at}] ${pipelineResult.error_code} ${pipelineResult.error}` +
+        (serializedFailureDetails ? ` | failure_details=${serializedFailureDetails}` : "");
       console.error(`[Processor] Pipeline failed for job ${jobId}: ${pipelineError}`);
       await markFailed(pipelineError);
 

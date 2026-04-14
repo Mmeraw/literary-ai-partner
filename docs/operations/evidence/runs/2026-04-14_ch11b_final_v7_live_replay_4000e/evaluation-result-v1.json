@@ -1,0 +1,359 @@
+{
+  "schema_version": "evaluation_result_v1",
+  "ids": {
+    "evaluation_run_id": "phase2_7_real_run_1776176459476",
+    "manuscript_id": 0,
+    "user_id": "phase2.7-real-run"
+  },
+  "generated_at": "2026-04-14T14:20:59.471Z",
+  "engine": {
+    "model": "Convergence and Arbitration Authority",
+    "provider": "openai",
+    "prompt_version": "pass1-craft-v4+pass2-editorial-v4+pass3-synthesis-v3"
+  },
+  "overview": {
+    "verdict": "pass",
+    "overall_score_0_100": 76,
+    "one_paragraph_summary": "The manuscript presents a compelling exploration of environmental degradation and colonial patterns, effectively linking contemporary issues to historical injustices. While there are areas for improvement in character development and pacing, the narrative's strong voice and thematic depth contribute to its overall marketability. Recommendations focus on enhancing emotional engagement and refining exposition to maintain narrative momentum.",
+    "top_3_strengths": [
+      "Compelling thematic exploration",
+      "Distinct narrative voice",
+      "Effective scene construction"
+    ],
+    "top_3_risks": [
+      "Limited character emotional depth",
+      "Pacing issues due to exposition",
+      "Need for clearer market positioning"
+    ]
+  },
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 8,
+      "rationale": "Both passes recognize the concept's strength in linking environmental degradation and colonial patterns, enhancing thematic depth. The decision to maintain a high score reflects the compelling nature of the narrative's exploration of these issues.",
+      "evidence": [
+        {
+          "snippet": "Doesn’t matter if it’s limestone aquifers in the Yucatán or glacier-fed rivers in the Northwest Territories — the language is the same.",
+          "location": {
+            "char_start": 581,
+            "char_end": 663
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider further developing the historical context to enhance the reader's understanding of the ongoing impact of colonialism, as seen in the line about 'the language is the same.'",
+          "expected_impact": "This could deepen the thematic resonance and provide a richer backdrop for the contemporary issues discussed."
+        }
+      ]
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 7,
+      "rationale": "Both evaluations agree on the narrative's tension and urgency, while noting that pacing occasionally stalls due to exposition. The consistent score reflects a balanced view of the narrative's strengths and weaknesses.",
+      "evidence": [
+        {
+          "snippet": "The people on the land pay the highest price.",
+          "location": {
+            "char_start": 888,
+            "char_end": 922
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Introduce more immediate stakes or consequences for the characters involved to enhance the urgency and drive of the narrative, especially in moments of reflection.",
+          "expected_impact": "This would create a stronger sense of immediacy and engagement for the reader."
+        }
+      ]
+    },
+    {
+      "key": "character",
+      "score_0_10": 6,
+      "rationale": "Both passes highlight the limitations in character development, noting that characters serve more as conduits for ideas than fully realized individuals. The score reflects a consensus on the need for deeper emotional engagement.",
+      "evidence": [
+        {
+          "snippet": "Cliff leaned forward, squinting as if proximity could change the words.",
+          "location": {
+            "char_start": 704,
+            "char_end": 748
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Develop Cliff's backstory or personal stakes in the environmental issues discussed to enhance his emotional connection and depth as a character.",
+          "expected_impact": "This would create a more relatable and engaging character for the reader."
+        }
+      ]
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "Both evaluations commend the distinct and authoritative voice that conveys urgency regarding environmental issues. The decision to maintain a high score reflects the effective blend of personal reflection and factual exposition.",
+      "evidence": [
+        {
+          "snippet": "I think it proves the river remembers, and it’s not in the habit of forgiving.",
+          "location": {
+            "char_start": 978,
+            "char_end": 1030
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Maintain the strong voice while ensuring that character perspectives are more integrated into the narrative to enhance emotional engagement.",
+          "expected_impact": "This will strengthen the connection between the voice and the characters' experiences."
+        }
+      ]
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Both passes agree on the effectiveness of scene construction, noting vivid details that ground the reader. The score reflects a consensus on the need for smoother transitions to maintain narrative flow.",
+      "evidence": [
+        {
+          "snippet": "The air smelled faintly of baked dust, cedar, and paper that had been sitting too long in the dark.",
+          "location": {
+            "char_start": 38,
+            "char_end": 98
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Enhance transitions between scenes and reflective passages to improve narrative flow and maintain reader engagement.",
+          "expected_impact": "This will create a more cohesive reading experience."
+        }
+      ]
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 8,
+      "rationale": "Both evaluations praise the dialogue for effectively conveying character perspectives and thematic concerns. The consistent score reflects the potential for deeper emotional resonance through subtext.",
+      "evidence": [
+        {
+          "snippet": "'Acceptable national standards,' he muttered. 'For killing what’s sacred.'",
+          "location": {
+            "char_start": 339,
+            "char_end": 377
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Incorporate more pauses or interruptions in dialogue to reflect emotional weight and enhance subtext.",
+          "expected_impact": "This will deepen the emotional resonance of character interactions."
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "score_0_10": 8,
+      "rationale": "Both passes recognize the thematic richness in exploring environmental degradation and colonialism. The decision to maintain a high score reflects the narrative's ability to provoke thought and reflection.",
+      "evidence": [
+        {
+          "snippet": "The people on the land pay the highest price.",
+          "location": {
+            "char_start": 888,
+            "char_end": 922
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider further developing the historical context to enhance the reader's understanding of the ongoing impact of colonialism, as seen in the line about 'the language is the same.'",
+          "expected_impact": "This could deepen the thematic resonance and provide a richer backdrop for the contemporary issues discussed."
+        }
+      ]
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 7,
+      "rationale": "Both evaluations agree on the effectiveness of worldbuilding, noting the vivid descriptions that create a strong sense of place. The score reflects a consensus on the need for deeper exploration of cultural contexts.",
+      "evidence": [
+        {
+          "snippet": "The air smelled faintly of baked dust, cedar, and paper that had been sitting too long in the dark.",
+          "location": {
+            "char_start": 38,
+            "char_end": 98
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider incorporating more cultural details and local perspectives to enrich the worldbuilding.",
+          "expected_impact": "This will create a more immersive experience for the reader."
+        }
+      ]
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 6,
+      "rationale": "Both passes note that pacing is affected by reflective exposition, which can stall narrative momentum. The score reflects a consensus on the need for more dynamic pacing.",
+      "evidence": [
+        {
+          "snippet": "I’d gone in chasing the Mackenzie Dam’s paper trail",
+          "location": {
+            "char_start": 91,
+            "char_end": 125
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Increase the stakes in the dialogue by incorporating more immediate consequences of the findings, enhancing urgency.",
+          "expected_impact": "This will create a stronger sense of narrative propulsion."
+        }
+      ]
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 7,
+      "rationale": "Both evaluations agree on the clarity and effectiveness of prose, noting that it supports the narrative well. The score reflects a consensus on the need for refinement in certain areas.",
+      "evidence": [
+        {
+          "snippet": "The Mackenzie Dam will do to Robert’s people exactly what the Mayan Train is doing to the Maya",
+          "location": {
+            "char_start": 205,
+            "char_end": 246
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider refining complex sentences for clarity and impact, ensuring that the prose remains accessible.",
+          "expected_impact": "This will enhance reader engagement and understanding."
+        }
+      ]
+    },
+    {
+      "key": "tone",
+      "score_0_10": 8,
+      "rationale": "Both passes commend the tone for effectively conveying urgency and seriousness regarding environmental issues. The decision to maintain a high score reflects the narrative's ability to resonate emotionally.",
+      "evidence": [
+        {
+          "snippet": "'Acceptable national standards,' he muttered. 'For killing what’s sacred.'",
+          "location": {
+            "char_start": 339,
+            "char_end": 377
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Ensure that the tone remains consistent throughout the narrative, reinforcing the urgency of the themes discussed.",
+          "expected_impact": "This will enhance the overall emotional impact of the narrative."
+        }
+      ]
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 7,
+      "rationale": "Both evaluations agree that the narrative closure is effective, leaving the reader with a strong sense of unresolved issues. The score reflects a consensus on the need for a more definitive resolution.",
+      "evidence": [
+        {
+          "snippet": "I think it proves the river remembers, and it’s not in the habit of forgiving.",
+          "location": {
+            "char_start": 978,
+            "char_end": 1030
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider providing a more definitive resolution to the narrative while maintaining thematic depth.",
+          "expected_impact": "This will enhance reader satisfaction and engagement."
+        }
+      ]
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 7,
+      "rationale": "While both passes recognize the manuscript's potential market appeal, the editorial perspective emphasizes its relevance to contemporary environmental discussions. The final score reflects a slight lean towards the editorial axis, acknowledging broader market trends.",
+      "evidence": [
+        {
+          "snippet": "The people on the land pay the highest price.",
+          "location": {
+            "char_start": 888,
+            "char_end": 922
+          }
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Emphasize the contemporary relevance of the themes discussed to enhance market appeal.",
+          "expected_impact": "This will attract a wider audience interested in environmental issues."
+        }
+      ]
+    }
+  ],
+  "recommendations": {
+    "quick_wins": [
+      {
+        "action": "Develop Cliff's backstory or personal stakes in the environmental issues discussed to enhance his emotional connection and depth as a character.",
+        "why": "This would create a more relatable and engaging character for the reader.",
+        "effort": "medium",
+        "impact": "high"
+      }
+    ],
+    "strategic_revisions": [
+      {
+        "action": "Consider further developing the historical context to enhance the reader's understanding of the ongoing impact of colonialism, as seen in the line about 'the language is the same.'",
+        "why": "This could deepen the thematic resonance and provide a richer backdrop for the contemporary issues discussed.",
+        "effort": "medium",
+        "impact": "medium"
+      },
+      {
+        "action": "Introduce more immediate stakes or consequences for the characters involved to enhance the urgency and drive of the narrative, especially in moments of reflection.",
+        "why": "This would create a stronger sense of immediacy and engagement for the reader.",
+        "effort": "medium",
+        "impact": "medium"
+      },
+      {
+        "action": "Maintain the strong voice while ensuring that character perspectives are more integrated into the narrative to enhance emotional engagement.",
+        "why": "This will strengthen the connection between the voice and the characters' experiences.",
+        "effort": "medium",
+        "impact": "medium"
+      },
+      {
+        "action": "Enhance transitions between scenes and reflective passages to improve narrative flow and maintain reader engagement.",
+        "why": "This will create a more cohesive reading experience.",
+        "effort": "medium",
+        "impact": "medium"
+      },
+      {
+        "action": "Incorporate more pauses or interruptions in dialogue to reflect emotional weight and enhance subtext.",
+        "why": "This will deepen the emotional resonance of character interactions.",
+        "effort": "medium",
+        "impact": "medium"
+      }
+    ]
+  },
+  "metrics": {
+    "manuscript": {},
+    "processing": {}
+  },
+  "artifacts": [],
+  "governance": {
+    "confidence": 0.85,
+    "warnings": [],
+    "limitations": [
+      "Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"
+    ],
+    "policy_family": "multi-pass-dual-axis"
+  }
+}

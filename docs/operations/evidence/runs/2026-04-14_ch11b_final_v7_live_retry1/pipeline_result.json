@@ -1,0 +1,6 @@
+{
+  "ok": false,
+  "error": "Pass 1 timed out after 60000ms",
+  "error_code": "PASS1_TIMEOUT",
+  "failed_at": "pass1"
+}

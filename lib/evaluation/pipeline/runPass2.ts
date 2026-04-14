@@ -27,6 +27,10 @@ const PASS2_MAX_TOKENS = 4000;
 const PASS2_MODEL = "o3";
 const OPENAI_TIMEOUT_MS = getEvalOpenAiTimeoutMs();
 
+function nowMs(): number {
+  return Date.now();
+}
+
 type CompletionChoice = {
   message?: {
     content?: unknown;
@@ -101,7 +105,7 @@ export type CreateCompletionFn = (params: {
   max_tokens?: number;
   max_completion_tokens?: number;
   response_format: { type: string };
-}) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage }>;
+}) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage; id?: string; request_id?: string }>;
 
 export interface RunPass2Options {
   /**
@@ -115,6 +119,8 @@ export interface RunPass2Options {
   registry: CanonRegistry;
   model?: string;
   openaiApiKey?: string;
+  manuscriptId?: string;
+  jobId?: string;
   /** Override the completion function (for testing). Production callers omit this. */
   _createCompletion?: CreateCompletionFn;
   _onCompletion?: (capture: PassCompletionCapture) => void;
@@ -130,6 +136,8 @@ export interface RunPass2Options {
  * Throws on OpenAI error or unparseable response.
  */
 export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput> {
+  const passStartMs = nowMs();
+
   if (!opts.registry || opts.registry.size === 0) {
     throw new Error("[Pass2] Canonical registry binding missing");
   }
@@ -137,15 +145,28 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
   const selectedModel = getCanonicalPipelineModel(opts.model ?? PASS2_MODEL);
 
+  const promptAssemblyStartMs = nowMs();
+
   const userPrompt = buildPass2UserPrompt({
     manuscriptText: opts.manuscriptText,
     workType: opts.workType,
     title: opts.title,
     executionMode: opts.executionMode,
   });
+  const promptAssemblyMs = nowMs() - promptAssemblyStartMs;
+  const inputChars = opts.manuscriptText.length;
+
+  const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, PASS2_MAX_TOKENS);
+  const configuredMaxTokens =
+    typeof (outputTokenParam as { max_completion_tokens?: unknown }).max_completion_tokens === "number"
+      ? Number((outputTokenParam as { max_completion_tokens: number }).max_completion_tokens)
+      : typeof (outputTokenParam as { max_tokens?: unknown }).max_tokens === "number"
+      ? Number((outputTokenParam as { max_tokens: number }).max_tokens)
+      : null;
 
   console.log(`[Pass2] completion request model=${selectedModel}`);
 
+  const modelCallStartMs = nowMs();
   const completion = await createCompletion({
     model: selectedModel,
     messages: [
@@ -153,9 +174,12 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
       { role: "user", content: userPrompt },
     ],
     ...buildOpenAITemperatureParam(selectedModel, PASS2_TEMPERATURE),
-    ...buildOpenAIOutputTokenParam(selectedModel, PASS2_MAX_TOKENS),
+    ...outputTokenParam,
     response_format: { type: "json_object" },
   });
+  const modelCallMs = nowMs() - modelCallStartMs;
+
+  const parseValidationStartMs = nowMs();
 
   const firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
   const rawContent = firstChoice?.message?.content;
@@ -184,6 +208,24 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
       refusal:
         typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined,
     });
+    const parseValidationMs = nowMs() - parseValidationStartMs;
+    const totalMs = nowMs() - passStartMs;
+    console.log("[Pass2][Timing]", {
+      stage: "failure",
+      model: selectedModel,
+      input_chars: inputChars,
+      output_chars: responseText.length,
+      prompt_assembly_ms: promptAssemblyMs,
+      model_call_ms: modelCallMs,
+      parse_validation_ms: parseValidationMs,
+      total_ms: totalMs,
+      configured_timeout_ms: OPENAI_TIMEOUT_MS,
+      configured_max_tokens: configuredMaxTokens,
+      usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
+      usage_completion_tokens: completion.usage?.completion_tokens ?? null,
+      usage_total_tokens: completion.usage?.total_tokens ?? null,
+      error: "empty_response",
+    });
     throw new Error(diagnosticMessage);
   }
 
@@ -203,10 +245,65 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     raw_text: responseText,
     model: selectedModel,
     usage: completion.usage,
+    finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined,
+    request_id:
+      typeof (completion as { request_id?: unknown }).request_id === "string"
+        ? (completion as { request_id: string }).request_id
+        : typeof (completion as { id?: unknown }).id === "string"
+        ? (completion as { id: string }).id
+        : undefined,
     generated_at: new Date().toISOString(),
   });
 
-  return parsePass2Response(responseText, selectedModel);
+  const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
+  const requestId =
+    typeof (completion as { request_id?: unknown }).request_id === "string"
+      ? (completion as { request_id: string }).request_id
+      : typeof (completion as { id?: unknown }).id === "string"
+      ? (completion as { id: string }).id
+      : undefined;
+
+  let parsedOutput: SinglePassOutput;
+  try {
+    parsedOutput = parsePass2Response(responseText, selectedModel);
+  } catch (error) {
+    console.error("[Pass2] Parse boundary diagnostic", {
+      job_id: opts.jobId ?? null,
+      manuscript_id: opts.manuscriptId ?? null,
+      title: opts.title,
+      model: selectedModel,
+      request_id: requestId ?? null,
+      finish_reason: finishReason,
+      usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
+      usage_completion_tokens: completion.usage?.completion_tokens ?? null,
+      usage_total_tokens: completion.usage?.total_tokens ?? null,
+      output_chars: responseText.length,
+      raw_head: responseText.slice(0, 1000),
+      raw_tail: responseText.slice(-500),
+      error_message: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+  const parseValidationMs = nowMs() - parseValidationStartMs;
+  const totalMs = nowMs() - passStartMs;
+
+  console.log("[Pass2][Timing]", {
+    stage: "success",
+    model: selectedModel,
+    input_chars: inputChars,
+    output_chars: responseText.length,
+    prompt_assembly_ms: promptAssemblyMs,
+    model_call_ms: modelCallMs,
+    parse_validation_ms: parseValidationMs,
+    total_ms: totalMs,
+    configured_timeout_ms: OPENAI_TIMEOUT_MS,
+    configured_max_tokens: configuredMaxTokens,
+    usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
+    usage_completion_tokens: completion.usage?.completion_tokens ?? null,
+    usage_total_tokens: completion.usage?.total_tokens ?? null,
+  });
+
+  return parsedOutput;
 }
 
 /**

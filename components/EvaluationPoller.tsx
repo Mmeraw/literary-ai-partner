@@ -71,7 +71,9 @@ export function EvaluationPoller({
       const unchangedDelayMultiplier =
         unchangedCount >= 10 ? 6 : unchangedCount >= 5 ? 3 : unchangedCount >= 2 ? 2 : 1;
       const networkDelayMultiplier = networkErrorCount >= 2 ? 2 : 1;
-      return Math.min(base * unchangedDelayMultiplier * networkDelayMultiplier, 10000);
+      // Keep completion visibility snappy: avoid long drift on unchanged snapshots.
+      // This controls UI freshness, not backend pipeline runtime.
+      return Math.min(base * unchangedDelayMultiplier * networkDelayMultiplier, 4000);
     },
     [refreshInterval]
   );
@@ -127,7 +129,10 @@ export function EvaluationPoller({
         headers['x-user-id'] = userId;
       }
 
-      const res = await fetch(`/api/jobs/${jobId}`, { headers });
+      const res = await fetch(`/api/jobs/${jobId}`, {
+        headers,
+        cache: 'no-store',
+      });
       setPollCount((c) => c + 1);
 
       if (!res.ok) {
