@@ -1,0 +1,587 @@
+{
+  "ok": true,
+  "synthesis": {
+    "criteria": [
+      {
+        "key": "concept",
+        "craft_score": 8,
+        "editorial_score": 8,
+        "final_score_0_10": 8,
+        "score_delta": 0,
+        "final_rationale": "Both passes recognize the concept's strength in exploring colonialism's impact on Indigenous lands through the parallels between the Mayan Train and the Mackenzie Dam. The thematic depth is compelling, and both evaluations suggest enhancing emotional engagement and historical context to deepen the narrative's stakes.",
+        "pressure_points": [
+          "The thematic parallels between the Mayan Train and the Mackenzie Dam highlight systemic exploitation."
+        ],
+        "decision_points": [
+          "Maintain the strong thematic exploration while considering deeper historical context."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "The Mackenzie Dam will do to Robert’s people exactly what the Mayan Train is doing to the Maya",
+            "char_start": 193,
+            "char_end": 223
+          }
+        ],
+        "recommendations": [
+          {
+            "priority": "medium",
+            "action": "Further clarify the stakes involved for both Indigenous communities to enhance emotional engagement, particularly around the consequences of these developments.",
+            "expected_impact": "This will deepen reader investment in the narrative's stakes.",
+            "anchor_snippet": "The Mackenzie Dam will do to Robert’s people exactly what the Mayan Train is doing to the Maya",
+            "source_pass": 1
+          },
+          {
+            "priority": "medium",
+            "action": "Consider deepening the historical context to further enrich the concept's layers, particularly around the colonial legacy.",
+            "expected_impact": "This would enhance the thematic depth and resonate more with readers interested in historical parallels.",
+            "anchor_snippet": "Go back centuries. Colonial period — hacienda owners and Spanish encomenderos manipulating Indigenous leaders",
+            "source_pass": 2
+          }
+        ]
+      },
+      {
+        "key": "narrativeDrive",
+        "craft_score": 7,
+        "editorial_score": 7,
+        "final_score_0_10": 7,
+        "score_delta": 0,
+        "final_rationale": "Both evaluations agree that the narrative maintains a strong drive through escalating tension, though they note occasional stalls in pacing due to exposition. The recommendation to integrate more immediate stakes is consistent across both passes.",
+        "pressure_points": [
+          "The protagonist uncovers parallels between the two projects."
+        ],
+        "decision_points": [
+          "Integrate more immediate stakes or consequences related to the protagonist's findings."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "They’re cutting a rail line through the jungle",
+            "char_start": 90,
+            "char_end": 120
+          }
+        ],
+        "recommendations": [
+          {
+            "priority": "medium",
+            "action": "Integrate more active conflict or immediate stakes within the protagonist's investigation to maintain narrative momentum and urgency.",
+            "expected_impact": "This will enhance the overall pacing and engagement of the narrative.",
+            "anchor_snippet": "I’d gone in chasing the Mackenzie Dam’s paper trail",
+            "source_pass": 1
+          },
+          {
+            "priority": "medium",
+            "action": "Integrate more immediate stakes or consequences related to the protagonist's findings to maintain narrative momentum.",
+            "expected_impact": "This would enhance urgency and keep readers more engaged with the unfolding drama.",
+            "anchor_snippet": "It’s not new. Go back centuries.",
+            "source_pass": 2
+          }
+        ]
+      },
+      {
+        "key": "character",
+        "craft_score": 6,
+        "editorial_score": 6,
+        "final_score_0_10": 6,
+        "score_delta": 0,
+        "final_rationale": "Both passes highlight that characterization is primarily thematic, with characters serving as vehicles for the narrative rather than having deep personal stakes. The recommendation to develop backstories or emotional stakes is consistent.",
+        "pressure_points": [
+          "Characterization is primarily conveyed through dialogue and exposition."
+        ],
+        "decision_points": [
+          "Develop the characters' backstories or motivations further."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "Cliff grunted. 'Sounds familiar.'",
+            "char_start": 135,
+            "char_end": 156
+          }
+        ],
+        "recommendations": [
+          {
+            "priority": "high",
+            "action": "Develop the characters' backstories or emotional stakes related to the environmental issues to create more relatable and dynamic interactions.",
+            "expected_impact": "This will foster deeper connections between the characters and the reader.",
+            "anchor_snippet": "Cliff grunted. 'Sounds familiar.'",
+            "source_pass": 1
+          },
+          {
+            "priority": "high",
+            "action": "Develop the characters' backstories or motivations further to create emotional stakes that resonate with their dialogue.",
+            "expected_impact": "This would add depth to their interactions and enhance reader investment in their journey.",
+            "anchor_snippet": "Cliff leaned forward, squinting as if proximity could change the words.",
+            "source_pass": 2
+          }
+        ]
+      },
+      {
+        "key": "voice",
+        "craft_score": 8,
+        "editorial_score": 9,
+        "final_score_0_10": 8,
+        "score_delta": 1,
+        "final_rationale": "The voice is distinct and reflective, effectively conveying the protagonist's insights. While both passes appreciate the voice's strength, the editorial pass rates it slightly higher due to its evocative nature. The recommendation to maintain consistency in tone is shared.",
+        "pressure_points": [
+          "The narrative voice effectively conveys the gravity of the issues discussed."
+        ],
+        "decision_points": [
+          "Maintain this strong voice throughout by ensuring consistency in tone and style."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "the river remembers, and it’s not in the habit of forgiving",
+            "char_start": 678,
+            "char_end": 710
+          }
+        ],
+        "recommendations": [
+          {
+            "priority": "low",
+            "action": "Consider varying the narrative voice slightly to include more personal reflections or emotional responses to enhance relatability.",
+            "expected_impact": "This will create a more nuanced voice that resonates with readers.",
+            "anchor_snippet": "It’s not in the habit of forgiving.",
+            "source_pass": 1
+          },
+          {
+            "priority": "low",
+            "action": "Maintain this strong voice throughout by ensuring consistency in tone and style in future chapters.",
+            "expected_impact": "This will preserve the compelling nature of the narrative and keep readers engaged.",
+            "anchor_snippet": "the river remembers, and it’s not in the habit of forgiving.",
+            "source_pass": 2
+          }
+        ]
+      },
+      {
+        "key": "sceneConstruction",
+        "craft_score": 7,
+        "editorial_score": 7,
+        "final_score_0_10": 7,
+        "score_delta": 0,
+        "final_rationale": "Both passes agree that scenes are well-constructed with vivid details, but note that some transitions feel abrupt. The recommendation to enhance transitions is consistent across both evaluations.",
+        "pressure_points": [
+          "Scenes are generally well-constructed, with vivid descriptions."
+        ],
+        "decision_points": [
+          "Enhance transitions between scenes."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "I switched windows on the laptop",
+            "char_start": 737,
+            "char_end": 763
+          }
+        ],
+        "recommendations": [
+          {
+            "priority": "medium",
+            "action": "Enhance transitions between scenes by providing more connective tissue or reflections that guide the reader through shifts in focus.",
+            "expected_impact": "This will improve overall narrative flow and coherence.",
+            "anchor_snippet": "I switched windows on the laptop",
+            "source_pass": 1
+          },
+          {
+            "priority": "medium",
+            "action": "Smooth transitions between dialogue and exposition to enhance the overall flow and maintain reader immersion.",
+            "expected_impact": "This will create a more cohesive reading experience and strengthen scene engagement.",
+            "anchor_snippet": "The electric heater popped in the corner.",
+            "source_pass": 2
+          }
+        ]
+      },
+      {
+        "key": "dialogue",
+        "craft_score": 8,
+        "editorial_score": 8,
+        "final_score_0_10": 8,
+        "score_delta": 0,
+        "final_rationale": "Both passes agree that dialogue effectively conveys character perspectives and advances the plot. However, they suggest incorporating more emotional resonance and subtext, which aligns with the overall thematic depth.",
+        "pressure_points": [
+          "Dialogue effectively conveys character perspectives and advances the plot."
+        ],
+        "decision_points": [
+          "Incorporate more subtext in dialogue."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "‘Acceptable national standards,’ he muttered. 'For killing what’s sacred.'",
+            "char_start": 721,
+            "char_end": 757
+          }
+        ],
+        "recommendations": [
+          {
+            "priority": "low",
+            "action": "Incorporate more subtext in dialogue to reveal character motivations and emotional stakes.",
+            "expected_impact": "This will deepen character interactions and enhance thematic depth.",
+            "anchor_snippet": "‘Acceptable national standards,’ he muttered. 'For killing what’s sacred.'",
+            "source_pass": 1
+          },
+          {
+            "priority": "medium",
+            "action": "Infuse dialogue with more emotional resonance to enhance character depth and thematic impact.",
+            "expected_impact": "This will create a stronger connection between characters and readers.",
+            "anchor_snippet": "‘Acceptable national standards,’ he muttered. ‘For killing what’s sacred.’",
+            "source_pass": 2
+          }
+        ]
+      },
+      {
+        "key": "theme",
+        "craft_score": 8,
+        "editorial_score": 8,
+        "final_score_0_10": 8,
+        "score_delta": 0,
+        "final_rationale": "Both passes recognize the thematic exploration of colonialism and environmental exploitation as a strength. The recommendations to deepen emotional engagement and historical context align well with the overall thematic depth.",
+        "pressure_points": [
+          "The chapter presents a compelling exploration of colonialism's ongoing impact on Indigenous lands."
+        ],
+        "decision_points": [
+          "Consider enhancing emotional engagement and historical context."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "the language is the same. The mitigation’s the same. The result’s the same.",
+            "char_start": 474,
+            "char_end": 508
+          }
+        ],
+        "recommendations": []
+      },
+      {
+        "key": "worldbuilding",
+        "craft_score": 7,
+        "editorial_score": 7,
+        "final_score_0_10": 7,
+        "score_delta": 0,
+        "final_rationale": "Both passes agree that the worldbuilding is effective in establishing the settings and contexts of the Mayan Train and Mackenzie Dam. The recommendations to enhance sensory details and cultural context are consistent.",
+        "pressure_points": [
+          "The settings are vividly described, contributing to the narrative's immersive quality."
+        ],
+        "decision_points": [
+          "Enhance sensory details and cultural context."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "The air smelled faintly of baked dust, cedar, and paper that had been sitting too long in the dark.",
+            "char_start": 0,
+            "char_end": 82
+          }
+        ],
+        "recommendations": [
+          {
+            "priority": "medium",
+            "action": "Enhance sensory details to create a more immersive experience for the reader.",
+            "expected_impact": "This will deepen reader engagement with the world and its cultural significance.",
+            "anchor_snippet": "The air smelled faintly of baked dust, cedar, and paper that had been sitting too long in the dark.",
+            "source_pass": 1
+          },
+          {
+            "priority": "medium",
+            "action": "Consider incorporating more cultural context to enrich the worldbuilding and deepen reader understanding.",
+            "expected_impact": "This will enhance the thematic depth and resonate more with readers interested in cultural narratives.",
+            "anchor_snippet": "The air smelled faintly of baked dust, cedar, and paper that had been sitting too long in the dark.",
+            "source_pass": 2
+          }
+        ]
+      },
+      {
+        "key": "pacing",
+        "craft_score": 7,
+        "editorial_score": 6,
+        "final_score_0_10": 7,
+        "score_delta": 1,
+        "final_rationale": "The craft evaluation rates pacing slightly higher, noting that while there are moments of stalling, the overall pacing is effective. The editorial pass highlights some pacing issues, particularly with exposition. The final score reflects a more favorable view from the craft perspective.",
+        "pressure_points": [
+          "Some sections feel more expository than action-oriented."
+        ],
+        "decision_points": [
+          "Focus on maintaining a balance between exposition and action."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "I’d gone in chasing the Mackenzie Dam’s paper trail",
+            "char_start": 156,
+            "char_end": 186
+          }
+        ],
+        "recommendations": [
+          {
+            "priority": "medium",
+            "action": "Focus on balancing exposition with action to maintain narrative momentum.",
+            "expected_impact": "This will enhance reader engagement and prevent pacing stalls.",
+            "anchor_snippet": "They’re cutting a rail line through the jungle.",
+            "source_pass": 2
+          }
+        ]
+      },
+      {
+        "key": "proseControl",
+        "craft_score": 8,
+        "editorial_score": 8,
+        "final_score_0_10": 8,
+        "score_delta": 0,
+        "final_rationale": "Both evaluations agree that prose control is strong, with clear and evocative language. The recommendations to maintain clarity and avoid overly complex sentences are consistent.",
+        "pressure_points": [
+          "The language is clear and evocative, enhancing reader engagement."
+        ],
+        "decision_points": [
+          "Maintain clarity and avoid overly complex sentences."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "The electric heater popped in the corner, a sharp metallic tick that seemed to echo longer than it should have.",
+            "char_start": 0,
+            "char_end": 116
+          }
+        ],
+        "recommendations": [
+          {
+            "priority": "medium",
+            "action": "Ensure clarity in prose while maintaining evocative language to enhance reader engagement.",
+            "expected_impact": "This will keep readers immersed in the narrative.",
+            "anchor_snippet": "The electric heater popped in the corner, a sharp metallic tick that seemed to echo longer than it should have.",
+            "source_pass": 1
+          },
+          {
+            "priority": "medium",
+            "action": "Maintain clarity and avoid overly complex sentences to ensure reader comprehension.",
+            "expected_impact": "This will enhance the overall readability of the narrative.",
+            "anchor_snippet": "The electric heater popped in the corner, a sharp metallic tick that seemed to echo longer than it should have.",
+            "source_pass": 2
+          }
+        ]
+      },
+      {
+        "key": "tone",
+        "craft_score": 8,
+        "editorial_score": 8,
+        "final_score_0_10": 8,
+        "score_delta": 0,
+        "final_rationale": "Both passes agree that the tone is appropriate for the serious subject matter and effectively conveys the gravity of the issues discussed. The recommendations to maintain this tone are consistent.",
+        "pressure_points": [
+          "The tone aligns well with the serious subject matter."
+        ],
+        "decision_points": [
+          "Maintain the serious tone throughout."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "the river remembers, and it’s not in the habit of forgiving",
+            "char_start": 678,
+            "char_end": 710
+          }
+        ],
+        "recommendations": [
+          {
+            "priority": "medium",
+            "action": "Ensure the tone remains consistent and serious throughout the narrative.",
+            "expected_impact": "This will enhance the overall impact of the themes presented.",
+            "anchor_snippet": "the river remembers, and it’s not in the habit of forgiving.",
+            "source_pass": 1
+          },
+          {
+            "priority": "medium",
+            "action": "Maintain the serious tone throughout by ensuring consistency in tone and style in future chapters.",
+            "expected_impact": "This will preserve the compelling nature of the narrative and keep readers engaged.",
+            "anchor_snippet": "the river remembers, and it’s not in the habit of forgiving.",
+            "source_pass": 2
+          }
+        ]
+      },
+      {
+        "key": "narrativeClosure",
+        "craft_score": 7,
+        "editorial_score": 7,
+        "final_score_0_10": 7,
+        "score_delta": 0,
+        "final_rationale": "Both evaluations agree that the narrative closure is effective, providing a sense of resolution while leaving room for further exploration. The recommendations to enhance closure are consistent.",
+        "pressure_points": [
+          "The narrative provides a sense of resolution while leaving room for further exploration."
+        ],
+        "decision_points": [
+          "Consider enhancing closure to provide more definitive resolutions."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "I think it proves the river remembers, and it’s not in the habit of forgiving.",
+            "char_start": 678,
+            "char_end": 710
+          }
+        ],
+        "recommendations": [
+          {
+            "priority": "medium",
+            "action": "Consider enhancing closure to provide more definitive resolutions while maintaining thematic depth.",
+            "expected_impact": "This will strengthen the narrative's impact and reader satisfaction.",
+            "anchor_snippet": "I think it proves the river remembers, and it’s not in the habit of forgiving.",
+            "source_pass": 1
+          },
+          {
+            "priority": "medium",
+            "action": "Ensure that the narrative closure resonates with the themes presented throughout the chapter.",
+            "expected_impact": "This will enhance reader satisfaction and thematic coherence.",
+            "anchor_snippet": "I think it proves the river remembers, and it’s not in the habit of forgiving.",
+            "source_pass": 2
+          }
+        ]
+      },
+      {
+        "key": "marketability",
+        "craft_score": 7,
+        "editorial_score": 6,
+        "final_score_0_10": 7,
+        "score_delta": 1,
+        "final_rationale": "The craft evaluation rates marketability slightly higher, noting the compelling themes and narrative style. The editorial pass is more cautious, suggesting potential challenges in appealing to a broader audience. The final score reflects a more favorable view from the craft perspective.",
+        "pressure_points": [
+          "The themes of environmental justice and colonialism are timely and relevant."
+        ],
+        "decision_points": [
+          "Focus on enhancing accessibility for a broader audience."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "The themes of environmental justice and colonialism are timely and relevant.",
+            "char_start": 0,
+            "char_end": 80
+          }
+        ],
+        "recommendations": [
+          {
+            "priority": "medium",
+            "action": "Consider strategies to enhance accessibility for a broader audience while maintaining thematic depth.",
+            "expected_impact": "This will increase the manuscript's appeal and marketability.",
+            "anchor_snippet": "The themes of environmental justice and colonialism are timely and relevant.",
+            "source_pass": 1
+          },
+          {
+            "priority": "medium",
+            "action": "Focus on enhancing accessibility for a broader audience to improve marketability.",
+            "expected_impact": "This will increase the manuscript's appeal and reach.",
+            "anchor_snippet": "The themes of environmental justice and colonialism are timely and relevant.",
+            "source_pass": 2
+          }
+        ]
+      }
+    ],
+    "overall": {
+      "overall_score_0_100": 76,
+      "verdict": "pass",
+      "one_paragraph_summary": "The manuscript presents a compelling exploration of colonialism's impact on Indigenous lands through the lens of environmental issues. While the narrative maintains strong drive and thematic depth, there are opportunities to enhance character development, pacing, and accessibility for broader market appeal. Overall, the work is well-crafted and timely, warranting a pass.",
+      "top_3_strengths": [
+        "Compelling thematic exploration of colonialism and environmental justice",
+        "Distinct and reflective narrative voice",
+        "Strong prose control and scene construction"
+      ],
+      "top_3_risks": [
+        "Lack of deep personal stakes in character development",
+        "Pacing issues related to exposition",
+        "Potential challenges in marketability due to accessibility concerns"
+      ]
+    },
+    "metadata": {
+      "pass1_model": "Craft Execution",
+      "pass2_model": "Editorial/Literary Insight",
+      "pass3_model": "Convergence and Arbitration Authority",
+      "generated_at": "2026-04-14T22:41:25.618Z"
+    },
+    "partial_evaluation": false,
+    "coverage_scope": {
+      "sourceChars": 6612,
+      "sourceWords": 1002,
+      "analyzedChars": 6612,
+      "analyzedWords": 1002,
+      "strategy": "full_text"
+    }
+  },
+  "quality_gate": {
+    "pass": true,
+    "checks": [
+      {
+        "check_id": "criteria_complete",
+        "passed": true,
+        "details": "All 13 criteria present"
+      },
+      {
+        "check_id": "score_range",
+        "passed": true,
+        "details": "All scores in valid range"
+      },
+      {
+        "check_id": "consequence_contract",
+        "passed": true,
+        "details": "All criteria include pressure_points, decision_points, consequence_status, and deferred risk when required"
+      },
+      {
+        "check_id": "no_generic_recs",
+        "passed": true,
+        "details": "All recommendations have anchor_snippet"
+      },
+      {
+        "check_id": "rec_min_length",
+        "passed": true,
+        "details": "All recommendations ≥ 50 chars"
+      },
+      {
+        "check_id": "rec_max_length",
+        "passed": true,
+        "details": "All recommendations ≤ 300 chars"
+      },
+      {
+        "check_id": "evidence_length",
+        "passed": true,
+        "details": "All evidence excerpts ≤ 200 chars"
+      },
+      {
+        "check_id": "overview_length",
+        "passed": true,
+        "details": "Overview: 373 chars (max 500)"
+      },
+      {
+        "check_id": "no_duplicate_recs",
+        "passed": true,
+        "details": "No duplicated recommendations"
+      },
+      {
+        "check_id": "rationale_coverage",
+        "passed": true,
+        "details": "All criteria have substantive rationale (≥ 40 chars)"
+      },
+      {
+        "check_id": "placeholder_rationale",
+        "passed": true,
+        "details": "No known placeholder rationale patterns detected"
+      },
+      {
+        "check_id": "evidence_coverage",
+        "passed": true,
+        "details": "All criteria have substantive evidence"
+      },
+      {
+        "check_id": "required_evidence_spine",
+        "passed": true,
+        "details": "All required spine criteria include substantive evidence"
+      },
+      {
+        "check_id": "pass_independence",
+        "passed": true,
+        "details": "Pass 1 / Pass 2 independence confirmed (n=8)"
+      }
+    ],
+    "warnings": []
+  },
+  "pass4_governance": {
+    "ok": true
+  }
+}
