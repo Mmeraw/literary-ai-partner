@@ -6,6 +6,12 @@ import { getChunksForJob } from "@/lib/manuscripts/chunks";
 import { JOB_STATUS, PHASES } from "./types";
 import { writeArtifact, ARTIFACT_TYPES } from "@/lib/artifacts/writeArtifact";
 import type { ReportContent, Credibility, RubricAxis } from "@/lib/evaluation/report-types";
+import { checkPhase1GateForJob } from "@/lib/evaluation/pipeline/gatePhase2OnPhase1";
+import { getLeaseTimeoutSeconds } from "./config";
+
+const PHASE2_LEASE_TIMEOUT_SECONDS = getLeaseTimeoutSeconds();
+
+const LEGACY_PHASE2_RUNTIME_ENABLED = process.env.ENABLE_LEGACY_PHASE2_RUNTIME === "1";
 
 export const PHASE_2_STATES = {
   NOT_STARTED: "not_started",
@@ -332,6 +338,13 @@ async function persistOutput(
 }
 
 export async function runPhase2(jobId: string): Promise<void> {
+  if (!LEGACY_PHASE2_RUNTIME_ENABLED) {
+    throw new Error(
+      "Legacy lib/jobs/phase2 runtime is disabled. Canonical execution is processor -> runPipeline. " +
+      "Set ENABLE_LEGACY_PHASE2_RUNTIME=1 only for controlled migration use.",
+    );
+  }
+
   const phase2Start = Date.now();
 
   let job = await getJob(jobId);
@@ -339,7 +352,14 @@ export async function runPhase2(jobId: string): Promise<void> {
     throw new Error("Job not found");
   }
 
-  const { acquireLeaseForPhase2 } = await import("./store");
+      // -- EG: Fail-closed gate - block Phase 2 if Phase 1 rejected any chunk --
+    const gateOk = await checkPhase1GateForJob(jobId);
+    if (!gateOk) {
+      console.log('[Phase2] BLOCKED by evaluation gate - Phase 1 rejection detected', { job_id: jobId });
+      return;
+    }
+
+    const { acquireLeaseForPhase2 } = await import("./store");
   const leaseId = crypto.randomUUID();
 
   console.log(`[Phase2] Attempting lease acquire`, {
@@ -351,7 +371,7 @@ export async function runPhase2(jobId: string): Promise<void> {
     lease_expires_at: job.progress.lease_expires_at,
   });
 
-  const leasedJob = await acquireLeaseForPhase2(jobId, leaseId, 30);
+    const leasedJob = await acquireLeaseForPhase2(jobId, leaseId, PHASE2_LEASE_TIMEOUT_SECONDS);
   if (!leasedJob) {
     console.log("Phase2LeaseNotAcquired", {
       job_id: jobId,

@@ -19,6 +19,12 @@ export interface CriterionScore {
  * These states are determined by weighted composite score (WCS) bands.
  */
 export type ReadinessState = "FOUNDATIONAL" | "DEVELOPING" | "REFINEMENT_ELIGIBLE" | "AGENT_READY";
+/**
+ * Evaluation validity state (from EG Validator Layer).
+ * VALID: all gates passed. INVALID: one or more gates failed.
+ * DISPUTED: manual override of an INVALID result.
+ */
+export type ValidityState = "VALID" | "INVALID" | "DISPUTED";
 
 /**
  * Result of evaluating the eligibility gate.
@@ -43,5 +49,6 @@ export interface EvaluationEnvelope {
   weighted_composite_score?: number;
   eligibility_gate?: "PASS" | "BLOCK";
   readiness_state?: ReadinessState;
+  validity_state?: ValidityState;
   evaluation_artifacts?: Record<string, unknown>;
 }

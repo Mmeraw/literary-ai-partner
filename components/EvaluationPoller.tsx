@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getProgressDisplay } from '@/components/evaluation-poller-display';
 import { useRouter } from 'next/navigation';
 
 /**
@@ -26,23 +27,27 @@ export interface JobState {
 
 interface PollerProps {
   jobId: string;
+  initialJob?: JobState | null;
   userId?: string;
   onComplete?: (job: JobState, isSuccess: boolean) => void;
   refreshInterval?: number; // ms, default 1500
   redirectOnComplete?: boolean;
   redirectDelayMs?: number;
+  refreshOnComplete?: boolean;
 }
 
 export function EvaluationPoller({
   jobId,
+  initialJob = null,
   userId,
   onComplete,
   refreshInterval = 1500,
   redirectOnComplete = false,
   redirectDelayMs,
+  refreshOnComplete = false,
 }: PollerProps) {
   const router = useRouter();
-  const [job, setJob] = useState<JobState | null>(null);
+  const [job, setJob] = useState<JobState | null>(initialJob);
   const [error, setError] = useState<string | null>(null);
   const [transientError, setTransientError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(true);
@@ -54,6 +59,7 @@ export function EvaluationPoller({
   const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const redirectCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const redirectDeadlineRef = useRef<number | null>(null);
+  const refreshedRef = useRef(false);
   const fetchJobRef = useRef<(() => Promise<void>) | null>(null);
   const unchangedCountRef = useRef(0);
   const networkErrorCountRef = useRef(0);
@@ -181,6 +187,13 @@ export function EvaluationPoller({
                 navigateToReport();
               }, resolvedRedirectDelayMs);
             }
+          } else if (
+            data.job.status === 'complete' &&
+            refreshOnComplete &&
+            !refreshedRef.current
+          ) {
+            refreshedRef.current = true;
+            router.refresh();
           }
 
           onComplete?.(data.job, data.job.status === 'complete');
@@ -272,7 +285,7 @@ export function EvaluationPoller({
   }, [fetchJob, isPolling]);
 
   useEffect(() => {
-    setJob(null);
+    setJob(initialJob);
     setError(null);
     setTransientError(null);
     setIsPolling(true);
@@ -282,6 +295,7 @@ export function EvaluationPoller({
     unchangedCountRef.current = 0;
     networkErrorCountRef.current = 0;
     redirectedRef.current = false;
+    refreshedRef.current = false;
     if (redirectTimeoutRef.current) {
       clearTimeout(redirectTimeoutRef.current);
       redirectTimeoutRef.current = null;
@@ -291,7 +305,7 @@ export function EvaluationPoller({
       redirectCountdownIntervalRef.current = null;
     }
     redirectDeadlineRef.current = null;
-  }, [jobId, userId, refreshInterval]);
+  }, [initialJob, jobId, userId, refreshInterval]);
 
   const formatUserSafeError = (value: string) =>
     value.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 600);
@@ -343,21 +357,26 @@ export function EvaluationPoller({
           <p className={`text-lg font-semibold ${statusColor}`}>{statusLabel}</p>
         </div>
 
-        {/* Progress Bar */}
-        {job.status !== 'queued' && job.status !== 'complete' && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-700">Progress</p>
-              <p className="text-sm text-gray-600">{job.progress}%</p>
+                {/* Progress Bar */}
+        {(() => {
+          const pd = getProgressDisplay(job);
+          if (!pd) return null;
+          return (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-gray-700">{pd.label}</p>
+                <p className="text-sm text-gray-600">{pd.valueLabel}</p>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-300 ${pd.indeterminate ? 'bg-gray-400 animate-pulse' : 'bg-blue-600'}`}
+                  style={{ width: pd.indeterminate ? '100%' : `${pd.percentage}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-500">{pd.helperText}</p>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${job.progress}%` }}
-              />
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Timestamps */}
         <div className="grid grid-cols-2 gap-4 text-sm">

@@ -163,6 +163,33 @@ fi
 
 echo "✅ HEALTH_HTTP=$HEALTH_HTTP"
 
+
+echo "1b) Ensure sentinel owner exists in auth.users"
+# The evaluation_jobs table has a FK to auth.users. If the sentinel
+# OWNER_ID does not exist there the job-create INSERT will fail.
+# Use the Supabase Auth Admin API to upsert the test user.
+AUTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \
+  "$SUPABASE_URL/auth/v1/admin/users/$OWNER_ID" \
+  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY")
+
+if [[ "$AUTH_CHECK" != "200" ]]; then
+  echo "  Sentinel user $OWNER_ID not found (HTTP $AUTH_CHECK); creating..."
+  AUTH_CREATE_HTTP=$(curl -s -o /tmp/flow1-auth-create.json -w "%{http_code}" \
+    "$SUPABASE_URL/auth/v1/admin/users" \
+    -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+    -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+    -H "Content-Type: application/json" \
+    -d "{\"id\":\"$OWNER_ID\",\"email\":\"flow1-evidence@test.local\",\"email_confirm\":true}")
+  if [[ "$AUTH_CREATE_HTTP" != "200" ]]; then
+    echo "❌ Failed to create sentinel user (HTTP $AUTH_CREATE_HTTP)" >&2
+    cat /tmp/flow1-auth-create.json >&2 || true
+    exit 1
+  fi
+  echo "  ✅ Created sentinel user $OWNER_ID"
+else
+  echo "  ✅ Sentinel user $OWNER_ID already exists"
+fi
 echo ""
 echo "2) Seed manuscript in same project"
 MID=$(node - <<'NODEEOF'

@@ -47,6 +47,7 @@ export function makeJobRow(overrides: JobFactoryOverrides = {}): EvaluationJobRo
     retry_count: overrides.retry_count ?? null,
     next_retry_at: overrides.next_retry_at ?? null,
     last_error: overrides.last_error ?? null,
+    failure_envelope: overrides.failure_envelope ?? null,
     created_at: createdAt.toISOString(),
     updated_at: overrides.updated_at ?? createdAt.toISOString(),
     last_heartbeat: overrides.last_heartbeat ?? null,

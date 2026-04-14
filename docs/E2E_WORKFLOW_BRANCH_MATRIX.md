@@ -1,5 +1,11 @@
 # E2E Workflow Branch Matrix (Evaluate → Report)
 
+> ✅ **Canonical flow clarification (2026-04):**
+> The `run-phase2` endpoint name is retained for compatibility, but execution authority is canonical:
+> route entrypoint -> `lib/evaluation/processor.ts` -> `runPipeline()` -> canonical artifact persistence.
+>
+> Legacy executors (`workers/phase2Worker.ts`, `workers/phase2Evaluation.ts`, `lib/jobs/phase2.ts`) are quarantine-only and not normal production flow.
+
 This document defines the end-to-end workflow process and branch outcomes for Flow 1.
 
 ## Primary Flow
@@ -7,7 +13,7 @@ This document defines the end-to-end workflow process and branch outcomes for Fl
 1. **Create Job**: `POST /api/jobs`
 2. **Poll Status**: `GET /api/jobs` and `GET /api/jobs/[jobId]`
 3. **Run Phase 1**: `POST /api/jobs/[jobId]/run-phase1` (internal service role)
-4. **Run Phase 2**: `POST /api/jobs/[jobId]/run-phase2` (internal service role)
+4. **Run Canonical Evaluation** (compat endpoint name: `run-phase2`): `POST /api/jobs/[jobId]/run-phase2` (internal service role)
 5. **Read Evaluation**: `GET /api/evaluations/[jobId]`
 6. **Read Artifact (debug/user endpoint)**: `GET /api/jobs/[jobId]/artifacts`
 

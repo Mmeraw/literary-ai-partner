@@ -2,15 +2,20 @@
 // Track D: Minimal Report Surface
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { headers } from "next/headers";
 import {
   CRITERIA_KEYS,
   CRITERIA_METADATA,
   type CriterionKey,
 } from "@/schemas/criteria-keys";
 import { EvaluationPoller } from "@/components/EvaluationPoller";
+import { buildTopRecommendations } from "@/lib/evaluation/reportRecommendations";
 
 type Job = {
   id: string;
+  user_id: string;
+  manuscripts?: { user_id: string | null } | Array<{ user_id: string | null }> | null;
   job_type?: string;
   status: "queued" | "running" | "failed" | "complete";
   phase?: string | null;
@@ -65,7 +70,7 @@ async function getJob(jobId: string): Promise<Job | null> {
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error")
+      .select("id, user_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, manuscripts(user_id)")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -78,7 +83,22 @@ async function getJob(jobId: string): Promise<Job | null> {
       return null;
     }
 
-    return job as Job;
+    const ownerUserId =
+      (job as any)?.user_id ??
+      ((job as any)?.manuscripts?.user_id ??
+        (Array.isArray((job as any)?.manuscripts)
+          ? (job as any).manuscripts[0]?.user_id
+          : null));
+
+    if (!ownerUserId || typeof ownerUserId !== "string") {
+      console.warn(`[getJob] Ownership user_id missing for job: ${jobId}`);
+      return null;
+    }
+
+    return {
+      ...(job as Job),
+      user_id: ownerUserId,
+    };
   } catch (err) {
     console.error(`[getJob] Unexpected error:`, err);
     return null;
@@ -135,26 +155,16 @@ function formatScore(n: number): string {
   return Number.isFinite(n) ? n.toFixed(2) : "N/A";
 }
 
-function isCriterionKey(key: string): key is CriterionKey {
-  return (CRITERIA_KEYS as readonly string[]).includes(key);
+function calculateProgressPercentage(job: Pick<Job, "completed_units" | "total_units">): number {
+  const completed = job.completed_units ?? 0;
+  const total = job.total_units ?? 0;
+
+  if (total <= 0) return 0;
+  return Math.round((completed / total) * 100);
 }
 
-function extractTopRecommendations(summary: string): string[] {
-  const lines = summary
-    .split("\n")
-    .map(s => s.trim())
-    .filter(Boolean);
-
-  const bullets = lines
-    .filter(l => /^[-•*]\s+/.test(l))
-    .map(l => l.replace(/^[-•*]\s+/, ""));
-
-  if (bullets.length) return bullets.slice(0, 5);
-
-  // Fallback: split by sentences if no bullets found
-  return summary
-    .split(/(?<=[.!?])\s+/)
-    .slice(0, 5);
+function isCriterionKey(key: string): key is CriterionKey {
+  return (CRITERIA_KEYS as readonly string[]).includes(key);
 }
 
 function Metric({ label, value }: { label: string; value: React.ReactNode }) {
@@ -172,13 +182,33 @@ export default async function EvaluationReportPage({
   params: { jobId: string };
 }) {
   const { jobId } = params;
+
+  const sessionUser = await getAuthenticatedUser();
+  const headerOwnerId =
+    process.env.TEST_MODE === "true" && process.env.ALLOW_HEADER_USER_ID === "true"
+      ? (await headers()).get("x-user-id")?.trim() ?? null
+      : null;
+  const ownerId = sessionUser?.id ?? headerOwnerId;
+
+  if (!ownerId) {
+    return (
+      <main className="mx-auto max-w-3xl p-6">
+        <h1 className="text-2xl font-semibold">Evaluation Report</h1>
+        <div className="mt-4 rounded-md bg-yellow-50 border border-yellow-200 p-4">
+          <p className="text-sm text-yellow-800 font-medium">Please sign in to view your evaluation report.</p>
+        </div>
+        <div className="mt-6">
+          <Link href="/login" className="inline-block text-sm text-blue-600 hover:text-blue-700 underline">
+            Go to Sign In
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   const job = await getJob(jobId);
 
-  if (!job) {
-    // Check if it's an auth issue
-    // Auth is handled by the server client; if job is null, 
-    // it may be auth failure or job not found
-    const hasAccessToken = true; // Server client handles auth transparently
+  if (!job || job.user_id !== ownerId) {
 
     return (
       <main className="mx-auto max-w-3xl p-6">
@@ -186,19 +216,13 @@ export default async function EvaluationReportPage({
         <div className="mt-4 rounded-md bg-yellow-50 border border-yellow-200 p-4">
           <p className="text-sm text-yellow-800 font-medium">Unable to load evaluation</p>
           <p className="mt-2 text-sm text-yellow-700">
-            {!hasAccessToken 
-              ? "Please sign in to view your evaluation report."
-              : `We couldn't find job ${jobId}. It may have expired or been deleted.`
-            }
+            {`We couldn't find job ${jobId}. It may have expired, been deleted, or is not accessible to this account.`}
           </p>
         </div>
 
         <div className="mt-6">
-          <Link 
-            href={!hasAccessToken ? "/login" : "/evaluate"} 
-            className="inline-block text-sm text-blue-600 hover:text-blue-700 underline"
-          >
-            {!hasAccessToken ? "Go to Sign In" : "Back to Evaluate"}
+          <Link href="/evaluate" className="inline-block text-sm text-blue-600 hover:text-blue-700 underline">
+            Back to Evaluate
           </Link>
         </div>
       </main>
@@ -210,6 +234,14 @@ export default async function EvaluationReportPage({
   const artifact = artifactResult?.data ?? null;
   const artifactSource = artifactResult?.source ?? null;
   const isProduction = process.env.NODE_ENV === "production";
+  const initialPollerJob = {
+    id: job.id,
+    status: job.status,
+    progress: calculateProgressPercentage(job),
+    created_at: job.created_at ?? new Date(0).toISOString(),
+    updated_at: job.updated_at ?? new Date(0).toISOString(),
+    ...(job.last_error ? { last_error: job.last_error } : {}),
+  };
   const artifactCriteria = artifact?.criteria ?? [];
   const criteriaByKey = new Map<CriterionKey, NonNullable<ArtifactContentV1["criteria"]>[number]>();
   for (const criterion of artifactCriteria) {
@@ -236,37 +268,13 @@ export default async function EvaluationReportPage({
         </Link>
       </div>
 
-      <div className="mt-6 rounded-lg border p-4">
-        <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-          <div>
-            <span className="text-gray-600">Status:</span>{" "}
-            <span className="font-medium">{job.status}</span>
-          </div>
-          <div>
-            <span className="text-gray-600">Phase:</span>{" "}
-            <span className="font-medium">{job.phase ?? "—"}</span>
-          </div>
-          <div>
-            <span className="text-gray-600">Phase status:</span>{" "}
-            <span className="font-medium">{job.phase_status ?? "—"}</span>
-          </div>
-          <div>
-            <span className="text-gray-600">Progress:</span>{" "}
-            <span className="font-medium">
-              {(job.completed_units ?? 0)}/{(job.total_units ?? 0)}
-            </span>
-          </div>
-        </div>
-
-        {job.last_error ? (
-          <p className="mt-3 text-sm text-red-700">
-            Error: {job.last_error}
-          </p>
-        ) : null}
-      </div>
-
       <section className="mt-6">
-        <EvaluationPoller jobId={jobId} redirectOnComplete />
+        <EvaluationPoller
+          jobId={jobId}
+          initialJob={initialPollerJob}
+          redirectOnComplete={false}
+          refreshOnComplete={true}
+        />
       </section>
 
       {!isComplete ? (
@@ -347,7 +355,7 @@ export default async function EvaluationReportPage({
           <section className="mt-6 rounded-lg border p-5">
             <h2 className="text-lg font-semibold">Top Recommendations</h2>
             <ul className="mt-2 list-disc pl-5 text-sm text-gray-600">
-              {extractTopRecommendations(artifact.summary || artifact.overview?.one_paragraph_summary || "").map((r, i) => (
+              {buildTopRecommendations(artifact).map((r, i) => (
                 <li key={i}>{r}</li>
               ))}
             </ul>

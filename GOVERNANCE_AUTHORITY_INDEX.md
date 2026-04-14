@@ -121,6 +121,7 @@ With governance complete, the system moves to:
 
 - [docs/CANONICAL_VOCABULARY.md](docs/CANONICAL_VOCABULARY.md) — Vocabulary rules detail
 - [docs/JOB_CONTRACT_v1.md](docs/JOB_CONTRACT_v1.md) — RPC contract definition
+- [docs/WHITE_GLOVE_FACTORY.md](docs/WHITE_GLOVE_FACTORY.md) — Merge/release excellence playbook and operational checklists
 - [docs/LOGGING_SCHEMA_v1.md](docs/LOGGING_SCHEMA_v1.md) — Observability logging contract (Phase C C2)
 - [lib/jobs/canon.ts](lib/jobs/canon.ts) — Type enforcement implementation
 - [scripts/canon-audit-banned-aliases.sh](scripts/canon-audit-banned-aliases.sh) — CI gate script

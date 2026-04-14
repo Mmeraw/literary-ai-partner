@@ -1,3 +1,4 @@
+
 // app/api/evaluate/route.ts
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -50,6 +51,21 @@ export async function POST(req: Request) {
     let manuscriptId: number | null = null;
 
     if (manuscriptIdInput !== undefined && manuscriptIdInput !== null) {
+      // Reject ambiguous input: both manuscript_id and new text together is a contract violation.
+      // Caller must choose: reference an existing row (manuscript_id only) or submit fresh text
+      // (manuscript_text only). Mixing the two would silently evaluate the wrong manuscript.
+      const trimmedTextForConflictCheck = manuscriptTextInput.trim();
+      if (trimmedTextForConflictCheck.length > 0) {
+        return Response.json(
+          {
+            ok: false,
+            error:
+              "Ambiguous manuscript source: provide either manuscript_id or manuscript_text, not both.",
+          },
+          { status: 400 }
+        );
+      }
+
       const parsed = Number.parseInt(String(manuscriptIdInput), 10);
       if (!Number.isFinite(parsed) || parsed <= 0) {
         return Response.json(
@@ -137,8 +153,10 @@ export async function POST(req: Request) {
       .from("evaluation_jobs")
       .insert({
         manuscript_id: manuscriptId,
+        user_id: userId,
         job_type: "evaluate_full",
         phase: PHASES.PHASE_1,
+        phase_status: "queued",
         policy_family: "standard",
         voice_preservation_level: "balanced",
         english_variant: "us",

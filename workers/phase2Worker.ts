@@ -2,6 +2,11 @@
 /**
  * Phase 2 Worker Daemon
  *
+ * DEPRECATION NOTICE (Slice 2 Canonical Cutover):
+ * - Canonical evaluation execution path is now processor -> runPipeline.
+ * - This daemon remains for legacy compatibility and migration windows only.
+ * - Do not treat this file as authoritative evaluation orchestration.
+ *
  * Responsibilities:
  * - Poll for eligible Phase 2 jobs
  * - Claim jobs atomically
@@ -49,6 +54,8 @@ import {
 } from '../types/providerCalls';
 import { createAdminClient } from '../lib/supabase/admin';
 import { createWriteStream, WriteStream } from 'fs';
+
+const LEGACY_PHASE2_WORKER_ENABLED = process.env.ENABLE_LEGACY_PHASE2_WORKER === '1';
 
 // Allow WORKER_ID override for multi-worker concurrency testing
 const WORKER_ID = process.env.WORKER_ID || `worker-${process.pid}-${Date.now()}`;
@@ -533,6 +540,14 @@ function sleep(ms: number): Promise<void> {
  * Entry point
  */
 async function main() {
+  if (!LEGACY_PHASE2_WORKER_ENABLED) {
+    const message =
+      'Legacy phase2 worker is disabled. Canonical execution is processor -> runPipeline. ' +
+      'Set ENABLE_LEGACY_PHASE2_WORKER=1 only for controlled migration use.';
+    console.error(message);
+    process.exit(1);
+  }
+
   // Validate environment
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     console.error('NEXT_PUBLIC_SUPABASE_URL not set');

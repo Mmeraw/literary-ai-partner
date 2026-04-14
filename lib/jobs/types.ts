@@ -65,9 +65,8 @@ export const JOB_STATUS = {
 export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS];
 
 /**
- * PhaseStatus is CANON-aligned with JobStatus.
- * All phase writers MUST use: "queued" | "running" | "complete" | "failed" | null
- * No granular states (e.g., "processing", "starting") allowed at type level.
+ * PhaseStatus is canonical JobStatus (or null).
+ * Worker contract: selects jobs where status='queued' AND phase_status='queued'.
  */
 export type PhaseStatus = JobStatus | null;
 

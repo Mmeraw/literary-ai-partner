@@ -1,6 +1,13 @@
 /**
  * OpenAI integration for Phase 2 evaluations
  * Phase 2C-1: Real OpenAI calls with retry/circuit-breaker hardening
+ *
+ * DEPRECATION NOTICE (Slice 2 Canonical Cutover):
+ * - This module is legacy worker-path evaluation logic.
+ * - Canonical evaluation authority is now `runPipeline()` invoked via
+ *   `processEvaluationJob()` in `lib/evaluation/processor.ts`.
+ * - Keep only for backward compatibility with legacy worker scripts until
+ *   final shutdown. Do not use as primary evaluation engine.
  * 
  * Canon-compliant guarantees:
  * - No schema drift (metadata stored in existing JSONB)
@@ -11,6 +18,12 @@
 
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
+import {
+  buildOpenAIOutputTokenParam,
+  buildOpenAITemperatureParam,
+} from '@/lib/evaluation/policy';
+
+const LEGACY_PHASE2_WORKER_ENABLED = process.env.ENABLE_LEGACY_PHASE2_WORKER === '1';
 
 /**
  * Circuit Breaker Types for OpenAI resilience
@@ -235,8 +248,8 @@ async function callOpenAI(context: EvaluationContext, chunks: Array<{ index: num
       const resp = await client.chat.completions.create({
         model,
         messages,
-        temperature,
-        max_tokens: max_output_tokens,
+        ...buildOpenAITemperatureParam(model, temperature),
+        ...buildOpenAIOutputTokenParam(model, max_output_tokens),
       });
 
       const latency_ms = Date.now() - t0;
@@ -341,6 +354,13 @@ export async function executePhase2Evaluation(
   context: EvaluationContext,
   log: LogFn
 ): Promise<EvaluationResult> {
+  if (!LEGACY_PHASE2_WORKER_ENABLED) {
+    throw new Error(
+      'Legacy phase2 evaluation path is disabled. Canonical execution is processor -> runPipeline. ' +
+      'Set ENABLE_LEGACY_PHASE2_WORKER=1 only for controlled migration use.',
+    );
+  }
+
   const startTime = Date.now();
 
   log('info', 'Starting Phase 2 evaluation (OpenAI)', {

@@ -61,7 +61,7 @@ describe("Phase 2.6 A6 report credibility", () => {
         evaluation_id: "eval_a6_2",
         criteria: [
           {
-            name: "clarity",
+            name: "proseControl",
             score: 7.5,
             max_score: 10,
             reasoning: "The prose is mostly clear.",
@@ -82,7 +82,7 @@ describe("Phase 2.6 A6 report credibility", () => {
         evaluation_id: "eval_a6_3",
         criteria: [
           {
-            name: "prose_control",
+            name: "proseControl",
             score: 8,
             max_score: 10,
             reasoning: "Sentence rhythm is controlled throughout the passage.",

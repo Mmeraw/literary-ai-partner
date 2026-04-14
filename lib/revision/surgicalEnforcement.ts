@@ -57,7 +57,7 @@ function getSurgicalAllowedScopesByCategory(category: WaveCategory): Set<EditSco
     return new Set<EditScope>(["phrase", "sentence"]);
   }
 
-  if (category === "structure" || category === "narrative" || category === "scene") {
+  if (category === "sceneConstruction" || category === "narrativeDrive" || category === "scene") {
     return new Set<EditScope>(["sentence"]);
   }
 
@@ -116,7 +116,7 @@ export function enforceWaveSurgicalLimits(
   mode: RevisionMode,
 ): { allowed: ProposedEdit[]; blocked: ProposedEdit[]; downgraded: ProposedEdit[] } {
   const wave: WaveEntry | undefined = getWave(waveId);
-  const categoryAllowedScopes = getSurgicalAllowedScopesByCategory(wave?.category ?? "clarity");
+  const categoryAllowedScopes = getSurgicalAllowedScopesByCategory(wave?.category ?? "proseControl");
 
   const allowed: ProposedEdit[] = [];
   const blocked: ProposedEdit[] = [];

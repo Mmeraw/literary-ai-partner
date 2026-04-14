@@ -11,8 +11,13 @@
  */
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import {
+  buildCoverageDisclosure,
+  buildPromptInputWindow,
+  summarizePromptCoverage,
+} from "../promptInput";
 
-export const PASS2_PROMPT_VERSION = "pass2-editorial-v1";
+export const PASS2_PROMPT_VERSION = "pass2-editorial-v2";
 
 export const PASS2_SYSTEM_PROMPT = `You are Pass 2: an independent evaluator for RevisionGrade.
 
@@ -35,6 +40,9 @@ Return a JSON object with a "criteria" array containing exactly 13 entries — o
 9. Every evidence "snippet" MUST be ≤200 characters.
 10. Scores are integers 0-10 only.
 11. You MUST produce entries for all 13 criteria.
+12. You MUST identify the narrative mode before judging narrative drive, character depth, or pacing.
+13. Do NOT assume all strong chapters are scene-forward; investigative/dossier, reflective, and braided-hybrid chapters may build pressure through revelation, system mapping, or moral accumulation.
+14. If you score narrativeDrive, character, or pacing low, explain whether the weakness is lack of consequence, lack of escalation, repetitive dossier patterning, or insufficient immediacy.
 
 ## OUTPUT FORMAT (return ONLY this JSON, no markdown, no code fences)
 {
@@ -61,7 +69,19 @@ Return a JSON object with a "criteria" array containing exactly 13 entries — o
   "model": "<model_id>",
   "prompt_version": "${PASS2_PROMPT_VERSION}",
   "temperature": 0.3,
-  "generated_at": "<ISO 8601 timestamp>"
+  "generated_at": "<ISO 8601 timestamp>",
+  "narrative_mode_assessment": {
+    "dominant_mode": "scene_driven|investigative_dossier|reflective|braided_hybrid|epistolary_documentary|other",
+    "mode_confidence": "low|medium|high",
+    "mode_rationale": "<how the text is actually functioning>",
+    "pressure_profile": "<how pressure accumulates, converts, or stalls>",
+    "character_expression_mode": "interiority|dialogue_action|institutional_role|braided|other"
+  },
+  "divergence_declaration": {
+    "agreement_zones": string[],
+    "disagreement_zones": string[],
+    "new_findings": string[]
+  }
 }
 
 ## EDITORIAL/LITERARY INSIGHT AXIS GUIDANCE
@@ -77,14 +97,7 @@ Focus on:
 Do NOT evaluate surface mechanics, sentence structure, or grammatical control — that is Pass 1's job.
 Evaluate ONLY meaning, interpretation, and literary quality.
 
-Additionally include a top-level "divergence_declaration" object:
-{
-  "agreement_zones": string[],
-  "disagreement_zones": string[],
-  "new_findings": string[]
-}
-
-If no prior pass is provided, you MUST still populate this object by stating independent positions in clear terms.`;
+If no prior pass is provided, you MUST still populate divergence_declaration by stating independent positions in clear terms.`;
 
 export function buildPass2UserPrompt(params: {
   manuscriptText: string;
@@ -94,13 +107,16 @@ export function buildPass2UserPrompt(params: {
 }): string {
   const wordCount = params.manuscriptText.trim().split(/\s+/).length;
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
+  const promptWindow = buildPromptInputWindow(params.manuscriptText);
+  const coverage = summarizePromptCoverage(params.manuscriptText);
   return `Evaluate this ${params.workType || "manuscript"} excerpt titled "${params.title}" on the EDITORIAL/LITERARY INSIGHT axis.
 
 Execution mode: ${executionMode}
 Word count: ${wordCount}
+${buildCoverageDisclosure(coverage)}
 
 Manuscript text:
-${params.manuscriptText.substring(0, 12000)}
+${promptWindow}
 
 Return the JSON evaluation object as specified.
 Mandatory behavior:
@@ -109,5 +125,8 @@ Mandatory behavior:
 - Evidence-back every major claim.
 - No generic critique language.
 - Include divergence_declaration with agreement_zones, disagreement_zones, and new_findings.
-IMPORTANT: You are seeing this manuscript for the first time. Do not reference any prior analysis.`;
+IMPORTANT: You are seeing this manuscript for the first time. Do not reference any prior analysis.
+- First identify the chapter's narrative mode.
+- If the work is documentary, dossier-driven, or reflective, evaluate whether pressure accumulates with authority before penalizing it for not behaving like a conventional scene.
+- Distinguish "character shown through institutional role or decision pressure" from "character absent on the page."`;
 }

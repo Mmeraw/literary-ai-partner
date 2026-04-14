@@ -266,7 +266,7 @@ function llr005NoGenericCanonFreeCritique(input: RuleEvaluationInput): RuleResul
     "criterion",
     "criteria",
     "wave",
-    "structure",
+    "sceneconstruction",
     "canon",
     "anchor",
   ]);

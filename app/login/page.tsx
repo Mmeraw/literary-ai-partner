@@ -4,6 +4,17 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import {
+  clearAuthFailures,
+  getAuthBackoffMs,
+  getSafeAuthErrorMessage,
+  recordAuthFailure,
+} from '@/lib/auth/clientAuthGuards'
+import { trackClientAuthEvent } from '@/lib/auth/telemetry'
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -13,35 +24,111 @@ export default function LoginPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  const setSafeEmail = (value: string) => {
+    setEmail(value)
+    if (error) setError(null)
+  }
+
+  const setSafePassword = (value: string) => {
+    setPassword(value)
+    if (error) setError(null)
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading) return
+    trackClientAuthEvent('login', 'attempt')
+
+    const normalizedEmail = email.trim().toLowerCase()
+
     setLoading(true)
     setError(null)
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      setError(error.message)
+    const backoffMs = getAuthBackoffMs('login')
+    if (backoffMs > 0) {
+      trackClientAuthEvent('login', 'blocked_backoff')
+      setError(`Too many sign-in attempts. Try again in ${Math.ceil(backoffMs / 1000)}s.`)
       setLoading(false)
-    } else {
-      router.push('/evaluate')
+      return
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      trackClientAuthEvent('login', 'validation_failed', { reason: 'invalid_email' })
+      setError('Please enter a valid email address.')
+      setLoading(false)
+      return
+    }
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      })
+
+      if (error) {
+        recordAuthFailure('login')
+        trackClientAuthEvent('login', 'failed', { provider: 'password' })
+        setError(getSafeAuthErrorMessage(error.message))
+        return
+      }
+
+      clearAuthFailures('login')
+      trackClientAuthEvent('login', 'succeeded', { provider: 'password' })
+      router.push('/dashboard')
       router.refresh()
+    } catch {
+      recordAuthFailure('login')
+      trackClientAuthEvent('login', 'unexpected_error', { provider: 'password' })
+      setError('Sign-in failed unexpectedly. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleOAuthLogin = async (provider: 'google' | 'github') => {
+    if (loading) return
+    trackClientAuthEvent('oauth', 'attempt', { provider })
     setLoading(true)
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/api/auth/callback`,
-      },
-    })
-    if (error) {
-      setError(error.message)
+    setError(null)
+
+    const backoffMs = getAuthBackoffMs('oauth')
+    if (backoffMs > 0) {
+      trackClientAuthEvent('oauth', 'blocked_backoff', { provider })
+      setError(`Too many OAuth attempts. Try again in ${Math.ceil(backoffMs / 1000)}s.`)
+      setLoading(false)
+      return
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/api/auth/callback`,
+        },
+      })
+      if (error) {
+        recordAuthFailure('oauth')
+        trackClientAuthEvent('oauth', 'failed', { provider })
+        setError(getSafeAuthErrorMessage(error.message))
+        setLoading(false)
+        return
+      }
+
+      // Defensive fallback: if provider doesn't return a redirect URL, re-enable UI.
+      if (!data?.url) {
+        recordAuthFailure('oauth')
+        trackClientAuthEvent('oauth', 'failed', { provider, reason: 'missing_redirect_url' })
+        setError('Could not start OAuth redirect. Please try again.')
+        setLoading(false)
+        return
+      }
+
+      clearAuthFailures('oauth')
+      trackClientAuthEvent('oauth', 'redirect_started', { provider })
+    } catch {
+      recordAuthFailure('oauth')
+      trackClientAuthEvent('oauth', 'unexpected_error', { provider })
+      setError('OAuth sign-in failed unexpectedly. Please try again.')
       setLoading(false)
     }
   }
@@ -56,6 +143,12 @@ export default function LoginPage() {
         <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
           Sign in to your account
         </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          New here?{' '}
+          <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
+            Create an account
+          </Link>
+        </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
@@ -77,9 +170,12 @@ export default function LoginPage() {
                   name="email"
                   type="email"
                   autoComplete="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setSafeEmail(e.target.value)}
+                  maxLength={254}
                   className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
                 />
               </div>
@@ -97,7 +193,7 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   required
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => setSafePassword(e.target.value)}
                   className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
                 />
               </div>
@@ -152,6 +248,13 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
+
+          <p className="mt-6 text-center text-sm text-gray-600">
+            Don&apos;t have an account?{' '}
+            <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
+              Sign up
+            </Link>
+          </p>
         </div>
       </div>
     </div>

@@ -62,6 +62,14 @@ export type SynthesizedCriterion = {
   /** Required when score_delta > 2 */
   delta_explanation?: string;
   final_rationale: string;
+  /** Where narrative pressure enters or accumulates for this criterion */
+  pressure_points: string[];
+  /** Where a decision (or non-decision) is reached */
+  decision_points: string[];
+  /** Whether consequence lands now, is deferred, or dissipates */
+  consequence_status: "landed" | "deferred" | "dissipated";
+  /** Required when consequence_status is deferred */
+  deferred_consequence_risk?: string;
   evidence: EvidenceAnchor[];
   recommendations: {
     priority: "high" | "medium" | "low";
@@ -91,6 +99,16 @@ export type SynthesisOutput = {
     pass2_model: string;
     pass3_model: string;
     generated_at: string;
+  };
+  /** TRUTH ENFORCEMENT: Was manuscript truncated/sampled for evaluation? */
+  partial_evaluation: boolean;
+  /** Coverage metadata: proves system doesn't lie about what was analyzed */
+  coverage_scope?: {
+    sourceChars: number;
+    sourceWords: number;
+    analyzedChars: number;
+    analyzedWords: number;
+    strategy: "full_text" | "sampled_beginning_middle_end";
   };
 };
 
@@ -128,7 +146,15 @@ export type PassCompletionCapture = {
 // ── Pipeline result ──────────────────────────────────────────────────────────
 
 export type PipelineResult =
-  | { ok: true; synthesis: SynthesisOutput; quality_gate: QualityGateResult }
+  | {
+      ok: true;
+      synthesis: SynthesisOutput;
+      quality_gate: QualityGateResult;
+      /** Populated when perplexityApiKey provided and cross-check succeeded */
+      cross_check?: import("./perplexityCrossCheck").CrossCheckOutput;
+      /** Always present after quality gate passes; undefined only if evaluatePass4Governance throws */
+      pass4_governance?: import("@/lib/evaluation/governance/evaluatePass4Governance").GovernanceDecision;
+    }
   | {
       ok: false;
       error: string;

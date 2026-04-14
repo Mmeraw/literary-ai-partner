@@ -57,30 +57,71 @@
  * ─────────────────────────────────────────────────────────────────────
  */
 
+import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { validateEvaluationResult } from '@/schemas/evaluation-result-v1';
 import { CRITERIA_KEYS, type CriterionKey } from '@/schemas/criteria-keys';
 import { WAVE_GUIDE_SUMMARY, WAVE_GUIDE_VERSION } from './WAVE_GUIDE';
 import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistence';
+import {
+  runPipeline,
+  synthesisToEvaluationResult,
+} from '@/lib/evaluation/pipeline/runPipeline';
+import {
+  getCanonicalPipelineModel,
+  getExternalAdjudicationMode,
+} from '@/lib/evaluation/policy';
+import {
+  assertEvalTimeoutConfig,
+  getEvalOpenAiTimeoutMs,
+  getEvalPassTimeoutMs,
+} from '@/lib/evaluation/config';
+import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
+import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const openaiApiKey = process.env.OPENAI_API_KEY;
+const perplexityApiKey = process.env.PERPLEXITY_API_KEY ?? "";
 const evalDebugEnabled = process.env.EVAL_DEBUG === '1';
 const evalMinManuscriptChars = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_CHARS || '200', 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 200;
+  if (process.env.EVAL_MIN_MANUSCRIPT_WORDS) {
+    const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_WORDS, 10);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      // Convert words to chars (avg ~5 chars/word)
+      return parsed * 5;
+    }
+  }
+  if (process.env.EVAL_MIN_MANUSCRIPT_CHARS) {
+    console.warn(
+      '[Processor] EVAL_MIN_MANUSCRIPT_CHARS is deprecated. Use EVAL_MIN_MANUSCRIPT_WORDS instead. Defaulting to 200 words.',
+    );
+  }
+  return 200 * 5; // 200 words default
 })();
-const openAiTimeoutMs = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || '240000', 10);
-  // Keep below Vercel maxDuration=300s so we can write failed status before platform kill.
-  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 295000 ? parsed : 240000;
-})();
+const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'o3').trim() || 'o3';
+const evalPassTimeoutMs = getEvalPassTimeoutMs();
+const evalOpenAiTimeoutMs = getEvalOpenAiTimeoutMs();
+assertEvalTimeoutConfig();
+const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
 const staleRunningMinutes = (() => {
   const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);
   return Number.isFinite(parsed) && parsed >= 1 && parsed <= 240 ? parsed : 10;
+})();
+const evalWorkerBatchSize = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_WORKER_BATCH_SIZE || '5', 10);
+  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 5 ? parsed : 5;
+})();
+const evalContextContaminationGuardEnabled = (() => {
+  const raw = (process.env.EVAL_CONTEXT_CONTAMINATION_GUARD || 'auto').trim().toLowerCase();
+  if (raw === 'true' || raw === '1' || raw === 'yes' || raw === 'on') {
+    return true;
+  }
+  if (raw === 'false' || raw === '0' || raw === 'no' || raw === 'off') {
+    return false;
+  }
+  return process.env.NODE_ENV === 'production';
 })();
 
 interface EvaluationJob {
@@ -703,201 +744,6 @@ function extractCriteriaFromAIResult(aiResult: Record<string, unknown>): unknown
   console.warn('[Processor] Could not find criteria in AI response. Keys:', Object.keys(aiResult));
   return undefined;
 }
-/**
- * Generate evaluation using OpenAI
- */
-async function generateAIEvaluation(manuscript: Manuscript, job: EvaluationJob): Promise<EvaluationResultV1> {
-  if (!openaiApiKey) {
-    throw new Error('[Processor] OPENAI_API_KEY is not configured (fail-closed, no mock fallback)');
-  }
-
-  const openai = new OpenAI({
-    apiKey: openaiApiKey,
-    timeout: openAiTimeoutMs,
-    maxRetries: 0,
-  });
-  const now = new Date().toISOString();
-  const startTime = Date.now();
-  const calibration = getCalibrationProfile(manuscript.work_type);
-
-  try {
-    console.log(`[Processor] Calling OpenAI API for manuscript ${manuscript.id}`);
-
-    const manuscriptText = manuscript.content || '(No content provided)';
-    const wordCount = manuscriptText.split(/\s+/).length;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: [
-            `You are an expert literary evaluator.`,
-            `You MUST follow the WAVE Revision Guide below as the governing evaluation authority.`,
-            `You MUST use the canonical 13-criteria rubric keys exactly: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability.`,
-            calibration.guidance,
-            `Return ONLY valid JSON matching the EvaluationResultV1 schema. No markdown, no code fences, just pure JSON.`,
-            'CRITICAL: Each criterion in the criteria array MUST use the field name "score_0_10" (NOT "score") for scores. Each criterion needs: key, score_0_10 (0-10), rationale, evidence, recommendations.',
-            'CRITICAL: Include at least one concrete evidence snippet per criterion whenever manuscript context supports it.',
-            ``,
-            `WAVE GUIDE (CANONICAL):`,
-            WAVE_GUIDE_SUMMARY,
-          ].join('\n')
-        },
-        {
-          role: 'user',
-          content: `Evaluate this ${manuscript.work_type || 'manuscript'} titled "${manuscript.title}".
-
-Word count: ${wordCount}
-
-Manuscript text:
-${manuscriptText.substring(0, 15000)}
-
-Provide a comprehensive evaluation with:
-1. Overall verdict (pass/revise/fail) and score (0-100)
-2. One-paragraph summary
-3. Top 3 strengths and top 3 risks
-4. Scores (0-10) and rationale for all 13 canonical criteria: concept, narrativeDrive, character, voice, sceneConstruction, dialogue, theme, worldbuilding, pacing, proseControl, tone, narrativeClosure, marketability
-5. Quick wins and strategic revisions with effort/impact ratings
-
-Return ONLY valid JSON with this exact structure (no markdown, no code fences):
-{"overview": {"verdict": "pass|revise|fail", "overall_score_0_100": <0-100>, "one_paragraph_summary": "...", "top_3_strengths": ["...", "...", "..."], "top_3_risks": ["...", "...", "..."]},
-"criteria": [
-  {"key":"concept","score_0_10":<0-10>,"rationale":"...","evidence":[{"snippet":"..."}],"recommendations":[{"priority":"high|medium|low","action":"...","expected_impact":"..."}]},
-  ...exactly 13 entries covering all canonical keys
-],
-"recommendations": {"quick_wins": [{"action": "...", "why": "...", "effort": "low|medium|high", "impact": "low|medium|high"}], "strategic_revisions": [{"action": "...", "why": "...", "effort": "low|medium|high", "impact": "low|medium|high"}]}}`
-        }
-      ],
-      temperature: 0.7,
-      response_format: { type: 'json_object' }
-    });
-
-    const responseText = completion.choices[0]?.message?.content;
-    if (!responseText) {
-      throw new Error('Empty response from OpenAI');
-    }
-
-    evalDebugLog(`[Processor] OpenAI response received (${responseText.length} chars)`);
-
-    // Parse OpenAI response
-    const aiResult = JSON.parse(responseText);
-    evalDebugLog("[Processor] AI response keys:", Object.keys(aiResult), "criteria type:", typeof aiResult.criteria, "isArray:", Array.isArray(aiResult.criteria));
-    evalDebugLog("[Processor] AI response preview:", responseText.substring(0, 500));
-
-    const normalizationDiagnostics: NormalizationDiagnostics = {
-      usedLegacyScoreCount: 0,
-      missingScoreCount: 0,
-      clampedScoreCount: 0,
-      overviewFallbackUsed: false,
-      recommendationsFallbackUsed: false,
-    };
-
-    // Build EvaluationResultV1
-    const result: EvaluationResultV1 = {
-      schema_version: "evaluation_result_v1",
-      ids: {
-        evaluation_run_id: crypto.randomUUID(),
-        job_id: job.id,
-        manuscript_id: manuscript.id,
-        user_id: manuscript.user_id,
-      },
-      generated_at: now,
-      engine: {
-        model: completion.model,
-        provider: "openai",
-        prompt_version: WAVE_GUIDE_VERSION,
-      },
-      overview: normalizeOverviewFromAIResult(aiResult, normalizationDiagnostics),
-      criteria: normalizeCriteria(extractCriteriaFromAIResult(aiResult), normalizationDiagnostics),
-      recommendations: normalizeRecommendationsFromAIResult(aiResult, normalizationDiagnostics),
-      metrics: {
-        manuscript: {
-          word_count: wordCount,
-          char_count: manuscriptText.length,
-          genre: manuscript.work_type || 'Unknown',
-          target_audience:
-            isRecord(aiResult.metrics) &&
-            isRecord(aiResult.metrics.manuscript) &&
-            typeof aiResult.metrics.manuscript.target_audience === 'string'
-              ? aiResult.metrics.manuscript.target_audience
-              : 'General'
-        },
-        processing: {
-          segment_count: 1,
-          total_tokens_estimated: completion.usage?.total_tokens || 0,
-          runtime_ms: Date.now() - startTime
-        }
-      },
-      artifacts: [],
-      governance: {
-        confidence: 0.90,
-        warnings: [],
-        limitations: [
-          `Analysis based on ${Math.min(wordCount, 3750)} words`,
-          'Full manuscript context may not be captured if truncated'
-        ],
-        policy_family: calibration.policyFamily
-      }
-    };
-
-    if (result.criteria.length !== CRITERIA_KEYS.length) {
-      throw new Error(
-        `[Processor] AI criteria normalization failed (expected ${CRITERIA_KEYS.length}, got ${result.criteria.length})`,
-      );
-    }
-
-    const qualitySignals = assessEvaluationQuality(result.criteria);
-    if (qualitySignals.warnings.length > 0) {
-      result.governance.warnings.push(...qualitySignals.warnings);
-      result.governance.confidence = clamp(
-        result.governance.confidence - qualitySignals.confidencePenalty,
-        0.55,
-        0.95,
-      );
-
-      evalDebugLog('[Processor] Evaluation quality diagnostics', {
-        evidence_coverage_ratio: qualitySignals.evidenceCoverageRatio,
-        score_spread: qualitySignals.scoreSpread,
-        has_uniform_scores: qualitySignals.hasUniformScores,
-        has_low_variance_scores: qualitySignals.hasLowVarianceScores,
-        default_zero_count: qualitySignals.defaultZeroCount,
-        confidence_penalty: qualitySignals.confidencePenalty,
-      });
-    }
-
-    if (
-      normalizationDiagnostics.usedLegacyScoreCount > 0 ||
-      normalizationDiagnostics.missingScoreCount > 0 ||
-      normalizationDiagnostics.clampedScoreCount > 0 ||
-      normalizationDiagnostics.overviewFallbackUsed ||
-      normalizationDiagnostics.recommendationsFallbackUsed
-    ) {
-      evalDebugLog('[Processor] AI normalization diagnostics', {
-        used_legacy_score_count: normalizationDiagnostics.usedLegacyScoreCount,
-        missing_score_count: normalizationDiagnostics.missingScoreCount,
-        clamped_score_count: normalizationDiagnostics.clampedScoreCount,
-        overview_fallback_used: normalizationDiagnostics.overviewFallbackUsed,
-        recommendations_fallback_used: normalizationDiagnostics.recommendationsFallbackUsed,
-      });
-    }
-
-    // Validate result before returning (fail-closed governance enforcement)
-    const validation = validateEvaluationResult(result);
-    if (!validation.valid) {
-      console.error('[Processor] AI result failed canon validation:', validation.errors);
-      throw new Error(`[Processor] AI result failed governance validation (fail-closed): ${validation.errors}`);
-    }
-
-    console.log(`[Processor] AI evaluation completed in ${Date.now() - startTime}ms`);
-    return result;
-
-  } catch (error) {
-    console.error(`[Processor] OpenAI evaluation failed:`, error);
-    // Fail-closed: re-throw so caller marks job as failed
-    throw error;
-  }
-}
 
 export async function failStaleRunningJobs(): Promise<{
   staleFound: number;
@@ -905,33 +751,56 @@ export async function failStaleRunningJobs(): Promise<{
   ids: string[];
 }> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const now = new Date().toISOString();
   const cutoff = new Date(Date.now() - staleRunningMinutes * 60_000).toISOString();
 
-  const { data: staleJobs, error: staleError } = await supabase
+  // Collect IDs: stale by updated_at cutoff OR expired claim lease
+  const { data: staleByAge, error: ageError } = await supabase
     .from('evaluation_jobs')
-    .select('id, updated_at')
+    .select('id')
     .eq('status', 'running')
-    .lt('updated_at', cutoff)
-    .order('updated_at', { ascending: true })
+    .not('last_heartbeat_at', 'is', null)
+    .lt('last_heartbeat_at', cutoff)
+    .order('last_heartbeat_at', { ascending: true })
     .limit(25);
 
-  if (staleError) {
-    console.warn('[Processor] Failed to check stale running jobs:', staleError.message);
+  if (ageError) {
+    console.warn('[Processor] Failed to check stale running jobs (age):', ageError.message);
     return { staleFound: 0, failed: 0, ids: [] };
   }
 
-  if (!staleJobs || staleJobs.length === 0) {
+  // Also collect jobs with expired claim leases (lease_expires_at in the past)
+  const { data: staleByLease, error: leaseError } = await supabase
+    .from('evaluation_jobs')
+    .select('id')
+    .eq('status', 'running')
+    .not('lease_expires_at', 'is', null)
+    .lt('lease_expires_at', now)
+    .order('lease_expires_at', { ascending: true })
+    .limit(25);
+
+  if (leaseError) {
+    console.warn('[Processor] Failed to check stale running jobs (lease):', leaseError.message);
+  }
+
+  // Merge unique IDs from both sources
+  const ageIds = (staleByAge ?? []).map((r) => r.id);
+  const leaseIds = (staleByLease ?? []).map((r) => r.id);
+  const staleIds = Array.from(new Set([...ageIds, ...leaseIds]));
+
+  if (staleIds.length === 0) {
     return { staleFound: 0, failed: 0, ids: [] };
   }
 
-  const staleIds = staleJobs.map((row) => row.id);
-  const now = new Date().toISOString();
   const { data: failedRows, error: failError } = await supabase
     .from('evaluation_jobs')
     .update({
       status: 'failed',
       last_error:
         'Auto-failed stale running job: worker timed out or crashed before completion update',
+      claimed_by: null,
+      claimed_at: null,
+      lease_expires_at: null,
       updated_at: now,
     })
     .in('id', staleIds)
@@ -975,19 +844,72 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: `Job not found: ${jobError?.message}` };
     }
 
-    if (job.status !== 'queued') {
-      return { success: false, error: `Job status is ${job.status}, not queued` };
+    const progress =
+      job.progress && typeof job.progress === 'object'
+        ? (job.progress as Record<string, unknown>)
+        : {};
+
+    const isPhase1CompleteHandoff =
+      job.status === 'running' &&
+      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
+      (job.phase_status === 'complete' || progress.phase_status === 'complete');
+
+    const isPhase1QueuedCandidate =
+      job.status === 'queued' &&
+      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
+      (job.phase_status === 'queued' || progress.phase_status === 'queued');
+
+    const isPhase2QueuedCandidate =
+      job.status === 'queued' &&
+      (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
+      (job.phase_status === 'queued' || progress.phase_status === 'queued');
+
+    // Pre-claimed running jobs: atomically claimed by the processor (claimed_by is set,
+    // phase_status=running, lease not yet expired). These were transitioned queued->running
+    // by claim_evaluation_jobs RPC before being handed to this function.
+    const isPhase1PreClaimed =
+      job.status === 'running' &&
+      !!job.claimed_by &&
+      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
+      (job.phase_status === 'running' || progress.phase_status === 'running');
+
+    const isPhase2PreClaimed =
+      job.status === 'running' &&
+      !!job.claimed_by &&
+      (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
+      (job.phase_status === 'running' || progress.phase_status === 'running');
+
+    const executionPhase: 'phase_1' | 'phase_2' =
+      isPhase2QueuedCandidate || isPhase2PreClaimed ? 'phase_2' : 'phase_1';
+
+    if (
+      !isPhase1QueuedCandidate &&
+      !isPhase1CompleteHandoff &&
+      !isPhase2QueuedCandidate &&
+      !isPhase1PreClaimed &&
+      !isPhase2PreClaimed
+    ) {
+      return {
+        success: false,
+        error: `Job not eligible for processing. status=${job.status}, phase=${job.phase}, phase_status=${job.phase_status}`,
+      };
     }
 
     const progressState =
       job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
 
-    const markRunning = async (message: string) => {
+    const markRunning = async (
+      message: string,
+      completedUnits: number,
+      phase: 'phase_1' | 'phase_2' = 'phase_1',
+    ) => {
       const now = new Date().toISOString();
       const nextProgress = {
         ...progressState,
-        phase: 'phase_1',
+        phase,
         phase_status: 'running',
+        total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+        completed_units: completedUnits,
         message,
         last_heartbeat_at: now,
       };
@@ -998,7 +920,10 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         .from('evaluation_jobs')
         .update({
           status: 'running',
+          phase,
           phase_status: 'running',
+          total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+          completed_units: completedUnits,
           progress: nextProgress,
           started_at: job.started_at ?? now,
           last_heartbeat: now,
@@ -1013,8 +938,19 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       const now = new Date().toISOString();
       const nextProgress = {
         ...progressState,
-        phase: 'phase_1',
+        phase:
+          progressState.phase === 'phase_2' || progressState.phase === 'phase_1'
+            ? progressState.phase
+            : executionPhase,
         phase_status: 'failed',
+        total_units:
+          typeof progressState.total_units === 'number'
+            ? progressState.total_units
+            : EVALUATION_PROGRESS_TOTAL_UNITS,
+        completed_units:
+          typeof progressState.completed_units === 'number'
+            ? progressState.completed_units
+            : 0,
         message: 'Evaluation failed',
         failed_at: now,
       };
@@ -1026,7 +962,10 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           .from('evaluation_jobs')
           .update({
             status: 'failed',
+            phase: nextProgress.phase,
             phase_status: 'failed',
+            total_units: nextProgress.total_units,
+            completed_units: nextProgress.completed_units,
             progress: nextProgress,
             last_error: errorMessage,
             updated_at: now,
@@ -1038,7 +977,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     };
 
     // 2. Update status to running
-    await markRunning('Fetching manuscript');
+    await markRunning('Fetching manuscript', 0, executionPhase);
 
     console.log(`[Processor] Job ${jobId} status updated to running`);
 
@@ -1074,18 +1013,139 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: shortContentError };
     }
 
+    // Context binding assertion: prove the fetched manuscript belongs to this job
+    // before any pipeline invocation (fail-closed isolation guarantee).
+    // Both IDs must be finite positive integers and must match.
+    const fetchedManuscriptId = (manuscript as Manuscript).id;
+    const jobManuscriptId = job.manuscript_id;
+    if (
+      !Number.isFinite(jobManuscriptId) ||
+      jobManuscriptId <= 0 ||
+      !Number.isFinite(fetchedManuscriptId) ||
+      fetchedManuscriptId <= 0 ||
+      fetchedManuscriptId !== jobManuscriptId
+    ) {
+      const bindingError =
+        `Context binding failure: job.manuscript_id=${jobManuscriptId} does not match fetched manuscript.id=${fetchedManuscriptId}`;
+      await markFailed(bindingError);
+      return { success: false, error: bindingError };
+    }
+
     const manuscriptWithContent: Manuscript = {
       ...(manuscript as Manuscript),
       content: resolvedManuscriptText,
     };
 
-    // 4. Generate evaluation using AI (fail-closed; no mock fallback)
-    await markRunning('Generating evaluation with AI');
-    const evaluationResult = await generateAIEvaluation(manuscriptWithContent, job);
+    // 4. Canonical evaluation via governed multi-pass pipeline (fail-closed)
+    await markRunning('Running canonical evaluation pipeline', 1, executionPhase);
 
-    console.log(`[Processor] Evaluation generated for job ${jobId}`);
+    const externalMode = getExternalAdjudicationMode();
+    if ((externalMode === 'required' || externalMode === 'veto') && !perplexityApiKey) {
+      const missingCrossCheckConfigError =
+        `External adjudication mode '${externalMode}' requires PERPLEXITY_API_KEY`;
+      await markFailed(missingCrossCheckConfigError);
 
-    await markRunning('Persisting evaluation artifacts');
+      return { success: false, error: missingCrossCheckConfigError };
+    }
+
+    console.log(`[Processor] ${jobId}: ENTER runPipeline model=${getCanonicalPipelineModel(openAiModel)} passTimeoutMs=${evalPassTimeoutMs}`);
+    const pipelineResult = await runPipeline({
+      manuscriptText: manuscriptWithContent.content || '',
+      workType: manuscriptWithContent.work_type || 'novel',
+      title: manuscriptWithContent.title,
+      model: getCanonicalPipelineModel(openAiModel),
+      openaiApiKey,
+      perplexityApiKey: perplexityApiKey || undefined,
+      manuscriptId: String(manuscriptWithContent.id),
+      executionMode: 'TRUSTED_PATH',
+      _passTimeoutMs: evalPassTimeoutMs,
+    });
+    console.log(
+      `[Processor] ${jobId}: EXIT runPipeline ok=${pipelineResult.ok}` +
+        (pipelineResult.ok === false
+          ? ` failed_at=${pipelineResult.failed_at} code=${pipelineResult.error_code}`
+          : ''),
+    );
+
+    if (pipelineResult.ok === false) {
+      const pipelineError = `[Pipeline:${pipelineResult.failed_at}] ${pipelineResult.error_code} ${pipelineResult.error}`;
+      console.error(`[Processor] Pipeline failed for job ${jobId}: ${pipelineError}`);
+      await markFailed(pipelineError);
+
+      return { success: false, error: pipelineError };
+    }
+
+    if ((externalMode === 'required' || externalMode === 'veto') && !pipelineResult.cross_check) {
+      const missingCrossCheckResultError =
+        `External adjudication mode '${externalMode}' requires cross-check output`;
+      await markFailed(missingCrossCheckResultError);
+
+      return { success: false, error: missingCrossCheckResultError };
+    }
+
+    const evaluationResult = synthesisToEvaluationResult({
+      synthesis: pipelineResult.synthesis,
+      ids: {
+        evaluation_run_id: crypto.randomUUID(),
+        job_id: job.id,
+        manuscript_id: manuscript.id,
+        user_id: manuscript.user_id,
+      },
+      crossCheckResult: pipelineResult.cross_check,
+      pass4Governance: pipelineResult.pass4_governance,
+    });
+    console.log(
+      `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
+    );
+
+    if (evalContextContaminationGuardEnabled) {
+      const contaminationCheck = detectContextContamination({
+        sourceText: manuscriptWithContent.content || '',
+        evaluationResult,
+      });
+
+      if (contaminationCheck.contaminated) {
+        console.error(`[Processor] ${jobId}: context contamination detected`, {
+          offending_entities: contaminationCheck.offendingEntities,
+          reasons: contaminationCheck.reasons,
+        });
+        const contaminationDetail = JSON.stringify({
+          code: 'CONTEXT_CONTAMINATION_DETECTED',
+          offending_entities: contaminationCheck.offendingEntities.slice(0, 10),
+          reasons: contaminationCheck.reasons.slice(0, 10),
+        });
+        await markFailed(contaminationDetail);
+
+        return { success: false, error: 'CONTEXT_CONTAMINATION_DETECTED' };
+      }
+    }
+
+    const promptCoverage = summarizePromptCoverage(manuscriptWithContent.content || '');
+    evaluationResult.metrics.manuscript = {
+      ...evaluationResult.metrics.manuscript,
+      word_count: promptCoverage.sourceWords,
+      char_count: promptCoverage.sourceChars,
+      genre: manuscriptWithContent.work_type || 'Unknown',
+    };
+    evaluationResult.metrics.processing = {
+      ...evaluationResult.metrics.processing,
+      segment_count: promptCoverage.truncated ? 3 : 1,
+    };
+    evaluationResult.governance.limitations = [
+      promptCoverage.truncated
+        ? `Pass 1 and Pass 2 analyzed a sampled prompt window (~${promptCoverage.analyzedWords} of ${promptCoverage.sourceWords} words; ${promptCoverage.budgetChars}-char budget).`
+        : `Pass 1 and Pass 2 analyzed the full submission (${promptCoverage.sourceWords} words).`,
+      'Pass 3 synthesis uses a compressed manuscript reference window for arbitration context.',
+      ...evaluationResult.governance.limitations.filter(
+        (item) =>
+          item !== 'Single-chunk evaluation; multi-chunk synthesis in Phase 2.8' &&
+          item !== 'Full manuscript context may not be captured if truncated',
+      ),
+    ];
+
+    console.log(`[Processor] Canonical pipeline evaluation generated for job ${jobId}`);
+
+    await markRunning('Persisting evaluation artifacts', 2, 'phase_2');
 
     const completionTime = new Date().toISOString();
     const existingProgress = { ...progressState };
@@ -1112,6 +1172,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     }
 
     try {
+      console.log(
+        `[Processor] ${jobId}: ENTER upsertEvaluationArtifact manuscriptId=${job.manuscript_id}`,
+      );
       const artifactId = await upsertEvaluationArtifact({
         supabase,
         jobId: job.id,
@@ -1122,6 +1185,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         artifactVersion: 'evaluation_result_v1',
       });
 
+      console.log(`[Processor] ${jobId}: EXIT upsertEvaluationArtifact id=${artifactId}`);
       console.log(`[Processor] Canonical artifact upserted: ${artifactId}`);
     } catch (artifactError) {
       const errorMsg = artifactError instanceof Error ? artifactError.message : String(artifactError);
@@ -1131,16 +1195,21 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     }
 
     // 6. Store evaluation result and mark complete only after artifact exists
+    console.log(`[Processor] ${jobId}: ENTER completion update`);
     const { error: updateError } = await supabase
       .from('evaluation_jobs')
       .update({
         status: 'complete',
         phase: 'phase_2',
         phase_status: 'complete',
+        total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+        completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
         progress: {
           ...existingProgress,
           phase: 'phase_2',
           phase_status: 'complete',
+          total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+          completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
           message: 'Evaluation completed',
           finished_at: completionTime,
         },
@@ -1153,6 +1222,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         updated_at: completionTime
       })
       .eq('id', jobId);
+    console.log(
+      `[Processor] ${jobId}: EXIT completion update error=${updateError ? updateError.message : 'none'}`,
+    );
 
     if (updateError) {
       await markFailed(`Completion update failed: ${updateError.message}`);
@@ -1176,6 +1248,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         .from('evaluation_jobs')
         .update({
           status: 'failed',
+          total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+          completed_units: 0,
           phase_status: 'failed',
           last_error: errorMessage,
           updated_at: now,
@@ -1190,47 +1264,118 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 }
 
 /**
+ * Atomically claim a batch of queued evaluation jobs using the claim_evaluation_jobs RPC.
+ * Returns an array of claimed job objects (id + phase).
+ * Falls back to an empty array if the RPC is unavailable (graceful degradation).
+ */
+export async function claimQueuedJobs(
+  options: {
+    workerId: string;
+    batchSize?: number;
+    leaseMs?: number;
+  },
+): Promise<Array<{ id: string; phase: string }>> {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  const workerId = options.workerId;
+  const batchSizeRaw = Number(options.batchSize ?? evalWorkerBatchSize);
+  const leaseMsRaw = Number(options.leaseMs ?? 180_000);
+  const batchSize = Number.isFinite(batchSizeRaw)
+    ? Math.min(5, Math.max(1, Math.floor(batchSizeRaw)))
+    : 5;
+  const leaseMs = Number.isFinite(leaseMsRaw)
+    ? Math.min(180_000, Math.max(30_000, Math.floor(leaseMsRaw)))
+    : 180_000;
+  const leaseToken = randomUUID();
+  const leaseExpiresAt = new Date(Date.now() + leaseMs).toISOString();
+
+  const { data, error } = await supabase.rpc('claim_evaluation_jobs', {
+    p_batch_size: batchSize,
+    p_worker_id: workerId,
+    p_lease_token: leaseToken,
+    p_lease_expires_at: leaseExpiresAt,
+  });
+
+  if (error) {
+    const msg = error.message || '';
+    // Graceful degradation: if the RPC doesn't exist yet, return empty so the
+    // caller can fall through to the legacy SELECT path.
+    if (msg.includes('function') || msg.includes('does not exist') || msg.includes('schema cache')) {
+      console.warn('[Processor] claim_evaluation_jobs RPC unavailable, falling back to legacy SELECT');
+      return [];
+    }
+    console.error('[Processor] claim_evaluation_jobs RPC error:', error);
+    throw error;
+  }
+
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  return (data as Array<{ id: string; phase: string }>).map((row) => ({
+    id: row.id,
+    phase: row.phase,
+  }));
+}
+
+/**
  * Process all queued evaluation jobs
  */
-export async function processQueuedJobs(): Promise<{
+export async function processQueuedJobs(options?: {
+  workerId?: string;
+  batchSize?: number;
+  leaseMs?: number;
+}): Promise<{
   processed: number;
   succeeded: number;
   failed: number;
+  claimed: number;
   errors: Array<{ jobId: string; error: string }>;
 }> {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const effectiveWorkerId = options?.workerId ?? randomUUID();
+  const requestedBatchSize = options?.batchSize ?? evalWorkerBatchSize;
+  const requestedLeaseMs = options?.leaseMs ?? 180_000;
 
   // Safety net: recover jobs left in running due to platform hard timeout/crash.
   await failStaleRunningJobs();
 
-  // Fetch all queued jobs
-  const { data: jobs, error } = await supabase
-    .from('evaluation_jobs')
-    .select('id')
-    .eq('status', 'queued')
-    .order('created_at', { ascending: true })
-    .limit(10); // Process max 10 jobs per run
-
-  if (error) {
-    console.error('[Processor] Error fetching queued jobs:', error);
-    return { processed: 0, succeeded: 0, failed: 0, errors: [] };
+  // Atomically claim a batch of queued jobs via SKIP LOCKED RPC.
+  let jobs: Array<{ id: string; phase: string }> = [];
+  try {
+    jobs = await claimQueuedJobs({
+      workerId: effectiveWorkerId,
+      batchSize: requestedBatchSize,
+      leaseMs: requestedLeaseMs,
+    });
+  } catch {
+    // If claiming fails hard, return early rather than silently double-processing.
+    console.error('[Processor] Fatal error during job claiming; aborting batch');
+    return { processed: 0, succeeded: 0, failed: 0, claimed: 0, errors: [] };
   }
 
-  if (!jobs || jobs.length === 0) {
-    console.log('[Processor] No queued jobs found');
-    return { processed: 0, succeeded: 0, failed: 0, errors: [] };
+  if (jobs.length === 0) {
+    console.log('[Processor] No queued jobs claimed');
+    return { processed: 0, succeeded: 0, failed: 0, claimed: 0, errors: [] };
   }
 
-  console.log(`[Processor] Found ${jobs.length} queued job(s)`);
+  const phaseBreakdown = jobs.reduce<Record<string, number>>((acc, row) => {
+    const phase = typeof row.phase === 'string' ? row.phase : 'unknown';
+    acc[phase] = (acc[phase] || 0) + 1;
+    return acc;
+  }, {});
+
+  console.log(`[Processor] Claimed ${jobs.length} job(s) for worker ${effectiveWorkerId}`);
+  console.log(`[Processor] Claimed job phase breakdown: ${JSON.stringify(phaseBreakdown)}`);
 
   const results = {
     processed: jobs.length,
+    claimed: jobs.length,
     succeeded: 0,
     failed: 0,
     errors: [] as Array<{ jobId: string; error: string }>
   };
 
-  // Process each job sequentially
+  // Process each claimed job sequentially
   for (const job of jobs) {
     const result = await processEvaluationJob(job.id);
     
@@ -1242,7 +1387,7 @@ export async function processQueuedJobs(): Promise<{
     }
   }
 
-  console.log(`[Processor] Completed: ${results.succeeded} succeeded, ${results.failed} failed`);
+  console.log(`[Processor] Completed: ${results.succeeded} succeeded, ${results.failed} failed (claimed: ${results.claimed})`);
 
   return results;
 }

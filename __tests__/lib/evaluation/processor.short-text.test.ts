@@ -28,8 +28,10 @@ function makeSupabaseStub(shortText: string) {
     manuscript_id: 123,
     job_type: "evaluation",
     status: "queued",
+    phase: "phase_1",
+    phase_status: "queued",
     created_at: new Date().toISOString(),
-    progress: {},
+    progress: { phase: "phase_1", phase_status: "queued" },
   };
 
   const manuscript = {
@@ -100,6 +102,8 @@ describe("processEvaluationJob short-text fail-closed", () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
     process.env.OPENAI_API_KEY = "sk-test-key";
+    process.env.EVAL_PASS_TIMEOUT_MS = "180000";
+    process.env.EVAL_OPENAI_TIMEOUT_MS = "180000";
     process.env.EVAL_MIN_MANUSCRIPT_CHARS = "200";
   });
 
@@ -117,8 +121,19 @@ describe("processEvaluationJob short-text fail-closed", () => {
     expect(OpenAIMock).not.toHaveBeenCalled();
     expect(createCompletionMock).not.toHaveBeenCalled();
 
+    const runningUpdate = supabaseStub.evaluationJobUpdates[0] as UpdatePayload;
+    expect(runningUpdate).toMatchObject({
+      status: "running",
+      total_units: 3,
+      completed_units: 0,
+    });
+
     const finalUpdate = supabaseStub.evaluationJobUpdates.at(-1) as UpdatePayload;
-    expect(finalUpdate).toMatchObject({ status: "failed" });
-    expect(String(finalUpdate.last_error || "")).toMatch(/minimum 200/i);
+    expect(finalUpdate).toMatchObject({
+      status: "failed",
+      total_units: 3,
+      completed_units: 0,
+    });
+    expect(String(finalUpdate.last_error || "")).toMatch(/minimum 1000/i);
   });
 });

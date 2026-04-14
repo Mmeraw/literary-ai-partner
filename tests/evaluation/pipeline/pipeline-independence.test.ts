@@ -8,10 +8,19 @@
 import { describe, it, expect, jest, beforeEach } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { runPipeline } from "@/lib/evaluation/pipeline/runPipeline";
-import type { SinglePassOutput, SynthesisOutput, QualityGateResult } from "@/lib/evaluation/pipeline/types";
+import type {
+  SinglePassOutput,
+  SynthesisOutput,
+  QualityGateResult,
+  PipelineResult,
+} from "@/lib/evaluation/pipeline/types";
 import type { RunPass1Options } from "@/lib/evaluation/pipeline/runPass1";
 import type { RunPass2Options } from "@/lib/evaluation/pipeline/runPass2";
 import type { RunPass3Options } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+
+function isPipelineFailure(result: PipelineResult): result is Extract<PipelineResult, { ok: false }> {
+  return result.ok === false;
+}
 
 // ── Fixture builders ──────────────────────────────────────────────────────────
 
@@ -42,8 +51,19 @@ function makeSynthesisOutput(): SynthesisOutput {
       final_score_0_10: 7,
       score_delta: 0,
       final_rationale: `Synthesized rationale for ${key}.`,
+      pressure_points: ["Narrative pressure accumulates around this criterion."],
+      decision_points: ["The chapter commits to a clear direction for this criterion."],
+      consequence_status: "landed" as const,
       evidence: [],
-      recommendations: [],
+      recommendations: [
+        {
+          priority: "medium" as const,
+          action: `Strengthen the ${key} dimension with more targeted evidence from the manuscript text.`,
+          expected_impact: "Increases specificity and reader connection.",
+          anchor_snippet: '"test"',
+          source_pass: 3 as const,
+        },
+      ],
     })),
     overall: {
       overall_score_0_100: 70,
@@ -58,6 +78,7 @@ function makeSynthesisOutput(): SynthesisOutput {
       pass3_model: "gpt-4o-mini",
       generated_at: new Date().toISOString(),
     },
+      partial_evaluation: false,
   };
 }
 
@@ -114,11 +135,12 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
 
     expect(mockRunPass2).toHaveBeenCalledTimes(1);
     const pass2CallArg = mockRunPass2.mock.calls[0][0];
+    const pass2CallArgRecord = pass2CallArg as unknown as Record<string, unknown>;
 
     // Pass 2 options must NOT contain any reference to Pass 1 output
-    expect((pass2CallArg as Record<string, unknown>)["pass1"]).toBeUndefined();
-    expect((pass2CallArg as Record<string, unknown>)["pass1Output"]).toBeUndefined();
-    expect((pass2CallArg as Record<string, unknown>)["criteria"]).toBeUndefined();
+    expect(pass2CallArgRecord["pass1"]).toBeUndefined();
+    expect(pass2CallArgRecord["pass1Output"]).toBeUndefined();
+    expect(pass2CallArgRecord["criteria"]).toBeUndefined();
 
     // Pass 2 receives only manuscript context
     expect(pass2CallArg.manuscriptText).toBe("The river moved slowly through the valley.");
@@ -146,7 +168,7 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
     });
 
     expect(mockRunPass3).toHaveBeenCalledTimes(1);
-    const pass3CallArg = mockRunPass3.mock.calls[0][0] as Record<string, unknown>;
+    const pass3CallArg = mockRunPass3.mock.calls[0][0] as unknown as Record<string, unknown>;
     // Pass 3 should receive pass1 and pass2
     expect(pass3CallArg["pass1"]).toBeDefined();
     expect(pass3CallArg["pass2"]).toBeDefined();
@@ -169,7 +191,7 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isPipelineFailure(result)) {
       expect(result.error_code).toBe("PASS1_FAILED");
       expect(result.failed_at).toBe("pass1");
     }
@@ -194,7 +216,7 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isPipelineFailure(result)) {
       expect(result.error_code).toBe("PASS2_FAILED");
       expect(result.failed_at).toBe("pass2");
     }

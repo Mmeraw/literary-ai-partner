@@ -7,6 +7,8 @@
  * 1. Vercel Cron: x-vercel-cron=1 + x-vercel-id (platform validation)
  * 2. Manual trigger: Authorization: Bearer <CRON_SECRET>
  * 3. Dev testing: ?secret=<CRON_SECRET> (NODE_ENV=development only)
+ * 4. Dev proof mode (opt-in): Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
+ *    when NODE_ENV=development and WORKER_ALLOW_SERVICE_ROLE_DEV=1
  * 
  * GET /api/workers/process-evaluations
  * GET /api/workers/process-evaluations?dry_run=1  (returns counts without processing)
@@ -17,7 +19,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { processQueuedJobs } from '@/lib/evaluation/processor';
+import { checkServiceRoleAuth } from '@/lib/auth/api';
 import crypto from 'crypto';
+import os from 'os';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
@@ -33,7 +37,9 @@ const CONFIG = {
   // Maximum execution time before timeout (Vercel hobby: 10s, pro: 60s)
   MAX_EXECUTION_MS: 55000,
   // Batch size for processing
-  BATCH_SIZE: 10,
+  BATCH_SIZE: 5,
+  // Lease duration for atomically claimed jobs
+  LEASE_MS: 180000,
 } as const;
 
 // ============================================================================
@@ -94,6 +100,9 @@ function isVercelCronInvocation(req: NextRequest): boolean {
 function checkAuthorization(req: NextRequest): { authorized: boolean; method: string; secretTooLong: boolean } {
   const expectedSecret = process.env.CRON_SECRET || '';
   const bearer = extractBearer(req.headers.get('authorization'));
+  const allowDevServiceRole =
+    process.env.NODE_ENV === 'development' &&
+    process.env.WORKER_ALLOW_SERVICE_ROLE_DEV === '1';
   
   // Method 1: Vercel Cron invocation (highest trust)
   if (isVercelCronInvocation(req)) {
@@ -124,6 +133,11 @@ function checkAuthorization(req: NextRequest): { authorized: boolean; method: st
       }
     }
   }
+
+  // Method 4: Development-only service-role auth (explicit opt-in)
+  if (allowDevServiceRole && checkServiceRoleAuth(req)) {
+    return { authorized: true, method: 'dev_service_role', secretTooLong: false };
+  }
   
   return { authorized: false, method: 'none', secretTooLong: false };
 }
@@ -143,6 +157,7 @@ function getAuthDebugContext(req: NextRequest): Record<string, unknown> {
     xVercelCronIs1: req.headers.get('x-vercel-cron') === '1',
     hasXVercelId: !!req.headers.get('x-vercel-id'),
     uaStartsWithVercelCron: req.headers.get('user-agent')?.startsWith('vercel-cron') ?? false,
+    allowDevServiceRole: process.env.WORKER_ALLOW_SERVICE_ROLE_DEV === '1',
   };
 }
 
@@ -155,6 +170,13 @@ function getAuthDebugContext(req: NextRequest): Record<string, unknown> {
  */
 function generateTraceId(): string {
   return crypto.randomUUID();
+}
+
+function buildWorkerId(traceId: string): string {
+  const env = process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown-env';
+  const host = process.env.HOSTNAME || os.hostname() || 'unknown-host';
+  const tracePart = traceId.slice(0, 12);
+  return `${env}:${host}:${tracePart}`;
 }
 
 /**
@@ -259,7 +281,12 @@ export async function GET(request: NextRequest) {
     }
     
     // Process queued jobs
-    const results = await processQueuedJobs();
+    const workerId = buildWorkerId(traceId);
+    const results = await processQueuedJobs({
+      workerId,
+      batchSize: CONFIG.BATCH_SIZE,
+      leaseMs: CONFIG.LEASE_MS,
+    });
     const durationMs = Date.now() - startTime;
     
     structuredLog({
@@ -269,7 +296,9 @@ export async function GET(request: NextRequest) {
       message: 'Worker completed successfully',
       data: {
         authMethod: auth.method,
+        workerId,
         durationMs,
+        claimed: results.claimed,
         processed: results.processed,
         succeeded: results.succeeded,
         failed: results.failed,
@@ -280,7 +309,9 @@ export async function GET(request: NextRequest) {
       success: true,
       traceId,
       authMethod: auth.method,
+      workerId,
       durationMs,
+      claimed: results.claimed,
       processed: results.processed,
       succeeded: results.succeeded,
       failed: results.failed,

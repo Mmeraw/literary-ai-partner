@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 /**
  * Canonical artifact type for Flow 1 one-page summary.
- * Governance: This page must reference the contract-defined artifact type.
+ * Governance: This must match ARTIFACT_TYPES.ONE_PAGE_SUMMARY in writeArtifact.ts.
  */
 const REPORT_ARTIFACT_TYPE = "one_page_summary";
 
@@ -14,6 +14,7 @@ type Ok = {
   job_id: string;
   status: string;
   evaluation_result: any;
+  source?: "artifact" | "inline_job_result";
 };
 
 type Err = {
@@ -120,11 +121,17 @@ export default function ReportPage({ params }: { params: { jobId: string } }) {
           </div>
 
           <div style={{ marginTop: 16 }}>
-            <strong>Raw Result (debug)</strong>
-            <pre style={{ whiteSpace: "pre-wrap" }}>
-              {JSON.stringify(data.evaluation_result, null, 2)}
-            </pre>
+            <strong>Artifact type:</strong> {REPORT_ARTIFACT_TYPE}
           </div>
+
+          {process.env.NODE_ENV !== "production" && (
+            <div style={{ marginTop: 16 }}>
+              <strong>Raw Result (debug)</strong>
+              <pre style={{ whiteSpace: "pre-wrap" }}>
+                {JSON.stringify(data.evaluation_result, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
       ) : null}
     </div>

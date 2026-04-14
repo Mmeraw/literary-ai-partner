@@ -4,9 +4,9 @@
  *
  * Tests that only one Phase 2 worker can acquire the lease at a time:
  * 1. Complete Phase 1
- * 2. Start two Phase 2 workers simultaneously
+ * 2. Start 10+ Phase 2 workers simultaneously
  * 3. Verify only one acquires the lease
- * 4. Verify the other logs "lease not acquired" and exits cleanly
+ * 4. Verify the rest log "lease not acquired" and exit cleanly
  */
 import { getBaseUrl } from "./base-url.mjs";
 import { jfetch, must, sleep } from "./_http.mjs";
@@ -14,6 +14,7 @@ import { skipIfMemoryMode } from "./_skip.mjs";
 
 async function main() {
   const BASE = await getBaseUrl();
+  const workerCount = Math.max(10, Number.parseInt(process.env.LEASE_TEST_WORKERS || "10", 10) || 10);
   console.log(`Lease Contention Test - ${new Date().toISOString()}`);
 
   // Check if we're in memory mode (no Supabase worker)
@@ -67,31 +68,25 @@ async function main() {
     await sleep(1000);
   }
 
-  // 3) Start two Phase 2 workers simultaneously
-  console.log("Starting two Phase 2 workers simultaneously...");
+  // 3) Start N Phase 2 workers simultaneously
+  console.log(`Starting ${workerCount} Phase 2 workers simultaneously...`);
 
-  const worker1Promise = jfetch(`${BASE}/api/jobs/${jobId}/run-phase2`, {
-    method: "POST",
-  }).then((r) => ({ worker: 1, status: r.status, ok: r.ok }));
-
-  const worker2Promise = jfetch(`${BASE}/api/jobs/${jobId}/run-phase2`, {
-    method: "POST",
-  }).then((r) => ({ worker: 2, status: r.status, ok: r.ok }));
-
-  const [result1, result2] = await Promise.all([
-    worker1Promise,
-    worker2Promise,
-  ]);
-
-  console.log(
-    `Worker 1: ${result1.status} ${result1.ok ? "OK" : "FAILED"}`,
-  );
-  console.log(
-    `Worker 2: ${result2.status} ${result2.ok ? "OK" : "FAILED"}`,
+  const workerPromises = Array.from({ length: workerCount }, (_, idx) =>
+    jfetch(`${BASE}/api/jobs/${jobId}/run-phase2`, {
+      method: "POST",
+    }).then((r) => ({ worker: idx + 1, status: r.status, ok: r.ok })),
   );
 
-  // Both should return 202 (accepted), but only one will actually acquire the lease
-  if (!result1.ok || !result2.ok) {
+  const results = await Promise.all(workerPromises);
+
+  for (const result of results) {
+    console.log(
+      `Worker ${result.worker}: ${result.status} ${result.ok ? "OK" : "FAILED"}`,
+    );
+  }
+
+  // All should return accepted/ok, but only one will actually acquire lease in runtime.
+  if (results.some((r) => !r.ok)) {
     console.error("FAIL: One or both workers returned non-OK status");
     process.exit(1);
   }
@@ -131,7 +126,7 @@ async function main() {
   }
 
   // Success criteria:
-  // 1. Both workers returned 202 Accepted
+  // 1. All workers returned 202 Accepted
   // 2. Job completed successfully (only one worker actually ran)
   // 3. No errors or duplicate processing
   console.log("✓ PASS: Lease contention handled correctly");

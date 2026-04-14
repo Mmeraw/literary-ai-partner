@@ -78,7 +78,7 @@ if (pipelineSrc.includes("status: 'halted'")) {
 }
 
 // 5. Diagnostic mode never generates patches
-if (pipelineSrc.includes("mode === 'diagnostic'")) {
+if (pipelineSrc.includes("mode === 'DIAGNOSTIC_ONLY'")) {
   pass('Pipeline checks for diagnostic mode');
 } else {
   fail('Pipeline does not check for diagnostic mode');

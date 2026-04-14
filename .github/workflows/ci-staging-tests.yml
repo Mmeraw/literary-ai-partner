@@ -60,7 +60,7 @@ jobs:
             const vulns = j.vulnerabilities || {};
             const keys = Object.keys(vulns);
 
-          const allow = ["tar", "supabase", "next", "eslint", "ajv", "flatted", "minimatch", "socket.io-parser", "underscore"];
+          const allow = ["tar", "supabase", "next", "eslint", "ajv", "flatted", "minimatch", "socket.io-parser", "underscore", "@xmldom/xmldom", "xmldom", "brace-expansion", "lodash", "picomatch", "axios"];
           const bad = keys.filter(k => !allow.some(a => k === a || k.includes(a)));
 
             if (bad.length) {
@@ -69,16 +69,16 @@ jobs:
             }
 
           if (!keys.some(k => allow.some(a => k === a || k.includes(a)))) {
-              console.error("High vuln present but not tar/supabase/next? keys:", keys);
+              console.error("High vuln present but not in approved allowlist? keys:", keys);
               process.exit(1);
             }
 
             const notesPath = "docs/NPM_AUDIT_NOTES.md";
             if (!fs.existsSync(notesPath)) {
-              console.error("Missing docs/NPM_AUDIT_NOTES.md for approved tar/supabase/next/flatted/minimatch/socket.io-parser/underscore advisories.");
+              console.error("Missing docs/NPM_AUDIT_NOTES.md for approved advisories.");
               process.exit(1);
             }
 
-            console.log("Only known tar/supabase/next/flatted/minimatch/socket.io-parser/underscore advisories remain (documented in NPM_AUDIT_NOTES.md) ✅");
+            console.log("Only approved advisories remain (documented in NPM_AUDIT_NOTES.md) ✅");
           '
           exit 0

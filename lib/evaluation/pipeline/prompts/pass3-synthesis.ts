@@ -3,12 +3,18 @@
  *
  * Pass 3 reconciles Pass 1 (craft) and Pass 2 (editorial) outputs,
  * producing a unified dual-axis evaluation.
- * Temperature: 0.2.  Max tokens: 5000.
+ * Temperature: 0.2.  Max tokens: environment-tunable (default 9000).
  */
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import {
+  buildCoverageDisclosure,
+  buildPromptInputWindow,
+  getDefaultSynthesisReferenceCharBudget,
+  summarizePromptCoverage,
+} from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v1";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v3";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 
@@ -24,6 +30,10 @@ Your job is to compare, expose agreement and divergence, and produce a governed 
 2. Do NOT silently overwrite disagreement.
 3. Do NOT hide meaningful divergence by score averaging alone.
 4. Every major arbitration decision MUST include evidence-backed reasoning.
+5. Preserve narrative-mode awareness: do NOT flatten documentary/dossier/reflective chapters into generic scene-work judgments.
+6. For each criterion, explicitly trace: pressure signal -> decision inflection -> consequence trajectory.
+7. Do NOT leave consequence state implicit; classify each criterion as landed, deferred, or dissipated.
+8. Never emit canned fallback rationale phrases (e.g., "neither pass supplied", "default neutral score", "placeholder").
 
 ### Score Reconciliation
 - If craft_score and editorial_score differ by ≤2: use the mathematical average (rounded to nearest integer)  
@@ -55,7 +65,11 @@ ${CRITERIA_KEYS.map((k, i) => `${i + 1}. ${k}`).join("\n")}
       "final_score_0_10": <integer 0-10>,
       "score_delta": <|craft_score - editorial_score|>,
       "delta_explanation": "<required if score_delta > 2, otherwise omit>",
-      "final_rationale": "<synthesized reasoning from both axes, 2-4 sentences>",
+      "final_rationale": "<synthesized reasoning from both axes, 2-4 sentences including pressure->decision->consequence logic>",
+      "pressure_points": ["<where pressure enters/escalates>", "<optional second point>"],
+      "decision_points": ["<decision reached or avoided>", "<optional second point>"],
+      "consequence_status": "landed|deferred|dissipated",
+      "deferred_consequence_risk": "<required when consequence_status=deferred>",
       "evidence": [
         { "snippet": "<verbatim, ≤200 chars>", "char_start": <number>, "char_end": <number> }
       ],
@@ -108,18 +122,22 @@ export function buildPass3UserPrompt(params: {
   executionMode?: "TRUSTED_PATH" | "STUDIO";
 }): string {
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
+  const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
+  const promptWindow = buildPromptInputWindow(params.manuscriptText, synthesisBudget);
+  const coverage = summarizePromptCoverage(params.manuscriptText, synthesisBudget);
   return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".
 
 Execution mode: ${executionMode}
+${buildCoverageDisclosure(coverage, "Pass 3 manuscript reference coverage")}
 
 ## PASS 1 OUTPUT (Craft Execution)
-${params.pass1Json.substring(0, 6000)}
+${params.pass1Json.substring(0, 4000)}
 
 ## PASS 2 OUTPUT (Editorial/Literary Insight)
-${params.pass2Json.substring(0, 6000)}
+${params.pass2Json.substring(0, 4000)}
 
 ## ORIGINAL MANUSCRIPT TEXT (for reference)
-${params.manuscriptText.substring(0, 4000)}
+${promptWindow}
 
 Reconcile both perspectives into a unified evaluation.
 Mandatory behavior:
@@ -127,5 +145,10 @@ Mandatory behavior:
 - Preserve major disagreement visibility.
 - Provide explicit arbitration rationale for divergence.
 - Do not silently merge conflicting conclusions.
+- Preserve narrative-mode distinctions when reconciling pacing, narrativeDrive, and character judgments.
+- If a chapter accumulates pressure through archives, reflection, or system mapping, distinguish that from true absence of movement.
+- For each criterion, identify concrete pressure, then the chapter-level decision (or non-decision), then the resulting consequence.
+- If consequence is deferred, name the risk and expected downstream cost explicitly.
+- Populate pressure_points, decision_points, consequence_status, and (when deferred) deferred_consequence_risk for every criterion.
 Return the synthesis JSON object as specified.`;
 }

@@ -58,7 +58,7 @@ export default async function wave37PronounAndReferentClarity(
 
 	const sentences = splitSentences(text);
 	const modifications: string[] = [
-		`wave-meta:category:${wave?.category ?? "clarity"}`,
+		`wave-meta:category:${wave?.category ?? "proseControl"}`,
 		`wave-meta:scope:${wave?.scope ?? "sentence"}`,
 		...CRITERIA_IDS.map((id) => `criterion:${id}`),
 	];

@@ -1,3 +1,5 @@
+import type { ValidityState } from "@/lib/governance/types";
+
 export type ProposalAction = "preserve" | "refine" | "replace";
 export type ProposalSeverity = "low" | "medium" | "high";
 export type ProposalDecision = "accepted" | "rejected" | "modified";
@@ -27,6 +29,7 @@ export type RevisionSession = {
   last_transition_at: string | null;
   failure_code: string | null;
   failure_message: string | null;
+  validity_state?: ValidityState;
 };
 
 export type ChangeProposal = {

@@ -21,10 +21,8 @@
 export const CANONICAL_JOB_STATUS = {
   QUEUED: 'queued',
   RUNNING: 'running',
-  RETRY_PENDING: 'retry_pending',
   FAILED: 'failed',
   COMPLETE: 'complete',
-  CANCELED: 'canceled',
 } as const;
 
 export type CanonicalJobStatus = typeof CANONICAL_JOB_STATUS[keyof typeof CANONICAL_JOB_STATUS];
@@ -113,7 +111,7 @@ export function assertCanonicalStatus(value: string | null | undefined): asserts
   if (!Object.values(CANONICAL_JOB_STATUS).includes(value as CanonicalJobStatus)) {
     throw new Error(
       `Non-canonical job status detected: "${value}". ` +
-      `Expected: queued, running, retry_pending, failed, complete, or canceled. ` +
+      `Expected: queued, running, failed, or complete. ` +
       `Run data migration: docs/CANONICAL_VOCABULARY_MIGRATION.md`
     );
   }
@@ -174,10 +172,8 @@ export function toDisplayStatus(status: CanonicalJobStatus): string {
   const map: Record<CanonicalJobStatus, string> = {
     [CANONICAL_JOB_STATUS.QUEUED]: 'Queued',
     [CANONICAL_JOB_STATUS.RUNNING]: 'Running',
-    [CANONICAL_JOB_STATUS.RETRY_PENDING]: 'Retrying',
     [CANONICAL_JOB_STATUS.FAILED]: 'Failed',
     [CANONICAL_JOB_STATUS.COMPLETE]: 'Complete',
-    [CANONICAL_JOB_STATUS.CANCELED]: 'Canceled',
   };
   
   return map[status] || status;

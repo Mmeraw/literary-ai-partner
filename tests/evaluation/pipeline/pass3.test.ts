@@ -81,6 +81,27 @@ function nullCompletion(): CreateCompletionFn {
   });
 }
 
+/** Helper: build a mock completion function that returns content parts rather than a flat string. */
+function arrayContentCompletion(responseJson: string): CreateCompletionFn {
+  return async () => ({
+    choices: [
+      {
+        message: {
+          content: [{ type: "output_text", text: responseJson }],
+        },
+      },
+    ],
+  });
+}
+
+/** Helper: build a mock completion function that returns an empty response with finish metadata. */
+function lengthLimitedEmptyCompletion(): CreateCompletionFn {
+  return async () => ({
+    choices: [{ message: { content: null }, finish_reason: "length" }],
+    usage: { prompt_tokens: 1234, completion_tokens: 8000, total_tokens: 9234 },
+  });
+}
+
 // ── Pure parser tests ─────────────────────────────────────────────────────────
 
 describe("parsePass3Response", () => {
@@ -199,5 +220,185 @@ describe("runPass3Synthesis", () => {
         _createCompletion: nullCompletion(),
       }),
     ).rejects.toThrow("Empty response from OpenAI");
+  });
+
+  it("accepts content-part arrays when the provider returns structured content", async () => {
+    const result = await runPass3Synthesis({
+      pass1: makePassOutput(1, "craft_execution"),
+      pass2: makePassOutput(2, "editorial_literary"),
+      manuscriptText: "test",
+      title: "Test",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: arrayContentCompletion(JSON.stringify(makePass3Fixture())),
+    });
+
+    expect(result.criteria).toHaveLength(13);
+    expect(result.overall.verdict).toBe("revise");
+  });
+
+  it("surfaces finish_reason and token metadata when the response is empty", async () => {
+    await expect(
+      runPass3Synthesis({
+        pass1: makePassOutput(1, "craft_execution"),
+        pass2: makePassOutput(2, "editorial_literary"),
+        manuscriptText: "test",
+        title: "Test",
+        registry,
+        openaiApiKey: "sk-test",
+        _createCompletion: lengthLimitedEmptyCompletion(),
+      }),
+    ).rejects.toThrow("finish_reason=length");
+  });
+});
+
+// ── Consequence tracking contract tests ──────────────────────────────────────
+
+describe("consequence tracking contract", () => {
+  const pass1 = makePassOutput(1, "craft_execution");
+  const pass2 = makePassOutput(2, "editorial_literary");
+
+  it("extracts AI-provided pressure_points and decision_points", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria[0] = {
+      ...fixture.criteria[0],
+      pressure_points: ["Tension builds through repeated failures.", "Stakes escalate in final confrontation."],
+      decision_points: ["Character commits despite withdrawal option."],
+      consequence_status: "landed",
+    } as typeof fixture.criteria[0];
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    const first = result.criteria[0];
+
+    expect(first.pressure_points).toEqual([
+      "Tension builds through repeated failures.",
+      "Stakes escalate in final confrontation.",
+    ]);
+    expect(first.decision_points).toEqual(["Character commits despite withdrawal option."]);
+  });
+
+  it("passes through 'landed' consequence_status and leaves deferred_consequence_risk undefined", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria[0] = {
+      ...fixture.criteria[0],
+      pressure_points: ["Mild tension."],
+      decision_points: ["Resolved cleanly."],
+      consequence_status: "landed",
+    } as typeof fixture.criteria[0];
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    expect(result.criteria[0].consequence_status).toBe("landed");
+    expect(result.criteria[0].deferred_consequence_risk).toBeUndefined();
+  });
+
+  it("passes through 'deferred' and uses AI-provided deferred_consequence_risk", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria[0] = {
+      ...fixture.criteria[0],
+      pressure_points: ["Unresolved tension lingers."],
+      decision_points: ["No resolution reached."],
+      consequence_status: "deferred",
+      deferred_consequence_risk: "Risk: unresolved arc may undermine final chapter payoff.",
+    } as typeof fixture.criteria[0];
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    expect(result.criteria[0].consequence_status).toBe("deferred");
+    expect(result.criteria[0].deferred_consequence_risk).toBe(
+      "Risk: unresolved arc may undermine final chapter payoff.",
+    );
+  });
+
+  it("auto-fills deferred_consequence_risk when AI sets status to 'deferred' but omits the risk field", () => {
+    const fixture = makePass3Fixture();
+    const first = { ...fixture.criteria[0], consequence_status: "deferred" };
+    delete (first as Record<string, unknown>)["deferred_consequence_risk"];
+    fixture.criteria[0] = first as typeof fixture.criteria[0];
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    expect(result.criteria[0].consequence_status).toBe("deferred");
+    expect(result.criteria[0].deferred_consequence_risk).toBeDefined();
+    expect(result.criteria[0].deferred_consequence_risk!.length).toBeGreaterThan(0);
+  });
+
+  it("passes through 'dissipated' and clears deferred_consequence_risk", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria[0] = {
+      ...fixture.criteria[0],
+      pressure_points: ["Pressure arose but was neutralized."],
+      decision_points: ["Tension dispersed without payoff."],
+      consequence_status: "dissipated",
+    } as typeof fixture.criteria[0];
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    expect(result.criteria[0].consequence_status).toBe("dissipated");
+    expect(result.criteria[0].deferred_consequence_risk).toBeUndefined();
+  });
+
+  it("falls back to heuristic 'deferred' when score_delta >= 3 and consequence_status is unrecognized", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria[0] = {
+      ...fixture.criteria[0],
+      craft_score: 9,
+      editorial_score: 5,
+      final_score_0_10: 7,
+      consequence_status: "unknown_value",
+    } as typeof fixture.criteria[0];
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    expect(result.criteria[0].score_delta).toBeGreaterThanOrEqual(3);
+    expect(result.criteria[0].consequence_status).toBe("deferred");
+    expect(result.criteria[0].deferred_consequence_risk).toBeDefined();
+  });
+
+  it("falls back to heuristic 'dissipated' when final_score <= 4 and consequence_status is unrecognized", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria[0] = {
+      ...fixture.criteria[0],
+      craft_score: 4,
+      editorial_score: 4,
+      final_score_0_10: 3,
+      consequence_status: "",
+    } as typeof fixture.criteria[0];
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    expect(result.criteria[0].consequence_status).toBe("dissipated");
+    expect(result.criteria[0].deferred_consequence_risk).toBeUndefined();
+  });
+
+  it("falls back to heuristic 'landed' when score is healthy and consequence_status is unrecognized", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria[0] = {
+      ...fixture.criteria[0],
+      craft_score: 7,
+      editorial_score: 7,
+      final_score_0_10: 7,
+      consequence_status: "INVALID",
+    } as typeof fixture.criteria[0];
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    expect(result.criteria[0].consequence_status).toBe("landed");
+    expect(result.criteria[0].deferred_consequence_risk).toBeUndefined();
+  });
+
+  it("generates fallback pressure_points when AI omits them", () => {
+    const fixture = makePass3Fixture();
+    const first = { ...fixture.criteria[0] };
+    delete (first as Record<string, unknown>)["pressure_points"];
+    fixture.criteria[0] = first as typeof fixture.criteria[0];
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    expect(result.criteria[0].pressure_points).toHaveLength(1);
+    expect(result.criteria[0].pressure_points[0].length).toBeGreaterThan(0);
+  });
+
+  it("generates fallback decision_points when AI omits them", () => {
+    const fixture = makePass3Fixture();
+    const first = { ...fixture.criteria[0] };
+    delete (first as Record<string, unknown>)["decision_points"];
+    fixture.criteria[0] = first as typeof fixture.criteria[0];
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    expect(result.criteria[0].decision_points).toHaveLength(1);
+    expect(result.criteria[0].decision_points[0].length).toBeGreaterThan(0);
   });
 });

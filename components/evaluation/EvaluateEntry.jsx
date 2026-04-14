@@ -2,6 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { appendUserActivity } from "@/lib/activity/userActivity";
 import { useJobs } from "../../lib/jobs/useJobs";
 import { getJobDisplayInfo, getJobStatusBadge } from "../../lib/jobs/ui-helpers";
 import { formatRelativeTime, formatDuration } from "../../lib/ui/time-helpers";
@@ -20,7 +22,17 @@ import CompletionBanner from "./CompletionBanner";
  * 5. Click "View Evaluation Report" CTA
  */
 export default function EvaluateEntry() {
+  const router = useRouter();
   const { jobs, isLoading, isError } = useJobs();
+
+  React.useEffect(() => {
+    appendUserActivity({
+      event: "evaluate.page.viewed",
+      route: "/evaluate",
+      href: "/evaluate",
+      linkLabel: "Open Evaluate",
+    });
+  }, []);
 
   // Loading state
   if (isLoading) {
@@ -65,7 +77,22 @@ export default function EvaluateEntry() {
         </div>
 
         {/* Track A: Submission Form */}
-        <ManuscriptSubmissionForm />
+        <ManuscriptSubmissionForm
+          onSubmitSuccess={(data) => {
+            const jobId = data?.job_id;
+            if (!jobId) return;
+
+            appendUserActivity({
+              event: "evaluate.job.created",
+              route: "/evaluate",
+              href: `/evaluate/${jobId}`,
+              linkLabel: "Redirect to job status",
+              detail: `job_id=${jobId}`,
+            });
+
+            router.push(`/evaluate/${jobId}`);
+          }}
+        />
 
         {/* Track C: Completion Banner */}
         {showCompletionBanner && (
@@ -213,6 +240,15 @@ export default function EvaluateEntry() {
                             {isComplete ? (
                               <Link
                                 href={`/evaluate/${job.id}`}
+                                onClick={() => {
+                                  appendUserActivity({
+                                    event: "evaluate.report.opened",
+                                    route: "/evaluate",
+                                    href: `/evaluate/${job.id}`,
+                                    linkLabel: "Open evaluation report",
+                                    detail: `job_id=${job.id}`,
+                                  });
+                                }}
                                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
                               >
                                 View Evaluation Report

@@ -90,6 +90,8 @@ const MODEL_PRICING_USD_PER_1K: Record<string, { input: number; output: number }
   "gpt-4o-mini": { input: 0.015, output: 0.06 },
   "gpt-4-turbo": { input: 1.0, output: 3.0 },
   "gpt-3.5-turbo": { input: 0.05, output: 0.15 },
+  "o3": { input: 10.0, output: 40.0 },
+  "o3-mini": { input: 1.10, output: 4.40 },
 };
 
 function safeNumber(n: unknown, fallback = 0): number {
