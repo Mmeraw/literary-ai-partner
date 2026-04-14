@@ -32,6 +32,39 @@ function validateProductionConfig() {
     warnings.push("SUPABASE_ANON_KEY is not set but USE_SUPABASE_JOBS=true");
   }
 
+  const parseIntEnv = (name, fallback) => {
+    const raw = process.env[name];
+    const parsed = Number.parseInt(raw ?? "", 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  // Canonical timeout invariant: OpenAI timeout must not be lower than pass timeout.
+  const passTimeoutMs = parseIntEnv("EVAL_PASS_TIMEOUT_MS", 180000);
+  const openAiTimeoutMs = parseIntEnv("EVAL_OPENAI_TIMEOUT_MS", 180000);
+  if (openAiTimeoutMs < passTimeoutMs) {
+    errors.push(
+      `EVAL_OPENAI_TIMEOUT_MS (${openAiTimeoutMs}) must be >= EVAL_PASS_TIMEOUT_MS (${passTimeoutMs}).`,
+    );
+  }
+
+  // Worker envelope checks (bounded for route runtime safety).
+  const workerBatchSize = parseIntEnv("EVAL_WORKER_BATCH_SIZE", 5);
+  if (workerBatchSize < 1 || workerBatchSize > 5) {
+    errors.push(`EVAL_WORKER_BATCH_SIZE (${workerBatchSize}) must be between 1 and 5.`);
+  }
+
+  const workerLeaseMs = parseIntEnv("EVAL_WORKER_LEASE_MS", 180000);
+  if (workerLeaseMs < 30000 || workerLeaseMs > 180000) {
+    errors.push(`EVAL_WORKER_LEASE_MS (${workerLeaseMs}) must be between 30000 and 180000.`);
+  }
+
+  const workerMaxExecutionMs = parseIntEnv("EVAL_WORKER_MAX_EXECUTION_MS", 55000);
+  if (workerMaxExecutionMs < 10000 || workerMaxExecutionMs > 295000) {
+    errors.push(
+      `EVAL_WORKER_MAX_EXECUTION_MS (${workerMaxExecutionMs}) must be between 10000 and 295000.`,
+    );
+  }
+
   // Prevent secrets in Vercel cron paths (no query-string secrets)
   const vercelConfigPath = path.join(process.cwd(), "vercel.json");
   if (fs.existsSync(vercelConfigPath)) {

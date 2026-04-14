@@ -375,8 +375,8 @@ Now return the independent adjudication as JSON.`;
     : "unknown";
 
   // P0: Check finish_reason — log a warning if the model stopped due to token limit
-  const finishReason = raw?.choices?.[0]?.finish_reason;
-  if (finishReason === "length") {
+  const finishReasonWarning = raw?.choices?.[0]?.finish_reason;
+  if (finishReasonWarning === "length") {
     console.warn("[Pass4] finish_reason=length — Perplexity output may be truncated", {
       model: PERPLEXITY_MODEL,
       rawContentLen: rawContent.length,
@@ -386,22 +386,16 @@ Now return the independent adjudication as JSON.`;
   // P0: Log raw response preview before parse
   console.log(`[Pass4] raw Perplexity response preview len=${rawContent.length}: ${rawContent.slice(0, 200)}`);
 
-  const extractedJson = extractFirstJsonObject(rawContent);
-
-  // P1: Truncation detection — a well-formed JSON object must end with "}"
-  if (!extractedJson.trim().endsWith("}")) {
-    throw new Error(
-      `[Pass4] JSON_PARSE_FAILED_TRUNCATED: Response is not valid JSON (appears truncated, does not end with "}")`,
-    );
-  }
-
   let parsed: PerplexityResponseShape;
   try {
-    parsed = validateParsedResponse(parsedJson);
+    const boundary = parseJsonObjectBoundary<Record<string, unknown>>(rawContent, {
+      label: "Pass4",
+    });
+    parsed = validateParsedResponse(boundary.value);
   } catch (error) {
-    if (error instanceof SyntaxError) {
+    if (error instanceof JsonBoundaryError) {
       throw new Error(
-        `[Pass4] JSON_PARSE_FAILED_MALFORMED: JSON parse failed: ${error.message}`
+        `[Pass4] ${error.code}: ${error.message}`
       );
     }
     throw new Error(

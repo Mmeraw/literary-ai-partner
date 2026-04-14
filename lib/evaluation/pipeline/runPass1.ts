@@ -19,6 +19,7 @@ import {
   getCanonicalPipelineModel,
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
+import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 
 const PASS1_TEMPERATURE = 0.3;
 const PASS1_MAX_TOKENS = (() => {
@@ -106,7 +107,7 @@ export type CreateCompletionFn = (params: {
   max_tokens?: number;
   max_completion_tokens?: number;
   response_format: { type: string };
-}) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage }>;
+}) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage; id?: string; request_id?: string }>;
 
 export interface RunPass1Options {
   manuscriptText: string;
@@ -221,8 +222,8 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   }
 
   // P0: Check finish_reason — log a warning if the model stopped due to token limit
-  const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined;
-  if (finishReason === "length") {
+  const finishReasonWarning = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined;
+  if (finishReasonWarning === "length") {
     console.warn("[Pass1] finish_reason=length — output may be truncated", {
       model: selectedModel,
       maxOutputTokens: PASS1_MAX_TOKENS,
@@ -231,28 +232,25 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     });
   }
 
+  const completionWithIds = completion as { request_id?: unknown; id?: unknown };
+  const requestId =
+    typeof completionWithIds.request_id === "string"
+      ? completionWithIds.request_id
+      : typeof completionWithIds.id === "string"
+      ? completionWithIds.id
+      : undefined;
+
   opts._onCompletion?.({
     pass: 1,
     raw_text: responseText,
     model: selectedModel,
     usage: completion.usage,
     finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined,
-    request_id:
-      typeof (completion as { request_id?: unknown }).request_id === "string"
-        ? (completion as { request_id: string }).request_id
-        : typeof (completion as { id?: unknown }).id === "string"
-        ? (completion as { id: string }).id
-        : undefined,
+    request_id: requestId,
     generated_at: new Date().toISOString(),
   });
 
   const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
-  const requestId =
-    typeof (completion as { request_id?: unknown }).request_id === "string"
-      ? (completion as { request_id: string }).request_id
-      : typeof (completion as { id?: unknown }).id === "string"
-      ? (completion as { id: string }).id
-      : undefined;
 
   let parsedOutput: SinglePassOutput;
   try {
@@ -328,28 +326,20 @@ export function parsePass1Response(raw: string, fallbackModel = PASS1_MODEL): Si
   // P0: Log raw response preview before parse
   console.log(`[Pass1] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
 
-  // P1: Strip markdown fences (e.g. ```json ... ```)
-  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
-
-  // P1: Truncation detection — a well-formed JSON object must end with "}"
-  if (!stripped.endsWith("}")) {
-    throw new Error(
-      `[Pass1] JSON_PARSE_FAILED_TRUNCATED: Response is not valid JSON (appears truncated, does not end with "}")`,
-    );
-  }
-
-  let parsed: unknown;
+  let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(stripped);
-  } catch {
+    const boundary = parseJsonObjectBoundary<Record<string, unknown>>(raw, {
+      label: "Pass1",
+    });
+    parsed = boundary.value;
+  } catch (error) {
+    if (error instanceof JsonBoundaryError) {
+      throw new Error(`[Pass1] ${error.code}: ${error.message}`);
+    }
     throw new Error("[Pass1] JSON_PARSE_FAILED_MALFORMED: Response is not valid JSON (malformed JSON)");
   }
 
-  if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("[Pass1] JSON_PARSE_FAILED_NO_OBJECT: Response is not a JSON object");
-  }
-
-  const obj = parsed as Record<string, unknown>;
+  const obj = parsed;
   const rawCriteria = Array.isArray(obj["criteria"]) ? (obj["criteria"] as unknown[]) : [];
 
   if (rawCriteria.length === 0) {

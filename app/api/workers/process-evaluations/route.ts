@@ -34,13 +34,36 @@ export const maxDuration = 300;
 // ============================================================================
 
 const CONFIG = {
-  // Maximum execution time before timeout (Vercel hobby: 10s, pro: 60s)
-  MAX_EXECUTION_MS: 55000,
-  // Batch size for processing
-  BATCH_SIZE: 5,
+  // Maximum execution time before timeout (clamped to leave headroom under route maxDuration)
+  MAX_EXECUTION_MS: parseBoundedInt(process.env.EVAL_WORKER_MAX_EXECUTION_MS, {
+    fallback: 55000,
+    min: 10000,
+    max: 295000,
+  }),
+  // Batch size for processing (defense-in-depth clamp; processor clamps again)
+  BATCH_SIZE: parseBoundedInt(process.env.EVAL_WORKER_BATCH_SIZE, {
+    fallback: 5,
+    min: 1,
+    max: 5,
+  }),
   // Lease duration for atomically claimed jobs
-  LEASE_MS: 180000,
+  LEASE_MS: parseBoundedInt(process.env.EVAL_WORKER_LEASE_MS, {
+    fallback: 180000,
+    min: 30000,
+    max: 180000,
+  }),
 } as const;
+
+function parseBoundedInt(
+  raw: string | undefined,
+  options: { fallback: number; min: number; max: number },
+): number {
+  const parsed = Number.parseInt(raw ?? "", 10);
+  if (!Number.isFinite(parsed)) {
+    return options.fallback;
+  }
+  return Math.min(options.max, Math.max(options.min, parsed));
+}
 
 // ============================================================================
 // AUTH UTILITIES (Production-grade, timing-safe)
@@ -274,9 +297,9 @@ export async function GET(request: NextRequest) {
         message: 'Dry run mode - no jobs processed',
         timestamp: new Date().toISOString(),
         config: {
-          maxDurationSeconds: CONFIG.MAX_DURATION_SECONDS,
-          batchSize: CONFIG.WORKER_BATCH_SIZE,
-            maxExecutionMs: CONFIG.MAX_DURATION_SECONDS * 1000,
+          maxDurationSeconds: Math.floor(CONFIG.MAX_EXECUTION_MS / 1000),
+          batchSize: CONFIG.BATCH_SIZE,
+          maxExecutionMs: CONFIG.MAX_EXECUTION_MS,
         },
       });
     }
@@ -303,7 +326,7 @@ export async function GET(request: NextRequest) {
         processed: results.processed,
         succeeded: results.succeeded,
         failed: results.failed,
-        batchSize: CONFIG.WORKER_BATCH_SIZE,
+        batchSize: CONFIG.BATCH_SIZE,
       },
     });
     
@@ -317,7 +340,7 @@ export async function GET(request: NextRequest) {
       processed: results.processed,
       succeeded: results.succeeded,
       failed: results.failed,
-      batchSize: CONFIG.WORKER_BATCH_SIZE,
+      batchSize: CONFIG.BATCH_SIZE,
       errors: results.errors,
       timestamp: new Date().toISOString(),
     }, { status: 200 });

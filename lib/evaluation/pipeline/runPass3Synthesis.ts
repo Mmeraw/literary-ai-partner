@@ -22,6 +22,7 @@ import {
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from "./promptInput";
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
+import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 
 const PASS3_TEMPERATURE = 0.2;
 const PASS3_MAX_TOKENS = (() => {
@@ -210,8 +211,8 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   }
 
   // P0: Check finish_reason — log a warning if the model stopped due to token limit
-  const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined;
-  if (finishReason === "length") {
+  const finishReasonWarning = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined;
+  if (finishReasonWarning === "length") {
     console.warn("[Pass3] finish_reason=length — output may be truncated", {
       model: selectedModel,
       maxOutputTokens: PASS3_MAX_TOKENS,
@@ -220,28 +221,25 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     });
   }
 
+  const completionWithIds = completion as { request_id?: unknown; id?: unknown };
+  const requestId =
+    typeof completionWithIds.request_id === "string"
+      ? completionWithIds.request_id
+      : typeof completionWithIds.id === "string"
+      ? completionWithIds.id
+      : undefined;
+
   opts._onCompletion?.({
     pass: 3,
     raw_text: responseText,
     model: selectedModel,
     usage: completion.usage,
     finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined,
-    request_id:
-      typeof (completion as { request_id?: unknown }).request_id === "string"
-        ? (completion as { request_id: string }).request_id
-        : typeof (completion as { id?: unknown }).id === "string"
-        ? (completion as { id: string }).id
-        : undefined,
+    request_id: requestId,
     generated_at: new Date().toISOString(),
   });
 
   const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
-  const requestId =
-    typeof (completion as { request_id?: unknown }).request_id === "string"
-      ? (completion as { request_id: string }).request_id
-      : typeof (completion as { id?: unknown }).id === "string"
-      ? (completion as { id: string }).id
-      : undefined;
 
   let synthesis: SynthesisOutput;
   try {
@@ -306,28 +304,20 @@ export function parsePass3Response(
   // P0: Log raw response preview before parse
   console.log(`[Pass3] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
 
-  // P1: Strip markdown fences (e.g. ```json ... ```)
-  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
-
-  // P1: Truncation detection — a well-formed JSON object must end with "}"
-  if (!stripped.endsWith("}")) {
-    throw new Error(
-      `[Pass3] JSON_PARSE_FAILED_TRUNCATED: Response is not valid JSON (appears truncated, does not end with "}")`,
-    );
-  }
-
-  let parsed: unknown;
+  let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(stripped);
-  } catch {
+    const boundary = parseJsonObjectBoundary<Record<string, unknown>>(raw, {
+      label: "Pass3",
+    });
+    parsed = boundary.value;
+  } catch (error) {
+    if (error instanceof JsonBoundaryError) {
+      throw new Error(`[Pass3] ${error.code}: ${error.message}`);
+    }
     throw new Error("[Pass3] JSON_PARSE_FAILED_MALFORMED: Response is not valid JSON (malformed JSON)");
   }
 
-  if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("[Pass3] JSON_PARSE_FAILED_NO_OBJECT: Response is not a JSON object");
-  }
-
-  const obj = parsed as Record<string, unknown>;
+  const obj = parsed;
   const rawCriteria = Array.isArray(obj["criteria"]) ? (obj["criteria"] as unknown[]) : [];
 
   // Build a lookup from key → pass outputs (deterministic fallback)

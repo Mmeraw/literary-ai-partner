@@ -527,7 +527,7 @@ async function resolveManuscriptText(
 
 export function isManuscriptTextLongEnough(
   text: string,
-  minWords = evalMinManuscriptWords,
+  minWords = evalMinManuscriptChars,
 ): boolean {
   const trimmed = text.trim();
   if (!trimmed) {
@@ -1012,10 +1012,10 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: contentError };
     }
 
-    if (!isManuscriptTextLongEnough(resolvedManuscriptText, evalMinManuscriptWords)) {
+    if (!isManuscriptTextLongEnough(resolvedManuscriptText, evalMinManuscriptChars)) {
       const shortContentError =
         `Manuscript text too short for reliable evaluation: ${resolvedManuscriptText.trim().split(/\s+/).length} words ` +
-        `(minimum ${evalMinManuscriptWords})`;
+        `(minimum ${evalMinManuscriptChars})`;
       await markFailed(shortContentError);
 
       return { success: false, error: shortContentError };

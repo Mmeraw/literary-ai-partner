@@ -5,7 +5,7 @@
   "scripts": {
     "pretest": "node scripts/guard-critical-tests.mjs",
     "dev": "next dev -p 3002",
-    "build": "npm run spine:verify && npm run docs:runtime:guard && next build",
+    "build": "npm run spine:verify && npm run docs:runtime:guard && npm run config:validate && next build",
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

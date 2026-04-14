@@ -1,5 +1,5 @@
 import type { Job, Phase } from "./types";
-import { PHASES } from "./types";
+import { JOB_STATUS, PHASES } from "./types";
 import type {
   CanonicalEvaluationArtifact,
   EvaluationJob,

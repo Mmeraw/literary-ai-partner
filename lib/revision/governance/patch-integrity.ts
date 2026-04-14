@@ -67,8 +67,6 @@ export function validatePatchIntegrity(
   return { valid: violations.length === 0, violations };
 }
 
-/** @deprecated Use validatePatchIntegrity. Alias kept for pipeline compat. */
-export { validatePatchIntegrity as checkPatchIntegrity };
 /**
  * Pipeline compatibility stub for run-revision-pipeline.ts.
  *

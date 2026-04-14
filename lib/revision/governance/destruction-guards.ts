@@ -53,8 +53,6 @@ export function passesDestructionGuards(
   return { ok: true };
 }
 
-/** @deprecated Use passesDestructionGuards. Alias kept for pipeline compat. */
-export { passesDestructionGuards as checkDestructionGuards };
 /**
  * Pipeline compatibility stub for run-revision-pipeline.ts.
  *

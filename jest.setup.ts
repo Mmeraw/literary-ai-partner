@@ -33,3 +33,19 @@ if (!process.env.PG_URL) {
     (process.env as any).PG_URL = dbUrl;
   }
 }
+
+function parseIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+// Evaluation timeout invariants (mistake-proof baseline for Jest):
+// EVAL_OPENAI_TIMEOUT_MS must be >= EVAL_PASS_TIMEOUT_MS.
+const evalPassTimeoutMs = parseIntEnv("EVAL_PASS_TIMEOUT_MS", 180000);
+const evalOpenAiTimeoutMsRaw = parseIntEnv("EVAL_OPENAI_TIMEOUT_MS", 180000);
+const evalOpenAiTimeoutMs = Math.max(evalOpenAiTimeoutMsRaw, evalPassTimeoutMs);
+
+process.env.EVAL_PASS_TIMEOUT_MS = String(evalPassTimeoutMs);
+process.env.EVAL_OPENAI_TIMEOUT_MS = String(evalOpenAiTimeoutMs);
