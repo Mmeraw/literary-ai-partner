@@ -286,6 +286,7 @@ describe("runQualityGate", () => {
     const result = runQualityGate(synthesis, pass1, pass2);
     expect(result.pass).toBe(false);
     expect(result.checks.find((c) => c.error_code === "QG_INDEPENDENCE_VIOLATION")).toBeDefined();
+    expect(result.warnings.some((w) => w.includes("pass1_rationale=\"") && w.includes("pass2_rationale=\""))).toBe(true);
   });
 
   it("passes independence check when Pass 2 has no verbatim Pass 1 phrases", () => {
@@ -410,6 +411,98 @@ describe("runQualityGate", () => {
           rationale:
             "alpha beta gamma delta epsilon zeta eta theta uniqueone uniquetwo uniquethree uniquefour",
           evidence: [],
+          recommendations: [],
+        },
+      ],
+      model: "gpt-4o-mini",
+      prompt_version: "pass2-v1",
+      temperature: 0.3,
+      generated_at: new Date().toISOString(),
+    };
+
+    const result = runQualityGate(synthesis, pass1, pass2);
+    const indepCheck = result.checks.find((c) => c.check_id === "pass_independence");
+    expect(indepCheck?.passed).toBe(true);
+  });
+
+  it("does not fail independence when exactly two shared non-evidence 8-grams occur in one criterion", () => {
+    const synthesis = makeValidSynthesis();
+
+    const pass1: SinglePassOutput = {
+      pass: 1,
+      axis: "craft_execution",
+      criteria: [
+        {
+          key: "narrativeClosure",
+          score_0_10: 7,
+          rationale:
+            "The chapter concludes with a strong thematic statement, but lacks a clear resolution or forward momentum for the next chapter.",
+          evidence: [{ snippet: "I think it proves the river remembers" }],
+          recommendations: [],
+        },
+      ],
+      model: "gpt-4o-mini",
+      prompt_version: "pass1-v1",
+      temperature: 0.3,
+      generated_at: new Date().toISOString(),
+    };
+
+    const pass2: SinglePassOutput = {
+      pass: 2,
+      axis: "editorial_literary",
+      criteria: [
+        {
+          key: "narrativeClosure",
+          score_0_10: 7,
+          rationale:
+            "The chapter concludes with a strong thematic statement, but a more definitive resolution or call to action could enhance its impact and leave a lasting impression.",
+          evidence: [{ snippet: "The people on the land pay the highest price." }],
+          recommendations: [],
+        },
+      ],
+      model: "gpt-4o-mini",
+      prompt_version: "pass2-v1",
+      temperature: 0.3,
+      generated_at: new Date().toISOString(),
+    };
+
+    const result = runQualityGate(synthesis, pass1, pass2);
+    const indepCheck = result.checks.find((c) => c.check_id === "pass_independence");
+    expect(indepCheck?.passed).toBe(true);
+  });
+
+  it("does not fail independence when exactly five shared non-evidence 8-grams occur in one criterion", () => {
+    const synthesis = makeValidSynthesis();
+
+    const pass1: SinglePassOutput = {
+      pass: 1,
+      axis: "craft_execution",
+      criteria: [
+        {
+          key: "dialogue",
+          score_0_10: 8,
+          rationale:
+            "Dialogue is natural and serves to advance the plot while revealing character perspectives. The exchanges effectively convey urgency and tension.",
+          evidence: [{ snippet: "‘Acceptable national standards,’ he muttered. 'For killing what’s sacred.'" }],
+          recommendations: [],
+        },
+      ],
+      model: "gpt-4o-mini",
+      prompt_version: "pass1-v1",
+      temperature: 0.3,
+      generated_at: new Date().toISOString(),
+    };
+
+    const pass2: SinglePassOutput = {
+      pass: 2,
+      axis: "editorial_literary",
+      criteria: [
+        {
+          key: "dialogue",
+          score_0_10: 8,
+          rationale:
+            "Dialogue is sharp and serves to advance the plot while revealing character perspectives. The exchanges feel authentic and contribute to the thematic exploration.",
+          evidence: [{ snippet: "‘Acceptable national standards,’ he muttered. 'For killing what’s sacred.'" }],
           recommendations: [],
         },
       ],

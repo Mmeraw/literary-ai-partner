@@ -49,7 +49,7 @@ function makeSupabaseStub() {
   const manuscript = {
     id: 456,
     title: "Canonical Manuscript",
-    content: "This manuscript is long enough to pass threshold validation. ".repeat(20),
+    content: "This manuscript is long enough to pass threshold validation. ".repeat(23),
     work_type: "novel",
     user_id: "00000000-0000-0000-0000-000000000001",
   };
@@ -97,6 +97,9 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
     process.env.OPENAI_API_KEY = "sk-test-key";
     process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = "optional";
+    // Ensure timeout config passes the invariant check (openAi >= pass)
+    process.env.EVAL_PASS_TIMEOUT_MS = "180000";
+    process.env.EVAL_OPENAI_TIMEOUT_MS = "180000";
   });
 
   test("uses runPipeline as the evaluation engine and does not directly invoke OpenAI", async () => {

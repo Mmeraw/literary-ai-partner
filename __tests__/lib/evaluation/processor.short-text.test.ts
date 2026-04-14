@@ -28,8 +28,13 @@ function makeSupabaseStub(shortText: string) {
     manuscript_id: 123,
     job_type: "evaluation",
     status: "queued",
+    phase: "phase_1",
+    phase_status: "queued",
     created_at: new Date().toISOString(),
-    progress: {},
+    progress: {
+      phase: "phase_1",
+      phase_status: "queued",
+    },
   };
 
   const manuscript = {
@@ -100,7 +105,7 @@ describe("processEvaluationJob short-text fail-closed", () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
     process.env.OPENAI_API_KEY = "sk-test-key";
-    process.env.EVAL_MIN_MANUSCRIPT_CHARS = "200";
+    process.env.EVAL_MIN_MANUSCRIPT_WORDS = "200";
   });
 
   test("fails job and never calls OpenAI when resolved manuscript text is below threshold", async () => {
@@ -131,5 +136,6 @@ describe("processEvaluationJob short-text fail-closed", () => {
       completed_units: 0,
     });
     expect(String(finalUpdate.last_error || "")).toMatch(/minimum 200/i);
+    expect(String(finalUpdate.last_error || "")).toMatch(/words/i);
   });
 });

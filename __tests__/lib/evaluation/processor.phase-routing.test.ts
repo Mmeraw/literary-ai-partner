@@ -24,10 +24,10 @@ describe("processEvaluationJob phase routing guard", () => {
       job_type: "evaluate_full",
       status: "queued",
       phase: "phase_2",
-      phase_status: "triggered",
+      phase_status: "queued",
       progress: {
         phase: "phase_2",
-        phase_status: "triggered",
+        phase_status: "queued",
       },
       created_at: new Date().toISOString(),
     };
@@ -84,7 +84,7 @@ describe("processEvaluationJob phase routing guard", () => {
       job_type: "evaluate_full",
       status: "queued",
       phase: "phase_1",
-      phase_status: "triggered",
+      phase_status: "queued",
       progress: {
         phase: "phase_1",
         phase_status: "queued",

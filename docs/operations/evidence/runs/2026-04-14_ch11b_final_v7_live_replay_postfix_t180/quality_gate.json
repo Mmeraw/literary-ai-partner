@@ -1,0 +1,79 @@
+{
+  "pass": false,
+  "checks": [
+    {
+      "check_id": "criteria_complete",
+      "passed": true,
+      "details": "All 13 criteria present"
+    },
+    {
+      "check_id": "score_range",
+      "passed": true,
+      "details": "All scores in valid range"
+    },
+    {
+      "check_id": "consequence_contract",
+      "passed": true,
+      "details": "All criteria include pressure_points, decision_points, consequence_status, and deferred risk when required"
+    },
+    {
+      "check_id": "no_generic_recs",
+      "passed": true,
+      "details": "All recommendations have anchor_snippet"
+    },
+    {
+      "check_id": "rec_min_length",
+      "passed": true,
+      "details": "All recommendations ≥ 50 chars"
+    },
+    {
+      "check_id": "rec_max_length",
+      "passed": true,
+      "details": "All recommendations ≤ 300 chars"
+    },
+    {
+      "check_id": "evidence_length",
+      "passed": true,
+      "details": "All evidence excerpts ≤ 200 chars"
+    },
+    {
+      "check_id": "overview_length",
+      "passed": true,
+      "details": "Overview: 374 chars (max 500)"
+    },
+    {
+      "check_id": "no_duplicate_recs",
+      "passed": true,
+      "details": "No duplicated recommendations"
+    },
+    {
+      "check_id": "rationale_coverage",
+      "passed": true,
+      "details": "All criteria have substantive rationale (≥ 40 chars)"
+    },
+    {
+      "check_id": "placeholder_rationale",
+      "passed": true,
+      "details": "No known placeholder rationale patterns detected"
+    },
+    {
+      "check_id": "evidence_coverage",
+      "passed": true,
+      "details": "1 criterion/criteria lack substantive evidence: dialogue (max 3 permitted)"
+    },
+    {
+      "check_id": "required_evidence_spine",
+      "passed": true,
+      "details": "All required spine criteria include substantive evidence"
+    },
+    {
+      "check_id": "pass_independence",
+      "passed": false,
+      "error_code": "QG_INDEPENDENCE_VIOLATION",
+      "details": "1 Pass 2 criterion/criteria exceed calibrated rationale-overlap threshold (n=8, min=3)"
+    }
+  ],
+  "warnings": [
+    "dialogue: 5 shared non-evidence 8-gram(s) with Pass 1 rationale [samples: \"and serves to advance the plot while revealing\" | \"serves to advance the plot while revealing character\" | \"to advance the plot while revealing character perspectives\" | \"advance the plot while revealing character perspectives the\" | \"the plot while revealing character perspectives the exchanges\"] [pass1_rationale=\"Dialogue is natural and serves to advance the plot while revealing character perspectives. The exchanges effectively convey urgency and tension.\"] [pass2_rationale=\"Dialogue is sharp and serves to advance the plot while revealing character perspectives. The exchanges feel authentic and contribute to the thematic exploration.\"]"
+  ]
+}

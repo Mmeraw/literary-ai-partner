@@ -1,0 +1,12 @@
+{
+  "phase": "2.7",
+  "run_type": "real_manuscript",
+  "source_path": "/workspaces/literary-ai-partner/manuscripts/ch11b-mayan-train-approval-final-v7.txt",
+  "source_title": "Chapter 11b – Mayan Train Approval (FINAL) (V7)",
+  "work_type": "novel_chapter",
+  "model": "gpt-4o-mini",
+  "word_count": 1002,
+  "generated_at": "2026-04-14T13:38:12.646Z",
+  "output_dir": "docs/operations/evidence/runs/2026-04-14_ch11b_final_v7_live_retry1",
+  "quality_gate_pass": false
+}

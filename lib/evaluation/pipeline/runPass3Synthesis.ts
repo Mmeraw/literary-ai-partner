@@ -19,6 +19,10 @@ import {
   buildOpenAITemperatureParam,
   getCanonicalPipelineModel,
 } from "@/lib/evaluation/policy";
+import {
+  JsonBoundaryError,
+  parseJsonObjectBoundary,
+} from "./jsonParseBoundary";
 import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from "./promptInput";
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 
@@ -31,8 +35,8 @@ const PASS3_MODEL = "o3";
 const PASS3_MIN_RATIONALE_LENGTH = 40;
 const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
 const OPENAI_TIMEOUT_MS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || "120000", 10);
-  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 300_000 ? parsed : 120_000;
+  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || "180000", 10);
+  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 180_000 ? parsed : 180_000;
 })();
 
 type CompletionChoice = {
@@ -146,8 +150,9 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
   const selectedModel = getCanonicalPipelineModel(opts.model ?? PASS3_MODEL);
 
-  const pass1Json = JSON.stringify(opts.pass1, null, 2);
-  const pass2Json = JSON.stringify(opts.pass2, null, 2);
+  // Compact JSON reduces prompt token load and latency while preserving content.
+  const pass1Json = JSON.stringify(opts.pass1);
+  const pass2Json = JSON.stringify(opts.pass2);
 
   const userPrompt = buildPass3UserPrompt({
     pass1Json,
@@ -215,10 +220,43 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     raw_text: responseText,
     model: selectedModel,
     usage: completion.usage,
+    finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined,
+    request_id:
+      typeof (completion as { request_id?: unknown }).request_id === "string"
+        ? (completion as { request_id: string }).request_id
+        : typeof (completion as { id?: unknown }).id === "string"
+        ? (completion as { id: string }).id
+        : undefined,
     generated_at: new Date().toISOString(),
   });
 
-  const synthesis = parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel);
+  const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
+  const requestId =
+    typeof (completion as { request_id?: unknown }).request_id === "string"
+      ? (completion as { request_id: string }).request_id
+      : typeof (completion as { id?: unknown }).id === "string"
+      ? (completion as { id: string }).id
+      : undefined;
+
+  let synthesis: SynthesisOutput;
+  try {
+    synthesis = parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel);
+  } catch (error) {
+    console.error("[Pass3] Parse boundary diagnostic", {
+      title: opts.title,
+      model: selectedModel,
+      request_id: requestId ?? null,
+      finish_reason: finishReason,
+      usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
+      usage_completion_tokens: completion.usage?.completion_tokens ?? null,
+      usage_total_tokens: completion.usage?.total_tokens ?? null,
+      output_chars: responseText.length,
+      raw_head: responseText.slice(0, 1000),
+      raw_tail: responseText.slice(-500),
+      error_message: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
   
   // Truth enforcement: attach coverage metadata proving whether evaluation was complete or partial
   return {
@@ -260,11 +298,30 @@ export function parsePass3Response(
   pass2: SinglePassOutput,
   fallbackModel = PASS3_MODEL,
 ): SynthesisOutput {
+  if (process.env.EVAL_DEBUG === "1") {
+    console.debug("[Pass3] Pre-parse raw preview", {
+      raw_head: raw.slice(0, 200),
+      raw_tail: raw.slice(-120),
+    });
+  }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error("[Pass3] Response is not valid JSON");
+    const boundary = parseJsonObjectBoundary<Record<string, unknown>>(raw, {
+      label: "[Pass3] response",
+    });
+    parsed = boundary.value;
+  } catch (error) {
+    if (error instanceof JsonBoundaryError) {
+      console.error("[Pass3] JSON parse failed", {
+        classification: error.code,
+        candidates_found: error.candidatesFound ?? null,
+        raw_head: error.raw.slice(0, 500),
+        raw_tail: error.raw.slice(-250),
+        normalized_tail: error.normalized.slice(-200),
+      });
+      throw error;
+    }
+    throw error;
   }
 
   if (typeof parsed !== "object" || parsed === null) {

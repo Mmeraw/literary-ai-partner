@@ -79,7 +79,7 @@ export function canRunPhase(
     const phase1QueuedCandidate =
       job.status === JOB_STATUS.QUEUED &&
       progress.phase === PHASES.PHASE_1 &&
-      (progress.phase_status === JOB_STATUS.QUEUED || progress.phase_status === "triggered");
+      progress.phase_status === JOB_STATUS.QUEUED;
 
     if (!phase1QueuedCandidate) {
       return {

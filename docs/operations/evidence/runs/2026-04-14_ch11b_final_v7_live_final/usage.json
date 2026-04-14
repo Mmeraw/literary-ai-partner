@@ -1,0 +1,41 @@
+{
+  "model": "gpt-4o-mini",
+  "passes": {
+    "pass1": {
+      "prompt_tokens": 2722,
+      "completion_tokens": 2500,
+      "total_tokens": 5222,
+      "prompt_tokens_details": {
+        "cached_tokens": 2176,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "pass2": {
+      "prompt_tokens": 2805,
+      "completion_tokens": 2543,
+      "total_tokens": 5348,
+      "prompt_tokens_details": {
+        "cached_tokens": 2176,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "pass3": null
+  },
+  "totals": {
+    "prompt_tokens": 5527,
+    "completion_tokens": 5043,
+    "total_tokens": 10570
+  }
+}

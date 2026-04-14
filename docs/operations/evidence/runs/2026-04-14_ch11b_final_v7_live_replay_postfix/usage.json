@@ -1,0 +1,13 @@
+{
+  "model": "gpt-4o-mini",
+  "passes": {
+    "pass1": null,
+    "pass2": null,
+    "pass3": null
+  },
+  "totals": {
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0
+  }
+}

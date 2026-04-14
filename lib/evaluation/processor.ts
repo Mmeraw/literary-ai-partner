@@ -79,14 +79,36 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const perplexityApiKey = process.env.PERPLEXITY_API_KEY ?? "";
 const evalDebugEnabled = process.env.EVAL_DEBUG === '1';
-const evalMinManuscriptChars = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_CHARS || '200', 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 200;
+// Runtime policy minimum is 200 words.
+// EVAL_MIN_MANUSCRIPT_WORDS is the sole canonical control.
+// EVAL_MIN_MANUSCRIPT_CHARS is recognized for migration visibility only; its
+// numeric value is NOT reinterpreted as words to prevent silent policy tightening.
+const evalMinManuscriptWords = (() => {
+  const wordsRaw = process.env.EVAL_MIN_MANUSCRIPT_WORDS;
+  if (wordsRaw) {
+    const parsed = Number.parseInt(wordsRaw, 10);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 200;
+  }
+  if (process.env.EVAL_MIN_MANUSCRIPT_CHARS) {
+    console.warn(
+      '[Processor] EVAL_MIN_MANUSCRIPT_CHARS is deprecated and its char value will NOT be ' +
+        'reinterpreted as words; enforcing canonical 200-word minimum',
+    );
+  }
+  return 200;
 })();
 const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'o3').trim() || 'o3';
 const evalPassTimeoutMs = (() => {
   const parsed = Number.parseInt(process.env.EVAL_PASS_TIMEOUT_MS || '180000', 10);
-  return Number.isFinite(parsed) && parsed >= 10_000 ? parsed : 180_000;
+  return Number.isFinite(parsed) && parsed >= 10_000 && parsed <= 180_000 ? parsed : 180_000;
+})();
+const evalOpenAiTimeoutMs = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || '180000', 10);
+  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 180_000 ? parsed : 180_000;
+})();
+const evalWorkerBatchSize = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_WORKER_BATCH_SIZE || '1', 10);
+  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 5 ? parsed : 1;
 })();
 const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
 const staleRunningMinutes = (() => {
@@ -507,9 +529,17 @@ async function resolveManuscriptText(
 
 export function isManuscriptTextLongEnough(
   text: string,
-  minChars = evalMinManuscriptChars,
+  minWords = evalMinManuscriptWords,
 ): boolean {
-  return text.trim().length >= minChars;
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return minWords <= 0;
+  }
+
+  // Use word-boundary matching rather than split(/\s+/) to avoid overcounting
+  // malformed whitespace-heavy text or undercounting punctuation-dense content.
+  const wordCount = (trimmed.match(/\b\w+\b/g) || []).length;
+  return wordCount >= minWords;
 }
 
 function normalizeCriterionEntry(
@@ -735,10 +765,10 @@ export async function failStaleRunningJobs(): Promise<{
 
   const { data: staleJobs, error: staleError } = await supabase
     .from('evaluation_jobs')
-    .select('id, updated_at')
+    .select('id, last_heartbeat_at')
     .eq('status', 'running')
-    .lt('updated_at', cutoff)
-    .order('updated_at', { ascending: true })
+    .lt('last_heartbeat_at', cutoff)
+    .order('last_heartbeat_at', { ascending: true })
     .limit(25);
 
   if (staleError) {
@@ -813,15 +843,13 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     const isPhase1QueuedCandidate =
       job.status === 'queued' &&
-      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
-      (job.phase_status === 'triggered' ||
-        progress.phase_status === 'triggered' ||
-        progress.phase_status === 'queued');
+      (job.phase == null || job.phase === 'phase_1' || progress.phase === 'phase_1') &&
+      (job.phase_status == null || job.phase_status === 'queued' || progress.phase_status === 'queued');
 
     const isPhase2QueuedCandidate =
       job.status === 'queued' &&
       (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
-      (job.phase_status === 'triggered' || progress.phase_status === 'triggered');
+      (job.phase_status === 'queued' || progress.phase_status === 'queued');
 
     const executionPhase: 'phase_1' | 'phase_2' = isPhase2QueuedCandidate ? 'phase_2' : 'phase_1';
 
@@ -941,10 +969,10 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: contentError };
     }
 
-    if (!isManuscriptTextLongEnough(resolvedManuscriptText, evalMinManuscriptChars)) {
+    if (!isManuscriptTextLongEnough(resolvedManuscriptText, evalMinManuscriptWords)) {
       const shortContentError =
-        `Manuscript text too short for reliable evaluation: ${resolvedManuscriptText.trim().length} chars ` +
-        `(minimum ${evalMinManuscriptChars})`;
+        `Manuscript text too short for reliable evaluation: ${resolvedManuscriptText.trim().split(/\s+/).length} words ` +
+        `(minimum ${evalMinManuscriptWords})`;
       await markFailed(shortContentError);
 
       return { success: false, error: shortContentError };
@@ -967,11 +995,25 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: missingCrossCheckConfigError };
     }
 
+    console.log(
+      `[Processor] ${jobId}: runtime-posture model=${getCanonicalPipelineModel(openAiModel)} ` +
+        `passTimeoutMs=${evalPassTimeoutMs} openAiTimeoutMs=${evalOpenAiTimeoutMs}`,
+    );
+    if (evalOpenAiTimeoutMs < evalPassTimeoutMs) {
+      const configErr =
+        `[CONFIG_ERROR] EVAL_OPENAI_TIMEOUT_MS (${evalOpenAiTimeoutMs}) must be >= ` +
+        `EVAL_PASS_TIMEOUT_MS (${evalPassTimeoutMs}). The API client would time out before ` +
+        `the pipeline budget, making failures misleading. Fix env before running.`;
+      await markFailed(configErr);
+      return { success: false, error: configErr };
+    }
+
     console.log(`[Processor] ${jobId}: ENTER runPipeline model=${getCanonicalPipelineModel(openAiModel)} passTimeoutMs=${evalPassTimeoutMs}`);
     const pipelineResult = await runPipeline({
       manuscriptText: manuscriptWithContent.content || '',
       workType: manuscriptWithContent.work_type || 'novel',
       title: manuscriptWithContent.title,
+      jobId: String(job.id),
       model: getCanonicalPipelineModel(openAiModel),
       openaiApiKey,
       perplexityApiKey: perplexityApiKey || undefined,
@@ -987,7 +1029,12 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     );
 
     if (pipelineResult.ok === false) {
-      const pipelineError = `[Pipeline:${pipelineResult.failed_at}] ${pipelineResult.error_code} ${pipelineResult.error}`;
+      const serializedFailureDetails = pipelineResult.failure_details
+        ? JSON.stringify(pipelineResult.failure_details).slice(0, 1500)
+        : null;
+      const pipelineError =
+        `[Pipeline:${pipelineResult.failed_at}] ${pipelineResult.error_code} ${pipelineResult.error}` +
+        (serializedFailureDetails ? ` | failure_details=${serializedFailureDetails}` : "");
       console.error(`[Processor] Pipeline failed for job ${jobId}: ${pipelineError}`);
       await markFailed(pipelineError);
 
@@ -1185,26 +1232,43 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 /**
  * Process all queued evaluation jobs
  */
-export async function processQueuedJobs(): Promise<{
+export function getValidatedWorkerBatchSize(raw: unknown, fallback = evalWorkerBatchSize): number {
+  const candidate =
+    typeof raw === 'number'
+      ? raw
+      : typeof raw === 'string'
+        ? Number.parseInt(raw, 10)
+        : Number.NaN;
+
+  if (Number.isFinite(candidate) && candidate >= 1 && candidate <= 5) {
+    return Math.floor(candidate);
+  }
+
+  return fallback;
+}
+
+export async function processQueuedJobs(options: { batchSize?: number } = {}): Promise<{
   processed: number;
   succeeded: number;
   failed: number;
   errors: Array<{ jobId: string; error: string }>;
 }> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const effectiveBatchSize = getValidatedWorkerBatchSize(options.batchSize);
 
   // Safety net: recover jobs left in running due to platform hard timeout/crash.
   await failStaleRunningJobs();
 
-  // Fetch all queued jobs
+  // Fetch queued jobs with bounded batch size to prevent long sequential runs from
+  // breaching route duration when individual evaluations run near timeout budgets.
   const { data: jobs, error } = await supabase
     .from('evaluation_jobs')
     .select('id,phase')
     .eq('status', 'queued')
-    .eq('phase_status', 'triggered')
+    .eq('phase_status', 'queued')
     .in('phase', ['phase_1', 'phase_2'])
     .order('created_at', { ascending: true })
-    .limit(10); // Process max 10 jobs per run
+    .limit(effectiveBatchSize);
 
   if (error) {
     console.error('[Processor] Error fetching queued jobs:', error);
@@ -1222,7 +1286,7 @@ export async function processQueuedJobs(): Promise<{
     return acc;
   }, {});
 
-  console.log(`[Processor] Found ${jobs.length} queued job(s)`);
+  console.log(`[Processor] Found ${jobs.length} queued job(s) batchSize=${effectiveBatchSize}`);
   console.log(`[Processor] Queued candidate counts by phase: ${JSON.stringify(phaseBreakdown)}`);
 
   const results = {

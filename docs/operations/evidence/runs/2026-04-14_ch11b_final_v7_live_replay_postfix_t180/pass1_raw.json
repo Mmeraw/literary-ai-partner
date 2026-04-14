@@ -1,0 +1,224 @@
+{
+  "pass": 1,
+  "axis": "craft_execution",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 8,
+      "rationale": "The concept effectively links environmental issues across different geographies, showcasing a pattern of exploitation. The thematic parallels between the Mayan Train and the Mackenzie Dam are well-articulated.",
+      "evidence": [
+        { "snippet": "‘Same pattern. Everywhere.’", "char_start": 116, "char_end": 138 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Further clarify the interconnectedness of the two cases by deepening the exploration of local impacts, enhancing the emotional weight of the concept.",
+          "expected_impact": "This will strengthen the reader's engagement with the overarching theme.",
+          "anchor_snippet": "‘Same pattern. Everywhere.’"
+        }
+      ]
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 7,
+      "rationale": "The narrative maintains a steady drive through the protagonist's investigative journey, but moments of exposition slow the momentum. The connection between the two projects builds tension effectively.",
+      "evidence": [
+        { "snippet": "‘They’re reading from the same script.’", "char_start": 482, "char_end": 511 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Reduce the length of expository sections to maintain narrative momentum, ensuring each detail serves the escalating tension.",
+          "expected_impact": "This will enhance the urgency and engagement throughout the narrative.",
+          "anchor_snippet": "‘They’re reading from the same script.’"
+        }
+      ]
+    },
+    {
+      "key": "character",
+      "score_0_10": 6,
+      "rationale": "The characters are functional but lack depth; their motivations and backgrounds are not fully explored. Cliff's reactions are somewhat passive, limiting emotional engagement.",
+      "evidence": [
+        { "snippet": "Cliff didn’t interrupt.", "char_start": 328, "char_end": 349 }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Develop Cliff’s character further by adding internal thoughts or backstory to create a more dynamic interaction and deepen reader investment.",
+          "expected_impact": "This will enhance emotional resonance and character relatability.",
+          "anchor_snippet": "Cliff didn’t interrupt."
+        }
+      ]
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "The voice is distinct and consistent, effectively conveying the protagonist's urgency and concern. The narrative tone aligns well with the subject matter.",
+      "evidence": [
+        { "snippet": "‘It’s not new,’ I said.", "char_start": 422, "char_end": 440 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Maintain the strong voice while exploring more varied sentence structures to enhance rhythm and engagement.",
+          "expected_impact": "This will create a more dynamic reading experience.",
+          "anchor_snippet": "‘It’s not new,’ I said."
+        }
+      ]
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are well-constructed with vivid details that ground the reader. However, some transitions between exposition and dialogue could be smoother to maintain flow.",
+      "evidence": [
+        { "snippet": "The electric heater popped in the corner...", "char_start": 0, "char_end": 54 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Enhance transitions between scenes and dialogue to improve flow and maintain reader immersion.",
+          "expected_impact": "This will create a more cohesive narrative experience.",
+          "anchor_snippet": "The electric heater popped in the corner..."
+        }
+      ]
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 8,
+      "rationale": "Dialogue is natural and serves to advance the plot while revealing character perspectives. The exchanges effectively convey urgency and tension.",
+      "evidence": [
+        { "snippet": "‘Sounds familiar.’", "char_start": 324, "char_end": 340 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Consider adding more subtext to dialogue to deepen character interactions and reveal underlying tensions.",
+          "expected_impact": "This will enhance the complexity of character relationships.",
+          "anchor_snippet": "‘Sounds familiar.’"
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "score_0_10": 9,
+      "rationale": "The themes of environmental exploitation and colonial legacy are compellingly interwoven, providing a strong backbone to the narrative. The thematic connections are clear and impactful.",
+      "evidence": [
+        { "snippet": "‘The people on the land pay the highest price.’", "char_start": 652, "char_end": 684 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Reinforce thematic elements by integrating more personal stories or examples that illustrate the broader implications.",
+          "expected_impact": "This will deepen thematic resonance and reader connection.",
+          "anchor_snippet": "‘The people on the land pay the highest price.’"
+        }
+      ]
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 7,
+      "rationale": "The setting is established through sensory details, but the worldbuilding could benefit from deeper exploration of the cultural and historical context.",
+      "evidence": [
+        { "snippet": "The air smelled faintly of baked dust...", "char_start": 54, "char_end": 85 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Expand on the cultural and historical context of both locations to enrich the world and deepen reader immersion.",
+          "expected_impact": "This will create a more vivid and engaging setting.",
+          "anchor_snippet": "The air smelled faintly of baked dust..."
+        }
+      ]
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 6,
+      "rationale": "Pacing is uneven, with sections of dense exposition that disrupt narrative flow. The build-up of tension is effective, but the release is often delayed.",
+      "evidence": [
+        { "snippet": "‘Acceptable national standards,’ he muttered.", "char_start": 482, "char_end": 511 }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Streamline exposition to maintain a more consistent pacing, ensuring that tension builds and releases effectively.",
+          "expected_impact": "This will enhance overall narrative flow and reader engagement.",
+          "anchor_snippet": "‘Acceptable national standards,’ he muttered."
+        }
+      ]
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 8,
+      "rationale": "Prose is generally clear and evocative, with strong imagery and varied sentence structures. Some sentences could be tightened for clarity.",
+      "evidence": [
+        { "snippet": "The heater pinged again, as if marking time we didn’t have.", "char_start": 754, "char_end": 794 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Review sentences for conciseness, eliminating unnecessary words to enhance clarity and impact.",
+          "expected_impact": "This will improve readability and maintain reader focus.",
+          "anchor_snippet": "The heater pinged again, as if marking time we didn’t have."
+        }
+      ]
+    },
+    {
+      "key": "tone",
+      "score_0_10": 8,
+      "rationale": "The tone is appropriately serious and reflective, aligning well with the themes of environmental and social justice. It maintains a consistent emotional weight.",
+      "evidence": [
+        { "snippet": "‘And it’s not in the habit of forgiving.’", "char_start": 940, "char_end": 970 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Consider varying the tone slightly in moments of character reflection to add depth and complexity to emotional responses.",
+          "expected_impact": "This will create a richer emotional landscape.",
+          "anchor_snippet": "‘And it’s not in the habit of forgiving.’"
+        }
+      ]
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 7,
+      "rationale": "The chapter concludes with a strong thematic statement, but the resolution feels somewhat abrupt. There is potential for a more gradual build to closure.",
+      "evidence": [
+        { "snippet": "‘I think it proves the river remembers,’ I said.", "char_start": 935, "char_end": 965 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Expand the closing moments to provide a more satisfying resolution, allowing for reflection on the implications of the discussion.",
+          "expected_impact": "This will enhance the emotional weight of the conclusion.",
+          "anchor_snippet": "‘I think it proves the river remembers,’ I said."
+        }
+      ]
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 7,
+      "rationale": "The premise is compelling and clearly articulated, but the execution could benefit from tightening to enhance accessibility and reader engagement.",
+      "evidence": [
+        { "snippet": "‘Fifteen hundred kilometers. Across limestone that’s basically a sponge.’", "char_start": 161, "char_end": 205 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Clarify complex concepts and streamline exposition to improve accessibility for a broader audience, enhancing engagement.",
+          "expected_impact": "This will make the narrative more approachable and engaging.",
+          "anchor_snippet": "‘Fifteen hundred kilometers. Across limestone that’s basically a sponge.’"
+        }
+      ]
+    }
+  ],
+  "model": "gpt-3.5-turbo",
+  "prompt_version": "pass1-craft-v4",
+  "temperature": 0.3,
+  "generated_at": "2023-10-10T12:00:00Z",
+  "native_mode_assessment": {
+    "dominant_mode": "investigative_dossier",
+    "mode_confidence": "high",
+    "mode_rationale": "The text operates primarily through investigative dialogue and exposition, linking environmental issues across different contexts.",
+    "pressure_profile": "Pressure accumulates through the protagonist's revelations, but some exposition disrupts the flow."
+  }
+}

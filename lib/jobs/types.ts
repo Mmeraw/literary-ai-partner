@@ -65,24 +65,10 @@ export const JOB_STATUS = {
 export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS];
 
 /**
- * PHASE_STATUS_MARKERS — Queue eligibility markers used by worker selectors
- * These are runtime-only markers that indicate which jobs the worker should pick up.
- * "triggered" means: job is queued and ready for the next phase executor to claim.
+ * PhaseStatus uses the same canonical values as JobStatus.
+ * Worker contract: selects jobs where status='queued' AND phase_status='queued'
  */
-export const PHASE_STATUS_MARKERS = {
-  TRIGGERED: "triggered",
-} as const;
-
-export type PhaseStatusMarker = (typeof PHASE_STATUS_MARKERS)[keyof typeof PHASE_STATUS_MARKERS];
-
-/**
- * PhaseStatus reflects actual runtime usage:
- * - JobStatus values (queued, running, complete, failed) for state transitions
- * - Additional markers (triggered) for worker queue eligibility
- * 
- * Worker contract: selects jobs where status='queued' AND phase_status='triggered'
- */
-export type PhaseStatus = JobStatus | PhaseStatusMarker | null;
+export type PhaseStatus = JobStatus | null;
 
 /**
  * JOB_CONTRACT_v1 — CANON progress shape (minimum)

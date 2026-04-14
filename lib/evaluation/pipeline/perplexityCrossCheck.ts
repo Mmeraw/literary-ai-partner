@@ -14,6 +14,11 @@
  * This pass is diagnostic/adjudicative. It does NOT perform WAVE refinement.
  */
 
+import {
+  JsonBoundaryError,
+  parseJsonObjectBoundary,
+} from "./jsonParseBoundary";
+
 export type CriterionKey =
   | "concept"
   | "narrativeDrive"
@@ -87,6 +92,7 @@ export interface CrossCheckOutput {
   criteria: Record<CriterionKey, CrossCheckCriterionResult>;
   perplexitySynthesisNote: string;
   canonValid: boolean;
+  warnings?: string[];
   rawPerplexityResponse?: string;
 }
 
@@ -114,25 +120,6 @@ const CRITERION_KEYS: CriterionKey[] = [
   "emotionalResonance",
   "marketability",
 ];
-function extractFirstJsonObject(rawContent: string): string {
-  const trimmed = rawContent.trim();
-
-  if (!trimmed) {
-    throw new Error("[Pass4] Empty response body from Perplexity.");
-  }
-
-  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  const candidate = fencedMatch?.[1] ?? trimmed;
-  const objectMatch = candidate.match(/({[\s\S]*})/);
-
-  if (!objectMatch) {
-    throw new Error(
-      `[Pass4] Could not find JSON object in Perplexity response: ${trimmed.slice(0, 400)}`
-    );
-  }
-
-  return objectMatch[1];
-}
 
 function assertScore(score: unknown, key: string): number {
   if (typeof score !== "number" || Number.isNaN(score)) {
@@ -383,12 +370,35 @@ Now return the independent adjudication as JSON.`;
 
   const raw = await response.json();
   const rawContent: string = raw?.choices?.[0]?.message?.content ?? "";
+  const finishReason = typeof raw?.choices?.[0]?.finish_reason === "string"
+    ? raw.choices[0].finish_reason
+    : "unknown";
 
-  const extractedJson = extractFirstJsonObject(rawContent);
+  let parsedJson: unknown;
+  try {
+    const boundary = parseJsonObjectBoundary<Record<string, unknown>>(rawContent, {
+      label: "[Pass4] response",
+      maxRawChars: 150_000,
+    });
+    parsedJson = boundary.value;
+  } catch (error) {
+    if (error instanceof JsonBoundaryError) {
+      console.error("[Pass4] JSON parse failed", {
+        classification: error.code,
+        finish_reason: finishReason,
+        candidates_found: error.candidatesFound ?? null,
+        raw_head: error.raw.slice(0, 1000),
+        raw_tail: error.raw.slice(-500),
+        normalized_tail: error.normalized.slice(-200),
+      });
+      throw new Error(`[Pass4] JSON parse/validation failed: ${error.code}`);
+    }
+    throw error;
+  }
 
   let parsed: PerplexityResponseShape;
   try {
-    parsed = validateParsedResponse(JSON.parse(extractedJson));
+    parsed = validateParsedResponse(parsedJson);
   } catch (error) {
     throw new Error(
       `[Pass4] JSON parse/validation failed: ${(error as Error).message}`

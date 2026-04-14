@@ -5,6 +5,7 @@ const {
   isManuscriptTextLongEnough,
   getCalibrationProfile,
   assessEvaluationQuality,
+  getValidatedWorkerBatchSize,
 } = require("../../../lib/evaluation/processor");
 const { CRITERIA_KEYS } = require("../../../schemas/criteria-keys");
 
@@ -282,9 +283,9 @@ describe("normalizeRecommendationsFromAIResult", () => {
 
 describe("isManuscriptTextLongEnough", () => {
   test("returns false for short text and true at threshold", () => {
-    expect(isManuscriptTextLongEnough("abc", 5)).toBe(false);
-    expect(isManuscriptTextLongEnough("abcde", 5)).toBe(true);
-    expect(isManuscriptTextLongEnough("   abcde   ", 5)).toBe(true);
+    expect(isManuscriptTextLongEnough("one two three", 5)).toBe(false);
+    expect(isManuscriptTextLongEnough("one two three four five", 5)).toBe(true);
+    expect(isManuscriptTextLongEnough("  one   two   three   four   five  ", 5)).toBe(true);
   });
 });
 
@@ -325,5 +326,20 @@ describe("assessEvaluationQuality", () => {
     expect(quality.scoreSpread).toBeGreaterThan(1.5);
     expect(quality.evidenceCoverageRatio).toBe(1);
     expect(quality.confidencePenalty).toBe(0);
+  });
+});
+
+describe("getValidatedWorkerBatchSize", () => {
+  test("clamps invalid values to fallback", () => {
+    expect(getValidatedWorkerBatchSize(undefined, 1)).toBe(1);
+    expect(getValidatedWorkerBatchSize("0", 2)).toBe(2);
+    expect(getValidatedWorkerBatchSize("999", 2)).toBe(2);
+    expect(getValidatedWorkerBatchSize("not-a-number", 3)).toBe(3);
+  });
+
+  test("accepts bounded integer values", () => {
+    expect(getValidatedWorkerBatchSize(1, 3)).toBe(1);
+    expect(getValidatedWorkerBatchSize("5", 1)).toBe(5);
+    expect(getValidatedWorkerBatchSize(3.9, 1)).toBe(3);
   });
 });

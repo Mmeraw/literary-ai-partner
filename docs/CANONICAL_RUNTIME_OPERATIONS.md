@@ -40,6 +40,22 @@ If unset, these paths fail loudly by design.
 3. Any production issue triage must begin from canonical entrypoints above.
 4. If docs conflict with code, this file and architecture invariants are authoritative.
 
+## Evaluation Reliability Minimum (Policy)
+
+- Canonical evaluation fail-closed gate is enforced in `lib/evaluation/processor.ts` before `runPipeline`.
+- Runtime policy minimum is **200 words**.
+- Env control precedence:
+   1. `EVAL_MIN_MANUSCRIPT_WORDS` (primary)
+   2. `EVAL_MIN_MANUSCRIPT_CHARS` (temporary backward-compatibility fallback)
+
+## Worker Runtime Guardrails (Canonical)
+
+- Worker route runtime budget: `app/api/workers/process-evaluations/route.ts` exports `maxDuration = 300`.
+- Per-pass timeout cap: `EVAL_PASS_TIMEOUT_MS` is clamped to `<= 180000` ms in `lib/evaluation/processor.ts`.
+- OpenAI timeout cap: `EVAL_OPENAI_TIMEOUT_MS` is clamped to `<= 180000` ms in processor and pass runners.
+- Queue batch-size safety guard: `EVAL_WORKER_BATCH_SIZE` is clamped to `1..5` (default `1`) before queue fetch.
+- Worker route passes bounded `batchSize` into `processQueuedJobs()`; processor enforces clamp again (defense in depth).
+
 ## CI/Invariant Enforcement
 
 Architecture invariants enforce:

@@ -1,0 +1,27 @@
+{
+  "model": "gpt-4o-mini",
+  "passes": {
+    "pass1": null,
+    "pass2": {
+      "prompt_tokens": 2805,
+      "completion_tokens": 2482,
+      "total_tokens": 5287,
+      "prompt_tokens_details": {
+        "cached_tokens": 2176,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "pass3": null
+  },
+  "totals": {
+    "prompt_tokens": 2805,
+    "completion_tokens": 2482,
+    "total_tokens": 5287
+  }
+}

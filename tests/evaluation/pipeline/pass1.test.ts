@@ -120,7 +120,7 @@ describe("parsePass1Response", () => {
   });
 
   it("throws on invalid JSON", () => {
-    expect(() => parsePass1Response("not json")).toThrow("not valid JSON");
+    expect(() => parsePass1Response("not json")).toThrow("JSON_PARSE_FAILED_NO_OBJECT");
   });
 
   it("throws on empty criteria array", () => {

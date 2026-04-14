@@ -1,0 +1,230 @@
+{
+  "pass": 2,
+  "axis": "editorial_literary",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 8,
+      "rationale": "The chapter presents a compelling exploration of environmental exploitation and colonial legacies, linking contemporary issues to historical patterns. This thematic depth invites readers to reflect on systemic injustices.",
+      "evidence": [
+        { "snippet": "It’s not new... Same script. New uniforms.", "char_start": 284, "char_end": 305 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider further developing the historical context to deepen the reader's understanding of the ongoing impact of colonialism.",
+          "expected_impact": "Enhanced thematic resonance and reader engagement with the socio-political implications.",
+          "anchor_snippet": "It’s not new... Same script. New uniforms."
+        }
+      ]
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 7,
+      "rationale": "The narrative builds tension through the protagonist's investigative journey, revealing parallels between the Mayan Train and the Mackenzie Dam. The stakes rise as the implications of these projects unfold.",
+      "evidence": [
+        { "snippet": "The people on the land pay the highest price.", "char_start": 549, "char_end": 580 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Introduce more immediate consequences for the characters' discoveries to heighten urgency and emotional stakes.",
+          "expected_impact": "Increased reader investment in the narrative and character outcomes.",
+          "anchor_snippet": "The people on the land pay the highest price."
+        }
+      ]
+    },
+    {
+      "key": "character",
+      "score_0_10": 6,
+      "rationale": "While the characters exhibit depth through their dialogue and reflections, their emotional stakes could be more vividly portrayed. The protagonist's motivations remain somewhat abstract.",
+      "evidence": [
+        { "snippet": "I think it proves the river remembers.", "char_start": 633, "char_end": 661 }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Develop the protagonist's personal connection to the land and its history to create a stronger emotional anchor for their journey.",
+          "expected_impact": "Greater emotional resonance and reader empathy for the character's plight.",
+          "anchor_snippet": "I think it proves the river remembers."
+        }
+      ]
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "The narrative voice is distinctive and evocative, effectively conveying the weight of the themes. The blend of personal reflection and factual exposition enriches the storytelling.",
+      "evidence": [
+        { "snippet": "The air smelled faintly of baked dust, cedar, and paper...", "char_start": 54, "char_end": 90 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Maintain the strong voice while ensuring it remains accessible to a broader audience, possibly by simplifying complex ideas.",
+          "expected_impact": "Wider appeal without sacrificing the narrative's integrity.",
+          "anchor_snippet": "The air smelled faintly of baked dust, cedar, and paper..."
+        }
+      ]
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "The scenes are well-constructed, utilizing sensory details to ground the reader in the setting. However, transitions between scenes could be smoother to maintain narrative flow.",
+      "evidence": [
+        { "snippet": "The electric heater popped in the corner...", "char_start": 0, "char_end": 41 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Enhance transitions between scenes to improve narrative flow and maintain reader engagement.",
+          "expected_impact": "A more cohesive reading experience that keeps the reader immersed.",
+          "anchor_snippet": "The electric heater popped in the corner..."
+        }
+      ]
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 8,
+      "rationale": "The dialogue effectively conveys character relationships and thematic concerns, with a natural flow that enhances the narrative's authenticity.",
+      "evidence": [
+        { "snippet": "Sounds familiar.", "char_start": 329, "char_end": 344 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Consider adding more varied dialogue tags to further differentiate character voices and enhance clarity.",
+          "expected_impact": "Improved character distinction and engagement in conversations.",
+          "anchor_snippet": "Sounds familiar."
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "score_0_10": 9,
+      "rationale": "The chapter powerfully addresses themes of environmental degradation and colonialism, drawing poignant parallels that resonate deeply with contemporary issues.",
+      "evidence": [
+        { "snippet": "The language is the same. The mitigation’s the same.", "char_start": 516, "char_end": 554 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Explore additional thematic layers, such as personal stories of those affected, to enrich the narrative's impact.",
+          "expected_impact": "A more nuanced exploration of the themes that invites deeper reader reflection.",
+          "anchor_snippet": "The language is the same. The mitigation’s the same."
+        }
+      ]
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 7,
+      "rationale": "The setting is vividly described, providing a strong sense of place. However, more context about the cultural significance of the locations could enhance reader understanding.",
+      "evidence": [
+        { "snippet": "Across limestone that’s basically a sponge.", "char_start": 163, "char_end": 197 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Incorporate more cultural context about the locations to deepen the reader's connection to the setting.",
+          "expected_impact": "Richer worldbuilding that enhances thematic exploration.",
+          "anchor_snippet": "Across limestone that’s basically a sponge."
+        }
+      ]
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 6,
+      "rationale": "The pacing is uneven, with sections of dense exposition that may slow the narrative momentum. Balancing these with more dynamic interactions could improve flow.",
+      "evidence": [
+        { "snippet": "The heater pinged again, as if marking time...", "char_start": 579, "char_end": 610 }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Interweave more action or dialogue during expository sections to maintain momentum and reader engagement.",
+          "expected_impact": "A more engaging narrative that keeps the reader's interest throughout.",
+          "anchor_snippet": "The heater pinged again, as if marking time..."
+        }
+      ]
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 8,
+      "rationale": "The prose is generally strong, with vivid imagery and a clear voice. Some sentences could be tightened for clarity and impact.",
+      "evidence": [
+        { "snippet": "A pencil sat beside the fresh hunting regulations printout...", "char_start": 41, "char_end": 83 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Review for opportunities to tighten prose, enhancing clarity and maintaining reader engagement.",
+          "expected_impact": "More impactful writing that keeps the reader focused on the narrative.",
+          "anchor_snippet": "A pencil sat beside the fresh hunting regulations printout..."
+        }
+      ]
+    },
+    {
+      "key": "tone",
+      "score_0_10": 9,
+      "rationale": "The tone effectively balances urgency and reflection, creating a compelling atmosphere that underscores the chapter's themes.",
+      "evidence": [
+        { "snippet": "And it’s not in the habit of forgiving.", "char_start": 661, "char_end": 688 }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Maintain the established tone while ensuring it remains consistent throughout the narrative.",
+          "expected_impact": "Sustained emotional engagement and thematic clarity.",
+          "anchor_snippet": "And it’s not in the habit of forgiving."
+        }
+      ]
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 7,
+      "rationale": "The chapter concludes with a strong thematic statement, but the resolution feels somewhat open-ended, leaving some narrative threads unresolved.",
+      "evidence": [
+        { "snippet": "The river remembers.", "char_start": 633, "char_end": 661 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider providing a clearer resolution to the character's journey or thematic exploration to enhance closure.",
+          "expected_impact": "A more satisfying conclusion that reinforces the chapter's themes.",
+          "anchor_snippet": "The river remembers."
+        }
+      ]
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 8,
+      "rationale": "This chapter positions itself well within the literary market, appealing to readers interested in environmental issues and social justice. Its thematic depth aligns with current cultural conversations.",
+      "evidence": [
+        { "snippet": "Doesn’t matter the century. Doesn’t matter the latitude.", "char_start": 580, "char_end": 610 }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Highlight the unique angle of environmental parallels in marketing materials to attract a broader audience.",
+          "expected_impact": "Increased visibility and interest from diverse readerships.",
+          "anchor_snippet": "Doesn’t matter the century. Doesn’t matter the latitude."
+        }
+      ]
+    }
+  ],
+  "model": "gpt-4",
+  "prompt_version": "pass2-editorial-v4",
+  "temperature": 0.3,
+  "generated_at": "2023-10-05T12:00:00Z",
+  "narrative_mode_assessment": {
+    "dominant_mode": "reflective",
+    "mode_confidence": "high",
+    "mode_rationale": "The text reflects on historical and contemporary issues through character dialogue and exposition, creating a layered narrative.",
+    "pressure_profile": "Pressure accumulates through the protagonist's realization of systemic patterns, enhancing thematic urgency.",
+    "character_expression_mode": "dialogue_action"
+  },
+  "divergence_declaration": {
+    "agreement_zones": [],
+    "disagreement_zones": [],
+    "new_findings": []
+  }
+}

@@ -20,13 +20,17 @@ import {
   buildOpenAITemperatureParam,
   getCanonicalPipelineModel,
 } from "@/lib/evaluation/policy";
+import {
+  JsonBoundaryError,
+  parseJsonObjectBoundary,
+} from "./jsonParseBoundary";
 
 const PASS2_TEMPERATURE = 0.3;
 const PASS2_MAX_TOKENS = 4000;
 const PASS2_MODEL = "o3";
 const OPENAI_TIMEOUT_MS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || "120000", 10);
-  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 300_000 ? parsed : 120_000;
+  const parsed = Number.parseInt(process.env.EVAL_OPENAI_TIMEOUT_MS || "180000", 10);
+  return Number.isFinite(parsed) && parsed >= 1_000 && parsed <= 180_000 ? parsed : 180_000;
 })();
 
 function nowMs(): number {
@@ -107,7 +111,7 @@ export type CreateCompletionFn = (params: {
   max_tokens?: number;
   max_completion_tokens?: number;
   response_format: { type: string };
-}) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage }>;
+}) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage; id?: string; request_id?: string }>;
 
 export interface RunPass2Options {
   /**
@@ -121,6 +125,8 @@ export interface RunPass2Options {
   registry: CanonRegistry;
   model?: string;
   openaiApiKey?: string;
+  manuscriptId?: string;
+  jobId?: string;
   /** Override the completion function (for testing). Production callers omit this. */
   _createCompletion?: CreateCompletionFn;
   _onCompletion?: (capture: PassCompletionCapture) => void;
@@ -234,10 +240,45 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     raw_text: responseText,
     model: selectedModel,
     usage: completion.usage,
+    finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined,
+    request_id:
+      typeof (completion as { request_id?: unknown }).request_id === "string"
+        ? (completion as { request_id: string }).request_id
+        : typeof (completion as { id?: unknown }).id === "string"
+        ? (completion as { id: string }).id
+        : undefined,
     generated_at: new Date().toISOString(),
   });
 
-  const parsedOutput = parsePass2Response(responseText, selectedModel);
+  const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
+  const requestId =
+    typeof (completion as { request_id?: unknown }).request_id === "string"
+      ? (completion as { request_id: string }).request_id
+      : typeof (completion as { id?: unknown }).id === "string"
+      ? (completion as { id: string }).id
+      : undefined;
+
+  let parsedOutput: SinglePassOutput;
+  try {
+    parsedOutput = parsePass2Response(responseText, selectedModel);
+  } catch (error) {
+    console.error("[Pass2] Parse boundary diagnostic", {
+      job_id: opts.jobId ?? null,
+      manuscript_id: opts.manuscriptId ?? null,
+      title: opts.title,
+      model: selectedModel,
+      request_id: requestId ?? null,
+      finish_reason: finishReason,
+      usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
+      usage_completion_tokens: completion.usage?.completion_tokens ?? null,
+      usage_total_tokens: completion.usage?.total_tokens ?? null,
+      output_chars: responseText.length,
+      raw_head: responseText.slice(0, 1000),
+      raw_tail: responseText.slice(-500),
+      error_message: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
   const parseValidationMs = nowMs() - parseValidationStartMs;
   const totalMs = nowMs() - passStartMs;
 
@@ -289,11 +330,31 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
  * @throws on invalid structure, empty criteria, or parse errors
  */
 export function parsePass2Response(raw: string, fallbackModel = PASS2_MODEL): SinglePassOutput {
+  if (process.env.EVAL_DEBUG === "1") {
+    console.debug("[Pass2] Pre-parse raw preview", {
+      raw_head: raw.slice(0, 200),
+      raw_tail: raw.slice(-120),
+    });
+  }
+
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error("[Pass2] Response is not valid JSON");
+    const boundary = parseJsonObjectBoundary<Record<string, unknown>>(raw, {
+      label: "[Pass2] response",
+    });
+    parsed = boundary.value;
+  } catch (error) {
+    if (error instanceof JsonBoundaryError) {
+      console.error("[Pass2] JSON parse failed", {
+        classification: error.code,
+        candidates_found: error.candidatesFound ?? null,
+        raw_head: error.raw.slice(0, 500),
+        raw_tail: error.raw.slice(-250),
+        normalized_tail: error.normalized.slice(-200),
+      });
+      throw error;
+    }
+    throw error;
   }
 
   if (typeof parsed !== "object" || parsed === null) {

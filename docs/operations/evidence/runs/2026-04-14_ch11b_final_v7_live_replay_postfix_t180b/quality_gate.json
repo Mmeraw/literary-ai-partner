@@ -1,0 +1,76 @@
+{
+  "pass": true,
+  "checks": [
+    {
+      "check_id": "criteria_complete",
+      "passed": true,
+      "details": "All 13 criteria present"
+    },
+    {
+      "check_id": "score_range",
+      "passed": true,
+      "details": "All scores in valid range"
+    },
+    {
+      "check_id": "consequence_contract",
+      "passed": true,
+      "details": "All criteria include pressure_points, decision_points, consequence_status, and deferred risk when required"
+    },
+    {
+      "check_id": "no_generic_recs",
+      "passed": true,
+      "details": "All recommendations have anchor_snippet"
+    },
+    {
+      "check_id": "rec_min_length",
+      "passed": true,
+      "details": "All recommendations ≥ 50 chars"
+    },
+    {
+      "check_id": "rec_max_length",
+      "passed": true,
+      "details": "All recommendations ≤ 300 chars"
+    },
+    {
+      "check_id": "evidence_length",
+      "passed": true,
+      "details": "All evidence excerpts ≤ 200 chars"
+    },
+    {
+      "check_id": "overview_length",
+      "passed": true,
+      "details": "Overview: 364 chars (max 500)"
+    },
+    {
+      "check_id": "no_duplicate_recs",
+      "passed": true,
+      "details": "No duplicated recommendations"
+    },
+    {
+      "check_id": "rationale_coverage",
+      "passed": true,
+      "details": "All criteria have substantive rationale (≥ 40 chars)"
+    },
+    {
+      "check_id": "placeholder_rationale",
+      "passed": true,
+      "details": "No known placeholder rationale patterns detected"
+    },
+    {
+      "check_id": "evidence_coverage",
+      "passed": true,
+      "details": "1 criterion/criteria lack substantive evidence: dialogue (max 3 permitted)"
+    },
+    {
+      "check_id": "required_evidence_spine",
+      "passed": true,
+      "details": "All required spine criteria include substantive evidence"
+    },
+    {
+      "check_id": "pass_independence",
+      "passed": true,
+      "details": "Pass 1 / Pass 2 independence confirmed (n=8)"
+    }
+  ],
+  "warnings": []
+}

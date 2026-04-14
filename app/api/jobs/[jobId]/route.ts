@@ -32,6 +32,19 @@ type CanonicalJobResponse = {
   failure_code?: string;
 };
 
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+} as const;
+
+function jsonNoStore(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: NO_STORE_HEADERS,
+  });
+}
+
 export async function GET(req: NextRequest, ctx: { params: Params }) {
   try {
     const { jobId } = await ctx.params;
@@ -51,9 +64,9 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     const ownerId = sessionUser?.id ?? headerOwnerId;
 
     if (!ownerId) {
-      return NextResponse.json(
+      return jsonNoStore(
         { ok: false, error: "Unauthorized" },
-        { status: 401 }
+        401
       );
     }
 
@@ -61,17 +74,17 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
 
     // 2) Not found
     if (!job) {
-      return NextResponse.json(
+      return jsonNoStore(
         { ok: false, error: "Job not found" },
-        { status: 404 }
+        404
       );
     }
 
     // 3) Ownership enforcement: non-owner gets 404 (do NOT reveal existence)
     if (job.user_id !== ownerId) {
-      return NextResponse.json(
+      return jsonNoStore(
         { ok: false, error: "Job not found" },
-        { status: 404 }
+        404
       );
     }
 
@@ -79,9 +92,9 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     const canonicalStatuses = ["queued", "running", "complete", "failed"];
     if (!canonicalStatuses.includes(job.status)) {
       console.error(`Invalid status in DB: ${job.status} for job ${jobId}`);
-      return NextResponse.json(
+      return jsonNoStore(
         { ok: false, error: "Invalid job state" },
-        { status: 500 }
+        500
       );
     }
 
@@ -108,12 +121,12 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
       response.job.failure_code = job.failure_code;
     }
 
-    return NextResponse.json(response);
+    return jsonNoStore(response);
   } catch (err) {
     console.error("GET /api/jobs/[jobId] error:", err);
-    return NextResponse.json(
+    return jsonNoStore(
       { ok: false, error: "Server error" },
-      { status: 500 }
+      500
     );
   }
 }

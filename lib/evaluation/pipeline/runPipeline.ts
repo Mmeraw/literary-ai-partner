@@ -24,6 +24,7 @@ import {
 } from "./qualityGate";
 import type { PipelineResult, SinglePassOutput, SynthesisOutput, QualityGateResult } from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
+import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS1_PROMPT_VERSION } from "./prompts/pass1-craft";
 import { PASS2_PROMPT_VERSION } from "./prompts/pass2-editorial";
 import { PASS3_PROMPT_VERSION } from "./prompts/pass3-synthesis";
@@ -42,6 +43,7 @@ import {
   evaluateLessonsLearnedRules as defaultEvaluateLessonsLearnedRules,
   deriveLessonsLearnedEnforcementDecision as defaultDeriveLessonsLearnedEnforcementDecision,
 } from "@/lib/governance/lessonsLearned";
+import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
 import type {
   RuleEvaluationInput,
   RuleStage,
@@ -57,6 +59,7 @@ export interface RunPipelineOptions {
   manuscriptText: string;
   workType: string;
   title: string;
+  jobId?: string;
   model?: string;
   openaiApiKey?: string;
   /** Optional: Perplexity API key. When provided, enables Pass 4 cross-check via sonar-reasoning-pro. */
@@ -163,6 +166,44 @@ function validatePipelineInput(opts: RunPipelineOptions): string | null {
   }
 
   return null;
+}
+
+function normalizeRecommendationAction(action: string): string {
+  return action.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function dedupeRecommendationsPreGate(synthesis: SynthesisOutput): {
+  synthesis: SynthesisOutput;
+  removedCount: number;
+} {
+  const seenActions = new Set<string>();
+  let removedCount = 0;
+
+  const criteria = synthesis.criteria.map((criterion) => {
+    const recommendations = criterion.recommendations.filter((rec) => {
+      const normalizedAction = normalizeRecommendationAction(rec.action);
+      if (!normalizedAction) return true;
+      if (seenActions.has(normalizedAction)) {
+        removedCount += 1;
+        return false;
+      }
+      seenActions.add(normalizedAction);
+      return true;
+    });
+
+    return {
+      ...criterion,
+      recommendations,
+    };
+  });
+
+  return {
+    synthesis: {
+      ...synthesis,
+      criteria,
+    },
+    removedCount,
+  };
 }
 
 /**
@@ -284,42 +325,186 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   let crossCheckResult: CrossCheckOutput | undefined;
   let pass4Governance: Pass4GovernanceResult | undefined;
 
-  // ── Pass 1: Craft Execution ─────────────────────────────────────────────
-  try {
-    const pass1StartMs = nowMs();
-    pass1Output = await withTimeout(
-      _runPass1({
-        manuscriptText: opts.manuscriptText,
-        workType: opts.workType,
-        title: opts.title,
-        executionMode: opts.executionMode,
-        model: opts.model,
-        openaiApiKey: opts.openaiApiKey,
-        registry,
-      }),
-      passTimeoutMs,
-      "Pass 1",
-    );
+  // ── Pass 1 + Pass 2: Parallel execution ────────────────────────────────
+  //
+  // INDEPENDENCE GUARANTEE
+  // Pass 2 receives ONLY manuscript text (see _runPass2 signature — no Pass 1
+  // parameter exists). It never reads or depends on Pass 1 output, making true
+  // parallel execution safe by construction. Any future change that introduces
+  // a data dependency between Pass 1 and Pass 2 MUST convert this back to
+  // sequential await and update this comment.
+  //
+  // FAILURE PRECEDENCE RULE (binding)
+  // We use Promise.allSettled (never Promise.all) so both passes always run to
+  // completion regardless of the other's outcome.
+  //   • Only Pass 1 fails  → return Pass 1 failure. Pass 2 result discarded.
+  //   • Only Pass 2 fails  → return Pass 2 failure. Pass 1 result discarded.
+  //   • Both fail          → Pass 1 failure is the canonical return value.
+  //                          Pass 2 failure is logged at ERROR level for audit.
+  //                          Both error_code values appear in the log.
+  //   • Both succeed       → proceed to Pass 3 synthesis (sequential, by
+  //                          design — Pass 3 requires both outputs).
+  //
+  // This precedence rule is deterministic and must not be changed without
+  // updating both this comment and the audit log structure below.
+  const pass1StartMs = nowMs();
+  const pass2StartMs = nowMs();
+
+  const pass1Promise = withTimeout(
+    _runPass1({
+      manuscriptText: opts.manuscriptText,
+      workType: opts.workType,
+      title: opts.title,
+      executionMode: opts.executionMode,
+      model: opts.model,
+      openaiApiKey: opts.openaiApiKey,
+      registry,
+    }),
+    passTimeoutMs,
+    "Pass 1",
+  ).finally(() => {
     timings.pass1_ms = nowMs() - pass1StartMs;
-  } catch (err) {
-    const errMessage = String(err instanceof Error ? err.message : err);
-    const errorCode = errMessage.includes("timed out") ? "PASS1_TIMEOUT" : "PASS1_FAILED";
+  });
+
+  const pass2Promise = withTimeout(
+    _runPass2({
+      manuscriptText: opts.manuscriptText,
+      workType: opts.workType,
+      title: opts.title,
+      executionMode: opts.executionMode,
+      model: opts.model,
+      openaiApiKey: opts.openaiApiKey,
+      manuscriptId: opts.manuscriptId,
+      jobId: opts.jobId,
+      registry,
+    }),
+    passTimeoutMs,
+    "Pass 2",
+  ).finally(() => {
+    timings.pass2_ms = nowMs() - pass2StartMs;
+  });
+
+  const [pass1Settled, pass2Settled] = await Promise.allSettled([pass1Promise, pass2Promise]);
+
+  const normalizePassFailure = (pass: "pass1" | "pass2" | "pass3", reason: unknown) => {
+    const message = String(reason instanceof Error ? reason.message : reason);
+    const timeoutCode =
+      pass === "pass1" ? "PASS1_TIMEOUT" : pass === "pass2" ? "PASS2_TIMEOUT" : "PASS3_TIMEOUT";
+    if (reason instanceof JsonBoundaryError) {
+      const prefix = pass === "pass1" ? "PASS1" : pass === "pass2" ? "PASS2" : "PASS3";
+      return {
+        message,
+        errorCode: `${prefix}_${reason.code}`,
+        failedAt: pass,
+        failureDetails: {
+          json_boundary: {
+            code: reason.code,
+            candidates_found: reason.candidatesFound,
+            raw_head: reason.raw.slice(0, 1000),
+            raw_tail: reason.raw.slice(-500),
+            normalized_tail: reason.normalized.slice(-250),
+            candidate_tail: reason.candidate?.slice(-250),
+          },
+        },
+      } as const;
+    }
+    const genericCode = pass === "pass1" ? "PASS1_FAILED" : pass === "pass2" ? "PASS2_FAILED" : "PASS3_FAILED";
+    const failedAt = pass;
+    return {
+      message,
+      errorCode: message.includes("timed out") ? timeoutCode : genericCode,
+      failedAt,
+      failureDetails: undefined,
+    } as const;
+  };
+
+  const pass1Failed = pass1Settled.status === "rejected";
+  const pass2Failed = pass2Settled.status === "rejected";
+
+  // ── Failure routing (implements the FAILURE PRECEDENCE RULE above) ────────
+  if (pass1Failed && pass2Failed) {
+    // DUAL-FAILURE BRANCH: Pass 1 failure is canonical per the precedence rule.
+    // Both failures are logged here — this log is the sole audit record of
+    // the secondary (Pass 2) failure and must not be removed.
+    const pass1Failure = normalizePassFailure("pass1", pass1Settled.reason);
+    const pass2Failure = normalizePassFailure("pass2", pass2Settled.reason);
+
+    console.error("[Pipeline] Parallel pass dual failure", {
+      manuscript_id: opts.manuscriptId ?? null,
+      title: opts.title,
+      work_type: opts.workType,
+      pass1: {
+        error_code: pass1Failure.errorCode,
+        error: pass1Failure.message,
+      },
+      pass2: {
+        error_code: pass2Failure.errorCode,
+        error: pass2Failure.message,
+      },
+      timings,
+    });
+
     timings.total_ms = nowMs() - pipelineStartMs;
     logPipelineTimings("failure", {
       manuscriptId: opts.manuscriptId,
       title: opts.title,
       workType: opts.workType,
-      failedAt: "pass1",
-      errorCode,
+      failedAt: pass1Failure.failedAt,
+      errorCode: pass1Failure.errorCode,
+      timings,
+    });
+
+    return {
+      ok: false,
+      error: `${pass1Failure.message} | secondary: ${pass2Failure.message}`,
+      error_code: pass1Failure.errorCode,
+      failed_at: pass1Failure.failedAt,
+      failure_details: pass1Failure.failureDetails,
+    };
+  }
+
+  if (pass1Failed) {
+    const failure = normalizePassFailure("pass1", pass1Settled.reason);
+    timings.total_ms = nowMs() - pipelineStartMs;
+    logPipelineTimings("failure", {
+      manuscriptId: opts.manuscriptId,
+      title: opts.title,
+      workType: opts.workType,
+      failedAt: failure.failedAt,
+      errorCode: failure.errorCode,
       timings,
     });
     return {
       ok: false,
-      error: errMessage,
-      error_code: errorCode,
-      failed_at: "pass1",
+      error: failure.message,
+      error_code: failure.errorCode,
+      failed_at: failure.failedAt,
+      failure_details: failure.failureDetails,
     };
   }
+
+  if (pass2Failed) {
+    const failure = normalizePassFailure("pass2", pass2Settled.reason);
+    timings.total_ms = nowMs() - pipelineStartMs;
+    logPipelineTimings("failure", {
+      manuscriptId: opts.manuscriptId,
+      title: opts.title,
+      workType: opts.workType,
+      failedAt: failure.failedAt,
+      errorCode: failure.errorCode,
+      timings,
+    });
+    return {
+      ok: false,
+      error: failure.message,
+      error_code: failure.errorCode,
+      failed_at: failure.failedAt,
+      failure_details: failure.failureDetails,
+    };
+  }
+
+  pass1Output = pass1Settled.value;
+  pass2Output = pass2Settled.value;
 
   {
     const llrResult = enforceLessonsLearnedStage("post_structural", "pass1", {
@@ -327,45 +512,6 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       registry,
     });
     if (llrResult) return llrResult;
-  }
-
-  // ── Pass 2: Editorial/Literary Insight ──────────────────────────────────
-  // Independence guarantee: Pass 2 receives ONLY manuscript text.
-  // pass1Output is deliberately NOT passed here.
-  try {
-    const pass2StartMs = nowMs();
-    pass2Output = await withTimeout(
-      _runPass2({
-        manuscriptText: opts.manuscriptText,
-        workType: opts.workType,
-        title: opts.title,
-        executionMode: opts.executionMode,
-        model: opts.model,
-        openaiApiKey: opts.openaiApiKey,
-        registry,
-      }),
-      passTimeoutMs,
-      "Pass 2",
-    );
-    timings.pass2_ms = nowMs() - pass2StartMs;
-  } catch (err) {
-    const errMessage = String(err instanceof Error ? err.message : err);
-    const errorCode = errMessage.includes("timed out") ? "PASS2_TIMEOUT" : "PASS2_FAILED";
-    timings.total_ms = nowMs() - pipelineStartMs;
-    logPipelineTimings("failure", {
-      manuscriptId: opts.manuscriptId,
-      title: opts.title,
-      workType: opts.workType,
-      failedAt: "pass2",
-      errorCode,
-      timings,
-    });
-    return {
-      ok: false,
-      error: errMessage,
-      error_code: errorCode,
-      failed_at: "pass2",
-    };
   }
 
   {
@@ -396,22 +542,22 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     );
     timings.pass3_ms = nowMs() - pass3StartMs;
   } catch (err) {
-    const errMessage = String(err instanceof Error ? err.message : err);
-    const errorCode = errMessage.includes("timed out") ? "PASS3_TIMEOUT" : "PASS3_FAILED";
+    const failure = normalizePassFailure("pass3", err);
     timings.total_ms = nowMs() - pipelineStartMs;
     logPipelineTimings("failure", {
       manuscriptId: opts.manuscriptId,
       title: opts.title,
       workType: opts.workType,
-      failedAt: "pass3",
-      errorCode,
+      failedAt: failure.failedAt,
+      errorCode: failure.errorCode,
       timings,
     });
     return {
       ok: false,
-      error: errMessage,
-      error_code: errorCode,
-      failed_at: "pass3",
+      error: failure.message,
+      error_code: failure.errorCode,
+      failed_at: failure.failedAt,
+      failure_details: failure.failureDetails,
     };
   }
 
@@ -434,6 +580,16 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   // ── Pass 4: Quality Gate (deterministic) ───────────────────────────────
+  const dedupeResult = dedupeRecommendationsPreGate(pass3Output);
+  pass3Output = dedupeResult.synthesis;
+  if (dedupeResult.removedCount > 0) {
+    console.log("[Pipeline][PreGate] recommendation dedupe applied", {
+      manuscript_id: opts.manuscriptId ?? null,
+      title: opts.title,
+      removed_recommendations: dedupeResult.removedCount,
+    });
+  }
+
   const pass4StartMs = nowMs();
   const qualityGate = _runQualityGate(pass3Output, pass1Output, pass2Output);
   timings.pass4_ms = nowMs() - pass4StartMs;
@@ -449,6 +605,13 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       work_type: opts.workType,
       title: opts.title,
       ...qualityGateTelemetry,
+      warning_count: qualityGate.warnings.length,
+      warning_samples: qualityGate.warnings.slice(0, 5),
+      failed_check_details: failedChecks.slice(0, 5).map((check) => ({
+        check_id: check.check_id,
+        error_code: check.error_code ?? "QG_UNKNOWN",
+        details: check.details,
+      })),
     });
 
     timings.total_ms = nowMs() - pipelineStartMs;
@@ -558,6 +721,96 @@ export interface SynthesisToEvaluationResultOptions {
   pass4Governance?: Pass4GovernanceResult;
 }
 
+const DEFAULT_ADAPTER_CONFIDENCE = 0.85;
+const INCOMPLETE_CRITERIA_WARNING = "INCOMPLETE_CRITERIA_SET";
+const PLACEHOLDER_CLUSTER_THRESHOLD = 5;
+
+function isThinText(value: string | undefined, minWords = 6): boolean {
+  const text = value?.trim() ?? "";
+  if (!text) return true;
+  return text.split(/\s+/).filter(Boolean).length < minWords;
+}
+
+function looksPlaceholderRationale(rationale: string): boolean {
+  const normalized = rationale.toLowerCase();
+  return [
+    "did not provide a specific score",
+    "did not provide specific score",
+    "did not provide specific analysis",
+    "did not provide a specific analysis",
+    "no specific score",
+    "no specific analysis",
+    "insufficient information",
+    "insufficient evidence",
+    "unable to assess",
+  ].some((pattern) => normalized.includes(pattern));
+}
+
+function assessCriteriaCompleteness(criteria: EvaluationResultV1["criteria"]): {
+  warnings: string[];
+  confidence: number;
+} {
+  const presentKeys = new Set(criteria.map((c) => c.key));
+  const missingKeys = CRITERIA_KEYS.filter((key) => !presentKeys.has(key));
+
+  const zeroScoreCount = criteria.filter((c) => c.score_0_10 === 0).length;
+
+  const placeholderKeys = criteria
+    .filter((criterion) => {
+      const placeholderRationale = looksPlaceholderRationale(criterion.rationale);
+      const thinEvidence =
+        criterion.evidence.length === 0 || criterion.evidence.every((e) => isThinText(e.snippet, 4));
+      const thinRecommendations =
+        criterion.recommendations.length === 0 ||
+        criterion.recommendations.every(
+          (r) => isThinText(r.action) || isThinText(r.expected_impact),
+        );
+
+      return (
+        (criterion.score_0_10 === 0 && placeholderRationale) ||
+        (placeholderRationale && thinEvidence) ||
+        (criterion.score_0_10 === 0 && thinEvidence && thinRecommendations)
+      );
+    })
+    .map((c) => c.key);
+
+  const hasPlaceholderCluster =
+    placeholderKeys.length >= PLACEHOLDER_CLUSTER_THRESHOLD && zeroScoreCount >= PLACEHOLDER_CLUSTER_THRESHOLD;
+
+  if (missingKeys.length === 0 && !hasPlaceholderCluster) {
+    return {
+      warnings: [],
+      confidence: DEFAULT_ADAPTER_CONFIDENCE,
+    };
+  }
+
+  const warnings: string[] = [];
+
+  if (missingKeys.length > 0) {
+    warnings.push(
+      `${INCOMPLETE_CRITERIA_WARNING}: missing_keys=${missingKeys.join(",")} expected=${CRITERIA_KEYS.length} actual=${criteria.length}`,
+    );
+  }
+
+  if (hasPlaceholderCluster) {
+    warnings.push(
+      `${INCOMPLETE_CRITERIA_WARNING}: placeholder_cluster_count=${placeholderKeys.length} zero_score_count=${zeroScoreCount} sample=${placeholderKeys
+        .slice(0, 5)
+        .join(",")}`,
+    );
+  }
+
+  const confidence = Math.max(
+    0,
+    DEFAULT_ADAPTER_CONFIDENCE - (missingKeys.length > 0 ? 0.2 : 0) - (hasPlaceholderCluster ? 0.15 : 0),
+  );
+
+  return {
+    warnings,
+    confidence,
+  };
+}
+
 /**
  * Map a SynthesisOutput (Phase 2.7 pipeline result) to EvaluationResultV1
  * so that downstream code (phase2.ts, report UI, A6 credibility) works unchanged.
@@ -618,6 +871,18 @@ export function synthesisToEvaluationResult(
     )
     .slice(0, 5);
 
+  const completenessAssessment = assessCriteriaCompleteness(criteria);
+
+  const governanceWarnings = [...completenessAssessment.warnings];
+
+  if (crossCheckResult?.warnings?.length) {
+    governanceWarnings.push(...crossCheckResult.warnings);
+  }
+
+  if (pass4Governance && !pass4Governance.ok && pass4Governance.message) {
+    governanceWarnings.push(pass4Governance.message);
+  }
+
   return {
     schema_version: "evaluation_result_v1",
     ids,
@@ -645,8 +910,8 @@ export function synthesisToEvaluationResult(
     },
     artifacts: [],
     governance: {
-      confidence: 0.85,
-      warnings: [],
+      confidence: completenessAssessment.confidence,
+      warnings: governanceWarnings,
       limitations: ["Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"],
       policy_family: "multi-pass-dual-axis",
       // Pass 4 governance data is returned on PipelineResult, not stored on EvaluationResultV1

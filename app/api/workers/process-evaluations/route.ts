@@ -24,7 +24,7 @@ import crypto from 'crypto';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
-// Allow up to 300s for OpenAI API calls on Pro plan
+// Allow up to 300 seconds per invocation.
 export const maxDuration = 300;
 
 
@@ -33,10 +33,11 @@ export const maxDuration = 300;
 // ============================================================================
 
 const CONFIG = {
-  // Maximum execution time before timeout (Vercel hobby: 10s, pro: 60s)
-  MAX_EXECUTION_MS: 55000,
-  // Batch size for processing
-  BATCH_SIZE: 10,
+  MAX_DURATION_SECONDS: maxDuration,
+  WORKER_BATCH_SIZE: (() => {
+    const parsed = Number.parseInt(process.env.EVAL_WORKER_BATCH_SIZE || '1', 10);
+    return Number.isFinite(parsed) && parsed >= 1 && parsed <= 5 ? parsed : 1;
+  })(),
 } as const;
 
 // ============================================================================
@@ -264,14 +265,15 @@ export async function GET(request: NextRequest) {
         message: 'Dry run mode - no jobs processed',
         timestamp: new Date().toISOString(),
         config: {
-          maxExecutionMs: CONFIG.MAX_EXECUTION_MS,
-          batchSize: CONFIG.BATCH_SIZE,
+          maxDurationSeconds: CONFIG.MAX_DURATION_SECONDS,
+          batchSize: CONFIG.WORKER_BATCH_SIZE,
+            maxExecutionMs: CONFIG.MAX_DURATION_SECONDS * 1000,
         },
       });
     }
     
-    // Process queued jobs
-    const results = await processQueuedJobs();
+    // Process queued jobs using bounded batch size.
+    const results = await processQueuedJobs({ batchSize: CONFIG.WORKER_BATCH_SIZE });
     const durationMs = Date.now() - startTime;
     
     structuredLog({
@@ -285,6 +287,7 @@ export async function GET(request: NextRequest) {
         processed: results.processed,
         succeeded: results.succeeded,
         failed: results.failed,
+        batchSize: CONFIG.WORKER_BATCH_SIZE,
       },
     });
     
@@ -296,6 +299,7 @@ export async function GET(request: NextRequest) {
       processed: results.processed,
       succeeded: results.succeeded,
       failed: results.failed,
+      batchSize: CONFIG.WORKER_BATCH_SIZE,
       errors: results.errors,
       timestamp: new Date().toISOString(),
     }, { status: 200 });

@@ -1,0 +1,270 @@
+{
+  "pass": 2,
+  "axis": "editorial_literary",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 8,
+      "rationale": "The chapter presents a compelling exploration of environmental degradation and colonial patterns, linking contemporary issues to historical injustices. This layered approach enriches the narrative's thematic depth.",
+      "evidence": [
+        {
+          "snippet": "Doesn’t matter if it’s limestone aquifers in the Yucatán or glacier-fed rivers in the Northwest Territories — the language is the same.",
+          "char_start": 581,
+          "char_end": 663
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider further developing the historical context to enhance the reader's understanding of the ongoing impact of colonialism, as seen in the line about 'the language is the same.'",
+          "expected_impact": "This could deepen the thematic resonance and provide a richer backdrop for the contemporary issues discussed.",
+          "anchor_snippet": "Doesn’t matter if it’s limestone aquifers in the Yucatán or glacier-fed rivers in the Northwest Territories — the language is the same."
+        }
+      ]
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 7,
+      "rationale": "The narrative builds tension through the juxtaposition of past and present environmental crises, creating a sense of urgency. However, the pacing occasionally stalls due to reflective exposition.",
+      "evidence": [
+        {
+          "snippet": "The people on the land pay the highest price.",
+          "char_start": 888,
+          "char_end": 922
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Introduce more immediate stakes or consequences for the characters involved to enhance the urgency and drive of the narrative, especially in moments of reflection.",
+          "expected_impact": "This would create a stronger sense of immediacy and engagement for the reader.",
+          "anchor_snippet": "The people on the land pay the highest price."
+        }
+      ]
+    },
+    {
+      "key": "character",
+      "score_0_10": 6,
+      "rationale": "Character development is primarily conveyed through dialogue and exposition, which limits emotional depth. Cliff and the narrator serve more as conduits for ideas than fully realized individuals.",
+      "evidence": [
+        {
+          "snippet": "Cliff leaned forward, squinting as if proximity could change the words.",
+          "char_start": 704,
+          "char_end": 748
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Develop Cliff's backstory or personal stakes in the environmental issues discussed to enhance his emotional connection and depth as a character.",
+          "expected_impact": "This would create a more relatable and engaging character for the reader.",
+          "anchor_snippet": "Cliff leaned forward, squinting as if proximity could change the words."
+        }
+      ]
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "The narrative voice is distinct and authoritative, effectively conveying the urgency of environmental issues. The blend of personal reflection and factual exposition creates a compelling tone.",
+      "evidence": [
+        {
+          "snippet": "I think it proves the river remembers, and it’s not in the habit of forgiving.",
+          "char_start": 978,
+          "char_end": 1030
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Maintain the strong voice while ensuring that character perspectives are more integrated into the narrative to enhance emotional engagement.",
+          "expected_impact": "This will strengthen the connection between the voice and the characters' experiences.",
+          "anchor_snippet": "I think it proves the river remembers, and it’s not in the habit of forgiving."
+        }
+      ]
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are effectively constructed with vivid details that ground the reader in the setting. However, some transitions between reflective moments could be smoother to maintain flow.",
+      "evidence": [
+        {
+          "snippet": "The air smelled faintly of baked dust, cedar, and paper that had been sitting too long in the dark.",
+          "char_start": 38,
+          "char_end": 98
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Enhance transitions between scenes and reflective passages to improve narrative flow and maintain reader engagement.",
+          "expected_impact": "This will create a more cohesive reading experience.",
+          "anchor_snippet": "The air smelled faintly of baked dust, cedar, and paper that had been sitting too long in the dark."
+        }
+      ]
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 8,
+      "rationale": "Dialogue is sharp and serves to reveal character perspectives and thematic concerns effectively. It feels natural and contributes to the tension between characters.",
+      "evidence": [
+        {
+          "snippet": "‘Acceptable national standards,’” he muttered. “For killing what’s sacred.”",
+          "char_start": 763,
+          "char_end": 803
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Consider adding more varied dialogue tags or actions to enhance character dynamics and emotional undertones in conversations.",
+          "expected_impact": "This could provide additional layers to character interactions.",
+          "anchor_snippet": "‘Acceptable national standards,’” he muttered. “For killing what’s sacred.”"
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "score_0_10": 9,
+      "rationale": "The themes of environmental exploitation and colonial legacy are powerfully interwoven, prompting critical reflection on historical and contemporary injustices.",
+      "evidence": [
+        {
+          "snippet": "Once the ink dried? They paid rent to work the same fields they’d owned for generations.",
+          "char_start": 804,
+          "char_end": 858
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Explore additional thematic angles, such as community resilience or resistance, to further enrich the narrative's thematic complexity.",
+          "expected_impact": "This could provide a more rounded exploration of the issues at hand.",
+          "anchor_snippet": "Once the ink dried? They paid rent to work the same fields they’d owned for generations."
+        }
+      ]
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 7,
+      "rationale": "The setting is vividly described, establishing a strong sense of place. However, additional context about the socio-political landscape could enhance the reader's understanding of the stakes involved.",
+      "evidence": [
+        {
+          "snippet": "The electric heater popped in the corner, a sharp metallic tick that seemed to echo longer than it should have.",
+          "char_start": 0,
+          "char_end": 76
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Incorporate more background on the socio-political context of the locations discussed to deepen the worldbuilding and stakes.",
+          "expected_impact": "This will provide readers with a clearer understanding of the implications of the environmental issues presented.",
+          "anchor_snippet": "The electric heater popped in the corner, a sharp metallic tick that seemed to echo longer than it should have."
+        }
+      ]
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 6,
+      "rationale": "Pacing fluctuates, with some sections feeling drawn out due to extensive exposition. This can detract from the overall momentum of the narrative.",
+      "evidence": [
+        {
+          "snippet": "The heater pinged again, as if marking time we didn’t have.",
+          "char_start": 924,
+          "char_end": 964
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Tighten exposition and integrate it more seamlessly into the narrative to maintain a more consistent pacing throughout the chapter.",
+          "expected_impact": "This will enhance the narrative flow and keep readers more engaged.",
+          "anchor_snippet": "The heater pinged again, as if marking time we didn’t have."
+        }
+      ]
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 8,
+      "rationale": "The prose is evocative and rich in sensory detail, effectively immersing the reader in the environment and emotional landscape of the characters.",
+      "evidence": [
+        {
+          "snippet": "The smell of toner.",
+          "char_start": 118,
+          "char_end": 135
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Maintain the high standard of prose while ensuring clarity in more complex passages to avoid potential reader confusion.",
+          "expected_impact": "This will enhance reader comprehension without sacrificing literary quality.",
+          "anchor_snippet": "The smell of toner."
+        }
+      ]
+    },
+    {
+      "key": "tone",
+      "score_0_10": 9,
+      "rationale": "The tone is appropriately urgent and reflective, balancing the gravity of the subject matter with a personal touch that invites reader empathy.",
+      "evidence": [
+        {
+          "snippet": "And it’s not in the habit of forgiving.",
+          "char_start": 1026,
+          "char_end": 1054
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Ensure that the tone remains consistent throughout, especially in moments of high tension, to maintain emotional impact.",
+          "expected_impact": "This will strengthen the overall emotional resonance of the narrative.",
+          "anchor_snippet": "And it’s not in the habit of forgiving."
+        }
+      ]
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 7,
+      "rationale": "The chapter concludes with a strong thematic statement, but a more definitive resolution or call to action could enhance its impact and leave a lasting impression.",
+      "evidence": [
+        {
+          "snippet": "The people on the land pay the highest price.",
+          "char_start": 888,
+          "char_end": 922
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider adding a more explicit resolution or call to action at the end to reinforce the urgency of the themes presented.",
+          "expected_impact": "This could leave readers with a stronger sense of purpose and engagement with the issues discussed.",
+          "anchor_snippet": "The people on the land pay the highest price."
+        }
+      ]
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 8,
+      "rationale": "The manuscript addresses timely issues of environmental justice and colonialism, appealing to readers interested in socio-political themes. Its literary quality positions it well for both literary and commercial markets.",
+      "evidence": [
+        {
+          "snippet": "The Maya call them sacred.",
+          "char_start": 189,
+          "char_end": 214
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Highlight the manuscript's unique perspective on environmental issues in marketing materials to attract a broader readership interested in activism and social justice.",
+          "expected_impact": "This will enhance its appeal to a wider audience and increase its market potential.",
+          "anchor_snippet": "The Maya call them sacred."
+        }
+      ]
+    }
+  ],
+  "model": "gpt-3.5-turbo",
+  "prompt_version": "pass2-editorial-v4",
+  "temperature": 0.3,
+  "generated_at": "2026-04-14T14:19:27.962Z"
+}

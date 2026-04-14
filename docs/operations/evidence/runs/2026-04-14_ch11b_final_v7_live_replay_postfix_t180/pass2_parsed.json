@@ -1,0 +1,270 @@
+{
+  "pass": 2,
+  "axis": "editorial_literary",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 8,
+      "rationale": "The chapter effectively juxtaposes environmental exploitation across different cultures and contexts, revealing a universal pattern of colonialism and ecological disregard. This thematic depth invites readers to reflect on historical and contemporary injustices.",
+      "evidence": [
+        {
+          "snippet": "Doesn’t matter the century. Doesn’t matter the latitude. The people on the land pay the highest price.",
+          "char_start": 1041,
+          "char_end": 1094
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Expand on the historical context of the environmental impacts to deepen the reader's understanding of the ongoing consequences.",
+          "expected_impact": "Enhancing historical context will enrich the thematic resonance and emotional weight of the narrative.",
+          "anchor_snippet": "Go back centuries. Colonial period — hacienda owners and Spanish encomenderos..."
+        }
+      ]
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 7,
+      "rationale": "The narrative builds tension through the protagonist's research and the parallels drawn between the Mayan Train and the Mackenzie Dam. The stakes are clear, though the pacing occasionally stalls due to exposition-heavy dialogue.",
+      "evidence": [
+        {
+          "snippet": "The Mackenzie Dam will do to Robert’s people exactly what the Mayan Train is doing to the Maya...",
+          "char_start": 407,
+          "char_end": 463
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Introduce more immediate consequences of the protagonist's findings to heighten urgency and engagement.",
+          "expected_impact": "Increased immediacy will enhance narrative tension and reader investment in the outcome.",
+          "anchor_snippet": "I was still buzzing from the afternoon’s search..."
+        }
+      ]
+    },
+    {
+      "key": "character",
+      "score_0_10": 6,
+      "rationale": "Character development is primarily conveyed through dialogue and institutional roles, with limited emotional depth. The protagonist's motivations are clear, but the emotional stakes could be more vividly portrayed.",
+      "evidence": [
+        {
+          "snippet": "Cliff leaned forward, squinting as if proximity could change the words.",
+          "char_start": 743,
+          "char_end": 786
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Incorporate more internal monologue or emotional reactions to enhance character depth and reader connection.",
+          "expected_impact": "Greater emotional engagement will make the characters' struggles more relatable and impactful.",
+          "anchor_snippet": "I think it proves the river remembers..."
+        }
+      ]
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "The narrative voice is distinct and evocative, effectively blending a sense of urgency with a reflective tone. The use of sensory details enriches the atmosphere and engages the reader's imagination.",
+      "evidence": [
+        {
+          "snippet": "The air smelled faintly of baked dust, cedar, and paper that had been sitting too long in the dark.",
+          "char_start": 55,
+          "char_end": 113
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Maintain the current voice while exploring more varied sentence structures to enhance rhythm and flow.",
+          "expected_impact": "Improved rhythm will enhance the reading experience and maintain engagement.",
+          "anchor_snippet": "The electric heater popped in the corner..."
+        }
+      ]
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are well-constructed with vivid details, but some moments feel more expository than immersive. The setting is effectively utilized to reflect the characters' emotional states.",
+      "evidence": [
+        {
+          "snippet": "The heater pinged again, as if marking time we didn’t have.",
+          "char_start": 930,
+          "char_end": 966
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Integrate more dynamic actions or reactions from characters within scenes to enhance immediacy and engagement.",
+          "expected_impact": "Increased character activity will create a more immersive reading experience.",
+          "anchor_snippet": "Cliff leaned forward, squinting as if proximity could change the words."
+        }
+      ]
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 8,
+      "rationale": "Dialogue is sharp and serves to advance the plot while revealing character perspectives. The exchanges feel authentic and contribute to the thematic exploration.",
+      "evidence": [
+        {
+          "snippet": "‘Acceptable national standards,’ he muttered. 'For killing what’s sacred.'",
+          "char_start": 771,
+          "char_end": 815
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Consider varying dialogue tags and incorporating more non-verbal cues to enhance character dynamics.",
+          "expected_impact": "More varied dialogue presentation will deepen character interactions and engagement.",
+          "anchor_snippet": "Cliff leaned forward, squinting as if proximity could change the words."
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "score_0_10": 9,
+      "rationale": "The themes of colonialism, environmental degradation, and cultural erasure are powerfully interwoven. The chapter prompts critical reflection on historical and contemporary issues.",
+      "evidence": [
+        {
+          "snippet": "The people on the land pay the highest price.",
+          "char_start": 1091,
+          "char_end": 1134
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Further explore the implications of these themes through character experiences to deepen emotional impact.",
+          "expected_impact": "Enhanced thematic exploration will resonate more profoundly with readers.",
+          "anchor_snippet": "It’s not new... The pattern didn’t die with the Spaniards."
+        }
+      ]
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 7,
+      "rationale": "The chapter establishes a strong sense of place, particularly through the descriptions of the library and the environmental issues. However, more context about the broader world could enhance immersion.",
+      "evidence": [
+        {
+          "snippet": "The air smelled faintly of baked dust, cedar, and paper...",
+          "char_start": 55,
+          "char_end": 113
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Incorporate more details about the cultural and environmental context of both the Yucatán and Mackenzie regions to enrich worldbuilding.",
+          "expected_impact": "Broader context will deepen reader immersion and understanding of the stakes involved.",
+          "anchor_snippet": "They’re cutting a rail line through the jungle..."
+        }
+      ]
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 6,
+      "rationale": "The pacing occasionally falters due to exposition-heavy dialogue, which can detract from the urgency of the narrative. Moments of reflection slow the momentum.",
+      "evidence": [
+        {
+          "snippet": "I turned my laptop toward him, showing headlines cached before the Wi-Fi could choke.",
+          "char_start": 493,
+          "char_end": 550
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "high",
+          "action": "Streamline dialogue to focus on key revelations, reducing exposition to maintain narrative momentum.",
+          "expected_impact": "Improved pacing will enhance engagement and maintain reader interest throughout.",
+          "anchor_snippet": "Cliff didn’t interrupt."
+        }
+      ]
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 8,
+      "rationale": "The prose is generally strong, with vivid imagery and a clear voice. However, some sentences could benefit from tightening to enhance clarity and impact.",
+      "evidence": [
+        {
+          "snippet": "A pencil sat beside the fresh hunting regulations printout he’d coaxed from the library’s sputtering copier...",
+          "char_start": 134,
+          "char_end": 207
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Review for opportunities to tighten prose, focusing on eliminating redundancy and enhancing clarity.",
+          "expected_impact": "Tighter prose will increase the overall impact and readability of the narrative.",
+          "anchor_snippet": "The electric heater popped in the corner..."
+        }
+      ]
+    },
+    {
+      "key": "tone",
+      "score_0_10": 8,
+      "rationale": "The tone effectively balances urgency with a reflective quality, underscoring the gravity of the themes discussed. This duality enhances the emotional weight of the narrative.",
+      "evidence": [
+        {
+          "snippet": "And it’s not in the habit of forgiving.",
+          "char_start": 1085,
+          "char_end": 1109
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "low",
+          "action": "Maintain the current tone while exploring moments of levity or hope to provide contrast and depth.",
+          "expected_impact": "Incorporating varied tones will enrich the emotional landscape of the narrative.",
+          "anchor_snippet": "The heater pinged again, as if marking time we didn’t have."
+        }
+      ]
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 7,
+      "rationale": "The chapter concludes with a strong thematic statement, but it lacks a clear resolution for the characters' immediate situation. This leaves some narrative threads unresolved.",
+      "evidence": [
+        {
+          "snippet": "I think it proves the river remembers, and it’s not in the habit of forgiving.",
+          "char_start": 1085,
+          "char_end": 1134
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider providing a clearer resolution or next steps for the characters to enhance narrative closure.",
+          "expected_impact": "A more defined closure will provide satisfaction and clarity for the reader.",
+          "anchor_snippet": "Cliff leaned back, tapping the eraser of his pencil..."
+        }
+      ]
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 7,
+      "rationale": "The manuscript appeals to readers interested in environmental issues and social justice, with potential crossover into literary fiction. Its thematic depth aligns well with current market trends.",
+      "evidence": [
+        {
+          "snippet": "The language is the same. The mitigation’s the same. The result’s the same.",
+          "char_start": 844,
+          "char_end": 892
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Position the manuscript within the environmental and social justice genres to attract a targeted readership.",
+          "expected_impact": "Clear positioning will enhance visibility and appeal to a specific audience interested in these themes.",
+          "anchor_snippet": "It doesn’t matter if it’s limestone aquifers in the Yucatán or glacier-fed rivers..."
+        }
+      ]
+    }
+  ],
+  "model": "gpt-3.5-turbo",
+  "prompt_version": "pass2-editorial-v4",
+  "temperature": 0.3,
+  "generated_at": "2026-04-14T18:12:39.287Z"
+}

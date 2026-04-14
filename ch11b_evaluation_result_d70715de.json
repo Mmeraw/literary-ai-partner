@@ -1,0 +1,487 @@
+{
+  "id": "d70715de-630b-4343-b934-25b3b76786bb",
+  "manuscript_id": 5045,
+  "status": "complete",
+  "evaluation_result": {
+    "ids": {
+      "job_id": "d70715de-630b-4343-b934-25b3b76786bb",
+      "user_id": "00000000-0000-0000-0000-000000000001",
+      "manuscript_id": 5045,
+      "evaluation_run_id": "2b8e7b83-a804-4567-8b07-6dc1c1715d9a"
+    },
+    "engine": {
+      "model": "Synthesis Model",
+      "provider": "openai",
+      "prompt_version": "pass1-craft-v4+pass2-editorial-v4+pass3-synthesis-v3"
+    },
+    "metrics": {
+      "manuscript": {
+        "genre": "novel",
+        "char_count": 5686,
+        "word_count": 890
+      },
+      "processing": {
+        "segment_count": 1
+      }
+    },
+    "criteria": [
+      {
+        "key": "concept",
+        "evidence": [
+          {
+            "snippet": "The Maya call them sacred.",
+            "location": {
+              "char_end": 184,
+              "char_start": 157
+            }
+          }
+        ],
+        "rationale": "Both passes recognize the compelling nature of the concept, emphasizing the parallels between environmental exploitation and colonialism. The historical context enriches the narrative, and both suggest further development to enhance thematic depth.",
+        "score_0_10": 8,
+        "recommendations": [
+          {
+            "action": "Consider further developing the implications of these parallels to deepen the thematic resonance.",
+            "priority": "medium",
+            "expected_impact": "This could enhance reader engagement with the broader implications of the narrative."
+          },
+          {
+            "action": "Further develop the historical context to enhance the depth of the concept, particularly regarding the implications of colonialism on Indigenous lands.",
+            "priority": "medium",
+            "expected_impact": "This will enrich the thematic layers and provide a more profound understanding of the ongoing struggles."
+          }
+        ]
+      },
+      {
+        "key": "narrativeDrive",
+        "evidence": [
+          {
+            "snippet": "The language is the same. The mitigation is the same.",
+            "location": {
+              "char_end": 484,
+              "char_start": 439
+            }
+          }
+        ],
+        "rationale": "Both evaluations agree on the narrative's strong momentum, driven by reflective dialogue and escalating stakes. They suggest enhancing immediate consequences to heighten urgency, but overall, the narrative drive is effective.",
+        "score_0_10": 7,
+        "recommendations": [
+          {
+            "action": "Integrate more active conflict or immediate stakes to enhance narrative momentum, especially in reflective sections.",
+            "priority": "medium",
+            "expected_impact": "This would create a more dynamic reading experience and maintain reader engagement."
+          },
+          {
+            "action": "Introduce more immediate consequences of the characters' discoveries to heighten urgency and emotional stakes.",
+            "priority": "medium",
+            "expected_impact": "This will enhance reader engagement and the sense of impending loss."
+          }
+        ]
+      },
+      {
+        "key": "character",
+        "evidence": [
+          {
+            "snippet": "Cliff grunted. Sounds familiar.",
+            "location": {
+              "char_end": 266,
+              "char_start": 244
+            }
+          }
+        ],
+        "rationale": "Both passes identify a lack of depth in character development, noting that characters serve primarily as vehicles for thematic exploration. Recommendations focus on enhancing backstories to foster greater emotional investment.",
+        "score_0_10": 6,
+        "recommendations": [
+          {
+            "action": "Develop Cliff and the narrator's backstories or motivations to provide greater depth and individuality.",
+            "priority": "high",
+            "expected_impact": "This will enhance reader investment in their perspectives and conflicts."
+          },
+          {
+            "action": "Develop Cliff's backstory or personal stakes in the environmental issues discussed to create a more relatable character.",
+            "priority": "high",
+            "expected_impact": "This will enhance emotional investment and character depth."
+          }
+        ]
+      },
+      {
+        "key": "voice",
+        "evidence": [
+          {
+            "snippet": "Acceptable national standards. For killing what is sacred.",
+            "location": {
+              "char_end": 353,
+              "char_start": 319
+            }
+          }
+        ],
+        "rationale": "Both evaluations commend the distinct and consistent voice that effectively conveys urgency and frustration. They suggest maintaining this strength while exploring variations in tone and structure for greater engagement.",
+        "score_0_10": 8,
+        "recommendations": [
+          {
+            "action": "Maintain the strong voice while exploring variations in tone to reflect character emotions more dynamically.",
+            "priority": "low",
+            "expected_impact": "This could create a more nuanced emotional landscape throughout the narrative."
+          },
+          {
+            "action": "Maintain the strong voice while incorporating more varied sentence structures to enhance rhythm and engagement.",
+            "priority": "medium",
+            "expected_impact": "This will keep the reader's attention and emphasize key points."
+          }
+        ]
+      },
+      {
+        "key": "sceneConstruction",
+        "evidence": [
+          {
+            "snippet": "The electric heater popped in the corner, a sharp metallic tick that seemed to echo longer than it should have.",
+            "location": {
+              "char_end": 98,
+              "char_start": 0
+            }
+          }
+        ],
+        "rationale": "Both passes agree on the well-constructed scenes with vivid sensory details, though they note that transitions between exposition and dialogue could be improved for better flow. Recommendations focus on enhancing these transitions.",
+        "score_0_10": 7,
+        "recommendations": [
+          {
+            "action": "Enhance transitions between dialogue and exposition to improve scene flow and maintain reader immersion.",
+            "priority": "medium",
+            "expected_impact": "This will create a more cohesive reading experience and enhance scene engagement."
+          },
+          {
+            "action": "Integrate more descriptive action or reactions from characters to balance dialogue and enhance the scene's visual impact.",
+            "priority": "medium",
+            "expected_impact": "This will create a more immersive experience for the reader."
+          }
+        ]
+      },
+      {
+        "key": "dialogue",
+        "evidence": [
+          {
+            "snippet": "Does not matter the century. Does not matter the latitude.",
+            "location": {
+              "char_end": 548,
+              "char_start": 509
+            }
+          }
+        ],
+        "rationale": "Both passes praise the sharpness and authenticity of the dialogue, though the editorial pass rates it slightly higher due to its effectiveness in advancing themes. The recommendation to add pauses for emotional impact is noted.",
+        "score_0_10": 8,
+        "recommendations": [
+          {
+            "action": "Consider adding moments of silence or pauses in dialogue to heighten emotional impact and allow for reflection.",
+            "priority": "medium",
+            "expected_impact": "This will deepen the emotional resonance of the conversations."
+          }
+        ]
+      },
+      {
+        "key": "theme",
+        "evidence": [
+          {
+            "snippet": "The people on the land pay the highest price.",
+            "location": {
+              "char_end": 786,
+              "char_start": 759
+            }
+          }
+        ],
+        "rationale": "Both passes did not provide a specific score or analysis for theme, indicating a lack of focus on this aspect in their evaluations.",
+        "score_0_10": 0,
+        "recommendations": [
+          {
+            "action": "Continue to explore these themes through character experiences and conflicts to deepen their impact.",
+            "priority": "medium",
+            "expected_impact": "This will further engage readers with the thematic depth of the narrative."
+          },
+          {
+            "action": "Further explore the implications of these themes through character reflections or additional historical context.",
+            "priority": "medium",
+            "expected_impact": "This will enhance the thematic complexity and reader engagement."
+          }
+        ]
+      },
+      {
+        "key": "worldbuilding",
+        "evidence": [
+          {
+            "snippet": "Across limestone that is basically a sponge. All the water lives underground.",
+            "location": {
+              "char_end": 158,
+              "char_start": 114
+            }
+          },
+          {
+            "snippet": "Across limestone that is basically a sponge.",
+            "location": {
+              "char_end": 185,
+              "char_start": 157
+            }
+          }
+        ],
+        "rationale": "Both passes did not provide a specific score or analysis for worldbuilding, indicating a lack of focus on this aspect in their evaluations.",
+        "score_0_10": 0,
+        "recommendations": [
+          {
+            "action": "Incorporate additional sensory details and current socio-political context to enrich the worldbuilding.",
+            "priority": "medium",
+            "expected_impact": "This will create a more immersive experience for the reader."
+          },
+          {
+            "action": "Incorporate more details about the cultural significance of the locations discussed to enrich the worldbuilding.",
+            "priority": "medium",
+            "expected_impact": "This will create a more vivid and immersive setting for the reader."
+          }
+        ]
+      },
+      {
+        "key": "pacing",
+        "evidence": [
+          {
+            "snippet": "Same playbook? Same pattern. Everywhere.",
+            "location": {
+              "char_end": 255,
+              "char_start": 226
+            }
+          },
+          {
+            "snippet": "Excerpt from SEMARNAT Environmental Impact Summary...",
+            "location": {
+              "char_end": 409,
+              "char_start": 364
+            }
+          }
+        ],
+        "rationale": "Both passes did not provide a specific score or analysis for pacing, indicating a lack of focus on this aspect in their evaluations.",
+        "score_0_10": 0,
+        "recommendations": [
+          {
+            "action": "Balance exposition with action-oriented scenes to maintain a consistent pacing throughout the chapter.",
+            "priority": "high",
+            "expected_impact": "This will enhance reader engagement and narrative momentum."
+          },
+          {
+            "action": "Streamline sections of exposition to maintain narrative flow and balance with character-driven moments.",
+            "priority": "high",
+            "expected_impact": "This will enhance reader engagement and maintain narrative momentum."
+          }
+        ]
+      },
+      {
+        "key": "proseControl",
+        "evidence": [
+          {
+            "snippet": "The air smelled faintly of baked dust, cedar, and paper that had been sitting too long in the dark.",
+            "location": {
+              "char_end": 158,
+              "char_start": 98
+            }
+          },
+          {
+            "snippet": "And it is not in the habit of forgiving.",
+            "location": {
+              "char_end": 710,
+              "char_start": 681
+            }
+          }
+        ],
+        "rationale": "Both passes did not provide a specific score or analysis for prose control, indicating a lack of focus on this aspect in their evaluations.",
+        "score_0_10": 0,
+        "recommendations": [
+          {
+            "action": "Continue to refine sentence structures for rhythm while ensuring clarity in complex ideas.",
+            "priority": "low",
+            "expected_impact": "This will enhance the overall reading experience and maintain clarity."
+          },
+          {
+            "action": "Continue to refine language for clarity and impact, ensuring every word serves the narrative purpose.",
+            "priority": "medium",
+            "expected_impact": "This will further elevate the manuscript's literary quality."
+          }
+        ]
+      },
+      {
+        "key": "tone",
+        "evidence": [
+          {
+            "snippet": "For killing what is sacred.",
+            "location": {
+              "char_end": 265,
+              "char_start": 243
+            }
+          },
+          {
+            "snippet": "The people on the land pay the highest price.",
+            "location": {
+              "char_end": 579,
+              "char_start": 545
+            }
+          }
+        ],
+        "rationale": "Both passes did not provide a specific score or analysis for tone, indicating a lack of focus on this aspect in their evaluations.",
+        "score_0_10": 0,
+        "recommendations": [
+          {
+            "action": "Consider subtle shifts in tone to reflect character emotions and situational changes more dynamically.",
+            "priority": "medium",
+            "expected_impact": "This could enhance emotional depth and reader connection to the characters."
+          },
+          {
+            "action": "Maintain the established tone while exploring moments of hope or resistance to provide balance.",
+            "priority": "low",
+            "expected_impact": "This will create a more nuanced emotional landscape."
+          }
+        ]
+      },
+      {
+        "key": "narrativeClosure",
+        "evidence": [
+          {
+            "snippet": "And it is not in the habit of forgiving.",
+            "location": {
+              "char_end": 834,
+              "char_start": 802
+            }
+          }
+        ],
+        "rationale": "Both passes did not provide a specific score or analysis for narrative closure, indicating a lack of focus on this aspect in their evaluations.",
+        "score_0_10": 0,
+        "recommendations": [
+          {
+            "action": "Introduce a more definitive closure or a compelling question at the end to enhance narrative momentum into the next chapter.",
+            "priority": "medium",
+            "expected_impact": "This will create a stronger hook for the following sections and maintain reader interest."
+          },
+          {
+            "action": "Consider providing a clearer resolution or reflection on the characters' journeys to enhance narrative closure.",
+            "priority": "medium",
+            "expected_impact": "This will create a more satisfying conclusion and deepen reader investment."
+          }
+        ]
+      },
+      {
+        "key": "marketability",
+        "evidence": [
+          {
+            "snippet": "Promised jobs that vanish the day the last rail spike is in.",
+            "location": {
+              "char_end": 192,
+              "char_start": 157
+            }
+          },
+          {
+            "snippet": "The language is the same. The mitigation is the same.",
+            "location": {
+              "char_end": 484,
+              "char_start": 439
+            }
+          }
+        ],
+        "rationale": "Both passes did not provide a specific score or analysis for marketability, indicating a lack of focus on this aspect in their evaluations.",
+        "score_0_10": 0,
+        "recommendations": [
+          {
+            "action": "Clarify complex ideas and context to enhance accessibility for a broader audience without sacrificing depth.",
+            "priority": "medium",
+            "expected_impact": "This will improve reader engagement and understanding of the narrative's stakes."
+          },
+          {
+            "action": "Highlight the manuscript's unique perspective on colonialism and environmental issues in query materials to attract a broader readership.",
+            "priority": "medium",
+            "expected_impact": "This will enhance its market appeal and attract agents or publishers focused on social justice themes."
+          }
+        ]
+      }
+    ],
+    "overview": {
+      "verdict": "pass",
+      "top_3_risks": [
+        "Lack of character depth",
+        "Missed opportunities in thematic exploration",
+        "Need for improved scene transitions"
+      ],
+      "top_3_strengths": [
+        "Compelling concept exploring colonial exploitation",
+        "Strong narrative drive",
+        "Distinct and consistent voice"
+      ],
+      "overall_score_0_100": 80,
+      "one_paragraph_summary": "The manuscript 'Chapter 11b - Mayan Train Approval' presents a compelling exploration of environmental exploitation and colonialism, with strong narrative drive and distinct voice. While character depth and thematic exploration could be enhanced, the overall execution is effective and engaging. Recommendations focus on developing character backstories and improving transitions in scenes."
+    },
+    "artifacts": [],
+    "governance": {
+      "warnings": [],
+      "confidence": 0.85,
+      "limitations": [
+        "Pass 1 and Pass 2 analyzed the full submission (890 words).",
+        "Pass 3 synthesis uses a compressed manuscript reference window for arbitration context."
+      ],
+      "policy_family": "multi-pass-dual-axis"
+    },
+    "generated_at": "2026-04-14T01:18:11.697Z",
+    "schema_version": "evaluation_result_v1",
+    "recommendations": {
+      "quick_wins": [
+        {
+          "why": "This will enhance reader investment in their perspectives and conflicts.",
+          "action": "Develop Cliff and the narrator's backstories or motivations to provide greater depth and individuality.",
+          "effort": "medium",
+          "impact": "high"
+        },
+        {
+          "why": "This will enhance emotional investment and character depth.",
+          "action": "Develop Cliff's backstory or personal stakes in the environmental issues discussed to create a more relatable character.",
+          "effort": "medium",
+          "impact": "high"
+        },
+        {
+          "why": "This will enhance reader engagement and narrative momentum.",
+          "action": "Balance exposition with action-oriented scenes to maintain a consistent pacing throughout the chapter.",
+          "effort": "medium",
+          "impact": "high"
+        },
+        {
+          "why": "This will enhance reader engagement and maintain narrative momentum.",
+          "action": "Streamline sections of exposition to maintain narrative flow and balance with character-driven moments.",
+          "effort": "medium",
+          "impact": "high"
+        }
+      ],
+      "strategic_revisions": [
+        {
+          "why": "This could enhance reader engagement with the broader implications of the narrative.",
+          "action": "Consider further developing the implications of these parallels to deepen the thematic resonance.",
+          "effort": "medium",
+          "impact": "medium"
+        },
+        {
+          "why": "This will enrich the thematic layers and provide a more profound understanding of the ongoing struggles.",
+          "action": "Further develop the historical context to enhance the depth of the concept, particularly regarding the implications of colonialism on Indigenous lands.",
+          "effort": "medium",
+          "impact": "medium"
+        },
+        {
+          "why": "This would create a more dynamic reading experience and maintain reader engagement.",
+          "action": "Integrate more active conflict or immediate stakes to enhance narrative momentum, especially in reflective sections.",
+          "effort": "medium",
+          "impact": "medium"
+        },
+        {
+          "why": "This will enhance reader engagement and the sense of impending loss.",
+          "action": "Introduce more immediate consequences of the characters' discoveries to heighten urgency and emotional stakes.",
+          "effort": "medium",
+          "impact": "medium"
+        },
+        {
+          "why": "This will keep the reader's attention and emphasize key points.",
+          "action": "Maintain the strong voice while incorporating more varied sentence structures to enhance rhythm and engagement.",
+          "effort": "medium",
+          "impact": "medium"
+        }
+      ]
+    }
+  },
+  "evaluation_result_version": "evaluation_result_v1",
+  "updated_at": "2026-04-14T01:18:42.49884+00:00"
+}

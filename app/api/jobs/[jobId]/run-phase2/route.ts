@@ -55,14 +55,14 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
   const nextProgress = {
     ...progress,
     phase: "phase_2",
-    phase_status: "triggered",
+    phase_status: "queued",
     message: "Phase 2 queued",
   };
 
   const updatePayload = {
     status: "queued",
     phase: "phase_2",
-    phase_status: "triggered",
+    phase_status: "queued",
     progress: nextProgress,
     last_error: null,
     updated_at: now,
@@ -78,6 +78,7 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
     updateQuery = updateQuery
       .eq("status", "running")
       .eq("phase", "phase_1")
+      .eq("phase_status", "complete")
       .filter("progress->>phase", "eq", "phase_1")
       .filter("progress->>phase_status", "eq", "complete");
   }

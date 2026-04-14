@@ -80,8 +80,7 @@ export async function runPhase1(jobId: string): Promise<void> {
   const isPhase1QueuedCandidate =
     job.status === JOB_STATUS.QUEUED &&
     initialProgress.phase === PHASES.PHASE_1 &&
-    (initialProgress.phase_status === PHASE_1_STATES.QUEUED ||
-      initialProgress.phase_status === "triggered");
+    initialProgress.phase_status === PHASE_1_STATES.QUEUED;
 
   if (!isPhase1QueuedCandidate) {
     console.log("Phase1RejectedNotEligible", {

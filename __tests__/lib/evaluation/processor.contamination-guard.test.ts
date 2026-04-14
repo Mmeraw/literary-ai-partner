@@ -143,6 +143,8 @@ describe("processEvaluationJob contamination guard enforcement", () => {
     process.env.OPENAI_API_KEY = "sk-test-key";
     process.env.EVAL_CONTEXT_CONTAMINATION_GUARD = "true";
     process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = "optional";
+    process.env.EVAL_PASS_TIMEOUT_MS = "180000";
+    process.env.EVAL_OPENAI_TIMEOUT_MS = "180000";
   });
 
   test("marks job failed and skips artifact persistence when contamination is detected", async () => {
