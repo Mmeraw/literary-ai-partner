@@ -6,7 +6,7 @@
  * as a deterministic fallback if the AI response is incomplete.
  *
  * Temperature: 0.2 (per Vol III Tools §PASS3 — lower for precision)
- * Max tokens: 9000 (default, override via EVAL_PASS3_MAX_TOKENS)
+ * Max tokens: 7000 (default, override via EVAL_PASS3_MAX_TOKENS)
  */
 
 import OpenAI from "openai";
@@ -27,8 +27,8 @@ import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseB
 
 const PASS3_TEMPERATURE = 0.2;
 const PASS3_MAX_TOKENS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS3_MAX_TOKENS || "9000", 10);
-  return Number.isFinite(parsed) && parsed >= 2000 && parsed <= 20000 ? parsed : 9000;
+  const parsed = Number.parseInt(process.env.EVAL_PASS3_MAX_TOKENS || "7000", 10);
+  return Number.isFinite(parsed) && parsed >= 2000 && parsed <= 20000 ? parsed : 7000;
 })();
 const PASS3_MODEL = "o3";
 const PASS3_PROMPT_MAX_CHARS = (() => {
@@ -37,7 +37,6 @@ const PASS3_PROMPT_MAX_CHARS = (() => {
 })();
 const PASS3_MIN_RATIONALE_LENGTH = 40;
 const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
-const OPENAI_TIMEOUT_MS = getEvalOpenAiTimeoutMs();
 
 type CompletionChoice = {
   message?: {
@@ -131,6 +130,42 @@ function assertPass3PromptTripwires(userPrompt: string): void {
   }
 }
 
+function buildPromptPacketFromComparison(packet: ReturnType<typeof buildComparisonPacket>) {
+  const criteria = packet.criteria.map((criterion) => {
+    const base = {
+      key: criterion.key,
+      state: criterion.state,
+      score_delta: criterion.score_delta,
+      pass1_score: criterion.pass1_score,
+      pass2_score: criterion.pass2_score,
+      pass1_mechanism_summary: criterion.pass1_mechanism_summary,
+      pass2_rationale_short: criterion.pass2_rationale_short,
+    };
+
+    if (criterion.state === "soft_divergence" || criterion.state === "hard_divergence") {
+      return {
+        ...base,
+        pass1_evidence: criterion.pass1_evidence.slice(0, 1),
+        disputed_excerpt_window: criterion.disputed_excerpt_window,
+      };
+    }
+
+    if (criterion.state === "missing_or_invalid") {
+      return {
+        ...base,
+        pass1_evidence: criterion.pass1_evidence.slice(0, 1),
+      };
+    }
+
+    return base;
+  });
+
+  return {
+    criteria_count_by_state: packet.criteria_count_by_state,
+    criteria,
+  };
+}
+
 /** Function signature for creating a chat completion (enables DI for testing). */
 export type CreateCompletionFn = (params: {
   model: string;
@@ -171,7 +206,8 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   const comparisonPacket = buildComparisonPacket(opts.pass1, opts.pass2, {
     manuscriptText: opts.manuscriptText,
   });
-  const comparisonPacketJson = JSON.stringify(comparisonPacket);
+  const promptPacket = buildPromptPacketFromComparison(comparisonPacket);
+  const comparisonPacketJson = JSON.stringify(promptPacket);
 
   const userPrompt = buildPass3UserPrompt({
     comparisonPacketJson,
@@ -180,6 +216,15 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     executionMode: opts.executionMode,
   });
   assertPass3PromptTripwires(userPrompt);
+
+  console.log("[Pass3][ReducerTelemetry]", {
+    prompt_version: PASS3_PROMPT_VERSION,
+    criteria_count_by_state: comparisonPacket.criteria_count_by_state,
+    comparison_packet_chars: comparisonPacketJson.length,
+    system_prompt_chars: PASS3_SYSTEM_PROMPT.length,
+    user_prompt_chars: userPrompt.length,
+    max_output_tokens: PASS3_MAX_TOKENS,
+  });
   
   // Compute coverage metadata (for truth enforcement)
   const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
@@ -308,11 +353,12 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
   if (!apiKey) {
     throw new Error("[Pass3] OPENAI_API_KEY is not configured");
   }
-  const openai = new OpenAI({ apiKey, maxRetries: 2, timeout: OPENAI_TIMEOUT_MS });
+  const timeoutMs = getEvalOpenAiTimeoutMs();
+  const openai = new OpenAI({ apiKey, maxRetries: 2, timeout: timeoutMs });
   return (params) =>
     openai.chat.completions.create(
       params as Parameters<typeof openai.chat.completions.create>[0],
-      { timeout: OPENAI_TIMEOUT_MS },
+      { timeout: timeoutMs },
     ) as Promise<{
       choices: CompletionChoice[];
       usage?: CompletionUsage;

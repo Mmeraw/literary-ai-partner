@@ -29,7 +29,6 @@ const PASS2_MAX_TOKENS = (() => {
   return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 8000 ? parsed : 2500;
 })();
 const PASS2_MODEL = "o3";
-const OPENAI_TIMEOUT_MS = getEvalOpenAiTimeoutMs();
 
 function nowMs(): number {
   return Date.now();
@@ -223,7 +222,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
       model_call_ms: modelCallMs,
       parse_validation_ms: parseValidationMs,
       total_ms: totalMs,
-      configured_timeout_ms: OPENAI_TIMEOUT_MS,
+      configured_timeout_ms: getEvalOpenAiTimeoutMs(),
       configured_max_tokens: configuredMaxTokens,
       usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
       usage_completion_tokens: completion.usage?.completion_tokens ?? null,
@@ -297,7 +296,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     model_call_ms: modelCallMs,
     parse_validation_ms: parseValidationMs,
     total_ms: totalMs,
-    configured_timeout_ms: OPENAI_TIMEOUT_MS,
+    configured_timeout_ms: getEvalOpenAiTimeoutMs(),
     configured_max_tokens: configuredMaxTokens,
     usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
     usage_completion_tokens: completion.usage?.completion_tokens ?? null,
@@ -316,11 +315,12 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
   if (!apiKey) {
     throw new Error("[Pass2] OPENAI_API_KEY is not configured");
   }
-  const openai = new OpenAI({ apiKey, maxRetries: 2, timeout: OPENAI_TIMEOUT_MS });
+  const timeoutMs = getEvalOpenAiTimeoutMs();
+  const openai = new OpenAI({ apiKey, maxRetries: 2, timeout: timeoutMs });
   return (params) =>
     openai.chat.completions.create(
       params as Parameters<typeof openai.chat.completions.create>[0],
-      { timeout: OPENAI_TIMEOUT_MS },
+      { timeout: timeoutMs },
     ) as Promise<{
       choices: CompletionChoice[];
       usage?: CompletionUsage;

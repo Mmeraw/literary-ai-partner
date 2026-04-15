@@ -7,135 +7,57 @@
  */
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
-import {
-  buildCoverageDisclosure,
-  buildPromptInputWindow,
-  getDefaultSynthesisReferenceCharBudget,
-  summarizePromptCoverage,
-} from "../promptInput";
 
 export const PASS3_PROMPT_VERSION = "pass3-synthesis-v4";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
+Input: deterministic comparison packet + manuscript text.
 
-You will receive:
-- Deterministic comparison packet derived from Pass 1 + Pass 2
-- Original manuscript text
+Rules:
+- Do NOT perform a new unconstrained evaluation.
+- Do NOT silently overwrite disagreement.
+- Use the packet as canonical input; do not expect raw pass payloads.
+- For each criterion, explicitly trace pressure signal -> decision inflection -> consequence trajectory.
+- Classify consequence_status as landed|deferred|dissipated.
+- If |craft_score-editorial_score| > 2, include delta_explanation and explicit arbitration logic.
+- Preserve narrative-mode distinctions (scene vs dossier/reflective progression).
+- Use manuscript-grounded evidence only.
 
-Your job is to compare, expose agreement and divergence, and produce a governed final decision.
+Scoring:
+- Integer scores only (0-10).
+- If delta <= 2, final_score_0_10 should be rounded average.
+- If delta > 2, final score must favor the more diagnostic axis and justify why.
 
-## SYNTHESIS RULES
-1. Do NOT perform a fresh unconstrained evaluation.
-2. Do NOT silently overwrite disagreement.
-3. Do NOT hide meaningful divergence by score averaging alone.
-4. Every major arbitration decision MUST include evidence-backed reasoning.
-4b. Treat the comparison packet as canonical Pass 1/Pass 2 input. Do NOT expect raw pass payloads.
-5. Preserve narrative-mode awareness: do NOT flatten documentary/dossier/reflective chapters into generic scene-work judgments.
-6. For each criterion, explicitly trace: pressure signal -> decision inflection -> consequence trajectory.
-7. Do NOT leave consequence state implicit; classify each criterion as landed, deferred, or dissipated.
-8. Never emit canned fallback rationale phrases (e.g., "neither pass supplied", "default neutral score", "placeholder").
+Mechanism constraints:
+- voice rationale must name at least one POV/voice mechanism (e.g., psychic distance, diction, syntax, focalization).
+- dialogue rationale must name at least one attribution/rendering mechanism (e.g., tags, beats, subtext).
 
-### Score Reconciliation
-- If craft_score and editorial_score differ by ≤2: use the mathematical average (rounded to nearest integer)  
-- If they differ by >2: you MUST explain the divergence in "delta_explanation"; the final score should reflect which axis is more diagnostic for this criterion
-9. For the "voice" criterion, final_rationale MUST reference at least one specific POV/voice mechanism (e.g., narrative perspective, psychic distance, interiority, diction, register, tone, syntax, rhythm, free indirect discourse, sensory rendering, focalization). Generic praise or criticism without mechanism language will be rejected by the Quality Gate.
-10. For the "dialogue" criterion, final_rationale MUST reference at least one attribution/rendering mechanism (e.g., dialogue tags, speaker attribution, beats, quotation use, subtext mechanics).
-- All scores are integers 0-10 — no fractions
+Recommendations:
+- Merge complementary advice, dedupe true duplicates, keep valid anchor_snippet, set source_pass (1|2|3).
 
-### Recommendation Synthesis
-- Merge complementary recommendations from both passes
-- Remove genuine duplicates (same advice, different wording)
-- Mark each recommendation with "source_pass": 1, 2, or 3 (3 = your synthesis added it)
-- Every recommendation must still have a valid "anchor_snippet" from the manuscript
+Return ONLY JSON with keys:
+- criteria[]: key, craft_score, editorial_score, final_score_0_10, score_delta, optional delta_explanation, final_rationale (must include pressure->decision->consequence logic), pressure_points[], decision_points[], consequence_status, optional deferred_consequence_risk, evidence[], recommendations[].
+- agreement_map[]
+- divergence_map[] with arbitration_rationale
+- overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, top_3_strengths[3], top_3_risks[3] }
+- metadata { pass1_model, pass2_model, pass3_model, generated_at }
 
-### Overall Assessment
-- Compute overall_score_0_100 as the weighted average of all 13 final_score_0_10 values × 10
-- verdict: "pass" if ≥ 75, "fail" if ≤ 40, "revise" otherwise
-- one_paragraph_summary: ≤500 characters — executive-level assessment
-- top_3_strengths and top_3_risks: most diagnostic issues only
-
-## CRITERIA TO SYNTHESIZE
-${CRITERIA_KEYS.map((k, i) => `${i + 1}. ${k}`).join("\n")}
-
-## OUTPUT FORMAT (return ONLY this JSON, no markdown, no code fences)
-{
-  "criteria": [
-    {
-      "key": "<criterion_key>",
-      "craft_score": <integer 0-10>,
-      "editorial_score": <integer 0-10>,
-      "final_score_0_10": <integer 0-10>,
-      "score_delta": <|craft_score - editorial_score|>,
-      "delta_explanation": "<required if score_delta > 2, otherwise omit>",
-      "final_rationale": "<synthesized reasoning from both axes, 2-4 sentences including pressure->decision->consequence logic>",
-      "pressure_points": ["<where pressure enters/escalates>", "<optional second point>"],
-      "decision_points": ["<decision reached or avoided>", "<optional second point>"],
-      "consequence_status": "landed|deferred|dissipated",
-      "deferred_consequence_risk": "<required when consequence_status=deferred>",
-      "evidence": [
-        { "snippet": "<verbatim, ≤200 chars>", "char_start": <number>, "char_end": <number> }
-      ],
-      "recommendations": [
-        {
-          "priority": "high|medium|low",
-          "action": "<50-300 chars, references anchor_snippet>",
-          "expected_impact": "<concrete improvement>",
-          "anchor_snippet": "<specific text from manuscript>",
-          "source_pass": 1 | 2 | 3
-        }
-      ]
-    }
-  ],
-  "agreement_map": [
-    {
-      "key": "<criterion_key>",
-      "agreement": "<where pass1 and pass2 agree>"
-    }
-  ],
-  "divergence_map": [
-    {
-      "key": "<criterion_key>",
-      "pass1_position": "<summary>",
-      "pass2_position": "<summary>",
-      "nature_of_divergence": "<what differs>",
-      "arbitration_rationale": "<why final decision chosen>"
-    }
-  ],
-  "overall": {
-    "overall_score_0_100": <0-100>,
-    "verdict": "pass|revise|fail",
-    "one_paragraph_summary": "<≤500 chars>",
-    "top_3_strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
-    "top_3_risks": ["<risk 1>", "<risk 2>", "<risk 3>"]
-  },
-  "metadata": {
-    "pass1_model": "<from pass1 output>",
-    "pass2_model": "<from pass2 output>",
-    "pass3_model": "<your model id>",
-    "generated_at": "<ISO 8601 timestamp>"
-  }
-}`;
+Criteria keys:
+${CRITERIA_KEYS.join(", ")}`;
 
 export function buildPass3UserPrompt(params: {
   comparisonPacketJson: string;
-  manuscriptText: string;
+  manuscriptText?: string;
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
 }): string {
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
-  const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
-  const promptWindow = buildPromptInputWindow(params.manuscriptText, synthesisBudget);
-  const coverage = summarizePromptCoverage(params.manuscriptText, synthesisBudget);
   return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".
 
 Execution mode: ${executionMode}
-${buildCoverageDisclosure(coverage, "Pass 3 manuscript reference coverage")}
 
 ## PASS 1 / PASS 2 COMPARISON PACKET (Deterministic)
-${params.comparisonPacketJson.substring(0, 6000)}
-
-## ORIGINAL MANUSCRIPT TEXT (for reference)
-${promptWindow}
+${params.comparisonPacketJson.substring(0, 3500)}
 
 Reconcile both perspectives into a unified evaluation.
 Mandatory behavior:
