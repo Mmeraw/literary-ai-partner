@@ -7,7 +7,7 @@
  *   there is no parameter for Pass 1 data.
  *
  * Temperature: 0.3 (per Vol III Tools §PASS2)
- * Max tokens: 4000
+ * Max tokens: 2500 (default, override via EVAL_PASS2_MAX_TOKENS)
  */
 
 import OpenAI from "openai";
@@ -24,7 +24,10 @@ import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 
 const PASS2_TEMPERATURE = 0.3;
-const PASS2_MAX_TOKENS = 4000;
+const PASS2_MAX_TOKENS = (() => {
+  const parsed = Number.parseInt(process.env.EVAL_PASS2_MAX_TOKENS || "2500", 10);
+  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 8000 ? parsed : 2500;
+})();
 const PASS2_MODEL = "o3";
 const OPENAI_TIMEOUT_MS = getEvalOpenAiTimeoutMs();
 
