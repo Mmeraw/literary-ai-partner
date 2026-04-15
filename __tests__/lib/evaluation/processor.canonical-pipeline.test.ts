@@ -51,7 +51,7 @@ function makeSupabaseStub() {
   const manuscript = {
     id: 456,
     title: "Canonical Manuscript",
-    content: "This manuscript is long enough to pass threshold validation. ".repeat(23),
+    content: "This manuscript is long enough to pass threshold validation. ".repeat(220),
     work_type: "novel",
     user_id: "00000000-0000-0000-0000-000000000001",
   };

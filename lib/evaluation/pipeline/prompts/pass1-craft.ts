@@ -42,8 +42,8 @@ Return a JSON object with a "criteria" array containing exactly 13 entries — o
 15. Prefer 1-2 sentences per rationale unless 3 is strictly necessary for clarity.
 16. Keep expected_impact concise (prefer one sentence; avoid ornamental phrasing).
 17. Do NOT use audience-positioning or marketability boilerplate such as "appealing to readers", "timely and relevant themes", "market potential", or "commercial appeal" unless criterion-specific and tied directly to on-page craft execution.
-18. For marketability, evaluate execution-side craft only: clarity of premise delivery, distinctiveness of setup, readability pressure, structural accessibility, and hook presentation. Do NOT describe readership demographics or shelf positioning.
-19. Keep rationale language craft-mechanical: structure, escalation, causality, scene pressure, exposition load, information sequencing, POV control, sentence rhythm, paragraph flow.
+18. For marketability, evaluate execution-side craft only: premise legibility, distinctiveness of setup, readability pressure, accessibility friction, and hook presentation. Do NOT describe readership demographics or shelf positioning.
+19. Keep rationale language craft-mechanical: scene construction, escalation, causality, scene pressure, exposition load, information sequencing, POV control, sentence rhythm, paragraph flow.
 20. Avoid editorial/literary framing in Pass 1 (e.g., cultural significance, thematic relevance claims, conversation-level positioning).
 21. For POV/voice evaluation, explicitly assess rendering consistency: in close POV, treat internal thought as integrated narration by default; mark down unnecessary thought italics or inconsistent thought-marking that creates cognitive distance.
 22. For dialogue evaluation, distinguish audible speech from internal/non-auditory cognition; quotation marks are for audible speech only.

@@ -54,3 +54,7 @@ export function assertValidFailureCode(raw: string): asserts raw is FailureCode 
 export function isTransientFailure(code: FailureCode): boolean {
   return !NON_TRANSIENT_CODES.has(code);
 }
+
+export function isNonTransientFailure(code: FailureCode): boolean {
+  return NON_TRANSIENT_CODES.has(code);
+}

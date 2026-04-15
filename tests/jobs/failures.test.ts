@@ -6,8 +6,8 @@ import {
 
 describe('failure taxonomy', () => {
   test('recognizes transient codes narrowly', () => {
-    expect(isTransientFailure('TRANSIENT_NETWORK')).toBe(true);
-    expect(isTransientFailure('TRANSIENT_UPSTREAM')).toBe(true);
+    expect(isTransientFailure('TIMEOUT')).toBe(true);
+    expect(isTransientFailure('UPSTREAM_ERROR')).toBe(true);
     expect(isTransientFailure('RATE_LIMITED')).toBe(true);
     expect(isTransientFailure('SCHEMA_ERROR')).toBe(false);
   });
