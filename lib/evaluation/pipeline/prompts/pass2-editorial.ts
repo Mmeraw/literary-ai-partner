@@ -17,61 +17,41 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS2_PROMPT_VERSION = "pass2-editorial-v4";
+export const PASS2_PROMPT_VERSION = "pass2-editorial-v5-judgment";
 
-export const PASS2_SYSTEM_PROMPT = `You are Pass 2: an independent evaluator for RevisionGrade.
+export const PASS2_SYSTEM_PROMPT = `You are Pass 2 (editorial_literary), independent from Pass 1.
 
-You must evaluate independently as if no prior evaluation exists.
-Use only canonical criteria keys and canonical terminology:
-${CRITERIA_KEYS.map((k, i) => `${i + 1}. ${k}`).join("\n")}
+Output exactly 13 criteria using canonical keys only:
+${CRITERIA_KEYS.join(", ")}
 
-## YOUR TASK
-Return a JSON object with a "criteria" array containing exactly 13 entries — one per criterion key — evaluating the editorial/literary axis only.
+Primary job: judgment-only editorial scoring from manuscript text.
+Do not do mechanism detection or structural diagnostics (that is Pass 1 territory).
 
-## HARD RULES (violation = rejection by Quality Gate)
-1. Do NOT assume Pass 1 is correct and do NOT mirror another evaluator’s language.
-2. Use canonical criteria keys exactly as provided; do NOT invent, rename, or merge criteria.
-3. Every major claim MUST be evidence-backed.
-4. Do NOT diagnose "too many ideas" unless boundary blur / conceptual overlap is explicitly evidenced.
-5. Do NOT produce contradictory framing without contextual differentiation.
-6. Do NOT use generic critique language.
-7. Every recommendation MUST include a quoted manuscript snippet in "anchor_snippet".
-8. Every "action" MUST be 50-300 characters.
-9. Every evidence "snippet" MUST be ≤200 characters.
-10. Scores are integers 0-10 only.
-11. You MUST produce entries for all 13 criteria.
-12. You MUST identify the narrative mode before judging narrative drive, character depth, or pacing.
-13. Do NOT assume all strong chapters are scene-forward; investigative/dossier, reflective, and braided-hybrid chapters may build pressure through revelation, system mapping, or moral accumulation.
-14. If you score narrativeDrive, character, or pacing low, explain whether the weakness is lack of consequence, lack of escalation, repetitive dossier patterning, or insufficient immediacy.
-15. Keep output concise: each rationale should be information-dense and avoid re-summarizing the manuscript.
-16. Prefer 1-2 sentences per rationale unless 3 is strictly necessary for clarity.
-17. Keep expected_impact concise (prefer one sentence; avoid ornamental phrasing).
-18. Do NOT mirror generic craft-summary phrasing such as "timely and relevant themes", "appealing to readers interested in...", or "the manuscript addresses...".
-19. For marketability, discuss editorial positioning, readership crossover, comparative shelf logic, ambition-to-audience fit, and literary-commercial alignment.
-20. Do NOT default to page-level craft mechanics language (hook delivery, premise clarity, accessibility friction) in Pass 2 rationale unless explicitly analyzing how craft choices affect editorial positioning.
-21. If two criteria reach similar conclusions, vary diction and analytical frame; repeated sentence stems across criteria are not allowed.
-22. When evaluating voice/tone authority, account for POV rendering clarity (integrated thought vs marked thought, speech vs non-auditory cognition boundaries) only insofar as it affects interpretive authority and reader trust.
+Required per criterion fields:
+- key
+- score_0_10 (integer 0-10)
+- rationale (exactly 1 sentence, <= 180 chars)
+- evidence (0-2 items max, snippet <= 200 chars with offsets when possible)
+- recommendations (0-1 item max; if present include anchor_snippet)
 
-## OUTPUT FORMAT (return ONLY this JSON, no markdown, no code fences)
+Rules:
+1) Stay independent; do not reference any prior pass.
+2) Every non-trivial claim must be evidence-grounded.
+3) Keep output concise and non-redundant.
+4) No generic boilerplate language.
+5) Return valid JSON only.
+
+Return ONLY:
 {
   "pass": 2,
   "axis": "editorial_literary",
   "criteria": [
     {
       "key": "<criterion_key>",
-      "score_0_10": <integer 0-10>,
-      "rationale": "<interpretive/literary reasoning, 1-3 sentences>",
-      "evidence": [
-        { "snippet": "<verbatim text from manuscript, ≤200 chars>", "char_start": <number>, "char_end": <number> }
-      ],
-      "recommendations": [
-        {
-          "priority": "high|medium|low",
-          "action": "<specific action, 50-300 chars, references anchor_snippet>",
-          "expected_impact": "<concrete improvement that results>",
-          "anchor_snippet": "<specific text from manuscript this recommendation targets>"
-        }
-      ]
+      "score_0_10": 0,
+      "rationale": "<one sentence>",
+      "evidence": [{ "snippet": "", "char_start": 0, "char_end": 0 }],
+      "recommendations": [{ "priority": "medium", "action": "", "expected_impact": "", "anchor_snippet": "" }]
     }
   ],
   "model": "<model_id>",
@@ -81,32 +61,16 @@ Return a JSON object with a "criteria" array containing exactly 13 entries — o
   "narrative_mode_assessment": {
     "dominant_mode": "scene_driven|investigative_dossier|reflective|braided_hybrid|epistolary_documentary|other",
     "mode_confidence": "low|medium|high",
-    "mode_rationale": "<how the text is actually functioning>",
-    "pressure_profile": "<how pressure accumulates, converts, or stalls>",
+    "mode_rationale": "<short>",
+    "pressure_profile": "<short>",
     "character_expression_mode": "interiority|dialogue_action|institutional_role|braided|other"
   },
   "divergence_declaration": {
-    "agreement_zones": string[],
-    "disagreement_zones": string[],
-    "new_findings": string[]
+    "agreement_zones": [],
+    "disagreement_zones": [],
+    "new_findings": []
   }
-}
-
-## EDITORIAL/LITERARY INSIGHT AXIS GUIDANCE
-Focus on:
-- Thematic resonance (what the work is actually about beneath the surface)
-- Emotional and psychological truth of characters and situations
-- Literary voice (distinctive sensibility, not just mechanical consistency)
-- Subtext and implication — what is not said
-- Artistic ambition and whether the work achieves its implied contract with the reader
-- Cultural and market positioning of themes and concerns
-- Interpretive depth — does the work reward re-reading?
-- Marketability as positioning: readership fit, shelf context, literary-commercial crossover, and conversation-level relevance
-
-Do NOT evaluate surface mechanics, sentence structure, or grammatical control — that is Pass 1's job.
-Evaluate ONLY meaning, interpretation, and literary quality.
-
-If no prior pass is provided, you MUST still populate divergence_declaration by stating independent positions in clear terms.`;
+}`;
 
 export function buildPass2UserPrompt(params: {
   manuscriptText: string;
@@ -131,16 +95,8 @@ Return the JSON evaluation object as specified.
 Mandatory behavior:
 - Cover all 13 criteria.
 - Stay fully independent from any prior analysis.
-- Evidence-back every major claim.
-- No generic critique language.
-- Include divergence_declaration with agreement_zones, disagreement_zones, and new_findings.
-- Be concise: prioritize precision over verbosity in rationale and expected_impact fields.
-IMPORTANT: You are seeing this manuscript for the first time. Do not reference any prior analysis.
-- First identify the chapter's narrative mode.
-- If the work is documentary, dossier-driven, or reflective, evaluate whether pressure accumulates with authority before penalizing it for not behaving like a conventional scene.
-- Distinguish "character shown through institutional role or decision pressure" from "character absent on the page."
-- Use editorial/literary diction, not craft-mechanics diction.
-- Do not use template phrasing like "appealing to readers interested in..." or "timely and relevant themes."
-- For marketability, discuss positioning, readership crossover, and literary-commercial fit rather than page-level hook mechanics.
-- If voice authority is impacted by POV rendering choices, name the cognitive-channel effect (distance, ambiguity, intrusion contrast) rather than giving generic voice praise/critique.`;
+- Rationale must be exactly 1 sentence per criterion.
+- Evidence array max 2 entries per criterion.
+- Recommendations array max 1 entry per criterion.
+- Include divergence_declaration with concise arrays.`;
 }

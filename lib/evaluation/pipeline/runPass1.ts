@@ -5,7 +5,7 @@
  * into a validated SinglePassOutput.
  *
  * Temperature: 0.3 (per Vol III Tools §PASS1)
- * Max tokens: 4000 (default, override via EVAL_PASS1_MAX_TOKENS)
+ * Max tokens: 3500 (default, override via EVAL_PASS1_MAX_TOKENS)
  */
 
 import OpenAI from "openai";
@@ -23,8 +23,8 @@ import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseB
 
 const PASS1_TEMPERATURE = 0.3;
 const PASS1_MAX_TOKENS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS1_MAX_TOKENS || "4000", 10);
-  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 8000 ? parsed : 4000;
+  const parsed = Number.parseInt(process.env.EVAL_PASS1_MAX_TOKENS || "3500", 10);
+  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 8000 ? parsed : 3500;
 })();
 const PASS1_MODEL = "o3";
 const OPENAI_TIMEOUT_MS = getEvalOpenAiTimeoutMs();

@@ -36,7 +36,7 @@
     "jobs:test:metrics": "node scripts/jobs-test-metrics.mjs",
     "jobs:retry-tick": "node scripts/jobs-retry-tick.mjs",
     "jobs:load": "node scripts/jobs-load.mjs",
-    "soak:run": "tsx -r tsconfig-paths/register scripts/soak/run-soak.ts",
+    "soak:run": "npx tsx -r tsconfig-paths/register scripts/soak/run-soak.ts",
     "soak:debug": "npm run soak:run -- --events=1000 --concurrency=5 --seed=42 --mode=deterministic",
     "soak:stability": "npm run soak:run -- --events=10000 --concurrency=10 --seed=42 --mode=stress",
     "soak:qualify": "npm run soak:run -- --events=100000 --concurrency=10 --seed=42 --mode=stress",
@@ -46,11 +46,11 @@
     "evidence:phase2d": "bash scripts/evidence-phase2d.sh",
     "evidence:phase2-handoff": "WORKER_ALLOW_SERVICE_ROLE_DEV=1 node scripts/evidence-phase2-handoff-proof.mjs",
     "evidence:flow1": "bash scripts/evidence-flow1.sh",
-    "a6:run": "tsx -r tsconfig-paths/register scripts/a6/run-a6-evidence.ts",
-    "phase2.7:real-run": "tsx -r tsconfig-paths/register scripts/pipeline/run-phase2-7-real-run.ts",
-    "phase2.7:dominatus-harness": "tsx -r tsconfig-paths/register scripts/pipeline/run-dominatus-i4-eval.ts",
-    "gate:replay": "tsx -r tsconfig-paths/register scripts/pipeline/gate-replay-check.ts",
-    "gate:replay:strict": "tsx -r tsconfig-paths/register scripts/pipeline/gate-replay-check.ts --fail-on-any"
+    "a6:run": "npx tsx -r tsconfig-paths/register scripts/a6/run-a6-evidence.ts",
+    "phase2.7:real-run": "npx tsx -r tsconfig-paths/register scripts/pipeline/run-phase2-7-real-run.ts",
+    "phase2.7:dominatus-harness": "npx tsx -r tsconfig-paths/register scripts/pipeline/run-dominatus-i4-eval.ts",
+    "gate:replay": "npx tsx -r tsconfig-paths/register scripts/pipeline/gate-replay-check.ts",
+    "gate:replay:strict": "npx tsx -r tsconfig-paths/register scripts/pipeline/gate-replay-check.ts --fail-on-any"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.24",
