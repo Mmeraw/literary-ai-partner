@@ -13,6 +13,17 @@
 import { NextRequest } from 'next/server';
 import { GET } from './route';
 
+// Mock processQueuedJobs so auth-only tests don't crash without DB
+jest.mock('@/lib/evaluation/processor', () => ({
+  processQueuedJobs: jest.fn().mockResolvedValue({
+    claimed: 0,
+    processed: 0,
+    succeeded: 0,
+    failed: 0,
+    errors: [],
+  }),
+}));
+
 // Jest-safe environment setter (bypasses TypeScript read-only NODE_ENV at compile time)
 const setEnv = (key: string, value: string | undefined) => {
   (process.env as Record<string, string | undefined>)[key] = value;
