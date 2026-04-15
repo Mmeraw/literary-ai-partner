@@ -54,8 +54,7 @@ describe("prompt pack governance specs", () => {
     expect(PASS3_SYSTEM_PROMPT).toContain("pressure->decision->consequence logic");
 
     const userPrompt = buildPass3UserPrompt({
-      pass1Json: "{\"criteria\":[]}",
-      pass2Json: "{\"criteria\":[]}",
+      comparisonPacketJson: "{\"criteria\":[],\"criteria_count_by_state\":{\"agree\":0,\"soft_divergence\":0,\"hard_divergence\":0,\"missing_or_invalid\":0}}",
       manuscriptText: "Sample manuscript text.",
       title: "DOMINATUS I:4",
       executionMode: "TRUSTED_PATH",

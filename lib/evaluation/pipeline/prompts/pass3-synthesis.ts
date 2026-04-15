@@ -14,13 +14,12 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v3";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v4";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 
 You will receive:
-- Pass 1 output: Craft Execution analysis (structural/mechanical)
-- Pass 2 output: Editorial/Literary Insight analysis (interpretive/thematic)
+- Deterministic comparison packet derived from Pass 1 + Pass 2
 - Original manuscript text
 
 Your job is to compare, expose agreement and divergence, and produce a governed final decision.
@@ -30,6 +29,7 @@ Your job is to compare, expose agreement and divergence, and produce a governed 
 2. Do NOT silently overwrite disagreement.
 3. Do NOT hide meaningful divergence by score averaging alone.
 4. Every major arbitration decision MUST include evidence-backed reasoning.
+4b. Treat the comparison packet as canonical Pass 1/Pass 2 input. Do NOT expect raw pass payloads.
 5. Preserve narrative-mode awareness: do NOT flatten documentary/dossier/reflective chapters into generic scene-work judgments.
 6. For each criterion, explicitly trace: pressure signal -> decision inflection -> consequence trajectory.
 7. Do NOT leave consequence state implicit; classify each criterion as landed, deferred, or dissipated.
@@ -117,8 +117,7 @@ ${CRITERIA_KEYS.map((k, i) => `${i + 1}. ${k}`).join("\n")}
 }`;
 
 export function buildPass3UserPrompt(params: {
-  pass1Json: string;
-  pass2Json: string;
+  comparisonPacketJson: string;
   manuscriptText: string;
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
@@ -132,11 +131,8 @@ export function buildPass3UserPrompt(params: {
 Execution mode: ${executionMode}
 ${buildCoverageDisclosure(coverage, "Pass 3 manuscript reference coverage")}
 
-## PASS 1 OUTPUT (Craft Execution)
-${params.pass1Json.substring(0, 4000)}
-
-## PASS 2 OUTPUT (Editorial/Literary Insight)
-${params.pass2Json.substring(0, 4000)}
+## PASS 1 / PASS 2 COMPARISON PACKET (Deterministic)
+${params.comparisonPacketJson.substring(0, 6000)}
 
 ## ORIGINAL MANUSCRIPT TEXT (for reference)
 ${promptWindow}
@@ -147,6 +143,7 @@ Mandatory behavior:
 - Preserve major disagreement visibility.
 - Provide explicit arbitration rationale for divergence.
 - Do not silently merge conflicting conclusions.
+- Do not request or assume raw pass payloads; use the comparison packet fields as provided.
 - Preserve narrative-mode distinctions when reconciling pacing, narrativeDrive, and character judgments.
 - If a chapter accumulates pressure through archives, reflection, or system mapping, distinguish that from true absence of movement.
 - For each criterion, identify concrete pressure, then the chapter-level decision (or non-decision), then the resulting consequence.
