@@ -17,7 +17,7 @@ function makePass(passId: "pass1" | "pass2" | "pass3", id: string): PassArtifact
     summary: `${passId} summary`,
     criteria: [
       {
-        criterion_id: "structure",
+        criterion_id: "sceneConstruction",
         score_0_10: 8,
         rationale: "Supported by evidence.",
         confidence_0_1: 0.8,
@@ -61,7 +61,7 @@ function makeConvergence(): ConvergenceArtifact {
     },
     merged_criteria: [
       {
-        criterion_id: "structure",
+        criterion_id: "sceneConstruction",
         score_0_10: 8,
         rationale: "Merged rationale.",
         confidence_0_1: 0.85,

@@ -67,7 +67,7 @@ function makeSupabaseStub() {
   const manuscript = {
     id: 789,
     title: "River Chapter",
-    content: "Cliff piloted the skiff across Carpenter Lake. The water moved cold and clear under the hull.".repeat(20),
+    content: "Cliff piloted the skiff across Carpenter Lake. The water moved cold and clear under the hull.".repeat(220),
     work_type: "narrative_nonfiction",
     user_id: "00000000-0000-0000-0000-000000000002",
   };

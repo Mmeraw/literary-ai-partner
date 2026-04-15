@@ -109,9 +109,21 @@ const staleRunningMinutes = (() => {
   const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);
   return Number.isFinite(parsed) && parsed >= 1 && parsed <= 240 ? parsed : 10;
 })();
+
+export function getValidatedWorkerBatchSize(raw: unknown, fallback = 5): number {
+  const parsed =
+    typeof raw === 'number'
+      ? raw
+      : Number.parseFloat(String(raw ?? ''));
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  const normalized = Math.trunc(parsed);
+  return normalized >= 1 && normalized <= 5 ? normalized : fallback;
+}
+
 const evalWorkerBatchSize = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_WORKER_BATCH_SIZE || '5', 10);
-  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 5 ? parsed : 5;
+  return getValidatedWorkerBatchSize(process.env.EVAL_WORKER_BATCH_SIZE, 5);
 })();
 const evalContextContaminationGuardEnabled = (() => {
   const raw = (process.env.EVAL_CONTEXT_CONTAMINATION_GUARD || 'auto').trim().toLowerCase();

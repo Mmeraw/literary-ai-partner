@@ -294,6 +294,7 @@ export async function GET(request: NextRequest) {
         success: true,
         dryRun: true,
         traceId,
+        authMethod: auth.method,
         message: 'Dry run mode - no jobs processed',
         timestamp: new Date().toISOString(),
         config: {

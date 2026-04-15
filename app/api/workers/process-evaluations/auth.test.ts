@@ -152,7 +152,8 @@ describe('Process Evaluations Worker Auth', () => {
         headers: {
           'x-vercel-cron': '1',
           'x-vercel-id': 'iad1::abc123'
-        }
+        },
+        searchParams: { dry_run: '1' }
       });
       const response = await GET(req);
       
@@ -490,7 +491,8 @@ describe('QC5: timingSafeEqual Edge Cases', () => {
     delete process.env.VERCEL;
     
     const req = createMockRequest({
-      headers: { 'authorization': 'Bearer ' + unicodeSecret }
+      headers: { 'authorization': 'Bearer ' + unicodeSecret },
+      searchParams: { dry_run: '1' },
     });
     const response = await GET(req);
     expect(response.status).toBe(200);
@@ -515,7 +517,8 @@ describe('QC5: timingSafeEqual Edge Cases', () => {
     delete process.env.VERCEL;
     
     const req = createMockRequest({
-      headers: { 'authorization': 'Bearer ' + maxSecret }
+      headers: { 'authorization': 'Bearer ' + maxSecret },
+      searchParams: { dry_run: '1' },
     });
     const response = await GET(req);
     expect(response.status).toBe(200);

@@ -2,6 +2,7 @@ import {
   __resetFinalizerStoreForTests,
   getConvergenceArtifactById,
   getJobForFinalization,
+  markJobFailed,
   getPassArtifactById,
   persistCanonicalAndSummaryAndCompleteJob,
   writeJobAuditEvent,
@@ -264,7 +265,7 @@ describe("store.finalizer read paths", () => {
           summary: "pass summary",
           criteria: [
             {
-              criterion_id: "structure",
+              criterion_id: "sceneConstruction",
               score_0_10: 8,
               rationale: "rationale",
               confidence_0_1: 0.7,
