@@ -191,6 +191,8 @@ else
   echo "  ✅ Sentinel user $OWNER_ID already exists"
 fi
 echo ""
+# Seed manuscript content for evaluation pipeline (prevents "Manuscript text unavailable" failures)
+SEED_CONTENT="The old harbour master watched the tide charts with growing unease. Three decades of service had taught him to read the water, but tonight the patterns defied every rule he knew. The barometric pressure had dropped twelve millibars in six hours. Fishing boats strained against their moorings as the wind shifted from southwest to due north without warning. He picked up the radio handset and called the coastguard station. Listen carefully, he said. Pull every vessel inside the breakwater. I have never seen readings like this. The dispatcher on the other end paused. Sir, the satellite data shows clear skies for the next forty-eight hours. The harbour master looked out at the darkening horizon. Your satellites are wrong, he said. Something is coming. He hung up and began securing the dock lines himself, moving with the methodical urgency of a man who trusted his instincts more than any instrument. By midnight, the first wave struck the outer wall."
 echo "2) Seed manuscript in same project"
 MID=$(node - <<'NODEEOF'
 const { createClient } = require('@supabase/supabase-js');
@@ -216,6 +218,7 @@ const client = createClient(url, key, { auth: { persistSession: false, autoRefre
       mood_context: 'calm',
       voice_mode: 'balanced',
       word_count: 1000,
+      file_url: `data:text/plain;charset=utf-8,${encodeURIComponent(process.env.SEED_CONTENT || "Seed manuscript for Flow1 evidence testing.")}`,
       source: 'dashboard',
       english_variant: 'us',
       is_final: false,
@@ -227,12 +230,14 @@ const client = createClient(url, key, { auth: { persistSession: false, autoRefre
       created_by: owner,
       user_id: owner,
       word_count: 1000,
+      file_url: `data:text/plain;charset=utf-8,${encodeURIComponent(process.env.SEED_CONTENT || "Seed manuscript for Flow1 evidence testing.")}`,'
       work_type: 'novel',
     },
     {
       title: 'Flow1 Evidence Seed Manuscript',
       user_id: owner,
       word_count: 1000,
+      file_url: `data:text/plain;charset=utf-8,${encodeURIComponent(process.env.SEED_CONTENT || "Seed manuscript for Flow1 evidence testing.")}`,'
       work_type: 'novel',
     },
   ];
