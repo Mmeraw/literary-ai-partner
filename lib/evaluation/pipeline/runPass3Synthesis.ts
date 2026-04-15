@@ -6,7 +6,7 @@
  * as a deterministic fallback if the AI response is incomplete.
  *
  * Temperature: 0.2 (per Vol III Tools §PASS3 — lower for precision)
- * Max tokens: 5000
+ * Max tokens: 9000 (default, override via EVAL_PASS3_MAX_TOKENS)
  */
 
 import OpenAI from "openai";
