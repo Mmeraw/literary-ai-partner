@@ -134,6 +134,6 @@ describe("processEvaluationJob short-text fail-closed", () => {
       total_units: 3,
       completed_units: 0,
     });
-    expect(String(finalUpdate.last_error || "")).toMatch(/minimum 1000/i);
+    expect(String(finalUpdate.last_error || "")).toMatch(/minimum 40 words/i);
   });
 });
