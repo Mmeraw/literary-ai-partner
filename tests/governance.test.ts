@@ -2,7 +2,6 @@
  * Phase 2F: Adversarial Test Suite for Runtime Governance
  * Tests: duplicate claims, stale lease, invalid transitions, idempotency
  */
-import { describe, it, expect } from 'vitest';
 import { classifyError, getSeverityPolicy, SEVERITY_POLICIES } from '../lib/governance/severityPolicy';
 
 describe('SeverityPolicy Registry', () => {
