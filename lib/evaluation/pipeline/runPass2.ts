@@ -313,7 +313,7 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
   if (!apiKey) {
     throw new Error("[Pass2] OPENAI_API_KEY is not configured");
   }
-  const openai = new OpenAI({ apiKey, maxRetries: 0, timeout: OPENAI_TIMEOUT_MS });
+  const openai = new OpenAI({ apiKey, maxRetries: 2, timeout: OPENAI_TIMEOUT_MS });
   return (params) =>
     openai.chat.completions.create(
       params as Parameters<typeof openai.chat.completions.create>[0],
