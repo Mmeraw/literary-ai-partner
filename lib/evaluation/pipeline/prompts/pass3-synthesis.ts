@@ -38,6 +38,8 @@ Your job is to compare, expose agreement and divergence, and produce a governed 
 ### Score Reconciliation
 - If craft_score and editorial_score differ by ≤2: use the mathematical average (rounded to nearest integer)  
 - If they differ by >2: you MUST explain the divergence in "delta_explanation"; the final score should reflect which axis is more diagnostic for this criterion
+9. For the "voice" criterion, final_rationale MUST reference at least one specific POV/voice mechanism (e.g., narrative perspective, psychic distance, interiority, diction, register, tone, syntax, rhythm, free indirect discourse, sensory rendering, focalization). Generic praise or criticism without mechanism language will be rejected by the Quality Gate.
+10. For the "dialogue" criterion, final_rationale MUST reference at least one attribution/rendering mechanism (e.g., dialogue tags, speaker attribution, beats, quotation use, subtext mechanics).
 - All scores are integers 0-10 — no fractions
 
 ### Recommendation Synthesis
