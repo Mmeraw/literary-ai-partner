@@ -26,30 +26,34 @@
 begin;
 
 -- 1. evaluation_provider_calls: Enable RLS + service-role-only
-alter table public.evaluation_provider_calls enable row level security;
-
-drop policy if exists evaluation_provider_calls_service_role_all
-	on public.evaluation_provider_calls;
-
-create policy evaluation_provider_calls_service_role_all
-	on public.evaluation_provider_calls
-	for all
-	to service_role
-	using (true)
-	with check (true);
+-- NOTE: This table is created in a later migration (20260128000003), so guard
+-- this step to keep full migration replay deterministic in clean environments.
+do $$
+begin
+	if to_regclass('public.evaluation_provider_calls') is not null then
+		execute 'alter table public.evaluation_provider_calls enable row level security';
+		execute 'drop policy if exists evaluation_provider_calls_service_role_all on public.evaluation_provider_calls';
+		execute 'create policy evaluation_provider_calls_service_role_all on public.evaluation_provider_calls for all to service_role using (true) with check (true)';
+	else
+		raise notice 'Skipping evaluation_provider_calls policy repair because public.evaluation_provider_calls does not exist in this environment.';
+	end if;
+end
+$$;
 
 -- 2. revision_events: Enable RLS + service-role-only
-alter table public.revision_events enable row level security;
-
-drop policy if exists revision_events_service_role_all
-	on public.revision_events;
-
-create policy revision_events_service_role_all
-	on public.revision_events
-	for all
-	to service_role
-	using (true)
-	with check (true);
+-- NOTE: This table is also created in a later migration chain, so guard this
+-- step for deterministic replay from an empty database.
+do $$
+begin
+	if to_regclass('public.revision_events') is not null then
+		execute 'alter table public.revision_events enable row level security';
+		execute 'drop policy if exists revision_events_service_role_all on public.revision_events';
+		execute 'create policy revision_events_service_role_all on public.revision_events for all to service_role using (true) with check (true)';
+	else
+		raise notice 'Skipping revision_events policy repair because public.revision_events does not exist in this environment.';
+	end if;
+end
+$$;
 
 -- 3. jobs: Add service-role-only policy if the live table exists.
 -- `public.jobs` is part of the audit report but is not represented in the canonical
@@ -61,7 +65,7 @@ begin
 		execute 'drop policy if exists jobs_service_role_all on public.jobs';
 		execute 'create policy jobs_service_role_all on public.jobs for all to service_role using (true) with check (true)';
 	else
-		raise notice ''Skipping jobs policy creation because public.jobs does not exist in this environment.'';
+		raise notice 'Skipping jobs policy creation because public.jobs does not exist in this environment.';
 	end if;
 end
 $$;
@@ -75,9 +79,9 @@ begin
 		execute 'alter table public.governance_logs enable row level security';
 		execute 'drop policy if exists "Service role full access" on public.governance_logs';
 		execute 'drop policy if exists governance_logs_service_role_all on public.governance_logs';
-		execute ''create policy governance_logs_service_role_all on public.governance_logs for all to service_role using (true) with check (true)'';
+		execute 'create policy governance_logs_service_role_all on public.governance_logs for all to service_role using (true) with check (true)';
 	else
-		raise notice ''Skipping governance_logs policy repair because public.governance_logs does not exist in this environment.'';
+		raise notice 'Skipping governance_logs policy repair because public.governance_logs does not exist in this environment.';
 	end if;
 end
 $$;
@@ -91,9 +95,9 @@ begin
 		execute 'drop policy if exists "Users can view own wave attempts" on public.wave_execution_attempts';
 		execute 'drop policy if exists "Service role can manage wave attempts" on public.wave_execution_attempts';
 		execute 'drop policy if exists wave_execution_attempts_service_role_all on public.wave_execution_attempts';
-		execute ''create policy wave_execution_attempts_service_role_all on public.wave_execution_attempts for all to service_role using (true) with check (true)'';
+		execute 'create policy wave_execution_attempts_service_role_all on public.wave_execution_attempts for all to service_role using (true) with check (true)';
 	else
-		raise notice ''Skipping wave_execution_attempts policy repair because public.wave_execution_attempts does not exist in this environment.'';
+		raise notice 'Skipping wave_execution_attempts policy repair because public.wave_execution_attempts does not exist in this environment.';
 	end if;
 end
 $$;
@@ -108,9 +112,9 @@ begin
 		execute 'drop policy if exists "Service role full access" on public.admin_actions';
 		execute 'drop policy if exists "No direct user access" on public.admin_actions';
 		execute 'drop policy if exists admin_actions_service_role_all on public.admin_actions';
-		execute ''create policy admin_actions_service_role_all on public.admin_actions for all to service_role using (true) with check (true)'';
+		execute 'create policy admin_actions_service_role_all on public.admin_actions for all to service_role using (true) with check (true)';
 	else
-		raise notice ''Skipping admin_actions policy repair because public.admin_actions does not exist in this environment.'';
+		raise notice 'Skipping admin_actions policy repair because public.admin_actions does not exist in this environment.';
 	end if;
 end
 $$;
@@ -124,9 +128,9 @@ begin
 		execute 'alter table public.protected_spans enable row level security';
 		execute 'drop policy if exists "Service role full access" on public.protected_spans';
 		execute 'drop policy if exists protected_spans_service_role_all on public.protected_spans';
-		execute ''create policy protected_spans_service_role_all on public.protected_spans for all to service_role using (true) with check (true)'';
+		execute 'create policy protected_spans_service_role_all on public.protected_spans for all to service_role using (true) with check (true)';
 	else
-		raise notice ''Skipping protected_spans policy repair because public.protected_spans does not exist in this environment.'';
+		raise notice 'Skipping protected_spans policy repair because public.protected_spans does not exist in this environment.';
 	end if;
 end
 $$;
