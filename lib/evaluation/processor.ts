@@ -85,20 +85,19 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const perplexityApiKey = process.env.PERPLEXITY_API_KEY ?? "";
 const evalDebugEnabled = process.env.EVAL_DEBUG === '1';
-const evalMinManuscriptChars = (() => {
+const evalMinManuscriptWords = (() => {
   if (process.env.EVAL_MIN_MANUSCRIPT_WORDS) {
     const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_WORDS, 10);
     if (Number.isFinite(parsed) && parsed >= 0) {
-      // Convert words to chars (avg ~5 chars/word)
-      return parsed * 5;
+            // Return word count directly (not chars)
+            return parsed;
     }
-  }
-  if (process.env.EVAL_MIN_MANUSCRIPT_CHARS) {
+ 
     console.warn(
       '[Processor] EVAL_MIN_MANUSCRIPT_CHARS is deprecated. Use EVAL_MIN_MANUSCRIPT_WORDS instead. Defaulting to 200 words.',
     );
   }
-  return 200 * 5; // 200 words default
+    return 200; // 200 words default
 })();
 const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'o3').trim() || 'o3';
 const evalPassTimeoutMs = getEvalPassTimeoutMs();
@@ -539,7 +538,7 @@ async function resolveManuscriptText(
 
 export function isManuscriptTextLongEnough(
   text: string,
-  minWords = evalMinManuscriptChars,
+  minWords = evalMinManuscriptWords,
 ): boolean {
   const trimmed = text.trim();
   if (!trimmed) {
@@ -1030,10 +1029,10 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: contentError };
     }
 
-    if (!isManuscriptTextLongEnough(resolvedManuscriptText, evalMinManuscriptChars)) {
+    if (!isManuscriptTextLongEnough(resolvedManuscriptText, evalMinManuscriptWords)) {
       const shortContentError =
         `Manuscript text too short for reliable evaluation: ${resolvedManuscriptText.trim().split(/\s+/).length} words ` +
-        `(minimum ${evalMinManuscriptChars})`;
+        `(minimum ${evalMinManuscriptWords})`;
       await markFailed(shortContentError);
 
       return { success: false, error: shortContentError };
