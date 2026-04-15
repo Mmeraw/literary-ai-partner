@@ -53,4 +53,28 @@ Files with JSON.parse followed by generic throw (no error class)...
 --- [6] response_format: json_object without truncation guard ---
   OFFENDER: lib/evaluation/pipeline/runPass1.ts -- uses json_object mode but no truncation detection
 
+=== RESOLUTION STATUS (2026-04-14) ===
+
+[1] MAX_TOKENS comment/constant mismatches:
+    RESOLVED — runPass1 comment corrected to 4000 (matches constant).
+    RESOLVED — runPass2 comment matches constant (4000).
+    RESOLVED — runPass3 comment corrected from 5000 to 9000 (matches env-overridable default).
+
+[2] Bare JSON.parse catch-and-throw:
+    RESOLVED — All files now use parseJsonObjectBoundary() with JsonBoundaryError classification.
+
+[3] Missing finish_reason check:
+    RESOLVED — perplexityCrossCheck.ts now checks finish_reason=length and logs warning.
+
+[4] Missing raw response logging before JSON.parse:
+    RESOLVED — All four pipeline files now log raw response preview before parse.
+
+[5] Missing markdown fence stripping:
+    RESOLVED — parseJsonObjectBoundary handles fence stripping automatically.
+
+[6] response_format: json_object without truncation guard:
+    RESOLVED — All files check finish_reason=length and log truncation warning.
+
+=== ALL AUDIT FINDINGS RESOLVED ===
+
 === AUDIT COMPLETE ===
