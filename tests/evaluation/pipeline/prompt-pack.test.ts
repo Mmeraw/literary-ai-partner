@@ -10,9 +10,9 @@ describe("prompt pack governance specs", () => {
       expect(PASS1_SYSTEM_PROMPT).toContain(key);
     }
 
-    expect(PASS1_SYSTEM_PROMPT).toContain("too many ideas");
-    expect(PASS1_SYSTEM_PROMPT).toContain("boundary blur / conceptual overlap");
-    expect(PASS1_SYSTEM_PROMPT).toContain("Do NOT use generic critique language");
+    expect(PASS1_SYSTEM_PROMPT).toContain("compatibility mode");
+    expect(PASS1_SYSTEM_PROMPT).toContain("Evidence must be manuscript-grounded; no generic claims");
+    expect(PASS1_SYSTEM_PROMPT).toContain("No editorial/thematic market commentary");
 
     const userPrompt = buildPass1UserPrompt({
       manuscriptText: "Sample manuscript text.",
@@ -30,7 +30,7 @@ describe("prompt pack governance specs", () => {
       expect(PASS2_SYSTEM_PROMPT).toContain(key);
     }
 
-    expect(PASS2_SYSTEM_PROMPT).toContain("independent evaluator");
+    expect(PASS2_SYSTEM_PROMPT).toContain("independent from Pass 1");
     expect(PASS2_SYSTEM_PROMPT).toContain("divergence_declaration");
     expect(PASS2_SYSTEM_PROMPT).not.toContain("I agree with Pass 1");
 

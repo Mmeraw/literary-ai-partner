@@ -14,6 +14,7 @@ const customJestConfig = {
   setupFiles: ["<rootDir>/jest.setup.ts"],
   testPathIgnorePatterns: [
     "/node_modules/",
+    "<rootDir>/.worktrees/",
     "<rootDir>/functions/tests/",
     "<rootDir>/supabase/functions/",
     "<rootDir>/.*_agent_verification.*\\.test\\.ts$",
