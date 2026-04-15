@@ -11,17 +11,15 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 export const PASS3_PROMPT_VERSION = "pass3-synthesis-v4";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
-Input: deterministic comparison packet + manuscript text.
-
 Rules:
 - Do NOT perform a new unconstrained evaluation.
 - Do NOT silently overwrite disagreement.
 - Use the packet as canonical input; do not expect raw pass payloads.
 - For each criterion, explicitly trace pressure signal -> decision inflection -> consequence trajectory.
+- pressure->decision->consequence logic.
 - Classify consequence_status as landed|deferred|dissipated.
 - If |craft_score-editorial_score| > 2, include delta_explanation and explicit arbitration logic.
 - Preserve narrative-mode distinctions (scene vs dossier/reflective progression).
-- Use manuscript-grounded evidence only.
 
 Scoring:
 - Integer scores only (0-10).
@@ -32,11 +30,13 @@ Mechanism constraints:
 - voice rationale must name at least one POV/voice mechanism (e.g., psychic distance, diction, syntax, focalization).
 - dialogue rationale must name at least one attribution/rendering mechanism (e.g., tags, beats, subtext).
 
-Recommendations:
-- Merge complementary advice, dedupe true duplicates, keep valid anchor_snippet, set source_pass (1|2|3).
-
 Return ONLY JSON with keys:
-- criteria[]: key, craft_score, editorial_score, final_score_0_10, score_delta, optional delta_explanation, final_rationale (must include pressure->decision->consequence logic), pressure_points[], decision_points[], consequence_status, optional deferred_consequence_risk, evidence[], recommendations[].
+- criteria MUST be a flat array of criterion objects (one per key), not grouped/nested by state.
+- criteria[] by state:
+  - agree: key, final_score_0_10, final_rationale="Confirmed."
+  - soft_divergence: key, final_score_0_10, final_rationale
+  - hard_divergence: key, final_score_0_10, final_rationale, disputed=true
+  - missing_or_invalid: key, final_score_0_10, final_rationale
 - agreement_map[]
 - divergence_map[] with arbitration_rationale
 - overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, top_3_strengths[3], top_3_risks[3] }
@@ -55,6 +55,18 @@ export function buildPass3UserPrompt(params: {
   return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".
 
 Execution mode: ${executionMode}
+
+OUTPUT BUDGET BY STATE (STRICT):
+- agree (score_delta <= 1): emit ONLY { key, final_score_0_10, final_rationale: "Confirmed." }
+- soft_divergence (score_delta 2-3): emit ONLY { key, final_score_0_10, final_rationale } with 1 sentence
+- hard_divergence (score_delta >= 4): emit ONLY { key, final_score_0_10, final_rationale } with 2 sentences + disputed=true
+- missing_or_invalid: emit concise corrective rationale, no long prose
+- overall: verdict + overall_score_0_100 + one_paragraph_summary (max 3 sentences) + top_3_strengths + top_3_risks
+
+Do NOT re-litigate agreed criteria.
+Do NOT add evidence, recommendations, delta_explanation, craft_score, or editorial_score for agree criteria.
+Do NOT return criteria as { agree:[], soft_divergence:[] ... }; return a single criteria[] array.
+Target total visible output under 1500 tokens.
 
 ## PASS 1 / PASS 2 COMPARISON PACKET (Deterministic)
 ${params.comparisonPacketJson.substring(0, 3500)}

@@ -6,7 +6,7 @@
  * as a deterministic fallback if the AI response is incomplete.
  *
  * Temperature: 0.2 (per Vol III Tools §PASS3 — lower for precision)
- * Max tokens: 7000 (default, override via EVAL_PASS3_MAX_TOKENS)
+ * Max tokens: 3500 (default, override via EVAL_PASS3_MAX_TOKENS)
  */
 
 import OpenAI from "openai";
@@ -27,8 +27,8 @@ import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseB
 
 const PASS3_TEMPERATURE = 0.2;
 const PASS3_MAX_TOKENS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS3_MAX_TOKENS || "7000", 10);
-  return Number.isFinite(parsed) && parsed >= 2000 && parsed <= 20000 ? parsed : 7000;
+  const parsed = Number.parseInt(process.env.EVAL_PASS3_MAX_TOKENS || "3500", 10);
+  return Number.isFinite(parsed) && parsed >= 2000 && parsed <= 20000 ? parsed : 3500;
 })();
 const PASS3_MODEL = "o3";
 const PASS3_PROMPT_MAX_CHARS = (() => {
