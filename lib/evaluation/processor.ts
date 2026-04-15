@@ -89,15 +89,25 @@ const evalMinManuscriptWords = (() => {
   if (process.env.EVAL_MIN_MANUSCRIPT_WORDS) {
     const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_WORDS, 10);
     if (Number.isFinite(parsed) && parsed >= 0) {
-            // Return word count directly (not chars)
-            return parsed;
+      return parsed;
     }
- 
+  }
+
+  if (process.env.EVAL_MIN_MANUSCRIPT_CHARS) {
+    const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_CHARS, 10);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      console.warn(
+        '[Processor] EVAL_MIN_MANUSCRIPT_CHARS is deprecated. Converting chars to words (~5 chars/word). Prefer EVAL_MIN_MANUSCRIPT_WORDS.',
+      );
+      return Math.ceil(parsed / 5);
+    }
+
     console.warn(
-      '[Processor] EVAL_MIN_MANUSCRIPT_CHARS is deprecated. Use EVAL_MIN_MANUSCRIPT_WORDS instead. Defaulting to 200 words.',
+      '[Processor] EVAL_MIN_MANUSCRIPT_CHARS is deprecated and invalid. Defaulting to 200 words. Prefer EVAL_MIN_MANUSCRIPT_WORDS.',
     );
   }
-    return 200; // 200 words default
+
+  return 200;
 })();
 const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'o3').trim() || 'o3';
 const evalPassTimeoutMs = getEvalPassTimeoutMs();
@@ -1032,7 +1042,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     if (!isManuscriptTextLongEnough(resolvedManuscriptText, evalMinManuscriptWords)) {
       const shortContentError =
         `Manuscript text too short for reliable evaluation: ${resolvedManuscriptText.trim().split(/\s+/).length} words ` +
-        `(minimum ${evalMinManuscriptWords})`;
+        `(minimum ${evalMinManuscriptWords} words)`;
       await markFailed(shortContentError);
 
       return { success: false, error: shortContentError };
