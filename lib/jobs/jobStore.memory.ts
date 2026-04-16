@@ -1,4 +1,5 @@
 import { Job, JobStatus, JobType, JOB_STATUS, PHASES, Phase } from "./types";
+import { assertValidTransition } from "./transitions";
 import { debugLog } from "./logging";
 import { assertNotProductionMemoryStore } from "./guards";
 import { validateProgressSchema } from "./canon";
@@ -103,6 +104,7 @@ export function updateJobStatus(id: string, nextStatus: JobStatus): Job | null {
 
   assertCanonicalStatusValue(nextStatus);
 
+    assertValidTransition(job, nextStatus);
   const updated: Job = {
     ...job,
     status: nextStatus,
@@ -120,6 +122,7 @@ export function updateJob(id: string, updates: Partial<Job>): Job | null {
 
   if (updates.status) {
     assertCanonicalStatusValue(updates.status);
+      assertValidTransition(job, updates.status as JobStatus);
   }
 
   // progress is intentionally flat; shallow merge is canonical to prevent nested clobbering
