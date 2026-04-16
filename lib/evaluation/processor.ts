@@ -67,6 +67,7 @@ import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistenc
 import {
   runPipeline,
   synthesisToEvaluationResult,
+  synthesisToEvaluationResultV2,
 } from '@/lib/evaluation/pipeline/runPipeline';
 import {
   getCanonicalPipelineModel,
@@ -1124,7 +1125,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: missingCrossCheckResultError };
     }
 
-    const evaluationResult = synthesisToEvaluationResult({
+    // v2 adapter: produces EvaluationResultV2 with observability-aware status per criterion
+    const evaluationResult = synthesisToEvaluationResultV2({
       synthesis: pipelineResult.synthesis,
       ids: {
         evaluation_run_id: crypto.randomUUID(),
@@ -1255,7 +1257,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           finished_at: completionTime,
         },
         evaluation_result: evaluationResult,
-        evaluation_result_version: 'evaluation_result_v1',
+        evaluation_result_version: 'evaluation_result_v2',
         last_heartbeat: completionTime,
         last_heartbeat_at: completionTime,
         heartbeat_at: completionTime,

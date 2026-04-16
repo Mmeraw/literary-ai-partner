@@ -11,6 +11,7 @@
  */
 
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
+import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   beforePersistEvaluationArtifacts,
@@ -116,6 +117,39 @@ export function mapEvaluationResultToGovernanceEnvelope(
       };
     }
   );
+
+  return {
+    id: evaluation.ids?.evaluation_run_id,
+    evaluation_run_id: evaluation.ids?.evaluation_run_id,
+    criteria,
+  };
+}
+
+/**
+ * Map EvaluationResultV2 criteria to GovernanceEnvelope criteria.
+ *
+ * v2 rule:
+ * - Only SCORABLE criteria are projected into governance numeric envelope.
+ * - Non-scorable criteria are intentionally excluded (no null→0 or null→1 coercion).
+ */
+export function mapEvaluationResultV2ToGovernanceEnvelope(
+  evaluation: EvaluationResultV2,
+): EvaluationEnvelope {
+  const criteria = evaluation.criteria
+    .filter((criterion) => criterion.status === "SCORABLE")
+    .map((criterion): CriterionScore => {
+      const canonicalKey = translateCriterionKey(criterion.key);
+
+      // v2 SCORABLE criteria already guarantee numeric 0-10; preserve existing
+      // governance band conversion behavior for numeric projection only.
+      const score = Math.max(1, Math.min(10, Math.round(criterion.score_0_10)));
+
+      return {
+        key: canonicalKey,
+        score,
+        reasoning: criterion.rationale,
+      };
+    });
 
   return {
     id: evaluation.ids?.evaluation_run_id,

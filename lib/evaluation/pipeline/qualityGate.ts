@@ -27,6 +27,11 @@ import type { SynthesisOutput, QualityGateResult, QualityGateCheck, SinglePassOu
 import { analyzePovRendering } from "@/lib/evaluation/pov/analyzePovRendering";
 import { analyzeDialogueAttribution } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { validatePovCriterionEvidence } from "@/lib/evaluation/pov/validatePovCriterionEvidence";
+import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
+import {
+  isCriterionComplete,
+  minAnchorsFor,
+} from "@/lib/evaluation/signal/criterionObservability";
 
 export const QG_MIN_REC_LENGTH = 50;
 export const QG_MAX_REC_LENGTH = 300;
@@ -528,5 +533,173 @@ export function summarizeQualityGateFailures(checks: QualityGateCheck[]): Qualit
     total_failed_checks: failedChecks.length,
     failures_by_error_code: failuresByErrorCode,
     failed_check_ids: failedChecks.map((c) => c.check_id),
+  };
+}
+
+/**
+ * v2-specific completeness gate for persisted evaluation artifacts.
+ *
+ * This does not replace the pass4 synthesis gate. It validates that a
+ * completed EvaluationResultV2 obeys status/score invariants and canonical
+ * 13-key coverage.
+ */
+export function runQualityGateV2(result: EvaluationResultV2): QualityGateResult {
+  const checks: QualityGateCheck[] = [];
+  const warnings: string[] = [];
+
+  const criteria = result.criteria;
+  const expectedCount = CRITERIA_KEYS.length;
+
+  if (criteria.length !== expectedCount) {
+    checks.push({
+      check_id: "v2_criteria_count",
+      passed: false,
+      error_code: "QG_CRITERIA_MISSING",
+      details: `Expected ${expectedCount} criteria, got ${criteria.length}`,
+    });
+  } else {
+    checks.push({
+      check_id: "v2_criteria_count",
+      passed: true,
+      details: `All ${expectedCount} criteria present`,
+    });
+  }
+
+  const seen = new Set<string>();
+  const duplicateKeys: string[] = [];
+  for (const c of criteria) {
+    if (seen.has(c.key)) duplicateKeys.push(c.key);
+    seen.add(c.key);
+  }
+  const missingKeys = CRITERIA_KEYS.filter((k) => !seen.has(k));
+
+  checks.push({
+    check_id: "v2_criteria_unique_coverage",
+    passed: duplicateKeys.length === 0 && missingKeys.length === 0,
+    error_code:
+      duplicateKeys.length > 0 || missingKeys.length > 0
+        ? "QG_CRITERIA_MISSING"
+        : undefined,
+    details:
+      duplicateKeys.length > 0 || missingKeys.length > 0
+        ? `duplicates=${duplicateKeys.join(",") || "none"}; missing=${missingKeys.join(",") || "none"}`
+        : "No duplicates and full canonical key coverage",
+  });
+
+  const incompleteKeys = criteria.filter((c) => !isCriterionComplete(c)).map((c) => c.key);
+  checks.push({
+    check_id: "v2_completeness_bridge",
+    passed: incompleteKeys.length === 0,
+    error_code: incompleteKeys.length > 0 ? "QG_CONSEQUENCE_CONTRACT" : undefined,
+    details:
+      incompleteKeys.length > 0
+        ? `Criteria not validly classified per completeness bridge: ${incompleteKeys.join(",")}`
+        : "All criteria satisfy completeness bridge rule",
+  });
+
+  const scoreWithoutSignal = criteria
+    .filter(
+      (c) =>
+        c.status !== "SCORABLE" &&
+        c.score_0_10 !== null,
+    )
+    .map((c) => c.key);
+  checks.push({
+    check_id: "v2_score_without_signal",
+    passed: scoreWithoutSignal.length === 0,
+    error_code: scoreWithoutSignal.length > 0 ? "QG_SCORE_RANGE" : undefined,
+    details:
+      scoreWithoutSignal.length > 0
+        ? `Non-scorable criteria carrying numeric scores: ${scoreWithoutSignal.join(",")}`
+        : "No non-scorable criteria carry numeric scores",
+  });
+
+  const signalStateMismatches = criteria
+    .filter((c) => {
+      if (c.status === "SCORABLE") {
+        return c.signal_strength !== "SUFFICIENT" && c.signal_strength !== "STRONG";
+      }
+      if (c.status === "NO_SIGNAL") {
+        return c.signal_strength !== "NONE";
+      }
+      if (c.status === "INSUFFICIENT_SIGNAL") {
+        return c.signal_strength !== "WEAK";
+      }
+      if (c.status === "NOT_APPLICABLE") {
+        // Tightened rule: NA must be structural/non-observable, not weak evidence.
+        return c.signal_strength !== "NONE";
+      }
+      return true;
+    })
+    .map((c) => `${c.key}:${c.status}/${c.signal_strength}`);
+
+  checks.push({
+    check_id: "v2_signal_state_alignment",
+    passed: signalStateMismatches.length === 0,
+    error_code: signalStateMismatches.length > 0 ? "QG_SCORE_RANGE" : undefined,
+    details:
+      signalStateMismatches.length > 0
+        ? `Signal/status mismatches: ${signalStateMismatches.join(",")}`
+        : "Signal strength is aligned with criterion status",
+  });
+
+  // Governed NA provenance: if criteria_plan.NA exists, every NA status must be declared there.
+  const governedNA = new Set(
+    result.governance?.transparency?.criteria_plan?.NA?.filter((k) => typeof k === "string") ?? [],
+  );
+  const naCriteria = criteria.filter((c) => c.status === "NOT_APPLICABLE").map((c) => c.key);
+  const ungovernedNA =
+    governedNA.size === 0
+      ? []
+      : naCriteria.filter((k) => !governedNA.has(k));
+
+  checks.push({
+    check_id: "v2_na_governed_origin",
+    passed: ungovernedNA.length === 0,
+    error_code: ungovernedNA.length > 0 ? "QG_CONSEQUENCE_CONTRACT" : undefined,
+    details:
+      ungovernedNA.length > 0
+        ? `NOT_APPLICABLE criteria missing from governance transparency.criteria_plan.NA: ${ungovernedNA.join(",")}`
+        : "NOT_APPLICABLE criteria (if any) are governed",
+  });
+
+  const scoredMissingAnchors = criteria
+    .filter((c) => c.status === "SCORABLE" && c.evidence.length < minAnchorsFor(c.key))
+    .map((c) => `${c.key}:${c.evidence.length}<${minAnchorsFor(c.key)}`);
+  checks.push({
+    check_id: "v2_scored_anchor_threshold",
+    passed: scoredMissingAnchors.length === 0,
+    error_code: scoredMissingAnchors.length > 0 ? "QG_MISSING_REQUIRED_EVIDENCE" : undefined,
+    details:
+      scoredMissingAnchors.length > 0
+        ? `Scored criteria under anchor threshold: ${scoredMissingAnchors.join(",")}`
+        : "All scored criteria meet anchor thresholds",
+  });
+
+  const scoredCount = criteria.filter((c) => c.status === "SCORABLE").length;
+
+  const aggregateScoreMismatch =
+    (scoredCount === 0 && result.overview.overall_score_0_100 !== null) ||
+    (scoredCount > 0 && (result.overview.overall_score_0_100 === null || Number.isNaN(result.overview.overall_score_0_100)));
+
+  checks.push({
+    check_id: "v2_overall_score_coherence",
+    passed: !aggregateScoreMismatch,
+    error_code: aggregateScoreMismatch ? "QG_SCORE_RANGE" : undefined,
+    details:
+      aggregateScoreMismatch
+        ? `overview.overall_score_0_100 is incoherent with scored criteria count (${scoredCount})`
+        : "Overview aggregate score is coherent with scored criteria count",
+  });
+
+  if (scoredCount < 7) {
+    warnings.push(`LOW_EVALUABILITY_COVERAGE: scored_criteria_count=${scoredCount}/${expectedCount}`);
+  }
+
+  const failedHardChecks = checks.filter((c) => !c.passed);
+  return {
+    pass: failedHardChecks.length === 0,
+    checks,
+    warnings,
   };
 }

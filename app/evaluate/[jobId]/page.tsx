@@ -45,8 +45,14 @@ type ArtifactContentV1 = {
   };
   criteria?: Array<{
     key: string;
-    score_0_10: number;
+    score_0_10: number | null;
+    status?: "NOT_APPLICABLE" | "NO_SIGNAL" | "INSUFFICIENT_SIGNAL" | "SCORABLE";
+    scorable?: boolean;
     rationale?: string;
+    insufficient_signal_reason?: {
+      looked_for?: string[];
+      not_found?: string[];
+    };
     recommendations?: Array<{
       action: string;
       priority?: "high" | "medium" | "low";
@@ -165,6 +171,27 @@ function calculateProgressPercentage(job: Pick<Job, "completed_units" | "total_u
 
 function isCriterionKey(key: string): key is CriterionKey {
   return (CRITERIA_KEYS as readonly string[]).includes(key);
+}
+
+function isScorableCriterion(
+  c: NonNullable<ArtifactContentV1["criteria"]>[number],
+): boolean {
+  if (typeof c.scorable === "boolean") {
+    return c.scorable;
+  }
+  if (c.status) {
+    return c.status === "SCORABLE";
+  }
+  return typeof c.score_0_10 === "number";
+}
+
+function criterionStatusLabel(
+  c: NonNullable<ArtifactContentV1["criteria"]>[number],
+): string | null {
+  if (isScorableCriterion(c)) return null;
+  if (c.status === "NOT_APPLICABLE") return "N/A — Not applicable for this evaluation context";
+  if (c.status === "NO_SIGNAL") return "N/A — No observable evidence";
+  return "N/A — Insufficient manuscript evidence";
 }
 
 function Metric({ label, value }: { label: string; value: React.ReactNode }) {
@@ -368,20 +395,43 @@ export default async function EvaluationReportPage({
                   <div className="mt-3 space-y-4">
                     {orderedCriteria.map((c) => (
                       <div key={c.key} className="rounded-md border p-4">
+                        {(() => {
+                          const scorable = isScorableCriterion(c);
+                          const scoreValue = scorable ? c.score_0_10 : null;
+                          const badgeClasses = !scorable
+                            ? "bg-slate-100 text-slate-700"
+                            : (typeof scoreValue === "number" && scoreValue >= 8)
+                              ? "bg-green-100 text-green-800"
+                              : (typeof scoreValue === "number" && scoreValue >= 6)
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-red-100 text-red-800";
+
+                          return (
                         <div className="flex items-center justify-between">
                           <h3 className="font-medium">
                             {isCriterionKey(c.key) ? CRITERIA_METADATA[c.key].label : c.key}
                           </h3>
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            (c.score_0_10 ?? 0) >= 8 ? "bg-green-100 text-green-800" :
-                            (c.score_0_10 ?? 0) >= 6 ? "bg-yellow-100 text-yellow-800" :
-                            "bg-red-100 text-red-800"
-                          }`}>
-                            {c.score_0_10 ?? "—"} / 10
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClasses}`}>
+                            {scorable ? `${scoreValue ?? "—"} / 10` : "N/A"}
                           </span>
                         </div>
+                          );
+                        })()}
+                        {criterionStatusLabel(c) && (
+                          <p className="mt-2 text-xs font-medium text-gray-500">{criterionStatusLabel(c)}</p>
+                        )}
                         {c.rationale && (
                           <p className="mt-2 text-sm text-gray-600">{c.rationale}</p>
+                        )}
+                        {!isScorableCriterion(c) && c.insufficient_signal_reason && (
+                          <div className="mt-2 text-xs text-gray-500 space-y-1">
+                            {Array.isArray(c.insufficient_signal_reason.looked_for) && c.insufficient_signal_reason.looked_for.length > 0 && (
+                              <p><span className="font-medium">Looked for:</span> {c.insufficient_signal_reason.looked_for.join(", ")}</p>
+                            )}
+                            {Array.isArray(c.insufficient_signal_reason.not_found) && c.insufficient_signal_reason.not_found.length > 0 && (
+                              <p><span className="font-medium">Not found:</span> {c.insufficient_signal_reason.not_found.join(", ")}</p>
+                            )}
+                          </div>
                         )}
                         {c.recommendations && c.recommendations.length > 0 && (
                           <div className="mt-2">

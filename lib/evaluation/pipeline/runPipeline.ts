@@ -24,10 +24,16 @@ import {
 } from "./qualityGate";
 import type { PipelineResult, SinglePassOutput, SynthesisOutput, QualityGateResult } from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
+import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS1_PROMPT_VERSION } from "./prompts/pass1-craft";
 import { PASS2_PROMPT_VERSION } from "./prompts/pass2-editorial";
 import { PASS3_PROMPT_VERSION } from "./prompts/pass3-synthesis";
+import {
+  normalizeCriterion,
+  computeWeightedScore,
+  type CriteriaPlanMap,
+} from "@/lib/evaluation/signal/criterionObservability";
 import type { RunPass1Options } from "./runPass1";
 import type { RunPass2Options } from "./runPass2";
 import type { RunPass3Options } from "./runPass3Synthesis";
@@ -724,6 +730,11 @@ export interface SynthesisToEvaluationResultOptions {
   crossCheckResult?: CrossCheckOutput;
   /** Pass 4 governance decision — must be threaded from runPipeline(), never inferred */
   pass4Governance?: Pass4GovernanceResult;
+  /** Governed applicability map (R/O/NA/C). NA values are converted to NOT_APPLICABLE in v2. */
+  criteriaPlan?: CriteriaPlanMap;
+  /** Optional passage-level coverage hints for observability classification. */
+  passageCoverageRatio?: number;
+  sentenceCount?: number;
 }
 
 const DEFAULT_ADAPTER_CONFIDENCE = 0.85;
@@ -921,6 +932,135 @@ export function synthesisToEvaluationResult(
       policy_family: "multi-pass-dual-axis",
       // Pass 4 governance data is returned on PipelineResult, not stored on EvaluationResultV1
       // Callers who need it read it from the pipeline success result directly.
+    },
+  };
+}
+
+/**
+ * Map SynthesisOutput to EvaluationResultV2 using governed applicability +
+ * observability normalization at the synthesis boundary.
+ */
+export function synthesisToEvaluationResultV2(
+  opts: SynthesisToEvaluationResultOptions,
+): EvaluationResultV2 {
+  const {
+    synthesis,
+    ids,
+    crossCheckResult,
+    pass4Governance,
+    criteriaPlan,
+    passageCoverageRatio,
+    sentenceCount,
+  } = opts;
+
+  const criteria = synthesis.criteria.map((c) =>
+    normalizeCriterion(
+      {
+        key: c.key,
+        score_0_10: c.final_score_0_10,
+        rationale: c.final_rationale,
+        evidence: c.evidence.map((e) => ({
+          snippet: e.snippet,
+          location:
+            e.char_start !== undefined || e.char_end !== undefined || e.segment_id !== undefined
+              ? {
+                  char_start: e.char_start,
+                  char_end: e.char_end,
+                  segment_id: e.segment_id,
+                }
+              : undefined,
+        })),
+        recommendations: c.recommendations.map((r) => ({
+          priority: r.priority,
+          action: r.action,
+          expected_impact: r.expected_impact,
+        })),
+      },
+      {
+        criteriaPlan,
+        passageCoverageRatio,
+        sentenceCount,
+      },
+    ),
+  );
+
+  const weighted = computeWeightedScore(criteria);
+
+  const quick_wins = criteria
+    .flatMap((c) =>
+      c.recommendations
+        .filter((r) => r.priority === "high")
+        .map((r) => ({
+          action: r.action,
+          why: r.expected_impact,
+          effort: "medium" as const,
+          impact: "high" as const,
+        })),
+    )
+    .slice(0, 5);
+
+  const strategic_revisions = criteria
+    .flatMap((c) =>
+      c.recommendations
+        .filter((r) => r.priority === "medium")
+        .map((r) => ({
+          action: r.action,
+          why: r.expected_impact,
+          effort: "medium" as const,
+          impact: "medium" as const,
+        })),
+    )
+    .slice(0, 5);
+
+  const observabilityWarnings: string[] = [];
+  if (weighted.scored_count === 0) {
+    observabilityWarnings.push("LOW_EVALUABILITY_COVERAGE: no criteria were scorable for this submission window");
+  } else if (weighted.scored_count < 7) {
+    observabilityWarnings.push(
+      `LOW_EVALUABILITY_COVERAGE: scored_criteria_count=${weighted.scored_count}/${weighted.total_count}`,
+    );
+  }
+
+  if (crossCheckResult?.warnings?.length) {
+    observabilityWarnings.push(...crossCheckResult.warnings);
+  }
+  if (pass4Governance && !pass4Governance.ok && pass4Governance.message) {
+    observabilityWarnings.push(pass4Governance.message);
+  }
+
+  return {
+    schema_version: "evaluation_result_v2",
+    ids,
+    generated_at: synthesis.metadata.generated_at,
+    engine: {
+      model: synthesis.metadata.pass3_model,
+      provider: "openai",
+      prompt_version: `${PASS1_PROMPT_VERSION}+${PASS2_PROMPT_VERSION}+${PASS3_PROMPT_VERSION}`,
+    },
+    overview: {
+      verdict: synthesis.overall.verdict,
+      overall_score_0_100: weighted.overall_score_0_100,
+      scored_criteria_count: weighted.scored_count,
+      one_paragraph_summary: synthesis.overall.one_paragraph_summary,
+      top_3_strengths: synthesis.overall.top_3_strengths,
+      top_3_risks: synthesis.overall.top_3_risks,
+    },
+    criteria,
+    recommendations: {
+      quick_wins,
+      strategic_revisions,
+    },
+    metrics: {
+      manuscript: {},
+      processing: {},
+    },
+    artifacts: [],
+    governance: {
+      confidence: weighted.scored_count === 0 ? 0.55 : DEFAULT_ADAPTER_CONFIDENCE,
+      warnings: [],
+      limitations: ["Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"],
+      policy_family: "multi-pass-dual-axis",
+      observability_warnings: observabilityWarnings,
     },
   };
 }
