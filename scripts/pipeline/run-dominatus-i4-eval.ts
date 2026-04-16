@@ -5,6 +5,7 @@ import { runPipeline } from "@/lib/evaluation/pipeline/runPipeline";
 import { runPass1 } from "@/lib/evaluation/pipeline/runPass1";
 import { runPass2 } from "@/lib/evaluation/pipeline/runPass2";
 import { runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+import { buildComparisonPacket } from "@/lib/evaluation/pipeline/comparisonPacket";
 import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
 import { PASS1_SYSTEM_PROMPT, buildPass1UserPrompt } from "@/lib/evaluation/pipeline/prompts/pass1-craft";
 import { PASS2_SYSTEM_PROMPT, buildPass2UserPrompt } from "@/lib/evaluation/pipeline/prompts/pass2-editorial";
@@ -271,8 +272,11 @@ async function main(): Promise<void> {
 
   const pass3UserPrompt = pass1Parsed && pass2Parsed
     ? buildPass3UserPrompt({
-        pass1Json: JSON.stringify(pass1Parsed, null, 2),
-        pass2Json: JSON.stringify(pass2Parsed, null, 2),
+        comparisonPacketJson: JSON.stringify(
+          buildComparisonPacket(pass1Parsed, pass2Parsed, { manuscriptText }),
+          null,
+          2,
+        ),
         manuscriptText,
         title,
         executionMode: mode,

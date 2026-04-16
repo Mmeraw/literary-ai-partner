@@ -139,6 +139,18 @@ async function main(): Promise<void> {
     positiveIntOrUndefined(getArg("pass-timeout-ms")) ??
     positiveIntOrUndefined(process.env.EVAL_PASS_TIMEOUT_MS);
 
+  if (passTimeoutMs) {
+    const envPassTimeout = positiveIntOrUndefined(process.env.EVAL_PASS_TIMEOUT_MS);
+    const envOpenAiTimeout = positiveIntOrUndefined(process.env.EVAL_OPENAI_TIMEOUT_MS);
+
+    if (!envPassTimeout || envPassTimeout < passTimeoutMs) {
+      process.env.EVAL_PASS_TIMEOUT_MS = String(passTimeoutMs);
+    }
+    if (!envOpenAiTimeout || envOpenAiTimeout < passTimeoutMs) {
+      process.env.EVAL_OPENAI_TIMEOUT_MS = String(passTimeoutMs);
+    }
+  }
+
   const outputDir =
     getArg("output-dir") ??
     getArg("output") ??
