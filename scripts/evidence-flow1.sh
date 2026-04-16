@@ -230,14 +230,14 @@ const client = createClient(url, key, { auth: { persistSession: false, autoRefre
       created_by: owner,
       user_id: owner,
       word_count: 1000,
-      file_url: `data:text/plain;charset=utf-8,${encodeURIComponent(process.env.SEED_CONTENT || "Seed manuscript for Flow1 evidence testing.")}`,'
+      file_url: `data:text/plain;charset=utf-8,${encodeURIComponent(process.env.SEED_CONTENT || "Seed manuscript for Flow1 evidence testing.")}`,
       work_type: 'novel',
     },
     {
       title: 'Flow1 Evidence Seed Manuscript',
       user_id: owner,
       word_count: 1000,
-      file_url: `data:text/plain;charset=utf-8,${encodeURIComponent(process.env.SEED_CONTENT || "Seed manuscript for Flow1 evidence testing.")}`,'
+      file_url: `data:text/plain;charset=utf-8,${encodeURIComponent(process.env.SEED_CONTENT || "Seed manuscript for Flow1 evidence testing.")}`,
       work_type: 'novel',
     },
   ];
