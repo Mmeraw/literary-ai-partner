@@ -13,7 +13,7 @@ export type DisputedExcerptWindow = {
 export type ComparisonPacketCriterion = {
   key: CriterionKey;
   state: ComparisonState;
-  score_delta: number;
+  score_delta: number | null;
   pass1_score: number | null;
   pass1_mechanism_summary: string;
   pass1_evidence: EvidenceAnchor[];
@@ -65,10 +65,10 @@ function dedupeEvidence(evidence: EvidenceAnchor[], maxItems: number): EvidenceA
   const seen = new Set<string>();
 
   for (const anchor of evidence) {
-    const snippet = normalizeWhitespace(String(anchor.snippet ?? "")).slice(0, MAX_SNIPPET_CHARS);
+    const snippet = String(anchor.snippet ?? "").trim().slice(0, MAX_SNIPPET_CHARS);
     if (!snippet) continue;
 
-    const signature = snippet.toLowerCase();
+    const signature = normalizeWhitespace(snippet).toLowerCase();
     if (seen.has(signature)) continue;
     seen.add(signature);
 
@@ -152,14 +152,15 @@ export function buildComparisonPacket(
 
     const state = classifyState(pass1Score, pass2Score);
     const scoreDelta =
-      pass1Score !== null && pass2Score !== null ? Math.abs(pass1Score - pass2Score) : 0;
+      pass1Score !== null && pass2Score !== null ? Math.abs(pass1Score - pass2Score) : null;
 
-    const pass1Evidence = dedupeEvidence(pass1Criterion?.evidence ?? [], maxEvidencePerCriterion);
+    const rawPass1Evidence = pass1Criterion?.evidence ?? [];
+    const pass1Evidence = dedupeEvidence(rawPass1Evidence, maxEvidencePerCriterion);
 
     const disputedExcerptWindow = extractDisputedExcerptWindow({
       state,
       manuscriptText: options.manuscriptText,
-      evidence: pass1Evidence,
+      evidence: rawPass1Evidence,
       excerptRadiusChars,
     });
 

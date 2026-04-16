@@ -130,4 +130,65 @@ describe("buildComparisonPacket", () => {
     expect(voice.state).toBe("agree");
     expect(voice.disputed_excerpt_window).toBeUndefined();
   });
+
+  it("extracts disputed excerpt from raw evidence even when bounded evidence omits ranged anchor", () => {
+    const pass1 = makePass(1, "craft_execution");
+    const pass2 = makePass(2, "editorial_literary");
+
+    const manuscriptText = "A".repeat(2000) + "ANCHOR" + "B".repeat(2000);
+
+    const concept1 = pass1.criteria.find((c) => c.key === "concept")!;
+    const concept2 = pass2.criteria.find((c) => c.key === "concept")!;
+    concept1.score_0_10 = 9;
+    concept2.score_0_10 = 5; // hard divergence
+    concept1.evidence = [
+      { snippet: "first plain anchor" },
+      { snippet: "second plain anchor" },
+      { snippet: "ranged anchor", char_start: 1998, char_end: 2004 },
+    ];
+
+    const packet = buildComparisonPacket(pass1, pass2, {
+      manuscriptText,
+      excerptRadiusChars: 5,
+      maxEvidencePerCriterion: 2,
+    });
+
+    const concept = packet.criteria.find((c) => c.key === "concept")!;
+    expect(concept.pass1_evidence).toHaveLength(2);
+    expect(concept.pass1_evidence.every((e) => typeof e.char_start !== "number")).toBe(true);
+    expect(concept.disputed_excerpt_window).toBeDefined();
+    expect(concept.disputed_excerpt_window?.char_start).toBe(1993);
+    expect(concept.disputed_excerpt_window?.char_end).toBe(2009);
+  });
+
+  it("preserves verbatim snippet spacing while still deduping by normalized text", () => {
+    const pass1 = makePass(1, "craft_execution");
+    const pass2 = makePass(2, "editorial_literary");
+
+    const target = pass1.criteria.find((c) => c.key === "theme")!;
+    target.evidence = [
+      { snippet: "Line  one   has   spacing" },
+      { snippet: "Line one has spacing" },
+    ];
+
+    const packet = buildComparisonPacket(pass1, pass2);
+    const theme = packet.criteria.find((c) => c.key === "theme")!;
+
+    expect(theme.pass1_evidence).toHaveLength(1);
+    expect(theme.pass1_evidence[0]?.snippet).toBe("Line  one   has   spacing");
+  });
+
+  it("sets score_delta to null when either score is missing or invalid", () => {
+    const pass1 = makePass(1, "craft_execution");
+    const pass2 = makePass(2, "editorial_literary");
+
+    const dialoguePass2 = pass2.criteria.find((c) => c.key === "dialogue")!;
+    dialoguePass2.score_0_10 = Number.NaN;
+
+    const packet = buildComparisonPacket(pass1, pass2);
+    const dialogue = packet.criteria.find((c) => c.key === "dialogue")!;
+
+    expect(dialogue.state).toBe("missing_or_invalid");
+    expect(dialogue.score_delta).toBeNull();
+  });
 });
