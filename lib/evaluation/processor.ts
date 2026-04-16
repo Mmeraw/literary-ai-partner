@@ -26,7 +26,7 @@
  * 
  * Real AI Evaluation (OPENAI_API_KEY configured):
  * • Calls OpenAI gpt-4o-mini with manuscript content
- * • Returns structured EvaluationResultV1 with criterion-specific analysis
+ * • Returns structured EvaluationResultV2 with criterion-specific analysis
  * • Marks governance.warnings with "Real AI analysis" only
  * 
  * Fail-Closed Behavior (no mock fallback in production paths):
@@ -59,8 +59,8 @@
 
 import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
-import { validateEvaluationResult } from '@/schemas/evaluation-result-v1';
 import { CRITERIA_KEYS, type CriterionKey } from '@/schemas/criteria-keys';
 import { WAVE_GUIDE_SUMMARY, WAVE_GUIDE_VERSION } from './WAVE_GUIDE';
 import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistence';
