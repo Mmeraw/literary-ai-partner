@@ -188,6 +188,9 @@ export async function evaluateAndPersistFullManuscript(
  * not from inline evaluation results. This ensures all reports are
  * backed by persisted, auditable artifacts.
  *
+ * Reader is v2-first: queries evaluation_result_v2 before evaluation_result_v1
+ * to support the migration from v1 to v2 without silent null returns.
+ *
  * @param supabase - Supabase client
  * @param jobId - Job ID to retrieve artifact for
  * @returns EvaluationResultV1 or null if not found
@@ -200,8 +203,10 @@ export async function getEvaluationArtifact(
     .from("evaluation_artifacts")
     .select("content")
     .eq("job_id", jobId)
-    .eq("artifact_type", "evaluation_result_v1")
-    .single();
+    .in("artifact_type", ["evaluation_result_v2", "evaluation_result_v1"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (error || !data) {
     console.warn(
