@@ -13,6 +13,9 @@ describe("prompt pack governance specs", () => {
     expect(PASS1_SYSTEM_PROMPT).toContain("compatibility mode");
     expect(PASS1_SYSTEM_PROMPT).toContain("Evidence must be manuscript-grounded; no generic claims");
     expect(PASS1_SYSTEM_PROMPT).toContain("No editorial/thematic market commentary");
+    expect(PASS1_SYSTEM_PROMPT).toContain("NONE|WEAK|SUFFICIENT|STRONG");
+    expect(PASS1_SYSTEM_PROMPT).toContain("SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL");
+    expect(PASS1_SYSTEM_PROMPT).toContain("never MODERATE");
 
     const userPrompt = buildPass1UserPrompt({
       manuscriptText: "Sample manuscript text.",
@@ -33,6 +36,9 @@ describe("prompt pack governance specs", () => {
     expect(PASS2_SYSTEM_PROMPT).toContain("independent from Pass 1");
     expect(PASS2_SYSTEM_PROMPT).toContain("divergence_declaration");
     expect(PASS2_SYSTEM_PROMPT).not.toContain("I agree with Pass 1");
+    expect(PASS2_SYSTEM_PROMPT).toContain("NONE|WEAK|SUFFICIENT|STRONG");
+    expect(PASS2_SYSTEM_PROMPT).toContain("SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL");
+    expect(PASS2_SYSTEM_PROMPT).toContain("never MODERATE");
 
     const userPrompt = buildPass2UserPrompt({
       manuscriptText: "Sample manuscript text.",
@@ -52,6 +58,9 @@ describe("prompt pack governance specs", () => {
     expect(PASS3_SYSTEM_PROMPT).toContain("Do NOT silently overwrite disagreement");
     expect(PASS3_SYSTEM_PROMPT).toContain("pressure signal -> decision inflection -> consequence trajectory");
     expect(PASS3_SYSTEM_PROMPT).toContain("pressure->decision->consequence logic");
+    expect(PASS3_SYSTEM_PROMPT).toContain("NONE|WEAK|SUFFICIENT|STRONG");
+    expect(PASS3_SYSTEM_PROMPT).toContain("SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL");
+    expect(PASS3_SYSTEM_PROMPT).toContain("never MODERATE");
     expect(PASS3_SYSTEM_PROMPT.length).toBeLessThan(2200);
 
     const userPrompt = buildPass3UserPrompt({

@@ -36,6 +36,8 @@ Rules:
 3) No contradiction without explicit contextual split.
 4) Keep output concise and operational.
 5) Use only valid JSON, no markdown.
+6) Canonical v2 vocabulary lock: signal_strength uses ONLY NONE|WEAK|SUFFICIENT|STRONG (never MODERATE);
+  criterion status uses ONLY SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL when status is emitted.
 
 Return ONLY:
 {

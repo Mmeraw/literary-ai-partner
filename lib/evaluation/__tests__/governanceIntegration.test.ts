@@ -168,17 +168,18 @@ describe("Governance Integration Tests", () => {
           if (tableName === "evaluation_artifacts") {
             return {
               select: jest.fn(() => ({
-                eq: jest.fn(function (col, val) {
-                  // Return this for chaining
-                  return {
-                    eq: jest.fn(() => ({
-                      maybeSingle: jest.fn().mockResolvedValue({
-                        data: null,
-                        error: null,
-                      }),
+                eq: jest.fn(() => ({
+                  in: jest.fn(() => ({
+                    order: jest.fn(() => ({
+                      limit: jest.fn(() => ({
+                        maybeSingle: jest.fn().mockResolvedValue({
+                          data: null,
+                          error: null,
+                        }),
+                      })),
                     })),
-                  };
-                }),
+                  })),
+                })),
               })),
             };
           }
@@ -224,16 +225,18 @@ describe("Governance Integration Tests", () => {
           if (tableName === "evaluation_artifacts") {
             return {
               select: jest.fn(() => ({
-                eq: jest.fn(function (col1, val1) {
-                  return {
-                    eq: jest.fn(() => ({
-                      maybeSingle: jest.fn().mockResolvedValue({
-                        data: { content: governed },
-                        error: null,
-                      }),
+                eq: jest.fn(() => ({
+                  in: jest.fn(() => ({
+                    order: jest.fn(() => ({
+                      limit: jest.fn(() => ({
+                        maybeSingle: jest.fn().mockResolvedValue({
+                          data: { content: governed, artifact_type: "evaluation_result_v1" },
+                          error: null,
+                        }),
+                      })),
                     })),
-                  };
-                }),
+                  })),
+                })),
               })),
             };
           }
@@ -270,16 +273,18 @@ describe("Governance Integration Tests", () => {
           if (tableName === "evaluation_artifacts") {
             return {
               select: jest.fn(() => ({
-                eq: jest.fn(function (col1, val1) {
-                  return {
-                    eq: jest.fn(() => ({
-                      maybeSingle: jest.fn().mockResolvedValue({
-                        data: { content: governed },
-                        error: null,
-                      }),
+                eq: jest.fn(() => ({
+                  in: jest.fn(() => ({
+                    order: jest.fn(() => ({
+                      limit: jest.fn(() => ({
+                        maybeSingle: jest.fn().mockResolvedValue({
+                          data: { content: governed, artifact_type: "evaluation_result_v1" },
+                          error: null,
+                        }),
+                      })),
                     })),
-                  };
-                }),
+                  })),
+                })),
               })),
             };
           }
@@ -330,16 +335,18 @@ describe("Governance Integration Tests", () => {
       const mockSupabase = {
         from: jest.fn(() => ({
           select: jest.fn(() => ({
-            eq: jest.fn(function (col, val) {
-              return {
-                eq: jest.fn(() => ({
-                  maybeSingle: jest.fn().mockResolvedValue({
-                    data: null, // Missing artifact
-                    error: null,
-                  }),
+            eq: jest.fn(() => ({
+              in: jest.fn(() => ({
+                order: jest.fn(() => ({
+                  limit: jest.fn(() => ({
+                    maybeSingle: jest.fn().mockResolvedValue({
+                      data: null, // Missing artifact
+                      error: null,
+                    }),
+                  })),
                 })),
-              };
-            }),
+              })),
+            })),
           })),
         })),
       } as unknown as SupabaseClient;

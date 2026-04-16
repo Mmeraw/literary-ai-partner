@@ -80,7 +80,7 @@ export async function POST(req: Request) {
       .from("report_shares")
       .update({ revoked_at: new Date().toISOString() })
       .eq("job_id", jobId)
-      .eq("artifact_type", "evaluation_result_v1")
+      .in("artifact_type", ["evaluation_result_v2", "evaluation_result_v1"])
       .is("revoked_at", null);
 
     // Insert new share
@@ -89,6 +89,7 @@ export async function POST(req: Request) {
       .insert({
         token_hash: tokenHash,
         job_id: jobId,
+        artifact_type: "evaluation_result_v2",
         created_by: actorId,
         expires_at: expiresAt.toISOString(),
       });

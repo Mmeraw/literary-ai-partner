@@ -40,6 +40,8 @@ Rules:
 3) Keep output concise and non-redundant.
 4) No generic boilerplate language.
 5) Return valid JSON only.
+6) Canonical v2 vocabulary lock: signal_strength uses ONLY NONE|WEAK|SUFFICIENT|STRONG (never MODERATE);
+  criterion status uses ONLY SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL when status is emitted.
 
 Return ONLY:
 {

@@ -354,9 +354,10 @@ export async function createDiagnosticFindingsForEvaluationRun(
 
   const { data, error } = await supabase
     .from("evaluation_artifacts")
-    .select("id, artifact_type, content")
+    .select("id, artifact_type, content, created_at")
     .eq("job_id", evaluationRunId)
-    .eq("artifact_type", "evaluation_result_v1");
+    .in("artifact_type", ["evaluation_result_v2", "evaluation_result_v1"])
+    .order("created_at", { ascending: false });
 
   if (error) {
     throw new Error(`createDiagnosticFindingsForEvaluationRun failed: ${error.message}`);

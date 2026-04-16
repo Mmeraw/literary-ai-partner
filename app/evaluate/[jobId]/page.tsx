@@ -125,7 +125,7 @@ async function getArtifact(jobId: string): Promise<ArtifactResult> {
       .from("evaluation_artifacts")
       .select("id, job_id, artifact_type, content, created_at")
       .eq("job_id", jobId)
-      .eq("artifact_type", "evaluation_result_v1")
+      .in("artifact_type", ["evaluation_result_v2", "evaluation_result_v1"])
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -327,7 +327,7 @@ export default async function EvaluationReportPage({
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             {isProduction
-              ? "Job is marked complete but canonical artifact evaluation_result_v1 is missing. This indicates an invariant violation; please re-run evaluation from the Evaluate page."
+              ? "Job is marked complete but canonical evaluation artifact is missing (expected evaluation_result_v2 or legacy evaluation_result_v1). This indicates an invariant violation; please re-run evaluation from the Evaluate page."
               : "Job completed but no evaluation artifact was found. Phase 2 may still be persisting results. Please refresh in a moment."}
           </p>
           <div className="mt-4">

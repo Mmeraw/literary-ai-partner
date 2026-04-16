@@ -241,9 +241,11 @@ export async function checkRefinementEligibilityByEvaluationRun(
   // Fetch the evaluation artifact from database
   const { data, error } = await supabase
     .from("evaluation_artifacts")
-    .select("content")
+    .select("content, artifact_type, created_at")
     .eq("job_id", evaluationRunId)
-    .eq("artifact_type", "evaluation_result_v1")
+    .in("artifact_type", ["evaluation_result_v2", "evaluation_result_v1"])
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) {
@@ -260,6 +262,33 @@ export async function checkRefinementEligibilityByEvaluationRun(
       "REFINEMENT_BLOCKED_BY_GATE",
       { evaluationRunId }
     );
+  }
+
+  const artifactType = (data as any).artifact_type as string | undefined;
+  const contentRecord = (data as any).content as { schema_version?: string } | undefined;
+  const isV2Artifact =
+    artifactType === "evaluation_result_v2" || contentRecord?.schema_version === "evaluation_result_v2";
+
+  if (isV2Artifact) {
+    const evaluationV2 = data.content as EvaluationResultV2;
+    const envelope = mapEvaluationResultV2ToGovernanceEnvelope(evaluationV2);
+    const gateResult = evaluateEligibilityGate(envelope);
+
+    if (!isRefinementEligible(gateResult)) {
+      throw new GovernanceError(
+        `Refinement blocked: eligibility gate is ${gateResult.eligibilityGate} (readiness_state: ${gateResult.readinessState})`,
+        "REFINEMENT_BLOCKED_BY_GATE",
+        {
+          evaluationRunId,
+          artifactType,
+          eligibilityGate: gateResult.eligibilityGate,
+          readinessState: gateResult.readinessState,
+          reasons: gateResult.reasons,
+        }
+      );
+    }
+
+    return;
   }
 
   const evaluation = data.content as EvaluationResultV1;

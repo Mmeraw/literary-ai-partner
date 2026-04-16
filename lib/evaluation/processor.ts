@@ -66,9 +66,10 @@ import { WAVE_GUIDE_SUMMARY, WAVE_GUIDE_VERSION } from './WAVE_GUIDE';
 import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistence';
 import {
   runPipeline,
-  synthesisToEvaluationResult,
   synthesisToEvaluationResultV2,
 } from '@/lib/evaluation/pipeline/runPipeline';
+import { runQualityGateV2 } from '@/lib/evaluation/pipeline/qualityGate';
+import { mapEvaluationResultV2ToGovernanceEnvelope } from '@/lib/governance/evaluationBridge';
 import {
   getCanonicalPipelineModel,
   getExternalAdjudicationMode,
@@ -1141,6 +1142,22 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
     );
 
+    const qualityGateV2 = runQualityGateV2(evaluationResult);
+    if (!qualityGateV2.pass) {
+      const failedChecks = qualityGateV2.checks
+        .filter((check) => !check.passed)
+        .map((check) => `${check.check_id}: ${check.details ?? check.error_code ?? 'failed'}`);
+      const gateError = `[QualityGateV2] ${failedChecks.join('; ')}`;
+      await markFailed(gateError);
+
+      return { success: false, error: gateError };
+    }
+
+    const governanceBridgeProjection = mapEvaluationResultV2ToGovernanceEnvelope(evaluationResult);
+    console.log(
+      `[Processor] ${jobId}: governance bridge projected ${governanceBridgeProjection.criteria.length} scorable criterion/criteria`,
+    );
+
     if (evalContextContaminationGuardEnabled) {
       const contaminationCheck = detectContextContamination({
         sourceText: manuscriptWithContent.content || '',
@@ -1222,10 +1239,10 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         supabase,
         jobId: job.id,
         manuscriptId: job.manuscript_id,
-        artifactType: 'evaluation_result_v1',
+        artifactType: 'evaluation_result_v2',
         content: evaluationResult,
         sourceHash,
-        artifactVersion: 'evaluation_result_v1',
+        artifactVersion: 'evaluation_result_v2',
       });
 
       console.log(`[Processor] ${jobId}: EXIT upsertEvaluationArtifact id=${artifactId}`);

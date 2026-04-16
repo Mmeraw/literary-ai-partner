@@ -10,11 +10,22 @@ export {};
 
 // ── Mock pipeline and synthesis ──────────────────────────────────────────────
 const runPipelineMock = jest.fn();
-const synthesisToEvaluationResultMock = jest.fn();
+const synthesisToEvaluationResultV2Mock = jest.fn();
+const runQualityGateV2Mock = jest.fn();
+const mapEvaluationResultV2ToGovernanceEnvelopeMock = jest.fn();
 
 jest.mock("@/lib/evaluation/pipeline/runPipeline", () => ({
   runPipeline: (...args: any[]) => runPipelineMock(...args),
-  synthesisToEvaluationResult: (...args: any[]) => synthesisToEvaluationResultMock(...args),
+  synthesisToEvaluationResultV2: (...args: any[]) => synthesisToEvaluationResultV2Mock(...args),
+}));
+
+jest.mock("@/lib/evaluation/pipeline/qualityGate", () => ({
+  runQualityGateV2: (...args: any[]) => runQualityGateV2Mock(...args),
+}));
+
+jest.mock("@/lib/governance/evaluationBridge", () => ({
+  mapEvaluationResultV2ToGovernanceEnvelope: (...args: any[]) =>
+    mapEvaluationResultV2ToGovernanceEnvelopeMock(...args),
 }));
 
 // ── Mock artifact persistence ─────────────────────────────────────────────────
@@ -112,7 +123,7 @@ function makeSupabaseStub() {
 
 function makeEvaluationResult() {
   return {
-    schema_version: "evaluation_result_v1",
+    schema_version: "evaluation_result_v2",
     ids: {
       evaluation_run_id: "run-contamination",
       manuscript_id: 789,
@@ -123,6 +134,7 @@ function makeEvaluationResult() {
     overview: {
       verdict: "revise",
       overall_score_0_100: 58,
+      scored_criteria_count: 0,
       one_paragraph_summary:
         "Maria receives a letter from her missing father deep in cartel territory.",
       top_3_strengths: ["Atmosphere"],
@@ -177,7 +189,12 @@ describe("processEvaluationJob contamination guard enforcement", () => {
       pass4_governance: { ok: true },
     });
 
-    synthesisToEvaluationResultMock.mockReturnValue(makeEvaluationResult());
+    synthesisToEvaluationResultV2Mock.mockReturnValue(makeEvaluationResult());
+    runQualityGateV2Mock.mockReturnValue({ pass: true, checks: [], warnings: [] });
+    mapEvaluationResultV2ToGovernanceEnvelopeMock.mockReturnValue({
+      evaluation_run_id: "run-contamination",
+      criteria: [],
+    });
 
     // Guard returns contaminated
     detectContextContaminationMock.mockReturnValue({
@@ -245,7 +262,12 @@ describe("processEvaluationJob contamination guard enforcement", () => {
     const cleanResult = makeEvaluationResult();
     cleanResult.overview.one_paragraph_summary =
       "Cliff navigates Carpenter Lake with confidence.";
-    synthesisToEvaluationResultMock.mockReturnValue(cleanResult);
+    synthesisToEvaluationResultV2Mock.mockReturnValue(cleanResult);
+    runQualityGateV2Mock.mockReturnValue({ pass: true, checks: [], warnings: [] });
+    mapEvaluationResultV2ToGovernanceEnvelopeMock.mockReturnValue({
+      evaluation_run_id: "run-contamination",
+      criteria: [],
+    });
 
     // Guard returns clean
     detectContextContaminationMock.mockReturnValue({
