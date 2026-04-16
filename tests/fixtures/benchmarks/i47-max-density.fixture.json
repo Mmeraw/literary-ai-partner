@@ -1,0 +1,57 @@
+{
+  "fixture": "i47-max-density",
+  "version": "1.0.1",
+  "benchmarkTruth": "I:47",
+  "description": "DOMINATUS I:47 zero-compression ritual-dense passage. RevisionGrade MUST preserve 100% of ritual escalation, sensory layering, rhythm chains, and mythic tone.",
+  "source": {
+    "manuscript": "dominatus",
+    "chapter": "I:4",
+    "file": "manuscripts/dominatus-i4-thirst-for-change.txt",
+    "section": "I:4.3",
+    "startMarker": "DOMINATUS I:4\u229a",
+    "endMarker": "DOMINATUS I:4\u221e",
+    "densityClass": "max",
+    "wordCount": 312,
+    "loadStrategy": "file-reference"
+  },
+  "input": {
+    "textSource": "file",
+    "filePath": "manuscripts/dominatus-i4-thirst-for-change.txt",
+    "extractionMethod": "marker-bounded",
+    "startMarker": "They debated as the waters darkened",
+    "endMarker": "We will remember the last.",
+    "profile": "dominatus",
+    "mode": "revision"
+  },
+  "expectedBehavior": {
+    "compressionRate": 0,
+    "ritualEscalationPreserved": true,
+    "sensoryLayeringPreserved": true,
+    "rhythmChainsPreserved": true,
+    "mythicTonePreserved": true,
+    "zeroCompressionIsValidState": true,
+    "expectedOutputIdenticalToInput": true
+  },
+  "failConditions": [
+    "Any compression applied to ritual-dense passage",
+    "Flattening of escalation arc",
+    "Cutting sensory layering",
+    "Breaking rhythm chains",
+    "Reducing mythic tone",
+    "Using literary_dense as catch-all classification",
+    "Output differs from input by even one character"
+  ],
+  "passConditions": [
+    "Output identical to input (0% compression)",
+    "Density classification = max_ritual",
+    "No revision proposals generated for ritual content",
+    "Profile-specific signal recognized: dominatus.ritual_escalation"
+  ],
+  "runtimeWiring": {
+    "pipelinePath": "lib/revision/wavePlanner.ts",
+    "registryPath": "lib/revision/waveRegistry.ts",
+    "expectedWaveModules": ["wave-31-lw"],
+    "profileConfigPath": "lib/revision/profiles/dominatus.ts",
+    "evaluationMethod": "diff-input-output"
+  }
+}

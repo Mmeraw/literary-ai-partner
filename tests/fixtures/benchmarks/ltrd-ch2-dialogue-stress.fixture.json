@@ -1,0 +1,67 @@
+{
+  "fixture": "ltrd-ch2-dialogue-stress",
+  "version": "1.0.0",
+  "benchmarkTruth": "LTRD Ch.2 Dialogue Stress Test",
+  "description": "Dialogue-heavy passage from LTRD Ch.2 (Anthony-William exchange). Tests that multi-speaker dialogue with meaning-bearing interaction, rhythm, and subtext is PROTECTED from compression. Expects 0-2% compression maximum (narration only, dialogue untouched).",
+  "source": {
+    "manuscript": "let-the-river-decide",
+    "chapter": "Ch.2",
+    "densityClass": "dialogue-heavy",
+    "sourceFile": "manuscripts/let-the-river-decide-ch2.txt",
+    "sourceSection": "anthony-william-ceremony-exchange"
+  },
+  "input": {
+    "textSource": "file",
+    "filePath": "manuscripts/let-the-river-decide-ch2.txt",
+    "extractionMethod": "marker-bounded",
+    "startMarker": "In both hands, he carried a small foil tray",
+    "endMarker": "Your brother knew. He saw it first.",
+    "passageHint": "protected",
+    "profile": "let-the-river-decide",
+    "mode": "standard"
+  },
+  "expectedBehavior": {
+    "compressionRateMin": 0.0,
+    "compressionRateMax": 0.02,
+    "dialogueTextPreserved": true,
+    "dialogueLineOrderPreserved": true,
+    "dialogueCompressionForbidden": true,
+    "narrativeCompressionAllowed": true,
+    "narrationRoundingOnlyEliminated": true
+  },
+  "failConditions": [
+    "Dialogue compression detected (lines merged, phrasing rewritten)",
+    "Dialogue text altered byte-for-byte (string equality check fails)",
+    "Dialogue line order changed",
+    "Multi-speaker exchange compressed below natural rhythm",
+    "Meaning-bearing repetition removed (e.g., Anthony's repeated 'he said')",
+    "Compression exceeds 2%"
+  ],
+  "passConditions": [
+    "Compression rate between 0-2%",
+    "Classification = dialogue (multi-speaker, meaning-bearing)",
+    "All dialogue lines preserved byte-identical",
+    "Line order preserved for all speakers",
+    "Only surrounding narration and tag cleanup applied",
+    "Dialogue immutability assertion passes"
+  ],
+  "immutabilityChecks": {
+    "requiredDialoguePreservation": [
+      "\"For you,\" he said.",
+      "\"From William. Give some to the dogs too. It's a healthy choice.\"",
+      "\"It's not chocolate,\" Anthony said.",
+      "\"Looks like it. But it's ground black spruce bark and fireweed honey. For ceremony. Safe for all kin—two- and four-legged.\"",
+      "\"Wow. Looks like chocolate cake.\"",
+      "\"You brought ghosts with you,\" he said.",
+      "\"What kind of ghosts?\"",
+      "\"The kind that don't leave. The kind that call back when you step too close.\"",
+      "\"These aren't the ones taken,\" he said.",
+      "\"They're the ones spoken for.\"",
+      "\"She's the oldest. She began the remembering.\"",
+      "\"So the rivers choose?\"",
+      "\"Not choice. Balance. You take too much, it answers. Not with anger. With memory.\"",
+      "\"Your brother knew. He saw it first.\""
+    ],
+    "lineCountExpectation": "preserved"
+  }
+}
