@@ -1,0 +1,72 @@
+{
+  "fixture": "behavioral-not-inventory",
+  "version": "1.1.0",
+  "benchmarkTruth": "behavioral",
+  "description": "Behavioral contradiction vs inventory detection. RevisionGrade MUST distinguish character behavioral contradictions from simple inventory lists. The Cliff prices line is the canonical test case.",
+  "source": {
+    "manuscript": "dominatus-i4-thirst-for-change",
+    "chapter": "I:4",
+    "densityClass": "variable",
+    "sourceStatus": "canonical_cliff_prices_line_not_found_in_repo",
+    "fallbackSourceFile": "manuscripts/dominatus-i4-thirst-for-change.txt"
+  },
+  "input": {
+    "passages": [
+      {
+        "id": "behavioral-contradiction",
+        "textSource": "file",
+        "filePath": "manuscripts/dominatus-i4-thirst-for-change.txt",
+        "startMarker": "Hyla gathered what little air she could.",
+        "endMarker": "Then— A pulse.",
+        "passageHint": "protected",
+        "expectedClassification": "behavioral_contradiction",
+        "shouldFlag": true,
+        "shouldCompress": false
+      },
+      {
+        "id": "inventory-list",
+        "textSource": "file",
+        "filePath": "manuscripts/dominatus-i4-thirst-for-change.txt",
+        "startMarker": "leaving the land drenched in slick rainbows:",
+        "endMarker": "Ford. Toyota. Chevrolet.",
+        "passageHint": "compressible",
+        "expectedClassification": "inventory",
+        "shouldFlag": false,
+        "shouldCompress": true
+      },
+      {
+        "id": "cliff-prices-canonical",
+        "textSource": "file",
+        "filePath": "manuscripts/dominatus-i4-thirst-for-change.txt",
+        "startMarker": "They show no regard for other life—killing insects, felling squirrels, trapping rabbits, and laying low the great beasts: the deer and the bear.",
+        "endMarker": "The only ones who fight back,” she continued,”are the silver-scaled serpents of the abyss…",
+        "passageHint": "protected",
+        "expectedClassification": "behavioral_contradiction",
+        "shouldFlag": true,
+        "shouldCompress": false
+      }
+    ],
+    "profile": "generic",
+    "mode": "standard"
+  },
+  "expectedBehavior": {
+    "behavioralContradictionDetected": true,
+    "inventoryCorrectlyClassified": true,
+    "falsePositiveProtection": true,
+    "cliffPricesLineProtected": true
+  },
+  "failConditions": [
+    "Behavioral contradiction classified as inventory",
+    "Inventory classified as behavioral contradiction",
+    "Cliff prices line compressed or removed",
+    "behavioral_contradiction treated same as inventory",
+    "High-density suppression applied to behavioral passage"
+  ],
+  "passConditions": [
+    "behavioral-contradiction passage flagged correctly",
+    "inventory-list passage classified for compression",
+    "cliff-prices-canonical passage protected from compression",
+    "Classification distinguishes behavioral vs inventory semantics",
+    "No false positives on behavioral contradiction detection"
+  ]
+}
