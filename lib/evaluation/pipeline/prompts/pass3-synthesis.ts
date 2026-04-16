@@ -7,6 +7,12 @@
  */
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import {
+  buildCoverageDisclosure,
+  buildPromptInputWindow,
+  getDefaultSynthesisReferenceCharBudget,
+  summarizePromptCoverage,
+} from "../promptInput";
 
 export const PASS3_PROMPT_VERSION = "pass3-synthesis-v4";
 
@@ -52,6 +58,18 @@ export function buildPass3UserPrompt(params: {
   executionMode?: "TRUSTED_PATH" | "STUDIO";
 }): string {
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
+  const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
+  const synthesisWindow = params.manuscriptText
+    ? buildPromptInputWindow(params.manuscriptText, synthesisBudget)
+    : "";
+  const synthesisCoverage = params.manuscriptText
+    ? summarizePromptCoverage(params.manuscriptText, synthesisBudget)
+    : null;
+  const coverageDisclosure = synthesisCoverage
+    ? buildCoverageDisclosure(synthesisCoverage, "Synthesis reference coverage")
+    : "Synthesis reference coverage: unavailable (comparison packet-only execution).";
+  const referenceSnippet = synthesisWindow.length > 0 ? synthesisWindow.substring(0, 600) : "[reference omitted]";
+
   return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".
 
 Execution mode: ${executionMode}
@@ -67,6 +85,10 @@ Do NOT re-litigate agreed criteria.
 Do NOT add evidence, recommendations, delta_explanation, craft_score, or editorial_score for agree criteria.
 Do NOT return criteria as { agree:[], soft_divergence:[] ... }; return a single criteria[] array.
 Target total visible output under 1500 tokens.
+
+Coverage truth signal:
+- ${coverageDisclosure}
+- Reference snippet (context anchor only): ${referenceSnippet}
 
 ## PASS 1 / PASS 2 COMPARISON PACKET (Deterministic)
 ${params.comparisonPacketJson.substring(0, 3500)}
