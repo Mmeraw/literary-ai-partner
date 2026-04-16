@@ -14,7 +14,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v4";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v5";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -46,6 +46,7 @@ Return ONLY JSON with keys:
 - agreement_map[]
 - divergence_map[] with arbitration_rationale
 - overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, top_3_strengths[3], top_3_risks[3] }
+  - RULE: top_3_strengths and top_3_risks must each address distinct aspects. Never repeat the same topic in both lists. If a concept must appear in both, use contextual differentiation (e.g. "however", "in contrast", "whereas").
 - metadata { pass1_model, pass2_model, pass3_model, generated_at }
 
 Criteria keys:
