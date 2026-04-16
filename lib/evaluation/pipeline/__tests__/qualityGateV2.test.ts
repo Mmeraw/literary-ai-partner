@@ -1,7 +1,8 @@
+import { describe, it, expect } from "vitest";
 import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
 
 type Status = "SCORABLE" | "NOT_APPLICABLE" | "NO_SIGNAL" | "INSUFFICIENT_SIGNAL";
-type Signal = "STRONG" | "MODERATE" | "WEAK" | "NONE";
+type Signal = "STRONG" | "SUFFICIENT" | "WEAK" | "NONE";
 interface V2C {
   key: CriterionKey;
   status: Status;
