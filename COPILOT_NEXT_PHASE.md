@@ -4,7 +4,14 @@
 
 ✅ **Governance Locked**: JOB_CONTRACT_v1 enforced  
 ✅ **Passive Observability**: Event recording added (best-effort, never throws)  
-✅ **Canon Guard**: Active in git hooks + CI
+✅ **Canon Guard**: Active in git hooks + CI  
+✅ **GET /api/jobs/[jobId]**: Canonical read-only endpoint — user-scoped, 404 on not-found/unowned, no derived statuses  
+✅ **Frontend Polling UI**: `JobStatusPoll.tsx` polls at 1500ms, renders canonical state only, stops on terminal states — no fabricated progress or ETAs
+
+## Scope Closed
+
+All tasks in this document are **complete** as of 2026-04-16.  
+Any further work (stale-job banners, abnormal-transition logging) is **new scope**, not unfinished work.
 
 ## What to Tell Copilot for Next Work
 
