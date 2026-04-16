@@ -77,6 +77,7 @@ function makeSynthesis(summary: string, strengths: string[], risks: string[]): S
       pass3_model: "gpt-4o-mini",
       generated_at: new Date().toISOString(),
     },
+    partial_evaluation: false,
   };
 }
 
@@ -116,6 +117,7 @@ function makeGenericSynthesis(summary: string, strengths: string[], risks: strin
       pass3_model: "gpt-4o-mini",
       generated_at: new Date().toISOString(),
     },
+    partial_evaluation: false,
   };
 }
 

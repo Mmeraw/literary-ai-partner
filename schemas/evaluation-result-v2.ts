@@ -235,22 +235,23 @@ export function validateEvaluationResultV2(
       if (c.signal_strength !== "SUFFICIENT" && c.signal_strength !== "STRONG") {
         errors.push(`criteria[${idx}] SCORABLE must have SUFFICIENT|STRONG signal_strength`);
       }
-      if ((c as NonScorableCriterionV2).insufficient_signal_reason) {
+      if ((c as unknown as NonScorableCriterionV2).insufficient_signal_reason) {
         errors.push(`criteria[${idx}] SCORABLE must not carry insufficient_signal_reason`);
       }
     }
 
     if (c.status === "NO_SIGNAL" || c.status === "INSUFFICIENT_SIGNAL") {
+      const nsStatus: string = c.status;
       if (c.scorable !== false) {
-        errors.push(`criteria[${idx}] ${c.status} must have scorable=false`);
+        errors.push(`criteria[${idx}] ${nsStatus} must have scorable=false`);
       }
       if (c.score_0_10 !== null) {
-        errors.push(`criteria[${idx}] ${c.status} must have score_0_10=null`);
+        errors.push(`criteria[${idx}] ${nsStatus} must have score_0_10=null`);
       }
       if (c.signal_strength !== "NONE" && c.signal_strength !== "WEAK") {
-        errors.push(`criteria[${idx}] ${c.status} must have NONE|WEAK signal_strength`);
+        errors.push(`criteria[${idx}] ${nsStatus} must have NONE|WEAK signal_strength`);
       }
-      const reason = (c as NonScorableCriterionV2).insufficient_signal_reason;
+      const reason = (c as unknown as NonScorableCriterionV2).insufficient_signal_reason;
       if (!reason || !Array.isArray(reason.looked_for) || reason.looked_for.length === 0 || !Array.isArray(reason.not_found)) {
         errors.push(`criteria[${idx}] ${c.status} must include structured insufficient_signal_reason`);
       }
@@ -266,7 +267,7 @@ export function validateEvaluationResultV2(
       if (c.signal_strength !== "NONE") {
         errors.push(`criteria[${idx}] NOT_APPLICABLE must have signal_strength=NONE`);
       }
-      if ((c as NonScorableCriterionV2).insufficient_signal_reason) {
+      if ((c as unknown as NonScorableCriterionV2).insufficient_signal_reason) {
         errors.push(`criteria[${idx}] NOT_APPLICABLE must not carry insufficient_signal_reason`);
       }
     }

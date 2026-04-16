@@ -33,6 +33,7 @@ function createValidEvaluation(
       user_id: "user-test-001",
     },
     generated_at: new Date().toISOString(),
+    artifacts: [],
     engine: {
       model: "gpt-4o",
       provider: "openai",
@@ -138,10 +139,26 @@ function createValidEvaluation(
         recommendations: [],
       },
     ],
-    ...overrides,
+    recommendations: {
+      quick_wins: [],
+      strategic_revisions: [],
+    },
+    metrics: {
+      manuscript: {},
+      processing: {},
+    },
+    governance: {
+      confidence: 0.9,
+      warnings: [],
+      limitations: [],
+      policy_family: "standard",
+    },
   };
 
-  return base;
+  return {
+    ...base,
+    ...overrides,
+  };
 }
 
 describe("evaluationBridge", () => {

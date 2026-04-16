@@ -306,7 +306,7 @@ export function normalizeCriterion(
     scorable: false,
     status,
     signal_present: signalStrength === "WEAK",
-    signal_strength: signalStrength,
+    signal_strength: signalStrength as "NONE" | "WEAK",
     score_0_10: null,
     confidence_band: "LOW",
     rationale,

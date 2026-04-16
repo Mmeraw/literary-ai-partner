@@ -1,4 +1,7 @@
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
+import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
+
+type EvaluationResultForContaminationCheck = EvaluationResultV1 | EvaluationResultV2;
 
 const STOPWORDS_LIST = Object.freeze([
   "the",
@@ -78,7 +81,7 @@ function tokenizeClean(text: string, stop: Set<string>): Set<string> {
   return result;
 }
 
-export function buildEvaluationOutputText(result: EvaluationResultV1): string {
+export function buildEvaluationOutputText(result: EvaluationResultForContaminationCheck): string {
   const parts: string[] = [];
 
   parts.push(result.overview.one_paragraph_summary);
@@ -108,7 +111,7 @@ export function buildEvaluationOutputText(result: EvaluationResultV1): string {
 
 export function detectContextContamination(params: {
   sourceText: string;
-  evaluationResult: EvaluationResultV1;
+  evaluationResult: EvaluationResultForContaminationCheck;
 }): ContextContaminationResult {
   const sourceText = params.sourceText || "";
   const outputText = buildEvaluationOutputText(params.evaluationResult);

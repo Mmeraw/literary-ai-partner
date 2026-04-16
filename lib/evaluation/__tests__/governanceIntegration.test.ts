@@ -78,7 +78,7 @@ describe("Governance Integration Tests", () => {
         from: jest.fn(() => ({
           select: jest.fn(() => ({
             eq: jest.fn(() => ({
-              single: jest.fn().mockResolvedValue({
+              single: (jest.fn() as jest.Mock<any>).mockResolvedValue({
                 data: {
                   id: "test-eval-run-uuid",
                   status: "complete",
@@ -86,23 +86,23 @@ describe("Governance Integration Tests", () => {
                   manuscript_version_id: "source-version-id",
                 },
                 error: null,
-              }),
+              } as any),
               eq: jest.fn(() => ({
-                single: jest.fn().mockResolvedValue({
+                single: (jest.fn() as jest.Mock<any>).mockResolvedValue({
                   data: {
                     id: "test-artifact-id",
                   },
                   error: null,
-                }),
+                } as any),
               })),
             })),
           })),
           upsert: jest.fn(() => ({
             select: jest.fn(() => ({
-              single: jest.fn().mockResolvedValue({
+              single: (jest.fn() as jest.Mock<any>).mockResolvedValue({
                 data: { id: "test-artifact-id" },
                 error: null,
-              }),
+              } as any),
             })),
           })),
         })),
@@ -172,7 +172,7 @@ describe("Governance Integration Tests", () => {
                   in: jest.fn(() => ({
                     order: jest.fn(() => ({
                       limit: jest.fn(() => ({
-                        maybeSingle: jest.fn().mockResolvedValue({
+                        maybeSingle: (jest.fn() as jest.Mock<any>).mockResolvedValue({
                           data: null,
                           error: null,
                         }),
@@ -229,7 +229,7 @@ describe("Governance Integration Tests", () => {
                   in: jest.fn(() => ({
                     order: jest.fn(() => ({
                       limit: jest.fn(() => ({
-                        maybeSingle: jest.fn().mockResolvedValue({
+                        maybeSingle: (jest.fn() as jest.Mock<any>).mockResolvedValue({
                           data: { content: governed, artifact_type: "evaluation_result_v1" },
                           error: null,
                         }),
@@ -277,7 +277,7 @@ describe("Governance Integration Tests", () => {
                   in: jest.fn(() => ({
                     order: jest.fn(() => ({
                       limit: jest.fn(() => ({
-                        maybeSingle: jest.fn().mockResolvedValue({
+                        maybeSingle: (jest.fn() as jest.Mock<any>).mockResolvedValue({
                           data: { content: governed, artifact_type: "evaluation_result_v1" },
                           error: null,
                         }),
@@ -339,7 +339,7 @@ describe("Governance Integration Tests", () => {
               in: jest.fn(() => ({
                 order: jest.fn(() => ({
                   limit: jest.fn(() => ({
-                    maybeSingle: jest.fn().mockResolvedValue({
+                    maybeSingle: (jest.fn() as jest.Mock<any>).mockResolvedValue({
                       data: null, // Missing artifact
                       error: null,
                     }),
