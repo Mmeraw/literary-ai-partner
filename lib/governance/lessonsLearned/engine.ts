@@ -44,6 +44,18 @@ export function deriveLessonsLearnedEnforcementDecision(
   );
 
   if (hasErrorViolation) {
+    // G-LLR-003A: Proportionality of Enforcement
+    // Post-convergence errors are downgraded to warnings — artifact-quality
+    // defects must never kill an otherwise valid evaluation.
+    const isRecoverableStage = stage === "post_convergence";
+    if (isRecoverableStage) {
+      return {
+        action: "ALLOW_WITH_WARNINGS",
+        reason:
+          "ERROR-severity violations downgraded at post_convergence (G-LLR-003A). " +
+          report.results.filter((r) => !r.passed && r.severity === "ERROR").map((r) => r.rule_id).join(", "),
+      };
+    }
     return {
       action: "BLOCK",
       reason: "At least one ERROR-severity lessons-learned rule failed.",
