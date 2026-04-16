@@ -38,6 +38,7 @@ export function evaluateLessonsLearnedRules(
 
 export function deriveLessonsLearnedEnforcementDecision(
   report: LessonsLearnedReport,
+  stage?: string,
 ): EnforcementDecision {
   const hasErrorViolation = report.results.some(
     (r) => r.severity === "ERROR" && !r.passed,
