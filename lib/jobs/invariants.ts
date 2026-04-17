@@ -1,10 +1,9 @@
 /**
  * Runtime Invariant Checks — RevisionGrade Phase 1
- * 
+ *
  * These invariants MUST block execution. They are not warnings.
  * Violation = immediate failure with classified error.
  */
-
 import type {
   EvaluationJob,
   PassArtifact,
@@ -12,6 +11,7 @@ import type {
   CanonicalEvaluationArtifact,
 } from "./finalize.types";
 import type { FailureCode } from "./failures";
+import { CRITERIA_KEYS } from "../../schemas/criteria-keys";
 
 export class InvariantViolation extends Error {
   constructor(
@@ -109,6 +109,61 @@ export function enforcePassSeparation(
       "PASS_CONVERGENCE_FAILURE",
       `Convergence inputs do not match loaded pass artifacts`,
     );
+  }
+}
+
+// === Criterion Completeness (Item #8 Validity Gate) ===
+
+export function enforceCriterionCompleteness(
+  pass1: PassArtifact,
+  pass2: PassArtifact,
+  pass3: PassArtifact,
+): void {
+  const requiredKeys = new Set<string>(CRITERIA_KEYS);
+  const allArtifacts = [
+    { label: "pass1", artifact: pass1 },
+    { label: "pass2", artifact: pass2 },
+    { label: "pass3", artifact: pass3 },
+  ];
+
+  for (const { label, artifact } of allArtifacts) {
+    const presentKeys = new Set(artifact.criteria.map((c) => c.criterion_id));
+
+    // Check all 13 criteria are present
+    const missing: string[] = [];
+    for (const key of requiredKeys) {
+      if (!presentKeys.has(key)) {
+        missing.push(key);
+      }
+    }
+    if (missing.length > 0) {
+      throw new InvariantViolation(
+        "CRITERION_COMPLETENESS_FAILED",
+        `${label}: missing criteria [${missing.join(", ")}]`,
+      );
+    }
+
+    // Check each criterion has score, rationale, and evidence
+    for (const criterion of artifact.criteria) {
+      if (typeof criterion.score_0_10 !== "number" || criterion.score_0_10 < 0 || criterion.score_0_10 > 10) {
+        throw new InvariantViolation(
+          "CRITERION_COMPLETENESS_FAILED",
+          `${label} criterion ${criterion.criterion_id}: invalid score (${criterion.score_0_10})`,
+        );
+      }
+      if (!criterion.rationale || criterion.rationale.trim().length === 0) {
+        throw new InvariantViolation(
+          "CRITERION_COMPLETENESS_FAILED",
+          `${label} criterion ${criterion.criterion_id}: empty rationale`,
+        );
+      }
+      if (!criterion.evidence || criterion.evidence.length === 0) {
+        throw new InvariantViolation(
+          "CRITERION_COMPLETENESS_FAILED",
+          `${label} criterion ${criterion.criterion_id}: no evidence anchors`,
+        );
+      }
+    }
   }
 }
 
