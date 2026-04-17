@@ -160,6 +160,7 @@ function makeSupabaseStub() {
             }),
           }),
         };
+              }
               if (table === "evaluation_artifacts") {
         return {
           select: () => {
@@ -171,7 +172,6 @@ function makeSupabaseStub() {
             return query;
           },
         };
-      }
       }
       throw new Error(`Unexpected table in real-gate test stub: ${table}`);
     },
