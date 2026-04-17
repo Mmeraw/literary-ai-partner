@@ -147,6 +147,16 @@ function validateProgressWrite(progress: Record<string, unknown>): void {
   }
 }
 
+function hasObjectId(value: unknown): value is { id: string | number } & Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    (typeof (value as { id?: unknown }).id === "string" ||
+      typeof (value as { id?: unknown }).id === "number")
+  );
+}
+
 export async function createJob(input: {
   manuscript_id: string;
   user_id: string;
@@ -222,8 +232,12 @@ export async function createJob(input: {
     throw new Error(`Failed to create job: ${error.message}`);
   }
 
+  if (!hasObjectId(data)) {
+    throw new Error("Failed to create job: insert/select did not return a typed row with id");
+  }
+
   console.log("EvaluationJobCreated", {
-    job_id: data.id,
+    job_id: String(data.id),
     job_type: input.job_type,
     timestamp: now,
   });
