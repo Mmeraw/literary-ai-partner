@@ -160,6 +160,7 @@ export async function POST(req: Request) {
         policy_family: "standard",
         voice_preservation_level: "balanced",
         english_variant: "us",
+                queued_at: new Date().toISOString(), // Per-stage timestamp (R4 observability)
       })
       .select()
       .single();
