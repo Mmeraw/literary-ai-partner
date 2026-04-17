@@ -70,6 +70,10 @@ describe("fixture canon guard", () => {
       const ids = p1.criteria.map((c) => c.criterion_id);
       expect(new Set(ids).size).toBe(ids.length);
     });
+
+    it("CRITERIA_KEYS itself has no duplicates", () => {
+      expect(new Set(CRITERIA_KEYS).size).toBe(CRITERIA_KEYS.length);
+    });
   });
 
   describe("overrides do not break canon compliance", () => {
@@ -81,6 +85,30 @@ describe("fixture canon guard", () => {
     it("overriding job_id still passes canon check", () => {
       const custom = buildValidPassArtifact("pass1", { job_id: "custom-job" });
       expect(() => assertCanonCompletePassArtifact(custom)).not.toThrow();
+    });
+  });
+
+  describe("canon assertion helper rejects illegal fixture states", () => {
+    it("rejects extra criteria entries even if unique keys still cover canon", () => {
+      const custom = buildValidPassArtifact("pass1");
+      custom.criteria.push({
+        ...custom.criteria[0],
+        evidence: [...custom.criteria[0].evidence],
+      });
+
+      expect(() => assertCanonCompletePassArtifact(custom)).toThrow(
+        /Expected exactly 13 criteria entries, got 14/,
+      );
+    });
+
+    it("rejects non-finite criterion scores", () => {
+      const custom = buildValidPassArtifact("pass1");
+      custom.criteria[0] = {
+        ...custom.criteria[0],
+        score_0_10: Number.NaN,
+      };
+
+      expect(() => assertCanonCompletePassArtifact(custom)).toThrow(/invalid score/);
     });
   });
 });

@@ -15,6 +15,12 @@ export function assertCanonCompletePassArtifact(artifact: PassArtifact): void {
   const actual = artifact.criteria.map((c) => c.criterion_id);
   const unique = new Set(actual);
 
+  if (actual.length !== CRITERIA_KEYS.length) {
+    throw new Error(
+      `Expected exactly ${CRITERIA_KEYS.length} criteria entries, got ${actual.length}`,
+    );
+  }
+
   if (unique.size !== CRITERIA_KEYS.length) {
     throw new Error(
       `Expected ${CRITERIA_KEYS.length} unique criteria, got ${unique.size}`,
@@ -29,7 +35,12 @@ export function assertCanonCompletePassArtifact(artifact: PassArtifact): void {
 
   // Validate each criterion has required fields
   for (const criterion of artifact.criteria) {
-    if (typeof criterion.score_0_10 !== "number" || criterion.score_0_10 < 0 || criterion.score_0_10 > 10) {
+    if (
+      typeof criterion.score_0_10 !== "number"
+      || !Number.isFinite(criterion.score_0_10)
+      || criterion.score_0_10 < 0
+      || criterion.score_0_10 > 10
+    ) {
       throw new Error(
         `Criterion ${criterion.criterion_id}: invalid score (${criterion.score_0_10})`,
       );
