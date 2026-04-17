@@ -19,9 +19,10 @@ export type EvaluationJobStatus = (typeof EVALUATION_JOB_STATUSES)[number];
 // --- Validity / Release ---
 
 export const EVALUATION_VALIDITY_STATUSES = [
+  "pending",
   "valid",
   "invalid",
-  "disputed",
+  "quarantined",
 ] as const;
 
 export type EvaluationValidityStatus = (typeof EVALUATION_VALIDITY_STATUSES)[number];

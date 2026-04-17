@@ -41,8 +41,15 @@ describe('normalizeEvaluationValidityStatus', () => {
     }
   });
 
+  it('is case-insensitive and trims whitespace', () => {
+    expect(normalizeEvaluationValidityStatus('  VALID ')).toBe('valid');
+    expect(normalizeEvaluationValidityStatus('Pending')).toBe('pending');
+    expect(normalizeEvaluationValidityStatus('QUARANTINED')).toBe('quarantined');
+  });
+
   it('throws on unknown validity status', () => {
     expect(() => normalizeEvaluationValidityStatus('bogus')).toThrow();
+    expect(() => normalizeEvaluationValidityStatus('disputed')).toThrow();
     expect(() => normalizeEvaluationValidityStatus(null as any)).toThrow();
   });
 });
