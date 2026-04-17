@@ -28,7 +28,7 @@ export async function GET(
     // Fetch job with evaluation result
     const { data: job, error } = await supabase
       .from('evaluation_jobs')
-      .select('id, manuscript_id, status, evaluation_result, evaluation_result_version, created_at, updated_at')
+      .select('id, manuscript_id, status, validity_status, evaluation_result, evaluation_result_version, created_at, updated_at')
       .eq('id', jobId)
       .single();
 
@@ -40,13 +40,14 @@ export async function GET(
     }
 
     // Check if evaluation result exists
-    if (!job.evaluation_result) {
+    if (!job.evaluation_result || job.status !== 'complete' || job.validity_status !== 'valid') {
       return NextResponse.json(
         { 
           error: 'Evaluation not complete',
           job: {
             id: job.id,
             status: job.status,
+            validity_status: job.validity_status,
             created_at: job.created_at,
           }
         },

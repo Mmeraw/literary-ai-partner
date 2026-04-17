@@ -13,8 +13,10 @@ describe("evaluation architecture invariants", () => {
     expect(processorCode).toContain("runPipeline");
     expect(processorCode).toContain("synthesisToEvaluationResult");
     expect(processorCode).toContain("await runPipeline(");
+    expect(processorCode).toContain("finalizeEvaluationJob");
     expect(processorCode).not.toContain("generateAIEvaluation(");
     expect(processorCode).not.toContain("import OpenAI from");
+    expect(processorCode).not.toMatch(/status:\s*'complete'/);
   });
 
   test("evaluation compatibility logic is centralized in shared policy module", () => {

@@ -59,11 +59,12 @@
 
 import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { CRITERIA_KEYS, type CriterionKey } from '@/schemas/criteria-keys';
 import { WAVE_GUIDE_SUMMARY, WAVE_GUIDE_VERSION } from './WAVE_GUIDE';
-import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistence';
+import { stableSourceHash } from './artifactPersistence';
 import {
   runPipeline,
   synthesisToEvaluationResultV2,
@@ -81,6 +82,10 @@ import {
 } from '@/lib/evaluation/config';
 import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
+import {
+  finalizeEvaluationJob,
+  type EvaluationFinalizerStageTimestamps,
+} from '@/lib/evaluation/finalizer';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -153,6 +158,28 @@ interface EvaluationJob {
   job_type: string;
   status: string;
   created_at: string;
+  started_at?: string | null;
+}
+
+function logProcessorStage(
+  level: 'info' | 'warn',
+  message: string,
+  data: Record<string, unknown>,
+): void {
+  const payload = JSON.stringify({
+    service: 'evaluation-processor',
+    level,
+    message,
+    timestamp: new Date().toISOString(),
+    ...data,
+  });
+
+  if (level === 'warn') {
+    console.warn(payload);
+    return;
+  }
+
+  console.log(payload);
 }
 
 interface Manuscript {
@@ -934,6 +961,48 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     const progressState =
       job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
+    const stageTimestamps: EvaluationFinalizerStageTimestamps = {};
+
+    const recordStageBoundary = async (stage: string, at: string) => {
+      const columnMap: Record<string, keyof EvaluationFinalizerStageTimestamps | null> = {
+        pass1_completed: 'pass1_completed_at',
+        pass2_completed: 'pass2_completed_at',
+        pass3_completed: 'pass3_completed_at',
+        pass4_completed: null,
+      };
+
+      const columnName = columnMap[stage] ?? null;
+      if (columnName) {
+        stageTimestamps[columnName] = at;
+      }
+
+      logProcessorStage('info', 'stage boundary reached', {
+        jobId,
+        stage,
+        ts: at,
+      });
+
+      if (!columnName) {
+        return;
+      }
+
+      try {
+        await supabase
+          .from('evaluation_jobs')
+          .update({
+            [columnName]: at,
+            updated_at: at,
+          })
+          .eq('id', jobId);
+      } catch (error) {
+        logProcessorStage('warn', 'stage timestamp write failed', {
+          jobId,
+          stage,
+          ts: at,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
 
     const markRunning = async (
       message: string,
@@ -969,9 +1038,20 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           updated_at: now,
         })
         .eq('id', jobId);
+
+      logProcessorStage('info', 'job running stage updated', {
+        jobId,
+        stage: `${phase}_running`,
+        ts: now,
+        message,
+      });
     };
 
-    const markFailed = async (errorMessage: string) => {
+    const markFailed = async (
+      errorMessage: string,
+      validityStatus?: 'invalid' | 'disputed',
+      validityReason?: string,
+    ) => {
       const now = new Date().toISOString();
       const nextProgress = {
         ...progressState,
@@ -990,6 +1070,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
             : 0,
         message: 'Evaluation failed',
         failed_at: now,
+        ...(validityStatus ? { validity_status: validityStatus } : {}),
       };
 
       Object.assign(progressState, nextProgress);
@@ -1005,12 +1086,22 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
             completed_units: nextProgress.completed_units,
             progress: nextProgress,
             last_error: errorMessage,
+            ...(validityStatus ? { validity_status: validityStatus } : {}),
+            ...(validityReason ? { validity_reason: validityReason } : {}),
             updated_at: now,
           })
           .eq('id', jobId);
       } catch (writeError) {
         console.error(`[Processor] Failed writing failure state for job ${jobId}:`, writeError);
       }
+
+      logProcessorStage('warn', 'job failed', {
+        jobId,
+        stage: 'failed',
+        ts: now,
+        error: errorMessage,
+        validityStatus: validityStatus ?? null,
+      });
     };
 
     // 2. Update status to running
@@ -1097,6 +1188,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       manuscriptId: String(manuscriptWithContent.id),
       executionMode: 'TRUSTED_PATH',
       _passTimeoutMs: evalPassTimeoutMs,
+      _stageObserver: async ({ stage, at }) => {
+        await recordStageBoundary(stage, at);
+      },
     });
     console.log(
       `[Processor] ${jobId}: EXIT runPipeline ok=${pipelineResult.ok}` +
@@ -1127,6 +1221,12 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     }
 
     // v2 adapter: produces EvaluationResultV2 with observability-aware status per criterion
+    const promptCoverage = summarizePromptCoverage(manuscriptWithContent.content || '');
+    const sentenceCount = (manuscriptWithContent.content || '')
+      .split(/[.!?]+/)
+      .map((segment) => segment.trim())
+      .filter((segment) => segment.length > 0).length;
+
     const evaluationResult = synthesisToEvaluationResultV2({
       synthesis: pipelineResult.synthesis,
       ids: {
@@ -1137,6 +1237,11 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       },
       crossCheckResult: pipelineResult.cross_check,
       pass4Governance: pipelineResult.pass4_governance,
+      passageCoverageRatio:
+        promptCoverage.sourceWords > 0
+          ? Math.min(1, promptCoverage.analyzedWords / promptCoverage.sourceWords)
+          : 0,
+      sentenceCount,
     });
     console.log(
       `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
@@ -1180,7 +1285,6 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       }
     }
 
-    const promptCoverage = summarizePromptCoverage(manuscriptWithContent.content || '');
     evaluationResult.metrics.manuscript = {
       ...evaluationResult.metrics.manuscript,
       word_count: promptCoverage.sourceWords,
@@ -1210,7 +1314,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     const completionTime = new Date().toISOString();
     const existingProgress = { ...progressState };
 
-    // 5. Persist canonical artifact with idempotent upsert (fail-closed)
+    // 5. Finalizer release gate: validate + persist canonical artifact + complete
     const manuscriptText = manuscriptWithContent.content || '(No content provided)';
     const model = evaluationResult.engine?.model || 'unknown-model';
     const promptVersion = evaluationResult.engine?.prompt_version || 'unknown-prompt';
@@ -1232,68 +1336,43 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     }
 
     try {
-      console.log(
-        `[Processor] ${jobId}: ENTER upsertEvaluationArtifact manuscriptId=${job.manuscript_id}`,
-      );
-      const artifactId = await upsertEvaluationArtifact({
+      const finalizerResult = await finalizeEvaluationJob({
         supabase,
         jobId: job.id,
         manuscriptId: job.manuscript_id,
-        artifactType: 'evaluation_result_v2',
-        content: evaluationResult,
+        evaluationResult,
+        existingProgress,
         sourceHash,
-        artifactVersion: 'evaluation_result_v2',
+        stageTimestamps,
+        totalUnits: EVALUATION_PROGRESS_TOTAL_UNITS,
+        completedUnitsBeforeFinalize: 2,
       });
 
-      console.log(`[Processor] ${jobId}: EXIT upsertEvaluationArtifact id=${artifactId}`);
-      console.log(`[Processor] Canonical artifact upserted: ${artifactId}`);
-    } catch (artifactError) {
-      const errorMsg = artifactError instanceof Error ? artifactError.message : String(artifactError);
-      await markFailed(`Artifact persistence failed: ${errorMsg}`);
+      if (!finalizerResult.ok) {
+        await markFailed(
+          finalizerResult.error || 'Evaluation blocked by finalizer',
+          finalizerResult.validityStatus === 'valid' ? undefined : finalizerResult.validityStatus,
+          finalizerResult.error,
+        );
 
-      return { success: false, error: `Artifact persistence failed: ${errorMsg}` };
-    }
+        return {
+          success: false,
+          error: finalizerResult.error || 'Evaluation blocked by finalizer',
+        };
+      }
+    } catch (finalizerError) {
+      const errorMsg = finalizerError instanceof Error ? finalizerError.message : String(finalizerError);
+      await markFailed(`Finalizer failed: ${errorMsg}`);
 
-    // 6. Store evaluation result and mark complete only after artifact exists
-    console.log(`[Processor] ${jobId}: ENTER completion update`);
-    const { error: updateError } = await supabase
-      .from('evaluation_jobs')
-      .update({
-        status: 'complete',
-        phase: 'phase_2',
-        phase_status: 'complete',
-        total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-        completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-        progress: {
-          ...existingProgress,
-          phase: 'phase_2',
-          phase_status: 'complete',
-          total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-          completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-          message: 'Evaluation completed',
-          finished_at: completionTime,
-        },
-        evaluation_result: evaluationResult,
-        evaluation_result_version: 'evaluation_result_v2',
-        last_heartbeat: completionTime,
-        last_heartbeat_at: completionTime,
-        heartbeat_at: completionTime,
-        last_error: null,
-        updated_at: completionTime
-      })
-      .eq('id', jobId);
-    console.log(
-      `[Processor] ${jobId}: EXIT completion update error=${updateError ? updateError.message : 'none'}`,
-    );
-
-    if (updateError) {
-      await markFailed(`Completion update failed: ${updateError.message}`);
-
-      console.error(`[Processor] Failed to update job ${jobId}:`, updateError);
-      return { success: false, error: `Failed to store result: ${updateError.message}` };
+      return { success: false, error: `Finalizer failed: ${errorMsg}` };
     }
 
     console.log(`[Processor] Job ${jobId} completed successfully`);
+    logProcessorStage('info', 'job completed', {
+      jobId,
+      stage: 'finalized',
+      ts: completionTime,
+    });
 
     return { success: true };
 

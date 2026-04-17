@@ -95,11 +95,30 @@ export interface RunPipelineOptions {
   _governanceInjectionMapLoader?: () => GovernanceInjectionMap;
   manuscriptId?: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
+  _stageObserver?: (event: { stage: string; at: string }) => void | Promise<void>;
   /** Dependency injection for lessons-learned engine (testing only). */
   _lessonsLearned?: {
     evaluateRules?: (input: RuleEvaluationInput, stage?: RuleStage) => LessonsLearnedReport;
     deriveDecision?: (report: LessonsLearnedReport) => EnforcementDecision;
   };
+}
+
+async function emitStageObserver(
+  observer: RunPipelineOptions["_stageObserver"],
+  stage: string,
+): Promise<void> {
+  if (!observer) {
+    return;
+  }
+
+  try {
+    await observer({ stage, at: new Date().toISOString() });
+  } catch (error) {
+    console.warn("[Pipeline] stage observer failed", {
+      stage,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 const DEFAULT_PASS_TIMEOUT_MS = 60_000;
@@ -373,7 +392,12 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     }),
     passTimeoutMs,
     "Pass 1",
-  ).finally(() => {
+  )
+    .then(async (value) => {
+      await emitStageObserver(opts._stageObserver, "pass1_completed");
+      return value;
+    })
+    .finally(() => {
     timings.pass1_ms = nowMs() - pass1StartMs;
   });
 
@@ -391,7 +415,12 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     }),
     passTimeoutMs,
     "Pass 2",
-  ).finally(() => {
+  )
+    .then(async (value) => {
+      await emitStageObserver(opts._stageObserver, "pass2_completed");
+      return value;
+    })
+    .finally(() => {
     timings.pass2_ms = nowMs() - pass2StartMs;
   });
 
@@ -551,6 +580,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       passTimeoutMs,
       "Pass 3",
     );
+      await emitStageObserver(opts._stageObserver, "pass3_completed");
     timings.pass3_ms = nowMs() - pass3StartMs;
   } catch (err) {
     const failure = normalizePassFailure("pass3", err);
@@ -604,6 +634,9 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   const pass4StartMs = nowMs();
   const qualityGate = _runQualityGate(pass3Output, pass1Output, pass2Output, opts.manuscriptText);
   timings.pass4_ms = nowMs() - pass4StartMs;
+  if (qualityGate.pass) {
+    await emitStageObserver(opts._stageObserver, "pass4_completed");
+  }
   if (!qualityGate.pass) {
     const qualityGateCheckpoint = getGovernanceCheckpointById("QUALITY_GATE", governanceInjectionMap);
     const failedChecks = qualityGate.checks.filter((c) => !c.passed);

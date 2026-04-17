@@ -163,6 +163,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       overview: {
         verdict: "pass",
         overall_score_0_100: 82,
+        scored_criteria_count: 13,
         one_paragraph_summary: "Summary",
         top_3_strengths: [],
         top_3_risks: [],

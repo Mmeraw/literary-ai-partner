@@ -28,13 +28,14 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
     .select(`
       evaluation_result,
       status,
+      validity_status,
       manuscripts!inner(user_id)
     `)
     .eq('id', jobId)
     .eq('manuscripts.user_id', userId)
     .single();
 
-  if (error || !job || !job.evaluation_result) {
+  if (error || !job || !job.evaluation_result || job.status !== 'complete' || job.validity_status !== 'valid') {
     return null;
   }
 

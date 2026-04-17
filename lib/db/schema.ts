@@ -23,6 +23,8 @@ export type EvaluationJobRow = {
   manuscript_id: number;
   job_type: string;
   status: string;
+  validity_status: string | null;
+  validity_reason: string | null;
   progress: Record<string, unknown> | null;
   total_units: number | null;
   completed_units: number | null;
@@ -32,6 +34,12 @@ export type EvaluationJobRow = {
   last_error: string | null;
   failure_envelope: Record<string, unknown> | null;
   created_at: string;
+  queued_at: string | null;
+  started_at: string | null;
+  pass1_completed_at: string | null;
+  pass2_completed_at: string | null;
+  pass3_completed_at: string | null;
+  finalized_at: string | null;
   updated_at: string;
   last_heartbeat: string | null;
   phase: string;
