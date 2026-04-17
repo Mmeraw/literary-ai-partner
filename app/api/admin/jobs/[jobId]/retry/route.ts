@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { rateLimit, getClientIp } from "@/lib/rateLimit";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isNonTransientFailure } from "@/lib/jobs/failures";
+import type { FailureCode } from "@/lib/jobs/failures";
 
 /**
  * POST /api/admin/jobs/[jobId]/retry
@@ -79,6 +81,9 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     const result = data[0];
     const changed = result.changed === true;
+    const failureCode: FailureCode | undefined = result.failure_code ?? undefined;
+    const failureCodeNonRetryable =
+      failureCode !== undefined && isNonTransientFailure(failureCode);
 
     // If not changed, return no-op (idempotent)
     if (!changed) {
@@ -89,6 +94,8 @@ export async function POST(req: NextRequest, context: RouteContext) {
           error: `Job is not retryable (current status: ${result.status})`,
           job_id: result.job_id,
           status: result.status,
+          failure_code: failureCode ?? null,
+          failure_code_retryable: failureCode ? !failureCodeNonRetryable : null,
         },
         { status: 409 }
       );
@@ -120,6 +127,9 @@ export async function POST(req: NextRequest, context: RouteContext) {
       changed: true,
       job_id: result.job_id,
       status: result.status,
+      failure_code: failureCode ?? null,
+      failure_code_retryable: failureCode ? !failureCodeNonRetryable : null,
+      operator_override: failureCodeNonRetryable,
     });
   } catch (err) {
     console.error(`[Admin Retry] Unexpected error for job ${jobId}:`, err);

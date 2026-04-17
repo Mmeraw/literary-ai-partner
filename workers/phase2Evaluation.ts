@@ -22,6 +22,7 @@ import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
 } from '@/lib/evaluation/policy';
+import { classifyError, isTransientFailure } from '@/lib/jobs/failures';
 
 const LEGACY_PHASE2_WORKER_ENABLED = process.env.ENABLE_LEGACY_PHASE2_WORKER === '1';
 
@@ -500,21 +501,10 @@ function getSupabaseClient() {
 }
 
 /**
- * Determine if error is retryable
+ * Determine if error is retryable.
+ * Delegates to the canonical failure taxonomy in lib/jobs/failures.ts
+ * rather than ad-hoc message-string heuristics (#18.R).
  */
 export function isRetryableError(error: Error): boolean {
-  const message = error.message.toLowerCase();
-  
-  // Retryable: rate limits, timeouts, network errors
-  if (message.includes('rate limit')) return true;
-  if (message.includes('timeout')) return true;
-  if (message.includes('network')) return true;
-  if (message.includes('econnreset')) return true;
-  
-  // Not retryable: auth errors, invalid requests
-  if (message.includes('invalid api key')) return false;
-  if (message.includes('authentication')) return false;
-  
-  // Default: retry most errors
-  return true;
+  return isTransientFailure(classifyError(error));
 }
