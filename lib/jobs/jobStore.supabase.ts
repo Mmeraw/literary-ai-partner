@@ -3,6 +3,7 @@ import { validateProgressForPhase } from "./validation";
 import {
   assertValidJobStatusTransition,
   normalizeEvaluationJobStatus,
+  normalizeEvaluationValidityStatus,
 } from "../evaluation/status";
 import {
   migrateProgressPhaseToCanonical,
@@ -13,7 +14,7 @@ import { Job, JobStatus, JobType, PHASES, Phase, JOB_STATUS, JobProgress } from 
 import { getLeaseTimeoutSeconds } from "./config";
 
 const JOB_SELECT_FIELDS =
-  "id, manuscript_id, user_id, job_type, status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id)";
+  "id, manuscript_id, user_id, job_type, status, validity_status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id)";
 
 // Lazy-initialized Supabase client - null-safe for CI/build environments
 let _supabase: ReturnType<typeof createAdminClient> | undefined;
@@ -153,6 +154,7 @@ export async function createJob(input: {
     user_id: input.user_id,
     job_type: JOB_TYPE_TO_DB[input.job_type] ?? input.job_type,
     status: normalizeLifecycleStatus(JOB_STATUS.QUEUED),
+    validity_status: normalizeEvaluationValidityStatus("pending"),
     progress: {
       phase: PHASES.PHASE_1,
       phase_status: JOB_STATUS.QUEUED, // CANON: aligned with JobStatus
@@ -691,6 +693,7 @@ function mapDbRowToJob(row: any): Job {
     manuscript_id: Number(row.manuscript_id), // BigInt from DB → number
     job_type: JOB_TYPE_FROM_DB[row.job_type] ?? row.job_type,
     status: row.status,
+    validity_status: normalizeEvaluationValidityStatus(row.validity_status ?? "pending"),
     progress: completeProgress,
     created_at: row.created_at,
     updated_at: row.updated_at,

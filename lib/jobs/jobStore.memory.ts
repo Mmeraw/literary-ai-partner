@@ -65,6 +65,7 @@ export function createJob(input: { manuscript_id: string; job_type: JobType; use
     manuscript_id: input.manuscript_id, // Keep as-is for test compatibility (string or number)
     job_type: input.job_type,
     status: "queued",
+    validity_status: "pending",
     progress: {
       // CANON: phase + phase_status are the stored state machine keys
       // phase: phase_0 | phase_1 | phase_2

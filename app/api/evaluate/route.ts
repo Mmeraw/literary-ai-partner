@@ -155,6 +155,7 @@ export async function POST(req: Request) {
         manuscript_id: manuscriptId,
         user_id: userId,
         job_type: "full_evaluation",
+        validity_status: "pending",
         phase: PHASES.PHASE_1,
         phase_status: "queued",
         policy_family: "standard",
