@@ -101,6 +101,32 @@ END $$;
 -- -------------------------------------------------------------------------
 -- STEP 5: Drop validity_status column
 -- -------------------------------------------------------------------------
+-- Warn (without blocking) if rollback will discard adjudicated validity states.
+DO $$
+DECLARE
+  non_pending_count integer;
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evaluation_jobs'
+      AND column_name = 'validity_status'
+  ) THEN
+    SELECT COUNT(*)
+    INTO non_pending_count
+    FROM evaluation_jobs
+    WHERE validity_status IS NOT NULL
+      AND validity_status != 'pending';
+
+    IF non_pending_count > 0 THEN
+      RAISE NOTICE
+        'Rollback warning: % row(s) have non-pending validity_status values that will be lost.',
+        non_pending_count;
+    END IF;
+  END IF;
+END $$;
+
 ALTER TABLE evaluation_jobs
   DROP COLUMN IF EXISTS validity_status;
 
