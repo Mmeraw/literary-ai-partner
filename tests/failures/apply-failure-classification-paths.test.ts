@@ -214,15 +214,17 @@ describe("Phase 2.4.c — apply-path failure classification proof", () => {
       // 4) Read via jobs store path and verify surfaced failure_code
       const job = await jobStoreSupabase.getJob("job-1");
       expect(job).toBeTruthy();
-      expect(job?.status).toBe(retryable ? "queued" : "failed");
+      expect(job?.status).toBe("failed");
       expect(job?.failure_code).toBe(code);
       expect(job?.last_error).toContain(messageFragment);
 
       // 5) Specific status behavior check for retryable vs non-retryable
       if (code === RevisionFailureCode.PARSE_ERROR) {
-        expect(updatePayload.status).toBe("queued");
+        expect(updatePayload.status).toBe("failed");
+        expect(updatePayload.next_attempt_at).toBe("2026-03-19T00:10:00.000Z");
       } else {
         expect(updatePayload.status).toBe("failed");
+        expect(updatePayload.next_attempt_at).toBeUndefined();
       }
     },
   );

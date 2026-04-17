@@ -1,6 +1,9 @@
 import { createAdminClient } from "../supabase/admin";
-import { assertValidTransition, isValidTransition } from "./transitions";
 import { validateProgressForPhase } from "./validation";
+import {
+  assertValidJobStatusTransition,
+  normalizeEvaluationJobStatus,
+} from "../evaluation/status";
 import {
   migrateProgressPhaseToCanonical,
   migrateProgressStageToPhaseStatus,
@@ -85,6 +88,16 @@ function assertCanonicalPhaseStatusValue(value: string | null | undefined): void
   assertCanonicalStatusValue(value);
 }
 
+function normalizeLifecycleStatus(value: unknown): JobStatus {
+  return normalizeEvaluationJobStatus(value) as JobStatus;
+}
+
+function assertAndNormalizeLifecycleTransition(from: JobStatus, to: unknown): JobStatus {
+  const next = normalizeLifecycleStatus(to);
+  assertValidJobStatusTransition(from, next);
+  return next;
+}
+
 function validateProgressWrite(progress: Record<string, unknown>): void {
   validateProgressSchema(progress);
   if ("phase" in progress && typeof progress.phase === "string") {
@@ -139,10 +152,10 @@ export async function createJob(input: {
     manuscript_id: manuscriptId,
     user_id: input.user_id,
     job_type: JOB_TYPE_TO_DB[input.job_type] ?? input.job_type,
-    status: "queued" as JobStatus,
+    status: normalizeLifecycleStatus(JOB_STATUS.QUEUED),
     progress: {
       phase: PHASES.PHASE_1,
-      phase_status: "queued", // CANON: aligned with JobStatus
+      phase_status: JOB_STATUS.QUEUED, // CANON: aligned with JobStatus
       message: "Job created",
     },
     // keep phase/phase_status only in progress JSON for consistency
@@ -196,11 +209,16 @@ export async function getJob(id: string): Promise<Job | null> {
       job.progress,
     );
 
+    const failedStatus = assertAndNormalizeLifecycleTransition(
+      job.status,
+      JOB_STATUS.FAILED,
+    );
+
     // Mark job as failed and clear lease (best-effort)
     const { error: updateError } = await supabase
       .from("evaluation_jobs")
       .update({
-        status: JOB_STATUS.FAILED,
+        status: failedStatus,
         progress: {
           ...job.progress,
           error_code: validationErr,
@@ -244,17 +262,17 @@ export async function updateJob(
   const existing = await getJob(id);
   if (!existing) return null;
 
+  let nextStatus: JobStatus | null = null;
   if (updates.status) {
-    assertCanonicalStatusValue(updates.status);
-    assertValidTransition(existing, updates.status as JobStatus);
+    nextStatus = assertAndNormalizeLifecycleTransition(existing.status, updates.status);
   }
 
   const payload: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
 
-  if (updates.status) {
-    payload.status = updates.status;
+  if (nextStatus) {
+    payload.status = nextStatus;
   }
 
   // Always merge progress to preserve existing fields
@@ -294,14 +312,11 @@ export async function safeUpdateJobStatus(
   const job = await getJob(id);
   if (!job) return null;
 
-  if (!isValidTransition(job.status, nextStatus)) {
-    const err = `Invalid status transition: ${job.status} -> ${nextStatus} (reason: ${reason})`;
-    console.error(`[InvalidTransition] job_id=${id} ${err}`);
-    throw new Error(err);
-  }
+  const normalizedNext = assertAndNormalizeLifecycleTransition(job.status, nextStatus);
+  console.log(`[JobStatusUpdate] job_id=${id} ${job.status} -> ${normalizedNext} reason=${reason}`);
 
   const progress = extraProgress ? { ...job.progress, ...extraProgress } : job.progress;
-  return updateJob(id, { status: nextStatus, progress });
+  return updateJob(id, { status: normalizedNext, progress });
 }
 
 /**
@@ -391,13 +406,17 @@ export async function acquireLeaseForPhase2(
 
     if (deadLease) {
       const nowIso = new Date().toISOString();
+      const failedStatus = assertAndNormalizeLifecycleTransition(
+        existing.status,
+        JOB_STATUS.FAILED,
+      );
       const errorMessage =
         "Lease expired with no heartbeat; marking job failed to prevent stuck running state";
 
       const { data: failedRow, error: failError } = await supabase
         .from("evaluation_jobs")
         .update({
-          status: JOB_STATUS.FAILED,
+          status: failedStatus,
           last_error: errorMessage,
           failure_envelope: {
             error_code: "LEASE_EXPIRED",
@@ -546,6 +565,11 @@ export async function setJobFailed(
   const attemptCount = jobRow.attempt_count ?? 0;
   const maxAttempts = jobRow.max_attempts ?? 3;
   const nextAttempt = attemptCount + 1;
+
+  const failedStatus = assertAndNormalizeLifecycleTransition(
+    job.status,
+    JOB_STATUS.FAILED,
+  );
   
   // Determine if we should retry or permanently fail
   const shouldRetry = errorEnvelope.retryable && nextAttempt <= maxAttempts;
@@ -573,23 +597,23 @@ export async function setJobFailed(
     
     updatePayload = {
       ...updatePayload,
-      status: JOB_STATUS.QUEUED,
+      status: failedStatus,
       next_attempt_at: nextAttemptAt,
       progress: {
         ...job.progress,
-        phase_status: 'queued',
-        message: `Retry scheduled (attempt ${nextAttempt}/${maxAttempts})`,
+        phase_status: JOB_STATUS.FAILED,
+        message: `Retry eligible (attempt ${nextAttempt}/${maxAttempts}); awaiting explicit requeue`,
       },
     };
   } else {
     // Permanently failed (either non-retryable or exhausted attempts)
     updatePayload = {
       ...updatePayload,
-      status: JOB_STATUS.FAILED,
+      status: failedStatus,
       failed_at: now,
       progress: {
         ...job.progress,
-        phase_status: 'failed',
+        phase_status: JOB_STATUS.FAILED,
         finished_at: now,
         message: errorEnvelope.retryable
           ? `Max retries exhausted (${maxAttempts})`

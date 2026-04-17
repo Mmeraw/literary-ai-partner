@@ -5,16 +5,19 @@
 // Validity status: is the completed evaluation releasable/trustworthy?
 // These are NOT interchangeable.
 
+import { isValidTransition } from "../jobs/transitions";
+import { JOB_STATUS, type JobStatus } from "../jobs/types";
+
 // --- Lifecycle ---
 
 export const EVALUATION_JOB_STATUSES = [
-  "queued",
-  "running",
-  "complete",
-  "failed",
+  JOB_STATUS.QUEUED,
+  JOB_STATUS.RUNNING,
+  JOB_STATUS.COMPLETE,
+  JOB_STATUS.FAILED,
 ] as const;
 
-export type EvaluationJobStatus = (typeof EVALUATION_JOB_STATUSES)[number];
+export type EvaluationJobStatus = JobStatus;
 
 // --- Validity / Release ---
 
@@ -60,20 +63,11 @@ export function normalizeEvaluationValidityStatus(
   return normalized as EvaluationValidityStatus;
 }
 
-// --- Transition guard ---
-
-const ALLOWED_TRANSITIONS: Record<EvaluationJobStatus, EvaluationJobStatus[]> = {
-  queued: ["running", "failed"],
-  running: ["complete", "failed"],
-  complete: [],
-  failed: [],
-};
-
 export function assertValidJobStatusTransition(
   from: EvaluationJobStatus,
   to: EvaluationJobStatus,
 ): void {
-  if (!ALLOWED_TRANSITIONS[from].includes(to)) {
+  if (!isValidTransition(from, to)) {
     throw new Error(
       `Invalid evaluation job status transition: ${from} -> ${to}`,
     );
