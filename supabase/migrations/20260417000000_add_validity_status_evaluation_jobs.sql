@@ -33,7 +33,11 @@
 -- ============================================================
 
 ALTER TABLE evaluation_jobs
-ADD COLUMN IF NOT EXISTS validity_status text;
+ADD COLUMN IF NOT EXISTS validity_status text DEFAULT 'pending';
+
+-- Ensure default is present even if the column already existed
+ALTER TABLE evaluation_jobs
+ALTER COLUMN validity_status SET DEFAULT 'pending';
 
 -- ============================================================
 -- STEP 2: Normalize existing status values (defensive)
@@ -43,6 +47,39 @@ UPDATE evaluation_jobs
 SET status = LOWER(TRIM(status))
 WHERE status IS NOT NULL
   AND status != LOWER(TRIM(status));
+
+-- ============================================================
+-- STEP 2.5: Map known legacy lifecycle values to canonical set
+-- ============================================================
+-- Keep this in-migration to avoid split-brain between code assumptions and DB truth.
+
+UPDATE evaluation_jobs
+SET status = 'complete'
+WHERE status = 'completed';
+
+UPDATE evaluation_jobs
+SET status = 'running'
+WHERE status = 'in_progress';
+
+UPDATE evaluation_jobs
+SET status = 'failed'
+WHERE status IN ('error', 'cancelled', 'canceled');
+
+-- Fail closed if any unknown status values remain before CHECK is added
+DO $$
+DECLARE
+  unknown_statuses text;
+BEGIN
+  SELECT string_agg(DISTINCT status, ', ' ORDER BY status)
+  INTO unknown_statuses
+  FROM evaluation_jobs
+  WHERE status IS NOT NULL
+    AND status NOT IN ('queued', 'running', 'complete', 'failed');
+
+  IF unknown_statuses IS NOT NULL THEN
+    RAISE EXCEPTION 'Non-canonical evaluation_jobs.status values remain before constraint: %', unknown_statuses;
+  END IF;
+END $$;
 
 -- ============================================================
 -- STEP 3: Normalize validity_status values (defensive)
@@ -112,5 +149,3 @@ CHECK (validity_status IN ('pending', 'valid', 'invalid', 'quarantined'));
 --
 -- SELECT DISTINCT status FROM evaluation_jobs ORDER BY status;
 -- SELECT DISTINCT validity_status FROM evaluation_jobs ORDER BY validity_status;
-
-COMMIT;
