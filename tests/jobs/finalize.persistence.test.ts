@@ -5,6 +5,7 @@ import type {
   EvaluationJob,
   PassArtifact,
 } from "@/lib/jobs/finalize.types";
+import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 
 function makePass(passId: "pass1" | "pass2" | "pass3", id: string): PassArtifact {
   return {
@@ -15,25 +16,23 @@ function makePass(passId: "pass1" | "pass2" | "pass3", id: string): PassArtifact
     manuscript_revision_id: "rev-1",
     generated_at: new Date().toISOString(),
     summary: `${passId} summary`,
-    criteria: [
-      {
-        criterion_id: "sceneConstruction",
-        score_0_10: 8,
-        rationale: "Supported by evidence.",
-        confidence_0_1: 0.8,
-        evidence: [
-          {
-            anchor_id: `${id}-a1`,
-            source_type: "manuscript_chunk",
-            source_ref: "chunk-1",
-            start_offset: 10,
-            end_offset: 25,
-            excerpt: "Example excerpt",
-          },
-        ],
-        warnings: [],
-      },
-    ],
+    criteria: CRITERIA_KEYS.map((key, idx) => ({
+      criterion_id: key,
+      score_0_10: 7,
+      rationale: `Rationale for ${key} in ${passId}.`,
+      confidence_0_1: 0.8,
+      evidence: [
+        {
+          anchor_id: `${id}-a${idx + 1}`,
+          source_type: "manuscript_chunk" as const,
+          source_ref: `chunk-${idx + 1}`,
+          start_offset: 10,
+          end_offset: 25,
+          excerpt: `Evidence for ${key}`,
+        },
+      ],
+      warnings: [],
+    })),
     provenance: {
       evaluator_version: "eval-v1",
       prompt_pack_version: "pack-v1",
