@@ -48,37 +48,94 @@ SET status = LOWER(TRIM(status))
 WHERE status IS NOT NULL
   AND status != LOWER(TRIM(status));
 
--- ============================================================
--- STEP 2.5: Map known legacy lifecycle values to canonical set
--- ============================================================
--- Keep this in-migration to avoid split-brain between code assumptions and DB truth.
+-- =========================================================================
+-- STEP 2.5: Map legacy non-canonical lifecycle values to canonical set
+-- =========================================================================
+-- Context:
+--   Prior to 18.6, evaluation_jobs.status had no DB-level CHECK constraint.
+--   Historical rows may contain values outside the canonical lifecycle set
+--   {queued, running, complete, failed}. Before adding the CHECK in Step 6,
+--   we must map any legacy values to their canonical equivalents, or the
+--   constraint addition will fail and leave the migration half-applied.
+--
+-- Mapping policy (conservative, lifecycle-only — no validity inference):
+--   - 'completed'        -> 'complete'    (synonym; same lifecycle state)
+--   - 'complete'         -> 'complete'    (no-op; already canonical)
+--   - 'in_progress'      -> 'running'     (synonym)
+--   - 'in-progress'      -> 'running'     (hyphen variant)
+--   - 'inprogress'       -> 'running'     (concatenated variant)
+--   - 'processing'       -> 'running'     (legacy worker vocabulary)
+--   - 'pending'          -> 'queued'      (pre-claim state; NOT validity)
+--   - 'waiting'          -> 'queued'
+--   - 'error'            -> 'failed'      (error is an outcome, not a state)
+--   - 'errored'          -> 'failed'
+--   - 'cancelled'        -> 'failed'      (cancellation is a terminal non-success)
+--   - 'canceled'         -> 'failed'      (US spelling variant)
+--   - 'aborted'          -> 'failed'
+--   - 'timeout'          -> 'failed'      (timeout is terminal; retry decided by FailureCode)
+--   - 'timed_out'        -> 'failed'
+--
+-- Doctrinal notes:
+--   - This step does NOT touch validity_status. Lifecycle and validity remain
+--     separate contracts (see 18.R / 151 / 152).
+--   - 'cancelled' maps to 'failed' at the lifecycle layer; if a distinct
+--     cancelled FailureCode is desired later, that is a retry-policy change,
+--     not a lifecycle expansion (out of scope for 18.6).
+--   - Any value NOT in the mapping below will trip Step 6's CHECK. That is
+--     intentional: unknown legacy vocabulary must be reviewed manually, not
+--     silently remapped. See PRE-MIGRATION AUDIT output in PR body.
+-- =========================================================================
+
+-- Preview what will be remapped (run before UPDATE for the PR audit trail):
+-- SELECT status AS legacy_status, COUNT(*) AS row_count
+-- FROM evaluation_jobs
+-- WHERE status NOT IN ('queued', 'running', 'complete', 'failed')
+-- GROUP BY status
+-- ORDER BY row_count DESC;
 
 UPDATE evaluation_jobs
-SET status = 'complete'
-WHERE status = 'completed';
+SET status = CASE status
+    WHEN 'completed'    THEN 'complete'
+    WHEN 'in_progress'  THEN 'running'
+    WHEN 'in-progress'  THEN 'running'
+    WHEN 'inprogress'   THEN 'running'
+    WHEN 'processing'   THEN 'running'
+    WHEN 'pending'      THEN 'queued'
+    WHEN 'waiting'      THEN 'queued'
+    WHEN 'error'        THEN 'failed'
+    WHEN 'errored'      THEN 'failed'
+    WHEN 'cancelled'    THEN 'failed'
+    WHEN 'canceled'     THEN 'failed'
+    WHEN 'aborted'      THEN 'failed'
+    WHEN 'timeout'      THEN 'failed'
+    WHEN 'timed_out'    THEN 'failed'
+    ELSE status  -- canonical values pass through unchanged
+END
+WHERE status IN (
+    'completed', 'in_progress', 'in-progress', 'inprogress', 'processing',
+    'pending', 'waiting',
+    'error', 'errored', 'cancelled', 'canceled', 'aborted',
+    'timeout', 'timed_out'
+);
 
-UPDATE evaluation_jobs
-SET status = 'running'
-WHERE status = 'in_progress';
-
-UPDATE evaluation_jobs
-SET status = 'failed'
-WHERE status IN ('error', 'cancelled', 'canceled');
-
--- Fail closed if any unknown status values remain before CHECK is added
+-- Fail-fast guard: if ANY non-canonical values remain, abort the migration
+-- with a clear error BEFORE Step 6 adds the CHECK and produces a cryptic
+-- constraint-violation message.
 DO $$
 DECLARE
-  unknown_statuses text;
+    bad_count integer;
+    bad_values text;
 BEGIN
-  SELECT string_agg(DISTINCT status, ', ' ORDER BY status)
-  INTO unknown_statuses
-  FROM evaluation_jobs
-  WHERE status IS NOT NULL
-    AND status NOT IN ('queued', 'running', 'complete', 'failed');
+    SELECT COUNT(*), string_agg(DISTINCT status, ', ')
+    INTO bad_count, bad_values
+    FROM evaluation_jobs
+    WHERE status NOT IN ('queued', 'running', 'complete', 'failed');
 
-  IF unknown_statuses IS NOT NULL THEN
-    RAISE EXCEPTION 'Non-canonical evaluation_jobs.status values remain before constraint: %', unknown_statuses;
-  END IF;
+    IF bad_count > 0 THEN
+        RAISE EXCEPTION
+            '18.6 migration aborted: % row(s) have non-canonical status values not covered by the Step 2.5 mapping: [%]. Extend the CASE expression in Step 2.5 with explicit mappings, or clean the rows manually, then re-run.',
+            bad_count, bad_values;
+    END IF;
 END $$;
 
 -- ============================================================
