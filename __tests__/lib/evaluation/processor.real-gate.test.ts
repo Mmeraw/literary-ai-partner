@@ -132,6 +132,10 @@ function makeSupabaseStub() {
     user_id: "00000000-0000-0000-0000-000000000002",
   };
 
+    const artifactReadBack = {
+    id: "artifact-real-gate-pass",
+  };
+
   return {
     evaluationJobUpdates,
     from(table: string) {
@@ -155,6 +159,18 @@ function makeSupabaseStub() {
               single: async () => ({ data: manuscript, error: null }),
             }),
           }),
+        };
+              }
+              if (table === "evaluation_artifacts") {
+        return {
+          select: () => {
+            const query = {
+              eq: () => query,
+              maybeSingle: async () => ({ data: artifactReadBack, error: null }),
+            };
+
+            return query;
+          },
         };
       }
       throw new Error(`Unexpected table in real-gate test stub: ${table}`);

@@ -1252,6 +1252,20 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
       console.log(`[Processor] ${jobId}: EXIT upsertEvaluationArtifact id=${artifactId}`);
       console.log(`[Processor] Canonical artifact upserted: ${artifactId}`);
+
+          // Fail-closed read-back: verify artifact was actually persisted
+    const { data: readBackArtifact, error: readBackError } = await supabase
+      .from('evaluation_artifacts')
+      .select('id')
+      .eq('job_id', job.id)
+      .eq('manuscript_id', job.manuscript_id)
+      .eq('artifact_type', 'evaluation_result_v2')
+      .maybeSingle();
+    if (readBackError || !readBackArtifact) {
+      const readBackMsg = `Fail-closed: artifact read-back failed after upsert (${readBackError?.message ?? 'row not found'})`;
+      await markFailed(readBackMsg);
+      return { success: false, error: readBackMsg };
+    }
     } catch (artifactError) {
       const errorMsg = artifactError instanceof Error ? artifactError.message : String(artifactError);
       await markFailed(`Artifact persistence failed: ${errorMsg}`);
@@ -1284,7 +1298,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         last_heartbeat_at: completionTime,
         heartbeat_at: completionTime,
         last_error: null,
-        updated_at: completionTime
+        updated_at: completionTime,
                   // Per-stage timestamps (R4 observability)
           completed_at: completionTime,
           phase2_completed_at: completionTime,
