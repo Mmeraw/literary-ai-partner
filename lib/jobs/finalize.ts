@@ -1,20 +1,19 @@
 /**
  * Finalizer — RevisionGrade Phase 1
- * 
+ *
  * The sole truth gate between execution and canonical artifact publication.
- * 
+ *
  * Rules:
  * - No code path sets job.status = "complete" outside this module
  * - No report renders without Finalizer-approved canonical artifact
  * - No missing pass artifact tolerated
  * - No partial-complete states
  * - All decisions reconstructable from logs and persisted state
- * 
+ *
  * Architecture:
  * Layer 1 — Pure domain logic (validate, enforce, build)
  * Layer 2 — Side effects (fetch, persist, update)
  */
-
 import type {
   EvaluationJob,
   PassArtifact,
@@ -33,6 +32,7 @@ import {
   assertFinalizerAuthority,
   assertRequiredArtifactsPresent,
   enforcePassSeparation,
+  enforceCriterionCompleteness,
   enforceAnchorIntegrity,
   enforceA6Credibility,
   assertPreCompletionInvariants,
@@ -42,7 +42,6 @@ import {
 export const FINALIZER_VERSION = "1.0.0";
 
 // === Storage Interface (injected) ===
-
 export interface FinalizerStorage {
   getJob(jobId: string): Promise<EvaluationJob | null>;
   getPassArtifact(artifactId: string): Promise<PassArtifact | null>;
@@ -208,6 +207,9 @@ export async function finalizeJob(
 
     // Step 5: Pass separation enforcement
     enforcePassSeparation(pass1, pass2, pass3, convergence);
+
+    // Step 5.5: Criterion completeness gate (Item #8)
+    enforceCriterionCompleteness(pass1, pass2, pass3);
 
     // Step 6: Anchor integrity
     enforceAnchorIntegrity(pass1, pass2, pass3, convergence);

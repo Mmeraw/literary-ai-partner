@@ -3,7 +3,6 @@
  * Source of truth for retryability decisions.
  * EVALUATION_GATE_REJECTED is non-transient: never retry.
  */
-
 export const FAILURE_CODES = [
   // Transient / retriable
   'TIMEOUT',
@@ -26,6 +25,7 @@ export const FAILURE_CODES = [
   'VALIDATION_ERROR',
   'CANONICAL_ARTIFACT_WRITE_FAILED',
   'SUMMARY_PROJECTION_FAILED',
+  'CRITERION_COMPLETENESS_FAILED',
 ] as const;
 
 export type FailureCode = typeof FAILURE_CODES[number];
@@ -43,6 +43,7 @@ const NON_TRANSIENT_CODES = new Set<FailureCode>([
   'VALIDATION_ERROR',
   'CANONICAL_ARTIFACT_WRITE_FAILED',
   'SUMMARY_PROJECTION_FAILED',
+  'CRITERION_COMPLETENESS_FAILED',
 ]);
 
 export function assertValidFailureCode(raw: string): asserts raw is FailureCode {
