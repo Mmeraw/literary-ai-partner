@@ -1,0 +1,39 @@
+name: Fixture Canon Guard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '__tests__/**'
+      - 'lib/jobs/**'
+      - 'schemas/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '__tests__/**'
+      - 'lib/jobs/**'
+      - 'schemas/**'
+
+jobs:
+  fixture-canon-guard:
+    name: Fixture Canon Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run fixture canon guard tests
+        run: npx jest --testPathPattern='fixture-canon-guard' --runInBand --verbose
+
+  fixture-guard-gate:
+    name: Fixture Guard Gate (must pass)
+    needs: [fixture-canon-guard]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'All fixture canon guard checks passed'
