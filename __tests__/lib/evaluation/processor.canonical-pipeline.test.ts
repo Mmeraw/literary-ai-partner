@@ -95,6 +95,17 @@ function makeSupabaseStub() {
           }),
         };
       }
+            if (table === "evaluation_artifacts") {
+        return {
+          select: () => {
+            const query = {
+              eq: () => query,
+              maybeSingle: async () => ({ data: { id: "artifact-canonical-pass" }, error: null }),
+            };
+            return query;
+          },
+        };
+      }
 
       throw new Error(`Unexpected table in canonical pipeline test stub: ${table}`);
     },
