@@ -15,15 +15,53 @@ import { getLeaseTimeoutSeconds } from "./config";
 
 const JOB_SELECT_FIELDS =
   "id, manuscript_id, user_id, job_type, status, validity_status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id)";
+const JOB_SELECT_FIELDS_LEGACY =
+  "id, manuscript_id, user_id, job_type, status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id)";
 
 // Lazy-initialized Supabase client - null-safe for CI/build environments
 let _supabase: ReturnType<typeof createAdminClient> | undefined;
+let _supportsValidityStatusColumn: boolean | undefined;
 
 function getSupabase() {
   if (_supabase === undefined) {
     _supabase = createAdminClient();
   }
   return _supabase;
+}
+
+function isMissingValidityStatusColumnError(error: unknown): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : "";
+
+  return message.includes("validity_status") && message.includes("does not exist");
+}
+
+async function getJobSelectFields(): Promise<string> {
+  if (_supportsValidityStatusColumn !== undefined) {
+    return _supportsValidityStatusColumn ? JOB_SELECT_FIELDS : JOB_SELECT_FIELDS_LEGACY;
+  }
+
+  const { error } = await supabase
+    .from("evaluation_jobs")
+    .select("id, validity_status")
+    .limit(1);
+
+  if (!error) {
+    _supportsValidityStatusColumn = true;
+    return JOB_SELECT_FIELDS;
+  }
+
+  if (isMissingValidityStatusColumnError(error)) {
+    _supportsValidityStatusColumn = false;
+    console.warn(
+      "[JOB-STORE-SUPABASE] validity_status column missing; falling back to legacy select fields until migrations are applied.",
+    );
+    return JOB_SELECT_FIELDS_LEGACY;
+  }
+
+  throw new Error(`Failed to probe evaluation_jobs validity_status support: ${error.message}`);
 }
 
 // Module-level accessor that throws meaningful errors when Supabase unavailable
@@ -149,12 +187,17 @@ export async function createJob(input: {
     manuscriptId = parsed;
   }
 
+  const jobSelectFields = await getJobSelectFields();
+  const includeValidityStatus = jobSelectFields === JOB_SELECT_FIELDS;
+
   const payload = {
     manuscript_id: manuscriptId,
     user_id: input.user_id,
     job_type: JOB_TYPE_TO_DB[input.job_type] ?? input.job_type,
     status: normalizeLifecycleStatus(JOB_STATUS.QUEUED),
-    validity_status: normalizeEvaluationValidityStatus("pending"),
+    ...(includeValidityStatus
+      ? { validity_status: normalizeEvaluationValidityStatus("pending") }
+      : {}),
     progress: {
       phase: PHASES.PHASE_1,
       phase_status: JOB_STATUS.QUEUED, // CANON: aligned with JobStatus
@@ -172,7 +215,7 @@ export async function createJob(input: {
   const { data, error } = await supabase
     .from("evaluation_jobs")
     .insert(payload)
-    .select(JOB_SELECT_FIELDS)
+    .select(jobSelectFields)
     .single();
 
   if (error) {
@@ -189,9 +232,10 @@ export async function createJob(input: {
 }
 
 export async function getJob(id: string): Promise<Job | null> {
+  const jobSelectFields = await getJobSelectFields();
   const { data, error } = await supabase
     .from("evaluation_jobs")
-    .select(JOB_SELECT_FIELDS)
+    .select(jobSelectFields)
     .eq("id", id)
     .maybeSingle();
 
@@ -245,9 +289,10 @@ export async function getJob(id: string): Promise<Job | null> {
 }
 
 export async function getAllJobs(): Promise<Job[]> {
+  const jobSelectFields = await getJobSelectFields();
   const { data, error } = await supabase
     .from("evaluation_jobs")
-    .select(JOB_SELECT_FIELDS)
+    .select(jobSelectFields)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -261,6 +306,7 @@ export async function updateJob(
   id: string,
   updates: Partial<Pick<Job, "status" | "progress">>,
 ): Promise<Job | null> {
+  const jobSelectFields = await getJobSelectFields();
   const existing = await getJob(id);
   if (!existing) return null;
 
@@ -292,7 +338,7 @@ export async function updateJob(
     .from("evaluation_jobs")
     .update(payload)
     .eq("id", id)
-    .select(JOB_SELECT_FIELDS)
+    .select(jobSelectFields)
     .single();
 
   if (error) {
@@ -407,6 +453,7 @@ export async function acquireLeaseForPhase2(
     const deadLease = !heartbeatAt || heartbeatTime <= leaseExpiryTime;
 
     if (deadLease) {
+      const jobSelectFields = await getJobSelectFields();
       const nowIso = new Date().toISOString();
       const failedStatus = assertAndNormalizeLifecycleTransition(
         existing.status,
@@ -448,7 +495,7 @@ export async function acquireLeaseForPhase2(
         })
         .eq("id", id)
         .eq("status", JOB_STATUS.RUNNING)
-        .select(JOB_SELECT_FIELDS)
+        .select(jobSelectFields)
         .maybeSingle();
 
       if (failError) {
@@ -502,6 +549,7 @@ export async function incrementCounter(
   counterName: string,
   increment = 1,
 ): Promise<Job | null> {
+  const jobSelectFields = await getJobSelectFields();
   const existing = await getJob(id);
   if (!existing) return null;
 
@@ -518,7 +566,7 @@ export async function incrementCounter(
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
-    .select(JOB_SELECT_FIELDS)
+    .select(jobSelectFields)
     .single();
 
   if (error) {
