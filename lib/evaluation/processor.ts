@@ -967,6 +967,10 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           last_heartbeat_at: now,
           heartbeat_at: now,
           updated_at: now,
+                      // Per-stage timestamps (R4 observability)
+            ...(phase === 'phase_1' ? { phase1_started_at: now } : {}),
+            ...(phase === 'phase_2' ? { phase2_started_at: now } : {}),
+                      ...(phase === 'phase_2' ? { phase1_completed_at: now } : {}), // phase_2 entry implies phase_1 done
         })
         .eq('id', jobId);
     };
@@ -1005,6 +1009,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
             completed_units: nextProgress.completed_units,
             progress: nextProgress,
             last_error: errorMessage,
+                        failed_at: now, // Per-stage timestamp (R4 observability)
             updated_at: now,
           })
           .eq('id', jobId);
@@ -1280,6 +1285,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         heartbeat_at: completionTime,
         last_error: null,
         updated_at: completionTime
+                  // Per-stage timestamps (R4 observability)
+          completed_at: completionTime,
+          phase2_completed_at: completionTime,
       })
       .eq('id', jobId);
     console.log(
