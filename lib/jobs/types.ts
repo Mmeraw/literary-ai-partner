@@ -86,6 +86,12 @@ export type JobProgress = {
   [k: string]: unknown;
 };
 
+/**
+ * #18.6 canonical validity contract at type layer.
+ * Keep aligned with lib/evaluation/status.ts and DB CHECK constraint.
+ */
+export type JobValidityStatus = "pending" | "valid" | "invalid" | "quarantined";
+
 export type JobRecord = {
   id: string; // uuid
   user_id: string; // ownership: x-user-id from request header
@@ -101,6 +107,9 @@ export type JobRecord = {
 
   // JOB_CONTRACT_v1 field name
   last_heartbeat: string | null;
+
+  // #18.6b: restore DB/type coherence for validity_status (NOT NULL in DB)
+  validity_status: JobValidityStatus;
 
   // Optional/legacy helpers (do not affect canon truth)
   last_error?: string | null;
