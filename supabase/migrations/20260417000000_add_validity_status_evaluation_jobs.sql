@@ -94,7 +94,7 @@ WHERE status IS NOT NULL
 -- ORDER BY row_count DESC;
 
 UPDATE evaluation_jobs
-SET status = CASE status
+SET status = CASE LOWER(TRIM(status))
     WHEN 'completed'    THEN 'complete'
     WHEN 'in_progress'  THEN 'running'
     WHEN 'in-progress'  THEN 'running'
@@ -109,9 +109,9 @@ SET status = CASE status
     WHEN 'aborted'      THEN 'failed'
     WHEN 'timeout'      THEN 'failed'
     WHEN 'timed_out'    THEN 'failed'
-    ELSE status  -- canonical values pass through unchanged
+    ELSE LOWER(TRIM(status))  -- canonical values pass through unchanged (normalized)
 END
-WHERE status IN (
+WHERE LOWER(TRIM(status)) IN (
     'completed', 'in_progress', 'in-progress', 'inprogress', 'processing',
     'pending', 'waiting',
     'error', 'errored', 'cancelled', 'canceled', 'aborted',
