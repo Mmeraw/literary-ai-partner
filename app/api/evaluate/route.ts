@@ -172,6 +172,24 @@ export async function POST(req: Request) {
       );
     }
 
+    const cronSecret = process.env.CRON_SECRET?.trim();
+    if (cronSecret) {
+      const workerTriggerUrl = new URL("/api/workers/process-evaluations", req.url);
+      void fetch(workerTriggerUrl.toString(), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${cronSecret}`,
+        },
+      }).catch((triggerError: unknown) => {
+        const triggerMessage =
+          triggerError instanceof Error ? triggerError.message : String(triggerError);
+        console.warn(
+          "[evaluate] Best-effort worker trigger failed (cron will retry):",
+          triggerMessage
+        );
+      });
+    }
+
     // This return MUST be inside the POST function
     return Response.json(
       {
