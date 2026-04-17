@@ -6,6 +6,12 @@ import type {
   PassArtifact,
 } from '@/lib/jobs/finalize.types';
 
+const CANONICAL_CRITERION_IDS = [
+  'concept', 'narrativeDrive', 'character', 'voice', 'sceneConstruction',
+  'dialogue', 'theme', 'worldbuilding', 'pacing', 'proseControl',
+  'tone', 'narrativeClosure', 'marketability',
+] as const;
+
 function makePass(passId: 'pass1' | 'pass2' | 'pass3', id: string): PassArtifact {
   return {
     id,
@@ -15,25 +21,23 @@ function makePass(passId: 'pass1' | 'pass2' | 'pass3', id: string): PassArtifact
     manuscript_revision_id: 'rev-1',
     generated_at: new Date().toISOString(),
     summary: `${passId} summary`,
-    criteria: [
-      {
-        criterion_id: 'structure',
-        score_0_10: 8,
-        rationale: 'Supported by evidence.',
-        confidence_0_1: 0.8,
-        evidence: [
-          {
-            anchor_id: `${id}-a1`,
-            source_type: 'manuscript_chunk',
-            source_ref: 'chunk-1',
-            start_offset: 10,
-            end_offset: 25,
-            excerpt: 'Example excerpt',
-          },
-        ],
-        warnings: [],
-      },
-    ],
+    criteria: CANONICAL_CRITERION_IDS.map((criterion_id, i) => ({
+      criterion_id,
+      score_0_10: 8,
+      rationale: 'Supported by evidence.',
+      confidence_0_1: 0.8,
+      evidence: [
+        {
+          anchor_id: `${id}-a${i + 1}`,
+          source_type: 'manuscript_chunk',
+          source_ref: 'chunk-1',
+          start_offset: 10,
+          end_offset: 25,
+          excerpt: 'Example excerpt',
+        },
+      ],
+      warnings: [],
+    })),
     provenance: {
       evaluator_version: 'eval-v1',
       prompt_pack_version: 'pack-v1',

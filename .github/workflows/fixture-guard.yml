@@ -29,7 +29,7 @@ jobs:
         run: npm ci
 
       - name: Run fixture canon guard tests
-        run: npx jest --testPathPattern='fixture-canon-guard' --runInBand --verbose
+        run: npx jest --testPathPatterns='fixture-canon-guard' --runInBand --verbose
 
   fixture-guard-gate:
     name: Fixture Guard Gate (must pass)
