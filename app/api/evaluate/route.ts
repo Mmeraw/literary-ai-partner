@@ -171,6 +171,24 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
+    // ── Best-effort worker wake-up (non-blocking) ──
+    // Safe because claim_evaluation_jobs RPC uses SKIP LOCKED;
+    // concurrent cron + this trigger will not double-process.
+    // If this fails, cron (*/1) is the fallback safety net.
+    const workerBaseUrl = process.env.NEXT_PUBLIC_SITE_URL
+      || (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`)
+      || 'https://literary-ai-partner.vercel.app';
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret) {
+      fetch(`${workerBaseUrl}/api/workers/process-evaluations`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${cronSecret}` },
+      }).catch((triggerErr) => {
+        console.warn('[evaluate] Best-effort worker trigger failed (cron will retry):', triggerErr?.message);
+      });
+    }
+    // ── End best-effort worker wake-up ──
+
 
     // This return MUST be inside the POST function
     return Response.json(
