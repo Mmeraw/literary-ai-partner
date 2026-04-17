@@ -98,4 +98,32 @@ describe("enforceCriterionCompleteness", () => {
       expect((e as InvariantViolation).failureCode).toBe("CRITERION_COMPLETENESS_FAILED");
     }
   });
+
+  it("rejects duplicate criterion ids", () => {
+    const p1 = buildValidPass("pass1");
+    // Duplicate the first criterion
+    p1.criteria.push({ ...p1.criteria[0] });
+    const p2 = buildValidPass("pass2");
+    const p3 = buildValidPass("pass3");
+    expect(() => enforceCriterionCompleteness(p1, p2, p3)).toThrow(InvariantViolation);
+    expect(() => enforceCriterionCompleteness(p1, p2, p3)).toThrow(/duplicate criterion id/);
+  });
+
+  it("rejects non-canonical criterion ids", () => {
+    const p1 = buildValidPass("pass1");
+    // Replace one criterion with an invented key
+    p1.criteria[0] = { ...p1.criteria[0], criterion_id: "fakeAxis" };
+    const p2 = buildValidPass("pass2");
+    const p3 = buildValidPass("pass3");
+    expect(() => enforceCriterionCompleteness(p1, p2, p3)).toThrow(InvariantViolation);
+    expect(() => enforceCriterionCompleteness(p1, p2, p3)).toThrow(/non-canonical criterion id/);
+  });
+
+  it("rejects non-finite scores (NaN, Infinity)", () => {
+    const p1 = buildValidPass("pass1");
+    p1.criteria[0].score_0_10 = NaN;
+    const p2 = buildValidPass("pass2");
+    const p3 = buildValidPass("pass3");
+    expect(() => enforceCriterionCompleteness(p1, p2, p3)).toThrow(/invalid score/);
+  });
 });

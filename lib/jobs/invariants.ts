@@ -127,12 +127,28 @@ export function enforceCriterionCompleteness(
   ];
 
   for (const { label, artifact } of allArtifacts) {
-    const presentKeys = new Set(artifact.criteria.map((c) => c.criterion_id));
+    // Check for non-canonical or duplicate criterion IDs
+    const seen = new Set<string>();
+    for (const criterion of artifact.criteria) {
+      if (!requiredKeys.has(criterion.criterion_id)) {
+        throw new InvariantViolation(
+          "CRITERION_COMPLETENESS_FAILED",
+          `${label}: non-canonical criterion id "${criterion.criterion_id}"`,
+        );
+      }
+      if (seen.has(criterion.criterion_id)) {
+        throw new InvariantViolation(
+          "CRITERION_COMPLETENESS_FAILED",
+          `${label}: duplicate criterion id "${criterion.criterion_id}"`,
+        );
+      }
+      seen.add(criterion.criterion_id);
+    }
 
-    // Check all 13 criteria are present
+    // Check all 13 criteria are present (exactly once, after uniqueness pass)
     const missing: string[] = [];
     for (const key of requiredKeys) {
-      if (!presentKeys.has(key)) {
+      if (!seen.has(key)) {
         missing.push(key);
       }
     }
@@ -145,7 +161,12 @@ export function enforceCriterionCompleteness(
 
     // Check each criterion has score, rationale, and evidence
     for (const criterion of artifact.criteria) {
-      if (typeof criterion.score_0_10 !== "number" || criterion.score_0_10 < 0 || criterion.score_0_10 > 10) {
+      if (
+        typeof criterion.score_0_10 !== "number" ||
+        !Number.isFinite(criterion.score_0_10) ||
+        criterion.score_0_10 < 0 ||
+        criterion.score_0_10 > 10
+      ) {
         throw new InvariantViolation(
           "CRITERION_COMPLETENESS_FAILED",
           `${label} criterion ${criterion.criterion_id}: invalid score (${criterion.score_0_10})`,
