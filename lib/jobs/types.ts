@@ -102,6 +102,9 @@ export type JobRecord = {
   // JOB_CONTRACT_v1 field name
   last_heartbeat: string | null;
 
+  // Validity status — persisted by #18.6 migration
+  validity_status: 'pending' | 'valid' | 'invalid' | 'quarantined';
+
   // Optional/legacy helpers (do not affect canon truth)
   last_error?: string | null;
   failure_code?: string | null;
