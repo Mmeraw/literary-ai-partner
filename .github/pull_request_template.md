@@ -78,4 +78,15 @@ Describe how to revert safely.
 
 ## Follow-ups
 
+
+## Blast-Radius Check (Required for invariant-tightening PRs)
+
+<!-- Fill this section if this PR adds or tightens an enforce*/assert* invariant -->
+
+- [ ] Shared valid fixtures still satisfy the new invariant
+- [ ] Success-path tests using pass artifacts still use canon-complete fixtures
+- [ ] No local minimal fixture is pretending to be a valid release-path artifact
+- [ ] PassArtifact shape, CRITERIA_KEYS, and fixture builders still align (triangle check)
+- [ ] At least one downstream integration/success-path suite was re-run
+- [ ] Fixture Canon Guard CI job passes
 List anything intentionally deferred.
