@@ -79,6 +79,11 @@ import {
   getEvalOpenAiTimeoutMs,
   getEvalPassTimeoutMs,
 } from '@/lib/evaluation/config';
+import {
+  assertValidJobStatusTransition,
+  normalizeEvaluationJobStatus,
+} from '@/lib/evaluation/status';
+import { JOB_STATUS, type JobStatus } from '@/lib/jobs/types';
 import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 
@@ -784,12 +789,14 @@ export async function failStaleRunningJobs(): Promise<{
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const now = new Date().toISOString();
   const cutoff = new Date(Date.now() - staleRunningMinutes * 60_000).toISOString();
+  const runningStatus = normalizeEvaluationJobStatus(JOB_STATUS.RUNNING) as JobStatus;
+  const failedStatus = normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus;
 
   // Collect IDs: stale by updated_at cutoff OR expired claim lease
   const { data: staleByAge, error: ageError } = await supabase
     .from('evaluation_jobs')
     .select('id')
-    .eq('status', 'running')
+    .eq('status', runningStatus)
     .not('last_heartbeat_at', 'is', null)
     .lt('last_heartbeat_at', cutoff)
     .order('last_heartbeat_at', { ascending: true })
@@ -804,7 +811,7 @@ export async function failStaleRunningJobs(): Promise<{
   const { data: staleByLease, error: leaseError } = await supabase
     .from('evaluation_jobs')
     .select('id')
-    .eq('status', 'running')
+    .eq('status', runningStatus)
     .not('lease_expires_at', 'is', null)
     .lt('lease_expires_at', now)
     .order('lease_expires_at', { ascending: true })
@@ -826,7 +833,7 @@ export async function failStaleRunningJobs(): Promise<{
   const { data: failedRows, error: failError } = await supabase
     .from('evaluation_jobs')
     .update({
-      status: 'failed',
+      status: failedStatus,
       last_error:
         'Auto-failed stale running job: worker timed out or crashed before completion update',
       claimed_by: null,
@@ -835,7 +842,7 @@ export async function failStaleRunningJobs(): Promise<{
       updated_at: now,
     })
     .in('id', staleIds)
-    .eq('status', 'running')
+    .eq('status', runningStatus)
     .select('id');
 
   if (failError) {
@@ -860,6 +867,23 @@ export async function failStaleRunningJobs(): Promise<{
  */
 export async function processEvaluationJob(jobId: string): Promise<{ success: boolean; error?: string }> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  let lifecycleStatus: JobStatus | null = null;
+
+  const nextLifecycleStatus = (target: JobStatus): JobStatus => {
+    const normalizedTarget = normalizeEvaluationJobStatus(target) as JobStatus;
+
+    if (lifecycleStatus === null) {
+      lifecycleStatus = normalizedTarget;
+      return normalizedTarget;
+    }
+
+    if (lifecycleStatus !== normalizedTarget) {
+      assertValidJobStatusTransition(lifecycleStatus, normalizedTarget);
+      lifecycleStatus = normalizedTarget;
+    }
+
+    return normalizedTarget;
+  };
 
   try {
     console.log(`[Processor] Processing job ${jobId}`);
@@ -874,6 +898,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     if (jobError || !job) {
       return { success: false, error: `Job not found: ${jobError?.message}` };
     }
+
+    lifecycleStatus = normalizeEvaluationJobStatus(job.status) as JobStatus;
 
     const progress =
       job.progress && typeof job.progress === 'object'
@@ -956,7 +982,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       await supabase
         .from('evaluation_jobs')
         .update({
-          status: 'running',
+          status: nextLifecycleStatus(JOB_STATUS.RUNNING),
           phase,
           phase_status: 'running',
           total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
@@ -1002,7 +1028,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         await supabase
           .from('evaluation_jobs')
           .update({
-            status: 'failed',
+            status: nextLifecycleStatus(JOB_STATUS.FAILED),
             phase: nextProgress.phase,
             phase_status: 'failed',
             total_units: nextProgress.total_units,
@@ -1278,7 +1304,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     const { error: updateError } = await supabase
       .from('evaluation_jobs')
       .update({
-        status: 'complete',
+        status: nextLifecycleStatus(JOB_STATUS.COMPLETE),
         phase: 'phase_2',
         phase_status: 'complete',
         total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
@@ -1325,11 +1351,24 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     // Update job status to failed
     const now = new Date().toISOString();
+    const failedStatus = normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus;
+    if (lifecycleStatus && lifecycleStatus !== failedStatus) {
+      try {
+        assertValidJobStatusTransition(lifecycleStatus, failedStatus);
+      } catch (transitionError) {
+        console.warn(
+          `[Processor] transition validator rejected catch-path status change ${lifecycleStatus} -> ${failedStatus}: ${String(
+            transitionError,
+          )}`,
+        );
+      }
+    }
+
     try {
       await supabase
         .from('evaluation_jobs')
         .update({
-          status: 'failed',
+          status: failedStatus,
           total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
           completed_units: 0,
           phase_status: 'failed',
