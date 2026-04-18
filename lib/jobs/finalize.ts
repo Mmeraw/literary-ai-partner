@@ -30,6 +30,7 @@ import type {
   PersistInvalidCanonicalResult,
   MarkJobInvalidArgs,
   MarkJobFailedArgs,
+  Pass1WarningSummary,
 } from "./finalize.types";
 import type { FailureCode } from "./failures";
 import {
@@ -127,6 +128,59 @@ export function buildConfidenceInputs(args: {
     invalidOutput: false,
     quarantinedOutput: false,
     evidenceCoverage,
+  };
+}
+
+export function countPass1UnresolvedWarnings(args: {
+  pass1: PassArtifact;
+  convergence?: ConvergenceArtifact;
+}): Pass1WarningSummary {
+  const { pass1, convergence } = args;
+
+  const structuredWarnings = [
+    ...pass1.criteria.flatMap((criterion) => [
+      ...(criterion.quality_warnings ?? []).map((warning) => ({
+        criterion_id: criterion.criterion_id,
+        ...warning,
+      })),
+      ...(criterion.propagated_warnings ?? []).map((warning) => ({
+        criterion_id: criterion.criterion_id,
+        ...warning,
+      })),
+    ]),
+    ...(convergence?.merged_criteria ?? []).flatMap((criterion) => [
+      ...(criterion.quality_warnings ?? []).map((warning) => ({
+        criterion_id: criterion.criterion_id,
+        ...warning,
+      })),
+      ...(criterion.propagated_warnings ?? []).map((warning) => ({
+        criterion_id: criterion.criterion_id,
+        ...warning,
+      })),
+    ]),
+  ];
+
+  if (structuredWarnings.length > 0) {
+    const unresolvedPass1Warnings = new Set(
+      structuredWarnings
+        .filter(
+          (warning) => warning.source_pass === "pass1" && warning.resolution_status === "unresolved",
+        )
+        .map((warning) => `${warning.criterion_id}::${warning.warning_code}`),
+    );
+
+    return {
+      pass1_unresolved_warning_count: unresolvedPass1Warnings.size,
+      used_fallback: false,
+    };
+  }
+
+  return {
+    pass1_unresolved_warning_count: pass1.criteria.reduce(
+      (total, criterion) => total + criterion.warnings.length,
+      0,
+    ),
+    used_fallback: true,
   };
 }
 

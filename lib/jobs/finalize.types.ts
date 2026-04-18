@@ -34,6 +34,24 @@ export interface EvidenceAnchor {
   excerpt: string | null;
 }
 
+export type WarningResolutionStatus = "unresolved" | "resolved";
+
+export type CriterionWarningCode =
+  | "pass1_incomplete"
+  | "pass1_incomplete_evidence"
+  | "pass1_missing_anchor"
+  | "pass1_missing_evidence"
+  | "pass1_conflict_requires_review"
+  | (string & {});
+
+export interface CriterionWarning {
+  warning_code: CriterionWarningCode;
+  message: string;
+  source_pass: PassId;
+  resolution_status: WarningResolutionStatus;
+  used_fallback?: boolean;
+}
+
 export interface CriterionAssessment {
   criterion_id: string;
   score_0_10: number;
@@ -41,6 +59,8 @@ export interface CriterionAssessment {
   confidence_0_1: number;
   evidence: EvidenceAnchor[];
   warnings: string[];
+  quality_warnings?: CriterionWarning[];
+  propagated_warnings?: CriterionWarning[];
 }
 
 // === Pass Artifact ===
@@ -90,6 +110,11 @@ export interface ConvergenceArtifact {
     all_required_passes_present: boolean;
     anchor_contract_valid: boolean;
   };
+}
+
+export interface Pass1WarningSummary {
+  pass1_unresolved_warning_count: number;
+  used_fallback: boolean;
 }
 
 // === Canonical Evaluation Artifact ===
