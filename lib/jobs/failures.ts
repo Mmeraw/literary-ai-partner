@@ -75,36 +75,45 @@ export const isRetryableFailure = isTransientFailure;
  * Used to route errors through the canonical taxonomy rather than
  * ad-hoc message-string heuristics.
  *
- * Retryable (transient) matches are tried first; non-retryable patterns
- * take precedence if they match — fail closed wins.
+ * Non-retryable (terminal) patterns are checked first (fail-closed),
+ * then retryable (transient) patterns.
  */
 export function classifyError(error: Error): FailureCode {
   const msg = error.message.toLowerCase();
+  const hasAny = (...phrases: string[]) => phrases.some((p) => msg.includes(p));
 
   // Non-retryable patterns (checked first — fail-closed wins)
-  if (msg.includes('state transition') || msg.includes('illegal transition'))
+  if (hasAny('state transition', 'illegal transition'))
     return 'STATE_TRANSITION_INVALID';
-  if (msg.includes('anchor contract'))         return 'ANCHOR_CONTRACT_VIOLATION';
-  if (msg.includes('governance'))              return 'GOVERNANCE_BLOCK';
-  if (msg.includes('convergence'))             return 'PASS_CONVERGENCE_FAILURE';
-  if (msg.includes('missing pass artifact') || msg.includes('pass artifact'))
+  if (hasAny('anchor contract'))               return 'ANCHOR_CONTRACT_VIOLATION';
+  if (
+    hasAny('governance block', 'governance gate', 'governance enforcement failed') ||
+    (msg.includes('governance') && msg.includes('block'))
+  )
+    return 'GOVERNANCE_BLOCK';
+  if (hasAny('pass_convergence_failure', 'pass convergence failure', 'pass convergence check failed', 'convergence artifact', 'convergence inputs do not match'))
+    return 'PASS_CONVERGENCE_FAILURE';
+  if (hasAny('missing pass artifact', 'pass artifact missing'))
     return 'MISSING_PASS_ARTIFACT';
-  if (msg.includes('criterion completeness'))  return 'CRITERION_COMPLETENESS_FAILED';
-  if (msg.includes('canonical artifact'))      return 'CANONICAL_ARTIFACT_WRITE_FAILED';
-  if (msg.includes('summary projection'))      return 'SUMMARY_PROJECTION_FAILED';
-  if (msg.includes('invalid api key') || msg.includes('authentication'))
+  if (hasAny('criterion completeness'))        return 'CRITERION_COMPLETENESS_FAILED';
+  if (hasAny('canonical artifact'))            return 'CANONICAL_ARTIFACT_WRITE_FAILED';
+  if (hasAny('summary projection'))            return 'SUMMARY_PROJECTION_FAILED';
+  if (hasAny('schema validation failed', 'schema_validation_failed'))
+    return 'SCHEMA_VALIDATION_FAILED';
+  if (hasAny('schema error', 'schema violation'))
+    return 'SCHEMA_ERROR';
+  if (hasAny('validation error'))              return 'VALIDATION_ERROR';
+  if (hasAny('invalid api key', 'authentication'))
     return 'INVALID_INPUT';
-  if (msg.includes('schema'))                  return 'SCHEMA_ERROR';
-  if (msg.includes('validation'))              return 'VALIDATION_ERROR';
-  if (msg.includes('invalid input') || msg.includes('malformed'))
+  if (hasAny('invalid input', 'malformed'))
     return 'INVALID_INPUT';
 
   // Retryable (transient) patterns
-  if (msg.includes('rate limit') || msg.includes('429'))  return 'RATE_LIMITED';
-  if (msg.includes('timeout'))                            return 'TIMEOUT';
-  if (msg.includes('network') || msg.includes('econnreset') || msg.includes('econnrefused'))
+  if (hasAny('rate limit', '429'))                        return 'RATE_LIMITED';
+  if (hasAny('timeout'))                                  return 'TIMEOUT';
+  if (hasAny('network', 'econnreset', 'econnrefused'))
     return 'UPSTREAM_ERROR';
-  if (msg.includes('lease expired'))                      return 'LEASE_EXPIRED';
+  if (hasAny('lease expired'))                            return 'LEASE_EXPIRED';
 
   // Default to INTERNAL_ERROR (transient) — unknown failures get one retry chance
   return 'INTERNAL_ERROR';
