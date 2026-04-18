@@ -15,11 +15,14 @@ import { getLeaseTimeoutSeconds } from "./config";
 
 const JOB_SELECT_FIELDS =
   "id, manuscript_id, user_id, job_type, status, validity_status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id)";
+// TODO(U1.1-shim-retirement): Remove legacy select fallback after all Supabase/CI environments have the
+// evaluation_jobs.validity_status column. See docs/governance/U1_1_CONFIDENCE_WIRING_PLAN.md.
 const JOB_SELECT_FIELDS_LEGACY =
   "id, manuscript_id, user_id, job_type, status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id)";
 
 // Lazy-initialized Supabase client - null-safe for CI/build environments
 let _supabase: ReturnType<typeof createAdminClient> | undefined;
+// TODO(U1.1-shim-retirement): Remove cached capability probing once validity_status is guaranteed everywhere.
 let _supportsValidityStatusColumn: boolean | undefined;
 
 function getSupabase() {
@@ -39,6 +42,7 @@ function isMissingValidityStatusColumnError(error: unknown): boolean {
 }
 
 async function getJobSelectFields(): Promise<string> {
+  // TODO(U1.1-shim-retirement): Delete this probe/fallback and always return JOB_SELECT_FIELDS after environment convergence.
   if (_supportsValidityStatusColumn !== undefined) {
     return _supportsValidityStatusColumn ? JOB_SELECT_FIELDS : JOB_SELECT_FIELDS_LEGACY;
   }
@@ -198,6 +202,7 @@ export async function createJob(input: {
   }
 
   const jobSelectFields = await getJobSelectFields();
+  // TODO(U1.1-shim-retirement): Remove this conditional legacy create path once validity_status exists in every environment.
   const includeValidityStatus = jobSelectFields === JOB_SELECT_FIELDS;
 
   const payload = {
@@ -755,6 +760,7 @@ function mapDbRowToJob(row: any): Job {
     manuscript_id: Number(row.manuscript_id), // BigInt from DB → number
     job_type: JOB_TYPE_FROM_DB[row.job_type] ?? row.job_type,
     status: row.status,
+    // TODO(U1.1-shim-retirement): Remove legacy defaulting once all selected rows include validity_status canonically.
     validity_status: normalizeEvaluationValidityStatus(row.validity_status ?? "pending"),
     progress: completeProgress,
     created_at: row.created_at,

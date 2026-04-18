@@ -13,6 +13,8 @@
  *    highest-severity rule that matches.
  */
 
+export const CONFIDENCE_DERIVATION_VERSION = "u1.v1";
+
 export type EvaluationConfidence = "high" | "medium" | "low" | "withheld";
 
 export type ConfidenceReason =
