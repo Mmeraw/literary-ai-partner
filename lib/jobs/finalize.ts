@@ -39,6 +39,7 @@ import {
 } from "./invariants";
 import {
   deriveConfidence,
+  CONFIDENCE_DERIVATION_VERSION,
   type ConfidenceInputs,
 } from "../governance/confidenceDerivation";
 
@@ -55,6 +56,8 @@ export interface FinalizerStorage {
   ): Promise<PersistCanonicalAndSummaryAndCompleteResult>;
   markJobFailed(args: MarkJobFailedArgs): Promise<void>;
 }
+
+type FinalizerDerivedValidityStatus = "valid" | "invalid" | "quarantined";
 
 // === U1.1: Build ConfidenceInputs from finalizer scope ===
 export function buildConfidenceInputs(args: {
@@ -191,7 +194,7 @@ export function buildCanonicalArtifact(args: {
       // U1.1 wiring
       confidence_label: confidenceResult.confidence,
       confidence_reasons: confidenceResult.reasons,
-      confidence_derivation_version: "1.0.0",
+      confidence_derivation_version: CONFIDENCE_DERIVATION_VERSION,
     },
     eligibility: {
       structural_pass: avgScore >= 50,
@@ -207,6 +210,24 @@ export function buildCanonicalArtifact(args: {
       finalizer_version: FINALIZER_VERSION,
     },
   };
+}
+
+export function deriveValidityStatus(
+  canonical: CanonicalEvaluationArtifact,
+): FinalizerDerivedValidityStatus {
+  if (!canonical.governance.transparency_passed) {
+    return "quarantined";
+  }
+
+  if (!canonical.governance.anchor_contract_passed) {
+    return "quarantined";
+  }
+
+  if (!canonical.governance.canonical_ready) {
+    return "invalid";
+  }
+
+  return "valid";
 }
 
 export function buildReportSummaryProjection(
@@ -235,16 +256,31 @@ export function buildReportSummaryProjection(
 }
 
 function validateCanonicalArtifact(canonical: CanonicalEvaluationArtifact): void {
-  if (!canonical.governance.canonical_ready) {
-    throw new InvariantViolation(
-      "SCHEMA_ERROR",
-      `Canonical artifact not marked as ready`,
-    );
-  }
   if (!canonical.schema_version) {
     throw new InvariantViolation(
       "SCHEMA_ERROR",
       `Canonical artifact missing schema_version`,
+    );
+  }
+
+  if (!canonical.governance.transparency_passed) {
+    throw new InvariantViolation(
+      "GOVERNANCE_BLOCK",
+      "Canonical artifact failed transparency gate",
+    );
+  }
+
+  if (!canonical.governance.anchor_contract_passed) {
+    throw new InvariantViolation(
+      "ANCHOR_CONTRACT_VIOLATION",
+      "Canonical artifact failed anchor contract gate",
+    );
+  }
+
+  if (!canonical.governance.canonical_ready) {
+    throw new InvariantViolation(
+      "SCHEMA_ERROR",
+      "Canonical artifact not marked as ready",
     );
   }
 }
@@ -300,6 +336,15 @@ export async function finalizeJob(
 
     // Step 9: Validate canonical artifact
     validateCanonicalArtifact(canonical);
+
+    // Step 9.5: Derive validity and fail closed if canonical output is not releasable
+    const validityStatus = deriveValidityStatus(canonical);
+    if (validityStatus !== "valid") {
+      throw new InvariantViolation(
+        "GOVERNANCE_BLOCK",
+        `Finalizer validity gate blocked completion with validity_status='${validityStatus}'`,
+      );
+    }
 
     // Step 10: Build summary projection candidate (IDs finalized in write authority)
     const summaryCandidate = buildReportSummaryProjection(job, canonical, "pending");
