@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { 
   EvaluationResultV1, 
   isEvaluationResultV1, 
@@ -28,7 +29,7 @@ export async function GET(
     // Fetch job with evaluation result
     const { data: job, error } = await supabase
       .from('evaluation_jobs')
-      .select('id, manuscript_id, status, evaluation_result, evaluation_result_version, created_at, updated_at')
+      .select('id, manuscript_id, status, validity_status, evaluation_result, evaluation_result_version, created_at, updated_at')
       .eq('id', jobId)
       .single();
 
@@ -39,14 +40,15 @@ export async function GET(
       );
     }
 
-    // Check if evaluation result exists
-    if (!job.evaluation_result) {
+    // #168 fail-closed read gate: release only complete + valid jobs with result payload.
+    if (!canReleaseEvaluationRead(job) || !job.evaluation_result) {
       return NextResponse.json(
         { 
-          error: 'Evaluation not complete',
+          error: 'Evaluation not releasable',
           job: {
             id: job.id,
             status: job.status,
+            validity_status: job.validity_status,
             created_at: job.created_at,
           }
         },
@@ -82,6 +84,7 @@ export async function GET(
       job_id: job.id,
       manuscript_id: job.manuscript_id,
       status: job.status,
+      validity_status: job.validity_status,
       result,
       result_version: job.evaluation_result_version,
       created_at: job.created_at,
