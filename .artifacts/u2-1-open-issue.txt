@@ -1,0 +1,4 @@
+gh issue create \
+  --title "U2.1 — propagate Pass 1 incompleteness into confidence derivation" \
+  --body-file .artifacts/u2-1-issue.md \
+  --label enhancement

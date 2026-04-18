@@ -11,6 +11,7 @@ function makeBaseInput(overrides: Partial<ConfidenceInputs> = {}): ConfidenceInp
     governancePassed: true,
     passConvergencePassed: true,
     hasMaterialPassDisagreement: false,
+    pass1IncompleteCount: 0,
     usedFallbackPath: false,
     executionDegraded: false,
     invalidOutput: false,
@@ -171,5 +172,17 @@ describe("U1 confidence derivation", () => {
     const resultB = deriveConfidence(input);
 
     expect(resultA).toEqual(resultB);
+  });
+
+  test("18) pass1IncompleteCount below threshold => no incompleteness penalty", () => {
+    const result = deriveConfidence(makeBaseInput({ pass1IncompleteCount: 1 }));
+    expect(result.confidence).toBe("high");
+    expect(result.reasons).not.toContain("pass1_incompleteness_unresolved");
+  });
+
+  test("19) pass1IncompleteCount at threshold => medium with unresolved incompleteness reason", () => {
+    const result = deriveConfidence(makeBaseInput({ pass1IncompleteCount: 2 }));
+    expect(result.confidence).toBe("medium");
+    expect(result.reasons).toContain("pass1_incompleteness_unresolved");
   });
 });

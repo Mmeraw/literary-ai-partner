@@ -107,6 +107,19 @@ export function buildConfidenceInputs(args: {
     return Math.max(...scores) - Math.min(...scores) > 3;
   });
 
+  // U2.1: unresolved Pass 1 incompleteness after downstream convergence.
+  // We count only criteria still absent from the convergence artifact, not raw Pass 1 gaps
+  // that were later recovered/resolved downstream.
+  const pass1CriterionIds = new Set(pass1.criteria.map((c) => c.criterion_id));
+  const convergenceCriterionIds = new Set(
+    convergence.merged_criteria.map((c) => c.criterion_id),
+  );
+  const pass1IncompleteCount = CRITERIA_KEYS.filter(
+    (criterionId) =>
+      !pass1CriterionIds.has(criterionId) &&
+      !convergenceCriterionIds.has(criterionId),
+  ).length;
+
   // Evidence coverage: strong if all passes report evidence_nonempty, partial if mixed
   const evidenceFlags = [pass1, pass2, pass3].map((p) => p.validations.evidence_nonempty);
   const evidenceCoverage: ConfidenceInputs["evidenceCoverage"] =
@@ -122,6 +135,7 @@ export function buildConfidenceInputs(args: {
     governancePassed,
     passConvergencePassed,
     hasMaterialPassDisagreement,
+    pass1IncompleteCount,
     usedFallbackPath: false,
     executionDegraded: false,
     invalidOutput: false,

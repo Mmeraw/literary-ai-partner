@@ -13,7 +13,8 @@
  *    highest-severity rule that matches.
  */
 
-export const CONFIDENCE_DERIVATION_VERSION = "u1.v1";
+export const CONFIDENCE_DERIVATION_VERSION = "u2.v1";
+export const PASS1_INCOMPLETENESS_THRESHOLD = 2;
 
 export type EvaluationConfidence = "high" | "medium" | "low" | "withheld";
 
@@ -23,6 +24,7 @@ export type ConfidenceReason =
   | "governance_block"
   | "pass_convergence_failed"
   | "pass_disagreement_material"
+  | "pass1_incompleteness_unresolved"
   | "used_fallback_path"
   | "execution_degraded"
   | "invalid_output"
@@ -36,6 +38,7 @@ export type ConfidenceInputs = {
   governancePassed: boolean;
   passConvergencePassed: boolean;
   hasMaterialPassDisagreement: boolean;
+  pass1IncompleteCount: number;
   usedFallbackPath: boolean;
   executionDegraded: boolean;
   invalidOutput: boolean;
@@ -69,6 +72,10 @@ export function deriveConfidence(input: ConfidenceInputs): ConfidenceResult {
 
   if (input.hasMaterialPassDisagreement) {
     reasons.push("pass_disagreement_material");
+  }
+
+  if (input.pass1IncompleteCount >= PASS1_INCOMPLETENESS_THRESHOLD) {
+    reasons.push("pass1_incompleteness_unresolved");
   }
 
   if (input.usedFallbackPath) {
@@ -119,7 +126,8 @@ export function deriveConfidence(input: ConfidenceInputs): ConfidenceResult {
     input.usedFallbackPath ||
     input.executionDegraded ||
     input.evidenceCoverage === "partial" ||
-    !input.passConvergencePassed
+    !input.passConvergencePassed ||
+    input.pass1IncompleteCount >= PASS1_INCOMPLETENESS_THRESHOLD
   ) {
     return { confidence: "medium", reasons };
   }

@@ -32,7 +32,10 @@ function makeCriterion(overrides: Partial<{ criterion_id: string; score_0_10: nu
   };
 }
 
-function makePassArtifact(passId: "pass1" | "pass2" | "pass3", criteria = [makeCriterion()]): PassArtifact {
+function makePassArtifact(
+  passId: "pass1" | "pass2" | "pass3",
+  criteria = CRITERIA_KEYS.map((criterionId) => makeCriterion({ criterion_id: criterionId })),
+): PassArtifact {
   return {
     id: `${passId}-artifact-id`,
     job_id: "job-1",
@@ -67,7 +70,7 @@ function makeConvergenceArtifact(overrides: Partial<ConvergenceArtifact> = {}): 
       pass2_artifact_id: "pass2-artifact-id",
       pass3_artifact_id: "pass3-artifact-id",
     },
-    merged_criteria: [makeCriterion()],
+    merged_criteria: CRITERIA_KEYS.map((criterionId) => makeCriterion({ criterion_id: criterionId })),
     overview_summary: "test overview",
     convergence_notes: [],
     conflicts_detected: [],
@@ -124,6 +127,7 @@ describe("buildConfidenceInputs", () => {
     expect(inputs.governancePassed).toBe(true);
     expect(inputs.passConvergencePassed).toBe(true);
     expect(inputs.hasMaterialPassDisagreement).toBe(false);
+    expect(inputs.pass1IncompleteCount).toBe(0);
     expect(inputs.evidenceCoverage).toBe("strong");
     expect(inputs.usedFallbackPath).toBe(false);
     expect(inputs.executionDegraded).toBe(false);
@@ -166,6 +170,24 @@ describe("buildConfidenceInputs", () => {
     const inputs = buildConfidenceInputs({ pass1, pass2, pass3, convergence });
 
     expect(inputs.evidenceCoverage).toBe("partial");
+  });
+
+  it("resolved incompleteness: missing pass1 criteria fully recovered in convergence => no penalty signal", () => {
+    const pass1 = makePassArtifact("pass1", [
+      makeCriterion({ criterion_id: CRITERIA_KEYS[0] }),
+      makeCriterion({ criterion_id: CRITERIA_KEYS[1] }),
+    ]);
+    const pass2 = makePassArtifact("pass2");
+    const pass3 = makePassArtifact("pass3");
+    const convergence = makeConvergenceArtifact({
+      merged_criteria: CRITERIA_KEYS.map((criterionId) =>
+        makeCriterion({ criterion_id: criterionId }),
+      ),
+    });
+
+    const inputs = buildConfidenceInputs({ pass1, pass2, pass3, convergence });
+
+    expect(inputs.pass1IncompleteCount).toBe(0);
   });
 });
 
