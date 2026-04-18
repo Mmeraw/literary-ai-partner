@@ -37,6 +37,10 @@ import {
   enforceA6Credibility,
   assertPreCompletionInvariants,
 } from "./invariants";
+import {
+  deriveConfidence,
+  type ConfidenceInputs,
+} from "../governance/confidenceDerivation";
 
 // === Finalizer Version ===
 export const FINALIZER_VERSION = "1.0.0";
@@ -52,6 +56,69 @@ export interface FinalizerStorage {
   markJobFailed(args: MarkJobFailedArgs): Promise<void>;
 }
 
+// === U1.1: Build ConfidenceInputs from finalizer scope ===
+export function buildConfidenceInputs(args: {
+  pass1: PassArtifact;
+  pass2: PassArtifact;
+  pass3: PassArtifact;
+  convergence: ConvergenceArtifact;
+}): ConfidenceInputs {
+  const { pass1, pass2, pass3, convergence } = args;
+
+  // Criterion completeness: all 3 passes have criteria and convergence merged them
+  const criterionCompletenessPassed =
+    pass1.criteria.length > 0 &&
+    pass2.criteria.length > 0 &&
+    pass3.criteria.length > 0 &&
+    convergence.merged_criteria.length > 0;
+
+  // Anchor integrity from convergence validations
+  const anchorIntegrityPassed = convergence.validations.anchor_contract_valid;
+
+  // Governance: schema valid across all inputs
+  const governancePassed =
+    pass1.validations.schema_valid &&
+    pass2.validations.schema_valid &&
+    pass3.validations.schema_valid &&
+    convergence.validations.schema_valid;
+
+  // Pass convergence
+  const passConvergencePassed =
+    convergence.validations.all_required_passes_present &&
+    convergence.validations.pass_separation_preserved;
+
+  // Material pass disagreement: check if any criterion has >3pt spread across passes
+  const hasMaterialPassDisagreement = pass1.criteria.some((c1) => {
+    const c2 = pass2.criteria.find((c) => c.criterion_id === c1.criterion_id);
+    const c3 = pass3.criteria.find((c) => c.criterion_id === c1.criterion_id);
+    if (!c2 || !c3) return false;
+    const scores = [c1.score_0_10, c2.score_0_10, c3.score_0_10];
+    return Math.max(...scores) - Math.min(...scores) > 3;
+  });
+
+  // Evidence coverage: strong if all passes report evidence_nonempty, partial if mixed
+  const evidenceFlags = [pass1, pass2, pass3].map((p) => p.validations.evidence_nonempty);
+  const evidenceCoverage: ConfidenceInputs["evidenceCoverage"] =
+    evidenceFlags.every(Boolean)
+      ? "strong"
+      : evidenceFlags.some(Boolean)
+        ? "partial"
+        : "thin";
+
+  return {
+    criterionCompletenessPassed,
+    anchorIntegrityPassed,
+    governancePassed,
+    passConvergencePassed,
+    hasMaterialPassDisagreement,
+    usedFallbackPath: false,
+    executionDegraded: false,
+    invalidOutput: false,
+    quarantinedOutput: false,
+    evidenceCoverage,
+  };
+}
+
 // === Layer 1: Pure Domain Logic ===
 
 export function buildCanonicalArtifact(args: {
@@ -65,9 +132,10 @@ export function buildCanonicalArtifact(args: {
 
   // Compute overall score from convergence merged criteria
   const scores = convergence.merged_criteria.map((c) => c.score_0_10);
-  const avgScore = scores.length > 0
-    ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10)
-    : 0;
+  const avgScore =
+    scores.length > 0
+      ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10)
+      : 0;
 
   // Compute confidence from pass artifacts
   const confidences = [
@@ -75,15 +143,20 @@ export function buildCanonicalArtifact(args: {
     ...pass2.criteria.map((c) => c.confidence_0_1),
     ...pass3.criteria.map((c) => c.confidence_0_1),
   ];
-  const avgConfidence = confidences.length > 0
-    ? confidences.reduce((a, b) => a + b, 0) / confidences.length
-    : 0;
+  const avgConfidence =
+    confidences.length > 0
+      ? confidences.reduce((a, b) => a + b, 0) / confidences.length
+      : 0;
 
   const allWarnings = [
     ...pass1.criteria.flatMap((c) => c.warnings),
     ...pass2.criteria.flatMap((c) => c.warnings),
     ...pass3.criteria.flatMap((c) => c.warnings),
   ];
+
+  // U1.1: Derive confidence label from structured signals
+  const confidenceInputs = buildConfidenceInputs({ pass1, pass2, pass3, convergence });
+  const confidenceResult = deriveConfidence(confidenceInputs);
 
   return {
     id: "", // Set by persistence layer
@@ -110,10 +183,15 @@ export function buildCanonicalArtifact(args: {
       limitations: [],
       transparency_passed: true,
       anchor_contract_passed: convergence.validations.anchor_contract_valid,
-      canonical_ready: convergence.validations.schema_valid
-        && convergence.validations.pass_separation_preserved
-        && convergence.validations.all_required_passes_present
-        && convergence.validations.anchor_contract_valid,
+      canonical_ready:
+        convergence.validations.schema_valid &&
+        convergence.validations.pass_separation_preserved &&
+        convergence.validations.all_required_passes_present &&
+        convergence.validations.anchor_contract_valid,
+      // U1.1 wiring
+      confidence_label: confidenceResult.confidence,
+      confidence_reasons: confidenceResult.reasons,
+      confidence_derivation_version: "1.0.0",
     },
     eligibility: {
       structural_pass: avgScore >= 50,
@@ -217,7 +295,7 @@ export async function finalizeJob(
     // Step 7: A6 credibility
     enforceA6Credibility(pass1, pass2, pass3, convergence);
 
-    // Step 8: Build canonical artifact
+    // Step 8: Build canonical artifact (includes U1.1 confidence derivation)
     const canonical = buildCanonicalArtifact({ job, pass1, pass2, pass3, convergence });
 
     // Step 9: Validate canonical artifact
@@ -261,6 +339,7 @@ export async function finalizeJob(
       }
       return failResult(input.job_id, error.failureCode, error.message);
     }
+
     // Unknown error — classify as validation error, do not retry
     const message = error instanceof Error ? error.message : String(error);
     if (failureWriteAuthorized) {

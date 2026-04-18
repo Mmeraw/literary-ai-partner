@@ -1,6 +1,6 @@
 /**
  * Finalizer Types — RevisionGrade Phase 1
- * 
+ *
  * The Finalizer is the sole truth gate between execution and canonical
  * artifact publication. No code path may set job.status = "complete"
  * outside the Finalizer.
@@ -128,6 +128,10 @@ export interface CanonicalEvaluationArtifact {
     transparency_passed: boolean;
     anchor_contract_passed: boolean;
     canonical_ready: boolean;
+    // U1.1 — confidence derivation wiring (see lib/governance/confidenceDerivation.ts)
+    confidence_label?: "high" | "medium" | "low" | "withheld";
+    confidence_reasons?: string[];
+    confidence_derivation_version?: string;
   };
   eligibility: EligibilityBlock;
   provenance: {

@@ -62,7 +62,7 @@ describe("evaluation architecture invariants", () => {
       // Non-force updates must use CAS predicates (no loose update-by-id)
       expect(code).toContain('.eq("status", "running")');
       expect(code).toContain('.eq("phase", "phase_1")');
-      expect(code).toContain('.eq("phase_status", "complete")');
+      expect(code).not.toContain('.eq("phase_status", "complete")');
       expect(code).toContain("canonical_pipeline_queued");
       expect(code).toContain("status: 202");
     }

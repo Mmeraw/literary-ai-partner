@@ -77,8 +77,7 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
   if (!force) {
     updateQuery = updateQuery
       .eq("status", "running")
-      .eq("phase", "phase_1")
-      .eq("phase_status", "complete");
+      .eq("phase", "phase_1");
   }
 
   const { data, error } = await updateQuery;

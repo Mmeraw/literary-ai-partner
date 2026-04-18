@@ -73,6 +73,10 @@ function buildSupabaseStub(opts: {
           eq: jest.fn().mockReturnValue({
             maybeSingle: getJobMaybeSingle,
           }),
+          limit: jest.fn().mockResolvedValue({
+            data: [{ id: opts.getJobRow.id, validity_status: null }],
+            error: null,
+          }),
         }),
         update: jest.fn((payload: Record<string, unknown>) => {
           updatePayloads.push(payload);
