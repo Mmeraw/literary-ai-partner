@@ -3,6 +3,7 @@ import { JOB_STATUS, PHASES } from "./types";
 import type {
   CanonicalEvaluationArtifact,
   EvaluationJob,
+  PersistInvalidCanonicalResult,
   PersistCanonicalAndSummaryAndCompleteResult,
   ReportSummaryProjection,
 } from "./finalize.types";
@@ -91,6 +92,19 @@ export type MarkFinalizerJobFailedArgs = {
   last_error: string;
 };
 
+export type PersistInvalidCanonicalArtifactArgs = {
+  job: EvaluationJob;
+  worker_id: string;
+  canonical: CanonicalEvaluationArtifact;
+};
+
+export type MarkFinalizerJobInvalidArgs = {
+  job_id: string;
+  worker_id: string;
+  canonical_artifact_id: string;
+  last_error: string;
+};
+
 let _finalizerStoreModule: any = null;
 
 const loadFinalizerStore = async () => {
@@ -124,6 +138,32 @@ export async function markJobFailed(
 
   const store = await loadFinalizerStore();
   return store.markJobFailed(args);
+}
+
+export async function persistInvalidCanonicalArtifact(
+  args: PersistInvalidCanonicalArtifactArgs,
+): Promise<PersistInvalidCanonicalResult> {
+  if (!USE_SUPABASE) {
+    throw new Error(
+      "[FINALIZER-STORE] invalid canonical persistence unavailable without Supabase backing",
+    );
+  }
+
+  const store = await loadFinalizerStore();
+  return store.persistInvalidCanonicalArtifact(args);
+}
+
+export async function markJobInvalid(
+  args: MarkFinalizerJobInvalidArgs,
+): Promise<void> {
+  if (!USE_SUPABASE) {
+    throw new Error(
+      "[FINALIZER-STORE] markJobInvalid unavailable without Supabase backing",
+    );
+  }
+
+  const store = await loadFinalizerStore();
+  return store.markJobInvalid(args);
 }
 
 export function canRunPhase(

@@ -63,25 +63,23 @@ function makeConvergence(): ConvergenceArtifact {
       pass2_artifact_id: 'p2',
       pass3_artifact_id: 'p3',
     },
-    merged_criteria: [
-      {
-        criterion_id: 'structure',
-        score_0_10: 8,
-        rationale: 'Merged rationale.',
-        confidence_0_1: 0.85,
-        evidence: [
-          {
-            anchor_id: 'conv-a1',
-            source_type: 'manuscript_chunk',
-            source_ref: 'chunk-1',
-            start_offset: 10,
-            end_offset: 25,
-            excerpt: 'Merged excerpt',
-          },
-        ],
-        warnings: [],
-      },
-    ],
+    merged_criteria: CANONICAL_CRITERION_IDS.map((criterion_id, i) => ({
+      criterion_id,
+      score_0_10: 8,
+      rationale: 'Merged rationale.',
+      confidence_0_1: 0.85,
+      evidence: [
+        {
+          anchor_id: `conv-a${i + 1}`,
+          source_type: 'manuscript_chunk',
+          source_ref: 'chunk-1',
+          start_offset: 10,
+          end_offset: 25,
+          excerpt: 'Merged excerpt',
+        },
+      ],
+      warnings: [],
+    })),
     overview_summary: 'Overall convergence summary.',
     convergence_notes: [],
     conflicts_detected: [],
@@ -140,6 +138,10 @@ function makeStorage(): jest.Mocked<FinalizerStorage> {
       canonical_artifact_id: 'canon-1',
       summary_artifact_id: 'summary-1',
     })),
+    persistInvalidCanonicalArtifact: jest.fn(async () => ({
+      canonical_artifact_id: 'canon-invalid-1',
+    })),
+    markJobInvalid: jest.fn(async () => undefined),
     markJobFailed: jest.fn(async () => undefined),
   };
 }
@@ -293,9 +295,45 @@ describe('finalizeJob', () => {
 
     expect(result.ok).toBe(false);
     if (result.ok === false) {
-      expect(result.failure_code).toBe('ANCHOR_CONTRACT_VIOLATION');
+      expect(result.final_status).toBe('invalid');
+      expect(result.reason).toBe('Canonical validation failed');
+      expect(
+        result.validation_issues.some(
+          (issue) => issue.criterion_id === '__artifact__' && issue.code === 'NON_CANONICAL_CRITERION',
+        ),
+      ).toBe(true);
     }
     expect(storage.persistCanonicalAndSummaryAndCompleteJob).not.toHaveBeenCalled();
-    expect(storage.markJobFailed).toHaveBeenCalledTimes(1);
+    expect(storage.persistInvalidCanonicalArtifact).toHaveBeenCalledTimes(1);
+    expect(storage.markJobInvalid).toHaveBeenCalledTimes(1);
+    expect(storage.markJobFailed).not.toHaveBeenCalled();
+  });
+
+  test('returns explicit invalid outcome and blocks release when canonical criteria are incomplete', async () => {
+    const storage = makeStorage();
+    storage.getConvergenceArtifact.mockResolvedValueOnce({
+      ...makeConvergence(),
+      merged_criteria: makeConvergence().merged_criteria.slice(0, 12),
+    });
+
+    const result = await finalizeJob(
+      {
+        job_id: 'job-1',
+        worker_id: 'worker-1',
+        expected_status: 'running',
+        expected_phase: 'finalizer',
+      },
+      storage,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok === false) {
+      expect(result.final_status).toBe('invalid');
+      expect(result.validation_issues.some((issue) => issue.code === 'MISSING_CRITERION')).toBe(true);
+    }
+    expect(storage.persistInvalidCanonicalArtifact).toHaveBeenCalledTimes(1);
+    expect(storage.markJobInvalid).toHaveBeenCalledTimes(1);
+    expect(storage.persistCanonicalAndSummaryAndCompleteJob).not.toHaveBeenCalled();
+    expect(storage.markJobFailed).not.toHaveBeenCalled();
   });
 });
