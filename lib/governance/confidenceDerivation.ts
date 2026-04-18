@@ -38,6 +38,10 @@ export type ConfidenceInputs = {
   governancePassed: boolean;
   passConvergencePassed: boolean;
   hasMaterialPassDisagreement: boolean;
+  /**
+   * Count of criteria still absent after downstream convergence.
+   * Raw Pass 1 gaps that are later recovered must not contribute here.
+   */
   pass1IncompleteCount: number;
   usedFallbackPath: boolean;
   executionDegraded: boolean;
