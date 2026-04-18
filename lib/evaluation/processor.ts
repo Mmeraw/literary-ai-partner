@@ -212,6 +212,30 @@ function evalDebugWarn(message: string, ...args: unknown[]): void {
   console.warn(message, ...args);
 }
 
+type ProcessorStageBoundary =
+  | "phase1"
+  | "phase2"
+  | "pass3"
+  | "finalized";
+
+type ProcessorBoundaryState = "start" | "complete" | "failed";
+
+function logProcessorStageBoundary(args: {
+  jobId: string;
+  stage: ProcessorStageBoundary;
+  state: ProcessorBoundaryState;
+  at: string;
+  metadata?: Record<string, unknown>;
+}): void {
+  console.log("ProcessorStageBoundary", {
+    job_id: args.jobId,
+    stage: args.stage,
+    state: args.state,
+    at: args.at,
+    ...(args.metadata ? { metadata: args.metadata } : {}),
+  });
+}
+
 function toFiniteNumber(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -967,8 +991,21 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       phase: 'phase_1' | 'phase_2' = 'phase_1',
     ) => {
       const now = new Date().toISOString();
+      const stageTimestampPatch: Record<string, unknown> = {};
+
+      if (phase === 'phase_1' && !progressState.phase1_started_at) {
+        stageTimestampPatch.phase1_started_at = now;
+      }
+      if (phase === 'phase_2' && !progressState.phase2_started_at) {
+        stageTimestampPatch.phase2_started_at = now;
+      }
+      if (phase === 'phase_2' && !progressState.phase1_completed_at) {
+        stageTimestampPatch.phase1_completed_at = now;
+      }
+
       const nextProgress = {
         ...progressState,
+        ...stageTimestampPatch,
         phase,
         phase_status: 'running',
         total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
@@ -978,6 +1015,17 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       };
 
       Object.assign(progressState, nextProgress);
+
+      logProcessorStageBoundary({
+        jobId,
+        stage: phase === 'phase_1' ? 'phase1' : 'phase2',
+        state: 'start',
+        at: now,
+        metadata: {
+          completed_units: completedUnits,
+          message,
+        },
+      });
 
       await supabase
         .from('evaluation_jobs')
@@ -993,10 +1041,12 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           last_heartbeat_at: now,
           heartbeat_at: now,
           updated_at: now,
-                      // Per-stage timestamps (R4 observability)
-            ...(phase === 'phase_1' ? { phase1_started_at: now } : {}),
-            ...(phase === 'phase_2' ? { phase2_started_at: now } : {}),
-                      ...(phase === 'phase_2' ? { phase1_completed_at: now } : {}), // phase_2 entry implies phase_1 done
+          // Per-stage timestamps (R4 observability)
+          ...(stageTimestampPatch as {
+            phase1_started_at?: string;
+            phase2_started_at?: string;
+            phase1_completed_at?: string;
+          }),
         })
         .eq('id', jobId);
     };
@@ -1022,7 +1072,25 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         failed_at: now,
       };
 
+      if (!nextProgress.pass3_completed_at && nextProgress.pass3_started_at) {
+        (nextProgress as Record<string, unknown>).pass3_completed_at = now;
+      }
+
       Object.assign(progressState, nextProgress);
+
+      const phaseLabel =
+        nextProgress.phase === 'phase_2'
+          ? 'phase2'
+          : 'phase1';
+      logProcessorStageBoundary({
+        jobId,
+        stage: phaseLabel,
+        state: 'failed',
+        at: now,
+        metadata: {
+          error: errorMessage,
+        },
+      });
 
       try {
         await supabase
@@ -1035,7 +1103,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
             completed_units: nextProgress.completed_units,
             progress: nextProgress,
             last_error: errorMessage,
-                        failed_at: now, // Per-stage timestamp (R4 observability)
+            failed_at: now, // Per-stage timestamp (R4 observability)
             updated_at: now,
           })
           .eq('id', jobId);
@@ -1107,6 +1175,18 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     // 4. Canonical evaluation via governed multi-pass pipeline (fail-closed)
     await markRunning('Running canonical evaluation pipeline', 1, executionPhase);
 
+    const pass3StartedAt = new Date().toISOString();
+    progressState.pass3_started_at = pass3StartedAt;
+    logProcessorStageBoundary({
+      jobId,
+      stage: 'pass3',
+      state: 'start',
+      at: pass3StartedAt,
+      metadata: {
+        model: getCanonicalPipelineModel(openAiModel),
+      },
+    });
+
     const externalMode = getExternalAdjudicationMode();
     if ((externalMode === 'required' || externalMode === 'veto') && !perplexityApiKey) {
       const missingCrossCheckConfigError =
@@ -1137,6 +1217,19 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     );
 
     if (pipelineResult.ok === false) {
+      const pass3CompletedAt = new Date().toISOString();
+      progressState.pass3_completed_at = pass3CompletedAt;
+      logProcessorStageBoundary({
+        jobId,
+        stage: 'pass3',
+        state: 'failed',
+        at: pass3CompletedAt,
+        metadata: {
+          failed_at: pipelineResult.failed_at,
+          error_code: pipelineResult.error_code,
+        },
+      });
+
       const serializedFailureDetails = pipelineResult.failure_details
         ? JSON.stringify(pipelineResult.failure_details).slice(0, 1500)
         : null;
@@ -1148,6 +1241,18 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
       return { success: false, error: pipelineError };
     }
+
+    const pass3CompletedAt = new Date().toISOString();
+    progressState.pass3_completed_at = pass3CompletedAt;
+    logProcessorStageBoundary({
+      jobId,
+      stage: 'pass3',
+      state: 'complete',
+      at: pass3CompletedAt,
+      metadata: {
+        score: pipelineResult.synthesis.overall.overall_score_0_100,
+      },
+    });
 
     if ((externalMode === 'required' || externalMode === 'veto') && !pipelineResult.cross_check) {
       const missingCrossCheckResultError =
@@ -1311,6 +1416,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
         progress: {
           ...existingProgress,
+          finalized_at: completionTime,
           phase: 'phase_2',
           phase_status: 'complete',
           total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
@@ -1325,9 +1431,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         heartbeat_at: completionTime,
         last_error: null,
         updated_at: completionTime,
-                  // Per-stage timestamps (R4 observability)
-          completed_at: completionTime,
-          phase2_completed_at: completionTime,
+        // Per-stage timestamps (R4 observability)
+        completed_at: completionTime,
+        phase2_completed_at: completionTime,
       })
       .eq('id', jobId);
     console.log(
@@ -1340,6 +1446,13 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       console.error(`[Processor] Failed to update job ${jobId}:`, updateError);
       return { success: false, error: `Failed to store result: ${updateError.message}` };
     }
+
+    logProcessorStageBoundary({
+      jobId,
+      stage: 'finalized',
+      state: 'complete',
+      at: completionTime,
+    });
 
     console.log(`[Processor] Job ${jobId} completed successfully`);
 

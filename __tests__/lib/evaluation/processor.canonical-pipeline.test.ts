@@ -113,9 +113,12 @@ function makeSupabaseStub() {
 }
 
 describe("processEvaluationJob canonical pipeline integration", () => {
+  let consoleLogSpy: jest.SpyInstance;
+
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
+    consoleLogSpy = jest.spyOn(console, "log").mockImplementation(() => {});
 
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
@@ -126,6 +129,10 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     // Ensure timeout config passes the invariant check (openAi >= pass)
     process.env.EVAL_PASS_TIMEOUT_MS = "180000";
     process.env.EVAL_OPENAI_TIMEOUT_MS = "180000";
+  });
+
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
   });
 
   test("uses runPipeline as the evaluation engine and does not directly invoke OpenAI", async () => {
@@ -247,6 +254,39 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       expect.objectContaining({
         artifactType: "evaluation_result_v2",
         artifactVersion: "evaluation_result_v2",
+      }),
+    );
+
+    const completionUpdate = supabaseStub.evaluationJobUpdates.find(
+      (payload: Record<string, unknown>) => payload.status === "complete",
+    ) as Record<string, any> | undefined;
+    expect(completionUpdate).toBeDefined();
+    expect(completionUpdate?.progress?.pass3_started_at).toBeDefined();
+    expect(completionUpdate?.progress?.pass3_completed_at).toBeDefined();
+    expect(completionUpdate?.progress?.finalized_at).toBeDefined();
+
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      "ProcessorStageBoundary",
+      expect.objectContaining({
+        job_id: "job-canonical-pipeline",
+        stage: "pass3",
+        state: "start",
+      }),
+    );
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      "ProcessorStageBoundary",
+      expect.objectContaining({
+        job_id: "job-canonical-pipeline",
+        stage: "pass3",
+        state: "complete",
+      }),
+    );
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      "ProcessorStageBoundary",
+      expect.objectContaining({
+        job_id: "job-canonical-pipeline",
+        stage: "finalized",
+        state: "complete",
       }),
     );
   });
