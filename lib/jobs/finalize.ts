@@ -117,13 +117,16 @@ export function buildConfidenceInputs(args: {
         ? "partial"
         : "thin";
 
+  const warningSummary = countPass1UnresolvedWarnings({ pass1, convergence });
+
   return {
     criterionCompletenessPassed,
     anchorIntegrityPassed,
     governancePassed,
     passConvergencePassed,
     hasMaterialPassDisagreement,
-    usedFallbackPath: false,
+    pass1UnresolvedWarningCount: warningSummary.pass1_unresolved_warning_count,
+    usedFallbackPath: warningSummary.used_fallback,
     executionDegraded: false,
     invalidOutput: false,
     quarantinedOutput: false,
@@ -160,12 +163,14 @@ export function countPass1UnresolvedWarnings(args: {
     ]),
   ];
 
-  if (structuredWarnings.length > 0) {
+  const structuredPass1Warnings = structuredWarnings.filter(
+    (warning) => warning.source_pass === "pass1",
+  );
+
+  if (structuredPass1Warnings.length > 0) {
     const unresolvedPass1Warnings = new Set(
-      structuredWarnings
-        .filter(
-          (warning) => warning.source_pass === "pass1" && warning.resolution_status === "unresolved",
-        )
+      structuredPass1Warnings
+        .filter((warning) => warning.resolution_status === "unresolved")
         .map((warning) => `${warning.criterion_id}::${warning.warning_code}`),
     );
 
@@ -175,12 +180,14 @@ export function countPass1UnresolvedWarnings(args: {
     };
   }
 
+  const legacyWarningCount = pass1.criteria.reduce(
+    (total, criterion) => total + criterion.warnings.length,
+    0,
+  );
+
   return {
-    pass1_unresolved_warning_count: pass1.criteria.reduce(
-      (total, criterion) => total + criterion.warnings.length,
-      0,
-    ),
-    used_fallback: true,
+    pass1_unresolved_warning_count: legacyWarningCount,
+    used_fallback: legacyWarningCount > 0,
   };
 }
 

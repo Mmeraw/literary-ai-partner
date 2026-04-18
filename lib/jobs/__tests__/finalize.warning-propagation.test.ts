@@ -148,4 +148,27 @@ describe("countPass1UnresolvedWarnings", () => {
     expect(result.pass1_unresolved_warning_count).toBe(2);
     expect(result.used_fallback).toBe(true);
   });
+
+  it("falls back for pass1 when only non-pass1 structured warnings are present during rollout", () => {
+    const pass1 = makePassArtifact([
+      makeCriterion({ warnings: ["legacy-pass1-warning"] }),
+    ]);
+    const convergence = makeConvergenceArtifact([
+      makeCriterion({
+        propagated_warnings: [
+          {
+            warning_code: "pass2_style_note",
+            message: "Pass 2 warning only",
+            source_pass: "pass2",
+            resolution_status: "unresolved",
+          },
+        ],
+      }),
+    ]);
+
+    const result = countPass1UnresolvedWarnings({ pass1, convergence });
+
+    expect(result.pass1_unresolved_warning_count).toBe(1);
+    expect(result.used_fallback).toBe(true);
+  });
 });
