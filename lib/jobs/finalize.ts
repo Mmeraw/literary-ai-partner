@@ -163,12 +163,14 @@ export function countPass1UnresolvedWarnings(args: {
     ]),
   ];
 
-  if (structuredWarnings.length > 0) {
+  const structuredPass1Warnings = structuredWarnings.filter(
+    (warning) => warning.source_pass === "pass1",
+  );
+
+  if (structuredPass1Warnings.length > 0) {
     const unresolvedPass1Warnings = new Set(
-      structuredWarnings
-        .filter(
-          (warning) => warning.source_pass === "pass1" && warning.resolution_status === "unresolved",
-        )
+      structuredPass1Warnings
+        .filter((warning) => warning.resolution_status === "unresolved")
         .map((warning) => `${warning.criterion_id}::${warning.warning_code}`),
     );
 
