@@ -10,17 +10,18 @@ import type {
   PassArtifact,
   ConvergenceArtifact,
   EvaluationJob,
+  CriterionAssessment,
 } from "../finalize.types";
 
 // === Fixture Helpers ===
 
-function makeCriterion(overrides: Partial<{ criterion_id: string; score_0_10: number; confidence_0_1: number }> = {}) {
+function makeCriterion(overrides: Partial<CriterionAssessment> = {}): CriterionAssessment {
   return {
     criterion_id: overrides.criterion_id ?? CRITERIA_KEYS[0],
     score_0_10: overrides.score_0_10 ?? 7,
-    rationale: "test rationale",
+    rationale: overrides.rationale ?? "test rationale",
     confidence_0_1: overrides.confidence_0_1 ?? 0.85,
-    evidence: [{
+    evidence: overrides.evidence ?? [{
       anchor_id: "a1",
       source_type: "manuscript_chunk" as const,
       source_ref: "ref1",
@@ -28,7 +29,9 @@ function makeCriterion(overrides: Partial<{ criterion_id: string; score_0_10: nu
       end_offset: 100,
       excerpt: "test excerpt",
     }],
-    warnings: [],
+    warnings: overrides.warnings ?? [],
+    quality_warnings: overrides.quality_warnings ?? [],
+    propagated_warnings: overrides.propagated_warnings ?? [],
   };
 }
 
@@ -124,11 +127,24 @@ describe("buildConfidenceInputs", () => {
     expect(inputs.governancePassed).toBe(true);
     expect(inputs.passConvergencePassed).toBe(true);
     expect(inputs.hasMaterialPassDisagreement).toBe(false);
+    expect(inputs.pass1UnresolvedWarningCount).toBe(0);
     expect(inputs.evidenceCoverage).toBe("strong");
     expect(inputs.usedFallbackPath).toBe(false);
     expect(inputs.executionDegraded).toBe(false);
     expect(inputs.invalidOutput).toBe(false);
     expect(inputs.quarantinedOutput).toBe(false);
+  });
+
+  it("legacy warnings trigger fallback only when structured warning state is absent", () => {
+    const pass1 = makePassArtifact("pass1", [{ ...makeCriterion(), warnings: ["legacy-warning-1", "legacy-warning-2"] }]);
+    const pass2 = makePassArtifact("pass2");
+    const pass3 = makePassArtifact("pass3");
+    const convergence = makeConvergenceArtifact();
+
+    const inputs = buildConfidenceInputs({ pass1, pass2, pass3, convergence });
+
+    expect(inputs.pass1UnresolvedWarningCount).toBe(2);
+    expect(inputs.usedFallbackPath).toBe(true);
   });
 
   it("material disagreement: >3pt spread triggers flag", () => {
@@ -201,6 +217,61 @@ describe("buildCanonicalArtifact confidence wiring", () => {
     // With material disagreement + partial evidence, should not be "high"
     expect(canonical.governance.confidence_label).not.toBe("high");
     expect(canonical.governance.confidence_reasons!.length).toBeGreaterThan(0);
+  });
+
+  it("unresolved structured pass1 warnings downgrade confidence without using fallback", () => {
+    const job = makeJob();
+    const pass1 = makePassArtifact("pass1", [
+      {
+        ...makeCriterion(),
+        quality_warnings: [
+          {
+            warning_code: "pass1_incomplete_evidence",
+            message: "Needs more evidence",
+            source_pass: "pass1",
+            resolution_status: "unresolved",
+          },
+        ],
+      },
+    ]);
+    const pass2 = makePassArtifact("pass2");
+    const pass3 = makePassArtifact("pass3");
+    const convergence = makeConvergenceArtifact();
+
+    const inputs = buildConfidenceInputs({ pass1, pass2, pass3, convergence });
+    const canonical = buildCanonicalArtifact({ job, pass1, pass2, pass3, convergence });
+
+    expect(inputs.pass1UnresolvedWarningCount).toBe(1);
+    expect(inputs.usedFallbackPath).toBe(false);
+    expect(canonical.governance.confidence_label).toBe("medium");
+    expect(canonical.governance.confidence_reasons).toContain("pass1_unresolved_warnings_present");
+  });
+
+  it("resolved structured pass1 warnings do not trigger a confidence penalty", () => {
+    const job = makeJob();
+    const pass1 = makePassArtifact("pass1", [
+      {
+        ...makeCriterion(),
+        quality_warnings: [
+          {
+            warning_code: "pass1_incomplete_evidence",
+            message: "Handled",
+            source_pass: "pass1",
+            resolution_status: "resolved",
+          },
+        ],
+      },
+    ]);
+    const pass2 = makePassArtifact("pass2");
+    const pass3 = makePassArtifact("pass3");
+    const convergence = makeConvergenceArtifact();
+
+    const inputs = buildConfidenceInputs({ pass1, pass2, pass3, convergence });
+    const canonical = buildCanonicalArtifact({ job, pass1, pass2, pass3, convergence });
+
+    expect(inputs.pass1UnresolvedWarningCount).toBe(0);
+    expect(canonical.governance.confidence_label).toBe("high");
+    expect(canonical.governance.confidence_reasons).toEqual([]);
   });
 });
 

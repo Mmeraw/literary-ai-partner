@@ -23,6 +23,7 @@ export type ConfidenceReason =
   | "governance_block"
   | "pass_convergence_failed"
   | "pass_disagreement_material"
+  | "pass1_unresolved_warnings_present"
   | "used_fallback_path"
   | "execution_degraded"
   | "invalid_output"
@@ -36,6 +37,7 @@ export type ConfidenceInputs = {
   governancePassed: boolean;
   passConvergencePassed: boolean;
   hasMaterialPassDisagreement: boolean;
+  pass1UnresolvedWarningCount: number;
   usedFallbackPath: boolean;
   executionDegraded: boolean;
   invalidOutput: boolean;
@@ -69,6 +71,10 @@ export function deriveConfidence(input: ConfidenceInputs): ConfidenceResult {
 
   if (input.hasMaterialPassDisagreement) {
     reasons.push("pass_disagreement_material");
+  }
+
+  if (input.pass1UnresolvedWarningCount > 0) {
+    reasons.push("pass1_unresolved_warnings_present");
   }
 
   if (input.usedFallbackPath) {
@@ -116,6 +122,7 @@ export function deriveConfidence(input: ConfidenceInputs): ConfidenceResult {
 
   // Rule 3: medium confidence on degradations/partials.
   if (
+    input.pass1UnresolvedWarningCount > 0 ||
     input.usedFallbackPath ||
     input.executionDegraded ||
     input.evidenceCoverage === "partial" ||

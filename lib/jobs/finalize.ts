@@ -117,13 +117,16 @@ export function buildConfidenceInputs(args: {
         ? "partial"
         : "thin";
 
+  const warningSummary = countPass1UnresolvedWarnings({ pass1, convergence });
+
   return {
     criterionCompletenessPassed,
     anchorIntegrityPassed,
     governancePassed,
     passConvergencePassed,
     hasMaterialPassDisagreement,
-    usedFallbackPath: false,
+    pass1UnresolvedWarningCount: warningSummary.pass1_unresolved_warning_count,
+    usedFallbackPath: warningSummary.used_fallback,
     executionDegraded: false,
     invalidOutput: false,
     quarantinedOutput: false,
@@ -175,12 +178,14 @@ export function countPass1UnresolvedWarnings(args: {
     };
   }
 
+  const legacyWarningCount = pass1.criteria.reduce(
+    (total, criterion) => total + criterion.warnings.length,
+    0,
+  );
+
   return {
-    pass1_unresolved_warning_count: pass1.criteria.reduce(
-      (total, criterion) => total + criterion.warnings.length,
-      0,
-    ),
-    used_fallback: true,
+    pass1_unresolved_warning_count: legacyWarningCount,
+    used_fallback: legacyWarningCount > 0,
   };
 }
 

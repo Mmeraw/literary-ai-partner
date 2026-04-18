@@ -11,6 +11,7 @@ function makeBaseInput(overrides: Partial<ConfidenceInputs> = {}): ConfidenceInp
     governancePassed: true,
     passConvergencePassed: true,
     hasMaterialPassDisagreement: false,
+    pass1UnresolvedWarningCount: 0,
     usedFallbackPath: false,
     executionDegraded: false,
     invalidOutput: false,
@@ -49,6 +50,12 @@ describe("U1 confidence derivation", () => {
     const result = deriveConfidence(makeBaseInput({ usedFallbackPath: true }));
     expect(result.confidence).toBe("medium");
     expect(result.reasons).toContain("used_fallback_path");
+  });
+
+  test("4b) unresolved pass1 warnings + clean otherwise => medium", () => {
+    const result = deriveConfidence(makeBaseInput({ pass1UnresolvedWarningCount: 1 }));
+    expect(result.confidence).toBe("medium");
+    expect(result.reasons).toContain("pass1_unresolved_warnings_present");
   });
 
   test("5) passConvergencePassed=false + clean otherwise => medium", () => {
