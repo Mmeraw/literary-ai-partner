@@ -108,6 +108,20 @@ describe('failure taxonomy', () => {
       expect(isNonTransientFailure(classifyError(new Error('pass convergence check failed')))).toBe(true);
     });
 
+    test('schema validation failures map to SCHEMA_VALIDATION_FAILED before generic schema buckets', () => {
+      expect(classifyError(new Error('schema validation failed: missing required field'))).toBe('SCHEMA_VALIDATION_FAILED');
+      expect(classifyError(new Error('SCHEMA_VALIDATION_FAILED invariant breach'))).toBe('SCHEMA_VALIDATION_FAILED');
+      expect(classifyError(new Error('schema error while decoding payload'))).toBe('SCHEMA_ERROR');
+    });
+
+    test('convergence classification is specific and does not trigger on non-failure mentions', () => {
+      expect(classifyError(new Error('pass convergence failure: unresolved contradiction'))).toBe('PASS_CONVERGENCE_FAILURE');
+      expect(classifyError(new Error('convergence artifact not found'))).toBe('PASS_CONVERGENCE_FAILURE');
+
+      // Informational language containing "convergence" must not be auto-classified as a deterministic failure.
+      expect(classifyError(new Error('convergence report generated successfully'))).toBe('INTERNAL_ERROR');
+    });
+
     test('unknown errors default to INTERNAL_ERROR (transient) — one retry chance', () => {
       const code = classifyError(new Error('something completely unexpected happened'));
       expect(code).toBe('INTERNAL_ERROR');
