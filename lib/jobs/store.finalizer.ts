@@ -6,7 +6,10 @@ import type {
   ConvergenceArtifact,
   EvaluationJob,
   JobAuditEvent,
+  MarkJobInvalidArgs,
   MarkJobFailedArgs,
+  PersistInvalidCanonicalArgs,
+  PersistInvalidCanonicalResult,
   PassArtifact,
   PersistCanonicalAndSummaryAndCompleteArgs,
   PersistCanonicalAndSummaryAndCompleteResult,
@@ -31,6 +34,7 @@ const FINALIZER_JOB_SELECT_FIELDS = [
 
 const ARTIFACT_SELECT_FIELDS = "id, job_id, artifact_type, content";
 const FINALIZER_CANONICAL_ARTIFACT_TYPE = "evaluation_result_v1";
+const FINALIZER_CANONICAL_INVALID_ARTIFACT_TYPE = "evaluation_result_v1_invalid";
 const FINALIZER_SUMMARY_ARTIFACT_TYPE = "one_page_summary";
 
 type SupabaseLike = NonNullable<ReturnType<typeof createAdminClient>>;
@@ -311,6 +315,56 @@ export async function persistCanonicalAndSummaryAndCompleteJob(
   return requireCompletionIds(data);
 }
 
+export async function persistInvalidCanonicalArtifact(
+  args: PersistInvalidCanonicalArgs,
+): Promise<PersistInvalidCanonicalResult> {
+  const canonicalContent: CanonicalEvaluationArtifact = {
+    ...args.canonical,
+    job_id: args.job.id,
+  };
+
+  const { data: jobRow, error: jobLookupError } = await supabase
+    .from("evaluation_jobs")
+    .select("manuscript_id")
+    .eq("id", args.job.id)
+    .single();
+
+  if (jobLookupError || !jobRow || typeof jobRow.manuscript_id !== "number") {
+    throw new Error(
+      `[FINALIZER-STORE] Invalid canonical persistence failed manuscript lookup for job ${args.job.id}: ${jobLookupError?.message ?? "missing manuscript_id"}`,
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("evaluation_artifacts")
+    .insert({
+      job_id: args.job.id,
+      manuscript_id: jobRow.manuscript_id,
+      artifact_type: FINALIZER_CANONICAL_INVALID_ARTIFACT_TYPE,
+      artifact_version: "v1",
+      content: canonicalContent,
+      source_phase: "finalizer",
+      source_hash: null,
+      updated_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw new Error(
+      `[FINALIZER-STORE] Invalid canonical persistence failed for job ${args.job.id}: ${error.message}`,
+    );
+  }
+
+  if (!data || typeof data.id !== "string" || data.id.length === 0) {
+    throw new Error(
+      `[FINALIZER-STORE] Invalid canonical persistence missing id for job ${args.job.id}`,
+    );
+  }
+
+  return { canonical_artifact_id: data.id };
+}
+
 export async function getPassArtifactById(artifactId: string): Promise<PassArtifact> {
   const row = await getArtifactRowById(artifactId);
   const payload = readArtifactPayload(row);
@@ -367,6 +421,51 @@ export async function markJobFailed(args: MarkJobFailedArgs): Promise<void> {
   if (error) {
     throw new Error(
       `[FINALIZER-STORE] Failed to mark job failed for ${args.job_id}: ${error.message}`,
+    );
+  }
+}
+
+export async function markJobInvalid(args: MarkJobInvalidArgs): Promise<void> {
+  const job = await getJobForFinalization(args.job_id);
+
+  if (job.status !== "running") {
+    throw new Error(
+      `[FINALIZER-STORE] Cannot mark job invalid from status ${job.status}`,
+    );
+  }
+
+  if (job.claimed_by !== args.worker_id) {
+    throw new Error(
+      `[FINALIZER-STORE] Cannot mark job invalid: claim mismatch expected ${args.worker_id} got ${job.claimed_by}`,
+    );
+  }
+
+  const now = new Date().toISOString();
+  const progress = {
+    phase: "finalizer",
+    phase_status: "complete",
+    canonical_artifact_id: args.canonical_artifact_id,
+    summary_artifact_id: null,
+    terminal_at: now,
+    lease_id: null,
+    lease_expires_at: null,
+  };
+
+  const { error } = await supabase
+    .from("evaluation_jobs")
+    .update({
+      status: "complete",
+      validity_status: "invalid",
+      progress,
+      last_error: args.last_error,
+      updated_at: now,
+    })
+    .eq("id", args.job_id)
+    .eq("status", "running");
+
+  if (error) {
+    throw new Error(
+      `[FINALIZER-STORE] Failed to mark job invalid for ${args.job_id}: ${error.message}`,
     );
   }
 }

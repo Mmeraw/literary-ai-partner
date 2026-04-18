@@ -102,6 +102,22 @@ export interface EligibilityBlock {
   reason: string | null;
 }
 
+export type CanonicalValidityStatus = "valid" | "invalid";
+
+export type CanonicalValidationIssueCode =
+  | "MISSING_CRITERION"
+  | "INVALID_SCORE"
+  | "MISSING_REASONING"
+  | "MISSING_EVIDENCE"
+  | "NON_CANONICAL_CRITERION"
+  | "DUPLICATE_CRITERION";
+
+export interface CanonicalValidationIssue {
+  criterion_id: string;
+  code: CanonicalValidationIssueCode;
+  detail: string;
+}
+
 export interface CanonicalEvaluationArtifact {
   id: string;
   job_id: string;
@@ -128,6 +144,9 @@ export interface CanonicalEvaluationArtifact {
     transparency_passed: boolean;
     anchor_contract_passed: boolean;
     canonical_ready: boolean;
+    validity_status: CanonicalValidityStatus;
+    validation_issues: CanonicalValidationIssue[];
+    release_blocked: boolean;
     // U1.1 — confidence derivation wiring (see lib/governance/confidenceDerivation.ts)
     confidence_label?: "high" | "medium" | "low" | "withheld";
     confidence_reasons?: string[];
@@ -183,6 +202,14 @@ export type FinalizeJobResult =
   | {
       ok: false;
       job_id: string;
+      canonical_artifact_id: string;
+      final_status: "invalid";
+      reason: string;
+      validation_issues: CanonicalValidationIssue[];
+    }
+  | {
+      ok: false;
+      job_id: string;
       failure_code: FailureCode;
       final_status: "failed";
       reason: string;
@@ -198,6 +225,23 @@ export interface PersistCanonicalAndSummaryAndCompleteArgs {
 export interface PersistCanonicalAndSummaryAndCompleteResult {
   canonical_artifact_id: string;
   summary_artifact_id: string;
+}
+
+export interface PersistInvalidCanonicalArgs {
+  job: EvaluationJob;
+  worker_id: string;
+  canonical: CanonicalEvaluationArtifact;
+}
+
+export interface PersistInvalidCanonicalResult {
+  canonical_artifact_id: string;
+}
+
+export interface MarkJobInvalidArgs {
+  job_id: string;
+  worker_id: string;
+  canonical_artifact_id: string;
+  last_error: string;
 }
 
 export interface MarkJobFailedArgs {

@@ -135,6 +135,9 @@ function makeCanonicalArtifact(): CanonicalEvaluationArtifact {
       transparency_passed: true,
       anchor_contract_passed: true,
       canonical_ready: true,
+      validity_status: "valid",
+      validation_issues: [],
+      release_blocked: false,
     },
     eligibility: {
       structural_pass: true,

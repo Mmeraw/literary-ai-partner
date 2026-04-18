@@ -58,25 +58,23 @@ function makeConvergence(): ConvergenceArtifact {
       pass2_artifact_id: "p2",
       pass3_artifact_id: "p3",
     },
-    merged_criteria: [
-      {
-        criterion_id: "sceneConstruction",
-        score_0_10: 8,
-        rationale: "Merged rationale.",
-        confidence_0_1: 0.85,
-        evidence: [
-          {
-            anchor_id: "conv-a1",
-            source_type: "manuscript_chunk",
-            source_ref: "chunk-1",
-            start_offset: 10,
-            end_offset: 25,
-            excerpt: "Merged excerpt",
-          },
-        ],
-        warnings: [],
-      },
-    ],
+    merged_criteria: CRITERIA_KEYS.map((key, idx) => ({
+      criterion_id: key,
+      score_0_10: 8,
+      rationale: "Merged rationale.",
+      confidence_0_1: 0.85,
+      evidence: [
+        {
+          anchor_id: `conv-a${idx + 1}`,
+          source_type: "manuscript_chunk",
+          source_ref: "chunk-1",
+          start_offset: 10,
+          end_offset: 25,
+          excerpt: "Merged excerpt",
+        },
+      ],
+      warnings: [],
+    })),
     overview_summary: "Overall convergence summary.",
     convergence_notes: [],
     conflicts_detected: [],
@@ -137,6 +135,10 @@ function makeStorage(
     persistCanonicalAndSummaryAndCompleteJob:
       completionImpl
       ?? jest.fn(async () => ({ canonical_artifact_id: "canon-1", summary_artifact_id: "sum-1" })),
+    persistInvalidCanonicalArtifact: jest.fn(async () => ({
+      canonical_artifact_id: "canon-invalid-1",
+    })),
+    markJobInvalid: jest.fn(async () => undefined),
     markJobFailed: jest.fn(async () => undefined),
   };
 }

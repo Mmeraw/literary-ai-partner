@@ -19,11 +19,16 @@ import type {
   PassArtifact,
   ConvergenceArtifact,
   CanonicalEvaluationArtifact,
+  CanonicalValidationIssue,
+  CanonicalValidityStatus,
   ReportSummaryProjection,
   FinalizeJobInput,
   FinalizeJobResult,
   PersistCanonicalAndSummaryAndCompleteArgs,
   PersistCanonicalAndSummaryAndCompleteResult,
+  PersistInvalidCanonicalArgs,
+  PersistInvalidCanonicalResult,
+  MarkJobInvalidArgs,
   MarkJobFailedArgs,
 } from "./finalize.types";
 import type { FailureCode } from "./failures";
@@ -42,6 +47,7 @@ import {
   CONFIDENCE_DERIVATION_VERSION,
   type ConfidenceInputs,
 } from "../governance/confidenceDerivation";
+import { CRITERIA_KEYS } from "../../schemas/criteria-keys";
 
 // === Finalizer Version ===
 export const FINALIZER_VERSION = "1.0.0";
@@ -54,10 +60,12 @@ export interface FinalizerStorage {
   persistCanonicalAndSummaryAndCompleteJob(
     args: PersistCanonicalAndSummaryAndCompleteArgs,
   ): Promise<PersistCanonicalAndSummaryAndCompleteResult>;
+  persistInvalidCanonicalArtifact(
+    args: PersistInvalidCanonicalArgs,
+  ): Promise<PersistInvalidCanonicalResult>;
+  markJobInvalid(args: MarkJobInvalidArgs): Promise<void>;
   markJobFailed(args: MarkJobFailedArgs): Promise<void>;
 }
-
-type FinalizerDerivedValidityStatus = "valid" | "invalid" | "quarantined";
 
 // === U1.1: Build ConfidenceInputs from finalizer scope ===
 export function buildConfidenceInputs(args: {
@@ -191,6 +199,9 @@ export function buildCanonicalArtifact(args: {
         convergence.validations.pass_separation_preserved &&
         convergence.validations.all_required_passes_present &&
         convergence.validations.anchor_contract_valid,
+      validity_status: "valid",
+      validation_issues: [],
+      release_blocked: false,
       // U1.1 wiring
       confidence_label: confidenceResult.confidence,
       confidence_reasons: confidenceResult.reasons,
@@ -213,21 +224,9 @@ export function buildCanonicalArtifact(args: {
 }
 
 export function deriveValidityStatus(
-  canonical: CanonicalEvaluationArtifact,
-): FinalizerDerivedValidityStatus {
-  if (!canonical.governance.transparency_passed) {
-    return "quarantined";
-  }
-
-  if (!canonical.governance.anchor_contract_passed) {
-    return "quarantined";
-  }
-
-  if (!canonical.governance.canonical_ready) {
-    return "invalid";
-  }
-
-  return "valid";
+  issues: CanonicalValidationIssue[],
+): CanonicalValidityStatus {
+  return issues.length === 0 ? "valid" : "invalid";
 }
 
 export function buildReportSummaryProjection(
@@ -255,34 +254,91 @@ export function buildReportSummaryProjection(
   };
 }
 
-function validateCanonicalArtifact(canonical: CanonicalEvaluationArtifact): void {
+export function validateCanonicalArtifact(
+  canonical: CanonicalEvaluationArtifact,
+): CanonicalValidationIssue[] {
+  const issues: CanonicalValidationIssue[] = [];
+  const requiredKeys = new Set<string>(CRITERIA_KEYS);
+  const seen = new Set<string>();
+
   if (!canonical.schema_version) {
-    throw new InvariantViolation(
-      "SCHEMA_ERROR",
-      `Canonical artifact missing schema_version`,
-    );
-  }
-
-  if (!canonical.governance.transparency_passed) {
-    throw new InvariantViolation(
-      "GOVERNANCE_BLOCK",
-      "Canonical artifact failed transparency gate",
-    );
-  }
-
-  if (!canonical.governance.anchor_contract_passed) {
-    throw new InvariantViolation(
-      "ANCHOR_CONTRACT_VIOLATION",
-      "Canonical artifact failed anchor contract gate",
-    );
+    issues.push({
+      criterion_id: "__artifact__",
+      code: "NON_CANONICAL_CRITERION",
+      detail: "Canonical artifact missing schema_version",
+    });
   }
 
   if (!canonical.governance.canonical_ready) {
-    throw new InvariantViolation(
-      "SCHEMA_ERROR",
-      "Canonical artifact not marked as ready",
-    );
+    issues.push({
+      criterion_id: "__artifact__",
+      code: "NON_CANONICAL_CRITERION",
+      detail: "Canonical artifact not marked canonical_ready",
+    });
   }
+
+  for (const criterion of canonical.criteria) {
+    if (!requiredKeys.has(criterion.criterion_id)) {
+      issues.push({
+        criterion_id: criterion.criterion_id,
+        code: "NON_CANONICAL_CRITERION",
+        detail: `Non-canonical criterion id \"${criterion.criterion_id}\"`,
+      });
+      continue;
+    }
+
+    if (seen.has(criterion.criterion_id)) {
+      issues.push({
+        criterion_id: criterion.criterion_id,
+        code: "DUPLICATE_CRITERION",
+        detail: `Duplicate criterion \"${criterion.criterion_id}\"`,
+      });
+      continue;
+    }
+
+    seen.add(criterion.criterion_id);
+
+    if (
+      typeof criterion.score_0_10 !== "number" ||
+      !Number.isFinite(criterion.score_0_10) ||
+      criterion.score_0_10 < 0 ||
+      criterion.score_0_10 > 10
+    ) {
+      issues.push({
+        criterion_id: criterion.criterion_id,
+        code: "INVALID_SCORE",
+        detail: `Invalid score (${criterion.score_0_10})`,
+      });
+    }
+
+    if (!criterion.rationale || criterion.rationale.trim().length === 0) {
+      issues.push({
+        criterion_id: criterion.criterion_id,
+        code: "MISSING_REASONING",
+        detail: "Reasoning/rationale is empty",
+      });
+    }
+
+    if (!criterion.evidence || criterion.evidence.length === 0) {
+      issues.push({
+        criterion_id: criterion.criterion_id,
+        code: "MISSING_EVIDENCE",
+        detail: "Evidence anchors are empty",
+      });
+    }
+  }
+
+  for (const key of requiredKeys) {
+    if (!seen.has(key)) {
+      issues.push({
+        criterion_id: key,
+        code: "MISSING_CRITERION",
+        detail: `Missing canonical criterion \"${key}\"`,
+      });
+    }
+  }
+
+  return issues;
 }
 
 // === Layer 2: Side Effects (Finalizer Entry Point) ===
@@ -292,6 +348,7 @@ export async function finalizeJob(
   storage: FinalizerStorage,
 ): Promise<FinalizeJobResult> {
   let failureWriteAuthorized = false;
+  let criterionCompletenessViolation: InvariantViolation | null = null;
 
   try {
     // Step 1: Acquire and verify authority
@@ -323,27 +380,83 @@ export async function finalizeJob(
     enforcePassSeparation(pass1, pass2, pass3, convergence);
 
     // Step 5.5: Criterion completeness gate (Item #8)
-    enforceCriterionCompleteness(pass1, pass2, pass3);
+    try {
+      enforceCriterionCompleteness(pass1, pass2, pass3);
+    } catch (error) {
+      if (
+        error instanceof InvariantViolation
+        && error.failureCode === "CRITERION_COMPLETENESS_FAILED"
+      ) {
+        criterionCompletenessViolation = error;
+      } else {
+        throw error;
+      }
+    }
 
     // Step 6: Anchor integrity
-    enforceAnchorIntegrity(pass1, pass2, pass3, convergence);
+    if (!criterionCompletenessViolation) {
+      enforceAnchorIntegrity(pass1, pass2, pass3, convergence);
+    }
 
     // Step 7: A6 credibility
-    enforceA6Credibility(pass1, pass2, pass3, convergence);
+    if (!criterionCompletenessViolation) {
+      enforceA6Credibility(pass1, pass2, pass3, convergence);
+    }
 
     // Step 8: Build canonical artifact (includes U1.1 confidence derivation)
     const canonical = buildCanonicalArtifact({ job, pass1, pass2, pass3, convergence });
 
     // Step 9: Validate canonical artifact
-    validateCanonicalArtifact(canonical);
+    const validationIssues = validateCanonicalArtifact(canonical);
+    if (criterionCompletenessViolation) {
+      validationIssues.push({
+        criterion_id: "__artifact__",
+        code: "MISSING_CRITERION",
+        detail: criterionCompletenessViolation.message,
+      });
+    }
 
-    // Step 9.5: Derive validity and fail closed if canonical output is not releasable
-    const validityStatus = deriveValidityStatus(canonical);
-    if (validityStatus !== "valid") {
-      throw new InvariantViolation(
-        "GOVERNANCE_BLOCK",
-        `Finalizer validity gate blocked completion with validity_status='${validityStatus}'`,
-      );
+    // Step 9.5: Derive validity and route invalid outputs to blocked-release path
+    const validityStatus = deriveValidityStatus(validationIssues);
+    canonical.governance.validity_status = validityStatus;
+    canonical.governance.validation_issues = validationIssues;
+    canonical.governance.release_blocked = validityStatus === "invalid";
+
+    if (validityStatus === "invalid") {
+      canonical.overview.overall_score_0_100 = 0;
+      canonical.overview.verdict = "Invalid";
+      canonical.eligibility = {
+        structural_pass: false,
+        refinement_unlocked: false,
+        wave_unlocked: false,
+        submission_packaging_unlocked: false,
+        reason: "Evaluation invalid: canonical completeness contract failed",
+      };
+      canonical.governance.confidence_label = "withheld";
+
+      const invalidWrite = await storage.persistInvalidCanonicalArtifact({
+        job,
+        worker_id: input.worker_id,
+        canonical,
+      });
+
+      await storage.markJobInvalid({
+        job_id: job.id,
+        worker_id: input.worker_id,
+        canonical_artifact_id: invalidWrite.canonical_artifact_id,
+        last_error: `Canonical validation failed: ${validationIssues
+          .map((issue) => `${issue.criterion_id}:${issue.code}`)
+          .join(", ")}`,
+      });
+
+      return {
+        ok: false,
+        job_id: job.id,
+        canonical_artifact_id: invalidWrite.canonical_artifact_id,
+        final_status: "invalid",
+        reason: "Canonical validation failed",
+        validation_issues: validationIssues,
+      };
     }
 
     // Step 10: Build summary projection candidate (IDs finalized in write authority)
