@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import { canReleaseEvaluationRead } from "@/lib/jobs/readReleaseGate";
 
 type Params = { params: Promise<{ jobId: string }> };
 
@@ -43,7 +44,7 @@ export async function GET(_: Request, { params }: Params) {
   // Ownership check
   const { data: job } = await supabase
     .from("evaluation_jobs")
-    .select("id, created_by")
+    .select("id, created_by, status, validity_status, evaluation_result")
     .eq("id", jobId)
     .maybeSingle();
 
@@ -53,6 +54,10 @@ export async function GET(_: Request, { params }: Params) {
 
   if (job.created_by !== auth.user.id) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  }
+
+  if (!canReleaseEvaluationRead(job)) {
+    return NextResponse.json({ ok: false, error: "Job not releasable" }, { status: 404 });
   }
 
   // Fetch latest artifact

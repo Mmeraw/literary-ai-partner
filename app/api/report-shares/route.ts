@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getActorIdOrNull } from "@/lib/auth/actor";
+import { canReleaseEvaluationRead } from "@/lib/jobs/readReleaseGate";
 
 type Body = {
   jobId?: string;
@@ -59,11 +60,16 @@ export async function POST(req: Request) {
     // Ownership check first (fail-closed)
     const { data: job, error: jobErr } = await admin
       .from("evaluation_jobs")
-      .select("id,user_id")
+      .select("id,user_id,status,validity_status,evaluation_result")
       .eq("id", jobId)
       .maybeSingle();
 
-    if (jobErr || !job || job.user_id !== actorId) {
+    if (
+      jobErr ||
+      !job ||
+      job.user_id !== actorId ||
+      !canReleaseEvaluationRead(job)
+    ) {
       return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
     }
 
@@ -105,7 +111,23 @@ export async function POST(req: Request) {
     });
   }
 
-  // Production: authenticated session, use canonical RPC
+  // Production: enforce ownership + release policy before RPC
+  const admin = createAdminClient();
+  const { data: ownerScopedJob, error: ownerScopedJobErr } = await admin
+    .from("evaluation_jobs")
+    .select("id,user_id,status,validity_status,evaluation_result")
+    .eq("id", jobId)
+    .eq("user_id", actorId)
+    .maybeSingle();
+
+  if (
+    ownerScopedJobErr ||
+    !ownerScopedJob ||
+    !canReleaseEvaluationRead(ownerScopedJob)
+  ) {
+    return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
+  }
+
   const supabase = await createClient();
 
   const { data, error } = await supabase.rpc("create_report_share", {
