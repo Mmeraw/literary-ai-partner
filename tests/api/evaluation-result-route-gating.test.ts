@@ -58,6 +58,42 @@ describe("GET /api/jobs/[jobId]/evaluation-result release gate", () => {
     expect(json.error).toBe("Evaluation not releasable");
   });
 
+  test("returns 404 when job is complete + valid but confidence is below release threshold", async () => {
+    const supabase = {
+      from: jest.fn(() => ({
+        select: jest.fn(() => ({
+          eq: jest.fn(() => ({
+            single: jest.fn(async () => ({
+              data: {
+                id: "11111111-1111-1111-1111-111111111111",
+                manuscript_id: 42,
+                status: "complete",
+                validity_status: "valid",
+                evaluation_result: {
+                  governance: {
+                    confidence: 0.4,
+                  },
+                },
+                evaluation_result_version: "v1",
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const response = await GET(makeRequest(), {
+      params: Promise.resolve({ jobId: "11111111-1111-1111-1111-111111111111" }),
+    });
+
+    expect(response.status).toBe(404);
+  });
+
   test("returns 200 when job is complete + valid and payload is schema-valid", async () => {
     const supabase = {
       from: jest.fn(() => ({
@@ -83,8 +119,8 @@ describe("GET /api/jobs/[jobId]/evaluation-result release gate", () => {
                     verdict: "pass",
                     overall_score_0_100: 82,
                     one_paragraph_summary: "Good manuscript quality.",
-                    top_3_strengths: ["voice", "pacing", "structure"],
-                    top_3_risks: ["stakes", "clarity", "ending"],
+                    top_3_strengths: ["strength-a", "strength-b", "strength-c"],
+                    top_3_risks: ["risk-a", "risk-b", "risk-c"],
                   },
                   criteria: [],
                   recommendations: { quick_wins: [], strategic_revisions: [] },

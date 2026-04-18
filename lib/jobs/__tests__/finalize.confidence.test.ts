@@ -5,6 +5,7 @@ import {
   deriveValidityStatus,
 } from "../finalize";
 import { CONFIDENCE_DERIVATION_VERSION } from "../../governance/confidenceDerivation";
+import { CRITERIA_KEYS } from "../../../schemas/criteria-keys";
 import type {
   PassArtifact,
   ConvergenceArtifact,
@@ -15,7 +16,7 @@ import type {
 
 function makeCriterion(overrides: Partial<{ criterion_id: string; score_0_10: number; confidence_0_1: number }> = {}) {
   return {
-    criterion_id: overrides.criterion_id ?? "c1",
+    criterion_id: overrides.criterion_id ?? CRITERIA_KEYS[0],
     score_0_10: overrides.score_0_10 ?? 7,
     rationale: "test rationale",
     confidence_0_1: overrides.confidence_0_1 ?? 0.85,
@@ -85,7 +86,7 @@ function makeJob(): EvaluationJob {
   return {
     id: "job-1",
     user_id: "user-1",
-    status: "running" as any,
+    status: "running",
     phase: "finalizer",
     progress_percent: 90,
     submission_idempotency_key: null,
@@ -204,41 +205,18 @@ describe("buildCanonicalArtifact confidence wiring", () => {
 });
 
 describe("deriveValidityStatus", () => {
-  it("returns valid when canonical governance gates are all true", () => {
-    const job = makeJob();
-    const pass1 = makePassArtifact("pass1");
-    const pass2 = makePassArtifact("pass2");
-    const pass3 = makePassArtifact("pass3");
-    const convergence = makeConvergenceArtifact();
-
-    const canonical = buildCanonicalArtifact({ job, pass1, pass2, pass3, convergence });
-
-    expect(deriveValidityStatus(canonical)).toBe("valid");
+  it("returns valid when no issues", () => {
+    expect(deriveValidityStatus([])).toBe("valid");
   });
 
-  it("returns quarantined when transparency is false", () => {
-    const job = makeJob();
-    const pass1 = makePassArtifact("pass1");
-    const pass2 = makePassArtifact("pass2");
-    const pass3 = makePassArtifact("pass3");
-    const convergence = makeConvergenceArtifact();
-
-    const canonical = buildCanonicalArtifact({ job, pass1, pass2, pass3, convergence });
-    canonical.governance.transparency_passed = false;
-
-    expect(deriveValidityStatus(canonical)).toBe("quarantined");
-  });
-
-  it("returns invalid when canonical_ready is false without quarantine signals", () => {
-    const job = makeJob();
-    const pass1 = makePassArtifact("pass1");
-    const pass2 = makePassArtifact("pass2");
-    const pass3 = makePassArtifact("pass3");
-    const convergence = makeConvergenceArtifact();
-
-    const canonical = buildCanonicalArtifact({ job, pass1, pass2, pass3, convergence });
-    canonical.governance.canonical_ready = false;
-
-    expect(deriveValidityStatus(canonical)).toBe("invalid");
+  it("returns invalid when issues are present", () => {
+    const issues = [
+      {
+        criterion_id: "__artifact__",
+        code: "MISSING_EVIDENCE" as const,
+        detail: "criteria missing",
+      },
+    ];
+    expect(deriveValidityStatus(issues)).toBe("invalid");
   });
 });

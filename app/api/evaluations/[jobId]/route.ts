@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { getDevHeaderActor } from "@/lib/auth/devHeaderActor";
+import { getEvaluationReleaseDecision } from "@/lib/jobs/readReleaseGate";
 
 type Ok = {
   ok: true;
@@ -47,7 +48,7 @@ export async function GET(
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id,user_id,status,evaluation_result,manuscripts(user_id)")
+      .select("id,user_id,status,validity_status,evaluation_result,manuscripts(user_id)")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -78,9 +79,14 @@ export async function GET(
       return NextResponse.json(payload, { status: 404 });
     }
 
-    // 4) Completion enforcement
-    if (job.status !== "complete") {
-      const payload: Err = { ok: false, error: "Evaluation not completed" };
+    // 4) Fail-closed release gate (complete + valid + confidence policy)
+    const releaseDecision = getEvaluationReleaseDecision(job);
+    if (releaseDecision.releasable === false) {
+      const payload: Err = {
+        ok: false,
+        error: "Evaluation not releasable",
+        details: releaseDecision.reason,
+      };
       return NextResponse.json(payload, { status: 409 });
     }
 
