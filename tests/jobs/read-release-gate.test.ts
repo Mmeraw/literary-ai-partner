@@ -98,7 +98,9 @@ describe("getEvaluationReleaseDecision", () => {
       confidence_0_1: NaN,
     });
     expect(decision.releasable).toBe(false);
-    expect(decision.reason).toBe("malformed_state");
+    if (decision.releasable === false) {
+      expect(decision.reason).toBe("malformed_state");
+    }
   });
 
   test("blocks Infinity confidence as malformed_state (fail-closed)", () => {
@@ -108,7 +110,9 @@ describe("getEvaluationReleaseDecision", () => {
       confidence_0_1: Infinity,
     });
     expect(decision.releasable).toBe(false);
-    expect(decision.reason).toBe("malformed_state");
+    if (decision.releasable === false) {
+      expect(decision.reason).toBe("malformed_state");
+    }
   });
 
   test("blocks negative Infinity as malformed_state (fail-closed)", () => {
@@ -118,7 +122,9 @@ describe("getEvaluationReleaseDecision", () => {
       confidence_0_1: -Infinity,
     });
     expect(decision.releasable).toBe(false);
-    expect(decision.reason).toBe("malformed_state");
+    if (decision.releasable === false) {
+      expect(decision.reason).toBe("malformed_state");
+    }
   });
 
   test("blocks out-of-range confidence (> 1) as malformed_state", () => {
@@ -128,7 +134,9 @@ describe("getEvaluationReleaseDecision", () => {
       confidence_0_1: 1.5,
     });
     expect(decision.releasable).toBe(false);
-    expect(decision.reason).toBe("malformed_state");
+    if (decision.releasable === false) {
+      expect(decision.reason).toBe("malformed_state");
+    }
   });
 
   test("blocks out-of-range confidence (< 0) as malformed_state", () => {
@@ -138,7 +146,9 @@ describe("getEvaluationReleaseDecision", () => {
       confidence_0_1: -0.5,
     });
     expect(decision.releasable).toBe(false);
-    expect(decision.reason).toBe("malformed_state");
+    if (decision.releasable === false) {
+      expect(decision.reason).toBe("malformed_state");
+    }
   });
 
   test("blocks malformed nested confidence (NaN in governance)", () => {
@@ -150,7 +160,9 @@ describe("getEvaluationReleaseDecision", () => {
       },
     });
     expect(decision.releasable).toBe(false);
-    expect(decision.reason).toBe("malformed_state");
+    if (decision.releasable === false) {
+      expect(decision.reason).toBe("malformed_state");
+    }
   });
 
   test("accepts valid boundary values: 0", () => {
@@ -160,7 +172,9 @@ describe("getEvaluationReleaseDecision", () => {
       confidence_0_1: 0,
     });
     expect(decision.releasable).toBe(false); // 0 < 0.65 threshold
-    expect(decision.reason).toBe("low_confidence");
+    if (decision.releasable === false) {
+      expect(decision.reason).toBe("low_confidence");
+    }
   });
 
   test("accepts valid boundary values: 1", () => {
