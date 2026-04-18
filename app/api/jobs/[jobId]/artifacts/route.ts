@@ -42,17 +42,21 @@ export async function GET(_: Request, { params }: Params) {
   }
 
   // Ownership check
-  const { data: job } = await supabase
+  const { data: job, error: jobError } = await supabase
     .from("evaluation_jobs")
-    .select("id, created_by, status, validity_status, evaluation_result")
+    .select("id, user_id, status, validity_status, evaluation_result")
     .eq("id", jobId)
     .maybeSingle();
+
+  if (jobError) {
+    return NextResponse.json({ ok: false, error: jobError.message }, { status: 500 });
+  }
 
   if (!job) {
     return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
   }
 
-  if (job.created_by !== auth.user.id) {
+  if (job.user_id !== auth.user.id) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 
