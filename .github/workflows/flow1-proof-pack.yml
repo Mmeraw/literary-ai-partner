@@ -11,11 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Known: GitHub git service occasionally emits transient "RPC failed; HTTP 404" or
-      # "expected 'packfile'" during checkout. actions/checkout@v4 has built-in retry logic
+      # "expected 'packfile'" during checkout. actions/checkout@v5 has built-in retry logic
       # that recovers. The annotation is informational (shows retry worked), not a failure.
-      - uses: actions/checkout@v4.2.0
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: "npm"
@@ -101,7 +101,7 @@ jobs:
           echo "Known transient infra flakes:"
           echo "  - GitHub git fetch may emit 'RPC failed; HTTP 404' or 'expected packfile'"
           echo "  - These are GitHub infrastructure issues, not code issues"
-          echo "  - actions/checkout@v4.2.0 has built-in retry logic that recovers"
+          echo "  - actions/checkout@v5 has built-in retry logic that recovers"
           echo "  - Red annotations are informational (show retry worked)"
           echo ""
           echo "Gate status: Green (all functional checks passed)"
