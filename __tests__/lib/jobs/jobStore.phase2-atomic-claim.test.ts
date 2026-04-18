@@ -58,8 +58,12 @@ function buildSupabaseStub(opts: {
 
       return {
         select: jest.fn().mockReturnValue({
+          limit: jest
+            .fn()
+            .mockResolvedValue({ data: [{ id: "job-1", validity_status: null }], error: null }),
           eq: jest.fn().mockReturnValue({
             maybeSingle: getJobMaybeSingle,
+            single: jest.fn().mockResolvedValue({ data: getJobRows[0] ?? null, error: null }),
           }),
         }),
         update: jest.fn(() => ({
