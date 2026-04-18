@@ -270,4 +270,32 @@ describe('finalizeJob', () => {
       expect(result.failure_code).toBe('GOVERNANCE_BLOCK');
     }
   });
+
+  test('fails closed before completion write when validity gate is non-valid', async () => {
+    const storage = makeStorage();
+    storage.getConvergenceArtifact.mockResolvedValueOnce({
+      ...makeConvergence(),
+      validations: {
+        ...makeConvergence().validations,
+        anchor_contract_valid: false,
+      },
+    });
+
+    const result = await finalizeJob(
+      {
+        job_id: 'job-1',
+        worker_id: 'worker-1',
+        expected_status: 'running',
+        expected_phase: 'finalizer',
+      },
+      storage,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok === false) {
+      expect(result.failure_code).toBe('ANCHOR_CONTRACT_VIOLATION');
+    }
+    expect(storage.persistCanonicalAndSummaryAndCompleteJob).not.toHaveBeenCalled();
+    expect(storage.markJobFailed).toHaveBeenCalledTimes(1);
+  });
 });

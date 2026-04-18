@@ -1,5 +1,10 @@
 import { describe, it, expect } from "@jest/globals";
-import { buildConfidenceInputs, buildCanonicalArtifact } from "../finalize";
+import {
+  buildConfidenceInputs,
+  buildCanonicalArtifact,
+  deriveValidityStatus,
+} from "../finalize";
+import { CONFIDENCE_DERIVATION_VERSION } from "../../governance/confidenceDerivation";
 import type {
   PassArtifact,
   ConvergenceArtifact,
@@ -176,7 +181,9 @@ describe("buildCanonicalArtifact confidence wiring", () => {
     expect(canonical.governance.confidence_label).toBeDefined();
     expect(["high", "medium", "low", "withheld"]).toContain(canonical.governance.confidence_label);
     expect(Array.isArray(canonical.governance.confidence_reasons)).toBe(true);
-    expect(canonical.governance.confidence_derivation_version).toBe("1.0.0");
+    expect(canonical.governance.confidence_derivation_version).toBe(
+      CONFIDENCE_DERIVATION_VERSION,
+    );
   });
 
   it("degraded signals: confidence_label reflects lower confidence", () => {
@@ -193,5 +200,45 @@ describe("buildCanonicalArtifact confidence wiring", () => {
     // With material disagreement + partial evidence, should not be "high"
     expect(canonical.governance.confidence_label).not.toBe("high");
     expect(canonical.governance.confidence_reasons!.length).toBeGreaterThan(0);
+  });
+});
+
+describe("deriveValidityStatus", () => {
+  it("returns valid when canonical governance gates are all true", () => {
+    const job = makeJob();
+    const pass1 = makePassArtifact("pass1");
+    const pass2 = makePassArtifact("pass2");
+    const pass3 = makePassArtifact("pass3");
+    const convergence = makeConvergenceArtifact();
+
+    const canonical = buildCanonicalArtifact({ job, pass1, pass2, pass3, convergence });
+
+    expect(deriveValidityStatus(canonical)).toBe("valid");
+  });
+
+  it("returns quarantined when transparency is false", () => {
+    const job = makeJob();
+    const pass1 = makePassArtifact("pass1");
+    const pass2 = makePassArtifact("pass2");
+    const pass3 = makePassArtifact("pass3");
+    const convergence = makeConvergenceArtifact();
+
+    const canonical = buildCanonicalArtifact({ job, pass1, pass2, pass3, convergence });
+    canonical.governance.transparency_passed = false;
+
+    expect(deriveValidityStatus(canonical)).toBe("quarantined");
+  });
+
+  it("returns invalid when canonical_ready is false without quarantine signals", () => {
+    const job = makeJob();
+    const pass1 = makePassArtifact("pass1");
+    const pass2 = makePassArtifact("pass2");
+    const pass3 = makePassArtifact("pass3");
+    const convergence = makeConvergenceArtifact();
+
+    const canonical = buildCanonicalArtifact({ job, pass1, pass2, pass3, convergence });
+    canonical.governance.canonical_ready = false;
+
+    expect(deriveValidityStatus(canonical)).toBe("invalid");
   });
 });
