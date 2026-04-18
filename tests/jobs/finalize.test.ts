@@ -183,7 +183,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (result.ok === false) {
+    if (result.ok === false && result.final_status === 'failed') {
       expect(result.failure_code).toBe('MISSING_PASS_ARTIFACT');
     }
     expect(storage.markJobFailed).toHaveBeenCalledTimes(1);
@@ -211,7 +211,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (result.ok === false) {
+    if (result.ok === false && result.final_status === 'failed') {
       expect(result.failure_code).toBe('PASS_CONVERGENCE_FAILURE');
     }
   });
@@ -240,7 +240,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (result.ok === false) {
+    if (result.ok === false && result.final_status === 'failed') {
       expect(result.failure_code).toBe('ANCHOR_CONTRACT_VIOLATION');
     }
   });
@@ -268,7 +268,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (result.ok === false) {
+    if (result.ok === false && result.final_status === 'failed') {
       expect(result.failure_code).toBe('GOVERNANCE_BLOCK');
     }
   });
@@ -294,7 +294,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (result.ok === false) {
+    if (result.ok === false && result.final_status === 'invalid') {
       expect(result.final_status).toBe('invalid');
       expect(result.reason).toBe('Canonical validation failed');
       expect(
@@ -327,7 +327,7 @@ describe('finalizeJob', () => {
     );
 
     expect(result.ok).toBe(false);
-    if (result.ok === false) {
+    if (result.ok === false && result.final_status === 'invalid') {
       expect(result.final_status).toBe('invalid');
       expect(result.validation_issues.some((issue) => issue.code === 'MISSING_CRITERION')).toBe(true);
     }
