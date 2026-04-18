@@ -3,6 +3,7 @@ import { unstable_noStore as noStore } from 'next/cache';
 import { notFound } from 'next/navigation';
 import { createClient as createSSRClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { EvaluationResultV1, isEvaluationResultV1, hasD2TransparencyFields } from '@/schemas/evaluation-result-v1';
 import AgentTrustHeader from '@/components/reports/AgentTrustHeader';
 import { scanObjectForForbiddenMarketClaims } from '@/lib/release/forbiddenMarketClaims';
@@ -28,13 +29,14 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
     .select(`
       evaluation_result,
       status,
+      validity_status,
       manuscripts!inner(user_id)
     `)
     .eq('id', jobId)
     .eq('manuscripts.user_id', userId)
     .single();
 
-  if (error || !job || !job.evaluation_result) {
+  if (error || !job || !canReleaseEvaluationRead(job) || !job.evaluation_result) {
     return null;
   }
 
