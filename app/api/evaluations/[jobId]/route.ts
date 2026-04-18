@@ -81,7 +81,7 @@ export async function GET(
 
     // 4) Fail-closed release gate (complete + valid + confidence policy)
     const releaseDecision = getEvaluationReleaseDecision(job);
-    if (!releaseDecision.releasable) {
+    if (releaseDecision.releasable === false) {
       const payload: Err = {
         ok: false,
         error: "Evaluation not releasable",
