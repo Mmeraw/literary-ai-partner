@@ -602,6 +602,12 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   const pass4StartMs = nowMs();
+  if (process.env.PIPELINE_PROBE === "1") {
+    console.log("[probe] pass3Output.criteria.length =", pass3Output.criteria.length);
+    console.log("[probe] pass3Output.criteria.keys   =", pass3Output.criteria.map((c) => c.key));
+    console.log("[probe] CRITERIA_KEYS.length        =", CRITERIA_KEYS.length);
+    console.log("[probe] CRITERIA_KEYS               =", CRITERIA_KEYS);
+  }
   const qualityGate = _runQualityGate(pass3Output, pass1Output, pass2Output, opts.manuscriptText);
   timings.pass4_ms = nowMs() - pass4StartMs;
   if (!qualityGate.pass) {
