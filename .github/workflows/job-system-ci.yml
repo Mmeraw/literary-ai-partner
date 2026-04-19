@@ -336,7 +336,7 @@ jobs:
 
       - name: Upload server logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dev-server-logs
           path: /tmp/dev-server.log
@@ -584,7 +584,7 @@ jobs:
 
       - name: Upload Supabase contract test logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: supabase-contract-test-logs
           path: scripts-artifacts/*.log
