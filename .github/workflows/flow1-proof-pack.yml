@@ -14,6 +14,8 @@ jobs:
       # "expected 'packfile'" during checkout. actions/checkout@v5 has built-in retry logic
       # that recovers. The annotation is informational (shows retry worked), not a failure.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v5
         with:
