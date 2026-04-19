@@ -26,8 +26,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz -o /tmp/supabase.tar.gz
-          tar -xzf /tmp/supabase.tar.gz -C /tmp
+          SUPABASE_VERSION="v2.90.0"
+          SUPABASE_TARBALL="supabase_linux_amd64.tar.gz"
+          SUPABASE_URL="https://github.com/supabase/cli/releases/download/${SUPABASE_VERSION}/${SUPABASE_TARBALL}"
+          SUPABASE_SHA256="34e264108d0502f922f2a11c4481d512335e8a6b621c8d8c25524eb9f25e9576"
+
+          curl -fsSL "$SUPABASE_URL" -o /tmp/$SUPABASE_TARBALL
+          echo "${SUPABASE_SHA256}  /tmp/${SUPABASE_TARBALL}" | sha256sum -c -
+
+          tar -xzf /tmp/$SUPABASE_TARBALL -C /tmp
           sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
           supabase --version
 
