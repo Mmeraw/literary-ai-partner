@@ -207,7 +207,7 @@ const POLARITY_PAIRS: Array<[RegExp, RegExp]> = [
   [/\b(consistent|steady|stable|even)\b/i, /\b(inconsistent|unstable|wavering|uneven|erratic)\b/i],
   [/\b(tight|controlled|disciplined)\b/i, /\b(sprawling|uncontrolled|slack|loose)\b/i],
   [/\b(clear|precise|crisp)\b/i, /\b(vague|muddled|imprecise|fuzzy)\b/i],
-  [/\b(propulsive|urgent|driving)\b/i, /\b(drags?|sags?|stalls?|slackens?)\b/i],
+  [/\b(strong|propulsive|urgent|driving)\b/i, /\b(slow|sluggish|drags?|sags?|stalls?|slackens?|collapses?)\b/i],
 ];
 
 function escapeRegExp(value: string): string {
