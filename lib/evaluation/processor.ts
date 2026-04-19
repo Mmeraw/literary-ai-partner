@@ -138,6 +138,18 @@ export function getValidatedWorkerBatchSize(raw: unknown, fallback = 5): number 
   return normalized >= 1 && normalized <= 5 ? normalized : fallback;
 }
 
+function isMissingSchemaCacheColumnError(error: unknown, columnName: string): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const record = error as { code?: unknown; message?: unknown };
+  const code = typeof record.code === 'string' ? record.code : '';
+  const message = typeof record.message === 'string' ? record.message : '';
+
+  return code === 'PGRST204' && message.includes(columnName) && message.includes('schema cache');
+}
+
 const evalWorkerBatchSize = (() => {
   return getValidatedWorkerBatchSize(process.env.EVAL_WORKER_BATCH_SIZE, 5);
 })();
@@ -1406,36 +1418,53 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     // 6. Store evaluation result and mark complete only after artifact exists
     console.log(`[Processor] ${jobId}: ENTER completion update`);
-    const { error: updateError } = await supabase
-      .from('evaluation_jobs')
-      .update({
-        status: nextLifecycleStatus(JOB_STATUS.COMPLETE),
+
+    const completionStatus = nextLifecycleStatus(JOB_STATUS.COMPLETE);
+    const completionPayloadBase = {
+      status: completionStatus,
+      phase: 'phase_2',
+      phase_status: 'complete',
+      total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+      completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+      progress: {
+        ...existingProgress,
+        finalized_at: completionTime,
         phase: 'phase_2',
         phase_status: 'complete',
         total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
         completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-        progress: {
-          ...existingProgress,
-          finalized_at: completionTime,
-          phase: 'phase_2',
-          phase_status: 'complete',
-          total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-          completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-          message: 'Evaluation completed',
-          finished_at: completionTime,
-        },
-        evaluation_result: evaluationResult,
-        evaluation_result_version: 'evaluation_result_v2',
-        last_heartbeat: completionTime,
-        last_heartbeat_at: completionTime,
-        heartbeat_at: completionTime,
-        last_error: null,
-        updated_at: completionTime,
-        // Per-stage timestamps (R4 observability)
-        completed_at: completionTime,
+        message: 'Evaluation completed',
+        finished_at: completionTime,
+      },
+      evaluation_result: evaluationResult,
+      evaluation_result_version: 'evaluation_result_v2',
+      last_heartbeat: completionTime,
+      last_heartbeat_at: completionTime,
+      heartbeat_at: completionTime,
+      last_error: null,
+      updated_at: completionTime,
+      // Per-stage timestamps (R4 observability)
+      completed_at: completionTime,
+    };
+
+    let { error: updateError } = await supabase
+      .from('evaluation_jobs')
+      .update({
+        ...completionPayloadBase,
         phase2_completed_at: completionTime,
       })
       .eq('id', jobId);
+
+    if (updateError && isMissingSchemaCacheColumnError(updateError, 'phase2_completed_at')) {
+      console.warn(
+        `[Processor] ${jobId}: stale schema cache for phase2_completed_at; retrying completion update without optional column`,
+      );
+      ({ error: updateError } = await supabase
+        .from('evaluation_jobs')
+        .update(completionPayloadBase)
+        .eq('id', jobId));
+    }
+
     console.log(
       `[Processor] ${jobId}: EXIT completion update error=${updateError ? updateError.message : 'none'}`,
     );

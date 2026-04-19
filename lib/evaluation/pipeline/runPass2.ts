@@ -7,7 +7,7 @@
  *   there is no parameter for Pass 1 data.
  *
  * Temperature: 0.3 (per Vol III Tools §PASS2)
- * Max tokens: 2500 (default, override via EVAL_PASS2_MAX_TOKENS)
+ * Max tokens: 4000 (default, override via EVAL_PASS2_MAX_TOKENS)
  */
 
 import OpenAI from "openai";
@@ -25,10 +25,14 @@ import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseB
 
 const PASS2_TEMPERATURE = 0.3;
 const PASS2_MAX_TOKENS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS2_MAX_TOKENS || "2500", 10);
-  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 8000 ? parsed : 2500;
+  const parsed = Number.parseInt(process.env.EVAL_PASS2_MAX_TOKENS || "4000", 10);
+  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 8000 ? parsed : 4000;
 })();
 const PASS2_MODEL = "o3";
+
+function getRetryPass2MaxTokens(currentMaxTokens: number): number {
+  return Math.min(8000, Math.max(4000, currentMaxTokens + 1500));
+}
 
 function nowMs(): number {
   return Date.now();
@@ -78,8 +82,9 @@ function buildEmptyResponseDiagnostic(params: {
   completion: { choices?: unknown; usage?: CompletionUsage };
   firstChoice: CompletionChoice | undefined;
   rawContent: unknown;
+  maxOutputTokens: number;
 }): string {
-  const { model, completion, firstChoice, rawContent } = params;
+  const { model, completion, firstChoice, rawContent, maxOutputTokens } = params;
   const usage = completion.usage;
   const finishReason =
     typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
@@ -92,7 +97,7 @@ function buildEmptyResponseDiagnostic(params: {
   return (
     `[Pass2] Empty response from OpenAI ` +
     `(model=${model} finish_reason=${finishReason} content_type=${contentType} choices=${choiceCount} ` +
-    `max_output_tokens=${PASS2_MAX_TOKENS}` +
+    `max_output_tokens=${maxOutputTokens}` +
     `${typeof usage?.prompt_tokens === "number" ? ` prompt_tokens=${usage.prompt_tokens}` : ""}` +
     `${typeof usage?.completion_tokens === "number" ? ` completion_tokens=${usage.completion_tokens}` : ""}` +
     `${typeof usage?.total_tokens === "number" ? ` total_tokens=${usage.total_tokens}` : ""}` +
@@ -159,34 +164,66 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   const promptAssemblyMs = nowMs() - promptAssemblyStartMs;
   const inputChars = opts.manuscriptText.length;
 
-  const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, PASS2_MAX_TOKENS);
-  const configuredMaxTokens =
-    typeof (outputTokenParam as { max_completion_tokens?: unknown }).max_completion_tokens === "number"
-      ? Number((outputTokenParam as { max_completion_tokens: number }).max_completion_tokens)
-      : typeof (outputTokenParam as { max_tokens?: unknown }).max_tokens === "number"
-      ? Number((outputTokenParam as { max_tokens: number }).max_tokens)
-      : null;
+  const requestCompletion = async (maxOutputTokens: number) => {
+    const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, maxOutputTokens);
+    const configuredMaxTokens =
+      typeof (outputTokenParam as { max_completion_tokens?: unknown }).max_completion_tokens === "number"
+        ? Number((outputTokenParam as { max_completion_tokens: number }).max_completion_tokens)
+        : typeof (outputTokenParam as { max_tokens?: unknown }).max_tokens === "number"
+        ? Number((outputTokenParam as { max_tokens: number }).max_tokens)
+        : null;
+
+    const completion = await createCompletion({
+      model: selectedModel,
+      messages: [
+        { role: "system", content: PASS2_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      ...buildOpenAITemperatureParam(selectedModel, PASS2_TEMPERATURE),
+      ...outputTokenParam,
+      response_format: { type: "json_object" },
+    });
+
+    return { completion, configuredMaxTokens };
+  };
 
   console.log(`[Pass2] completion request model=${selectedModel}`);
 
+  let activeMaxTokens = PASS2_MAX_TOKENS;
   const modelCallStartMs = nowMs();
-  const completion = await createCompletion({
-    model: selectedModel,
-    messages: [
-      { role: "system", content: PASS2_SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
-    ],
-    ...buildOpenAITemperatureParam(selectedModel, PASS2_TEMPERATURE),
-    ...outputTokenParam,
-    response_format: { type: "json_object" },
-  });
-  const modelCallMs = nowMs() - modelCallStartMs;
+  let { completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens);
+  let modelCallMs = nowMs() - modelCallStartMs;
 
   const parseValidationStartMs = nowMs();
 
-  const firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
-  const rawContent = firstChoice?.message?.content;
-  const responseText = extractResponseText(rawContent);
+  let firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
+  let rawContent = firstChoice?.message?.content;
+  let responseText = extractResponseText(rawContent);
+  let retriedForLength = false;
+
+  if (
+    responseText.trim().length === 0 &&
+    typeof firstChoice?.finish_reason === "string" &&
+    firstChoice.finish_reason === "length"
+  ) {
+    retriedForLength = true;
+    const retryMaxTokens = getRetryPass2MaxTokens(activeMaxTokens);
+    console.warn("[Pass2] Empty length-limited response; retrying with higher output token budget", {
+      model: selectedModel,
+      initialMaxTokens: activeMaxTokens,
+      retryMaxTokens,
+      usage: completion.usage,
+    });
+
+    activeMaxTokens = retryMaxTokens;
+    const retryStartMs = nowMs();
+    ({ completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens));
+    modelCallMs += nowMs() - retryStartMs;
+
+    firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
+    rawContent = firstChoice?.message?.content;
+    responseText = extractResponseText(rawContent);
+  }
 
   if (responseText.trim().length === 0) {
     const diagnosticMessage = buildEmptyResponseDiagnostic({
@@ -194,6 +231,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
       completion,
       firstChoice,
       rawContent,
+      maxOutputTokens: activeMaxTokens,
     });
 
     console.error("[Pass2] Completion boundary diagnostic", {
@@ -207,7 +245,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
       contentType: rawContent === null ? "null" : Array.isArray(rawContent) ? "array" : typeof rawContent,
       contentPreview: typeof rawContent === "string" ? rawContent.slice(0, 160) : undefined,
       usage: completion.usage,
-      maxOutputTokens: PASS2_MAX_TOKENS,
+      maxOutputTokens: activeMaxTokens,
       refusal:
         typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined,
     });
@@ -227,7 +265,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
       usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
       usage_completion_tokens: completion.usage?.completion_tokens ?? null,
       usage_total_tokens: completion.usage?.total_tokens ?? null,
-      error: "empty_response",
+      error: retriedForLength ? "empty_response_after_retry" : "empty_response",
     });
     throw new Error(diagnosticMessage);
   }
@@ -237,7 +275,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   if (finishReasonWarning === "length") {
     console.warn("[Pass2] finish_reason=length — output may be truncated", {
       model: selectedModel,
-      maxOutputTokens: PASS2_MAX_TOKENS,
+      maxOutputTokens: activeMaxTokens,
       responseLen: responseText.length,
       usage: completion.usage,
     });
