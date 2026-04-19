@@ -169,7 +169,7 @@ describe("runPipeline (e2e with injected runners)", () => {
             {
               message: "Contradictory framing found without contextual boundary.",
               severity: "ERROR",
-              category: "cross-criteria",
+              location: "cross-criteria",
             },
           ],
           evidence: {},
@@ -190,7 +190,7 @@ describe("runPipeline (e2e with injected runners)", () => {
       _lessonsLearned: {
         evaluateRules: (_input: RuleEvaluationInput, stage?: RuleStage) =>
           stage === "post_convergence" ? llrReport : { overall_pass: true, results: [] },
-        deriveDecision: (report, stage?: string) => {
+        deriveDecision: (report, stage?: RuleStage) => {
           const hasError = report.results.some((r) => !r.passed && r.severity === "ERROR");
           if (!hasError) {
             return { action: "ALLOW", reason: "no violations" };

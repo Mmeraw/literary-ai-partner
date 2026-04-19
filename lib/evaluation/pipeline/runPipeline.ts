@@ -98,7 +98,7 @@ export interface RunPipelineOptions {
   /** Dependency injection for lessons-learned engine (testing only). */
   _lessonsLearned?: {
     evaluateRules?: (input: RuleEvaluationInput, stage?: RuleStage) => LessonsLearnedReport;
-    deriveDecision?: (report: LessonsLearnedReport) => EnforcementDecision;
+    deriveDecision?: (report: LessonsLearnedReport, stage?: RuleStage) => EnforcementDecision;
   };
 }
 

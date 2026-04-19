@@ -1419,8 +1419,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     // 6. Store evaluation result and mark complete only after artifact exists
     console.log(`[Processor] ${jobId}: ENTER completion update`);
 
+    const completionStatus = nextLifecycleStatus(JOB_STATUS.COMPLETE);
     const completionPayloadBase = {
-      status: normalizeEvaluationJobStatus(JOB_STATUS.COMPLETE) as JobStatus,
+      status: completionStatus,
       phase: 'phase_2',
       phase_status: 'complete',
       total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
@@ -1474,8 +1475,6 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       console.error(`[Processor] Failed to update job ${jobId}:`, updateError);
       return { success: false, error: `Failed to store result: ${updateError.message}` };
     }
-
-    lifecycleStatus = normalizeEvaluationJobStatus(JOB_STATUS.COMPLETE) as JobStatus;
 
     logProcessorStageBoundary({
       jobId,
