@@ -161,4 +161,62 @@ describe("POST /api/jobs input contract", () => {
       }),
     );
   });
+
+  test("returns 201 and logs a warning when worker kickoff fetch rejects", async () => {
+    mockCreateJob.mockResolvedValue({
+      id: "job-1000",
+      manuscript_id: 1000,
+      job_type: "evaluate_full",
+      status: "queued",
+    } as never);
+    mockFetch.mockRejectedValue(new Error("worker unavailable"));
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      const req = new Request("https://example.test/api/jobs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          manuscript_id: 1000,
+          job_type: "evaluate_full",
+        }),
+      });
+
+      const response = await POST(req);
+
+      expect(response.status).toBe(201);
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("returns 201 and logs a warning when worker kickoff responds with ok false", async () => {
+    mockCreateJob.mockResolvedValue({
+      id: "job-1001",
+      manuscript_id: 1001,
+      job_type: "evaluate_full",
+      status: "queued",
+    } as never);
+    mockFetch.mockResolvedValue({ ok: false } as Response);
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      const req = new Request("https://example.test/api/jobs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          manuscript_id: 1001,
+          job_type: "evaluate_full",
+        }),
+      });
+
+      const response = await POST(req);
+
+      expect(response.status).toBe(201);
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
 });
