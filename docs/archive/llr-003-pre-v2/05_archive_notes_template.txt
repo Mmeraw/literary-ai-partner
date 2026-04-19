@@ -1,0 +1,20 @@
+LLR-003 archive note template
+
+Archive path: docs/archive/llr-003-pre-v2/
+Date:
+Author:
+Status: superseded / historical
+
+Summary of archived material:
+-
+-
+-
+
+Why it was archived:
+-
+-
+
+Active replacement reference:
+See docs/governance/llr-003-v2/01_LLR003_V2_SPEC.md
+
+Do not treat this archived note as active implementation guidance unless it is explicitly restated in the active v2 spec.

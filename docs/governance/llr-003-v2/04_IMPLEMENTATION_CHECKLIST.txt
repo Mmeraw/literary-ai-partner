@@ -1,0 +1,17 @@
+LLR-003 v2 implementation checklist
+
+1. Pass 4 hardening merges first.
+2. Replace only the LLR-003 machinery.
+3. Keep synonym and marker lists small.
+4. Do not expand into fuzzy semantic logic in this PR.
+5. Add severity-aware pass/fail handling so WARNING does not block.
+6. Add pair-local evidence payload output.
+7. Verify with locked cases:
+   - strong pacing vs weak pacing -> ERROR
+   - strong momentum in first half vs drops in final act -> PASS/CLEAN
+   - vivid voice vs consistency wavers in longer passages -> PASS/CLEAN
+   - sharp dialogue vs repetitive dialogue -> AUDIT or WARNING
+   - rich worldbuilding vs thin in the middle -> PASS/CLEAN
+   - unrelated however elsewhere in corpus -> no effect
+8. Use real-artifact fixtures before final merge.
+9. Keep the PR governance-only and narrowly scoped.
