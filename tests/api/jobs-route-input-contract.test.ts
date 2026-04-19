@@ -170,7 +170,7 @@ describe("POST /api/jobs input contract", () => {
       status: "queued",
     } as never);
     mockFetch.mockRejectedValue(new Error("worker unavailable"));
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const { logger: mockedLogger } = jest.requireMock("@/lib/observability/logger");(mockedLogger.warn as jest.Mock).mockClear();
 
     try {
       const req = new Request("https://example.test/api/jobs", {
@@ -185,9 +185,8 @@ describe("POST /api/jobs input contract", () => {
       const response = await POST(req);
 
       expect(response.status).toBe(201);
-      expect(warnSpy).toHaveBeenCalled();
+      expect(mockedLogger.warn).toHaveBeenCalled();
     } finally {
-      warnSpy.mockRestore();
     }
   });
 
@@ -199,7 +198,7 @@ describe("POST /api/jobs input contract", () => {
       status: "queued",
     } as never);
     mockFetch.mockResolvedValue({ ok: false } as Response);
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const { logger: mockedLogger } = jest.requireMock("@/lib/observability/logger");(mockedLogger.warn as jest.Mock).mockClear();
 
     try {
       const req = new Request("https://example.test/api/jobs", {
@@ -214,9 +213,8 @@ describe("POST /api/jobs input contract", () => {
       const response = await POST(req);
 
       expect(response.status).toBe(201);
-      expect(warnSpy).toHaveBeenCalled();
+      expect(mockedLogger.warn).toHaveBeenCalled();
     } finally {
-      warnSpy.mockRestore();
     }
   });
 });
