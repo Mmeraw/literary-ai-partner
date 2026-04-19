@@ -291,6 +291,200 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     );
   });
 
+  test("retries completion update without phase2_completed_at when schema cache is stale", async () => {
+    const evaluationJobUpdates: Array<Record<string, unknown>> = [];
+    const queuedJob = {
+      id: "job-canonical-pipeline",
+      manuscript_id: 456,
+      job_type: "evaluate_full",
+      status: "queued",
+      phase: "phase_1",
+      phase_status: "queued",
+      created_at: new Date().toISOString(),
+      progress: { phase: "phase_1", phase_status: "queued" },
+    };
+    const manuscript = {
+      id: 456,
+      title: "Canonical Manuscript",
+      content: "This manuscript is long enough to pass threshold validation. ".repeat(220),
+      work_type: "novel",
+      user_id: "00000000-0000-0000-0000-000000000001",
+    };
+
+    const supabaseStub = {
+      from(table: string) {
+        if (table === "evaluation_jobs") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({ data: queuedJob, error: null }),
+              }),
+            }),
+            update: (payload: Record<string, unknown>) => {
+              evaluationJobUpdates.push(payload);
+              return {
+                eq: async () => {
+                  if (
+                    payload.status === "complete" &&
+                    Object.prototype.hasOwnProperty.call(payload, "phase2_completed_at")
+                  ) {
+                    return {
+                      error: {
+                        code: "PGRST204",
+                        message:
+                          "Could not find the 'phase2_completed_at' column of 'evaluation_jobs' in the schema cache",
+                      },
+                    };
+                  }
+                  return { error: null };
+                },
+              };
+            },
+          };
+        }
+
+        if (table === "manuscripts") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({ data: manuscript, error: null }),
+              }),
+            }),
+          };
+        }
+
+        if (table === "evaluation_artifacts") {
+          return {
+            select: () => {
+              const query = {
+                eq: () => query,
+                maybeSingle: async () => ({ data: { id: "artifact-canonical-pass" }, error: null }),
+              };
+              return query;
+            },
+          };
+        }
+
+        throw new Error(`Unexpected table in canonical pipeline test stub: ${table}`);
+      },
+    };
+
+    createClientMock.mockReturnValue(supabaseStub);
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: {
+        criteria: [],
+        overall: {
+          overall_score_0_100: 82,
+          verdict: "pass",
+          one_paragraph_summary: "Summary",
+          top_3_strengths: [],
+          top_3_risks: [],
+        },
+        metadata: {
+          pass1_model: "o3",
+          pass2_model: "o3",
+          pass3_model: "o3",
+          generated_at: new Date().toISOString(),
+        },
+      },
+      quality_gate: {
+        pass: true,
+        checks: [],
+        warnings: [],
+      },
+      pass4_governance: { ok: true },
+    });
+
+    synthesisToEvaluationResultV2Mock.mockReturnValue({
+      schema_version: "evaluation_result_v2",
+      ids: {
+        evaluation_run_id: "run-1",
+        manuscript_id: 456,
+        user_id: "00000000-0000-0000-0000-000000000001",
+      },
+      generated_at: new Date().toISOString(),
+      engine: {
+        model: "o3",
+        provider: "openai",
+        prompt_version: "test",
+      },
+      overview: {
+        verdict: "pass",
+        overall_score_0_100: 82,
+        one_paragraph_summary: "Summary",
+        top_3_strengths: [],
+        top_3_risks: [],
+      },
+      criteria: new Array(13).fill(null).map((_, idx) => ({
+        key: [
+          "concept",
+          "narrativeDrive",
+          "character",
+          "voice",
+          "sceneConstruction",
+          "dialogue",
+          "theme",
+          "worldbuilding",
+          "pacing",
+          "proseControl",
+          "tone",
+          "narrativeClosure",
+          "marketability",
+        ][idx],
+        scorable: true,
+        status: "SCORABLE",
+        signal_present: true,
+        signal_strength: "SUFFICIENT",
+        confidence_band: "MEDIUM",
+        score_0_10: 7,
+        rationale: "Criterion is supported by manuscript evidence and synthesis.",
+        evidence: [{ snippet: "Evidence snippet with sufficient detail for quality gate checks." }],
+        recommendations: [],
+      })),
+      recommendations: {
+        quick_wins: [],
+        strategic_revisions: [],
+      },
+      metrics: {
+        manuscript: {},
+        processing: {},
+      },
+      artifacts: [],
+      governance: {
+        confidence: 0.9,
+        warnings: [],
+        limitations: [],
+        policy_family: "multi-pass-dual-axis",
+      },
+    });
+
+    runQualityGateV2Mock.mockReturnValue({
+      pass: true,
+      checks: [],
+      warnings: [],
+    });
+
+    mapEvaluationResultV2ToGovernanceEnvelopeMock.mockReturnValue({
+      evaluation_run_id: "run-1",
+      criteria: [],
+    });
+
+    upsertEvaluationArtifactMock.mockResolvedValue("artifact-1");
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(true);
+    const completionUpdates = evaluationJobUpdates.filter(
+      (payload) => payload.status === "complete",
+    );
+    expect(completionUpdates).toHaveLength(2);
+    expect(completionUpdates[0]).toHaveProperty("phase2_completed_at");
+    expect(completionUpdates[1]).not.toHaveProperty("phase2_completed_at");
+  });
+
   test("fails closed before persistence when v2 quality gate fails", async () => {
     const supabaseStub = makeSupabaseStub();
     createClientMock.mockReturnValue(supabaseStub);

@@ -286,7 +286,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       },
       stage,
     );
-    const decision = _deriveLessonsLearnedDecision(report);
+    const decision = _deriveLessonsLearnedDecision(report, stage);
     const checkpoint = getLlrCheckpointForStage(stage, governanceInjectionMap);
 
     if (decision.action === "BLOCK") {

@@ -251,4 +251,45 @@ describe("runPass2", () => {
       }),
     ).rejects.toThrow("finish_reason=length");
   });
+
+  it("retries once with a larger token budget after an empty length-limited response", async () => {
+    const seenBudgets: number[] = [];
+    let callCount = 0;
+
+    const retryingCompletion: CreateCompletionFn = async (params) => {
+      const budget =
+        typeof params.max_completion_tokens === "number"
+          ? params.max_completion_tokens
+          : typeof params.max_tokens === "number"
+            ? params.max_tokens
+            : 0;
+      seenBudgets.push(budget);
+
+      if (callCount++ === 0) {
+        return {
+          choices: [{ message: { content: null }, finish_reason: "length" }],
+          usage: { prompt_tokens: 650, completion_tokens: budget, total_tokens: 650 + budget },
+        };
+      }
+
+      return {
+        choices: [{ message: { content: JSON.stringify(makePass2Fixture()) }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 650, completion_tokens: 1200, total_tokens: 1850 },
+      };
+    };
+
+    const result = await runPass2({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: retryingCompletion,
+    });
+
+    expect(result.criteria).toHaveLength(13);
+    expect(callCount).toBe(2);
+    expect(seenBudgets).toHaveLength(2);
+    expect(seenBudgets[1]).toBeGreaterThan(seenBudgets[0]);
+  });
 });

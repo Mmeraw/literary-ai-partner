@@ -156,6 +156,58 @@ describe("runPipeline (e2e with injected runners)", () => {
     }
   });
 
+  it("does not block on post-convergence lessons-learned warnings when the stage is recoverable", async () => {
+    const llrReport: LessonsLearnedReport = {
+      overall_pass: false,
+      results: [
+        {
+          rule_id: "LLR-003",
+          name: "No Contradictory Diagnostic Framing",
+          passed: false,
+          severity: "ERROR",
+          violations: [
+            {
+              message: "Contradictory framing found without contextual boundary.",
+              severity: "ERROR",
+              category: "cross-criteria",
+            },
+          ],
+          evidence: {},
+        },
+      ],
+    };
+
+    const result = await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+      _lessonsLearned: {
+        evaluateRules: (_input: RuleEvaluationInput, stage?: RuleStage) =>
+          stage === "post_convergence" ? llrReport : { overall_pass: true, results: [] },
+        deriveDecision: (report, stage?: string) => {
+          const hasError = report.results.some((r) => !r.passed && r.severity === "ERROR");
+          if (!hasError) {
+            return { action: "ALLOW", reason: "no violations" };
+          }
+          return stage === "post_convergence"
+            ? { action: "ALLOW_WITH_WARNINGS", reason: "downgraded for post_convergence" }
+            : { action: "BLOCK", reason: "stage missing" };
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.quality_gate.pass).toBe(true);
+    }
+  });
+
   it("returns ok=false with PASS1_FAILED when Pass 1 throws", async () => {
     mockRunPass1.mockRejectedValueOnce(new Error("OpenAI network error"));
 

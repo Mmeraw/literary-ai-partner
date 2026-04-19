@@ -200,6 +200,19 @@ describe("Phase 0.2 lessons-learned rule engine", () => {
     expect(result.passed).toBe(false);
   });
 
+  it("LLR-003 allows overlap when the synthesis uses explicit nuance markers like though or but", () => {
+    const input = makeInput({
+      convergence_result: makeSynthesis(
+        "The pacing remains compelling, though the middle stretch occasionally diffuses tension.",
+        ["Strong pacing", "Controlled tone", "Clear closure"],
+        ["Pacing softens in the middle", "Tone inconsistency", "Closure unclear"],
+      ),
+    });
+
+    const result = ruleById("LLR-003").predicate(input);
+    expect(result.passed).toBe(true);
+  });
+
   it("LLR-004 fails non-canonical terminology", () => {
     const input = makeInput({
       convergence_result: makeSynthesis(
