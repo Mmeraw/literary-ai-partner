@@ -61,8 +61,9 @@ function makeViolation(message: string, severity: RuleSeverity, location?: strin
 }
 
 function resultFromViolations(violations: RuleViolation[], evidence?: unknown): RuleResult {
+  const blocking = violations.some((v) => v.severity === "ERROR");
   return {
-    passed: violations.length === 0,
+    passed: !blocking,
     violations,
     evidence,
   };
@@ -74,18 +75,6 @@ function normalizeToken(s: string): string {
 
 function keywordHit(corpus: string, keywords: string[]): string[] {
   return keywords.filter((k) => corpus.includes(k));
-}
-
-function extractTopicalTokens(values: string[]): Set<string> {
-  const stopWords = new Set(["the", "and", "or", "of", "for", "in", "to", "with", "a", "an"]);
-  const tokens = new Set<string>();
-  for (const value of values) {
-    for (const tok of normalizeToken(value).split(" ")) {
-      if (!tok || tok.length < 4 || stopWords.has(tok)) continue;
-      tokens.add(tok);
-    }
-  }
-  return tokens;
 }
 
 function llr001BlurNotMultiplicity(input: RuleEvaluationInput): RuleResult {
@@ -173,6 +162,135 @@ function llr002AuthorityTransferClarity(input: RuleEvaluationInput): RuleResult 
   });
 }
 
+const CANON_DOMAIN_SYNONYMS: Partial<Record<CriterionKey, string[]>> = {
+  voice: ["pov", "point of view"],
+  narrativeDrive: ["momentum", "drive", "propulsion"],
+  sceneConstruction: ["scene", "staging"],
+  worldbuilding: ["world", "setting"],
+  proseControl: ["prose", "line level"],
+  narrativeClosure: ["closure", "ending", "resolution"],
+};
+
+const PAIR_CONTRAST_MARKERS = [
+  "however",
+  "though",
+  "although",
+  "but",
+  "yet",
+  "while",
+  "whereas",
+  "despite",
+  "in contrast",
+] as const;
+
+const PAIR_SCOPE_MARKERS = [
+  "in places",
+  "at times",
+  "sometimes",
+  "occasionally",
+  "during",
+  "when",
+  "across",
+  "in the opening",
+  "in the middle",
+  "in the final act",
+  "at chapter level",
+  "at scene level",
+  "in longer reflective passages",
+  "in flashback scenes",
+] as const;
+
+const WEAK_TENSION_MARKERS = ["fades", "falters", "wavers", "slips"] as const;
+
+const POLARITY_PAIRS: Array<[RegExp, RegExp]> = [
+  [/\b(strong|vivid|distinctive|confident|sharp|taut|rich)\b/i, /\b(weak|flat|generic|loose|thin|muted)\b/i],
+  [/\b(consistent|steady|stable|even)\b/i, /\b(inconsistent|unstable|wavering|uneven|erratic)\b/i],
+  [/\b(tight|controlled|disciplined)\b/i, /\b(sprawling|uncontrolled|slack|loose)\b/i],
+  [/\b(clear|precise|crisp)\b/i, /\b(vague|muddled|imprecise|fuzzy)\b/i],
+  [/\b(propulsive|urgent|driving)\b/i, /\b(drags?|sags?|stalls?|slackens?)\b/i],
+];
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeForMatch(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function containsBoundedTerm(text: string, term: string): boolean {
+  const normalizedText = normalizeForMatch(text);
+  const normalizedTerm = normalizeForMatch(term);
+  return new RegExp(`\\b${escapeRegExp(normalizedTerm)}\\b`, "i").test(normalizedText);
+}
+
+function buildCraftDomainTerms(): string[] {
+  const terms = new Set<string>();
+
+  for (const key of CRITERIA_KEYS) {
+    terms.add(normalizeForMatch(key));
+    for (const synonym of CANON_DOMAIN_SYNONYMS[key] ?? []) {
+      terms.add(normalizeForMatch(synonym));
+    }
+  }
+
+  return Array.from(terms);
+}
+
+const CRAFT_DOMAIN_TERMS = buildCraftDomainTerms();
+
+function pairSharedAnchors(strength: string, risk: string): string[] {
+  return CRAFT_DOMAIN_TERMS.filter(
+    (term) => containsBoundedTerm(strength, term) && containsBoundedTerm(risk, term),
+  );
+}
+
+function pairLocalDifferentiator(strength: string, risk: string): string | null {
+  const joined = normalizeForMatch(`${strength}\n${risk}`);
+
+  for (const marker of PAIR_CONTRAST_MARKERS) {
+    if (joined.includes(normalizeForMatch(marker))) return marker;
+  }
+
+  for (const marker of PAIR_SCOPE_MARKERS) {
+    if (joined.includes(normalizeForMatch(marker))) return marker;
+  }
+
+  return null;
+}
+
+function pairPolarityCollision(
+  strength: string,
+  risk: string,
+): { positive: string; negative: string } | null {
+  for (const [positivePattern, negativePattern] of POLARITY_PAIRS) {
+    const sPos = strength.match(positivePattern);
+    const sNeg = strength.match(negativePattern);
+    const rPos = risk.match(positivePattern);
+    const rNeg = risk.match(negativePattern);
+
+    if (sPos && rNeg) {
+      return { positive: sPos[0], negative: rNeg[0] };
+    }
+
+    if (rPos && sNeg) {
+      return { positive: rPos[0], negative: sNeg[0] };
+    }
+  }
+
+  return null;
+}
+
+function pairWeakTension(strength: string, risk: string): string | null {
+  const joined = normalizeForMatch(`${strength}\n${risk}`);
+  for (const marker of WEAK_TENSION_MARKERS) {
+    if (joined.includes(marker)) return marker;
+  }
+  return null;
+}
+
+type Llr003Decision = "clean" | "audit_topical" | "warning_tension" | "error_polarity";
+
 function llr003NoContradictoryDiagnosticFraming(input: RuleEvaluationInput): RuleResult {
   const strengths = input.convergence_result?.overall.top_3_strengths ?? [];
   const risks = input.convergence_result?.overall.top_3_risks ?? [];
@@ -181,47 +299,100 @@ function llr003NoContradictoryDiagnosticFraming(input: RuleEvaluationInput): Rul
     return resultFromViolations([]);
   }
 
-  const strengthTokens = extractTopicalTokens(strengths);
-  const riskTokens = extractTopicalTokens(risks);
-
-  const overlap = Array.from(strengthTokens).filter((token) => riskTokens.has(token));
-
-  const corpus = collectCorpus(input);
-  const contextualDifferentiators = keywordHit(corpus, [
-    "in contrast",
-    "however",
-    "though",
-    "although",
-    "but",
-    "yet",
-    "while",
-    "despite",
-    "context",
-    "when",
-    "whereas",
-    "may",
-    "could",
-    "sometimes",
-    "occasionally",
-    "in places",
-    "at chapter level",
-    "at scene level",
-  ]);
-
   const violations: RuleViolation[] = [];
-  if (overlap.length > 0 && contextualDifferentiators.length === 0) {
-    violations.push(
-      makeViolation(
-        `Same topical element appears in strengths and risks without contextual differentiation: ${overlap.join(", ")}`,
-        "ERROR",
-        "overall",
-      ),
-    );
+  const pairs: Array<{
+    strength: string;
+    risk: string;
+    shared_anchor: string[];
+    canonical_anchor_ids: string[];
+    matched_polarity?: { positive: string; negative: string };
+    local_differentiator?: string;
+    decision: Llr003Decision;
+  }> = [];
+
+  for (const strength of strengths) {
+    for (const risk of risks) {
+      const sharedAnchor = pairSharedAnchors(strength, risk);
+      if (sharedAnchor.length === 0) continue;
+
+      const canonicalAnchorIds = CRITERIA_KEYS.filter((key) => {
+        const keyMatch = containsBoundedTerm(strength, key) && containsBoundedTerm(risk, key);
+        const synonymMatch = (CANON_DOMAIN_SYNONYMS[key] ?? []).some(
+          (syn) => containsBoundedTerm(strength, syn) && containsBoundedTerm(risk, syn),
+        );
+        return keyMatch || synonymMatch;
+      }).map((key) => PIPELINE_CRITERION_CANON_ID_MAP[key]);
+
+      const differentiator = pairLocalDifferentiator(strength, risk);
+      const polarity = pairPolarityCollision(strength, risk);
+      const weakTension = pairWeakTension(strength, risk);
+
+      if (polarity && !differentiator) {
+        violations.push(
+          makeViolation(
+            `Polarity collision on ${sharedAnchor.join(", ")} without pair-local scope/contrast qualifier.`,
+            "ERROR",
+            "overall",
+          ),
+        );
+
+        pairs.push({
+          strength,
+          risk,
+          shared_anchor: sharedAnchor,
+          canonical_anchor_ids: canonicalAnchorIds,
+          matched_polarity: polarity,
+          decision: "error_polarity",
+        });
+        continue;
+      }
+
+      if (!polarity && weakTension && !differentiator) {
+        violations.push(
+          makeViolation(
+            `Weak tension on ${sharedAnchor.join(", ")} without pair-local scope/contrast qualifier.`,
+            "WARNING",
+            "overall",
+          ),
+        );
+
+        pairs.push({
+          strength,
+          risk,
+          shared_anchor: sharedAnchor,
+          canonical_anchor_ids: canonicalAnchorIds,
+          decision: "warning_tension",
+        });
+        continue;
+      }
+
+      if (!polarity && !weakTension && !differentiator) {
+        pairs.push({
+          strength,
+          risk,
+          shared_anchor: sharedAnchor,
+          canonical_anchor_ids: canonicalAnchorIds,
+          decision: "audit_topical",
+        });
+        continue;
+      }
+
+      pairs.push({
+        strength,
+        risk,
+        shared_anchor: sharedAnchor,
+        canonical_anchor_ids: canonicalAnchorIds,
+        matched_polarity: polarity ?? undefined,
+        local_differentiator: differentiator ?? undefined,
+        decision: "clean",
+      });
+    }
   }
 
   return resultFromViolations(violations, {
-    overlap,
-    contextualDifferentiators,
+    rule_version: "llr-003-v2",
+    craft_domain_source: "canon_derived",
+    pairs,
   });
 }
 
@@ -332,12 +503,12 @@ export const ACTIVE_RULES: LessonsLearnedRule[] = [
     canon_reference: "VOL-V / VII.2",
     name: "No Contradictory Diagnostic Framing",
     description:
-      "The same element cannot be labeled both strength and weakness without context differentiation.",
+      "Flags unscoped polarity collisions in strength/risk framing using pair-local canon-anchored evaluation.",
     enforcement_stages: ["post_convergence", "pre_artifact_generation"],
     severity: "ERROR",
     predicate: llr003NoContradictoryDiagnosticFraming,
-    failure_message: "Contradictory framing found without contextual boundary.",
-    explanation: "Diagnostics must remain internally coherent.",
+    failure_message: "Contradictory framing found without pair-local scope boundary.",
+    explanation: "Diagnostics must remain internally coherent at the strength/risk pair level.",
   },
   {
     rule_id: "LLR-004",
