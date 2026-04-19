@@ -122,6 +122,11 @@ let mockRunPass1: jest.Mock<(opts: RunPass1Options) => Promise<SinglePassOutput>
 let mockRunPass2: jest.Mock<(opts: RunPass2Options) => Promise<SinglePassOutput>>;
 let mockRunPass3: jest.Mock<(opts: RunPass3Options) => Promise<SynthesisOutput>>;
 
+const permissiveLessonsLearned = {
+  evaluateRules: () => ({ overall_pass: true, results: [] as LessonsLearnedReport["results"] }),
+  deriveDecision: () => ({ action: "ALLOW" as const, reason: "test default allow" }),
+};
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("runPipeline (e2e with injected runners)", () => {
@@ -141,6 +146,7 @@ describe("runPipeline (e2e with injected runners)", () => {
       workType: "literary_fiction",
       title: "The Valley",
       openaiApiKey: "sk-test",
+      _lessonsLearned: permissiveLessonsLearned,
       _runners: {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
@@ -410,6 +416,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         title: "The Valley",
         openaiApiKey: "sk-test",
         perplexityApiKey: "pplx-test",
+        _lessonsLearned: permissiveLessonsLearned,
         _runners: {
           runPass1: mockRunPass1,
           runPass2: mockRunPass2,
@@ -463,6 +470,7 @@ describe("runPipeline (e2e with injected runners)", () => {
       workType: "literary_fiction",
       title: "Test",
       openaiApiKey: "sk-test",
+      _lessonsLearned: permissiveLessonsLearned,
       _runners: {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
