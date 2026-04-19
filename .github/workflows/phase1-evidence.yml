@@ -102,7 +102,7 @@ jobs:
 
       - name: Upload Evidence Artifact
         if: always() && steps.evidence.outputs.LOG_COPIED == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: flow1-evidence-${{ github.sha }}
           path: artifacts/flow1-evidence-ci.log
