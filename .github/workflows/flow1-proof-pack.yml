@@ -23,9 +23,13 @@ jobs:
           cache: "npm"
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz -o /tmp/supabase.tar.gz
+          tar -xzf /tmp/supabase.tar.gz -C /tmp
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
 
       - name: Install deps
         run: npm ci
