@@ -286,7 +286,6 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     generated_at: new Date().toISOString(),
   });
 
-  const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
 
   let parsedOutput: SinglePassOutput;
   try {
