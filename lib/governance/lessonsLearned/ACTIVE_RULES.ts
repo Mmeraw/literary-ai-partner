@@ -33,10 +33,15 @@ function collectNarratives(input: RuleEvaluationInput): CriterionNarrative[] {
   const fromPass = (criteria?: { key: CriterionKey; rationale: string }[]) =>
     (criteria ?? []).map((c) => ({ key: c.key, rationale: c.rationale ?? "" }));
 
+  const convergenceCriteria = input.convergence_result?.criteria?.map((c) => ({
+    key: c.key,
+    rationale: c.final_rationale ?? "",
+  }));
+
   return [
     ...fromPass(input.structural_result?.criteria),
     ...fromPass(input.diagnostic_result?.criteria),
-    ...fromPass(input.convergence_result?.criteria.map((c) => ({ key: c.key, rationale: c.final_rationale }))),
+    ...fromPass(convergenceCriteria),
   ];
 }
 
@@ -67,10 +72,6 @@ function resultFromViolations(violations: RuleViolation[], evidence?: unknown): 
     violations,
     evidence,
   };
-}
-
-function normalizeToken(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function keywordHit(corpus: string, keywords: string[]): string[] {
@@ -164,11 +165,11 @@ function llr002AuthorityTransferClarity(input: RuleEvaluationInput): RuleResult 
 
 const CANON_DOMAIN_SYNONYMS: Partial<Record<CriterionKey, string[]>> = {
   voice: ["pov", "point of view"],
-  narrativeDrive: ["momentum", "drive", "propulsion"],
+  narrativeDrive: ["drive", "propulsion"],
   sceneConstruction: ["scene", "staging"],
   worldbuilding: ["world", "setting"],
   proseControl: ["prose", "line level"],
-  narrativeClosure: ["closure", "ending", "resolution"],
+  narrativeClosure: ["closure"],
 };
 
 const PAIR_CONTRAST_MARKERS = [
@@ -312,8 +313,10 @@ function llr003NoContradictoryDiagnosticFraming(input: RuleEvaluationInput): Rul
 
   for (const strength of strengths) {
     for (const risk of risks) {
+      const polarity = pairPolarityCollision(strength, risk);
+      const differentiator = pairLocalDifferentiator(strength, risk);
+      const weakTension = pairWeakTension(strength, risk);
       const sharedAnchor = pairSharedAnchors(strength, risk);
-      if (sharedAnchor.length === 0) continue;
 
       const canonicalAnchorIds = CRITERIA_KEYS.filter((key) => {
         const keyMatch = containsBoundedTerm(strength, key) && containsBoundedTerm(risk, key);
@@ -323,14 +326,13 @@ function llr003NoContradictoryDiagnosticFraming(input: RuleEvaluationInput): Rul
         return keyMatch || synonymMatch;
       }).map((key) => PIPELINE_CRITERION_CANON_ID_MAP[key]);
 
-      const differentiator = pairLocalDifferentiator(strength, risk);
-      const polarity = pairPolarityCollision(strength, risk);
-      const weakTension = pairWeakTension(strength, risk);
+      const anchorLabel =
+        sharedAnchor.length > 0 ? sharedAnchor.join(", ") : canonicalAnchorIds[0] ?? "unscoped pair";
 
       if (polarity && !differentiator) {
         violations.push(
           makeViolation(
-            `Polarity collision on ${sharedAnchor.join(", ")} without pair-local scope/contrast qualifier.`,
+            `Polarity collision on ${anchorLabel} without pair-local scope/contrast qualifier.`,
             "ERROR",
             "overall",
           ),
@@ -350,7 +352,7 @@ function llr003NoContradictoryDiagnosticFraming(input: RuleEvaluationInput): Rul
       if (!polarity && weakTension && !differentiator) {
         violations.push(
           makeViolation(
-            `Weak tension on ${sharedAnchor.join(", ")} without pair-local scope/contrast qualifier.`,
+            `Weak tension on ${anchorLabel} without pair-local scope/contrast qualifier.`,
             "WARNING",
             "overall",
           ),
