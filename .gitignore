@@ -52,6 +52,9 @@ revisiongrade-governance.bundle
 # Prevent accidental nested git dirs
 **/.git/
 
+# Local git worktrees (never commit)
+.worktrees/
+
 # Local security remediation notes (do not commit)
 CI_SECRETS_FIX_*.md
 SECRETS_FIX_*.md
