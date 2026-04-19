@@ -103,6 +103,7 @@ type PerplexityResponseShape = {
 
 const PERPLEXITY_BASE_URL = "https://api.perplexity.ai";
 const PERPLEXITY_MODEL = "sonar-reasoning-pro";
+const PERPLEXITY_MAX_TOKENS = 3000;
 const DISPUTE_THRESHOLD = 1.0;
 
 const CRITERION_KEYS: CriterionKey[] = [
@@ -255,6 +256,69 @@ function validateCanonCompleteness(
     reasons,
   };
 }
+
+function extractPerplexityResponseText(rawContent: unknown): string {
+  if (typeof rawContent === "string") {
+    return rawContent;
+  }
+
+  if (Array.isArray(rawContent)) {
+    return rawContent
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+
+        if (!item || typeof item !== "object") {
+          return "";
+        }
+
+        const record = item as { text?: unknown; content?: unknown };
+        if (typeof record.text === "string") {
+          return record.text;
+        }
+        if (typeof record.content === "string") {
+          return record.content;
+        }
+        return "";
+      })
+      .join("")
+      .trim();
+  }
+
+  if (rawContent && typeof rawContent === "object") {
+    const record = rawContent as { text?: unknown; content?: unknown };
+    if (typeof record.text === "string") {
+      return record.text;
+    }
+    if (typeof record.content === "string") {
+      return record.content;
+    }
+  }
+
+  return "";
+}
+
+function getRetryPass4MaxTokens(currentMaxTokens: number): number {
+  return Math.min(5000, Math.max(PERPLEXITY_MAX_TOKENS, currentMaxTokens + 1000));
+}
+
+function isRetryableBoundaryFailure(error: unknown): boolean {
+  return (
+    error instanceof JsonBoundaryError &&
+    (error.code === "JSON_PARSE_FAILED_EMPTY" ||
+      error.code === "JSON_PARSE_FAILED_NO_OBJECT" ||
+      error.code === "JSON_PARSE_FAILED_TRUNCATED")
+  );
+}
+
+function parsePerplexityResponse(rawContent: string): PerplexityResponseShape {
+  const boundary = parseJsonObjectBoundary<Record<string, unknown>>(rawContent, {
+    label: "Pass4",
+  });
+  return validateParsedResponse(boundary.value);
+}
+
 export async function runPerplexityCrossCheck(opts: {
   openaiCriteria: Record<CriterionKey, OpenAICriterionInput>;
   openaiSynthesis: string;
@@ -343,64 +407,87 @@ PRIMARY EVALUATOR SYNTHESIS:
 ${openaiSynthesis?.slice(0, 900) ?? "(none)"}
 
 Now return the independent adjudication as JSON.`;
-  const response = await fetch(`${PERPLEXITY_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${perplexityApiKey}`,
-    },
-    body: JSON.stringify({
-      model: PERPLEXITY_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.1,
-      max_tokens: 3000,
-      return_citations: false,
-    }),
-  });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(
-      `[Pass4] Perplexity API error ${response.status}: ${errText.slice(0, 400)}`
-    );
-  }
+  const requestCompletion = async (maxTokens: number) => {
+    const response = await fetch(`${PERPLEXITY_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${perplexityApiKey}`,
+      },
+      body: JSON.stringify({
+        model: PERPLEXITY_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.1,
+        max_tokens: maxTokens,
+        return_citations: false,
+      }),
+    });
 
-  const raw = await response.json();
-  const rawContent: string = raw?.choices?.[0]?.message?.content ?? "";
-  const finishReason = typeof raw?.choices?.[0]?.finish_reason === "string"
-    ? raw.choices[0].finish_reason
-    : "unknown";
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(
+        `[Pass4] Perplexity API error ${response.status}: ${errText.slice(0, 400)}`
+      );
+    }
 
-  // P0: Check finish_reason — log a warning if the model stopped due to token limit
-  const finishReasonWarning = raw?.choices?.[0]?.finish_reason;
-  if (finishReasonWarning === "length") {
+    const raw = await response.json();
+    const rawMessageContent = raw?.choices?.[0]?.message?.content;
+    const rawContent = extractPerplexityResponseText(rawMessageContent);
+    const finishReason = typeof raw?.choices?.[0]?.finish_reason === "string"
+      ? raw.choices[0].finish_reason
+      : "unknown";
+
+    return { rawContent, finishReason };
+  };
+
+  const warnings: string[] = [];
+  let activeMaxTokens = PERPLEXITY_MAX_TOKENS;
+  let { rawContent, finishReason } = await requestCompletion(activeMaxTokens);
+
+  if (finishReason === "length") {
     console.warn("[Pass4] finish_reason=length — Perplexity output may be truncated", {
       model: PERPLEXITY_MODEL,
       rawContentLen: rawContent.length,
+      maxTokens: activeMaxTokens,
     });
   }
 
-  // P0: Log raw response preview before parse
   console.log(`[Pass4] raw Perplexity response preview len=${rawContent.length}: ${rawContent.slice(0, 200)}`);
 
   let parsed: PerplexityResponseShape;
   try {
-    const boundary = parseJsonObjectBoundary<Record<string, unknown>>(rawContent, {
-      label: "Pass4",
-    });
-    parsed = validateParsedResponse(boundary.value);
+    parsed = parsePerplexityResponse(rawContent);
   } catch (error) {
-    if (error instanceof JsonBoundaryError) {
+    const shouldRetry = finishReason === "length" || isRetryableBoundaryFailure(error);
+    if (shouldRetry) {
+      const retryMaxTokens = getRetryPass4MaxTokens(activeMaxTokens);
+      warnings.push("Perplexity cross-check required a retry after a truncated or incomplete JSON response.");
+      console.warn("[Pass4] Retrying Perplexity cross-check with higher token budget", {
+        model: PERPLEXITY_MODEL,
+        initialMaxTokens: activeMaxTokens,
+        retryMaxTokens,
+        finishReason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      activeMaxTokens = retryMaxTokens;
+      ({ rawContent, finishReason } = await requestCompletion(activeMaxTokens));
+      console.log(`[Pass4] retry raw Perplexity response preview len=${rawContent.length}: ${rawContent.slice(0, 200)}`);
+
+      parsed = parsePerplexityResponse(rawContent);
+    } else if (error instanceof JsonBoundaryError) {
       throw new Error(
         `[Pass4] ${error.code}: ${error.message}`
       );
+    } else {
+      throw new Error(
+        `[Pass4] JSON parse/validation failed: ${(error as Error).message}`
+      );
     }
-    throw new Error(
-      `[Pass4] JSON parse/validation failed: ${(error as Error).message}`
-    );
   }
 
   const criteria = {} as Record<CriterionKey, CrossCheckCriterionResult>;
@@ -502,6 +589,7 @@ Now return the independent adjudication as JSON.`;
     criteria,
     perplexitySynthesisNote: parsed.synthesisNote ?? "",
     canonValid: invalidCriteria.length === 0,
+    warnings: warnings.length > 0 ? warnings : undefined,
     rawPerplexityResponse: rawContent,
   };
 }
