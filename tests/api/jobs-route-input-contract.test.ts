@@ -45,11 +45,20 @@ jest.mock("@/lib/jobs/backpressure", () => ({
 const mockCreateJob = createJob as jest.MockedFunction<typeof createJob>;
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
+const mockFetch = jest.fn();
+const originalFetch = global.fetch;
 
 describe("POST /api/jobs input contract", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFetch.mockReset();
+    global.fetch = mockFetch as typeof fetch;
+    process.env.CRON_SECRET = "test-cron-secret";
     mockGetAuthenticatedUser.mockResolvedValue({ id: "user-1" } as never);
+  });
+
+  afterAll(() => {
+    global.fetch = originalFetch;
   });
 
   test("returns 400 when both manuscript_id and manuscript_text are provided", async () => {
@@ -92,6 +101,7 @@ describe("POST /api/jobs input contract", () => {
       job_type: "evaluate_full",
       status: "queued",
     } as never);
+    mockFetch.mockResolvedValue({ ok: true } as Response);
 
     const req = new Request("https://localhost:3000/api/jobs", {
       method: "POST",
@@ -118,5 +128,93 @@ describe("POST /api/jobs input contract", () => {
         job_type: "evaluate_full",
       }),
     );
+  });
+
+  test("kicks off the evaluation worker after successful job creation", async () => {
+    mockCreateJob.mockResolvedValue({
+      id: "job-999",
+      manuscript_id: 999,
+      job_type: "evaluate_full",
+      status: "queued",
+    } as never);
+    mockFetch.mockResolvedValue({ ok: true } as Response);
+
+    const req = new Request("https://example.test/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_id: 999,
+        job_type: "evaluate_full",
+      }),
+    });
+
+    const response = await POST(req);
+
+    expect(response.status).toBe(201);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://example.test/api/workers/process-evaluations",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-cron-secret",
+        }),
+      }),
+    );
+  });
+
+  test("returns 201 and logs a warning when worker kickoff fetch rejects", async () => {
+    mockCreateJob.mockResolvedValue({
+      id: "job-1000",
+      manuscript_id: 1000,
+      job_type: "evaluate_full",
+      status: "queued",
+    } as never);
+    mockFetch.mockRejectedValue(new Error("worker unavailable"));
+    const { logger: mockedLogger } = jest.requireMock("@/lib/observability/logger");(mockedLogger.warn as jest.Mock).mockClear();
+
+    try {
+      const req = new Request("https://example.test/api/jobs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          manuscript_id: 1000,
+          job_type: "evaluate_full",
+        }),
+      });
+
+      const response = await POST(req);
+
+      expect(response.status).toBe(201);
+      expect(mockedLogger.warn).toHaveBeenCalled();
+    } finally {
+    }
+  });
+
+  test("returns 201 and logs a warning when worker kickoff responds with ok false", async () => {
+    mockCreateJob.mockResolvedValue({
+      id: "job-1001",
+      manuscript_id: 1001,
+      job_type: "evaluate_full",
+      status: "queued",
+    } as never);
+    mockFetch.mockResolvedValue({ ok: false } as Response);
+    const { logger: mockedLogger } = jest.requireMock("@/lib/observability/logger");(mockedLogger.warn as jest.Mock).mockClear();
+
+    try {
+      const req = new Request("https://example.test/api/jobs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          manuscript_id: 1001,
+          job_type: "evaluate_full",
+        }),
+      });
+
+      const response = await POST(req);
+
+      expect(response.status).toBe(201);
+      expect(mockedLogger.warn).toHaveBeenCalled();
+    } finally {
+    }
   });
 });
