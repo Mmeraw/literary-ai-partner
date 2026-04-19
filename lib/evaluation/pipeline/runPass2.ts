@@ -7,7 +7,7 @@
  *   there is no parameter for Pass 1 data.
  *
  * Temperature: 0.3 (per Vol III Tools §PASS2)
- * Max tokens: 2500 (default, override via EVAL_PASS2_MAX_TOKENS)
+ * Max tokens: 4000 (default, override via EVAL_PASS2_MAX_TOKENS)
  */
 
 import OpenAI from "openai";
@@ -22,11 +22,12 @@ import {
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
+import { buildDegradedSinglePassOutput } from "./degradedPassOutput";
 
 const PASS2_TEMPERATURE = 0.3;
 const PASS2_MAX_TOKENS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS2_MAX_TOKENS || "2500", 10);
-  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 8000 ? parsed : 2500;
+  const parsed = Number.parseInt(process.env.EVAL_PASS2_MAX_TOKENS || "4000", 10);
+  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 12000 ? parsed : 4000;
 })();
 const PASS2_MODEL = "o3";
 
@@ -89,8 +90,14 @@ function buildEmptyResponseDiagnostic(params: {
     typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined;
   const choiceCount = Array.isArray(completion.choices) ? completion.choices.length : 0;
 
+  const diagnosticKind = finishReason === "length" ? "MODEL_TRUNCATED_RESPONSE" : "EMPTY_MODEL_RESPONSE";
+  const summary =
+    finishReason === "length"
+      ? "OpenAI output hit the token ceiling before producing usable JSON"
+      : "Empty response from OpenAI";
+
   return (
-    `[Pass2] Empty response from OpenAI ` +
+    `[Pass2] ${diagnosticKind}: ${summary} ` +
     `(model=${model} finish_reason=${finishReason} content_type=${contentType} choices=${choiceCount} ` +
     `max_output_tokens=${PASS2_MAX_TOKENS}` +
     `${typeof usage?.prompt_tokens === "number" ? ` prompt_tokens=${usage.prompt_tokens}` : ""}` +
@@ -187,6 +194,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   const firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
   const rawContent = firstChoice?.message?.content;
   const responseText = extractResponseText(rawContent);
+  const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
 
   if (responseText.trim().length === 0) {
     const diagnosticMessage = buildEmptyResponseDiagnostic({
@@ -202,8 +210,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
       choiceCount: Array.isArray((completion as { choices?: unknown[] }).choices)
         ? (completion as { choices: unknown[] }).choices.length
         : 0,
-      finishReason:
-        typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown",
+      finishReason: finishReason,
       contentType: rawContent === null ? "null" : Array.isArray(rawContent) ? "array" : typeof rawContent,
       contentPreview: typeof rawContent === "string" ? rawContent.slice(0, 160) : undefined,
       usage: completion.usage,
@@ -214,7 +221,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     const parseValidationMs = nowMs() - parseValidationStartMs;
     const totalMs = nowMs() - passStartMs;
     console.log("[Pass2][Timing]", {
-      stage: "failure",
+      stage: finishReason === "length" ? "degraded" : "failure",
       model: selectedModel,
       input_chars: inputChars,
       output_chars: responseText.length,
@@ -229,11 +236,29 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
       usage_total_tokens: completion.usage?.total_tokens ?? null,
       error: "empty_response",
     });
+
+    if (finishReason === "length") {
+      console.warn("[Pass2] Accepting truncated completion as degraded partial verdict", {
+        model: selectedModel,
+        maxOutputTokens: PASS2_MAX_TOKENS,
+        usage: completion.usage,
+      });
+      return buildDegradedSinglePassOutput({
+        pass: 2,
+        axis: "editorial_literary",
+        model: selectedModel,
+        promptVersion: PASS2_PROMPT_VERSION,
+        temperature: PASS2_TEMPERATURE,
+        warning: "MODEL_TRUNCATED_RESPONSE",
+        rawText: responseText,
+      });
+    }
+
     throw new Error(diagnosticMessage);
   }
 
   // P0: Check finish_reason — log a warning if the model stopped due to token limit
-  const finishReasonWarning = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined;
+  const finishReasonWarning = finishReason;
   if (finishReasonWarning === "length") {
     console.warn("[Pass2] finish_reason=length — output may be truncated", {
       model: selectedModel,

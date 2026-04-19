@@ -1274,6 +1274,15 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       crossCheckResult: pipelineResult.cross_check,
       pass4Governance: pipelineResult.pass4_governance,
     });
+
+    if (pipelineResult.quality_gate.warnings.length > 0) {
+      evaluationResult.governance.warnings = Array.from(
+        new Set([
+          ...evaluationResult.governance.warnings,
+          ...pipelineResult.quality_gate.warnings,
+        ]),
+      );
+    }
     console.log(
       `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
     );
@@ -1500,7 +1509,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 /**
  * Atomically claim a batch of queued evaluation jobs using the claim_evaluation_jobs RPC.
  * Returns an array of claimed job objects (id + phase).
- * Falls back to an empty array if the RPC is unavailable (graceful degradation).
+ * HARD RULE: fail closed if the claim RPC is unavailable; never process queued jobs
+ * from a plain SELECT path because that bypasses lease + claimant invariants.
  */
 export async function claimQueuedJobs(
   options: {
@@ -1532,33 +1542,11 @@ export async function claimQueuedJobs(
 
   if (error) {
     const msg = error.message || '';
-    // Graceful degradation: if the RPC doesn't exist yet, use legacy SELECT claim.
     if (msg.includes('function') || msg.includes('does not exist') || msg.includes('schema cache')) {
-      console.warn('[Processor] claim_evaluation_jobs RPC unavailable, falling back to legacy SELECT');
-
-      const { data: fallbackRows, error: fallbackError } = await supabase
-        .from('evaluation_jobs')
-        .select('id,phase,status,phase_status,progress,created_at')
-        .eq('status', 'queued')
-        .in('phase', ['phase_1', 'phase_2'])
-        .order('created_at', { ascending: true })
-        .limit(batchSize);
-
-      if (fallbackError) {
-        console.error('[Processor] Legacy SELECT fallback failed:', fallbackError);
-        throw fallbackError;
-      }
-
-      if (!fallbackRows || fallbackRows.length === 0) {
-        return [];
-      }
-
-      return (fallbackRows as Array<Record<string, unknown>>)
-        .filter((row) => typeof row.id === 'string')
-        .map((row) => ({
-          id: row.id as string,
-          phase: typeof row.phase === 'string' ? row.phase : 'phase_1',
-        }));
+      console.warn(
+        '[Processor] claim_evaluation_jobs RPC unavailable; refusing to process queued jobs without atomic lease claim',
+      );
+      return [];
     }
     console.error('[Processor] claim_evaluation_jobs RPC error:', error);
     throw error;

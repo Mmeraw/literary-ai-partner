@@ -591,6 +591,11 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   // ── Pass 4: Quality Gate (deterministic) ───────────────────────────────
+  const degradedWarnings = [
+    ...(pass1Output.warnings ?? []),
+    ...(pass2Output.warnings ?? []),
+  ];
+
   const dedupeResult = dedupeRecommendationsPreGate(pass3Output);
   pass3Output = dedupeResult.synthesis;
   if (dedupeResult.removedCount > 0) {
@@ -603,6 +608,9 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
   const pass4StartMs = nowMs();
   const qualityGate = _runQualityGate(pass3Output, pass1Output, pass2Output, opts.manuscriptText);
+  if (degradedWarnings.length > 0) {
+    qualityGate.warnings.push(...degradedWarnings);
+  }
   timings.pass4_ms = nowMs() - pass4StartMs;
   if (!qualityGate.pass) {
     const qualityGateCheckpoint = getGovernanceCheckpointById("QUALITY_GATE", governanceInjectionMap);

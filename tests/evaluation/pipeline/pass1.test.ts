@@ -9,6 +9,7 @@ import { describe, it, expect } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass1Response, runPass1 } from "@/lib/evaluation/pipeline/runPass1";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass1";
+import { buildPass1UserPrompt } from "@/lib/evaluation/pipeline/prompts/pass1-craft";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 import { getCanonicalPipelineModel } from "@/lib/evaluation/policy";
 
@@ -245,17 +246,34 @@ describe("runPass1", () => {
     expect(result.criteria).toHaveLength(13);
   });
 
-  it("includes finish_reason and token usage in enriched empty-response errors", async () => {
-    await expect(
-      runPass1({
-        manuscriptText: "test",
-        workType: "literary_fiction",
-        title: "Test",
-        registry,
-        openaiApiKey: "sk-test",
-        _createCompletion: lengthLimitedEmptyCompletion(),
-      }),
-    ).rejects.toThrow("finish_reason=length");
+  it("returns a degraded partial verdict when finish_reason=length", async () => {
+    const result = await runPass1({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: lengthLimitedEmptyCompletion(),
+    });
+
+    expect(result.criteria).toHaveLength(13);
+    expect(result.verdict_status).toBe("partial");
+    expect(result.confidence).toBe("reduced");
+    expect(result.warnings).toContain("MODEL_TRUNCATED_RESPONSE");
+  });
+
+  it("strips inline ChatGPT-style author notes from the prompt payload", () => {
+    const prompt = buildPass1UserPrompt({
+      manuscriptText:
+        'Chapter text. <ChatGPT, what is “The project”? Please explain?> More scene after the note.',
+      workType: 'literary_fiction',
+      title: 'Annotated Draft',
+    });
+
+    expect(prompt).toContain('Chapter text.');
+    expect(prompt).toContain('More scene after the note.');
+    expect(prompt).not.toContain('<ChatGPT');
+    expect(prompt).not.toContain('Please explain');
   });
 
   it("propagates OpenAI errors", async () => {

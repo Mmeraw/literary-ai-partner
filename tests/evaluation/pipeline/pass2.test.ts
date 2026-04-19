@@ -239,16 +239,19 @@ describe("runPass2", () => {
     expect(result.criteria).toHaveLength(13);
   });
 
-  it("includes finish_reason and token usage in enriched empty-response errors", async () => {
-    await expect(
-      runPass2({
-        manuscriptText: "test",
-        workType: "literary_fiction",
-        title: "Test",
-        registry,
-        openaiApiKey: "sk-test",
-        _createCompletion: lengthLimitedEmptyCompletion(),
-      }),
-    ).rejects.toThrow("finish_reason=length");
+  it("returns a degraded partial verdict when finish_reason=length", async () => {
+    const result = await runPass2({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: lengthLimitedEmptyCompletion(),
+    });
+
+    expect(result.criteria).toHaveLength(13);
+    expect(result.verdict_status).toBe("partial");
+    expect(result.confidence).toBe("reduced");
+    expect(result.warnings).toContain("MODEL_TRUNCATED_RESPONSE");
   });
 });

@@ -47,6 +47,9 @@ export type SinglePassOutput = {
   prompt_version: string;
   temperature: number;
   generated_at: string; // ISO 8601
+  verdict_status?: "valid" | "partial";
+  confidence?: "full" | "reduced";
+  warnings?: string[];
 };
 
 // ── Pass 3: Synthesized criterion ────────────────────────────────────────────

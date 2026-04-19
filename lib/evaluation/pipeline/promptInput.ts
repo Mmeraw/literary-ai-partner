@@ -9,6 +9,8 @@ const DEFAULT_SYNTHESIS_REFERENCE_CHAR_BUDGET = (() => {
 })();
 
 const OMITTED_SEPARATOR = "\n\n[... middle of manuscript omitted for prompt window ...]\n\n";
+const INLINE_CHATGPT_NOTE_PATTERN = /<\s*ChatGPT\b[\s\S]*?>/gi;
+const SECTION_DIVIDER_PATTERN = /(?:\r?\n)\s*_{3,}\s*(?=\r?\n)/g;
 
 export type PromptCoverage = {
   sourceChars: number;
@@ -33,8 +35,18 @@ export function getDefaultSynthesisReferenceCharBudget(): number {
   return DEFAULT_SYNTHESIS_REFERENCE_CHAR_BUDGET;
 }
 
+export function sanitizePromptInput(text: string): string {
+  return text
+    .replace(INLINE_CHATGPT_NOTE_PATTERN, " ")
+    .replace(SECTION_DIVIDER_PATTERN, "\n\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 export function buildPromptInputWindow(text: string, maxChars = DEFAULT_PASS_INPUT_CHAR_BUDGET): string {
-  const trimmed = text.trim();
+  const trimmed = sanitizePromptInput(text);
   if (trimmed.length <= maxChars) {
     return trimmed;
   }
