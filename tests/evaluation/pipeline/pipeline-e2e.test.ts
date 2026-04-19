@@ -387,6 +387,45 @@ describe("runPipeline (e2e with injected runners)", () => {
     }
   });
 
+  it("keeps Pass 4 fail-soft when Perplexity returns malformed JSON", async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { content: "{ this: is invalid }" },
+          },
+        ],
+      }),
+      text: async () => "{ this: is invalid }",
+    } as Response);
+
+    try {
+      const result = await runPipeline({
+        manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+        workType: "literary_fiction",
+        title: "The Valley",
+        openaiApiKey: "sk-test",
+        perplexityApiKey: "pplx-test",
+        _runners: {
+          runPass1: mockRunPass1,
+          runPass2: mockRunPass2,
+          runPass3Synthesis: mockRunPass3,
+        },
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.quality_gate.pass).toBe(true);
+      }
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   it("dedupes duplicate recommendation actions pre-gate so quality gate can pass", async () => {
     const synthesisWithDupes = makeSynthesisOutput();
     const duplicateAction =
