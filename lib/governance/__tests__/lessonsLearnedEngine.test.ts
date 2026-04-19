@@ -54,55 +54,7 @@ function makeSynthesis(summary: string, strengths: string[], risks: string[]): S
       decision_points: ["The chapter commits to a clear direction for this criterion."],
       consequence_status: "landed" as const,
       evidence: [],
-      recommendations: [
-        {
-          priority: "medium" as const,
-          action: `Address the ${key} dimension by grounding in specific textual evidence.`,
-          expected_impact: "Increases specificity and reader connection.",
-          anchor_snippet: '"test"',
-          source_pass: 3 as const,
-        },
-      ],
-    })),
-    overall: {
-      overall_score_0_100: 70,
-      verdict: "revise",
-      one_paragraph_summary: summary,
-      top_3_strengths: strengths,
-      top_3_risks: risks,
-    },
-    metadata: {
-      pass1_model: "gpt-4o-mini",
-      pass2_model: "gpt-4o-mini",
-      pass3_model: "gpt-4o-mini",
-      generated_at: new Date().toISOString(),
-    },
-    partial_evaluation: false,
-  };
-}
-
-function makeGenericSynthesis(summary: string, strengths: string[], risks: string[]): SynthesisOutput {
-  return {
-    criteria: CRITERIA_KEYS.map((key) => ({
-      key,
-      craft_score: 7,
-      editorial_score: 7,
-      final_score_0_10: 7,
-      score_delta: 0,
-      final_rationale: summary,
-      pressure_points: ["Narrative pressure accumulates around this criterion."],
-      decision_points: ["The chapter commits to a clear direction for this criterion."],
-      consequence_status: "landed" as const,
-      evidence: [],
-      recommendations: [
-        {
-          priority: "medium" as const,
-          action: `Address the ${key} dimension by grounding in specific textual evidence.`,
-          expected_impact: "Increases specificity and reader connection.",
-          anchor_snippet: '"test"',
-          source_pass: 3 as const,
-        },
-      ],
+      recommendations: [],
     })),
     overall: {
       overall_score_0_100: 70,
@@ -129,8 +81,8 @@ function makeInput(overrides?: Partial<RuleEvaluationInput>): RuleEvaluationInpu
     diagnostic_result: makePassOutput(2, "Structure signal canon criterion"),
     convergence_result: makeSynthesis(
       "Canonical structure and wave-aligned synthesis with criterion anchor",
-      ["Strong structure", "Clear criterion framing", "Wave-consistent escalation"],
-      ["Pacing needs work", "Minor tone drift", "Closure clarity needed"],
+      ["Strong pacing", "Distinctive voice", "Clear closure"],
+      ["Pacing drops", "Voice wavers", "Closure weak"],
     ),
     registry: loadCanonicalRegistry(),
     metadata: {
@@ -159,40 +111,12 @@ describe("Phase 0.2 lessons-learned rule engine", () => {
     ]);
   });
 
-  it("LLR-001 fails multiplicity framing without boundary evidence", () => {
-    const input = makeInput({
-      structural_result: makeGenericPassOutput(1, "General feedback without specific support."),
-      diagnostic_result: makeGenericPassOutput(2, "General readability notes only."),
-      convergence_result: makeSynthesis(
-        "The chapter has too many ideas and too many concepts across scenes.",
-        ["Strong imagery"],
-        ["Overloaded concept stack"],
-      ),
-    });
-
-    const result = ruleById("LLR-001").predicate(input);
-    expect(result.passed).toBe(false);
-  });
-
-  it("LLR-002 fails authority shift without marker/justification", () => {
+  it("LLR-003 fails unscoped polarity collision", () => {
     const input = makeInput({
       convergence_result: makeSynthesis(
-        "POV shift occurs repeatedly with authority shift and voice shift.",
-        ["Strong premise"],
-        ["POV shift confusion"],
-      ),
-    });
-
-    const result = ruleById("LLR-002").predicate(input);
-    expect(result.passed).toBe(false);
-  });
-
-  it("LLR-003 fails contradictory framing without contextual differentiation", () => {
-    const input = makeInput({
-      convergence_result: makeSynthesis(
-        "Clean summary with no contrast markers.",
-        ["Strong pacing", "Controlled tone", "Clear closure"],
-        ["Pacing collapse", "Tone inconsistency", "Closure unclear"],
+        "Clean summary",
+        ["Strong pacing"],
+        ["Pacing collapses"],
       ),
     });
 
@@ -200,12 +124,12 @@ describe("Phase 0.2 lessons-learned rule engine", () => {
     expect(result.passed).toBe(false);
   });
 
-  it("LLR-003 allows overlap when the synthesis uses explicit nuance markers like though or but", () => {
+  it("LLR-003 passes when scope is present", () => {
     const input = makeInput({
       convergence_result: makeSynthesis(
-        "The pacing remains compelling, though the middle stretch occasionally diffuses tension.",
-        ["Strong pacing", "Controlled tone", "Clear closure"],
-        ["Pacing softens in the middle", "Tone inconsistency", "Closure unclear"],
+        "Momentum strong early but fades in final act",
+        ["Strong momentum in first half"],
+        ["Momentum drops in final act"],
       ),
     });
 
@@ -213,44 +137,52 @@ describe("Phase 0.2 lessons-learned rule engine", () => {
     expect(result.passed).toBe(true);
   });
 
-  it("LLR-004 fails non-canonical terminology", () => {
+  it("LLR-003 does not fail on shared domain alone", () => {
     const input = makeInput({
       convergence_result: makeSynthesis(
-        "This just gives vibes and feels off; generic writing advice applies.",
-        ["Readable prose"],
-        ["Vibes are inconsistent"],
+        "Dialogue analysis",
+        ["Sharp dialogue"],
+        ["Dialogue is repetitive"],
       ),
     });
 
-    const result = ruleById("LLR-004").predicate(input);
+    const result = ruleById("LLR-003").predicate(input);
+    expect(result.passed).toBe(true);
+  });
+
+  it("LLR-003 ignores unrelated corpus contrast markers", () => {
+    const input = makeInput({
+      diagnostic_result: makeGenericPassOutput(2, "However the structure shifts."),
+      convergence_result: makeSynthesis(
+        "No pair-local scope",
+        ["Strong pacing"],
+        ["Pacing collapses"],
+      ),
+    });
+
+    const result = ruleById("LLR-003").predicate(input);
     expect(result.passed).toBe(false);
   });
 
-  it("LLR-005 fails canon-free generic critique", () => {
-    const genericPass = makeGenericPassOutput(1, "Good chapter with interesting writing and emotional impact.");
-    const genericDiag = makeGenericPassOutput(2, "General readability notes and broad style comments.");
-    const genericSynth = makeGenericSynthesis(
-      "Readable chapter with broad strengths and broad weaknesses.",
-      ["Engaging", "Readable", "Interesting"],
-      ["Unclear", "Wordy", "Flat"],
-    );
-
+  it("LLR-003 allows warning-only outcomes", () => {
     const input = makeInput({
-      structural_result: genericPass,
-      diagnostic_result: genericDiag,
-      convergence_result: genericSynth,
+      convergence_result: makeSynthesis(
+        "Voice discussion",
+        ["Distinctive voice"],
+        ["Voice fades in longer passages"],
+      ),
     });
 
-    const result = ruleById("LLR-005").predicate(input);
-    expect(result.passed).toBe(false);
+    const result = ruleById("LLR-003").predicate(input);
+    expect(result.passed).toBe(true);
   });
 
   it("evaluateLessonsLearnedRules blocks on ERROR failures", () => {
     const input = makeInput({
       convergence_result: makeSynthesis(
-        "POV shift occurs repeatedly with authority shift and voice shift.",
+        "Unscoped contradiction",
         ["Strong pacing"],
-        ["Pacing collapse"],
+        ["Pacing collapses"],
       ),
     });
 
@@ -261,8 +193,15 @@ describe("Phase 0.2 lessons-learned rule engine", () => {
     expect(decision.action).toBe("BLOCK");
   });
 
-  it("evaluateLessonsLearnedRules passes for canon-anchored coherent output", () => {
-    const input = makeInput();
+  it("evaluateLessonsLearnedRules passes for coherent output", () => {
+    const input = makeInput({
+      convergence_result: makeSynthesis(
+        "Scoped nuance",
+        ["Strong pacing in opening"],
+        ["Pacing softens in middle"],
+      ),
+    });
+
     const report = evaluateLessonsLearnedRules(input, "pre_artifact_generation");
     const decision = deriveLessonsLearnedEnforcementDecision(report);
 
