@@ -12,6 +12,7 @@ import { generateTraceId, logger, jobLogger } from "@/lib/observability/logger";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { backpressureGuard } from "@/lib/jobs/backpressure";
+import { triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
 
 function isRateLimited(
   result: RateLimitResult
@@ -20,68 +21,6 @@ function isRateLimited(
 }
 
 const ALLOWED_JOB_TYPES = new Set<string>(Object.values(JOB_TYPES));
-
-async function triggerEvaluationWorker(args: {
-  req: Request;
-  jobId: string;
-  trace_id: string;
-  request_id: string;
-}): Promise<void> {
-  const { req, jobId, trace_id, request_id } = args;
-  const cronSecret = process.env.CRON_SECRET?.trim();
-
-  if (!cronSecret) {
-    logger.warn("Worker kickoff skipped: CRON_SECRET missing", {
-      trace_id,
-      request_id,
-      event: "api.jobs.create.worker_kickoff_skipped",
-      job_id: jobId,
-    });
-    return;
-  }
-
-  const workerUrl = new URL("/api/workers/process-evaluations", req.url).toString();
-
-  try {
-    const response = await fetch(workerUrl, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${cronSecret}`,
-        "x-trigger-source": "api.jobs.create",
-        "x-job-id": jobId,
-        "x-trace-id": trace_id,
-      },
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      logger.warn("Evaluation worker kickoff returned non-ok response", {
-        trace_id,
-        request_id,
-        event: "api.jobs.create.worker_kickoff_non_ok",
-        job_id: jobId,
-        worker_status: response.status,
-      });
-      return;
-    }
-
-    logger.info("Evaluation worker kickoff dispatched", {
-      trace_id,
-      request_id,
-      event: "api.jobs.create.worker_kickoff_dispatched",
-      job_id: jobId,
-      worker_url: workerUrl,
-    });
-  } catch (error) {
-    logger.warn("Evaluation worker kickoff failed", {
-      trace_id,
-      request_id,
-      event: "api.jobs.create.worker_kickoff_failed",
-      job_id: jobId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
 
 export async function POST(req: Request) {
   const trace_id = generateTraceId();
@@ -392,6 +331,7 @@ export async function POST(req: Request) {
       jobId: job.id,
       trace_id,
       request_id,
+      source: "api.jobs.create",
     });
 
     logger.info("Job created successfully", {
