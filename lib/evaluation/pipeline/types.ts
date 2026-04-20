@@ -82,11 +82,11 @@ export type AxisCriterionResult = {
     /** The specific text this recommendation targets */
     anchor_snippet: string;
     /** Broad craft/problem class (canonical vocabulary) */
-    issue_family?: IssueFamily;
+    issue_family: IssueFamily;
     /** Higher-order editorial lever — semantic dedupe handle (canonical vocabulary) */
-    strategic_lever?: StrategicLever;
+    strategic_lever: StrategicLever;
     /** Where the fix primarily operates */
-    revision_granularity?: RevisionGranularity;
+    revision_granularity: RevisionGranularity;
   }[];
 };
 
@@ -132,11 +132,11 @@ export type SynthesizedCriterion = {
     /** Which pass originated this recommendation */
     source_pass: 1 | 2 | 3;
     /** Broad craft/problem class (canonical vocabulary) */
-    issue_family?: IssueFamily;
+    issue_family: IssueFamily;
     /** Higher-order editorial lever — semantic dedupe handle (canonical vocabulary) */
-    strategic_lever?: StrategicLever;
+    strategic_lever: StrategicLever;
     /** Where the fix primarily operates */
-    revision_granularity?: RevisionGranularity;
+    revision_granularity: RevisionGranularity;
     /**
      * Deterministic collapse key for semantic dedup.
      * Format: issue_family:strategic_lever:revision_granularity
@@ -166,7 +166,7 @@ export type SynthesisOutput = {
      * close — one focused revision pass would materially improve requestability
      * not_yet — substantial issues prevent strong submission posture
      */
-    submission_readiness?: "queryable_now" | "close" | "not_yet";
+    submission_readiness: "queryable_now" | "close" | "not_yet";
   };
   metadata: {
     pass1_model: string;
