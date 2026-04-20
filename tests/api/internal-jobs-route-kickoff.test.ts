@@ -28,7 +28,7 @@ const originalFetch = global.fetch;
 describe('POST /api/internal/jobs kickoff behavior', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.NODE_ENV = 'development';
+    Object.assign(process.env, { NODE_ENV: 'development' });
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
     process.env.CRON_SECRET = 'cron-secret';
     global.fetch = jest.fn().mockResolvedValue({ ok: true } as Response) as typeof fetch;

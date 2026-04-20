@@ -31,7 +31,7 @@ describe('triggerEvaluationWorker trusted origin behavior', () => {
 
   afterAll(() => {
     global.fetch = originalFetch;
-    process.env.NODE_ENV = originalNodeEnv;
+    Object.assign(process.env, { NODE_ENV: originalNodeEnv });
     process.env.CRON_SECRET = originalCronSecret;
     process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
     process.env.VERCEL_URL = originalVercelUrl;
@@ -39,7 +39,7 @@ describe('triggerEvaluationWorker trusted origin behavior', () => {
   });
 
   test('skips kickoff in production without trusted configured base URL', async () => {
-    process.env.NODE_ENV = 'production';
+    Object.assign(process.env, { NODE_ENV: 'production' });
 
     await triggerEvaluationWorker({
       req: new Request('https://untrusted.example/api/jobs'),
@@ -60,7 +60,7 @@ describe('triggerEvaluationWorker trusted origin behavior', () => {
   });
 
   test('uses VERCEL_URL as trusted base URL in production', async () => {
-    process.env.NODE_ENV = 'production';
+    Object.assign(process.env, { NODE_ENV: 'production' });
     process.env.VERCEL_URL = 'literary-ai-partner.vercel.app';
 
     await triggerEvaluationWorker({
