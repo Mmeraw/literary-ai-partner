@@ -25,34 +25,51 @@ export interface TriggerWorkerArgs {
   source: string;
 }
 
-function getConfiguredAppBaseUrl(): string | null {
+type UrlSource =
+  | 'WORKER_KICKOFF_BASE_URL'
+  | 'NEXT_PUBLIC_APP_URL'
+  | 'VERCEL_URL'
+  | 'request_origin'
+  | null;
+
+function getConfiguredAppBaseUrl(): { base: string; url_source: UrlSource } | null {
   const explicit = process.env.WORKER_KICKOFF_BASE_URL?.trim();
   if (explicit) {
-    return explicit;
+    return { base: explicit, url_source: 'WORKER_KICKOFF_BASE_URL' };
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (appUrl) {
-    return appUrl;
+    return { base: appUrl, url_source: 'NEXT_PUBLIC_APP_URL' };
   }
 
   const vercelUrl = process.env.VERCEL_URL?.trim();
   if (vercelUrl) {
-    return vercelUrl.startsWith('http') ? vercelUrl : `https://${vercelUrl}`;
+    const base = vercelUrl.startsWith('http') ? vercelUrl : `https://${vercelUrl}`;
+    return { base, url_source: 'VERCEL_URL' };
   }
 
   return null;
 }
 
-function buildWorkerUrlFromTrustedOrigin(req: Request): string | null {
-  const configuredBase = getConfiguredAppBaseUrl();
-  if (configuredBase) {
-    return new URL('/api/workers/process-evaluations', configuredBase).toString();
+function buildWorkerUrlFromTrustedOrigin(req: Request): {
+  workerUrl: string;
+  url_source: UrlSource;
+} | null {
+  const configured = getConfiguredAppBaseUrl();
+  if (configured) {
+    return {
+      workerUrl: new URL('/api/workers/process-evaluations', configured.base).toString(),
+      url_source: configured.url_source,
+    };
   }
 
   // Dev/test fallback only: allow request-origin derivation when not in production.
   if (process.env.NODE_ENV !== 'production') {
-    return new URL('/api/workers/process-evaluations', req.url).toString();
+    return {
+      workerUrl: new URL('/api/workers/process-evaluations', req.url).toString(),
+      url_source: 'request_origin',
+    };
   }
 
   return null;
@@ -67,31 +84,41 @@ export async function triggerEvaluationWorker(
 ): Promise<void> {
   const { req, jobId, trace_id, request_id, source } = args;
 
-  const cronSecret = process.env.CRON_SECRET?.trim();
-  if (!cronSecret) {
-    logger.warn('Worker kickoff skipped: CRON_SECRET not set', {
-      trace_id,
-      request_id,
-      event: 'worker.kickoff.skipped.no_secret',
-      job_id: jobId,
-      source,
-    });
-    return;
-  }
-
-  const workerUrl = buildWorkerUrlFromTrustedOrigin(req);
-  if (!workerUrl) {
-    logger.warn('Worker kickoff skipped: no trusted app base URL in production', {
-      trace_id,
-      request_id,
-      event: 'worker.kickoff.skipped.no_trusted_base_url',
-      job_id: jobId,
-      source,
-    });
-    return;
-  }
-
   try {
+    logger.info('Worker kickoff entered', {
+      trace_id,
+      request_id,
+      event: 'worker.kickoff.entered',
+      job_id: jobId,
+      source,
+    });
+
+    const cronSecret = process.env.CRON_SECRET?.trim();
+    if (!cronSecret) {
+      logger.warn('Worker kickoff skipped: CRON_SECRET not set', {
+        trace_id,
+        request_id,
+        event: 'worker.kickoff.skipped.no_secret',
+        job_id: jobId,
+        source,
+      });
+      return;
+    }
+
+    const resolved = buildWorkerUrlFromTrustedOrigin(req);
+    if (!resolved) {
+      logger.warn('Worker kickoff skipped: no trusted app base URL in production', {
+        trace_id,
+        request_id,
+        event: 'worker.kickoff.skipped.no_trusted_base_url',
+        job_id: jobId,
+        source,
+      });
+      return;
+    }
+
+    const { workerUrl, url_source } = resolved;
+
     const response = await fetch(workerUrl, {
       method: 'GET',
       headers: {
@@ -112,6 +139,7 @@ export async function triggerEvaluationWorker(
         source,
         worker_status: response.status,
         worker_url: workerUrl,
+        url_source,
       });
       return;
     }
@@ -123,12 +151,13 @@ export async function triggerEvaluationWorker(
       job_id: jobId,
       source,
       worker_url: workerUrl,
+      url_source,
     });
   } catch (error) {
-    logger.warn('Worker kickoff failed (network/timeout)', {
+    logger.warn('Worker kickoff failed (pre-dispatch error)', {
       trace_id,
       request_id,
-      event: 'worker.kickoff.failed',
+      event: 'worker.kickoff.failed.pre_dispatch',
       job_id: jobId,
       source,
       error: error instanceof Error ? error.message : String(error),
