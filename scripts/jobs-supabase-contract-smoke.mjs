@@ -145,7 +145,9 @@ async function createTestJob(manuscriptId) {
 async function testRpcSignature() {
   console.log("\n[TEST] RPC Signature Tripwire");
 
-  const now = new Date().toISOString();
+  // Use a sentinel historical timestamp so this test validates RPC callability/shape
+  // without ever claiming contemporary queued jobs in shared CI environments.
+  const now = "1970-01-01T00:00:00.000Z";
 
   // Call with no eligible jobs (should return empty, but validate shape)
   const { data, error } = await supabase.rpc("claim_job_atomic", {
@@ -163,18 +165,18 @@ async function testRpcSignature() {
     throw new Error(`Expected array response, got: ${typeof data}`);
   }
 
-  // CRITICAL: Tripwire must not claim work (detects test ordering regression)
+  // CRITICAL: Tripwire must not claim work at sentinel timestamp.
   if (data.length > 0) {
     throw new Error(
       `Tripwire MUST NOT claim work! Found ${data.length} claimed job(s). ` +
-      `This means test ordering is wrong or there are leftover jobs. ` +
+      `This indicates claim-job temporal gating regression. ` +
       `Job IDs: ${data.map(j => j.id).join(", ")}`
     );
   }
 
   console.log(`  ✅ RPC callable with expected parameters`);
   console.log(`  ✅ Returns array type (shape validated)`);
-  console.log(`  ✅ CRITICAL: No work claimed (test ordering verified)`);
+  console.log(`  ✅ CRITICAL: No work claimed at sentinel timestamp`);
   console.log("  ✅ PASS: RPC signature tripwire");
 }
 
