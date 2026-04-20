@@ -210,6 +210,11 @@ export async function createJob(input: {
     user_id: input.user_id,
     job_type: JOB_TYPE_TO_DB[input.job_type] ?? input.job_type,
     status: normalizeLifecycleStatus(JOB_STATUS.QUEUED),
+    // Incident hardening: claim_evaluation_jobs eligibility is evaluated against
+    // top-level columns (status/phase/phase_status), not progress JSON only.
+    // Keep row-level phase fields in sync with progress at creation time.
+    phase: PHASES.PHASE_1,
+    phase_status: JOB_STATUS.QUEUED,
     ...(includeValidityStatus
       ? { validity_status: normalizeEvaluationValidityStatus("pending") }
       : {}),
@@ -218,7 +223,6 @@ export async function createJob(input: {
       phase_status: JOB_STATUS.QUEUED, // CANON: aligned with JobStatus
       message: "Job created",
     },
-    // keep phase/phase_status only in progress JSON for consistency
     policy_family: "standard",
     voice_preservation_level: "balanced",
     english_variant: "us",

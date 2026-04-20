@@ -82,6 +82,16 @@ describe("evaluation architecture invariants", () => {
     expect(code).not.toContain("@/lib/jobs/phase2");
   });
 
+  test("canonical createJob writes top-level phase fields for claim eligibility", () => {
+    const storePath = path.join(repoRoot, "lib/jobs/jobStore.supabase.ts");
+    const code = fs.readFileSync(storePath, "utf8");
+
+    // The claim_evaluation_jobs RPC predicates on top-level phase columns.
+    // createJob must set these explicitly (not progress JSON only).
+    expect(code).toContain("phase: PHASES.PHASE_1");
+    expect(code).toContain("phase_status: JOB_STATUS.QUEUED");
+  });
+
   test("production entrypoints do not import legacy phase2 evaluator authorities", () => {
     const filesToProtect = [
       "app/api/workers/process-evaluations/route.ts",
