@@ -40,6 +40,21 @@ function makeJob(overrides: Record<string, unknown> = {}): Record<string, unknow
   };
 }
 
+function makeClaimedRpcRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: '11111111-1111-4111-8111-111111111111',
+    manuscript_id: 42,
+    phase: 'phase_1',
+    status: 'running',
+    phase_status: 'running',
+    claimed_by: 'worker-abc',
+    claimed_at: new Date().toISOString(),
+    lease_token: '22222222-2222-4222-8222-222222222222',
+    lease_expires_at: new Date(Date.now() + 180_000).toISOString(),
+    ...overrides,
+  };
+}
+
 function buildSupabaseStub(opts: {
   rpcResult?: { data: unknown; error: null | { message: string } };
   jobData?: Record<string, unknown> | null;
@@ -97,14 +112,7 @@ describe('claimQueuedJobs', () => {
   });
 
   test('calls claim_evaluation_jobs RPC with correct parameters', async () => {
-    const claimedJob = {
-      id: 'job-claimed-1',
-      phase: 'phase_1',
-      phase_status: 'running',
-      claimed_by: 'worker-abc',
-      claimed_at: new Date().toISOString(),
-      lease_expires_at: new Date(Date.now() + 180_000).toISOString(),
-    };
+    const claimedJob = makeClaimedRpcRow();
     const stub = buildSupabaseStub({ rpcResult: { data: [claimedJob], error: null } }) as any;
     createClientMock.mockReturnValue(stub);
 
@@ -118,7 +126,7 @@ describe('claimQueuedJobs', () => {
       p_lease_expires_at: expect.any(String),
     });
     expect(result).toHaveLength(1);
-    expect(result[0].id).toBe('job-claimed-1');
+    expect(result[0].id).toBe('11111111-1111-4111-8111-111111111111');
     expect(result[0].phase).toBe('phase_1');
   });
 
@@ -168,12 +176,38 @@ describe('claimQueuedJobs', () => {
       .mockImplementation((_fn: string, params: { p_worker_id: string }) => {
         if (params.p_worker_id === 'worker-a') {
           return Promise.resolve({
-            data: [{ id: 'a1', phase: 'phase_1' }, { id: 'a2', phase: 'phase_2' }],
+            data: [
+              makeClaimedRpcRow({
+                id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+                phase: 'phase_1',
+                lease_token: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+                claimed_by: 'worker-a',
+              }),
+              makeClaimedRpcRow({
+                id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+                phase: 'phase_2',
+                lease_token: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
+                claimed_by: 'worker-a',
+              }),
+            ],
             error: null,
           });
         }
         return Promise.resolve({
-          data: [{ id: 'b1', phase: 'phase_1' }, { id: 'b2', phase: 'phase_2' }],
+          data: [
+            makeClaimedRpcRow({
+              id: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
+              phase: 'phase_1',
+              lease_token: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1',
+              claimed_by: 'worker-b',
+            }),
+            makeClaimedRpcRow({
+              id: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2',
+              phase: 'phase_2',
+              lease_token: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2',
+              claimed_by: 'worker-b',
+            }),
+          ],
           error: null,
         });
       });
@@ -209,8 +243,16 @@ describe('processQueuedJobs — atomic claim path', () => {
 
   test('returns claimed count equal to jobs claimed by RPC', async () => {
     const claimedRows = [
-      { id: 'j1', phase: 'phase_1', phase_status: 'running', claimed_by: 'w', claimed_at: '', lease_expires_at: '' },
-      { id: 'j2', phase: 'phase_1', phase_status: 'running', claimed_by: 'w', claimed_at: '', lease_expires_at: '' },
+      makeClaimedRpcRow({
+        id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1',
+        claimed_by: 'w',
+        lease_token: 'ffffffff-ffff-4fff-8fff-fffffffffff1',
+      }),
+      makeClaimedRpcRow({
+        id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2',
+        claimed_by: 'w',
+        lease_token: 'ffffffff-ffff-4fff-8fff-fffffffffff2',
+      }),
     ];
 
     // The claimed job fetched inside processEvaluationJob (pre-claimed running job)

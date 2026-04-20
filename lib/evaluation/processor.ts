@@ -86,6 +86,7 @@ import {
 import { JOB_STATUS, type JobStatus } from '@/lib/jobs/types';
 import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
+import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -1597,7 +1598,9 @@ export async function claimQueuedJobs(
     return [];
   }
 
-  return (data as Array<{ id: string; phase: string }>).map((row) => ({
+  const claimedRows = assertClaimedJobsContract(data);
+
+  return claimedRows.map((row) => ({
     id: row.id,
     phase: row.phase,
   }));
