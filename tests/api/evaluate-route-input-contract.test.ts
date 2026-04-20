@@ -175,16 +175,19 @@ describe("POST /api/evaluate input contract", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "https://preview.example.com/api/workers/process-evaluations",
       {
-        method: "POST",
+        method: "GET",
+        cache: "no-store",
         headers: {
           Authorization: "Bearer cron-secret",
+          "x-trigger-source": "api.evaluate.create",
+          "x-job-id": "job-trigger",
+          "x-trace-id": expect.any(String),
         },
       }
     );
-    expect(warnSpy).toHaveBeenCalledWith(
-      "[evaluate] Best-effort worker trigger failed (cron will retry):",
-      "wake-up failed"
-    );
+    const warnLog = String(warnSpy.mock.calls[0]?.[0] ?? "");
+    expect(warnLog).toContain("worker.kickoff.failed");
+    expect(warnLog).toContain("wake-up failed");
 
     warnSpy.mockRestore();
   });

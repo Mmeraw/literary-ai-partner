@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createJob, getAllJobs } from "@/lib/jobs/store";
 import * as metrics from "@/lib/jobs/metrics";
 import { PHASES } from "@/lib/jobs/types";
+import { triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
+import { generateTraceId } from "@/lib/observability/logger";
 
 /**
  * Internal jobs endpoint
@@ -90,6 +92,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const trace_id = generateTraceId();
+  const request_id = generateTraceId();
+
   if (!checkServiceRole(req)) {
     return NextResponse.json(
       { ok: false, error: "Service role authentication required" },
@@ -117,6 +122,16 @@ export async function POST(req: Request) {
 
     // Emit metrics
     metrics.onJobCreated(job.id, job_type);
+
+    // Belt-and-suspenders dispatch for internal job creation paths.
+    // Keep fail-soft and fire-and-forget: cron remains fallback.
+    void triggerEvaluationWorker({
+      req,
+      jobId: job.id,
+      trace_id,
+      request_id,
+      source: "api.internal.jobs.create",
+    });
 
     return NextResponse.json(
       { 
