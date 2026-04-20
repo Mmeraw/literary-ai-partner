@@ -25,8 +25,41 @@ export interface TriggerWorkerArgs {
   source: string;
 }
 
+function getConfiguredAppBaseUrl(): string | null {
+  const explicit = process.env.WORKER_KICKOFF_BASE_URL?.trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (appUrl) {
+    return appUrl;
+  }
+
+  const vercelUrl = process.env.VERCEL_URL?.trim();
+  if (vercelUrl) {
+    return vercelUrl.startsWith('http') ? vercelUrl : `https://${vercelUrl}`;
+  }
+
+  return null;
+}
+
+function buildWorkerUrlFromTrustedOrigin(req: Request): string | null {
+  const configuredBase = getConfiguredAppBaseUrl();
+  if (configuredBase) {
+    return new URL('/api/workers/process-evaluations', configuredBase).toString();
+  }
+
+  // Dev/test fallback only: allow request-origin derivation when not in production.
+  if (process.env.NODE_ENV !== 'production') {
+    return new URL('/api/workers/process-evaluations', req.url).toString();
+  }
+
+  return null;
+}
+
 /**
- * Fire-and-forget POST to /api/workers/process-evaluations.
+ * Fire-and-forget GET to /api/workers/process-evaluations.
  * Always resolves — never throws. Caller must use `void triggerEvaluationWorker(...)`.
  */
 export async function triggerEvaluationWorker(
@@ -46,7 +79,17 @@ export async function triggerEvaluationWorker(
     return;
   }
 
-  const workerUrl = new URL('/api/workers/process-evaluations', req.url).toString();
+  const workerUrl = buildWorkerUrlFromTrustedOrigin(req);
+  if (!workerUrl) {
+    logger.warn('Worker kickoff skipped: no trusted app base URL in production', {
+      trace_id,
+      request_id,
+      event: 'worker.kickoff.skipped.no_trusted_base_url',
+      job_id: jobId,
+      source,
+    });
+    return;
+  }
 
   try {
     const response = await fetch(workerUrl, {
