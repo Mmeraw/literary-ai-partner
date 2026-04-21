@@ -3,6 +3,7 @@ export type LatencyStage =
   | 'worker_kickoff'
   | 'claim'
   | 'fetch_manuscript'
+  | 'pipeline_run'
   | 'pass1'
   | 'pass2'
   | 'pass3'

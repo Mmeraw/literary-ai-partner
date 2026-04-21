@@ -609,15 +609,15 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   // ── Pass 3: Synthesis & Reconciliation ─────────────────────────────────
+  const pass3StartMs = nowMs();
+  const pass3StartedAt = startLatencyStage({
+    jobId: latencyJobId,
+    stage: 'pass3',
+    metadata: {
+      model: opts.model ?? null,
+    },
+  });
   try {
-    const pass3StartMs = nowMs();
-    const pass3StartedAt = startLatencyStage({
-      jobId: latencyJobId,
-      stage: 'pass3',
-      metadata: {
-        model: opts.model ?? null,
-      },
-    });
     pass3Output = await withTimeout(
       _runPass3({
         pass1: pass1Output,
@@ -640,10 +640,11 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       state: 'completed',
     });
   } catch (err) {
+    timings.pass3_ms = nowMs() - pass3StartMs;
     finishLatencyStage({
       jobId: latencyJobId,
       stage: 'pass3',
-      startedAt: new Date(Date.now() - (timings.pass3_ms ?? 0)).toISOString(),
+      startedAt: pass3StartedAt,
       state: 'failed',
       metadata: {
         finish_reason: err instanceof Error ? err.message : String(err),

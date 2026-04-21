@@ -81,9 +81,11 @@ export async function triggerEvaluationWorker(
       source,
       trace_id,
       request_id,
-      dispatch_gap_ms: kickoffDispatchStartedAt
-        ? Math.max(0, Date.now() - Date.parse(kickoffDispatchStartedAt))
-        : undefined,
+      dispatch_gap_ms: (() => {
+        if (!kickoffDispatchStartedAt) return undefined;
+        const parsed = Date.parse(kickoffDispatchStartedAt);
+        return Number.isFinite(parsed) ? Math.max(0, Date.now() - parsed) : undefined;
+      })(),
     },
   });
 

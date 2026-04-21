@@ -1252,9 +1252,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     console.log(`[Processor] ${jobId}: ENTER runPipeline model=${getCanonicalPipelineModel(openAiModel)} passTimeoutMs=${evalPassTimeoutMs}`);
     const runPipelineStartedAt = startLatencyStage({
       jobId,
-      stage: 'pass3',
+      stage: 'pipeline_run',
       metadata: {
-        state: 'canonical_pipeline_started',
         model: getCanonicalPipelineModel(openAiModel),
       },
     });
@@ -1274,9 +1273,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     finishLatencyStage({
       jobId,
-      stage: 'pass3',
+      stage: 'pipeline_run',
       startedAt: runPipelineStartedAt,
-      state: pipelineResult.ok ? 'canonical_pipeline_finished' : 'failed',
+      state: pipelineResult.ok ? 'completed' : 'failed',
       metadata: {
         finish_reason: pipelineResult.ok
           ? 'ok'
@@ -1491,12 +1490,12 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: readBackMsg };
     }
 
-      finishLatencyStage({
-        jobId,
-        stage: 'persist_artifacts',
-        startedAt: persistArtifactsStartedAt,
-        state: 'completed',
-      });
+    finishLatencyStage({
+      jobId,
+      stage: 'persist_artifacts',
+      startedAt: persistArtifactsStartedAt,
+      state: 'completed',
+    });
     } catch (artifactError) {
       finishLatencyStage({
         jobId,
