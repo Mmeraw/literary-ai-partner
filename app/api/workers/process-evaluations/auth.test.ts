@@ -12,6 +12,7 @@
 
 import { NextRequest } from 'next/server';
 import { GET } from './route';
+import { resetEvaluationRuntimeConfigCacheForTests } from '@/lib/config/evaluationRuntimeConfig';
 
 // Mock processQueuedJobs so auth-only tests don't crash without DB
 jest.mock('@/lib/evaluation/processor', () => ({
@@ -32,6 +33,8 @@ const setEnv = (key: string, value: string | undefined) => {
 const originalEnv = { ...process.env };
 
 beforeEach(() => {
+  resetEvaluationRuntimeConfigCacheForTests();
+
   // Reset to clean state
   Object.keys(process.env).forEach(key => {
     if (!(key in originalEnv)) delete (process.env as any)[key];
@@ -39,6 +42,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  resetEvaluationRuntimeConfigCacheForTests();
+
   // Restore original environment
   Object.assign(process.env, originalEnv);
   Object.keys(process.env).forEach(key => {

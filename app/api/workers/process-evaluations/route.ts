@@ -34,14 +34,17 @@ export const maxDuration = 300;
 // CONFIGURATION
 // ============================================================================
 
-const CONFIG = {
-  // Maximum execution time before timeout (clamped to leave headroom under route maxDuration)
-  MAX_EXECUTION_MS: getEvaluationRuntimeConfig().worker.maxExecutionMs,
-  // Batch size for processing (defense-in-depth clamp; processor clamps again)
-  BATCH_SIZE: getEvaluationRuntimeConfig().worker.batchSize,
-  // Lease duration for atomically claimed jobs
-  LEASE_MS: getEvaluationRuntimeConfig().worker.leaseMs,
-} as const;
+function getWorkerConfig() {
+  const runtimeConfig = getEvaluationRuntimeConfig();
+  return {
+    // Maximum execution time before timeout (clamped to leave headroom under route maxDuration)
+    maxExecutionMs: runtimeConfig.worker.maxExecutionMs,
+    // Batch size for processing (defense-in-depth clamp; processor clamps again)
+    batchSize: runtimeConfig.worker.batchSize,
+    // Lease duration for atomically claimed jobs
+    leaseMs: runtimeConfig.worker.leaseMs,
+  } as const;
+}
 
 // ============================================================================
 // AUTH UTILITIES (Production-grade, timing-safe)
@@ -220,6 +223,7 @@ function structuredLog(entry: LogEntry): void {
 export async function GET(request: NextRequest) {
   const traceId = generateTraceId();
   const startTime = Date.now();
+  const workerConfig = getWorkerConfig();
   
   // Auth check
   const auth = checkAuthorization(request);
@@ -280,9 +284,9 @@ export async function GET(request: NextRequest) {
         message: 'Dry run mode - no jobs processed',
         timestamp: new Date().toISOString(),
         config: {
-          maxDurationSeconds: Math.floor(CONFIG.MAX_EXECUTION_MS / 1000),
-          batchSize: CONFIG.BATCH_SIZE,
-          maxExecutionMs: CONFIG.MAX_EXECUTION_MS,
+          maxDurationSeconds: Math.floor(workerConfig.maxExecutionMs / 1000),
+          batchSize: workerConfig.batchSize,
+          maxExecutionMs: workerConfig.maxExecutionMs,
         },
       });
     }
@@ -291,8 +295,8 @@ export async function GET(request: NextRequest) {
     const workerId = buildWorkerId(traceId);
     const results = await processQueuedJobs({
       workerId,
-      batchSize: CONFIG.BATCH_SIZE,
-      leaseMs: CONFIG.LEASE_MS,
+      batchSize: workerConfig.batchSize,
+      leaseMs: workerConfig.leaseMs,
     });
     const durationMs = Date.now() - startTime;
     
@@ -309,7 +313,7 @@ export async function GET(request: NextRequest) {
         processed: results.processed,
         succeeded: results.succeeded,
         failed: results.failed,
-        batchSize: CONFIG.BATCH_SIZE,
+        batchSize: workerConfig.batchSize,
       },
     });
     
@@ -323,7 +327,7 @@ export async function GET(request: NextRequest) {
       processed: results.processed,
       succeeded: results.succeeded,
       failed: results.failed,
-      batchSize: CONFIG.BATCH_SIZE,
+      batchSize: workerConfig.batchSize,
       errors: results.errors,
       timestamp: new Date().toISOString(),
     }, { status: 200 });
