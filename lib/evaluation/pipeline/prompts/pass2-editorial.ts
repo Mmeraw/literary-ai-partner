@@ -59,13 +59,7 @@ Return ONLY:
   "model": "<model_id>",
   "prompt_version": "${PASS2_PROMPT_VERSION}",
   "temperature": 0.3,
-  "generated_at": "<ISO 8601 timestamp>",
-  "narrative_mode_assessment": {
-    "dominant_mode": "scene_driven|investigative_dossier|reflective|braided_hybrid|epistolary_documentary|other",
-    "mode_confidence": "low|medium|high",
-    "mode_rationale": "<short>",
-    "pressure_profile": "<short>"
-  }
+  "generated_at": "<ISO 8601 timestamp>"
 }`;
 
 export function buildPass2UserPrompt(params: {
