@@ -80,6 +80,11 @@ import {
   getEvalPassTimeoutMs,
 } from '@/lib/evaluation/config';
 import {
+  emitLatencyTrace,
+  finishLatencyStage,
+  startLatencyStage,
+} from '@/lib/observability/latencyTrace';
+import {
   assertValidJobStatusTransition,
   normalizeEvaluationJobStatus,
 } from '@/lib/evaluation/status';
@@ -906,6 +911,13 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   let lifecycleStatus: JobStatus | null = null;
 
+  emitLatencyTrace({
+    job_id: jobId,
+    stage: 'claim',
+    state: 'processor_entered',
+    started_at: new Date().toISOString(),
+  });
+
   const nextLifecycleStatus = (target: JobStatus): JobStatus => {
     const normalizedTarget = normalizeEvaluationJobStatus(target) as JobStatus;
 
@@ -1131,6 +1143,14 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     console.log(`[Processor] Job ${jobId} status updated to running`);
 
     // 3. Fetch the manuscript
+    const fetchManuscriptStartedAt = startLatencyStage({
+      jobId,
+      stage: 'fetch_manuscript',
+      metadata: {
+        manuscript_id: job.manuscript_id,
+      },
+    });
+
     const { data: manuscript, error: manuscriptError } = await supabase
       .from('manuscripts')
       .select('*')
@@ -1138,10 +1158,30 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       .single();
 
     if (manuscriptError || !manuscript) {
+      finishLatencyStage({
+        jobId,
+        stage: 'fetch_manuscript',
+        startedAt: fetchManuscriptStartedAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: 'manuscript_not_found',
+        },
+      });
+
       const message = `Manuscript not found: ${manuscriptError?.message}`;
       await markFailed(message);
       return { success: false, error: message };
     }
+
+    finishLatencyStage({
+      jobId,
+      stage: 'fetch_manuscript',
+      startedAt: fetchManuscriptStartedAt,
+      state: 'completed',
+      metadata: {
+        manuscript_id: manuscript.id,
+      },
+    });
 
     console.log(`[Processor] Manuscript ${manuscript.id} fetched: "${manuscript.title}"`);
 
@@ -1210,6 +1250,15 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     }
 
     console.log(`[Processor] ${jobId}: ENTER runPipeline model=${getCanonicalPipelineModel(openAiModel)} passTimeoutMs=${evalPassTimeoutMs}`);
+    const runPipelineStartedAt = startLatencyStage({
+      jobId,
+      stage: 'pass3',
+      metadata: {
+        state: 'canonical_pipeline_started',
+        model: getCanonicalPipelineModel(openAiModel),
+      },
+    });
+
     const pipelineResult = await runPipeline({
       manuscriptText: manuscriptWithContent.content || '',
       workType: manuscriptWithContent.work_type || 'novel',
@@ -1222,6 +1271,19 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       executionMode: 'TRUSTED_PATH',
       _passTimeoutMs: evalPassTimeoutMs,
     });
+
+    finishLatencyStage({
+      jobId,
+      stage: 'pass3',
+      startedAt: runPipelineStartedAt,
+      state: pipelineResult.ok ? 'canonical_pipeline_finished' : 'failed',
+      metadata: {
+        finish_reason: pipelineResult.ok
+          ? 'ok'
+          : ('error_code' in pipelineResult ? pipelineResult.error_code : 'pipeline_failed'),
+      },
+    });
+
     console.log(
       `[Processor] ${jobId}: EXIT runPipeline ok=${pipelineResult.ok}` +
         (pipelineResult.ok === false
@@ -1380,6 +1442,14 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: invalidManuscriptIdError };
     }
 
+    const persistArtifactsStartedAt = startLatencyStage({
+      jobId,
+      stage: 'persist_artifacts',
+      metadata: {
+        manuscript_id: job.manuscript_id,
+      },
+    });
+
     try {
       console.log(
         `[Processor] ${jobId}: ENTER upsertEvaluationArtifact manuscriptId=${job.manuscript_id}`,
@@ -1406,11 +1476,38 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       .eq('artifact_type', 'evaluation_result_v2')
       .maybeSingle();
     if (readBackError || !readBackArtifact) {
+      finishLatencyStage({
+        jobId,
+        stage: 'persist_artifacts',
+        startedAt: persistArtifactsStartedAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: 'artifact_read_back_failed',
+        },
+      });
+
       const readBackMsg = `Fail-closed: artifact read-back failed after upsert (${readBackError?.message ?? 'row not found'})`;
       await markFailed(readBackMsg);
       return { success: false, error: readBackMsg };
     }
+
+      finishLatencyStage({
+        jobId,
+        stage: 'persist_artifacts',
+        startedAt: persistArtifactsStartedAt,
+        state: 'completed',
+      });
     } catch (artifactError) {
+      finishLatencyStage({
+        jobId,
+        stage: 'persist_artifacts',
+        startedAt: persistArtifactsStartedAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: artifactError instanceof Error ? artifactError.message : String(artifactError),
+        },
+      });
+
       const errorMsg = artifactError instanceof Error ? artifactError.message : String(artifactError);
       await markFailed(`Artifact persistence failed: ${errorMsg}`);
 
@@ -1448,6 +1545,14 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       completed_at: completionTime,
     };
 
+    const finalizeStartedAt = startLatencyStage({
+      jobId,
+      stage: 'finalize',
+      metadata: {
+        state: 'completion_update_started',
+      },
+    });
+
     let { error: updateError } = await supabase
       .from('evaluation_jobs')
       .update({
@@ -1471,11 +1576,28 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     );
 
     if (updateError) {
+      finishLatencyStage({
+        jobId,
+        stage: 'finalize',
+        startedAt: finalizeStartedAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: updateError.message,
+        },
+      });
+
       await markFailed(`Completion update failed: ${updateError.message}`);
 
       console.error(`[Processor] Failed to update job ${jobId}:`, updateError);
       return { success: false, error: `Failed to store result: ${updateError.message}` };
     }
+
+    finishLatencyStage({
+      jobId,
+      stage: 'finalize',
+      startedAt: finalizeStartedAt,
+      state: 'completed',
+    });
 
     logProcessorStageBoundary({
       jobId,
@@ -1538,7 +1660,7 @@ export async function claimQueuedJobs(
     batchSize?: number;
     leaseMs?: number;
   },
-): Promise<Array<{ id: string; phase: string }>> {
+): Promise<Array<{ id: string; phase: string; claimedAt?: string }>> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   const workerId = options.workerId;
@@ -1588,6 +1710,7 @@ export async function claimQueuedJobs(
         .map((row) => ({
           id: row.id as string,
           phase: typeof row.phase === 'string' ? row.phase : 'phase_1',
+          claimedAt: undefined,
         }));
     }
     console.error('[Processor] claim_evaluation_jobs RPC error:', error);
@@ -1603,6 +1726,7 @@ export async function claimQueuedJobs(
   return claimedRows.map((row) => ({
     id: row.id,
     phase: row.phase,
+    claimedAt: row.claimed_at ?? undefined,
   }));
 }
 
@@ -1628,7 +1752,7 @@ export async function processQueuedJobs(options?: {
   await failStaleRunningJobs();
 
   // Atomically claim a batch of queued jobs via SKIP LOCKED RPC.
-  let jobs: Array<{ id: string; phase: string }> = [];
+  let jobs: Array<{ id: string; phase: string; claimedAt?: string }> = [];
   try {
     jobs = await claimQueuedJobs({
       workerId: effectiveWorkerId,
@@ -1654,6 +1778,19 @@ export async function processQueuedJobs(options?: {
 
   console.log(`[Processor] Claimed ${jobs.length} job(s) for worker ${effectiveWorkerId}`);
   console.log(`[Processor] Claimed job phase breakdown: ${JSON.stringify(phaseBreakdown)}`);
+
+  for (const job of jobs) {
+    emitLatencyTrace({
+      job_id: job.id,
+      stage: 'claim',
+      state: 'acquired',
+      started_at: job.claimedAt ?? new Date().toISOString(),
+      metadata: {
+        worker_id: effectiveWorkerId,
+        phase: job.phase,
+      },
+    });
+  }
 
   const results = {
     processed: jobs.length,

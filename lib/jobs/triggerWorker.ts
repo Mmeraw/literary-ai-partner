@@ -11,6 +11,10 @@
  * - cron remains the durable fallback
  */
 import { logger } from '@/lib/observability/logger';
+import {
+  finishLatencyStage,
+  startLatencyStage,
+} from '@/lib/observability/latencyTrace';
 
 export interface TriggerWorkerArgs {
   /** Originating request — used to derive the worker base URL. */
@@ -23,6 +27,8 @@ export interface TriggerWorkerArgs {
   request_id: string;
   /** Short label identifying which endpoint fired the kickoff (e.g. 'api.jobs.create'). */
   source: string;
+  /** Optional kickoff dispatch start time from caller for end-to-end route->kickoff timing. */
+  kickoffDispatchStartedAt?: string;
 }
 
 function getConfiguredAppBaseUrl(): string | null {
@@ -65,10 +71,35 @@ function buildWorkerUrlFromTrustedOrigin(req: Request): string | null {
 export async function triggerEvaluationWorker(
   args: TriggerWorkerArgs,
 ): Promise<void> {
-  const { req, jobId, trace_id, request_id, source } = args;
+  const { req, jobId, trace_id, request_id, source, kickoffDispatchStartedAt } = args;
+
+  const kickoffStartAt = startLatencyStage({
+    jobId,
+    stage: 'worker_kickoff',
+    startedAt: kickoffDispatchStartedAt,
+    metadata: {
+      source,
+      trace_id,
+      request_id,
+      dispatch_gap_ms: kickoffDispatchStartedAt
+        ? Math.max(0, Date.now() - Date.parse(kickoffDispatchStartedAt))
+        : undefined,
+    },
+  });
 
   const cronSecret = process.env.CRON_SECRET?.trim();
   if (!cronSecret) {
+    finishLatencyStage({
+      jobId,
+      stage: 'worker_kickoff',
+      startedAt: kickoffStartAt,
+      state: 'skipped',
+      metadata: {
+        finish_reason: 'missing_cron_secret',
+        source,
+      },
+    });
+
     logger.warn('Worker kickoff skipped: CRON_SECRET not set', {
       trace_id,
       request_id,
@@ -81,6 +112,17 @@ export async function triggerEvaluationWorker(
 
   const workerUrl = buildWorkerUrlFromTrustedOrigin(req);
   if (!workerUrl) {
+    finishLatencyStage({
+      jobId,
+      stage: 'worker_kickoff',
+      startedAt: kickoffStartAt,
+      state: 'skipped',
+      metadata: {
+        finish_reason: 'no_trusted_base_url',
+        source,
+      },
+    });
+
     logger.warn('Worker kickoff skipped: no trusted app base URL in production', {
       trace_id,
       request_id,
@@ -104,6 +146,18 @@ export async function triggerEvaluationWorker(
     });
 
     if (!response.ok) {
+      finishLatencyStage({
+        jobId,
+        stage: 'worker_kickoff',
+        startedAt: kickoffStartAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: 'non_ok_response',
+          worker_status: response.status,
+          source,
+        },
+      });
+
       logger.warn('Worker kickoff returned non-ok response', {
         trace_id,
         request_id,
@@ -116,6 +170,17 @@ export async function triggerEvaluationWorker(
       return;
     }
 
+    finishLatencyStage({
+      jobId,
+      stage: 'worker_kickoff',
+      startedAt: kickoffStartAt,
+      state: 'dispatched',
+      metadata: {
+        finish_reason: 'ok_response',
+        source,
+      },
+    });
+
     logger.info('Worker kickoff dispatched', {
       trace_id,
       request_id,
@@ -125,6 +190,17 @@ export async function triggerEvaluationWorker(
       worker_url: workerUrl,
     });
   } catch (error) {
+    finishLatencyStage({
+      jobId,
+      stage: 'worker_kickoff',
+      startedAt: kickoffStartAt,
+      state: 'failed',
+      metadata: {
+        finish_reason: 'network_or_timeout',
+        source,
+      },
+    });
+
     logger.warn('Worker kickoff failed (network/timeout)', {
       trace_id,
       request_id,

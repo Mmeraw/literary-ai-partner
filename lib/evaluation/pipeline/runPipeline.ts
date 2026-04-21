@@ -49,6 +49,11 @@ import {
   evaluateLessonsLearnedRules as defaultEvaluateLessonsLearnedRules,
   deriveLessonsLearnedEnforcementDecision as defaultDeriveLessonsLearnedEnforcementDecision,
 } from "@/lib/governance/lessonsLearned";
+import {
+  emitLatencyTrace,
+  finishLatencyStage,
+  startLatencyStage,
+} from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
 import type {
   RuleEvaluationInput,
@@ -238,6 +243,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   const passTimeoutMs = opts._passTimeoutMs ?? DEFAULT_PASS_TIMEOUT_MS;
   const pipelineStartMs = nowMs();
   const timings: PipelineTimings = {};
+  const latencyJobId = String(opts.jobId ?? opts.manuscriptId ?? 'pipeline-only');
 
   const _runPass1 = opts._runners?.runPass1 ?? defaultRunPass1;
   const _runPass2 = opts._runners?.runPass2 ?? defaultRunPass2;
@@ -360,6 +366,32 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // updating both this comment and the audit log structure below.
   const pass1StartMs = nowMs();
   const pass2StartMs = nowMs();
+  const pass1StartedAt = startLatencyStage({
+    jobId: latencyJobId,
+    stage: 'pass1',
+    metadata: {
+      model: opts.model ?? null,
+      manuscript_length_bucket:
+        opts.manuscriptText.length >= 200_000
+          ? '200k+'
+          : opts.manuscriptText.length >= 50_000
+            ? '50k-199k'
+            : 'lt50k',
+    },
+  });
+  const pass2StartedAt = startLatencyStage({
+    jobId: latencyJobId,
+    stage: 'pass2',
+    metadata: {
+      model: opts.model ?? null,
+      manuscript_length_bucket:
+        opts.manuscriptText.length >= 200_000
+          ? '200k+'
+          : opts.manuscriptText.length >= 50_000
+            ? '50k-199k'
+            : 'lt50k',
+    },
+  });
 
   const pass1Promise = withTimeout(
     _runPass1({
@@ -373,9 +405,30 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     }),
     passTimeoutMs,
     "Pass 1",
-  ).finally(() => {
-    timings.pass1_ms = nowMs() - pass1StartMs;
-  });
+  )
+    .then((value) => {
+      timings.pass1_ms = nowMs() - pass1StartMs;
+      finishLatencyStage({
+        jobId: latencyJobId,
+        stage: 'pass1',
+        startedAt: pass1StartedAt,
+        state: 'completed',
+      });
+      return value;
+    })
+    .catch((error) => {
+      timings.pass1_ms = nowMs() - pass1StartMs;
+      finishLatencyStage({
+        jobId: latencyJobId,
+        stage: 'pass1',
+        startedAt: pass1StartedAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: error instanceof Error ? error.message : String(error),
+        },
+      });
+      throw error;
+    });
 
   const pass2Promise = withTimeout(
     _runPass2({
@@ -391,9 +444,30 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     }),
     passTimeoutMs,
     "Pass 2",
-  ).finally(() => {
-    timings.pass2_ms = nowMs() - pass2StartMs;
-  });
+  )
+    .then((value) => {
+      timings.pass2_ms = nowMs() - pass2StartMs;
+      finishLatencyStage({
+        jobId: latencyJobId,
+        stage: 'pass2',
+        startedAt: pass2StartedAt,
+        state: 'completed',
+      });
+      return value;
+    })
+    .catch((error) => {
+      timings.pass2_ms = nowMs() - pass2StartMs;
+      finishLatencyStage({
+        jobId: latencyJobId,
+        stage: 'pass2',
+        startedAt: pass2StartedAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: error instanceof Error ? error.message : String(error),
+        },
+      });
+      throw error;
+    });
 
   const [pass1Settled, pass2Settled] = await Promise.allSettled([pass1Promise, pass2Promise]);
 
@@ -537,6 +611,13 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // ── Pass 3: Synthesis & Reconciliation ─────────────────────────────────
   try {
     const pass3StartMs = nowMs();
+    const pass3StartedAt = startLatencyStage({
+      jobId: latencyJobId,
+      stage: 'pass3',
+      metadata: {
+        model: opts.model ?? null,
+      },
+    });
     pass3Output = await withTimeout(
       _runPass3({
         pass1: pass1Output,
@@ -552,7 +633,23 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       "Pass 3",
     );
     timings.pass3_ms = nowMs() - pass3StartMs;
+    finishLatencyStage({
+      jobId: latencyJobId,
+      stage: 'pass3',
+      startedAt: pass3StartedAt,
+      state: 'completed',
+    });
   } catch (err) {
+    finishLatencyStage({
+      jobId: latencyJobId,
+      stage: 'pass3',
+      startedAt: new Date(Date.now() - (timings.pass3_ms ?? 0)).toISOString(),
+      state: 'failed',
+      metadata: {
+        finish_reason: err instanceof Error ? err.message : String(err),
+      },
+    });
+
     const failure = normalizePassFailure("pass3", err);
     timings.total_ms = nowMs() - pipelineStartMs;
     logPipelineTimings("failure", {
@@ -602,9 +699,23 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   const pass4StartMs = nowMs();
+  const qualityGateStartedAt = startLatencyStage({
+    jobId: latencyJobId,
+    stage: 'quality_gate',
+  });
   const qualityGate = _runQualityGate(pass3Output, pass1Output, pass2Output, opts.manuscriptText);
   timings.pass4_ms = nowMs() - pass4StartMs;
   if (!qualityGate.pass) {
+    finishLatencyStage({
+      jobId: latencyJobId,
+      stage: 'quality_gate',
+      startedAt: qualityGateStartedAt,
+      state: 'failed',
+      metadata: {
+        finish_reason: 'quality_gate_failed',
+      },
+    });
+
     const qualityGateCheckpoint = getGovernanceCheckpointById("QUALITY_GATE", governanceInjectionMap);
     const failedChecks = qualityGate.checks.filter((c) => !c.passed);
     const errorCode = failedChecks[0]?.error_code ?? "QG_UNKNOWN";
@@ -643,10 +754,25 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     };
   }
 
+  finishLatencyStage({
+    jobId: latencyJobId,
+    stage: 'quality_gate',
+    startedAt: qualityGateStartedAt,
+    state: 'completed',
+  });
+
   // ── Pass 4b: Optional external cross-check + governance ─────────────────
   // Cross-check runs only on the success path (quality gate already passed).
   // Fail-soft on execution; fail-hard if governance decision is not ok.
   if (opts.perplexityApiKey) {
+    const pass4CrossCheckStartedAt = startLatencyStage({
+      jobId: latencyJobId,
+      stage: 'pass4_cross_check',
+      metadata: {
+        provider: 'perplexity',
+      },
+    });
+
     try {
       // Map SynthesizedCriterion[] → Record<CriterionKey, OpenAICriterionInput>
       const criteriaRecord = Object.fromEntries(
@@ -668,12 +794,39 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         title: opts.title,
         perplexityApiKey: opts.perplexityApiKey,
       });
+
+      finishLatencyStage({
+        jobId: latencyJobId,
+        stage: 'pass4_cross_check',
+        startedAt: pass4CrossCheckStartedAt,
+        state: 'completed',
+      });
     } catch (err) {
+      finishLatencyStage({
+        jobId: latencyJobId,
+        stage: 'pass4_cross_check',
+        startedAt: pass4CrossCheckStartedAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: err instanceof Error ? err.message : String(err),
+        },
+      });
+
       console.warn(
         "[Pass4] Perplexity cross-check failed (non-fatal):",
         err instanceof Error ? err.message : String(err),
       );
     }
+  } else {
+    emitLatencyTrace({
+      job_id: latencyJobId,
+      stage: 'pass4_cross_check',
+      state: 'skipped',
+      started_at: new Date().toISOString(),
+      metadata: {
+        finish_reason: 'missing_perplexity_api_key',
+      },
+    });
   }
 
   pass4Governance = evaluatePass4Governance(crossCheckResult);
