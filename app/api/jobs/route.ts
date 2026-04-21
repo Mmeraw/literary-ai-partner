@@ -9,6 +9,7 @@ import {
 } from "@/lib/jobs/rateLimiter";
 import { JOB_TYPES, type JobType } from "@/lib/jobs/types";
 import { generateTraceId, logger, jobLogger } from "@/lib/observability/logger";
+import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { backpressureGuard } from "@/lib/jobs/backpressure";
@@ -313,6 +314,18 @@ export async function POST(req: Request) {
       job_type: validatedJobType,
     });
 
+    const jobAcceptedAt = new Date().toISOString();
+    emitLatencyTrace({
+      job_id: job.id,
+      stage: "job_create",
+      state: "accepted",
+      started_at: jobAcceptedAt,
+      metadata: {
+        source: "api.jobs.create",
+        job_type: validatedJobType,
+      },
+    });
+
     // Emit observability events
     jobLogger.created(job.id, validatedJobType, {
       trace_id,
@@ -326,12 +339,23 @@ export async function POST(req: Request) {
 
     // Belt-and-suspenders dispatch: cron remains the recovery path, while this
     // immediate kickoff prevents preview/local orphaned queued jobs.
+    const kickoffDispatchStartedAt = new Date().toISOString();
+    emitLatencyTrace({
+      job_id: job.id,
+      stage: "worker_kickoff",
+      state: "dispatch_started",
+      started_at: kickoffDispatchStartedAt,
+      metadata: {
+        source: "api.jobs.create",
+      },
+    });
     void triggerEvaluationWorker({
       req,
       jobId: job.id,
       trace_id,
       request_id,
       source: "api.jobs.create",
+      kickoffDispatchStartedAt,
     });
 
     logger.info("Job created successfully", {
