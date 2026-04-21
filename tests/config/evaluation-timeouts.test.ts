@@ -88,6 +88,20 @@ describe("resolveEvaluationTimeoutConfig", () => {
     expect(config.openAiTimeout.conflict).toEqual({ raw: "180000", source: ".env.local" });
   });
 
+  it("uses the local env file baseline when the env var is unset", () => {
+    const baseline: TimeoutBaseline = {
+      EVAL_PASS_TIMEOUT_MS: { raw: "120000", source: ".env.local" },
+      EVAL_OPENAI_TIMEOUT_MS: { raw: "180000", source: ".env.local" },
+    };
+
+    const config = resolveEvaluationTimeoutConfig({}, baseline);
+
+    expect(config.passTimeout.reason).toBe("file_baseline");
+    expect(config.passTimeout.valueMs).toBe(120000);
+    expect(config.openAiTimeout.reason).toBe("file_baseline");
+    expect(config.openAiTimeout.valueMs).toBe(180000);
+  });
+
   it("formats a concise diagnostic summary", () => {
     const baseline: TimeoutBaseline = {
       EVAL_OPENAI_TIMEOUT_MS: { raw: "180000", source: ".env.local" },
@@ -105,6 +119,18 @@ describe("resolveEvaluationTimeoutConfig", () => {
     );
     expect(formatTimeoutResolutionSummary(config)).toContain(
       'EVAL_PASS_TIMEOUT_MS=malformed_env_fallback(180000) raw="abc"',
+    );
+  });
+
+  it("formats the baseline source when local env files provide the value", () => {
+    const baseline: TimeoutBaseline = {
+      EVAL_PASS_TIMEOUT_MS: { raw: "120000", source: ".env.local" },
+    };
+
+    const config = resolveEvaluationTimeoutConfig({}, baseline);
+
+    expect(formatTimeoutResolutionSummary(config)).toContain(
+      'EVAL_PASS_TIMEOUT_MS=file_baseline(120000) source=.env.local raw="120000"',
     );
   });
 

@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { parse as parseDotenv } from "dotenv";
 
 export type TimeoutSettingName = "EVAL_OPENAI_TIMEOUT_MS" | "EVAL_PASS_TIMEOUT_MS";
 
 export type TimeoutResolutionReason =
   | "explicit_env"
+  | "file_baseline"
   | "default_fallback"
   | "malformed_env_fallback"
   | "clamped_to_min"
@@ -54,6 +54,40 @@ const TIMEOUT_SPECS: Record<TimeoutSettingName, TimeoutSpec> = {
 };
 
 let cachedLocalTimeoutBaseline: TimeoutBaseline | undefined;
+
+function parseDotenv(src: string | Buffer): Record<string, string> {
+  const parsed: Record<string, string> = {};
+  const content = src.toString();
+
+  for (const rawLine of content.split(/\r?\n/u)) {
+    const line = rawLine.trim();
+
+    if (line === "" || line.startsWith("#")) {
+      continue;
+    }
+
+    const match = line.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/u);
+    if (!match) {
+      continue;
+    }
+
+    const [, key, rawValue] = match;
+    let value = rawValue.trim();
+
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    } else {
+      value = value.replace(/\s+#.*$/u, "").trim();
+    }
+
+    parsed[key] = value;
+  }
+
+  return parsed;
+}
 
 function parseStrictInteger(raw: string): number | undefined {
   const trimmed = raw.trim();
@@ -142,7 +176,18 @@ function resolveTimeoutSetting(
   const raw = env[name];
 
   const trimmed = raw?.trim();
-  if (baseline && trimmed !== undefined && trimmed !== baseline.raw.trim()) {
+  if (baseline && (trimmed === undefined || trimmed === "")) {
+    const resolvedBaseline = resolveParsedTimeout(name, baseline.raw);
+    return {
+      name,
+      raw: baseline.raw,
+      valueMs: resolvedBaseline.valueMs,
+      reason: "file_baseline",
+      conflict: baseline,
+    };
+  }
+
+  if (baseline && trimmed !== baseline.raw.trim()) {
     const resolvedBaseline = resolveParsedTimeout(name, baseline.raw);
     return {
       name,
@@ -183,6 +228,11 @@ export function resolveEvaluationTimeoutConfig(
 
 function formatSingleTimeoutResolution(setting: ResolvedTimeoutSetting): string {
   const parts = [`${setting.name}=${setting.reason}(${setting.valueMs})`];
+
+  if (setting.reason === "file_baseline" && setting.conflict) {
+    parts.push(`source=${setting.conflict.source}`);
+    parts.push(`raw=${JSON.stringify(setting.conflict.raw)}`);
+  }
 
   if (setting.reason === "malformed_env_fallback" && setting.raw !== undefined) {
     parts.push(`raw=${JSON.stringify(setting.raw)}`);
