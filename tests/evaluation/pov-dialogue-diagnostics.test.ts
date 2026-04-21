@@ -32,11 +32,10 @@ function makeCriterion(
           "Tighten one sentence-level transition so the paragraph turn lands with sharper consequence framing and cleaner cognitive flow.",
         expected_impact: "Improves continuity and preserves momentum.",
         anchor_snippet: "Same pattern. Everywhere.",
-        source_pass: 3,,
-                issue_family: "scene_structure",
-                strategic_lever: "scene_goal_clarity",
-                revision_granularity: "scene",
-                submission_readiness: "close"
+        source_pass: 3,
+        issue_family: "scene_structure",
+        strategic_lever: "scene_goal_clarity",
+        revision_granularity: "scene",
       },
     ],
     ...overrides,
@@ -53,6 +52,7 @@ function makeSynthesis(overrides: Partial<SynthesizedCriterion>[] = []): Synthes
         "A controlled chapter with stable narrative authority and clear thematic progression that can still tighten some transitions.",
       top_3_strengths: ["voice", "theme", "dialogue"],
       top_3_risks: ["pacing", "marketability", "closure"],
+      submission_readiness: "close",
     },
     metadata: {
       pass1_model: "gpt-4o-mini",
@@ -86,13 +86,21 @@ describe("POV + dialogue diagnostics", () => {
 
   test("mixed thought rendering is flagged", () => {
     const manuscript = `Why am I still trusting him?\n\n*He is lying.*\n\nI could feel the shift before he spoke.`;
-    const pov = analyzePovRendering({ manuscriptText: manuscript, isClosePov: true, povMode: "first_person" });
+    const pov = analyzePovRendering({
+      manuscriptText: manuscript,
+      isClosePov: true,
+      povMode: "first_person",
+    });
     expect(pov.findings.some((f) => f.code === "MIXED_THOUGHT_RENDERING_NO_LOGIC")).toBe(true);
   });
 
   test("non-auditory quoted channel is flagged", () => {
     const manuscript = `Dampness whispered, "We remember every drop."`;
-    const pov = analyzePovRendering({ manuscriptText: manuscript, isClosePov: false, povMode: "unknown" });
+    const pov = analyzePovRendering({
+      manuscriptText: manuscript,
+      isClosePov: false,
+      povMode: "unknown",
+    });
     expect(pov.findings.some((f) => f.code === "NON_AUDITORY_IN_QUOTES")).toBe(true);
   });
 
