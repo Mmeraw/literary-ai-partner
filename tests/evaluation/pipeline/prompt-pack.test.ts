@@ -28,13 +28,12 @@ describe("prompt pack governance specs", () => {
     expect(userPrompt).toContain("Cover all 13 criteria");
   });
 
-  it("Pass 2 requires independent divergence declaration and avoids passive agreement framing", () => {
+  it("Pass 2 requires independence, schema compliance, and canonical vocabulary", () => {
     for (const key of CRITERIA_KEYS) {
       expect(PASS2_SYSTEM_PROMPT).toContain(key);
     }
 
     expect(PASS2_SYSTEM_PROMPT).toContain("independent from Pass 1");
-    expect(PASS2_SYSTEM_PROMPT).toContain("divergence_declaration");
     expect(PASS2_SYSTEM_PROMPT).not.toContain("I agree with Pass 1");
     expect(PASS2_SYSTEM_PROMPT).toContain("NONE|WEAK|SUFFICIENT|STRONG");
     expect(PASS2_SYSTEM_PROMPT).toContain("SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL");

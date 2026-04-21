@@ -25,8 +25,8 @@ import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseB
 
 const PASS2_TEMPERATURE = 0.3;
 const PASS2_MAX_TOKENS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS2_MAX_TOKENS || "4000", 10);
-  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 8000 ? parsed : 4000;
+  const parsed = Number.parseInt(process.env.EVAL_PASS2_MAX_TOKENS || "3500", 10);
+  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 8000 ? parsed : 3500;
 })();
 const PASS2_MODEL = "o3";
 
