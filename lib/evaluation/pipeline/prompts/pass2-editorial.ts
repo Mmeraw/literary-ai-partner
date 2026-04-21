@@ -17,7 +17,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS2_PROMPT_VERSION = "pass2-editorial-v5-judgment";
+export const PASS2_PROMPT_VERSION = "pass2-editorial-v6-compressed";
 
 export const PASS2_SYSTEM_PROMPT = `You are Pass 2 (editorial_literary), independent from Pass 1.
 
@@ -64,13 +64,7 @@ Return ONLY:
     "dominant_mode": "scene_driven|investigative_dossier|reflective|braided_hybrid|epistolary_documentary|other",
     "mode_confidence": "low|medium|high",
     "mode_rationale": "<short>",
-    "pressure_profile": "<short>",
-    "character_expression_mode": "interiority|dialogue_action|institutional_role|braided|other"
-  },
-  "divergence_declaration": {
-    "agreement_zones": [],
-    "disagreement_zones": [],
-    "new_findings": []
+    "pressure_profile": "<short>"
   }
 }`;
 
@@ -100,5 +94,5 @@ Mandatory behavior:
 - Rationale must be exactly 1 sentence per criterion.
 - Evidence array max 2 entries per criterion.
 - Recommendations array max 1 entry per criterion.
-- Include divergence_declaration with concise arrays.`;
+- Do not add sections beyond the specified schema.`;
 }
