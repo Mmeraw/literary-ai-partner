@@ -24,6 +24,7 @@ import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from "./promptInput";
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
+import { enforcePass3QualityGuards } from "@/lib/evaluation/governance/runtimeQualityGuards";
 
 const PASS3_TEMPERATURE = 0.2;
 const PASS3_MAX_TOKENS = (() => {
@@ -208,6 +209,9 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   });
   const promptPacket = buildPromptPacketFromComparison(comparisonPacket);
   const comparisonPacketJson = JSON.stringify(promptPacket);
+  const reducerTelemetry = {
+    criteria_count_by_state: comparisonPacket.criteria_count_by_state,
+  };
 
   const userPrompt = buildPass3UserPrompt({
     comparisonPacketJson,
@@ -219,7 +223,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
 
   console.log("[Pass3][ReducerTelemetry]", {
     prompt_version: PASS3_PROMPT_VERSION,
-    criteria_count_by_state: comparisonPacket.criteria_count_by_state,
+    criteria_count_by_state: reducerTelemetry.criteria_count_by_state,
     comparison_packet_chars: comparisonPacketJson.length,
     system_prompt_chars: PASS3_SYSTEM_PROMPT.length,
     user_prompt_chars: userPrompt.length,
@@ -313,6 +317,10 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   let synthesis: SynthesisOutput;
   try {
     synthesis = parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel);
+    enforcePass3QualityGuards({
+      telemetry: reducerTelemetry,
+      output: synthesis,
+    });
   } catch (error) {
     console.error("[Pass3] Parse boundary diagnostic", {
       title: opts.title,
