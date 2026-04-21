@@ -20,12 +20,10 @@ import {
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
+import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS1_TEMPERATURE = 0.3;
-const PASS1_MAX_TOKENS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS1_MAX_TOKENS || "3500", 10);
-  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 8000 ? parsed : 3500;
-})();
+const PASS1_MAX_TOKENS = getEvaluationRuntimeConfig().pass.pass1MaxTokens;
 const PASS1_MODEL = "o3";
 
 function nowMs(): number {
@@ -298,7 +296,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
  * Separated so the constructor is only called when no DI override is provided.
  */
 function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
-  const apiKey = openaiApiKey ?? process.env.OPENAI_API_KEY;
+  const apiKey = openaiApiKey ?? getEvaluationRuntimeConfig().openaiApiKey;
   if (!apiKey) {
     throw new Error("[Pass1] OPENAI_API_KEY is not configured");
   }

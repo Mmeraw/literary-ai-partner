@@ -25,17 +25,12 @@ import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from 
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { enforcePass3QualityGuards } from "@/lib/evaluation/governance/runtimeQualityGuards";
+import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS3_TEMPERATURE = 0.2;
-const PASS3_MAX_TOKENS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS3_MAX_TOKENS || "5000", 10);
-  return Number.isFinite(parsed) && parsed >= 2000 && parsed <= 20000 ? parsed : 3500;
-})();
+const PASS3_MAX_TOKENS = getEvaluationRuntimeConfig().pass.pass3MaxTokens;
 const PASS3_MODEL = "o3";
-const PASS3_PROMPT_MAX_CHARS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS3_PROMPT_MAX_CHARS || "40000", 10);
-  return Number.isFinite(parsed) && parsed >= 8000 && parsed <= 120000 ? parsed : 40000;
-})();
+const PASS3_PROMPT_MAX_CHARS = getEvaluationRuntimeConfig().pass.pass3PromptMaxChars;
 const PASS3_MIN_RATIONALE_LENGTH = 40;
 const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
 
@@ -357,7 +352,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
  * Separated so the constructor is only called when no DI override is provided.
  */
 function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
-  const apiKey = openaiApiKey ?? process.env.OPENAI_API_KEY;
+  const apiKey = openaiApiKey ?? getEvaluationRuntimeConfig().openaiApiKey;
   if (!apiKey) {
     throw new Error("[Pass3] OPENAI_API_KEY is not configured");
   }

@@ -22,6 +22,7 @@ import { processQueuedJobs } from '@/lib/evaluation/processor';
 import { checkServiceRoleAuth } from '@/lib/auth/api';
 import crypto from 'crypto';
 import os from 'os';
+import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
@@ -35,35 +36,12 @@ export const maxDuration = 300;
 
 const CONFIG = {
   // Maximum execution time before timeout (clamped to leave headroom under route maxDuration)
-  MAX_EXECUTION_MS: parseBoundedInt(process.env.EVAL_WORKER_MAX_EXECUTION_MS, {
-    fallback: 55000,
-    min: 10000,
-    max: 295000,
-  }),
+  MAX_EXECUTION_MS: getEvaluationRuntimeConfig().worker.maxExecutionMs,
   // Batch size for processing (defense-in-depth clamp; processor clamps again)
-  BATCH_SIZE: parseBoundedInt(process.env.EVAL_WORKER_BATCH_SIZE, {
-    fallback: 5,
-    min: 1,
-    max: 5,
-  }),
+  BATCH_SIZE: getEvaluationRuntimeConfig().worker.batchSize,
   // Lease duration for atomically claimed jobs
-  LEASE_MS: parseBoundedInt(process.env.EVAL_WORKER_LEASE_MS, {
-    fallback: 180000,
-    min: 30000,
-    max: 180000,
-  }),
+  LEASE_MS: getEvaluationRuntimeConfig().worker.leaseMs,
 } as const;
-
-function parseBoundedInt(
-  raw: string | undefined,
-  options: { fallback: number; min: number; max: number },
-): number {
-  const parsed = Number.parseInt(raw ?? "", 10);
-  if (!Number.isFinite(parsed)) {
-    return options.fallback;
-  }
-  return Math.min(options.max, Math.max(options.min, parsed));
-}
 
 // ============================================================================
 // AUTH UTILITIES (Production-grade, timing-safe)
@@ -103,7 +81,8 @@ function extractBearer(authHeader: string | null): string | null {
  * Check if running on Vercel platform (not spoofable via headers)
  */
 function isOnVercelPlatform(): boolean {
-  return process.env.VERCEL === '1' || !!process.env.VERCEL_ENV;
+  const runtimeConfig = getEvaluationRuntimeConfig();
+  return runtimeConfig.platform.vercel;
 }
 
 /**
@@ -121,11 +100,12 @@ function isVercelCronInvocation(req: NextRequest): boolean {
  * Returns: { authorized: boolean, method: string }
  */
 function checkAuthorization(req: NextRequest): { authorized: boolean; method: string; secretTooLong: boolean } {
-  const expectedSecret = process.env.CRON_SECRET || '';
+  const runtimeConfig = getEvaluationRuntimeConfig();
+  const expectedSecret = runtimeConfig.auth.cronSecret;
   const bearer = extractBearer(req.headers.get('authorization'));
   const allowDevServiceRole =
-    process.env.NODE_ENV === 'development' &&
-    process.env.WORKER_ALLOW_SERVICE_ROLE_DEV === '1';
+    runtimeConfig.platform.nodeEnv === 'development' &&
+    runtimeConfig.worker.allowDevServiceRole;
   
   // Method 1: Vercel Cron invocation (highest trust)
   if (isVercelCronInvocation(req)) {
@@ -144,7 +124,7 @@ function checkAuthorization(req: NextRequest): { authorized: boolean; method: st
   }
   
   // Method 3: Query secret (development only)
-  if (process.env.NODE_ENV === 'development') {
+  if (runtimeConfig.platform.nodeEnv === 'development') {
     const querySecret = req.nextUrl.searchParams.get('secret');
     if (expectedSecret && querySecret) {
       const result = timingSafeEqual(querySecret, expectedSecret);
@@ -169,18 +149,19 @@ function checkAuthorization(req: NextRequest): { authorized: boolean; method: st
  * Generate debug context for logging (never includes actual secrets)
  */
 function getAuthDebugContext(req: NextRequest): Record<string, unknown> {
+  const runtimeConfig = getEvaluationRuntimeConfig();
   return {
-    nodeEnv: process.env.NODE_ENV,
-    vercelEnv: process.env.VERCEL_ENV,
+    nodeEnv: runtimeConfig.platform.nodeEnv,
+    vercelEnv: runtimeConfig.platform.vercelEnv,
     isVercelPlatform: isOnVercelPlatform(),
-    hasExpectedSecret: !!process.env.CRON_SECRET,
+    hasExpectedSecret: !!runtimeConfig.auth.cronSecret,
     hasAuthHeader: !!req.headers.get('authorization'),
     hasQuerySecret: !!req.nextUrl.searchParams.get('secret'),
     hasXVercelCron: !!req.headers.get('x-vercel-cron'),
     xVercelCronIs1: req.headers.get('x-vercel-cron') === '1',
     hasXVercelId: !!req.headers.get('x-vercel-id'),
     uaStartsWithVercelCron: req.headers.get('user-agent')?.startsWith('vercel-cron') ?? false,
-    allowDevServiceRole: process.env.WORKER_ALLOW_SERVICE_ROLE_DEV === '1',
+    allowDevServiceRole: runtimeConfig.worker.allowDevServiceRole,
   };
 }
 
@@ -196,8 +177,9 @@ function generateTraceId(): string {
 }
 
 function buildWorkerId(traceId: string): string {
-  const env = process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown-env';
-  const host = process.env.HOSTNAME || os.hostname() || 'unknown-host';
+  const runtimeConfig = getEvaluationRuntimeConfig();
+  const env = runtimeConfig.platform.vercelEnv || runtimeConfig.platform.nodeEnv || 'unknown-env';
+  const host = runtimeConfig.platform.hostname || os.hostname() || 'unknown-host';
   const tracePart = traceId.slice(0, 12);
   return `${env}:${host}:${tracePart}`;
 }
@@ -269,8 +251,8 @@ export async function GET(request: NextRequest) {
       authMethod: auth.method,
       secretTooLong: auth.secretTooLong,
       isDryRun,
-      nodeEnv: process.env.NODE_ENV,
-      vercelEnv: process.env.VERCEL_ENV,
+      nodeEnv: getEvaluationRuntimeConfig().platform.nodeEnv,
+      vercelEnv: getEvaluationRuntimeConfig().platform.vercelEnv,
             // Auth presence flags for audit
       ...getAuthDebugContext(request),
     },

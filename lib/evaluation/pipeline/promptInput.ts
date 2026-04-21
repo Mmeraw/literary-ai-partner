@@ -1,12 +1,9 @@
-const DEFAULT_PASS_INPUT_CHAR_BUDGET = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PIPELINE_INPUT_CHAR_BUDGET || "50000", 10);
-  return Number.isFinite(parsed) && parsed >= 12000 && parsed <= 100000 ? parsed : 50000;
-})();
+import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
-const DEFAULT_SYNTHESIS_REFERENCE_CHAR_BUDGET = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PIPELINE_SYNTHESIS_REF_CHAR_BUDGET || "18000", 10);
-  return Number.isFinite(parsed) && parsed >= 4000 && parsed <= 50000 ? parsed : 18000;
-})();
+const DEFAULT_PASS_INPUT_CHAR_BUDGET = getEvaluationRuntimeConfig().pass.inputCharBudget;
+
+const DEFAULT_SYNTHESIS_REFERENCE_CHAR_BUDGET =
+  getEvaluationRuntimeConfig().pass.synthesisRefCharBudget;
 
 const OMITTED_SEPARATOR = "\n\n[... middle of manuscript omitted for prompt window ...]\n\n";
 

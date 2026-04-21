@@ -79,6 +79,7 @@ import {
   getEvalOpenAiTimeoutMs,
   getEvalPassTimeoutMs,
 } from '@/lib/evaluation/config';
+import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
 import {
   emitLatencyTrace,
   finishLatencyStage,
@@ -95,42 +96,17 @@ import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJ
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const openaiApiKey = process.env.OPENAI_API_KEY;
-const perplexityApiKey = process.env.PERPLEXITY_API_KEY ?? "";
-const evalDebugEnabled = process.env.EVAL_DEBUG === '1';
-const evalMinManuscriptWords = (() => {
-  if (process.env.EVAL_MIN_MANUSCRIPT_WORDS) {
-    const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_WORDS, 10);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      return parsed;
-    }
-  }
-
-  if (process.env.EVAL_MIN_MANUSCRIPT_CHARS) {
-    const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_CHARS, 10);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      console.warn(
-        '[Processor] EVAL_MIN_MANUSCRIPT_CHARS is deprecated. Converting chars to words (~5 chars/word). Prefer EVAL_MIN_MANUSCRIPT_WORDS.',
-      );
-      return Math.ceil(parsed / 5);
-    }
-
-    console.warn(
-      '[Processor] EVAL_MIN_MANUSCRIPT_CHARS is deprecated and invalid. Defaulting to 200 words. Prefer EVAL_MIN_MANUSCRIPT_WORDS.',
-    );
-  }
-
-  return 200;
-})();
-const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'o3').trim() || 'o3';
+const runtimeConfig = getEvaluationRuntimeConfig();
+const openaiApiKey = runtimeConfig.openaiApiKey;
+const perplexityApiKey = runtimeConfig.perplexityApiKey ?? "";
+const evalDebugEnabled = runtimeConfig.evalDebugEnabled;
+const evalMinManuscriptWords = runtimeConfig.minManuscriptWords;
+const openAiModel = runtimeConfig.model;
 const evalPassTimeoutMs = getEvalPassTimeoutMs();
 const evalOpenAiTimeoutMs = getEvalOpenAiTimeoutMs();
 assertEvalTimeoutConfig();
 const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
-const staleRunningMinutes = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);
-  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 240 ? parsed : 10;
-})();
+const staleRunningMinutes = runtimeConfig.staleRunningMinutes;
 
 export function getValidatedWorkerBatchSize(raw: unknown, fallback = 5): number {
   const parsed =
@@ -156,19 +132,8 @@ function isMissingSchemaCacheColumnError(error: unknown, columnName: string): bo
   return code === 'PGRST204' && message.includes(columnName) && message.includes('schema cache');
 }
 
-const evalWorkerBatchSize = (() => {
-  return getValidatedWorkerBatchSize(process.env.EVAL_WORKER_BATCH_SIZE, 5);
-})();
-const evalContextContaminationGuardEnabled = (() => {
-  const raw = (process.env.EVAL_CONTEXT_CONTAMINATION_GUARD || 'auto').trim().toLowerCase();
-  if (raw === 'true' || raw === '1' || raw === 'yes' || raw === 'on') {
-    return true;
-  }
-  if (raw === 'false' || raw === '0' || raw === 'no' || raw === 'off') {
-    return false;
-  }
-  return process.env.NODE_ENV === 'production';
-})();
+const evalWorkerBatchSize = getValidatedWorkerBatchSize(runtimeConfig.worker.batchSize, 5);
+const evalContextContaminationGuardEnabled = runtimeConfig.contextContaminationGuardEnabled;
 
 interface EvaluationJob {
   id: string;
