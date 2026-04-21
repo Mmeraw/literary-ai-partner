@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env tsx
 
 /**
  * Production Environment Validation
@@ -7,45 +7,78 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import {
+  formatTimeoutResolutionSummary,
+  readLocalTimeoutBaseline,
+  resolveEvaluationTimeoutConfig,
+} from "../lib/config/evaluationTimeouts";
 
-// Inline validation to avoid TypeScript import issues during pre-build
-function validateProductionConfig() {
-  const errors = [];
-  const warnings = [];
-  
+type ValidationResult = {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  timeoutConfig: ReturnType<typeof resolveEvaluationTimeoutConfig>;
+};
+
+function validateProductionConfig(): ValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
   const isProduction = process.env.NODE_ENV === "production";
   const useSupabase = process.env.USE_SUPABASE_JOBS === "true";
-  
+
   // Critical: Memory store cannot be used in production
   if (isProduction && !useSupabase) {
     errors.push(
-      "Memory job store is not production-safe. Set USE_SUPABASE_JOBS=true for 100k-user scale."
+      "Memory job store is not production-safe. Set USE_SUPABASE_JOBS=true for 100k-user scale.",
     );
   }
-  
+
   // Warnings for missing Supabase config (non-blocking for dev)
   if (useSupabase && !process.env.SUPABASE_URL) {
     warnings.push("SUPABASE_URL is not set but USE_SUPABASE_JOBS=true");
   }
-  
+
   if (useSupabase && !process.env.SUPABASE_ANON_KEY) {
     warnings.push("SUPABASE_ANON_KEY is not set but USE_SUPABASE_JOBS=true");
   }
 
-  const parseIntEnv = (name, fallback) => {
+  const timeoutBaseline = readLocalTimeoutBaseline(process.cwd());
+  const timeoutConfig = resolveEvaluationTimeoutConfig(process.env, timeoutBaseline);
+
+  for (const setting of [timeoutConfig.openAiTimeout, timeoutConfig.passTimeout]) {
+    if (setting.reason === "conflicting_env_override" && setting.conflict) {
+      warnings.push(
+        `[config:validate] ${setting.name}=${JSON.stringify(setting.raw)} conflicts with ${setting.conflict.source}=${JSON.stringify(setting.conflict.raw)}. The evaluation timeout resolver is ignoring the exported shell value and using the local file-backed timeout instead.`,
+      );
+    }
+
+    if (setting.reason === "malformed_env_fallback") {
+      warnings.push(
+        `${setting.name} is malformed (${JSON.stringify(setting.raw)}) and fell back to ${setting.valueMs}.`,
+      );
+    }
+
+    if (setting.reason === "clamped_to_min" || setting.reason === "clamped_to_max") {
+      warnings.push(
+        `${setting.name}=${JSON.stringify(setting.raw)} was ${setting.reason === "clamped_to_min" ? "below" : "above"} the allowed range and resolved to ${setting.valueMs}.`,
+      );
+    }
+  }
+
+  // Canonical timeout invariant: OpenAI timeout must not be lower than pass timeout.
+  const passTimeoutMs = timeoutConfig.passTimeout.valueMs;
+  const openAiTimeoutMs = timeoutConfig.openAiTimeout.valueMs;
+  if (openAiTimeoutMs < passTimeoutMs) {
+    errors.push(
+      `EVAL_OPENAI_TIMEOUT_MS (${openAiTimeoutMs}) must be >= EVAL_PASS_TIMEOUT_MS (${passTimeoutMs}). ${formatTimeoutResolutionSummary(timeoutConfig)}`,
+    );
+  }
+
+  const parseIntEnv = (name: string, fallback: number) => {
     const raw = process.env[name];
     const parsed = Number.parseInt(raw ?? "", 10);
     return Number.isFinite(parsed) ? parsed : fallback;
   };
-
-  // Canonical timeout invariant: OpenAI timeout must not be lower than pass timeout.
-  const passTimeoutMs = parseIntEnv("EVAL_PASS_TIMEOUT_MS", 180000);
-  const openAiTimeoutMs = parseIntEnv("EVAL_OPENAI_TIMEOUT_MS", 180000);
-  if (openAiTimeoutMs < passTimeoutMs) {
-    errors.push(
-      `EVAL_OPENAI_TIMEOUT_MS (${openAiTimeoutMs}) must be >= EVAL_PASS_TIMEOUT_MS (${passTimeoutMs}).`,
-    );
-  }
 
   // Worker envelope checks (bounded for route runtime safety).
   const workerBatchSize = parseIntEnv("EVAL_WORKER_BATCH_SIZE", 5);
@@ -73,8 +106,8 @@ function validateProductionConfig() {
       const parsed = JSON.parse(raw);
       const crons = Array.isArray(parsed?.crons) ? parsed.crons : [];
       const secretPaths = crons
-        .map((cron) => String(cron?.path ?? ""))
-        .filter((p) => /\bsecret=|\$CRON_SECRET|CRON_SECRET/i.test(p));
+        .map((cron: { path?: unknown }) => String(cron?.path ?? ""))
+        .filter((p: string) => /\bsecret=|\$CRON_SECRET|CRON_SECRET/i.test(p));
 
       if (secretPaths.length > 0) {
         errors.push(
@@ -82,18 +115,22 @@ function validateProductionConfig() {
         );
       }
     } catch (error) {
-      errors.push(`vercel.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+      errors.push(
+        `vercel.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
-  
+
   return {
     valid: errors.length === 0,
     errors,
-    warnings
+    warnings,
+    timeoutConfig,
   };
 }
 
 console.log("🔍 Validating production configuration for 100k-user scale...\n");
+console.log("Timeout precedence for evaluation timeout vars: .env.local > .env > built-in defaults; conflicting exported shell values are ignored with warnings.\n");
 
 const result = validateProductionConfig();
 
@@ -115,14 +152,15 @@ if (result.warnings.length > 0) {
 
 if (result.valid) {
   console.log("✅ Production configuration is valid\n");
-  
+
   console.log("📊 Configuration Summary:");
   console.log(`   NODE_ENV: ${process.env.NODE_ENV}`);
   console.log(`   USE_SUPABASE_JOBS: ${process.env.USE_SUPABASE_JOBS}`);
-  console.log(`   SUPABASE_URL: ${process.env.SUPABASE_URL ? '✓ Set' : '✗ Missing'}`);
-  console.log(`   SUPABASE_ANON_KEY: ${process.env.SUPABASE_ANON_KEY ? '✓ Set' : '✗ Missing'}`);
+  console.log(`   SUPABASE_URL: ${process.env.SUPABASE_URL ? "✓ Set" : "✗ Missing"}`);
+  console.log(`   SUPABASE_ANON_KEY: ${process.env.SUPABASE_ANON_KEY ? "✓ Set" : "✗ Missing"}`);
+  console.log(`   Timeouts: ${formatTimeoutResolutionSummary(result.timeoutConfig)}`);
   console.log("\n");
-  
+
   process.exit(0);
 } else {
   console.error("❌ Production configuration validation FAILED");
