@@ -109,6 +109,14 @@ Open [Base44.com](http://Base44.com) and click Publish.
 npm run dev
 ```
 
+### Evaluation Timeout Env Contract
+
+For `EVAL_OPENAI_TIMEOUT_MS` and `EVAL_PASS_TIMEOUT_MS`, the canonical resolver prefers local file-backed values in `.env.local`, then `.env`, then built-in defaults. Conflicting exported shell values are treated as stale local overrides for this subsystem and are ignored with diagnostics so builds and local test runs stay deterministic.
+
+```bash
+npm run config:validate
+```
+
 Expected startup message:
 ```
 ✅ Supabase Project Configuration ✅
