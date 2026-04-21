@@ -45,12 +45,6 @@ function makeSinglePassOutput(pass: 1 | 2): SinglePassOutput {
       evidence: [{ snippet: "The river moved slowly through the valley." }],
       recommendations: [
         {
-grep -E 'EVAL_OPENAI_TIMEOUT_MS|EVAL_PASS_TIMEOUT_MS' .env* 2>/dev/null || echo 'Not found in .env files, checking env vars...'; env | grep -E 'EVAL_OPENAI_TIMEOUT_MS|EVAL_PASS_TIMEOUT_MS'
-echo '=== Checking .env files ==='; ls -la .env* 2>/dev/null; echo ''; echo '=== Environment variables ==='; printenv | grep -i 'timeout' | sort
-grep -n 'type.*Recommendation' lib/evaluation/pipeline/types.ts
-grep -n 'interface\|type' lib/evaluation/pipeline/types.ts | grep -i rec
-cat lib/evaluation/pipeline/types.ts | grep -A 20 'recommendations'
-cat tests/evaluation/pipeline/pipeline-independence.test.ts
           priority: "medium",
           action: `Strengthen the ${key} dimension with more targeted evidence from the manuscript text.`,
           expected_impact: "Increases specificity and reader connection.",
@@ -85,10 +79,6 @@ function makeSynthesisOutput(): SynthesisOutput {
           expected_impact: "Elevates overall evaluation quality.",
           anchor_snippet: '"slowly"',
           source_pass: 3 as const,
-                issue_family: "scene_structure",
-                strategic_lever: "scene_goal_clarity",
-                revision_granularity: "scene",
-                submission_readiness: "close"
         },
       ],
     })),
@@ -455,10 +445,6 @@ describe("runPipeline (e2e with injected runners)", () => {
         expected_impact: "Elevates overall evaluation quality.",
         anchor_snippet: '"slowly"',
         source_pass: 3,
-                issue_family: "scene_structure",
-                strategic_lever: "scene_goal_clarity",
-                revision_granularity: "scene",
-                submission_readiness: "close"
       },
     ];
 
@@ -775,10 +761,6 @@ describe("synthesisToEvaluationResult adapter", () => {
             expected_impact: "Incremental improvement.",
             anchor_snippet: '"moved"',
             source_pass: 2 as const,
-                    issue_family: "scene_structure",
-                    strategic_lever: "scene_goal_clarity",
-                    revision_granularity: "scene",
-                    submission_readiness: "close"
           },
         ],
       })),
