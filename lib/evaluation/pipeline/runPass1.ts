@@ -373,6 +373,12 @@ export function parsePass1Response(raw: string, fallbackModel = PASS1_MODEL): Si
             action: String(rec["action"] ?? ""),
             expected_impact: String(rec["expected_impact"] ?? ""),
             anchor_snippet: String(rec["anchor_snippet"] ?? ""),
+            issue_family:
+              (rec["issue_family"] ?? "scene_structure") as AxisCriterionResult["recommendations"][number]["issue_family"],
+            strategic_lever:
+              (rec["strategic_lever"] ?? "scene_goal_clarity") as AxisCriterionResult["recommendations"][number]["strategic_lever"],
+            revision_granularity:
+              (rec["revision_granularity"] ?? "scene") as AxisCriterionResult["recommendations"][number]["revision_granularity"],
           };
         })
       : [];

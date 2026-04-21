@@ -513,6 +513,7 @@ export function parsePass3Response(
       one_paragraph_summary: summary,
       top_3_strengths: strengths,
       top_3_risks: risks,
+      submission_readiness: parseSubmissionReadiness(rawOverall["submission_readiness"], verdict, criteria),
     },
     metadata: {
       pass1_model: String(rawMeta["pass1_model"] ?? pass1.model),
@@ -548,6 +549,12 @@ function parseRecommendations(raw: unknown): SynthesizedCriterion["recommendatio
         expected_impact: String(r["expected_impact"] ?? ""),
         anchor_snippet: String(r["anchor_snippet"] ?? ""),
         source_pass: (sourcePass === 1 || sourcePass === 2 ? sourcePass : 3) as 1 | 2 | 3,
+        issue_family:
+          (r["issue_family"] ?? "scene_structure") as SynthesizedCriterion["recommendations"][number]["issue_family"],
+        strategic_lever:
+          (r["strategic_lever"] ?? "scene_goal_clarity") as SynthesizedCriterion["recommendations"][number]["strategic_lever"],
+        revision_granularity:
+          (r["revision_granularity"] ?? "scene") as SynthesizedCriterion["recommendations"][number]["revision_granularity"],
       };
     });
 }
@@ -630,6 +637,9 @@ function backfillRecommendationsFromAxis(
         expected_impact: String(r.expected_impact ?? "").trim(),
         anchor_snippet: String(r.anchor_snippet ?? "").trim(),
         source_pass: sourcePass,
+        issue_family: r.issue_family,
+        strategic_lever: r.strategic_lever,
+        revision_granularity: r.revision_granularity,
       }))
       .filter((r) => r.action.length > 0 && r.expected_impact.length > 0 && r.anchor_snippet.length > 0);
   };
@@ -670,4 +680,26 @@ function parseConsequenceStatus(
   if (scoreDelta >= 3) return "deferred";
   if (finalScore <= 4) return "dissipated";
   return "landed";
+}
+
+function parseSubmissionReadiness(
+  raw: unknown,
+  verdict: SynthesisOutput["overall"]["verdict"],
+  criteria: SynthesizedCriterion[],
+): SynthesisOutput["overall"]["submission_readiness"] {
+  const normalized = String(raw ?? "").trim().toLowerCase();
+  if (normalized === "queryable_now" || normalized === "close" || normalized === "not_yet") {
+    return normalized;
+  }
+
+  const lowScoreCount = criteria.filter((criterion) => criterion.final_score_0_10 < 5).length;
+  if (verdict === "fail" || lowScoreCount >= 3) {
+    return "not_yet";
+  }
+
+  if (verdict === "pass") {
+    return "queryable_now";
+  }
+
+  return "close";
 }

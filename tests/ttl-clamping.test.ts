@@ -29,8 +29,37 @@ function runSql(query: string): string {
 async function insertTestManuscript(): Promise<number> {
   const title = `TTL Test ${Date.now()}`;
   const result = runSql(`
-    INSERT INTO public.manuscripts (title, content, user_id, is_deleted)
-    VALUES ('${title}', 'Test content for TTL clamping', NULL, false)
+    WITH _seq AS (
+      SELECT setval('public.manuscripts_id_seq', COALESCE((SELECT MAX(id) FROM public.manuscripts), 0), true)
+    )
+    INSERT INTO public.manuscripts (
+      title,
+      created_by,
+      user_id,
+      tone_context,
+      mood_context,
+      voice_mode,
+      word_count,
+      source,
+      english_variant,
+      is_final,
+      storygate_linked,
+      allow_industry_discovery
+    )
+    VALUES (
+      '${title}',
+      gen_random_uuid(),
+      gen_random_uuid(),
+      'neutral',
+      'calm',
+      'balanced',
+      1000,
+      'dashboard',
+      'us',
+      false,
+      false,
+      false
+    )
     RETURNING id;
   `);
   const id = Number.parseInt(result, 10);
@@ -47,8 +76,8 @@ async function insertTestJob(manuscriptId: number): Promise<string> {
       manuscript_id, job_type, status, phase, policy_family,
       voice_preservation_level, english_variant, work_type
     ) VALUES (
-      ${manuscriptId}, 'full_evaluation', 'queued', 'phase1', 'standard',
-      'moderate', 'american', 'fiction'
+      ${manuscriptId}, 'full_evaluation', 'queued', 'phase_1', 'standard',
+      'balanced', 'us', 'full_evaluation'
     ) RETURNING id;
   `);
   return result;
@@ -75,9 +104,16 @@ describe('TTL Clamping Tests', () => {
   // Skip if dependencies missing - all tests will show as "skipped" in Jest output
   const testIt = skipIfNoDeps() ? it.skip : it;
 
+  beforeEach(async () => {
+    manuscriptId = await insertTestManuscript();
+    jobId = await insertTestJob(manuscriptId);
+  });
+
   afterEach(async () => {
     if (jobId) runSql(`DELETE FROM public.evaluation_jobs WHERE id = '${jobId}';`);
     if (manuscriptId) runSql(`DELETE FROM public.manuscripts WHERE id = ${manuscriptId};`);
+    jobId = "";
+    manuscriptId = 0;
   });
 
   testIt('clamps negative TTL to minimum 30 seconds', async () => {
@@ -140,18 +176,12 @@ describe('TTL Clamping Tests', () => {
       WHERE id = '${jobId}';
     `);
     
-    // Insert new job for second claim (since we consumed the first)
-    const newJobId = await insertTestJob(manuscriptId);
-    
     // Second claim at later time
     const result2 = runSql(`
       SELECT lease_until
       FROM claim_job_atomic('worker-mono-2', '${testNow2}'::timestamptz, 30);
     `);
     const newLeaseUntil = new Date(result2).getTime();
-    
-    // Cleanup the extra job
-    runSql(`DELETE FROM public.evaluation_jobs WHERE id = '${newJobId}';`);
     
     // CRITICAL: New lease must be strictly greater than old lease
     expect(newLeaseUntil).toBeGreaterThan(oldLeaseUntil);
