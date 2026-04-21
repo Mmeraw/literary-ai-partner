@@ -32,7 +32,11 @@ function makeCriterion(
           "Tighten one sentence-level transition so the paragraph turn lands with sharper consequence framing and cleaner cognitive flow.",
         expected_impact: "Improves continuity and preserves momentum.",
         anchor_snippet: "Same pattern. Everywhere.",
-        source_pass: 3,
+        source_pass: 3,,
+                issue_family: "scene_structure",
+                strategic_lever: "scene_goal_clarity",
+                revision_granularity: "scene",
+                submission_readiness: "close"
       },
     ],
     ...overrides,

@@ -31,6 +31,10 @@ function makeCriterion(key: (typeof CRITERIA_KEYS)[number], overrides: Partial<S
         expected_impact: "Increases specificity and reader connection for this criterion.",
         anchor_snippet: '"she whispered"',
         source_pass: 1,
+                issue_family: "scene_structure",
+                strategic_lever: "scene_goal_clarity",
+                revision_granularity: "scene",
+                submission_readiness: "close"
       },
     ],
     ...overrides,
@@ -125,6 +129,10 @@ describe("runQualityGate", () => {
             expected_impact: "Increases agent interest in the first page.",
             anchor_snippet: "",
             source_pass: 1,
+                issue_family: "scene_structure",
+                strategic_lever: "scene_goal_clarity",
+                revision_granularity: "scene",
+                submission_readiness: "close"
           },
         ],
       },
@@ -219,6 +227,10 @@ describe("runQualityGate", () => {
             expected_impact: "Creates more visceral scene.",
             anchor_snippet: '"she whispered"',
             source_pass: 1,
+                issue_family: "character_depth",
+                strategic_lever: "backstory_integration",
+                revision_granularity: "scene",
+                submission_readiness: "draft"
           },
         ],
       },
@@ -230,6 +242,10 @@ describe("runQualityGate", () => {
             expected_impact: "Creates more visceral scene.",
             anchor_snippet: '"she whispered"',
             source_pass: 2,
+                issue_family: "character_depth",
+                strategic_lever: "backstory_integration",
+                revision_granularity: "scene",
+                submission_readiness: "draft"
           },
         ],
       },

@@ -61,7 +61,11 @@ function makeSynthesisOutput(): SynthesisOutput {
           action: `Strengthen the ${key} dimension with more targeted evidence from the manuscript text.`,
           expected_impact: "Increases specificity and reader connection.",
           anchor_snippet: '"test"',
-          source_pass: 3 as const,
+          source_pass: 3 as const,,
+                issue_family: "scene_structure",
+                strategic_lever: "scene_goal_clarity",
+                revision_granularity: "scene",
+                submission_readiness: "close"
         },
       ],
     })),

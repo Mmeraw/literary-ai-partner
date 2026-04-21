@@ -79,6 +79,10 @@ function makeSynthesisOutput(): SynthesisOutput {
           expected_impact: "Elevates overall evaluation quality.",
           anchor_snippet: '"slowly"',
           source_pass: 3 as const,
+                issue_family: "scene_structure",
+                strategic_lever: "scene_goal_clarity",
+                revision_granularity: "scene",
+                submission_readiness: "close"
         },
       ],
     })),
@@ -445,6 +449,10 @@ describe("runPipeline (e2e with injected runners)", () => {
         expected_impact: "Elevates overall evaluation quality.",
         anchor_snippet: '"slowly"',
         source_pass: 3,
+                issue_family: "scene_structure",
+                strategic_lever: "scene_goal_clarity",
+                revision_granularity: "scene",
+                submission_readiness: "close"
       },
     ];
 
@@ -761,6 +769,10 @@ describe("synthesisToEvaluationResult adapter", () => {
             expected_impact: "Incremental improvement.",
             anchor_snippet: '"moved"',
             source_pass: 2 as const,
+                    issue_family: "scene_structure",
+                    strategic_lever: "scene_goal_clarity",
+                    revision_granularity: "scene",
+                    submission_readiness: "close"
           },
         ],
       })),
