@@ -50,7 +50,8 @@
     "phase2.7:real-run": "npx tsx -r tsconfig-paths/register scripts/pipeline/run-phase2-7-real-run.ts",
     "phase2.7:dominatus-harness": "npx tsx -r tsconfig-paths/register scripts/pipeline/run-dominatus-i4-eval.ts",
     "gate:replay": "npx tsx -r tsconfig-paths/register scripts/pipeline/gate-replay-check.ts",
-    "gate:replay:strict": "npx tsx -r tsconfig-paths/register scripts/pipeline/gate-replay-check.ts --fail-on-any"
+    "gate:replay:strict": "npx tsx -r tsconfig-paths/register scripts/pipeline/gate-replay-check.ts --fail-on-any",
+    "latency:baseline": "npx tsx -r tsconfig-paths/register scripts/latency-baseline-capture.ts"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.24",
