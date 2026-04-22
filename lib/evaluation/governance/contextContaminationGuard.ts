@@ -45,10 +45,6 @@ function parseIntEnv(name: string, fallback: number, min: number, max: number): 
   return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
 }
 
-const MIN_TOKEN_LENGTH = parseIntEnv("EVAL_CONTEXT_CONTAMINATION_MIN_TOKEN_LENGTH", 4, 3, 12);
-
-const MAX_REPORTED_ENTITIES = parseIntEnv("EVAL_CONTEXT_CONTAMINATION_MAX_REPORTED", 25, 1, 100);
-
 export type ContextContaminationResult = {
   contaminated: boolean;
   offendingEntities: string[];
@@ -63,7 +59,7 @@ function normalize(text: string): string {
     .trim();
 }
 
-function tokenizeClean(text: string, stop: Set<string>): Set<string> {
+function tokenizeClean(text: string, stop: Set<string>, minTokenLength: number): Set<string> {
   const normalized = normalize(text);
   if (!normalized) {
     return new Set<string>();
@@ -73,7 +69,7 @@ function tokenizeClean(text: string, stop: Set<string>): Set<string> {
   const result = new Set<string>();
 
   for (const token of tokens) {
-    if (token.length < MIN_TOKEN_LENGTH) continue;
+    if (token.length < minTokenLength) continue;
     if (stop.has(token)) continue;
     result.add(token);
   }
@@ -115,11 +111,14 @@ export function detectContextContamination(params: {
 }): ContextContaminationResult {
   const sourceText = params.sourceText || "";
   const outputText = buildEvaluationOutputText(params.evaluationResult);
+  // Lazy env reads — resolved at call time, not module load time.
+  const minTokenLength = parseIntEnv("EVAL_CONTEXT_CONTAMINATION_MIN_TOKEN_LENGTH", 4, 3, 12);
+  const maxReportedEntities = parseIntEnv("EVAL_CONTEXT_CONTAMINATION_MAX_REPORTED", 25, 1, 100);
 
   // Hard-fail check: use token-set membership to avoid substring false-positives
   // (e.g. "mariage" would wrongly match "maria" with .includes()).
-  const outputTokenSet = tokenizeClean(outputText, STOPWORDS);
-  const sourceTokenSet = tokenizeClean(sourceText, STOPWORDS);
+  const outputTokenSet = tokenizeClean(outputText, STOPWORDS, minTokenLength);
+  const sourceTokenSet = tokenizeClean(sourceText, STOPWORDS, minTokenLength);
 
   const hardFailHits: string[] = [];
   for (const token of HARD_FAIL_TOKENS) {
@@ -132,7 +131,7 @@ export function detectContextContamination(params: {
     hardFailHits.sort();
     return {
       contaminated: true,
-      offendingEntities: hardFailHits.slice(0, MAX_REPORTED_ENTITIES),
+      offendingEntities: hardFailHits.slice(0, maxReportedEntities),
       reasons: hardFailHits.map((token) => `Hard contamination token detected: ${token}`),
     };
   }

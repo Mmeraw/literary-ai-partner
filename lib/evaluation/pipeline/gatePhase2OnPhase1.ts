@@ -89,6 +89,7 @@ export async function checkPhase1GateForJob(jobId: string): Promise<boolean> {
   try {
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(
+      // DB bootstrap — intentionally reads process.env directly (not evaluation config).
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
