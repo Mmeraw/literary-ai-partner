@@ -43,6 +43,7 @@ out
 /tmp/
 *.tsbuildinfo
 dist-workers/
+docs/operations/evidence/runs/
 
 # Local/accidental
 your-repo.git/

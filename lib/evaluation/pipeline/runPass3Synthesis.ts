@@ -25,6 +25,7 @@ import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from 
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { enforcePass3QualityGuards } from "@/lib/evaluation/governance/runtimeQualityGuards";
+import { normalizeIssueFamily, normalizeStrategicLever, normalizeRevisionGranularity } from "./recommendationSemantics";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS3_TEMPERATURE = 0.2;
@@ -310,6 +311,10 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   let synthesis: SynthesisOutput;
   try {
     synthesis = parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel);
+
+    // Normalization and required-field validation happen inside parsePass3Response
+    // (parseRecommendations + parseSubmissionReadiness are fail-closed at parse boundary).
+
     enforcePass3QualityGuards({
       telemetry: reducerTelemetry,
       output: synthesis,
@@ -492,6 +497,14 @@ export function parsePass3Response(
   const verdict: "pass" | "revise" | "fail" =
     rawVerdict === "pass" || rawVerdict === "fail" ? rawVerdict : "revise";
 
+  const rawSubmissionReadiness = String(rawOverall["submission_readiness"] ?? "").trim();
+  const submissionReadiness =
+    rawSubmissionReadiness === "queryable_now" ||
+    rawSubmissionReadiness === "close" ||
+    rawSubmissionReadiness === "not_yet"
+      ? rawSubmissionReadiness
+      : undefined;
+
   const summary = String(rawOverall["one_paragraph_summary"] ?? "").substring(0, 500);
 
   const strengths = Array.isArray(rawOverall["top_3_strengths"])
@@ -511,6 +524,7 @@ export function parsePass3Response(
     overall: {
       overall_score_0_100: overallScore0_100,
       verdict,
+      submission_readiness: submissionReadiness,
       one_paragraph_summary: summary,
       top_3_strengths: strengths,
       top_3_risks: risks,
@@ -550,12 +564,16 @@ function parseRecommendations(raw: unknown): SynthesizedCriterion["recommendatio
         expected_impact: String(r["expected_impact"] ?? ""),
         anchor_snippet: String(r["anchor_snippet"] ?? ""),
         source_pass: (sourcePass === 1 || sourcePass === 2 ? sourcePass : 3) as 1 | 2 | 3,
-        issue_family:
-          (r["issue_family"] ?? "scene_structure") as SynthesizedCriterion["recommendations"][number]["issue_family"],
+        issue_family: (() => {
+          if (!("issue_family" in r) || r["issue_family"] === undefined || r["issue_family"] === null) {
+            throw new Error("[Pass3] recommendation is missing required field: issue_family");
+          }
+          return (normalizeIssueFamily(r["issue_family"]) ?? r["issue_family"]) as SynthesizedCriterion["recommendations"][number]["issue_family"];
+        })(),
         strategic_lever:
-          (r["strategic_lever"] ?? "scene_goal_clarity") as SynthesizedCriterion["recommendations"][number]["strategic_lever"],
+          (normalizeStrategicLever(r["strategic_lever"]) ?? r["strategic_lever"] ?? "scene_goal_clarity") as SynthesizedCriterion["recommendations"][number]["strategic_lever"],
         revision_granularity:
-          (r["revision_granularity"] ?? "scene") as SynthesizedCriterion["recommendations"][number]["revision_granularity"],
+          (normalizeRevisionGranularity(r["revision_granularity"]) ?? r["revision_granularity"] ?? "scene") as SynthesizedCriterion["recommendations"][number]["revision_granularity"],
       };
     });
 }
@@ -688,7 +706,10 @@ function parseSubmissionReadiness(
   verdict: SynthesisOutput["overall"]["verdict"],
   criteria: SynthesizedCriterion[],
 ): SynthesisOutput["overall"]["submission_readiness"] {
-  const normalized = String(raw ?? "").trim().toLowerCase();
+  if (raw === undefined || raw === null) {
+    throw new Error("[Pass3] overall.submission_readiness is required but was missing from model output");
+  }
+  const normalized = String(raw).trim().toLowerCase();
   if (normalized === "queryable_now" || normalized === "close" || normalized === "not_yet") {
     return normalized;
   }
