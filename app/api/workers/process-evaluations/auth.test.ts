@@ -162,7 +162,8 @@ describe('Process Evaluations Worker Auth', () => {
     it('should return 200 with valid Vercel Cron headers on platform', async () => {
       process.env.CRON_SECRET = 'any-secret';
       process.env.VERCEL = '1';
-      process.env.VERCEL_ENV = 'production';
+      // VERCEL_ENV intentionally omitted: VERCEL=1 alone triggers platform detection
+      // and avoids the NODE_ENV=test + VERCEL_ENV=production forbidden combination guard
       setEnv('NODE_ENV', 'production');
       
       const req = createMockRequest({
@@ -181,7 +182,7 @@ describe('Process Evaluations Worker Auth', () => {
 
     it('should require x-vercel-id header along with x-vercel-cron', async () => {
       process.env.VERCEL = '1';
-      process.env.VERCEL_ENV = 'production';
+      // VERCEL_ENV intentionally omitted: avoids NODE_ENV=test + VERCEL_ENV=production guard
       setEnv('NODE_ENV', 'production');
       
       const req = createMockRequest({
@@ -361,7 +362,7 @@ describe('QC Regression Tests', () => {
       // This is the key invariant: cron headers take priority over bearer
       setEnv('CRON_SECRET', 'test-secret');
       setEnv('VERCEL', '1');
-      setEnv('VERCEL_ENV', 'production');
+      // VERCEL_ENV intentionally omitted: avoids NODE_ENV=test + VERCEL_ENV=production guard
       setEnv('NODE_ENV', 'production');
       
       const req = createMockRequest({
@@ -472,7 +473,7 @@ describe('QC Regression Tests', () => {
     it('should STILL allow vercel cron on platform when CRON_SECRET is undefined', async () => {
       delete process.env.CRON_SECRET;
       process.env.VERCEL = '1';
-      process.env.VERCEL_ENV = 'production';
+      // VERCEL_ENV intentionally omitted: avoids NODE_ENV=test + VERCEL_ENV=production guard
       setEnv('NODE_ENV', 'production');
       
       const req = createMockRequest({
