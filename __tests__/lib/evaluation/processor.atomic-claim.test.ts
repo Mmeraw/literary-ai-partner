@@ -573,7 +573,7 @@ describe('failStaleRunningJobs — expired lease recovery', () => {
     expect(result.staleFound).toBeGreaterThanOrEqual(1);
   });
 
-  test('clears claimed_by and lease_expires_at when failing stale jobs', async () => {
+  test('clears claimant and lease_until fields when failing stale jobs', async () => {
     const staleJob = { id: 'stale-job' };
 
     const updateMock = jest.fn().mockReturnValue({
@@ -607,7 +607,7 @@ describe('failStaleRunningJobs — expired lease recovery', () => {
       status: 'failed',
       claimed_by: null,
       claimed_at: null,
-      lease_expires_at: null,
+          lease_until: null,
     });
   });
 });
