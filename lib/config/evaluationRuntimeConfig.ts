@@ -1,11 +1,18 @@
+import "server-only";
+
 import {
   assertEvalTimeoutConfig,
   resolveEvaluationTimeoutConfig,
   type EvaluationTimeoutConfig,
   type TimeoutBaseline,
 } from "@/lib/config/evaluationTimeouts";
+import {
+  resolveEvalEnvContract,
+  type AdjudicationMode,
+  type NodeEnv,
+} from "@/lib/config/envContract";
 
-export type ExternalAdjudicationMode = "optional" | "required" | "veto";
+export type ExternalAdjudicationMode = AdjudicationMode;
 
 export type EnvLike = Readonly<Record<string, string | undefined>>;
 
@@ -43,7 +50,7 @@ export interface EvaluationRuntimeConfig {
     cronSecret: string;
   };
   platform: {
-    nodeEnv: string;
+    nodeEnv: NodeEnv;
     vercel: boolean;
     vercelEnv?: string;
     hostname?: string;
@@ -89,26 +96,6 @@ function parseBoundedInteger(
   return parsed;
 }
 
-function parseAdjudicationMode(env: EnvLike): ExternalAdjudicationMode {
-  const raw = (env.EVAL_EXTERNAL_ADJUDICATION_MODE ?? "optional").trim().toLowerCase();
-  if (raw === "optional" || raw === "required" || raw === "veto") {
-    return raw;
-  }
-
-  throw new EvaluationRuntimeConfigError(
-    `EVAL_EXTERNAL_ADJUDICATION_MODE must be one of "optional", "required", "veto"; got ${JSON.stringify(raw)}`,
-  );
-}
-
-function parseModel(env: EnvLike): string {
-  const model = (env.EVAL_OPENAI_MODEL ?? "o3").trim();
-  if (!model) {
-    throw new EvaluationRuntimeConfigError(
-      "EVAL_OPENAI_MODEL is set but empty. Remove it or provide a valid model name.",
-    );
-  }
-  return model;
-}
 
 export function resolveEvaluationRuntimeConfig(
   env: EnvLike = process.env,
@@ -117,8 +104,16 @@ export function resolveEvaluationRuntimeConfig(
   const timeouts = resolveEvaluationTimeoutConfig(env, timeoutBaseline);
   assertEvalTimeoutConfig(env, timeoutBaseline);
 
-  const model = parseModel(env);
-  const adjudicationMode = parseAdjudicationMode(env);
+  let envContract: ReturnType<typeof resolveEvalEnvContract>;
+  try {
+    envContract = resolveEvalEnvContract(env as NodeJS.ProcessEnv);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new EvaluationRuntimeConfigError(`env contract validation failed: ${message}`);
+  }
+
+  const model = envContract.openAiModel;
+  const adjudicationMode = envContract.adjudicationMode;
 
   const pass1MaxTokens = parseBoundedInteger(env, "EVAL_PASS1_MAX_TOKENS", {
     defaultValue: 3500,
@@ -140,20 +135,8 @@ export function resolveEvaluationRuntimeConfig(
     min: 8000,
     max: 120000,
   });
-  const inputCharBudget = parseBoundedInteger(env, "EVAL_PIPELINE_INPUT_CHAR_BUDGET", {
-    defaultValue: 50000,
-    min: 12000,
-    max: 100000,
-  });
-  const synthesisRefCharBudget = parseBoundedInteger(
-    env,
-    "EVAL_PIPELINE_SYNTHESIS_REF_CHAR_BUDGET",
-    {
-      defaultValue: 18000,
-      min: 4000,
-      max: 50000,
-    },
-  );
+  const inputCharBudget = envContract.inputCharBudget;
+  const synthesisRefCharBudget = envContract.synthesisRefCharBudget;
 
   const batchSize = parseBoundedInteger(env, "EVAL_WORKER_BATCH_SIZE", {
     defaultValue: 5,
@@ -185,7 +168,7 @@ export function resolveEvaluationRuntimeConfig(
     );
   }
 
-  const nodeEnv = (env.NODE_ENV ?? "development").trim() || "development";
+  const nodeEnv = envContract.nodeEnv;
 
   return {
     model,

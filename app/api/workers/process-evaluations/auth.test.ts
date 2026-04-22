@@ -163,6 +163,7 @@ describe('Process Evaluations Worker Auth', () => {
       process.env.CRON_SECRET = 'any-secret';
       process.env.VERCEL = '1';
       process.env.VERCEL_ENV = 'production';
+      setEnv('NODE_ENV', 'production');
       
       const req = createMockRequest({
         headers: {
@@ -181,6 +182,7 @@ describe('Process Evaluations Worker Auth', () => {
     it('should require x-vercel-id header along with x-vercel-cron', async () => {
       process.env.VERCEL = '1';
       process.env.VERCEL_ENV = 'production';
+      setEnv('NODE_ENV', 'production');
       
       const req = createMockRequest({
         headers: { 'x-vercel-cron': '1' }
@@ -360,6 +362,7 @@ describe('QC Regression Tests', () => {
       setEnv('CRON_SECRET', 'test-secret');
       setEnv('VERCEL', '1');
       setEnv('VERCEL_ENV', 'production');
+      setEnv('NODE_ENV', 'production');
       
       const req = createMockRequest({
         headers: {
@@ -470,6 +473,7 @@ describe('QC Regression Tests', () => {
       delete process.env.CRON_SECRET;
       process.env.VERCEL = '1';
       process.env.VERCEL_ENV = 'production';
+      setEnv('NODE_ENV', 'production');
       
       const req = createMockRequest({
         headers: {

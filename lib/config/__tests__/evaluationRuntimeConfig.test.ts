@@ -16,8 +16,8 @@ describe("resolveEvaluationRuntimeConfig", () => {
     expect(config.pass.pass2MaxTokens).toBe(3500);
     expect(config.pass.pass3MaxTokens).toBe(5000);
     expect(config.pass.pass3PromptMaxChars).toBe(40000);
-    expect(config.pass.inputCharBudget).toBe(50000);
-    expect(config.pass.synthesisRefCharBudget).toBe(18000);
+    expect(config.pass.inputCharBudget).toBe(40000);
+    expect(config.pass.synthesisRefCharBudget).toBe(8000);
     expect(config.worker.batchSize).toBe(5);
     expect(config.worker.leaseMs).toBe(180000);
     expect(config.worker.maxExecutionMs).toBe(55000);
@@ -109,5 +109,21 @@ describe("resolveEvaluationRuntimeConfig", () => {
     expect(config.openaiApiKey).toBe("sk-test");
     expect(config.evalDebugEnabled).toBe(false);
     expect(config.contextContaminationGuardEnabled).toBe(false);
+  });
+
+  it("throws when NODE_ENV is outside canonical contract values", () => {
+    expect(() =>
+      resolveEvaluationRuntimeConfig({
+        NODE_ENV: "staging",
+      }, {}),
+    ).toThrow(EvaluationRuntimeConfigError);
+  });
+
+  it("throws on forbidden contract combinations", () => {
+    expect(() =>
+      resolveEvaluationRuntimeConfig({
+        USE_REAL_LLM: "true",
+      }, {}),
+    ).toThrow(EvaluationRuntimeConfigError);
   });
 });
