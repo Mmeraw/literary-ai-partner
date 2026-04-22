@@ -856,7 +856,9 @@ export async function failStaleRunningJobs(): Promise<{
         'Auto-failed stale running job: worker timed out or crashed before completion update',
       claimed_by: null,
       claimed_at: null,
+      lease_token: null,
       lease_expires_at: null,
+      lease_until: null,
       updated_at: now,
     })
     .in('id', staleIds)

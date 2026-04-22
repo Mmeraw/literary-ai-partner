@@ -12,6 +12,7 @@
     "canon:guard": "bash ./scripts/canon-guard.sh",
     "spine:verify": "bash scripts/verify-spine.sh",
     "config:validate": "tsx scripts/validate-production-config.ts",
+    "worker:verify-recovery": "bash scripts/verify-worker-recovery.sh",
     "docs:verify": "bash scripts/verification-contract.sh",
     "docs:runtime:guard": "bash scripts/verify-canonical-runtime-authority.sh",
     "verify:zero-drift": "bash scripts/verify-zero-drift.sh",

@@ -50,6 +50,14 @@ describe("resolveEvaluationRuntimeConfig", () => {
     ).toThrow(EvaluationRuntimeConfigError);
   });
 
+  it("throws when worker max execution exceeds the lease policy ceiling", () => {
+    expect(() =>
+      resolveEvaluationRuntimeConfig({
+        EVAL_WORKER_MAX_EXECUTION_MS: "280000",
+      }, {}),
+    ).toThrow(/EVAL_WORKER_MAX_EXECUTION_MS must be between 10000 and 180000/);
+  });
+
   it("throws when adjudication mode requires Perplexity key and key is missing", () => {
     expect(() =>
       resolveEvaluationRuntimeConfig({
