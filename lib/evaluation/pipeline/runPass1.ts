@@ -20,12 +20,10 @@ import {
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
+import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS1_TEMPERATURE = 0.3;
-const PASS1_MAX_TOKENS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS1_MAX_TOKENS || "3500", 10);
-  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 8000 ? parsed : 3500;
-})();
+function getPass1MaxTokens(): number { return getEvaluationRuntimeConfig().pass.pass1MaxTokens; }
 const PASS1_MODEL = "o3";
 
 function nowMs(): number {
@@ -90,7 +88,7 @@ function buildEmptyResponseDiagnostic(params: {
   return (
     `[Pass1] Empty response from OpenAI ` +
     `(model=${model} finish_reason=${finishReason} content_type=${contentType} choices=${choiceCount} ` +
-    `max_output_tokens=${PASS1_MAX_TOKENS}` +
+    `max_output_tokens=${getPass1MaxTokens()}` +
     `${typeof usage?.prompt_tokens === "number" ? ` prompt_tokens=${usage.prompt_tokens}` : ""}` +
     `${typeof usage?.completion_tokens === "number" ? ` completion_tokens=${usage.completion_tokens}` : ""}` +
     `${typeof usage?.total_tokens === "number" ? ` total_tokens=${usage.total_tokens}` : ""}` +
@@ -147,7 +145,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   const promptAssemblyMs = nowMs() - promptAssemblyStartMs;
   const inputChars = opts.manuscriptText.length;
 
-  const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, PASS1_MAX_TOKENS);
+  const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, getPass1MaxTokens());
   const configuredMaxTokens =
     typeof (outputTokenParam as { max_completion_tokens?: unknown }).max_completion_tokens === "number"
       ? Number((outputTokenParam as { max_completion_tokens: number }).max_completion_tokens)
@@ -195,7 +193,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
       contentType: rawContent === null ? "null" : Array.isArray(rawContent) ? "array" : typeof rawContent,
       contentPreview: typeof rawContent === "string" ? rawContent.slice(0, 160) : undefined,
       usage: completion.usage,
-      maxOutputTokens: PASS1_MAX_TOKENS,
+      maxOutputTokens: getPass1MaxTokens(),
       refusal:
         typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined,
     });
@@ -225,7 +223,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   if (finishReasonWarning === "length") {
     console.warn("[Pass1] finish_reason=length — output may be truncated", {
       model: selectedModel,
-      maxOutputTokens: PASS1_MAX_TOKENS,
+      maxOutputTokens: getPass1MaxTokens(),
       responseLen: responseText.length,
       usage: completion.usage,
     });
@@ -298,7 +296,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
  * Separated so the constructor is only called when no DI override is provided.
  */
 function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
-  const apiKey = openaiApiKey ?? process.env.OPENAI_API_KEY;
+  const apiKey = openaiApiKey ?? getEvaluationRuntimeConfig().openaiApiKey;
   if (!apiKey) {
     throw new Error("[Pass1] OPENAI_API_KEY is not configured");
   }

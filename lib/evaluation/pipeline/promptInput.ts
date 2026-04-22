@@ -1,12 +1,14 @@
-const DEFAULT_PASS_INPUT_CHAR_BUDGET = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PIPELINE_INPUT_CHAR_BUDGET || "50000", 10);
-  return Number.isFinite(parsed) && parsed >= 12000 && parsed <= 100000 ? parsed : 50000;
-})();
+import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
-const DEFAULT_SYNTHESIS_REFERENCE_CHAR_BUDGET = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PIPELINE_SYNTHESIS_REF_CHAR_BUDGET || "18000", 10);
-  return Number.isFinite(parsed) && parsed >= 4000 && parsed <= 50000 ? parsed : 18000;
-})();
+// DEFAULT_PASS_INPUT_CHAR_BUDGET and DEFAULT_SYNTHESIS_REFERENCE_CHAR_BUDGET are
+// resolved lazily (on first call) to avoid module-scope config reads.
+function getDefaultPassInputCharBudgetLazy(): number {
+  return getEvaluationRuntimeConfig().pass.inputCharBudget;
+}
+
+function getDefaultSynthesisReferenceCharBudgetLazy(): number {
+  return getEvaluationRuntimeConfig().pass.synthesisRefCharBudget;
+}
 
 const OMITTED_SEPARATOR = "\n\n[... middle of manuscript omitted for prompt window ...]\n\n";
 
@@ -26,21 +28,22 @@ export function estimateWordCount(text: string): number {
 }
 
 export function getDefaultPassInputCharBudget(): number {
-  return DEFAULT_PASS_INPUT_CHAR_BUDGET;
+  return getDefaultPassInputCharBudgetLazy();
 }
 
 export function getDefaultSynthesisReferenceCharBudget(): number {
-  return DEFAULT_SYNTHESIS_REFERENCE_CHAR_BUDGET;
+  return getDefaultSynthesisReferenceCharBudgetLazy();
 }
 
-export function buildPromptInputWindow(text: string, maxChars = DEFAULT_PASS_INPUT_CHAR_BUDGET): string {
+export function buildPromptInputWindow(text: string, maxChars?: number): string {
+  const effectiveMaxChars = maxChars ?? getDefaultPassInputCharBudgetLazy();
   const trimmed = text.trim();
-  if (trimmed.length <= maxChars) {
+  if (trimmed.length <= effectiveMaxChars) {
     return trimmed;
   }
 
   const separatorBudget = OMITTED_SEPARATOR.length * 2;
-  const segmentLen = Math.max(1500, Math.floor((maxChars - separatorBudget) / 3));
+  const segmentLen = Math.max(1500, Math.floor((effectiveMaxChars - separatorBudget) / 3));
 
   const start = trimmed.slice(0, segmentLen).trim();
   const middleStart = Math.max(0, Math.floor(trimmed.length / 2) - Math.floor(segmentLen / 2));
@@ -50,8 +53,9 @@ export function buildPromptInputWindow(text: string, maxChars = DEFAULT_PASS_INP
   return `${start}${OMITTED_SEPARATOR}${middle}${OMITTED_SEPARATOR}${end}`;
 }
 
-export function summarizePromptCoverage(text: string, maxChars = DEFAULT_PASS_INPUT_CHAR_BUDGET): PromptCoverage {
-  const window = buildPromptInputWindow(text, maxChars);
+export function summarizePromptCoverage(text: string, maxChars?: number): PromptCoverage {
+  const effectiveMaxChars = maxChars ?? getDefaultPassInputCharBudgetLazy();
+  const window = buildPromptInputWindow(text, effectiveMaxChars);
   const source = text.trim();
   const normalizedWindow = window.replaceAll(OMITTED_SEPARATOR, " ");
 
