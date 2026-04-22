@@ -391,26 +391,30 @@ export async function safeUpdateJobStatus(
 }
 
 /**
- * QC Gate 2: DB-Atomic Claim for Phase 1
- * Uses RPC for atomic eligibility check + claim in single SQL UPDATE.
+ * DB-atomic single-job claim for Phase 1.
+ * Uses canonical top-level claimant metadata fields.
  * HARD RULE: NO FALLBACK to SDK update - fail-closed if RPC unavailable.
- * Includes PHASE GUARD: cannot steal Phase 2+ jobs with expired leases.
  */
 export async function acquireLeaseForPhase1(
   id: string,
+  workerId: string,
   leaseId: string,
   ttlSeconds = DEFAULT_LEASE_TIMEOUT_SECONDS,
 ): Promise<Job | null> {
-  const { data, error } = await supabase.rpc("claim_evaluation_job_phase1", {
+  const leaseMs = Math.max(30, ttlSeconds) * 1000;
+  const leaseExpiresAt = new Date(Date.now() + leaseMs).toISOString();
+
+  const { data, error } = await supabase.rpc("claim_evaluation_job_by_id", {
     p_job_id: id,
-    p_lease_id: leaseId,
-    p_ttl_seconds: ttlSeconds,
+    p_worker_id: workerId,
+    p_lease_token: leaseId,
+    p_lease_expires_at: leaseExpiresAt,
   });
 
   if (error) {
     // Fail-closed: do NOT fall back to SDK update.
     // This ensures Gate 2 is truly closed.
-    throw new Error(`claim_evaluation_job_phase1 RPC failed: ${error.message}`);
+    throw new Error(`claim_evaluation_job_by_id RPC failed: ${error.message}`);
   }
 
   if (!data || data.length === 0) return null;

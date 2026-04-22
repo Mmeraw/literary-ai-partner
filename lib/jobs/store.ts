@@ -22,7 +22,7 @@ let createJob: typeof memCreateJob,
   getJob: typeof memGetJob,
   getAllJobs: typeof memGetAllJobs,
   updateJob: typeof memUpdateJob,
-  acquireLeaseForPhase1: (jobId: string, leaseId: string, ttl: number) => Promise<Job | null>,
+  acquireLeaseForPhase1: (jobId: string, workerId: string, leaseId: string, ttl: number) => Promise<Job | null>,
   acquireLeaseForPhase2: (jobId: string, leaseId: string, ttl: number) => Promise<Job | null>,
   incrementCounter: () => Promise<number | null>,
   setJobFailed: (jobId: string, errorEnvelope: any) => Promise<void>;
@@ -55,7 +55,7 @@ if (USE_SUPABASE) {
   getJob = memGetJob;
   getAllJobs = memGetAllJobs;
   updateJob = memUpdateJob;
-  acquireLeaseForPhase1 = async (jobId: string, _leaseId: string, _ttl: number) =>
+  acquireLeaseForPhase1 = async (jobId: string, _workerId: string, _leaseId: string, _ttl: number) =>
     memGetJob(jobId);
   acquireLeaseForPhase2 = async (jobId: string, _leaseId: string, _ttl: number) =>
     memGetJob(jobId);
