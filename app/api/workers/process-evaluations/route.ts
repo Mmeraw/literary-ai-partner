@@ -84,8 +84,10 @@ function extractBearer(authHeader: string | null): string | null {
  * Check if running on Vercel platform (not spoofable via headers)
  */
 function isOnVercelPlatform(): boolean {
-  const runtimeConfig = getEvaluationRuntimeConfig();
-  return runtimeConfig.platform.vercel;
+  // Auth-critical: read directly from process.env to avoid singleton cache stale-reads.
+  // The runtimeConfig singleton is populated at first call; test env mutations must not be
+  // blocked by a cached snapshot that pre-dates the test's setEnv() calls.
+  return process.env.VERCEL === '1' || !!process.env.VERCEL_ENV;
 }
 
 /**
@@ -104,7 +106,8 @@ function isVercelCronInvocation(req: NextRequest): boolean {
  */
 function checkAuthorization(req: NextRequest): { authorized: boolean; method: string; secretTooLong: boolean } {
   const runtimeConfig = getEvaluationRuntimeConfig();
-  const expectedSecret = runtimeConfig.auth.cronSecret;
+  // Auth-critical: read CRON_SECRET directly to avoid singleton cache stale-reads in tests.
+  const expectedSecret = process.env.CRON_SECRET || '';
   const bearer = extractBearer(req.headers.get('authorization'));
   const allowDevServiceRole =
     runtimeConfig.platform.nodeEnv === 'development' &&
