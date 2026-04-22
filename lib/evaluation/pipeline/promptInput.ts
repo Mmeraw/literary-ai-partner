@@ -1,5 +1,7 @@
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
+// DEFAULT_PASS_INPUT_CHAR_BUDGET and DEFAULT_SYNTHESIS_REFERENCE_CHAR_BUDGET are
+// resolved lazily (on first call) to avoid module-scope config reads.
 function getDefaultPassInputCharBudgetLazy(): number {
   return getEvaluationRuntimeConfig().pass.inputCharBudget;
 }
