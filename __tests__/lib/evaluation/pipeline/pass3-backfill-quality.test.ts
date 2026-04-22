@@ -66,6 +66,7 @@ describe("Pass 3 backfill quality", () => {
       overall: {
         overall_score_0_100: 70,
         verdict: "revise",
+        submission_readiness: "close",
         one_paragraph_summary: "Test summary.",
         top_3_strengths: ["voice", "concept", "character"],
         top_3_risks: ["pacing", "tone", "dialogue"],
