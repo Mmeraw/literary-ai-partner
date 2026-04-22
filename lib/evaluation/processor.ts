@@ -96,17 +96,26 @@ import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJ
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const runtimeConfig = getEvaluationRuntimeConfig();
-const openaiApiKey = runtimeConfig.openaiApiKey;
-const perplexityApiKey = runtimeConfig.perplexityApiKey ?? "";
-const evalDebugEnabled = runtimeConfig.evalDebugEnabled;
-const evalMinManuscriptWords = runtimeConfig.minManuscriptWords;
-const openAiModel = runtimeConfig.model;
-const evalPassTimeoutMs = getEvalPassTimeoutMs();
-const evalOpenAiTimeoutMs = getEvalOpenAiTimeoutMs();
-assertEvalTimeoutConfig();
+
+function getProcessorRuntimeDeps() {
+  assertEvalTimeoutConfig();
+  const runtimeConfig = getEvaluationRuntimeConfig();
+  return {
+    runtimeConfig,
+    openaiApiKey: runtimeConfig.openaiApiKey,
+    perplexityApiKey: runtimeConfig.perplexityApiKey ?? "",
+    evalDebugEnabled: runtimeConfig.evalDebugEnabled,
+    evalMinManuscriptWords: runtimeConfig.minManuscriptWords,
+    openAiModel: runtimeConfig.model,
+    staleRunningMinutes: runtimeConfig.staleRunningMinutes,
+    evalWorkerBatchSize: getValidatedWorkerBatchSize(runtimeConfig.worker.batchSize, 5),
+    evalContextContaminationGuardEnabled: runtimeConfig.contextContaminationGuardEnabled,
+    evalPassTimeoutMs: getEvalPassTimeoutMs(),
+    evalOpenAiTimeoutMs: getEvalOpenAiTimeoutMs(),
+  };
+}
+
 const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
-const staleRunningMinutes = runtimeConfig.staleRunningMinutes;
 
 export function getValidatedWorkerBatchSize(raw: unknown, fallback = 5): number {
   const parsed =
@@ -132,8 +141,7 @@ function isMissingSchemaCacheColumnError(error: unknown, columnName: string): bo
   return code === 'PGRST204' && message.includes(columnName) && message.includes('schema cache');
 }
 
-const evalWorkerBatchSize = getValidatedWorkerBatchSize(runtimeConfig.worker.batchSize, 5);
-const evalContextContaminationGuardEnabled = runtimeConfig.contextContaminationGuardEnabled;
+
 
 interface EvaluationJob {
   id: string;
@@ -182,14 +190,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function evalDebugLog(message: string, ...args: unknown[]): void {
-  if (!evalDebugEnabled) {
+  if (!getEvaluationRuntimeConfig().evalDebugEnabled) {
     return;
   }
   console.log(message, ...args);
 }
 
 function evalDebugWarn(message: string, ...args: unknown[]): void {
-  if (!evalDebugEnabled) {
+  if (!getEvaluationRuntimeConfig().evalDebugEnabled) {
     return;
   }
   console.warn(message, ...args);
@@ -562,17 +570,18 @@ async function resolveManuscriptText(
 
 export function isManuscriptTextLongEnough(
   text: string,
-  minWords = evalMinManuscriptWords,
+  minWords?: number,
 ): boolean {
+  const effectiveMinWords = minWords ?? getProcessorRuntimeDeps().evalMinManuscriptWords;
   const trimmed = text.trim();
   if (!trimmed) {
-    return minWords <= 0;
+    return effectiveMinWords <= 0;
   }
 
   // Use word-boundary matching rather than split(/\s+/) to avoid overcounting
   // malformed whitespace-heavy text or undercounting punctuation-dense content.
   const wordCount = (trimmed.match(/\b\w+\b/g) || []).length;
-  return wordCount >= minWords;
+  return wordCount >= effectiveMinWords;
 }
 
 function normalizeCriterionEntry(
@@ -793,6 +802,7 @@ export async function failStaleRunningJobs(): Promise<{
   failed: number;
   ids: string[];
 }> {
+  const { staleRunningMinutes } = getProcessorRuntimeDeps();
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const now = new Date().toISOString();
   const cutoff = new Date(Date.now() - staleRunningMinutes * 60_000).toISOString();
@@ -873,6 +883,16 @@ export async function failStaleRunningJobs(): Promise<{
  * Process a single evaluation job
  */
 export async function processEvaluationJob(jobId: string): Promise<{ success: boolean; error?: string }> {
+  const {
+    openaiApiKey,
+    perplexityApiKey,
+    evalDebugEnabled,
+    evalMinManuscriptWords,
+    openAiModel,
+    evalPassTimeoutMs,
+    evalOpenAiTimeoutMs,
+    evalContextContaminationGuardEnabled,
+  } = getProcessorRuntimeDeps();
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   let lifecycleStatus: JobStatus | null = null;
 
@@ -1625,6 +1645,7 @@ export async function claimQueuedJobs(
     leaseMs?: number;
   },
 ): Promise<Array<{ id: string; phase: string; claimedAt?: string }>> {
+  const { evalWorkerBatchSize } = getProcessorRuntimeDeps();
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   const workerId = options.workerId;
@@ -1708,6 +1729,7 @@ export async function processQueuedJobs(options?: {
   claimed: number;
   errors: Array<{ jobId: string; error: string }>;
 }> {
+  const { evalWorkerBatchSize } = getProcessorRuntimeDeps();
   const effectiveWorkerId = options?.workerId ?? randomUUID();
   const requestedBatchSize = options?.batchSize ?? evalWorkerBatchSize;
   const requestedLeaseMs = options?.leaseMs ?? 180_000;
