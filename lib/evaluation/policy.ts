@@ -11,8 +11,6 @@ export type ExternalAdjudicationMode = "optional" | "required" | "veto";
 
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
-function getDefaultPipelineModel(): string { return getEvaluationRuntimeConfig().model; }
-
 export function isReasoningStyleModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase();
   return (
@@ -41,7 +39,7 @@ export function buildOpenAITemperatureParam(
 
 export function getCanonicalPipelineModel(overrideModel?: string): string {
   const candidate = (overrideModel || "").trim();
-  return candidate.length > 0 ? candidate : getDefaultPipelineModel();
+  return candidate.length > 0 ? candidate : getEvaluationRuntimeConfig().model;
 }
 
 export function getExternalAdjudicationMode(): ExternalAdjudicationMode {
