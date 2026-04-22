@@ -82,10 +82,15 @@ const ISSUE_FAMILY_ALIASES: Record<string, IssueFamily> = {
   prose: "prose_control",
   "prose clarity": "prose_control",
   style: "prose_control",
+  grammar: "prose_control",
+  "prose and style": "prose_control",
+  "prose_and_style": "prose_control",
   // scene_structure
   scene: "scene_structure",
   structure: "scene_structure",
   "scene construction": "scene_structure",
+  "pacing and structure": "scene_structure",
+  "pacing_and_structure": "scene_structure",
   // characterization
   character: "characterization",
   "character arc": "characterization",
@@ -98,6 +103,10 @@ const ISSUE_FAMILY_ALIASES: Record<string, IssueFamily> = {
   ending: "closure",
   resolution: "closure",
   "narrative closure": "closure",
+  // market_positioning
+  market: "market_positioning",
+  marketability: "market_positioning",
+  commercial: "market_positioning",
 };
 
 const STRATEGIC_LEVER_ALIASES: Record<string, StrategicLever> = {
@@ -114,10 +123,13 @@ const STRATEGIC_LEVER_ALIASES: Record<string, StrategicLever> = {
   "dialogue exposition": "dialogue_exposition_density",
   "reduce exposition in dialogue": "dialogue_exposition_density",
   "dialogue info density": "dialogue_exposition_density",
+  "on the nose dialogue": "dialogue_exposition_density",
+  "dialogue density": "dialogue_exposition_density",
   // scene_goal_clarity
   "scene goal": "scene_goal_clarity",
   "goal clarity": "scene_goal_clarity",
   "scene objective": "scene_goal_clarity",
+  "scene objectives": "scene_goal_clarity",
   // closure_state_lock
   "lock closure": "closure_state_lock",
   "commit to resolution": "closure_state_lock",
@@ -126,10 +138,13 @@ const STRATEGIC_LEVER_ALIASES: Record<string, StrategicLever> = {
   "character voice": "character_voice_differentiation",
   "differentiate voices": "character_voice_differentiation",
   "distinct voice": "character_voice_differentiation",
+  "voice differentiation": "character_voice_differentiation",
+  "character distinction": "character_voice_differentiation",
   // tension_escalation
   "escalate tension": "tension_escalation",
   "raise stakes": "tension_escalation",
   "increase stakes": "tension_escalation",
+  escalation: "tension_escalation",
   // exposition_load_reduction
   "reduce exposition": "exposition_load_reduction",
   "trim backstory": "exposition_load_reduction",
@@ -139,6 +154,7 @@ const STRATEGIC_LEVER_ALIASES: Record<string, StrategicLever> = {
   "tighten prose": "prose_compression",
   "compress prose": "prose_compression",
   "reduce wordiness": "prose_compression",
+  "cut wordiness": "prose_compression",
   // pov_rendering_precision
   "pov precision": "pov_rendering_precision",
   "psychic distance": "pov_rendering_precision",
@@ -182,13 +198,28 @@ export function normalizeStrategicLever(raw: unknown): StrategicLever | undefine
  * Attempts to map a free-form string to a canonical RevisionGranularity value.
  * Returns undefined if no match is found.
  */
+const REVISION_GRANULARITY_ALIASES: Record<string, RevisionGranularity> = {
+  paragraph: "beat",
+  sentence: "line",
+  word: "line",
+  passage: "beat",
+  block: "beat",
+  section: "chapter",
+  part: "chapter",
+  novel: "manuscript",
+  book: "manuscript",
+  full: "manuscript",
+  global: "manuscript",
+};
+
 export function normalizeRevisionGranularity(raw: unknown): RevisionGranularity | undefined {
   if (typeof raw !== "string") return undefined;
   const normalized = normalize(raw);
   const asCanon = normalized.replace(/ /g, "_");
-  return (REVISION_GRANULARITY_VALUES as readonly string[]).includes(asCanon)
-    ? (asCanon as RevisionGranularity)
-    : undefined;
+  if ((REVISION_GRANULARITY_VALUES as readonly string[]).includes(asCanon)) {
+    return asCanon as RevisionGranularity;
+  }
+  return REVISION_GRANULARITY_ALIASES[normalized];
 }
 
 /**
