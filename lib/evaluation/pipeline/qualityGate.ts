@@ -19,9 +19,12 @@
  *   QG_LOW_EVIDENCE_COVERAGE — too many criteria lack substantive evidence snippets
  *   QG_MISSING_REQUIRED_EVIDENCE — required spine criteria missing substantive evidence snippets
  *   QG_INDEPENDENCE_VIOLATION — Pass 2 reuses non-manuscript rationale phrasing from Pass 1
+ *   QG_DUPLICATE_STRATEGIC_LEVER — two or more recs share same lever without distinct granularity/evidence
+ *   QG_CONFIRMED_RATIONALE — agree-state criterion still contains "Confirmed." stub rationale
  */
 
 import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
+import { buildRedundancyKey, fullyRedundant, sameStrategicLever, normalizeIssueFamily, normalizeStrategicLever, normalizeRevisionGranularity } from "./recommendationSemantics";
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 import type { SynthesisOutput, QualityGateResult, QualityGateCheck, SinglePassOutput } from "./types";
 import { analyzePovRendering } from "@/lib/evaluation/pov/analyzePovRendering";
@@ -298,6 +301,102 @@ export function runQualityGate(
       duplicates.length > 0
         ? `${duplicates.length} duplicated recommendation action(s) across criteria`
         : "No duplicated recommendations",
+  });
+
+  // ── Check 7b: Semantic lever redundancy ──────────────────────────────────
+  // Flags recommendations that share the same strategic_lever + same revision_granularity
+  // across the whole report — they are semantically equivalent and should have been collapsed.
+  {
+    type RecWithKey = {
+      criterionKey: string;
+      action: string;
+      redundancy_key: string;
+      lever_only_key: string;
+    };
+    const allRecsWithKeys: RecWithKey[] = [];
+    for (const c of synthesis.criteria) {
+      for (const r of c.recommendations) {
+        const family = normalizeIssueFamily(r.issue_family);
+        const lever = normalizeStrategicLever(r.strategic_lever);
+        const granularity = normalizeRevisionGranularity(r.revision_granularity);
+        const rkey = buildRedundancyKey(family, lever, granularity);
+        const leverOnly = `${lever ?? "unknown"}:${granularity ?? "unknown"}`;
+        allRecsWithKeys.push({ criterionKey: c.key, action: r.action, redundancy_key: rkey, lever_only_key: leverOnly });
+      }
+    }
+
+    const fullyRedundantViolations: string[] = [];
+    const leverRepeatViolations: string[] = [];
+    const seenRedundancyKeys = new Map<string, string>(); // key -> first action
+    const seenLeverKeys = new Map<string, string[]>(); // lever:granularity -> list of criterion keys
+
+    for (const rec of allRecsWithKeys) {
+      // Full redundancy: same lever + same granularity, and none of the components are "unknown"
+      if (!rec.redundancy_key.includes("unknown")) {
+        const existing = seenRedundancyKeys.get(rec.redundancy_key);
+        if (existing) {
+          fullyRedundantViolations.push(
+            `${rec.criterionKey}: "${rec.action.substring(0, 50)}..." duplicates lever+granularity of "${existing.substring(0, 50)}..." (key=${rec.redundancy_key})`
+          );
+        } else {
+          seenRedundancyKeys.set(rec.redundancy_key, rec.action);
+        }
+      }
+      // Lever-only repeat across 3+ recs: warn (not hard-fail) — same lever scattered across many criteria may indicate un-collapsed phrasing
+      const leverKey = rec.lever_only_key;
+      if (!leverKey.startsWith("unknown")) {
+        const existing = seenLeverKeys.get(leverKey) ?? [];
+        existing.push(rec.criterionKey);
+        seenLeverKeys.set(leverKey, existing);
+      }
+    }
+
+    // CALIBRATION MODE: warn-only until Pass 3 generation is stable. Promote to ERROR once 5+ real runs confirm low false-positive rate.
+    if (fullyRedundantViolations.length > 0) {
+      warnings.push(
+        `[QG_DUPLICATE_STRATEGIC_LEVER] ${fullyRedundantViolations.length} rec(s) share same strategic_lever+granularity: ${fullyRedundantViolations.join(" | ")}`,
+      );
+    }
+    checks.push({
+      check_id: "no_duplicate_strategic_lever",
+      passed: true, // warn-only during calibration
+      details:
+        fullyRedundantViolations.length > 0
+          ? `WARN: ${fullyRedundantViolations.length} recommendation(s) share same strategic_lever+granularity (calibration mode)`
+          : "No semantic lever duplication detected",
+    });
+
+    // Lever concentration warning: same lever used 3+ times across the report → surface as a warning, not a hard block
+    const concentratedLevers = [...seenLeverKeys.entries()].filter(([, uses]) => uses.length >= 3);
+    if (concentratedLevers.length > 0) {
+      warnings.push(
+        `Lever concentration: ${concentratedLevers.map(([lever, uses]) => `${lever} used ${uses.length}x (${uses.join(",")})`).join(" | ")} — consider collapsing into fewer decisive recommendations`
+      );
+    }
+  }
+
+  // ── Check 7c: Confirmed. stub rationale detection ───────────────────────
+  // agree-state rationale must not be the literal "Confirmed." stub. Pass 3 v6+ is required to emit substantive rationale.
+  const confirmedStubRationales: string[] = [];
+  for (const c of synthesis.criteria) {
+    const normalized = c.final_rationale.trim().toLowerCase();
+    if (normalized === "confirmed." || normalized === "confirmed") {
+      confirmedStubRationales.push(c.key);
+    }
+  }
+  // CALIBRATION MODE: warn-only until Pass 3 generation is stable. Promote to ERROR after first clean prod run.
+  if (confirmedStubRationales.length > 0) {
+    warnings.push(
+      `[QG_CONFIRMED_RATIONALE] ${confirmedStubRationales.length} criteria use "Confirmed." stub rationale: ${confirmedStubRationales.join(", ")}`,
+    );
+  }
+  checks.push({
+    check_id: "no_confirmed_stub_rationale",
+    passed: true, // warn-only during calibration
+    details:
+      confirmedStubRationales.length > 0
+        ? `WARN: ${confirmedStubRationales.length} criteria use "Confirmed." stub rationale (calibration mode)`
+        : `No "Confirmed." stub rationale detected`,
   });
 
   // ── Check 8: Rationale coverage (≥40 chars per criterion) ───────────────
