@@ -1,0 +1,79 @@
+name: Latency PR Enforcement
+
+"on":
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  enforce-latency-template:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate PR body structure
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || "";
+
+            function assert(condition, message) {
+              if (!condition) {
+                core.setFailed(message);
+              }
+            }
+
+            // --- REQUIRED GLOBAL SECTIONS ---
+            assert(body.includes("## Summary"), "Missing: Summary section");
+            assert(body.includes("## Scope"), "Missing: Scope section");
+            assert(body.includes("## Contract Integrity"), "Missing: Contract Integrity section");
+            assert(body.includes("## Behavioral Quality"), "Missing: Behavioral Quality section");
+            assert(body.includes("## Latency Evidence"), "Missing: Latency Evidence section");
+            assert(body.includes("## Risks & Anomalies"), "Missing: Risks & Anomalies section");
+
+            // --- LATENCY TABLE CHECK ---
+            assert(
+              body.includes("Baseline (Pre-change)") &&
+              body.includes("Post-change Runs"),
+              "Missing latency evidence tables (baseline + post-change runs)"
+            );
+
+            // --- MINIMUM RUN COUNT ---
+            assert(body.includes("Run 1"), "Missing: Run 1 evidence");
+            assert(body.includes("Run 2"), "Missing: Run 2 evidence");
+
+            // --- PASS SELECTION ---
+            const isPass1 = body.includes("[x] Pass 1") || body.includes("[X] Pass 1");
+            const isPass2 = body.includes("[x] Pass 2") || body.includes("[X] Pass 2");
+            const isPass3 = body.includes("[x] Pass 3") || body.includes("[X] Pass 3");
+
+            assert(
+              isPass1 || isPass2 || isPass3,
+              "You must select Pass 1, Pass 2, or Pass 3"
+            );
+
+            // --- METRIC SANITY CHECKS ---
+            assert(
+              /pass\d?_?ms|passX_ms/.test(body),
+              "Missing pass latency metric (e.g. pass1_ms / pass2_ms / pass3_ms / passX_ms)"
+            );
+            assert(body.includes("total_ms"), "Missing total_ms metric");
+
+            // --- PASS 3 SPECIAL REQUIREMENT ---
+            if (isPass3) {
+              assert(
+                body.includes("criteria_count_by_state"),
+                "Pass 3 PRs must include divergence distribution (criteria_count_by_state)"
+              );
+            }
+
+            // --- QUALITY / ANOMALY DISCLOSURE ---
+            assert(
+              body.includes("QG_") || body.includes("quality gate") || body.includes("Quality Gate"),
+              "Missing quality gate / anomaly disclosure"
+            );
+
+            // --- FINAL RULE PRESENCE ---
+            assert(
+              body.includes("not reducing intelligence"),
+              "Missing final principle: must acknowledge quality preservation rule"
+            );

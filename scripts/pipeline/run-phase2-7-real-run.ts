@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { config as loadDotenv } from "dotenv";
+import { resolveEvaluationTimeoutConfig } from "@/lib/config/evaluationTimeouts";
 import { runPass1 } from "@/lib/evaluation/pipeline/runPass1";
 import { runPass2 } from "@/lib/evaluation/pipeline/runPass2";
 import { runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
@@ -135,21 +136,17 @@ async function main(): Promise<void> {
   const title = getArg("title") ?? inferTitle(sourcePath);
   const workType = getArg("work-type", "novel_chapter")!;
   const model = getArg("model", "gpt-4o-mini")!;
-  const passTimeoutMs =
-    positiveIntOrUndefined(getArg("pass-timeout-ms")) ??
-    positiveIntOrUndefined(process.env.EVAL_PASS_TIMEOUT_MS);
-
-  if (passTimeoutMs) {
-    const envPassTimeout = positiveIntOrUndefined(process.env.EVAL_PASS_TIMEOUT_MS);
-    const envOpenAiTimeout = positiveIntOrUndefined(process.env.EVAL_OPENAI_TIMEOUT_MS);
-
-    if (!envPassTimeout || envPassTimeout < passTimeoutMs) {
-      process.env.EVAL_PASS_TIMEOUT_MS = String(passTimeoutMs);
-    }
-    if (!envOpenAiTimeout || envOpenAiTimeout < passTimeoutMs) {
-      process.env.EVAL_OPENAI_TIMEOUT_MS = String(passTimeoutMs);
-    }
+  const requestedPassTimeoutMs = positiveIntOrUndefined(getArg("pass-timeout-ms"));
+  if (requestedPassTimeoutMs) {
+    process.env.EVAL_PASS_TIMEOUT_MS = String(requestedPassTimeoutMs);
   }
+
+  const resolvedTimeouts = resolveEvaluationTimeoutConfig(process.env);
+  const passTimeoutMs = requestedPassTimeoutMs ?? resolvedTimeouts.passTimeout.valueMs;
+  process.env.EVAL_PASS_TIMEOUT_MS = String(passTimeoutMs);
+  process.env.EVAL_OPENAI_TIMEOUT_MS = String(
+    Math.max(resolvedTimeouts.openAiTimeout.valueMs, passTimeoutMs),
+  );
 
   const outputDir =
     getArg("output-dir") ??

@@ -9,7 +9,7 @@ export type OpenAITemperatureParam = {
 
 export type ExternalAdjudicationMode = "optional" | "required" | "veto";
 
-const DEFAULT_PIPELINE_MODEL = (process.env.EVAL_OPENAI_MODEL || "o3").trim() || "o3";
+import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 export function isReasoningStyleModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase();
@@ -39,15 +39,9 @@ export function buildOpenAITemperatureParam(
 
 export function getCanonicalPipelineModel(overrideModel?: string): string {
   const candidate = (overrideModel || "").trim();
-  return candidate.length > 0 ? candidate : DEFAULT_PIPELINE_MODEL;
+  return candidate.length > 0 ? candidate : getEvaluationRuntimeConfig().model;
 }
 
 export function getExternalAdjudicationMode(): ExternalAdjudicationMode {
-  const raw = (process.env.EVAL_EXTERNAL_ADJUDICATION_MODE || "optional").trim().toLowerCase();
-
-  if (raw === "required" || raw === "veto") {
-    return raw;
-  }
-
-  return "optional";
+  return getEvaluationRuntimeConfig().adjudicationMode;
 }

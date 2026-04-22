@@ -1,4 +1,5 @@
-import { execSync, spawnSync } from 'child_process';
+import { execSync } from 'child_process';
+import { randomUUID } from 'crypto';
 
 // Check if psql is available
 function isPsqlAvailable(): boolean {
@@ -27,7 +28,7 @@ function runSql(query: string): string {
 
 // Helper to insert a test manuscript and return its ID
 async function insertTestManuscript(): Promise<number> {
-  const title = `TTL Test ${Date.now()}`;
+  const title = `TTL Test ${randomUUID()}`;
   const result = runSql(`
     WITH _seq AS (
       SELECT setval('public.manuscripts_id_seq', COALESCE((SELECT MAX(id) FROM public.manuscripts), 0), true)
@@ -85,8 +86,8 @@ async function insertTestJob(manuscriptId: number): Promise<string> {
 
 describe('TTL Clamping Tests', () => {
   const testNow = "2026-01-01T00:00:00Z";
-  let manuscriptId: number;
-  let jobId: string;
+  let manuscriptId: number | null = null;
+  let jobId: string | null = null;
   
   // Skip all tests if dependencies not available
   const skipIfNoDeps = () => {
@@ -112,8 +113,8 @@ describe('TTL Clamping Tests', () => {
   afterEach(async () => {
     if (jobId) runSql(`DELETE FROM public.evaluation_jobs WHERE id = '${jobId}';`);
     if (manuscriptId) runSql(`DELETE FROM public.manuscripts WHERE id = ${manuscriptId};`);
-    jobId = "";
-    manuscriptId = 0;
+    jobId = null;
+    manuscriptId = null;
   });
 
   testIt('clamps negative TTL to minimum 30 seconds', async () => {
@@ -182,7 +183,7 @@ describe('TTL Clamping Tests', () => {
       FROM claim_job_atomic('worker-mono-2', '${testNow2}'::timestamptz, 30);
     `);
     const newLeaseUntil = new Date(result2).getTime();
-    
+
     // CRITICAL: New lease must be strictly greater than old lease
     expect(newLeaseUntil).toBeGreaterThan(oldLeaseUntil);
   });
