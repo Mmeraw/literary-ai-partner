@@ -84,14 +84,11 @@ const ISSUE_FAMILY_ALIASES: Record<string, IssueFamily> = {
   style: "prose_control",
   grammar: "prose_control",
   "prose and style": "prose_control",
-  grammar: "prose_control",
-  "prose and style": "prose_control",
   "prose_and_style": "prose_control",
   // scene_structure
   scene: "scene_structure",
   structure: "scene_structure",
   "scene construction": "scene_structure",
-  "pacing and structure": "scene_structure",
   "pacing and structure": "scene_structure",
   "pacing_and_structure": "scene_structure",
   // characterization
@@ -106,10 +103,6 @@ const ISSUE_FAMILY_ALIASES: Record<string, IssueFamily> = {
   ending: "closure",
   resolution: "closure",
   "narrative closure": "closure",
-  // market_positioning
-  market: "market_positioning",
-  marketability: "market_positioning",
-  commercial: "market_positioning",
   // market_positioning
   market: "market_positioning",
   marketability: "market_positioning",
@@ -132,13 +125,10 @@ const STRATEGIC_LEVER_ALIASES: Record<string, StrategicLever> = {
   "dialogue info density": "dialogue_exposition_density",
   "on the nose dialogue": "dialogue_exposition_density",
   "dialogue density": "dialogue_exposition_density",
-  "on the nose dialogue": "dialogue_exposition_density",
-  "dialogue density": "dialogue_exposition_density",
   // scene_goal_clarity
   "scene goal": "scene_goal_clarity",
   "goal clarity": "scene_goal_clarity",
   "scene objective": "scene_goal_clarity",
-  "scene objectives": "scene_goal_clarity",
   "scene objectives": "scene_goal_clarity",
   // closure_state_lock
   "lock closure": "closure_state_lock",
@@ -150,13 +140,10 @@ const STRATEGIC_LEVER_ALIASES: Record<string, StrategicLever> = {
   "distinct voice": "character_voice_differentiation",
   "voice differentiation": "character_voice_differentiation",
   "character distinction": "character_voice_differentiation",
-  "voice differentiation": "character_voice_differentiation",
-  "character distinction": "character_voice_differentiation",
   // tension_escalation
   "escalate tension": "tension_escalation",
   "raise stakes": "tension_escalation",
   "increase stakes": "tension_escalation",
-  escalation: "tension_escalation",
   escalation: "tension_escalation",
   // exposition_load_reduction
   "reduce exposition": "exposition_load_reduction",
