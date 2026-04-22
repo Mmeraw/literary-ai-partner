@@ -19,6 +19,7 @@ import {
   getCanonicalPipelineModel,
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
+import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
@@ -113,6 +114,8 @@ export interface RunPass1Options {
   registry: CanonRegistry;
   model?: string;
   openaiApiKey?: string;
+  /** Job ID forwarded from the processor for latency trace correlation. */
+  jobId?: string;
   /** Override the completion function (for testing). Production callers omit this. */
   _createCompletion?: CreateCompletionFn;
   _onCompletion?: (capture: PassCompletionCapture) => void;
@@ -198,21 +201,25 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     });
     const parseValidationMs = nowMs() - parseValidationStartMs;
     const totalMs = nowMs() - passStartMs;
-    console.log("[Pass1][Timing]", {
-      stage: "failure",
-      model: selectedModel,
-      input_chars: inputChars,
-      output_chars: responseText.length,
-      prompt_assembly_ms: promptAssemblyMs,
-      model_call_ms: modelCallMs,
-      parse_validation_ms: parseValidationMs,
-      total_ms: totalMs,
-      configured_timeout_ms: getEvalOpenAiTimeoutMs(),
-      configured_max_tokens: configuredMaxTokens,
-      usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
-      usage_completion_tokens: completion.usage?.completion_tokens ?? null,
-      usage_total_tokens: completion.usage?.total_tokens ?? null,
-      error: "empty_response",
+    emitLatencyTrace({
+      job_id: opts.jobId ?? 'unknown',
+      stage: 'pass1',
+      state: 'pass1_timings_failure',
+      metadata: {
+        finish_reason: 'empty_response',
+        model: selectedModel,
+        input_chars: inputChars,
+        output_chars: responseText.length,
+        prompt_assembly_ms: promptAssemblyMs,
+        model_call_ms: modelCallMs,
+        parse_validation_ms: parseValidationMs,
+        total_ms: totalMs,
+        configured_timeout_ms: getEvalOpenAiTimeoutMs(),
+        configured_max_tokens: configuredMaxTokens,
+        usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
+        usage_completion_tokens: completion.usage?.completion_tokens ?? null,
+        usage_total_tokens: completion.usage?.total_tokens ?? null,
+      },
     });
     throw new Error(diagnosticMessage);
   }
@@ -271,20 +278,24 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   const parseValidationMs = nowMs() - parseValidationStartMs;
   const totalMs = nowMs() - passStartMs;
 
-  console.log("[Pass1][Timing]", {
-    stage: "success",
-    model: selectedModel,
-    input_chars: inputChars,
-    output_chars: responseText.length,
-    prompt_assembly_ms: promptAssemblyMs,
-    model_call_ms: modelCallMs,
-    parse_validation_ms: parseValidationMs,
-    total_ms: totalMs,
-    configured_timeout_ms: getEvalOpenAiTimeoutMs(),
-    configured_max_tokens: configuredMaxTokens,
-    usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
-    usage_completion_tokens: completion.usage?.completion_tokens ?? null,
-    usage_total_tokens: completion.usage?.total_tokens ?? null,
+  emitLatencyTrace({
+    job_id: opts.jobId ?? 'unknown',
+    stage: 'pass1',
+    state: 'pass1_timings',
+    metadata: {
+      model: selectedModel,
+      input_chars: inputChars,
+      output_chars: responseText.length,
+      prompt_assembly_ms: promptAssemblyMs,
+      model_call_ms: modelCallMs,
+      parse_validation_ms: parseValidationMs,
+      total_ms: totalMs,
+      configured_timeout_ms: getEvalOpenAiTimeoutMs(),
+      configured_max_tokens: configuredMaxTokens,
+      usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
+      usage_completion_tokens: completion.usage?.completion_tokens ?? null,
+      usage_total_tokens: completion.usage?.total_tokens ?? null,
+    },
   });
 
   return parsedOutput;

@@ -401,6 +401,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       executionMode: opts.executionMode,
       model: opts.model,
       openaiApiKey: opts.openaiApiKey,
+      jobId: opts.jobId,
       registry,
     }),
     passTimeoutMs,
