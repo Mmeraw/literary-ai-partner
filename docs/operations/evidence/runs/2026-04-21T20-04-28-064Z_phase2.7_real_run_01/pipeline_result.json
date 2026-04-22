@@ -1,0 +1,534 @@
+{
+  "ok": true,
+  "synthesis": {
+    "criteria": [
+      {
+        "key": "concept",
+        "craft_score": 6,
+        "editorial_score": 7,
+        "final_score_0_10": 6,
+        "score_delta": 1,
+        "final_rationale": "The concept of anthropomorphized frogs in a changing environment is intriguing but lacks depth in exploration. The unique perspective of frogs in a changing environment presents a compelling concept. The manuscript evidence \"Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts for the Columbia spotted frog colony.\" supports this synthesis.",
+        "pressure_points": [
+          "Pressure signal inferred for concept from combined craft/editorial analysis."
+        ],
+        "decision_points": [
+          "Decision inflection favors editorial signal for concept."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts for the Columbia spotted frog colony.",
+            "char_start": 0,
+            "char_end": 107
+          },
+          {
+            "snippet": "Froglore had it that when the world was a marshy swamp and the word hibernation did not yet exist, frogs ruled without threats.",
+            "char_start": 108,
+            "char_end": 182
+          },
+          {
+            "snippet": "Aqua World, a system of lakes, marshes, and swamps...",
+            "char_start": 0,
+            "char_end": 61
+          }
+        ],
+        "recommendations": []
+      },
+      {
+        "key": "narrativeDrive",
+        "craft_score": 5,
+        "editorial_score": 5,
+        "final_score_0_10": 5,
+        "score_delta": 0,
+        "final_rationale": "The narrative presents a historical backdrop but lacks a strong forward momentum or conflict. The narrative has a steady flow but lacks urgency in advancing the plot. The manuscript evidence \"Denizens found themselves victims of habitat fragmentation, degradation, predation, and disease.\" supports this synthesis.",
+        "pressure_points": [
+          "Pressure signal inferred for narrativeDrive from combined craft/editorial analysis."
+        ],
+        "decision_points": [
+          "Decision inflection resolves as balanced craft/editorial synthesis for narrativeDrive."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "Denizens found themselves victims of habitat fragmentation, degradation, predation, and disease.",
+            "char_start": 318,
+            "char_end": 373
+          },
+          {
+            "snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams.",
+            "char_start": 398,
+            "char_end": 442
+          },
+          {
+            "snippet": "Denizens found themselves victims of habitat fragmentation...",
+            "char_start": 329,
+            "char_end": 368
+          }
+        ],
+        "recommendations": []
+      },
+      {
+        "key": "character",
+        "craft_score": 4,
+        "editorial_score": 6,
+        "final_score_0_10": 5,
+        "score_delta": 2,
+        "final_rationale": "The character development is inconsistent; while Hyla is well-defined, other characters lack depth, leading to a diluted emotional impact.",
+        "pressure_points": [
+          "Pressure signal inferred for character from combined craft/editorial analysis."
+        ],
+        "decision_points": [
+          "Decision inflection favors editorial signal for character."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "Hyla, the wisest of the elders, had been anointed crown two ice ages ago.",
+            "char_start": 270,
+            "char_end": 313
+          },
+          {
+            "snippet": "The masses beseeched Hyla to invoke the power of the amulet.",
+            "char_start": 379,
+            "char_end": 414
+          },
+          {
+            "snippet": "Hyla, the wisest of the elders, had been anointed crown...",
+            "char_start": 232,
+            "char_end": 267
+          }
+        ],
+        "recommendations": []
+      },
+      {
+        "key": "voice",
+        "craft_score": 6,
+        "editorial_score": 8,
+        "final_score_0_10": 7,
+        "score_delta": 2,
+        "final_rationale": "The narrative voice is engaging and fits the whimsical tone, but it could benefit from more distinctiveness in certain sections.",
+        "pressure_points": [
+          "Pressure signal inferred for voice from combined craft/editorial analysis."
+        ],
+        "decision_points": [
+          "Decision inflection favors editorial signal for voice."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "Tradition required that she swallow the coveted stone passed on to her and keep it safe.",
+            "char_start": 313,
+            "char_end": 367
+          },
+          {
+            "snippet": "They were fascinated with the shiny pyrite, mostly uniform, crystalline colors of these angry beasts.",
+            "char_start": 442,
+            "char_end": 493
+          },
+          {
+            "snippet": "Frogs grew ever larger, boasting large paunches...",
+            "char_start": 146,
+            "char_end": 177
+          }
+        ],
+        "recommendations": []
+      },
+      {
+        "key": "sceneConstruction",
+        "craft_score": 5,
+        "editorial_score": 7,
+        "final_score_0_10": 6,
+        "score_delta": 2,
+        "final_rationale": "The scenes are vividly described, creating atmosphere, but they could incorporate more dynamic action to enhance engagement.",
+        "pressure_points": [
+          "Pressure signal inferred for sceneConstruction from combined craft/editorial analysis."
+        ],
+        "decision_points": [
+          "Decision inflection favors editorial signal for sceneConstruction."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "Nestled on a valley floor between jagged steep-faced rocks that reached to the Gorfs, it was once remote and untouched by foreign invaders.",
+            "char_start": 0,
+            "char_end": 147
+          },
+          {
+            "snippet": "Now that the leaves were more fully grown on the trees and the evenings were warmer, the outsiders with their strange skin coverings were more frequent attackers now.",
+            "char_start": 493,
+            "char_end": 563
+          },
+          {
+            "snippet": "Aqua World, a system of lakes, marshes, and swamps...",
+            "char_start": 0,
+            "char_end": 61
+          }
+        ],
+        "recommendations": []
+      },
+      {
+        "key": "dialogue",
+        "craft_score": 2,
+        "editorial_score": 4,
+        "final_score_0_10": 3,
+        "score_delta": 2,
+        "final_rationale": "Dialogue is absent, limiting character interaction and emotional engagement.",
+        "pressure_points": [
+          "Pressure signal inferred for dialogue from combined craft/editorial analysis."
+        ],
+        "decision_points": [
+          "Decision inflection favors editorial signal for dialogue."
+        ],
+        "consequence_status": "dissipated",
+        "evidence": [
+          {
+            "snippet": "The masses beseeched Hyla to invoke the power of the amulet.",
+            "char_start": 369,
+            "char_end": 413
+          }
+        ],
+        "recommendations": []
+      },
+      {
+        "key": "theme",
+        "craft_score": 5,
+        "editorial_score": 6,
+        "final_score_0_10": 6,
+        "score_delta": 1,
+        "final_rationale": "Themes of environmental change and cultural preservation are present but not fully developed.",
+        "pressure_points": [
+          "Pressure signal inferred for theme from combined craft/editorial analysis."
+        ],
+        "decision_points": [
+          "Decision inflection favors editorial signal for theme."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "The systematic removal of trees, clearing of underbrush, removal of bedrock, and pollution of their lake had transformed the terra firmascape.",
+            "char_start": 147,
+            "char_end": 224
+          },
+          {
+            "snippet": "Only the crown of the queendom had an artefact from times past.",
+            "char_start": 267,
+            "char_end": 303
+          },
+          {
+            "snippet": "The systematic removal of trees, clearing of underbrush...",
+            "char_start": 62,
+            "char_end": 104
+          }
+        ],
+        "recommendations": []
+      },
+      {
+        "key": "worldbuilding",
+        "craft_score": 7,
+        "editorial_score": 8,
+        "final_score_0_10": 8,
+        "score_delta": 1,
+        "final_rationale": "The world is richly imagined with detailed descriptions, though some elements could be clearer.",
+        "pressure_points": [
+          "Pressure signal inferred for worldbuilding from combined craft/editorial analysis."
+        ],
+        "decision_points": [
+          "Decision inflection favors editorial signal for worldbuilding."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts for the Columbia spotted frog colony.",
+            "char_start": 0,
+            "char_end": 107
+          },
+          {
+            "snippet": "They had strange markings on the side: Ford, Nissan, Toyota, Chevrolet, GMC, Hyundai, and others that they could not remember.",
+            "char_start": 563,
+            "char_end": 634
+          },
+          {
+            "snippet": "Froglore had it that when the world was a marshy swamp...",
+            "char_start": 144,
+            "char_end": 186
+          }
+        ],
+        "recommendations": []
+      },
+      {
+        "key": "pacing",
+        "craft_score": 4,
+        "editorial_score": 5,
+        "final_score_0_10": 5,
+        "score_delta": 1,
+        "final_rationale": "Pacing is uneven, with lengthy descriptive passages that slow narrative progression.",
+        "pressure_points": [
+          "Pressure signal inferred for pacing from combined craft/editorial analysis."
+        ],
+        "decision_points": [
+          "Decision inflection favors editorial signal for pacing."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "The elders took delight in sharing their stories and passing on their culture.",
+            "char_start": 224,
+            "char_end": 267
+          },
+          {
+            "snippet": "Frogs grew ever larger, boasting large paunches.",
+            "char_start": 182,
+            "char_end": 207
+          },
+          {
+            "snippet": "The systematic removal of trees, clearing of underbrush...",
+            "char_start": 62,
+            "char_end": 104
+          }
+        ],
+        "recommendations": []
+      },
+      {
+        "key": "proseControl",
+        "craft_score": 6,
+        "editorial_score": 7,
+        "final_score_0_10": 7,
+        "score_delta": 1,
+        "final_rationale": "Prose is generally clear but contains moments of awkward phrasing that disrupt flow.",
+        "pressure_points": [
+          "Pressure signal inferred for proseControl from combined craft/editorial analysis."
+        ],
+        "decision_points": [
+          "Decision inflection favors editorial signal for proseControl."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "Life expectancy back then was longer than any of them could count to.",
+            "char_start": 207,
+            "char_end": 247
+          },
+          {
+            "snippet": "Such size permitted hatchling dinosaurs to be on the menu.",
+            "char_start": 207,
+            "char_end": 247
+          },
+          {
+            "snippet": "Frogs grew ever larger, boasting large paunches...",
+            "char_start": 146,
+            "char_end": 177
+          }
+        ],
+        "recommendations": []
+      },
+      {
+        "key": "tone",
+        "craft_score": 6,
+        "editorial_score": 8,
+        "final_score_0_10": 7,
+        "score_delta": 2,
+        "final_rationale": "The tone is consistent but could benefit from more emotional resonance in key moments.",
+        "pressure_points": [
+          "Pressure signal inferred for tone from combined craft/editorial analysis."
+        ],
+        "decision_points": [
+          "Decision inflection favors editorial signal for tone."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams.",
+            "char_start": 398,
+            "char_end": 442
+          },
+          {
+            "snippet": "The masses beseeched Hyla to invoke the power of the amulet.",
+            "char_start": 379,
+            "char_end": 414
+          },
+          {
+            "snippet": "Froglore had it that when the world was a marshy swamp...",
+            "char_start": 144,
+            "char_end": 186
+          }
+        ],
+        "recommendations": []
+      },
+      {
+        "key": "narrativeClosure",
+        "craft_score": 3,
+        "editorial_score": 4,
+        "final_score_0_10": 4,
+        "score_delta": 1,
+        "final_rationale": "The excerpt lacks a clear resolution or closure, leaving the narrative open-ended.",
+        "pressure_points": [
+          "Pressure signal inferred for narrativeClosure from combined craft/editorial analysis."
+        ],
+        "decision_points": [
+          "Decision inflection favors editorial signal for narrativeClosure."
+        ],
+        "consequence_status": "dissipated",
+        "evidence": [
+          {
+            "snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams.",
+            "char_start": 398,
+            "char_end": 442
+          },
+          {
+            "snippet": "Now that the leaves were more fully grown on the trees and the evenings were warmer, the outsiders with their strange skin coverings were more frequent attackers now.",
+            "char_start": 493,
+            "char_end": 563
+          },
+          {
+            "snippet": "But she remained wart-faced cold to their pleas...",
+            "char_start": 377,
+            "char_end": 414
+          }
+        ],
+        "recommendations": []
+      },
+      {
+        "key": "marketability",
+        "craft_score": 5,
+        "editorial_score": 6,
+        "final_score_0_10": 6,
+        "score_delta": 1,
+        "final_rationale": "The unique premise has potential appeal but may require refinement for broader market reach.",
+        "pressure_points": [
+          "Pressure signal inferred for marketability from combined craft/editorial analysis."
+        ],
+        "decision_points": [
+          "Decision inflection favors editorial signal for marketability."
+        ],
+        "consequence_status": "landed",
+        "evidence": [
+          {
+            "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts for the Columbia spotted frog colony.",
+            "char_start": 0,
+            "char_end": 107
+          },
+          {
+            "snippet": "Denizens found themselves victims of habitat fragmentation, degradation, predation, and disease.",
+            "char_start": 318,
+            "char_end": 373
+          },
+          {
+            "snippet": "Aqua World, a system of lakes, marshes, and swamps...",
+            "char_start": 0,
+            "char_end": 61
+          }
+        ],
+        "recommendations": []
+      }
+    ],
+    "overall": {
+      "overall_score_0_100": 56,
+      "verdict": "revise",
+      "one_paragraph_summary": "The manuscript presents a compelling concept with engaging narrative elements, but it suffers from inconsistent character development and a need for more dynamic scenes. While the voice is distinctive, it could be enhanced for greater impact. Overall, revisions are necessary to strengthen character depth and scene interaction.",
+      "top_3_strengths": [
+        "Engaging narrative voice that fits the whimsical tone.",
+        "Vivid scene descriptions that create a strong sense of atmosphere.",
+        "Compelling concept of anthropomorphized frogs in a changing environment."
+      ],
+      "top_3_risks": [
+        "Inconsistent character development may lead to reader disengagement.",
+        "Lack of dynamic action in scenes could reduce narrative momentum.",
+        "Potential for the concept to feel underexplored if character depth is not improved."
+      ]
+    },
+    "metadata": {
+      "pass1_model": "v1.0",
+      "pass2_model": "v1.0",
+      "pass3_model": "v1.0",
+      "generated_at": "2026-04-21T20:05:08.027Z"
+    },
+    "partial_evaluation": false,
+    "coverage_scope": {
+      "sourceChars": 2952,
+      "sourceWords": 486,
+      "analyzedChars": 2952,
+      "analyzedWords": 486,
+      "strategy": "full_text"
+    }
+  },
+  "quality_gate": {
+    "pass": true,
+    "checks": [
+      {
+        "check_id": "criteria_complete",
+        "passed": true,
+        "details": "All 13 criteria present"
+      },
+      {
+        "check_id": "score_range",
+        "passed": true,
+        "details": "All scores in valid range"
+      },
+      {
+        "check_id": "consequence_contract",
+        "passed": true,
+        "details": "All criteria include pressure_points, decision_points, consequence_status, and deferred risk when required"
+      },
+      {
+        "check_id": "no_generic_recs",
+        "passed": true,
+        "details": "All recommendations have anchor_snippet"
+      },
+      {
+        "check_id": "rec_min_length",
+        "passed": true,
+        "details": "All recommendations ≥ 50 chars"
+      },
+      {
+        "check_id": "rec_max_length",
+        "passed": true,
+        "details": "All recommendations ≤ 300 chars"
+      },
+      {
+        "check_id": "evidence_length",
+        "passed": true,
+        "details": "All evidence excerpts ≤ 200 chars"
+      },
+      {
+        "check_id": "overview_length",
+        "passed": true,
+        "details": "Overview: 328 chars (max 500)"
+      },
+      {
+        "check_id": "no_duplicate_recs",
+        "passed": true,
+        "details": "No duplicated recommendations"
+      },
+      {
+        "check_id": "rationale_coverage",
+        "passed": true,
+        "details": "All criteria have substantive rationale (≥ 40 chars)"
+      },
+      {
+        "check_id": "placeholder_rationale",
+        "passed": true,
+        "details": "No known placeholder rationale patterns detected"
+      },
+      {
+        "check_id": "evidence_coverage",
+        "passed": true,
+        "details": "All criteria have substantive evidence"
+      },
+      {
+        "check_id": "required_evidence_spine",
+        "passed": true,
+        "details": "All required spine criteria include substantive evidence"
+      },
+      {
+        "check_id": "pass_independence",
+        "passed": true,
+        "details": "Pass 1 / Pass 2 independence confirmed (n=8)"
+      }
+    ],
+    "warnings": []
+  },
+  "pass4_governance": {
+    "ok": true
+  }
+}

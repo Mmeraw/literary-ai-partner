@@ -1,0 +1,54 @@
+{
+  "criteria": [
+    {"key": "concept", "final_score_0_10": 7, "final_rationale": "Confirmed."},
+    {"key": "narrativeDrive", "final_score_0_10": 6, "final_rationale": "Confirmed."},
+    {"key": "character", "final_score_0_10": 5, "final_rationale": "Confirmed."},
+    {"key": "voice", "final_score_0_10": 6, "final_rationale": "Confirmed."},
+    {"key": "sceneConstruction", "final_score_0_10": 7, "final_rationale": "Confirmed."},
+    {"key": "dialogue", "final_score_0_10": 4, "final_rationale": "Confirmed."},
+    {"key": "theme", "final_score_0_10": 7, "final_rationale": "The themes of environmental degradation and cultural preservation are explored, but the depth varies."},
+    {"key": "worldbuilding", "final_score_0_10": 9, "final_rationale": "Confirmed."},
+    {"key": "pacing", "final_score_0_10": 5, "final_rationale": "Confirmed."},
+    {"key": "proseControl", "final_score_0_10": 6, "final_rationale": "Confirmed."}
+  ],
+  "agreement_map": [
+    {"key": "concept", "pass1_score": 6, "pass2_score": 7},
+    {"key": "narrativeDrive", "pass1_score": 5, "pass2_score": 6},
+    {"key": "character", "pass1_score": 4, "pass2_score": 5},
+    {"key": "voice", "pass1_score": 6, "pass2_score": 6},
+    {"key": "sceneConstruction", "pass1_score": 7, "pass2_score": 7},
+    {"key": "dialogue", "pass1_score": 3, "pass2_score": 4},
+    {"key": "worldbuilding", "pass1_score": 8, "pass2_score": 9},
+    {"key": "pacing", "pass1_score": 5, "pass2_score": 5},
+    {"key": "proseControl", "pass1_score": 6, "pass2_score": 6}
+  ],
+  "divergence_map": [
+    {
+      "key": "theme",
+      "pass1_score": 5,
+      "pass2_score": 8,
+      "arbitration_rationale": "The divergence in theme scores reflects differing interpretations of the depth of environmental themes. While one pass sees them as underexplored, the other finds them resonant and impactful."
+    }
+  ],
+  "overall": {
+    "overall_score_0_100": 68,
+    "verdict": "pass",
+    "one_paragraph_summary": "The manuscript presents a richly imagined world with engaging concepts and a distinctive voice, though it struggles with character depth and uneven pacing. The themes of environmental degradation resonate, but their exploration varies in depth. Overall, the narrative is compelling and offers a unique perspective on the challenges faced by its characters.",
+    "top_3_strengths": [
+      "Rich worldbuilding that immerses the reader in a unique setting.",
+      "Distinctive narrative voice that blends folklore with environmental themes.",
+      "Engaging concept of anthropomorphized frogs facing environmental challenges."
+    ],
+    "top_3_risks": [
+      "Character development is minimal, which may limit reader connection.",
+      "Uneven pacing could disrupt narrative flow and engagement.",
+      "Themes, while present, may not be explored deeply enough to resonate with all readers."
+    ]
+  },
+  "metadata": {
+    "pass1_model": "v1.0",
+    "pass2_model": "v1.0",
+    "pass3_model": "v1.0",
+    "generated_at": "2023-10-01T12:00:00Z"
+  }
+}

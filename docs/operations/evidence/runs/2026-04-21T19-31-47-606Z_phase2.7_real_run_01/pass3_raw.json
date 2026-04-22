@@ -1,0 +1,102 @@
+{
+  "criteria": [
+    {
+      "key": "concept",
+      "final_score_0_10": 7,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "narrativeDrive",
+      "final_score_0_10": 5,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "character",
+      "final_score_0_10": 5,
+      "final_rationale": "Character development is minimal, with Hyla being the only notable figure lacking depth, while other characters also require more development."
+    },
+    {
+      "key": "voice",
+      "final_score_0_10": 7,
+      "final_rationale": "The narrative voice is distinctive and effectively conveys the unique perspective of the frog colony, though it occasionally lacks consistency."
+    },
+    {
+      "key": "sceneConstruction",
+      "final_score_0_10": 7,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "dialogue",
+      "final_score_0_10": 4,
+      "final_rationale": "Dialogue is minimal, which limits character interaction and development."
+    },
+    {
+      "key": "theme",
+      "final_score_0_10": 6,
+      "final_rationale": "Confirmed."
+    }
+  ],
+  "agreement_map": [
+    {
+      "key": "concept",
+      "pass1_score": 6,
+      "pass2_score": 7
+    },
+    {
+      "key": "narrativeDrive",
+      "pass1_score": 5,
+      "pass2_score": 5
+    },
+    {
+      "key": "sceneConstruction",
+      "pass1_score": 7,
+      "pass2_score": 7
+    },
+    {
+      "key": "theme",
+      "pass1_score": 5,
+      "pass2_score": 6
+    }
+  ],
+  "divergence_map": [
+    {
+      "key": "character",
+      "pass1_score": 4,
+      "pass2_score": 6,
+      "arbitration_rationale": "The character development is viewed differently, with one pass emphasizing minimal development and the other recognizing potential in Hyla while noting other characters' lack of depth."
+    },
+    {
+      "key": "voice",
+      "pass1_score": 6,
+      "pass2_score": 8,
+      "arbitration_rationale": "The voice's effectiveness is debated, with one pass highlighting distinctiveness and the other noting occasional inconsistency."
+    },
+    {
+      "key": "dialogue",
+      "pass1_score": 3,
+      "pass2_score": 4,
+      "arbitration_rationale": "Both passes agree on the minimal dialogue, but the second pass suggests a slightly more favorable view on its impact."
+    }
+  ],
+  "overall": {
+    "overall_score_0_100": 60,
+    "verdict": "revise",
+    "one_paragraph_summary": "The manuscript presents an imaginative concept with a distinctive voice and vivid scene construction, but it suffers from minimal character development and limited dialogue. While the narrative drive is adequate, enhancing character depth and interaction could significantly improve engagement. Overall, the work shows promise but requires revisions to strengthen its impact.",
+    "top_3_strengths": [
+      "Distinctive narrative voice that conveys the unique perspective of the frog colony.",
+      "Vivid scene construction that paints a clear picture of the frogs' environment.",
+      "Engaging concept of anthropomorphized frogs in a disrupted ecosystem."
+    ],
+    "top_3_risks": [
+      "Minimal character development may lead to reader disengagement.",
+      "Limited dialogue restricts emotional depth and character interaction.",
+      "Lack of strong narrative momentum could hinder overall engagement."
+    ]
+  },
+  "metadata": {
+    "pass1_model": "v1.0",
+    "pass2_model": "v1.0",
+    "pass3_model": "v1.0",
+    "generated_at": "2023-10-10T12:00:00Z"
+  }
+}

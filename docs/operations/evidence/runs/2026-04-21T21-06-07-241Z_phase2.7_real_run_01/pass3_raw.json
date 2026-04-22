@@ -1,0 +1,166 @@
+{
+  "criteria": [
+    {
+      "key": "concept",
+      "final_score_0_10": 7,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "narrativeDrive",
+      "final_score_0_10": 5,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "character",
+      "final_score_0_10": 5,
+      "final_rationale": "Character development shows potential, but Hyla is the only notable figure, with others lacking depth and distinctiveness."
+    },
+    {
+      "key": "voice",
+      "final_score_0_10": 6,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "sceneConstruction",
+      "final_score_0_10": 7,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "dialogue",
+      "final_score_0_10": 3,
+      "final_rationale": "Dialogue is minimal and lacks the natural flow that could enhance character interactions."
+    },
+    {
+      "key": "theme",
+      "final_score_0_10": 6,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "worldbuilding",
+      "final_score_0_10": 8,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "pacing",
+      "final_score_0_10": 5,
+      "final_rationale": "The pacing is uneven, with some sections feeling rushed while others drag, impacting overall engagement."
+    },
+    {
+      "key": "proseControl",
+      "final_score_0_10": 6,
+      "final_rationale": "The prose is generally well-crafted but occasionally lacks clarity, which can disrupt reader immersion."
+    },
+    {
+      "key": "tone",
+      "final_score_0_10": 6,
+      "final_rationale": "The tone is fitting for the narrative but could benefit from greater consistency to enhance emotional impact."
+    },
+    {
+      "key": "narrativeClosure",
+      "final_score_0_10": 5,
+      "final_rationale": "The narrative closure is somewhat ambiguous, leaving several threads unresolved, which may frustrate readers."
+    },
+    {
+      "key": "marketability",
+      "final_score_0_10": 6,
+      "final_rationale": "The manuscript has potential market appeal due to its unique concept, but execution issues may hinder its success."
+    }
+  ],
+  "agreement_map": [
+    {
+      "key": "concept",
+      "pass1_score": 6,
+      "pass2_score": 7
+    },
+    {
+      "key": "narrativeDrive",
+      "pass1_score": 5,
+      "pass2_score": 5
+    },
+    {
+      "key": "voice",
+      "pass1_score": 5,
+      "pass2_score": 6
+    },
+    {
+      "key": "sceneConstruction",
+      "pass1_score": 6,
+      "pass2_score": 7
+    },
+    {
+      "key": "theme",
+      "pass1_score": 5,
+      "pass2_score": 6
+    },
+    {
+      "key": "worldbuilding",
+      "pass1_score": 7,
+      "pass2_score": 8
+    }
+  ],
+  "divergence_map": [
+    {
+      "key": "character",
+      "pass1_score": 4,
+      "pass2_score": 6,
+      "arbitration_rationale": "The character development is perceived differently; while one pass sees minimal development, the other identifies potential depth in Hyla, leading to a compromise score."
+    },
+    {
+      "key": "dialogue",
+      "pass1_score": 2,
+      "pass2_score": 4,
+      "arbitration_rationale": "The absence of dialogue is noted in both passes, but the second pass suggests it could enhance character interactions, resulting in a middle-ground score."
+    },
+    {
+      "key": "pacing",
+      "pass1_score": 4,
+      "pass2_score": 6,
+      "arbitration_rationale": "Pacing issues are acknowledged, with one pass highlighting unevenness and the other suggesting a more favorable flow, leading to a balanced score."
+    },
+    {
+      "key": "proseControl",
+      "pass1_score": 5,
+      "pass2_score": 7,
+      "arbitration_rationale": "The prose's clarity is debated, with one pass noting occasional disruptions and the other praising its craft, resulting in a score that reflects both perspectives."
+    },
+    {
+      "key": "tone",
+      "pass1_score": 5,
+      "pass2_score": 7,
+      "arbitration_rationale": "Tone consistency is a point of contention, with one pass finding it fitting but inconsistent, while the other sees it as generally effective, leading to a compromise score."
+    },
+    {
+      "key": "narrativeClosure",
+      "pass1_score": 4,
+      "pass2_score": 6,
+      "arbitration_rationale": "Closure ambiguity is noted by both passes, but the second pass suggests a more favorable interpretation, resulting in a middle-ground score."
+    },
+    {
+      "key": "marketability",
+      "pass1_score": 5,
+      "pass2_score": 7,
+      "arbitration_rationale": "Market appeal is seen differently, with one pass noting execution issues and the other emphasizing potential, leading to a balanced score."
+    }
+  ],
+  "overall": {
+    "overall_score_0_100": 62,
+    "verdict": "revise",
+    "one_paragraph_summary": "The manuscript presents a unique concept with rich worldbuilding and thematic depth, but it suffers from uneven character development, pacing, and dialogue. While there are strengths in voice and scene construction, the overall execution needs refinement to enhance reader engagement and clarity. Addressing these issues could significantly improve its marketability.",
+    "top_3_strengths": [
+      "Rich worldbuilding that creates a vivid setting.",
+      "Unique concept with potential for deeper exploration.",
+      "Strong thematic elements related to environmental degradation."
+    ],
+    "top_3_risks": [
+      "Uneven character development may lead to reader disconnection.",
+      "Inconsistent pacing could frustrate engagement.",
+      "Minimal dialogue limits emotional depth and character interaction."
+    ]
+  },
+  "metadata": {
+    "pass1_model": "v1.0",
+    "pass2_model": "v1.1",
+    "pass3_model": "v1.2",
+    "generated_at": "2023-10-01T12:00:00Z"
+  }
+}

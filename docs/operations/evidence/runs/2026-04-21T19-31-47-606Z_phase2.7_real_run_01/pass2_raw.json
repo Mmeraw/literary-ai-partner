@@ -1,0 +1,151 @@
+{
+  "pass": 2,
+  "axis": "editorial_literary",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 7,
+      "rationale": "The concept of anthropomorphized frogs in a disrupted ecosystem is imaginative and engaging.",
+      "evidence": [
+        { "snippet": "Aqua World, a system of lakes, marshes, and swamps", "char_start": 0, "char_end": 43 },
+        { "snippet": "frogs ruled without threats", "char_start": 155, "char_end": 179 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 5,
+      "rationale": "The narrative has moments of intrigue but lacks a strong forward momentum to keep readers fully engaged.",
+      "evidence": [
+        { "snippet": "Denizens found themselves victims of habitat fragmentation", "char_start": 301, "char_end": 347 },
+        { "snippet": "But she remained wart-faced cold to their pleas", "char_start": 292, "char_end": 325 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 6,
+      "rationale": "Hyla as a character is intriguing, but other characters lack depth and development.",
+      "evidence": [
+        { "snippet": "Hyla, the wisest of the elders", "char_start": 199, "char_end": 223 },
+        { "snippet": "The elders took delight in sharing their stories", "char_start": 183, "char_end": 221 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "The narrative voice is distinctive and effectively conveys the unique perspective of the frog colony.",
+      "evidence": [
+        { "snippet": "Froglore had it that when the world was a marshy swamp", "char_start": 134, "char_end": 174 },
+        { "snippet": "Life expectancy back then was longer than any of them could count to", "char_start": 179, "char_end": 227 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are vividly constructed, painting a clear picture of the frogs' environment and challenges.",
+      "evidence": [
+        { "snippet": "Nestled on a valley floor between jagged steep-faced rocks", "char_start": 43, "char_end": 83 },
+        { "snippet": "the tadpoles racing for safety and the frogs scampering", "char_start": 394, "char_end": 427 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 4,
+      "rationale": "Dialogue is minimal, which limits character interaction and development.",
+      "evidence": [
+        { "snippet": "The masses beseeched Hyla to invoke the power of the amulet", "char_start": 319, "char_end": 367 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "theme",
+      "score_0_10": 6,
+      "rationale": "Themes of environmental degradation and cultural preservation are present but could be explored more deeply.",
+      "evidence": [
+        { "snippet": "systematic removal of trees, clearing of underbrush", "char_start": 63, "char_end": 103 },
+        { "snippet": "prayers went unanswered", "char_start": 347, "char_end": 367 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 8,
+      "rationale": "The world of Aqua World is richly detailed, creating an immersive setting for the story.",
+      "evidence": [
+        { "snippet": "Aqua World, a system of lakes, marshes, and swamps", "char_start": 0, "char_end": 43 },
+        { "snippet": "the shiny pyrite, mostly uniform, crystalline colors", "char_start": 394, "char_end": 429 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 5,
+      "rationale": "Pacing is uneven, with some sections feeling rushed while others linger too long on details.",
+      "evidence": [
+        { "snippet": "The systematic removal of trees, clearing of underbrush", "char_start": 63, "char_end": 103 },
+        { "snippet": "Only the crown of the queendom had an artefact", "char_start": 221, "char_end": 257 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 7,
+      "rationale": "The prose is generally well-crafted, though some sentences could be tightened for clarity.",
+      "evidence": [
+        { "snippet": "It might as well have been some distant out-of-reach fantasy", "char_start": 56, "char_end": 97 },
+        { "snippet": "Tradition required that she swallow the coveted stone", "char_start": 257, "char_end": 295 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "score_0_10": 6,
+      "rationale": "The tone is appropriately whimsical but occasionally shifts to a darker note without clear transitions.",
+      "evidence": [
+        { "snippet": "removal of bedrock, and pollution of their lake", "char_start": 103, "char_end": 138 },
+        { "snippet": "remained wart-faced cold to their pleas", "char_start": 325, "char_end": 350 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 4,
+      "rationale": "The excerpt lacks a clear sense of closure, leaving many questions unanswered.",
+      "evidence": [
+        { "snippet": "But she remained wart-faced cold to their pleas", "char_start": 325, "char_end": 350 },
+        { "snippet": "the outsiders with their strange skin coverings", "char_start": 367, "char_end": 404 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 6,
+      "rationale": "The unique premise has potential appeal, but the execution may limit its broader marketability.",
+      "evidence": [
+        { "snippet": "frogs ruled without threats", "char_start": 155, "char_end": 179 },
+        { "snippet": "the tadpoles racing for safety and the frogs scampering", "char_start": 394, "char_end": 427 }
+      ],
+      "recommendations": []
+    }
+  ],
+  "model": "editorial_v1",
+  "prompt_version": "pass2-editorial-v5-judgment",
+  "temperature": 0.3,
+  "generated_at": "2023-10-05T12:00:00Z",
+  "narrative_mode_assessment": {
+    "dominant_mode": "reflective",
+    "mode_confidence": "medium",
+    "mode_rationale": "The narrative reflects on the past and present of the frog colony.",
+    "pressure_profile": "Moderate tension from environmental threats.",
+    "character_expression_mode": "interiority"
+  },
+  "divergence_declaration": {
+    "agreement_zones": [],
+    "disagreement_zones": [],
+    "new_findings": []
+  }
+}

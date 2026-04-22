@@ -1,0 +1,60 @@
+{
+  "criteria": [
+    {"key": "concept", "final_score_0_10": 7, "final_rationale": "Confirmed."},
+    {"key": "narrativeDrive", "final_score_0_10": 5, "final_rationale": "Confirmed."},
+    {"key": "character", "final_score_0_10": 5, "final_rationale": "Character development shows potential but lacks depth for secondary figures, leading to a less engaging narrative."},
+    {"key": "voice", "final_score_0_10": 8, "final_rationale": "Confirmed."},
+    {"key": "sceneConstruction", "final_score_0_10": 7, "final_rationale": "Confirmed."},
+    {"key": "dialogue", "final_score_0_10": 4, "final_rationale": "Confirmed."},
+    {"key": "theme", "final_score_0_10": 6, "final_rationale": "Confirmed."},
+    {"key": "worldbuilding", "final_score_0_10": 8, "final_rationale": "Confirmed."},
+    {"key": "pacing", "final_score_0_10": 5, "final_rationale": "Confirmed."},
+    {"key": "proseControl", "final_score_0_10": 5, "final_rationale": "Confirmed."},
+    {"key": "tone", "final_score_0_10": 6, "final_rationale": "Confirmed."},
+    {"key": "narrativeClosure", "final_score_0_10": 5, "final_rationale": "Confirmed."},
+    {"key": "marketability", "final_score_0_10": 5, "final_rationale": "Confirmed."}
+  ],
+  "agreement_map": [
+    {"key": "concept", "pass1_score": 6, "pass2_score": 7},
+    {"key": "narrativeDrive", "pass1_score": 5, "pass2_score": 5},
+    {"key": "voice", "pass1_score": 7, "pass2_score": 8},
+    {"key": "sceneConstruction", "pass1_score": 6, "pass2_score": 7},
+    {"key": "dialogue", "pass1_score": 3, "pass2_score": 4},
+    {"key": "theme", "pass1_score": 5, "pass2_score": 6},
+    {"key": "worldbuilding", "pass1_score": 8, "pass2_score": 8},
+    {"key": "pacing", "pass1_score": 5, "pass2_score": 5},
+    {"key": "proseControl", "pass1_score": 5, "pass2_score": 5},
+    {"key": "tone", "pass1_score": 6, "pass2_score": 6},
+    {"key": "narrativeClosure", "pass1_score": 5, "pass2_score": 5},
+    {"key": "marketability", "pass1_score": 5, "pass2_score": 5}
+  ],
+  "divergence_map": [
+    {
+      "key": "character",
+      "pass1_score": 4,
+      "pass2_score": 6,
+      "arbitration_rationale": "The divergence in character scores reflects differing perspectives on Hyla's development versus the lack of depth in other characters. This indicates a need for more balanced character exploration to enhance reader engagement."
+    }
+  ],
+  "overall": {
+    "overall_score_0_100": 62,
+    "verdict": "revise",
+    "one_paragraph_summary": "The manuscript presents a rich world and intriguing concepts, but character development and thematic depth require further exploration. While the narrative voice and worldbuilding are strong, the uneven pacing and minimal dialogue hinder emotional engagement. A revision focusing on character depth and thematic exploration is recommended.",
+    "top_3_strengths": [
+      "Richly imagined worldbuilding that enhances immersion.",
+      "Distinct narrative voice that captures the perspective of the frog colony.",
+      "Engaging thematic elements related to environmental change."
+    ],
+    "top_3_risks": [
+      "Minimal character development could lead to reader disengagement.",
+      "Uneven pacing may disrupt narrative flow and reader investment.",
+      "Limited dialogue restricts character interaction and emotional depth."
+    ]
+  },
+  "metadata": {
+    "pass1_model": "v1.0",
+    "pass2_model": "v1.0",
+    "pass3_model": "v1.0",
+    "generated_at": "2023-10-01T12:00:00Z"
+  }
+}

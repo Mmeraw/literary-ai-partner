@@ -9,6 +9,37 @@
 
 import type { CriterionKey } from "@/schemas/criteria-keys";
 
+// ── Semantic classification types ────────────────────────────────────────────
+
+export type IssueFamily =
+  | "pacing"
+  | "dialogue"
+  | "closure"
+  | "characterization"
+  | "exposition"
+  | "tension"
+  | "prose_control"
+  | "scene_structure"
+  | "voice"
+  | "market_positioning";
+
+export type StrategicLever =
+  | "momentum_visibility"
+  | "dialogue_exposition_density"
+  | "scene_goal_clarity"
+  | "closure_state_lock"
+  | "character_voice_differentiation"
+  | "tension_escalation"
+  | "exposition_load_reduction"
+  | "prose_compression"
+  | "market_signal_clarity";
+
+export type RevisionGranularity = "line" | "beat" | "scene" | "chapter" | "manuscript";
+
+export type ConfidenceLevel = "high" | "medium" | "low";
+
+export type SubmissionReadiness = "queryable_now" | "close" | "not_yet";
+
 // ── Evidence ─────────────────────────────────────────────────────────────────
 
 export type EvidenceAnchor = {
@@ -78,6 +109,18 @@ export type SynthesizedCriterion = {
     anchor_snippet: string;
     /** Which pass originated this recommendation */
     source_pass: 1 | 2 | 3;
+    /** Issue classification (e.g., "pacing", "dialogue") — optional for backward compat, required on fresh Pass 3 output */
+    issue_family?: IssueFamily;
+    /** Editorial move category for semantic deduplication — optional for backward compat, required on fresh Pass 3 output */
+    strategic_lever?: StrategicLever;
+    /** Scope of the revision (line vs scene vs chapter) — optional for backward compat, required on fresh Pass 3 output */
+    revision_granularity?: RevisionGranularity;
+    /** Confidence in this recommendation */
+    confidence?: ConfidenceLevel;
+    /** Normalized key for duplicate detection (issue_family:strategic_lever:revision_granularity) — computed, never model-emitted */
+    redundancy_key?: string;
+    /** Count of distinct evidence spans supporting this recommendation */
+    evidence_span_count?: number;
   }[];
 };
 
@@ -89,6 +132,8 @@ export type SynthesisOutput = {
     /** Computed via Vol II-A §WCS */
     overall_score_0_100: number;
     verdict: "pass" | "revise" | "fail";
+    /** Submission readiness signal for writer decision-making — optional for backward compat, required on fresh Pass 3 output */
+    submission_readiness?: SubmissionReadiness;
     /** ≤500 chars */
     one_paragraph_summary: string;
     top_3_strengths: string[];

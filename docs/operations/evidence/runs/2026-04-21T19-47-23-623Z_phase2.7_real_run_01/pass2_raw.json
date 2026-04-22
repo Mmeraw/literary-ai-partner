@@ -1,0 +1,107 @@
+{
+  "pass": 2,
+  "axis": "editorial_literary",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 7,
+      "rationale": "The concept of a frog colony facing environmental threats is imaginative and engaging.",
+      "evidence": [{ "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary", "char_start": 0, "char_end": 83 }],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 6,
+      "rationale": "The tension between the frogs and the giants creates a compelling narrative drive.",
+      "evidence": [{ "snippet": "But with the infiltration of the giants, their watery world felt foreign", "char_start": 83, "char_end": 134 }],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 5,
+      "rationale": "Hyla is a well-defined character, but others lack depth and development.",
+      "evidence": [{ "snippet": "Hyla, the wisest of the elders, had been anointed crown", "char_start": 307, "char_end": 347 }],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 6,
+      "rationale": "The narrative voice is distinctive, blending folklore with environmental themes.",
+      "evidence": [{ "snippet": "Froglore had it that when the world was a marshy swamp", "char_start": 177, "char_end": 217 }],
+      "recommendations": []
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are vividly constructed, immersing the reader in the frogs' world.",
+      "evidence": [{ "snippet": "Nestled on a valley floor between jagged steep-faced rocks", "char_start": 62, "char_end": 98 }],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 4,
+      "rationale": "Dialogue is minimal, limiting character interaction and emotional depth.",
+      "evidence": [{ "snippet": "The masses beseeched Hyla to invoke the power of the amulet", "char_start": 303, "char_end": 353 }],
+      "recommendations": []
+    },
+    {
+      "key": "theme",
+      "score_0_10": 8,
+      "rationale": "Themes of environmental degradation and cultural preservation resonate strongly.",
+      "evidence": [{ "snippet": "Denizens found themselves victims of habitat fragmentation", "char_start": 265, "char_end": 305 }],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 9,
+      "rationale": "The world of Aqua World is richly detailed and imaginative, enhancing the narrative.",
+      "evidence": [{ "snippet": "Aqua World, a system of lakes, marshes, and swamps", "char_start": 0, "char_end": 43 }],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 5,
+      "rationale": "Pacing fluctuates, with some sections feeling dense while others are more fluid.",
+      "evidence": [{ "snippet": "The systematic removal of trees, clearing of underbrush", "char_start": 134, "char_end": 179 }],
+      "recommendations": []
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 6,
+      "rationale": "Prose is generally controlled, though some sentences could be more concise.",
+      "evidence": [{ "snippet": "Frogs grew ever larger, boasting large paunches", "char_start": 217, "char_end": 252 }],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "score_0_10": 7,
+      "rationale": "The tone effectively balances whimsy and seriousness, fitting the subject matter.",
+      "evidence": [{ "snippet": "Life expectancy back then was longer than any of them could count to", "char_start": 252, "char_end": 290 }],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 4,
+      "rationale": "The excerpt lacks a clear resolution, leaving the reader wanting more context.",
+      "evidence": [{ "snippet": "But she remained wart-faced cold to their pleas", "char_start": 353, "char_end": 389 }],
+      "recommendations": []
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 6,
+      "rationale": "The unique premise has potential appeal, but character development may hinder broader marketability.",
+      "evidence": [{ "snippet": "A toadstone, a small, dull-colored talisman that acted as a conduit to Gorf", "char_start": 347, "char_end": 397 }],
+      "recommendations": []
+    }
+  ],
+  "model": "editorial_model_v1",
+  "prompt_version": "pass2-editorial-v6-compressed",
+  "temperature": 0.3,
+  "generated_at": "2023-10-01T12:00:00Z",
+  "narrative_mode_assessment": {
+    "dominant_mode": "scene_driven",
+    "mode_confidence": "high",
+    "mode_rationale": "The narrative focuses heavily on vivid scenes and environmental details.",
+    "pressure_profile": "balanced"
+  }
+}

@@ -1,0 +1,362 @@
+{
+  "schema_version": "evaluation_result_v1",
+  "ids": {
+    "evaluation_run_id": "phase2_7_real_run_1776815892465",
+    "manuscript_id": 0,
+    "user_id": "phase2.7-real-run"
+  },
+  "generated_at": "2026-04-21T23:58:12.455Z",
+  "engine": {
+    "model": "v3",
+    "provider": "openai",
+    "prompt_version": "pass1-craft-v6-compressed+pass2-editorial-v6-compressed+pass3-synthesis-v5"
+  },
+  "overview": {
+    "verdict": "revise",
+    "overall_score_0_100": 60,
+    "one_paragraph_summary": "The manuscript presents a unique concept and rich worldbuilding, but it suffers from uneven pacing and minimal character development. While the narrative voice is strong, the lack of dialogue and depth in themes limits its overall impact. Addressing these areas could enhance reader engagement and narrative coherence.",
+    "top_3_strengths": [
+      "Richly detailed worldbuilding that immerses readers in the setting.",
+      "Distinctive narrative voice that conveys the story's unique perspective.",
+      "Engaging concept of anthropomorphized frogs facing environmental challenges."
+    ],
+    "top_3_risks": [
+      "Uneven pacing that may disengage readers.",
+      "Minimal character development leading to a lack of emotional investment.",
+      "Insufficient dialogue limiting character interaction and depth."
+    ]
+  },
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 6,
+      "rationale": "The concept of a frog colony facing external threats is intriguing but lacks depth in exploration. The concept of anthropomorphized frogs in a changing environment is imaginative and engaging. The manuscript evidence \"Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary\" supports this synthesis.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary",
+          "location": {
+            "char_start": 0,
+            "char_end": 73
+          }
+        },
+        {
+          "snippet": "Froglore had it that when the world was a marshy swamp",
+          "location": {
+            "char_start": 141,
+            "char_end": 182
+          }
+        },
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps",
+          "location": {
+            "char_start": 0,
+            "char_end": 41
+          }
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 5,
+      "rationale": "The narrative is somewhat engaging but lacks a clear driving force or conflict. The narrative has potential but lacks a strong forward momentum to keep readers invested. The manuscript evidence \"Denizens found themselves victims of habitat fragmentation\" supports this synthesis.",
+      "evidence": [
+        {
+          "snippet": "Denizens found themselves victims of habitat fragmentation",
+          "location": {
+            "char_start": 292,
+            "char_end": 339
+          }
+        },
+        {
+          "snippet": "But she remained wart-faced cold to their pleas",
+          "location": {
+            "char_start": 388,
+            "char_end": 426
+          }
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 5,
+      "rationale": "Character development is minimal, with Hyla as the only notable figure, but the potential for deeper exploration exists.",
+      "evidence": [
+        {
+          "snippet": "Hyla, the wisest of the elders, had been anointed crown",
+          "location": {
+            "char_start": 270,
+            "char_end": 307
+          }
+        },
+        {
+          "snippet": "The elders took delight in sharing their stories",
+          "location": {
+            "char_start": 227,
+            "char_end": 256
+          }
+        },
+        {
+          "snippet": "Hyla, the wisest of the elders",
+          "location": {
+            "char_start": 181,
+            "char_end": 204
+          }
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "The voice is distinctive and fits the fantastical setting well. The narrative voice is distinctive and effectively conveys the story's unique perspective. The manuscript evidence \"Froglore had it that when the world was a marshy swamp\" supports this synthesis.",
+      "evidence": [
+        {
+          "snippet": "Froglore had it that when the world was a marshy swamp",
+          "location": {
+            "char_start": 141,
+            "char_end": 182
+          }
+        },
+        {
+          "snippet": "Life expectancy back then was longer than any of them could count to",
+          "location": {
+            "char_start": 210,
+            "char_end": 248
+          }
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are vividly described but lack a strong sense of progression. Scenes are vividly constructed, immersing the reader in the frogs' world. The manuscript evidence \"Aqua World, a system of lakes, marshes, and swamps\" supports this synthesis.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps",
+          "location": {
+            "char_start": 0,
+            "char_end": 73
+          }
+        },
+        {
+          "snippet": "Now that the leaves were more fully grown on the trees",
+          "location": {
+            "char_start": 387,
+            "char_end": 422
+          }
+        },
+        {
+          "snippet": "Nestled on a valley floor between jagged steep-faced rocks",
+          "location": {
+            "char_start": 43,
+            "char_end": 82
+          }
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 4,
+      "rationale": "Dialogue is absent, limiting character interaction and development. Dialogue is minimal, which limits character interaction and development. The manuscript evidence \"The masses beseeched Hyla to invoke the power of the amulet\" supports this synthesis.",
+      "evidence": [
+        {
+          "snippet": "The masses beseeched Hyla to invoke the power of the amulet",
+          "location": {
+            "char_start": 319,
+            "char_end": 367
+          }
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "theme",
+      "score_0_10": 6,
+      "rationale": "Themes of environmental degradation and cultural preservation are present but not deeply explored. Themes of environmental degradation and cultural preservation are present but could be more deeply explored. The manuscript evidence \"The systematic removal of trees, clearing of underbrush\" supports this synthesis.",
+      "evidence": [
+        {
+          "snippet": "The systematic removal of trees, clearing of underbrush",
+          "location": {
+            "char_start": 83,
+            "char_end": 128
+          }
+        },
+        {
+          "snippet": "They could not understand why prayers went unanswered",
+          "location": {
+            "char_start": 339,
+            "char_end": 373
+          }
+        },
+        {
+          "snippet": "systematic removal of trees, clearing of underbrush",
+          "location": {
+            "char_start": 103,
+            "char_end": 146
+          }
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 8,
+      "rationale": "The world is richly detailed, creating an immersive setting for the reader. The world of Aqua World is richly detailed, creating a vivid backdrop for the story. The manuscript evidence \"Aqua World, a system of lakes, marshes, and swamps\" supports this synthesis.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps",
+          "location": {
+            "char_start": 0,
+            "char_end": 73
+          }
+        },
+        {
+          "snippet": "They were fascinated with the shiny pyrite",
+          "location": {
+            "char_start": 422,
+            "char_end": 455
+          }
+        },
+        {
+          "snippet": "a sanctuary of sorts for the Columbia spotted frog colony",
+          "location": {
+            "char_start": 0,
+            "char_end": 43
+          }
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 5,
+      "rationale": "Pacing is uneven, with some sections feeling rushed while others drag, which affects overall engagement.",
+      "evidence": [
+        {
+          "snippet": "But with the infiltration of the giants",
+          "location": {
+            "char_start": 73,
+            "char_end": 104
+          }
+        },
+        {
+          "snippet": "Now that the leaves were more fully grown",
+          "location": {
+            "char_start": 387,
+            "char_end": 422
+          }
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 0,
+      "rationale": "Missing or invalid: Prose control was not evaluated in the provided passes.",
+      "evidence": [
+        {
+          "snippet": "The systematic removal of trees, clearing of underbrush",
+          "location": {
+            "char_start": 83,
+            "char_end": 128
+          }
+        },
+        {
+          "snippet": "Frogs grew ever larger, boasting large paunches",
+          "location": {
+            "char_start": 182,
+            "char_end": 214
+          }
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "score_0_10": 0,
+      "rationale": "Missing or invalid: Tone was not evaluated in the provided passes.",
+      "evidence": [
+        {
+          "snippet": "But she remained wart-faced cold to their pleas",
+          "location": {
+            "char_start": 388,
+            "char_end": 426
+          }
+        },
+        {
+          "snippet": "They could not understand why prayers went unanswered",
+          "location": {
+            "char_start": 339,
+            "char_end": 373
+          }
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 0,
+      "rationale": "Missing or invalid: Narrative closure was not evaluated in the provided passes.",
+      "evidence": [
+        {
+          "snippet": "But she remained wart-faced cold to their pleas",
+          "location": {
+            "char_start": 367,
+            "char_end": 401
+          }
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 0,
+      "rationale": "Missing or invalid: Marketability was not evaluated in the provided passes.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps",
+          "location": {
+            "char_start": 0,
+            "char_end": 73
+          }
+        },
+        {
+          "snippet": "But she remained wart-faced cold to their pleas",
+          "location": {
+            "char_start": 388,
+            "char_end": 426
+          }
+        },
+        {
+          "snippet": "the outsiders with their strange skin coverings",
+          "location": {
+            "char_start": 401,
+            "char_end": 436
+          }
+        }
+      ],
+      "recommendations": []
+    }
+  ],
+  "recommendations": {
+    "quick_wins": [],
+    "strategic_revisions": []
+  },
+  "metrics": {
+    "manuscript": {},
+    "processing": {}
+  },
+  "artifacts": [],
+  "governance": {
+    "confidence": 0.85,
+    "warnings": [],
+    "limitations": [
+      "Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"
+    ],
+    "policy_family": "multi-pass-dual-axis"
+  }
+}

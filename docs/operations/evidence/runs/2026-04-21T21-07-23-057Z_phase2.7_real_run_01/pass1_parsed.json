@@ -1,0 +1,233 @@
+{
+  "pass": 1,
+  "axis": "craft_execution",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 6,
+      "rationale": "The concept of anthropomorphized frogs facing environmental threats is intriguing but lacks depth in exploration.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary",
+          "char_start": 0,
+          "char_end": 80
+        },
+        {
+          "snippet": "Froglore had it that when the world was a marshy swamp",
+          "char_start": 139,
+          "char_end": 179
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 5,
+      "rationale": "The narrative presents a conflict but lacks a clear direction or urgency in its progression.",
+      "evidence": [
+        {
+          "snippet": "Denizens found themselves victims of habitat fragmentation",
+          "char_start": 280,
+          "char_end": 318
+        },
+        {
+          "snippet": "But she remained wart-faced cold to their pleas",
+          "char_start": 354,
+          "char_end": 392
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 4,
+      "rationale": "Character development is minimal, with Hyla as the only notable figure lacking depth or backstory.",
+      "evidence": [
+        {
+          "snippet": "Hyla, the wisest of the elders, had been anointed crown two ice ages ago",
+          "char_start": 236,
+          "char_end": 276
+        },
+        {
+          "snippet": "The elders took delight in sharing their stories",
+          "char_start": 213,
+          "char_end": 245
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 6,
+      "rationale": "The voice is consistent but occasionally shifts between formal and informal tones, affecting clarity.",
+      "evidence": [
+        {
+          "snippet": "Only the crown of the queendom had an artefact from times past",
+          "char_start": 245,
+          "char_end": 283
+        },
+        {
+          "snippet": "They would come and go riding angry, loud terra-firma-vibrating creatures",
+          "char_start": 387,
+          "char_end": 431
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 5,
+      "rationale": "Scenes are described with vivid imagery but lack strong emotional engagement or tension.",
+      "evidence": [
+        {
+          "snippet": "Nestled on a valley floor between jagged steep-faced rocks",
+          "char_start": 81,
+          "char_end": 118
+        },
+        {
+          "snippet": "Now that the leaves were more fully grown on the trees",
+          "char_start": 431,
+          "char_end": 465
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 3,
+      "rationale": "Dialogue is absent, limiting character interaction and emotional connection.",
+      "evidence": [],
+      "recommendations": []
+    },
+    {
+      "key": "theme",
+      "score_0_10": 6,
+      "rationale": "Themes of environmental degradation and cultural preservation are present but not deeply explored.",
+      "evidence": [
+        {
+          "snippet": "The systematic removal of trees, clearing of underbrush",
+          "char_start": 118,
+          "char_end": 164
+        },
+        {
+          "snippet": "They could not understand why prayers went unanswered",
+          "char_start": 318,
+          "char_end": 354
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 7,
+      "rationale": "The world is creatively constructed with unique elements, though some aspects need more clarity.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps",
+          "char_start": 0,
+          "char_end": 80
+        },
+        {
+          "snippet": "the outsiders with their strange skin coverings",
+          "char_start": 465,
+          "char_end": 497
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 5,
+      "rationale": "Pacing is uneven, with some sections feeling rushed while others linger unnecessarily.",
+      "evidence": [
+        {
+          "snippet": "The numbers of ill and dying were so low",
+          "char_start": 179,
+          "char_end": 213
+        },
+        {
+          "snippet": "They were fascinated with the shiny pyrite",
+          "char_start": 431,
+          "char_end": 465
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 6,
+      "rationale": "Prose is generally clear but occasionally convoluted, impacting readability.",
+      "evidence": [
+        {
+          "snippet": "It might as well have been some distant out-of-reach fantasy",
+          "char_start": 92,
+          "char_end": 134
+        },
+        {
+          "snippet": "Life expectancy back then was longer than any of them could count to",
+          "char_start": 179,
+          "char_end": 213
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "score_0_10": 5,
+      "rationale": "The tone fluctuates between whimsical and serious, which may confuse the reader's emotional response.",
+      "evidence": [
+        {
+          "snippet": "Frogs grew ever larger, boasting large paunches",
+          "char_start": 179,
+          "char_end": 213
+        },
+        {
+          "snippet": "But she remained wart-faced cold to their pleas",
+          "char_start": 354,
+          "char_end": 392
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 4,
+      "rationale": "The excerpt lacks a clear resolution or closure, leaving the reader with unanswered questions.",
+      "evidence": [
+        {
+          "snippet": "The masses beseeched Hyla to invoke the power of the amulet",
+          "char_start": 318,
+          "char_end": 354
+        },
+        {
+          "snippet": "But she remained wart-faced cold to their pleas",
+          "char_start": 354,
+          "char_end": 392
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 5,
+      "rationale": "While the premise is unique, the execution may limit its appeal to a broader audience.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps",
+          "char_start": 0,
+          "char_end": 80
+        },
+        {
+          "snippet": "they could not understand why prayers went unanswered",
+          "char_start": 318,
+          "char_end": 354
+        }
+      ],
+      "recommendations": []
+    }
+  ],
+  "model": "gpt-3.5-turbo",
+  "prompt_version": "pass1-craft-v6-compressed",
+  "temperature": 0.3,
+  "generated_at": "2026-04-21T21:07:48.733Z"
+}

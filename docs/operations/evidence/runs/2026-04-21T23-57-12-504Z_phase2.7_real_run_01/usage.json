@@ -1,0 +1,55 @@
+{
+  "model": "gpt-4o-mini",
+  "passes": {
+    "pass1": {
+      "prompt_tokens": 1266,
+      "completion_tokens": 1605,
+      "total_tokens": 2871,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "pass2": {
+      "prompt_tokens": 1220,
+      "completion_tokens": 1197,
+      "total_tokens": 2417,
+      "prompt_tokens_details": {
+        "cached_tokens": 1024,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "pass3": {
+      "prompt_tokens": 1966,
+      "completion_tokens": 1046,
+      "total_tokens": 3012,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    }
+  },
+  "totals": {
+    "prompt_tokens": 4452,
+    "completion_tokens": 3848,
+    "total_tokens": 8300
+  }
+}

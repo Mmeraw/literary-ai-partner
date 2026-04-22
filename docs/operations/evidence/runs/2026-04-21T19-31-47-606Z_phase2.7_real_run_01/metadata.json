@@ -1,0 +1,13 @@
+{
+  "phase": "2.7",
+  "run_type": "real_manuscript",
+  "source_path": "/workspaces/literary-ai-partner/archive/base44-export/toadstone-power-of-belief-base44-voice-training-canonical-source-text.txt",
+  "source_title": "toadstone power of belief base44 voice training canonical source text",
+  "work_type": "novel_chapter",
+  "model": "gpt-4o-mini",
+  "pass_timeout_ms": 90000,
+  "word_count": 486,
+  "generated_at": "2026-04-21T19:32:33.021Z",
+  "output_dir": "docs/operations/evidence/runs/2026-04-21T19-31-47-606Z_phase2.7_real_run_01",
+  "quality_gate_pass": true
+}

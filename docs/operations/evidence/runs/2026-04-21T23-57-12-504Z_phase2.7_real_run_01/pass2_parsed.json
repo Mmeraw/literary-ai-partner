@@ -1,0 +1,179 @@
+{
+  "pass": 2,
+  "axis": "editorial_literary",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 7,
+      "rationale": "The concept of anthropomorphized frogs in a changing environment is imaginative and engaging.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps",
+          "char_start": 0,
+          "char_end": 41
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 5,
+      "rationale": "The narrative has potential but lacks a strong forward momentum to keep readers invested.",
+      "evidence": [
+        {
+          "snippet": "Denizens found themselves victims of habitat fragmentation",
+          "char_start": 276,
+          "char_end": 319
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 6,
+      "rationale": "Hyla, as the wise elder, presents a compelling character, but others lack depth.",
+      "evidence": [
+        {
+          "snippet": "Hyla, the wisest of the elders",
+          "char_start": 181,
+          "char_end": 204
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "The narrative voice is distinctive and effectively conveys the story's unique perspective.",
+      "evidence": [
+        {
+          "snippet": "Froglore had it that when the world was a marshy swamp",
+          "char_start": 83,
+          "char_end": 118
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are vividly constructed, immersing the reader in the frogs' world.",
+      "evidence": [
+        {
+          "snippet": "Nestled on a valley floor between jagged steep-faced rocks",
+          "char_start": 43,
+          "char_end": 82
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 4,
+      "rationale": "Dialogue is minimal, which limits character interaction and development.",
+      "evidence": [
+        {
+          "snippet": "The masses beseeched Hyla to invoke the power of the amulet",
+          "char_start": 319,
+          "char_end": 367
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "theme",
+      "score_0_10": 6,
+      "rationale": "Themes of environmental degradation and cultural preservation are present but could be more deeply explored.",
+      "evidence": [
+        {
+          "snippet": "systematic removal of trees, clearing of underbrush",
+          "char_start": 103,
+          "char_end": 146
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 8,
+      "rationale": "The world of Aqua World is richly detailed, creating a vivid backdrop for the story.",
+      "evidence": [
+        {
+          "snippet": "a sanctuary of sorts for the Columbia spotted frog colony",
+          "char_start": 0,
+          "char_end": 43
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 5,
+      "rationale": "Pacing is uneven, with some sections feeling rushed while others linger too long.",
+      "evidence": [
+        {
+          "snippet": "But with the infiltration of the giants",
+          "char_start": 64,
+          "char_end": 91
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 7,
+      "rationale": "Prose is generally well-controlled, with a few instances of overly complex sentences.",
+      "evidence": [
+        {
+          "snippet": "The systematic removal of trees, clearing of underbrush",
+          "char_start": 103,
+          "char_end": 146
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "score_0_10": 6,
+      "rationale": "The tone is appropriately serious, but could benefit from more emotional resonance.",
+      "evidence": [
+        {
+          "snippet": "they could not understand why prayers went unanswered",
+          "char_start": 321,
+          "char_end": 362
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 4,
+      "rationale": "The excerpt lacks a clear sense of closure, leaving many questions unanswered.",
+      "evidence": [
+        {
+          "snippet": "But she remained wart-faced cold to their pleas",
+          "char_start": 367,
+          "char_end": 401
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 6,
+      "rationale": "The unique premise has market potential, but the execution needs refinement to attract a broader audience.",
+      "evidence": [
+        {
+          "snippet": "the outsiders with their strange skin coverings",
+          "char_start": 401,
+          "char_end": 436
+        }
+      ],
+      "recommendations": []
+    }
+  ],
+  "model": "editorial_v1",
+  "prompt_version": "pass2-editorial-v6-compressed",
+  "temperature": 0.3,
+  "generated_at": "2026-04-21T23:57:31.397Z"
+}

@@ -1,0 +1,247 @@
+{
+  "pass": 1,
+  "axis": "craft_execution",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 6,
+      "rationale": "The concept of anthropomorphized frogs in a changing environment is intriguing but lacks depth in exploration.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts for the Columbia spotted frog colony.",
+          "char_start": 0,
+          "char_end": 107
+        },
+        {
+          "snippet": "Froglore had it that when the world was a marshy swamp and the word hibernation did not yet exist, frogs ruled without threats.",
+          "char_start": 108,
+          "char_end": 182
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 5,
+      "rationale": "The narrative presents a historical backdrop but lacks a strong forward momentum or conflict.",
+      "evidence": [
+        {
+          "snippet": "Denizens found themselves victims of habitat fragmentation, degradation, predation, and disease.",
+          "char_start": 318,
+          "char_end": 373
+        },
+        {
+          "snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams.",
+          "char_start": 398,
+          "char_end": 442
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 4,
+      "rationale": "Characters like Hyla are introduced but lack development and emotional depth.",
+      "evidence": [
+        {
+          "snippet": "Hyla, the wisest of the elders, had been anointed crown two ice ages ago.",
+          "char_start": 270,
+          "char_end": 313
+        },
+        {
+          "snippet": "The masses beseeched Hyla to invoke the power of the amulet.",
+          "char_start": 379,
+          "char_end": 414
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 6,
+      "rationale": "The narrative voice is consistent but occasionally lacks distinctiveness in tone.",
+      "evidence": [
+        {
+          "snippet": "Tradition required that she swallow the coveted stone passed on to her and keep it safe.",
+          "char_start": 313,
+          "char_end": 367
+        },
+        {
+          "snippet": "They were fascinated with the shiny pyrite, mostly uniform, crystalline colors of these angry beasts.",
+          "char_start": 442,
+          "char_end": 493
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 5,
+      "rationale": "Scenes are set with descriptive elements but lack dynamic action or interaction.",
+      "evidence": [
+        {
+          "snippet": "Nestled on a valley floor between jagged steep-faced rocks that reached to the Gorfs, it was once remote and untouched by foreign invaders.",
+          "char_start": 0,
+          "char_end": 147
+        },
+        {
+          "snippet": "Now that the leaves were more fully grown on the trees and the evenings were warmer, the outsiders with their strange skin coverings were more frequent attackers now.",
+          "char_start": 493,
+          "char_end": 563
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 2,
+      "rationale": "Dialogue is absent, limiting character interaction and emotional engagement.",
+      "evidence": [],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Incorporate dialogue to enhance character interactions and emotional depth.",
+          "expected_impact": "This will create a more engaging narrative.",
+          "anchor_snippet": ""
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "score_0_10": 5,
+      "rationale": "Themes of environmental change and cultural preservation are present but not fully developed.",
+      "evidence": [
+        {
+          "snippet": "The systematic removal of trees, clearing of underbrush, removal of bedrock, and pollution of their lake had transformed the terra firmascape.",
+          "char_start": 147,
+          "char_end": 224
+        },
+        {
+          "snippet": "Only the crown of the queendom had an artefact from times past.",
+          "char_start": 267,
+          "char_end": 303
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 7,
+      "rationale": "The world is richly imagined with detailed descriptions, though some elements could be clearer.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts for the Columbia spotted frog colony.",
+          "char_start": 0,
+          "char_end": 107
+        },
+        {
+          "snippet": "They had strange markings on the side: Ford, Nissan, Toyota, Chevrolet, GMC, Hyundai, and others that they could not remember.",
+          "char_start": 563,
+          "char_end": 634
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 4,
+      "rationale": "Pacing is uneven, with lengthy descriptive passages that slow narrative progression.",
+      "evidence": [
+        {
+          "snippet": "The elders took delight in sharing their stories and passing on their culture.",
+          "char_start": 224,
+          "char_end": 267
+        },
+        {
+          "snippet": "Frogs grew ever larger, boasting large paunches.",
+          "char_start": 182,
+          "char_end": 207
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 6,
+      "rationale": "Prose is generally clear but contains moments of awkward phrasing that disrupt flow.",
+      "evidence": [
+        {
+          "snippet": "Life expectancy back then was longer than any of them could count to.",
+          "char_start": 207,
+          "char_end": 247
+        },
+        {
+          "snippet": "Such size permitted hatchling dinosaurs to be on the menu.",
+          "char_start": 207,
+          "char_end": 247
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "score_0_10": 6,
+      "rationale": "The tone is consistent but could benefit from more emotional resonance in key moments.",
+      "evidence": [
+        {
+          "snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams.",
+          "char_start": 398,
+          "char_end": 442
+        },
+        {
+          "snippet": "The masses beseeched Hyla to invoke the power of the amulet.",
+          "char_start": 379,
+          "char_end": 414
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 3,
+      "rationale": "The excerpt lacks a clear resolution or closure, leaving the narrative open-ended.",
+      "evidence": [
+        {
+          "snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams.",
+          "char_start": 398,
+          "char_end": 442
+        },
+        {
+          "snippet": "Now that the leaves were more fully grown on the trees and the evenings were warmer, the outsiders with their strange skin coverings were more frequent attackers now.",
+          "char_start": 493,
+          "char_end": 563
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Consider providing a resolution or hint of future events to enhance closure.",
+          "expected_impact": "This will give readers a sense of completion.",
+          "anchor_snippet": ""
+        }
+      ]
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 5,
+      "rationale": "The unique premise has potential appeal but may require refinement for broader market reach.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts for the Columbia spotted frog colony.",
+          "char_start": 0,
+          "char_end": 107
+        },
+        {
+          "snippet": "Denizens found themselves victims of habitat fragmentation, degradation, predation, and disease.",
+          "char_start": 318,
+          "char_end": 373
+        }
+      ],
+      "recommendations": []
+    }
+  ],
+  "model": "v2",
+  "prompt_version": "pass1-craft-v5-compat",
+  "temperature": 0.3,
+  "generated_at": "2026-04-21T20:04:49.460Z"
+}

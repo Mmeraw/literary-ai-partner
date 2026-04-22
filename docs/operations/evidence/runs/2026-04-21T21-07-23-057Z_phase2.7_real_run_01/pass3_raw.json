@@ -1,0 +1,161 @@
+{
+  "criteria": [
+    {
+      "key": "concept",
+      "final_score_0_10": 6,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "narrativeDrive",
+      "final_score_0_10": 5,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "character",
+      "final_score_0_10": 4,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "voice",
+      "final_score_0_10": 7,
+      "final_rationale": "The narrative voice is distinct and effectively conveys the unique perspective of the frog colony, though it occasionally shifts between formal and informal tones, affecting clarity."
+    },
+    {
+      "key": "sceneConstruction",
+      "final_score_0_10": 6,
+      "final_rationale": "Scenes are vividly described, creating a strong sense of place and atmosphere, but they lack strong emotional engagement or tension."
+    },
+    {
+      "key": "dialogue",
+      "final_score_0_10": 3,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "theme",
+      "final_score_0_10": 6,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "worldbuilding",
+      "final_score_0_10": 5,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "pacing",
+      "final_score_0_10": 4,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "proseControl",
+      "final_score_0_10": 5,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "tone",
+      "final_score_0_10": 5,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "narrativeClosure",
+      "final_score_0_10": 4,
+      "final_rationale": "Confirmed."
+    },
+    {
+      "key": "marketability",
+      "final_score_0_10": 5,
+      "final_rationale": "Confirmed."
+    }
+  ],
+  "agreement_map": [
+    {
+      "key": "concept",
+      "pass1_score": 6,
+      "pass2_score": 7
+    },
+    {
+      "key": "narrativeDrive",
+      "pass1_score": 5,
+      "pass2_score": 6
+    },
+    {
+      "key": "character",
+      "pass1_score": 4,
+      "pass2_score": 5
+    },
+    {
+      "key": "dialogue",
+      "pass1_score": 3,
+      "pass2_score": 4
+    },
+    {
+      "key": "theme",
+      "pass1_score": 6,
+      "pass2_score": 6
+    },
+    {
+      "key": "worldbuilding",
+      "pass1_score": 5,
+      "pass2_score": 5
+    },
+    {
+      "key": "pacing",
+      "pass1_score": 4,
+      "pass2_score": 4
+    },
+    {
+      "key": "proseControl",
+      "pass1_score": 5,
+      "pass2_score": 5
+    },
+    {
+      "key": "tone",
+      "pass1_score": 5,
+      "pass2_score": 5
+    },
+    {
+      "key": "narrativeClosure",
+      "pass1_score": 4,
+      "pass2_score": 4
+    },
+    {
+      "key": "marketability",
+      "pass1_score": 5,
+      "pass2_score": 5
+    }
+  ],
+  "divergence_map": [
+    {
+      "key": "voice",
+      "pass1_score": 6,
+      "pass2_score": 8,
+      "arbitration_rationale": "The divergence in voice scores reflects differing perspectives on the consistency of tone. While one pass emphasizes clarity issues due to tonal shifts, the other highlights the distinctiveness of the narrative voice."
+    },
+    {
+      "key": "sceneConstruction",
+      "pass1_score": 5,
+      "pass2_score": 7,
+      "arbitration_rationale": "The difference in scene construction scores arises from contrasting views on emotional engagement. One pass notes a lack of tension, while the other appreciates the vivid imagery and atmosphere."
+    }
+  ],
+  "overall": {
+    "overall_score_0_100": 54,
+    "verdict": "revise",
+    "one_paragraph_summary": "The manuscript presents a compelling concept with anthropomorphized frogs facing environmental challenges, but it suffers from minimal character development and a lack of dialogue. The narrative voice is distinct, yet tonal inconsistencies affect clarity. Overall, while the worldbuilding and scene descriptions are strong, emotional engagement and character depth need improvement.",
+    "top_3_strengths": [
+      "Distinct narrative voice that conveys the unique perspective of the frog colony.",
+      "Vivid scene descriptions that create a strong sense of place and atmosphere.",
+      "Engaging concept of anthropomorphized frogs facing environmental threats."
+    ],
+    "top_3_risks": [
+      "Minimal character development may lead to reader disengagement.",
+      "Lack of dialogue limits emotional connection and character interaction.",
+      "Inconsistent tonal shifts could confuse readers and detract from clarity."
+    ]
+  },
+  "metadata": {
+    "pass1_model": "v1.0",
+    "pass2_model": "v1.0",
+    "pass3_model": "v1.0",
+    "generated_at": "2023-10-01T12:00:00Z"
+  }
+}

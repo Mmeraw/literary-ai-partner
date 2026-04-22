@@ -1,0 +1,179 @@
+{
+  "pass": 2,
+  "axis": "editorial_literary",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 7,
+      "rationale": "The concept of anthropomorphized frogs facing environmental threats is engaging and imaginative.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary...",
+          "char_start": 0,
+          "char_end": 88
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 6,
+      "rationale": "The story maintains interest through the frogs' plight and the introduction of external threats.",
+      "evidence": [
+        {
+          "snippet": "Now that the leaves were more fully grown on the trees...",
+          "char_start": 364,
+          "char_end": 404
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 5,
+      "rationale": "While Hyla is introduced as a significant character, others lack depth and development.",
+      "evidence": [
+        {
+          "snippet": "Hyla, the wisest of the elders, had been anointed crown two ice ages ago.",
+          "char_start": 206,
+          "char_end": 248
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "The narrative voice effectively conveys a sense of myth and folklore, enhancing the story's atmosphere.",
+      "evidence": [
+        {
+          "snippet": "Froglore had it that when the world was a marshy swamp...",
+          "char_start": 90,
+          "char_end": 126
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are vividly described, creating a strong sense of place and atmosphere.",
+      "evidence": [
+        {
+          "snippet": "Nestled on a valley floor between jagged steep-faced rocks...",
+          "char_start": 43,
+          "char_end": 83
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 4,
+      "rationale": "Dialogue is minimal, limiting character interaction and emotional engagement.",
+      "evidence": [
+        {
+          "snippet": "The masses beseeched Hyla to invoke the power of the amulet.",
+          "char_start": 288,
+          "char_end": 328
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "theme",
+      "score_0_10": 6,
+      "rationale": "Themes of environmental degradation and cultural preservation are present but could be more deeply explored.",
+      "evidence": [
+        {
+          "snippet": "Denizens found themselves victims of habitat fragmentation, degradation...",
+          "char_start": 263,
+          "char_end": 306
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 8,
+      "rationale": "The world of Aqua World is richly imagined, with detailed descriptions of its ecology and culture.",
+      "evidence": [
+        {
+          "snippet": "It was once remote and untouched by foreign invaders.",
+          "char_start": 70,
+          "char_end": 107
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 5,
+      "rationale": "Pacing is uneven, with some sections feeling rushed while others linger too long on description.",
+      "evidence": [
+        {
+          "snippet": "The systematic removal of trees, clearing of underbrush...",
+          "char_start": 118,
+          "char_end": 158
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 6,
+      "rationale": "Prose is generally strong but occasionally veers into overly complex sentences that may confuse readers.",
+      "evidence": [
+        {
+          "snippet": "Such size permitted hatchling dinosaurs to be on the menu.",
+          "char_start": 145,
+          "char_end": 179
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "score_0_10": 7,
+      "rationale": "The tone effectively balances a sense of wonder with the gravity of environmental issues.",
+      "evidence": [
+        {
+          "snippet": "It might as well have been some distant out-of-reach fantasy in the dark sky.",
+          "char_start": 81,
+          "char_end": 123
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 4,
+      "rationale": "The excerpt lacks a clear resolution, leaving the reader with unanswered questions.",
+      "evidence": [
+        {
+          "snippet": "But she remained wart-faced cold to their pleas...",
+          "char_start": 329,
+          "char_end": 367
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 5,
+      "rationale": "The unique premise may attract niche audiences, but broader appeal is uncertain without stronger character arcs.",
+      "evidence": [
+        {
+          "snippet": "Only the crown of the queendom had an artefact from times past.",
+          "char_start": 206,
+          "char_end": 248
+        }
+      ],
+      "recommendations": []
+    }
+  ],
+  "model": "editorial_v1",
+  "prompt_version": "pass2-editorial-v6-compressed",
+  "temperature": 0.3,
+  "generated_at": "2026-04-21T20:03:35.702Z"
+}

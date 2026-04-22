@@ -1,0 +1,101 @@
+{
+  "pass": 2,
+  "axis": "editorial_literary",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 7,
+      "rationale": "The concept of anthropomorphized frogs in a world facing ecological threats is engaging and imaginative.",
+      "evidence": [{ "snippet": "Aqua World, a system of lakes, marshes, and swamps", "char_start": 0, "char_end": 40 }],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 6,
+      "rationale": "The tension between the frogs and the invading giants creates a compelling narrative conflict.",
+      "evidence": [{ "snippet": "But with the infiltration of the giants", "char_start": 82, "char_end": 113 }],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 5,
+      "rationale": "Hyla, as the wise elder, is a strong character, but others lack depth and distinctiveness.",
+      "evidence": [{ "snippet": "Hyla, the wisest of the elders", "char_start": 217, "char_end": 243 }],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "The narrative voice is rich and evocative, effectively immersing the reader in the frogs' world.",
+      "evidence": [{ "snippet": "Froglore had it that when the world was a marshy swamp", "char_start": 116, "char_end": 153 }],
+      "recommendations": []
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are vividly described, creating a strong sense of place and atmosphere.",
+      "evidence": [{ "snippet": "Nestled on a valley floor between jagged steep-faced rocks", "char_start": 41, "char_end": 86 }],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 4,
+      "rationale": "There is a lack of direct dialogue, which limits character interaction and development.",
+      "evidence": [{ "snippet": "The masses beseeched Hyla to invoke the power of the amulet", "char_start": 294, "char_end": 335 }],
+      "recommendations": []
+    },
+    {
+      "key": "theme",
+      "score_0_10": 6,
+      "rationale": "Themes of environmental degradation and cultural preservation are present but could be explored more deeply.",
+      "evidence": [{ "snippet": "victims of habitat fragmentation, degradation, predation, and disease", "char_start": 269, "char_end": 319 }],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 8,
+      "rationale": "The world of Aqua World is richly constructed, with a detailed history and ecosystem.",
+      "evidence": [{ "snippet": "Frogs ruled without threats", "char_start": 157, "char_end": 179 }],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 5,
+      "rationale": "The pacing is uneven, with some sections feeling dense and slow, particularly in exposition.",
+      "evidence": [{ "snippet": "The systematic removal of trees, clearing of underbrush", "char_start": 87, "char_end": 133 }],
+      "recommendations": []
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 7,
+      "rationale": "The prose is generally well-crafted, though it occasionally becomes overly complex.",
+      "evidence": [{ "snippet": "click, click, click, click, click, click", "char_start": 189, "char_end": 217 }],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "score_0_10": 6,
+      "rationale": "The tone is appropriately serious for the themes, but could benefit from more variation.",
+      "evidence": [{ "snippet": "removal of bedrock, and pollution of their lake", "char_start": 134, "char_end": 173 }],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 4,
+      "rationale": "The excerpt ends without a clear resolution, leaving the reader wanting more context.",
+      "evidence": [{ "snippet": "forcing them to cling to their dreams", "char_start": 335, "char_end": 362 }],
+      "recommendations": []
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 6,
+      "rationale": "The unique premise and engaging voice may attract readers interested in environmental themes and fantasy.",
+      "evidence": [{ "snippet": "Aqua World, a system of lakes, marshes, and swamps", "char_start": 0, "char_end": 40 }],
+      "recommendations": []
+    }
+  ],
+  "model": "editorial_literary_v1",
+  "prompt_version": "pass2-editorial-v6-compressed",
+  "temperature": 0.3,
+  "generated_at": "2023-10-06T12:00:00Z"
+}

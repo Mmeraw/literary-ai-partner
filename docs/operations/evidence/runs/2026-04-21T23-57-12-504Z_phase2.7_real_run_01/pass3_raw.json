@@ -1,0 +1,61 @@
+{
+  "criteria": [
+    {"key": "concept", "final_score_0_10": 6, "final_rationale": "Confirmed."},
+    {"key": "narrativeDrive", "final_score_0_10": 5, "final_rationale": "Confirmed."},
+    {"key": "character", "final_score_0_10": 5, "final_rationale": "Character development is minimal, with Hyla as the only notable figure, but the potential for deeper exploration exists."},
+    {"key": "voice", "final_score_0_10": 8, "final_rationale": "Confirmed."},
+    {"key": "sceneConstruction", "final_score_0_10": 7, "final_rationale": "Confirmed."},
+    {"key": "dialogue", "final_score_0_10": 4, "final_rationale": "Confirmed."},
+    {"key": "theme", "final_score_0_10": 6, "final_rationale": "Confirmed."},
+    {"key": "worldbuilding", "final_score_0_10": 8, "final_rationale": "Confirmed."},
+    {"key": "pacing", "final_score_0_10": 5, "final_rationale": "Pacing is uneven, with some sections feeling rushed while others drag, which affects overall engagement."},
+    {"key": "proseControl", "final_score_0_10": 0, "final_rationale": "Missing or invalid: Prose control was not evaluated in the provided passes."},
+    {"key": "tone", "final_score_0_10": 0, "final_rationale": "Missing or invalid: Tone was not evaluated in the provided passes."},
+    {"key": "narrativeClosure", "final_score_0_10": 0, "final_rationale": "Missing or invalid: Narrative closure was not evaluated in the provided passes."},
+    {"key": "marketability", "final_score_0_10": 0, "final_rationale": "Missing or invalid: Marketability was not evaluated in the provided passes."}
+  ],
+  "agreement_map": [
+    {"key": "concept", "pass1_score": 6, "pass2_score": 7},
+    {"key": "narrativeDrive", "pass1_score": 5, "pass2_score": 5},
+    {"key": "voice", "pass1_score": 7, "pass2_score": 8},
+    {"key": "sceneConstruction", "pass1_score": 6, "pass2_score": 7},
+    {"key": "dialogue", "pass1_score": 3, "pass2_score": 4},
+    {"key": "theme", "pass1_score": 5, "pass2_score": 6},
+    {"key": "worldbuilding", "pass1_score": 8, "pass2_score": 8}
+  ],
+  "divergence_map": [
+    {
+      "key": "character",
+      "pass1_score": 4,
+      "pass2_score": 6,
+      "arbitration_rationale": "The divergence in character scores reflects differing perspectives on character depth. While one pass sees minimal development, the other identifies Hyla as compelling, suggesting potential for richer character exploration."
+    },
+    {
+      "key": "pacing",
+      "pass1_score": 4,
+      "pass2_score": 5,
+      "arbitration_rationale": "The slight divergence in pacing scores indicates differing views on the narrative's flow. One pass highlights uneven pacing as a significant issue, while the other notes it but with less severity, suggesting a need for more consistent engagement."
+    }
+  ],
+  "overall": {
+    "overall_score_0_100": 60,
+    "verdict": "revise",
+    "one_paragraph_summary": "The manuscript presents a unique concept and rich worldbuilding, but it suffers from uneven pacing and minimal character development. While the narrative voice is strong, the lack of dialogue and depth in themes limits its overall impact. Addressing these areas could enhance reader engagement and narrative coherence.",
+    "top_3_strengths": [
+      "Richly detailed worldbuilding that immerses readers in the setting.",
+      "Distinctive narrative voice that conveys the story's unique perspective.",
+      "Engaging concept of anthropomorphized frogs facing environmental challenges."
+    ],
+    "top_3_risks": [
+      "Uneven pacing that may disengage readers.",
+      "Minimal character development leading to a lack of emotional investment.",
+      "Insufficient dialogue limiting character interaction and depth."
+    ]
+  },
+  "metadata": {
+    "pass1_model": "v1",
+    "pass2_model": "v2",
+    "pass3_model": "v3",
+    "generated_at": "2023-10-01T12:00:00Z"
+  }
+}

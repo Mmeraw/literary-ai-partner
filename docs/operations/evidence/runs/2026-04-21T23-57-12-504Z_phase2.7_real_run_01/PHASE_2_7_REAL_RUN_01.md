@@ -8,17 +8,17 @@ Input:
 - Work type: `novel_chapter`
 
 Pass 1:
-- Raw output: `docs/operations/evidence/runs/2026-04-21T21-07-23-057Z_phase2.7_real_run_01/pass1_raw.json`
-- Parsed output: `docs/operations/evidence/runs/2026-04-21T21-07-23-057Z_phase2.7_real_run_01/pass1_parsed.json`
+- Raw output: `docs/operations/evidence/runs/2026-04-21T23-57-12-504Z_phase2.7_real_run_01/pass1_raw.json`
+- Parsed output: `docs/operations/evidence/runs/2026-04-21T23-57-12-504Z_phase2.7_real_run_01/pass1_parsed.json`
 - Observations:
   - criteria_count=13
   - average_score=5.15
-  - recommendation_count=0
-  - generic_recommendations=0
+  - recommendation_count=2
+  - generic_recommendations=2
 
 Pass 2:
-- Raw output: `docs/operations/evidence/runs/2026-04-21T21-07-23-057Z_phase2.7_real_run_01/pass2_raw.json`
-- Parsed output: `docs/operations/evidence/runs/2026-04-21T21-07-23-057Z_phase2.7_real_run_01/pass2_parsed.json`
+- Raw output: `docs/operations/evidence/runs/2026-04-21T23-57-12-504Z_phase2.7_real_run_01/pass2_raw.json`
+- Parsed output: `docs/operations/evidence/runs/2026-04-21T23-57-12-504Z_phase2.7_real_run_01/pass2_parsed.json`
 - Observations:
   - criteria_count=13
   - average_score=6.08
@@ -26,10 +26,10 @@ Pass 2:
   - generic_recommendations=0
 
 Pass 3:
-- Raw output: `docs/operations/evidence/runs/2026-04-21T21-07-23-057Z_phase2.7_real_run_01/pass3_raw.json`
-- Parsed output: `docs/operations/evidence/runs/2026-04-21T21-07-23-057Z_phase2.7_real_run_01/pass3_parsed.json`
+- Raw output: `docs/operations/evidence/runs/2026-04-21T23-57-12-504Z_phase2.7_real_run_01/pass3_raw.json`
+- Parsed output: `docs/operations/evidence/runs/2026-04-21T23-57-12-504Z_phase2.7_real_run_01/pass3_parsed.json`
 - Observations:
-  - overall_score_0_100=54
+  - overall_score_0_100=60
   - verdict=revise
   - avg_axis_delta=0.92
   - high_delta_criteria_count=0

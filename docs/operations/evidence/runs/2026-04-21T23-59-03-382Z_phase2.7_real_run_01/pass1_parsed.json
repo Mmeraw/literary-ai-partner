@@ -1,0 +1,254 @@
+{
+  "pass": 1,
+  "axis": "craft_execution",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 6,
+      "rationale": "The concept of anthropomorphized frogs in a changing environment is intriguing but lacks depth.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts for the Columbia spotted frog colony.",
+          "char_start": 0,
+          "char_end": 114
+        },
+        {
+          "snippet": "But with the infiltration of the giants, their watery world felt foreign to them at times.",
+          "char_start": 114,
+          "char_end": 164
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 5,
+      "rationale": "The narrative presents a conflict but lacks a clear trajectory or urgency.",
+      "evidence": [
+        {
+          "snippet": "Denizens found themselves victims of habitat fragmentation, degradation, predation, and disease.",
+          "char_start": 287,
+          "char_end": 346
+        },
+        {
+          "snippet": "They could not understand why prayers went unanswered.",
+          "char_start": 346,
+          "char_end": 377
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 4,
+      "rationale": "Character development is minimal, with Hyla being the only notable figure.",
+      "evidence": [
+        {
+          "snippet": "Hyla, the wisest of the elders, had been anointed crown two ice ages ago.",
+          "char_start": 227,
+          "char_end": 261
+        },
+        {
+          "snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams.",
+          "char_start": 377,
+          "char_end": 426
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 5,
+      "rationale": "The voice is consistent but lacks a distinctive style that engages the reader.",
+      "evidence": [
+        {
+          "snippet": "Froglore had it that when the world was a marshy swamp and the word hibernation did not yet exist, frogs ruled without threats.",
+          "char_start": 164,
+          "char_end": 242
+        },
+        {
+          "snippet": "Such size permitted hatchling dinosaurs to be on the menu.",
+          "char_start": 242,
+          "char_end": 274
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 6,
+      "rationale": "Scenes are vividly described but could benefit from more dynamic action.",
+      "evidence": [
+        {
+          "snippet": "Nestled on a valley floor between jagged steep-faced rocks that reached to the Gorfs.",
+          "char_start": 56,
+          "char_end": 106
+        },
+        {
+          "snippet": "Now that the leaves were more fully grown on the trees and the evenings were warmer...",
+          "char_start": 426,
+          "char_end": 487
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 3,
+      "rationale": "Dialogue is absent, limiting character interaction and engagement.",
+      "evidence": [],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Incorporate dialogue to enhance character interaction and reveal motivations.",
+          "expected_impact": "This will create a more immersive experience.",
+          "anchor_snippet": ""
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "score_0_10": 5,
+      "rationale": "Themes of environmental change and resilience are present but not fully explored.",
+      "evidence": [
+        {
+          "snippet": "The systematic removal of trees, clearing of underbrush, removal of bedrock, and pollution of their lake...",
+          "char_start": 106,
+          "char_end": 164
+        },
+        {
+          "snippet": "They could not understand why prayers went unanswered.",
+          "char_start": 346,
+          "char_end": 377
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 7,
+      "rationale": "The world is creatively constructed, with rich details about the frog colony's environment.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary...",
+          "char_start": 0,
+          "char_end": 114
+        },
+        {
+          "snippet": "Only the crown of the queendom had an artefact from times past.",
+          "char_start": 227,
+          "char_end": 261
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 4,
+      "rationale": "Pacing is uneven, with lengthy descriptions slowing down the narrative flow.",
+      "evidence": [
+        {
+          "snippet": "The systematic removal of trees, clearing of underbrush, removal of bedrock, and pollution of their lake...",
+          "char_start": 106,
+          "char_end": 164
+        },
+        {
+          "snippet": "Frogs grew ever larger, boasting large paunches.",
+          "char_start": 242,
+          "char_end": 267
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Shorten lengthy descriptions to maintain narrative momentum.",
+          "expected_impact": "This will enhance reader engagement and flow.",
+          "anchor_snippet": ""
+        }
+      ]
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 6,
+      "rationale": "Prose is generally clear but occasionally becomes overly complex or verbose.",
+      "evidence": [
+        {
+          "snippet": "The numbers of ill and dying were so low that upon death, all citizens received the equivalent of a state funeral.",
+          "char_start": 274,
+          "char_end": 346
+        },
+        {
+          "snippet": "Such size permitted hatchling dinosaurs to be on the menu.",
+          "char_start": 242,
+          "char_end": 274
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "score_0_10": 5,
+      "rationale": "The tone is consistent but lacks emotional depth to resonate with the reader.",
+      "evidence": [
+        {
+          "snippet": "But she remained wart-faced cold to their pleas...",
+          "char_start": 377,
+          "char_end": 426
+        },
+        {
+          "snippet": "They could not understand why prayers went unanswered.",
+          "char_start": 346,
+          "char_end": 377
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 4,
+      "rationale": "The excerpt lacks a clear resolution or closure, leaving the reader hanging.",
+      "evidence": [
+        {
+          "snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams.",
+          "char_start": 377,
+          "char_end": 426
+        },
+        {
+          "snippet": "Now that the leaves were more fully grown on the trees...",
+          "char_start": 426,
+          "char_end": 487
+        }
+      ],
+      "recommendations": [
+        {
+          "priority": "medium",
+          "action": "Provide a clearer resolution to the conflict to enhance reader satisfaction.",
+          "expected_impact": "This will create a more fulfilling reading experience.",
+          "anchor_snippet": ""
+        }
+      ]
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 5,
+      "rationale": "The unique premise has potential but may need refinement for broader appeal.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps...",
+          "char_start": 0,
+          "char_end": 114
+        },
+        {
+          "snippet": "They were fascinated with the shiny pyrite, mostly uniform, crystalline colors of these angry beasts.",
+          "char_start": 487,
+          "char_end": 552
+        }
+      ],
+      "recommendations": []
+    }
+  ],
+  "model": "gpt-3.5-turbo",
+  "prompt_version": "pass1-craft-v6-compressed",
+  "temperature": 0.3,
+  "generated_at": "2026-04-21T23:59:27.802Z"
+}

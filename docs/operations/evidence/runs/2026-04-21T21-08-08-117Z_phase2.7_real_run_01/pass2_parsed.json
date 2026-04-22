@@ -1,0 +1,179 @@
+{
+  "pass": 2,
+  "axis": "editorial_literary",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 7,
+      "rationale": "The concept of anthropomorphized frogs in a changing environment is intriguing and offers rich thematic potential.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps...",
+          "char_start": 0,
+          "char_end": 45
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 5,
+      "rationale": "The narrative has a clear setting but lacks a strong central conflict to propel the story forward.",
+      "evidence": [
+        {
+          "snippet": "Denizens found themselves victims of habitat fragmentation...",
+          "char_start": 230,
+          "char_end": 277
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 6,
+      "rationale": "Hyla is a compelling character, but the other frogs lack distinct personalities and depth.",
+      "evidence": [
+        {
+          "snippet": "Hyla, the wisest of the elders...",
+          "char_start": 190,
+          "char_end": 215
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "The narrative voice is unique and effectively captures the perspective of the frog colony.",
+      "evidence": [
+        {
+          "snippet": "Froglore had it that when the world was a marshy swamp...",
+          "char_start": 66,
+          "char_end": 103
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are vividly described, creating a strong sense of place and atmosphere.",
+      "evidence": [
+        {
+          "snippet": "Nestled on a valley floor between jagged steep-faced rocks...",
+          "char_start": 46,
+          "char_end": 84
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 4,
+      "rationale": "Dialogue is minimal, which limits character interaction and development.",
+      "evidence": [
+        {
+          "snippet": "The masses beseeched Hyla to invoke the power of the amulet.",
+          "char_start": 278,
+          "char_end": 313
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "theme",
+      "score_0_10": 6,
+      "rationale": "Themes of environmental degradation and cultural preservation are present but could be explored more deeply.",
+      "evidence": [
+        {
+          "snippet": "The systematic removal of trees, clearing of underbrush...",
+          "char_start": 98,
+          "char_end": 137
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 8,
+      "rationale": "The world of Aqua World is well-developed, with rich details that enhance immersion.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps...",
+          "char_start": 0,
+          "char_end": 45
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 5,
+      "rationale": "Pacing is uneven, with some sections feeling overly descriptive and slowing the narrative flow.",
+      "evidence": [
+        {
+          "snippet": "Frogs grew ever larger, boasting large paunches...",
+          "char_start": 105,
+          "char_end": 138
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 7,
+      "rationale": "The prose is generally strong, though some sentences could be tightened for clarity.",
+      "evidence": [
+        {
+          "snippet": "Life expectancy back then was longer than any of them could count to.",
+          "char_start": 139,
+          "char_end": 181
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "score_0_10": 6,
+      "rationale": "The tone is appropriately whimsical but occasionally shifts to a more serious note without clear transitions.",
+      "evidence": [
+        {
+          "snippet": "But she remained wart-faced cold to their pleas...",
+          "char_start": 317,
+          "char_end": 350
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 4,
+      "rationale": "The excerpt lacks a clear resolution or closure, leaving the reader wanting more.",
+      "evidence": [
+        {
+          "snippet": "But she remained wart-faced cold to their pleas...",
+          "char_start": 317,
+          "char_end": 350
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 5,
+      "rationale": "The unique premise has potential appeal, but the execution may limit its broader marketability.",
+      "evidence": [
+        {
+          "snippet": "Aqua World, a system of lakes, marshes, and swamps...",
+          "char_start": 0,
+          "char_end": 45
+        }
+      ],
+      "recommendations": []
+    }
+  ],
+  "model": "editorial_v1",
+  "prompt_version": "pass2-editorial-v6-compressed",
+  "temperature": 0.3,
+  "generated_at": "2026-04-21T21:08:28.275Z"
+}

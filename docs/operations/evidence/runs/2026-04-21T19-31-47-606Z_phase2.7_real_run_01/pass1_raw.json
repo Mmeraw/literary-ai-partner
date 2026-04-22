@@ -1,0 +1,149 @@
+{
+  "pass": 1,
+  "axis": "craft_execution",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 6,
+      "rationale": "The concept of anthropomorphized frogs in a changing environment is intriguing but lacks clarity in execution.",
+      "evidence": [
+        { "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts for the Columbia spotted frog colony.", "char_start": 0, "char_end": 118 },
+        { "snippet": "Froglore had it that when the world was a marshy swamp and the word hibernation did not yet exist, frogs ruled without threats.", "char_start": 119, "char_end": 213 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 5,
+      "rationale": "The narrative presents a compelling setting but lacks a strong forward momentum or conflict.",
+      "evidence": [
+        { "snippet": "Denizens found themselves victims of habitat fragmentation, degradation, predation, and disease.", "char_start": 329, "char_end": 374 },
+        { "snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams.", "char_start": 389, "char_end": 448 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 4,
+      "rationale": "Character development is minimal, with Hyla being the only notable figure lacking depth.",
+      "evidence": [
+        { "snippet": "Hyla, the wisest of the elders, had been anointed crown two ice ages ago.", "char_start": 238, "char_end": 275 },
+        { "snippet": "The masses beseeched Hyla to invoke the power of the amulet.", "char_start": 374, "char_end": 409 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 6,
+      "rationale": "The voice is distinct and fitting for the setting, though it occasionally lacks consistency.",
+      "evidence": [
+        { "snippet": "It might as well have been some distant out-of-reach fantasy in the dark sky.", "char_start": 85, "char_end": 134 },
+        { "snippet": "Such size permitted hatchling dinosaurs to be on the menu.", "char_start": 221, "char_end": 258 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are vividly described, creating a strong sense of place, though transitions could be smoother.",
+      "evidence": [
+        { "snippet": "Nestled on a valley floor between jagged steep-faced rocks that reached to the Gorfs.", "char_start": 56, "char_end": 102 },
+        { "snippet": "Now that the leaves were more fully grown on the trees and the evenings were warmer...", "char_start": 448, "char_end": 487 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 3,
+      "rationale": "Dialogue is absent, limiting character interaction and emotional engagement.",
+      "evidence": [],
+      "recommendations": [
+        { "priority": "medium", "action": "Incorporate dialogue to enhance character interactions and emotional depth.", "expected_impact": "This will create a more engaging narrative and allow readers to connect with characters.", "anchor_snippet": "" }
+      ]
+    },
+    {
+      "key": "theme",
+      "score_0_10": 5,
+      "rationale": "Themes of environmental degradation and cultural preservation are present but not fully explored.",
+      "evidence": [
+        { "snippet": "The systematic removal of trees, clearing of underbrush, removal of bedrock, and pollution of their lake...", "char_start": 113, "char_end": 177 },
+        { "snippet": "The elders took delight in sharing their stories and passing on their culture.", "char_start": 276, "char_end": 314 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 8,
+      "rationale": "The world is richly detailed, providing a vivid backdrop for the story's events.",
+      "evidence": [
+        { "snippet": "Aqua World, a system of lakes, marshes, and swamps, had been a sanctuary of sorts...", "char_start": 0, "char_end": 118 },
+        { "snippet": "They would come and go riding angry, loud terra-firma-vibrating creatures...", "char_start": 448, "char_end": 487 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 4,
+      "rationale": "Pacing is uneven, with some sections feeling overly descriptive and slowing the narrative flow.",
+      "evidence": [
+        { "snippet": "The systematic removal of trees, clearing of underbrush, removal of bedrock, and pollution of their lake...", "char_start": 113, "char_end": 177 },
+        { "snippet": "Frogs grew ever larger, boasting large paunches.", "char_start": 213, "char_end": 239 }
+      ],
+      "recommendations": [
+        { "priority": "medium", "action": "Trim excessive descriptions to enhance pacing and maintain reader engagement.", "expected_impact": "This will create a more dynamic narrative flow and keep readers invested.", "anchor_snippet": "" }
+      ]
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 6,
+      "rationale": "Prose is generally clear but occasionally becomes convoluted with complex sentence structures.",
+      "evidence": [
+        { "snippet": "The numbers of ill and dying were so low that upon death, all citizens received the equivalent of a state funeral.", "char_start": 258, "char_end": 319 },
+        { "snippet": "They were fascinated with the shiny pyrite, mostly uniform, crystalline colors of these angry beasts.", "char_start": 487, "char_end": 532 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "score_0_10": 5,
+      "rationale": "The tone is appropriately whimsical but occasionally shifts to a more somber note without clear transitions.",
+      "evidence": [
+        { "snippet": "But with the infiltration of the giants, their watery world felt foreign to them at times.", "char_start": 85, "char_end": 134 },
+        { "snippet": "But she remained wart-faced cold to their pleas...", "char_start": 389, "char_end": 448 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 3,
+      "rationale": "The excerpt lacks a clear resolution or closure, leaving the narrative feeling incomplete.",
+      "evidence": [
+        { "snippet": "But she remained wart-faced cold to their pleas, instead forcing them to cling to their dreams.", "char_start": 389, "char_end": 448 },
+        { "snippet": "They could not understand why prayers went unanswered.", "char_start": 374, "char_end": 409 }
+      ],
+      "recommendations": [
+        { "priority": "medium", "action": "Provide a clearer resolution or hint at future developments to enhance narrative closure.", "expected_impact": "This will give readers a sense of completion and anticipation for what comes next.", "anchor_snippet": "" }
+      ]
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 4,
+      "rationale": "The unique premise has potential, but execution may limit broader appeal due to pacing and character depth.",
+      "evidence": [
+        { "snippet": "Froglore had it that when the world was a marshy swamp and the word hibernation did not yet exist...", "char_start": 119, "char_end": 213 },
+        { "snippet": "Only the crown of the queendom had an artefact from times past.", "char_start": 276, "char_end": 314 }
+      ],
+      "recommendations": []
+    }
+  ],
+  "model": "gpt-3.5-turbo",
+  "prompt_version": "pass1-craft-v5-compat",
+  "temperature": 0.3,
+  "generated_at": "2023-10-05T12:00:00Z",
+  "narrative_mode_assessment": {
+    "dominant_mode": "scene_driven",
+    "mode_confidence": "medium",
+    "mode_rationale": "The narrative primarily focuses on detailed descriptions of the setting and events.",
+    "pressure_profile": "Moderate tension from environmental threats."
+  }
+}

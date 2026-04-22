@@ -1,0 +1,139 @@
+{
+  "pass": 1,
+  "axis": "craft_execution",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 6,
+      "rationale": "The concept of anthropomorphized frogs in a changing environment is intriguing but lacks depth in exploration.",
+      "evidence": [
+        { "snippet": "Aqua World, a system of lakes, marshes, and swamps", "char_start": 0, "char_end": 45 },
+        { "snippet": "frogs ruled without threats", "char_start": 118, "char_end": 143 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 5,
+      "rationale": "The narrative presents interesting elements but lacks a clear driving conflict to engage the reader.",
+      "evidence": [
+        { "snippet": "Denizens found themselves victims of habitat fragmentation", "char_start": 292, "char_end": 339 },
+        { "snippet": "the masses beseeched Hyla to invoke the power of the amulet", "char_start": 340, "char_end": 394 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 4,
+      "rationale": "Character development is minimal, with Hyla being the only notable figure lacking depth.",
+      "evidence": [
+        { "snippet": "Hyla, the wisest of the elders", "char_start": 233, "char_end": 258 },
+        { "snippet": "forcing them to cling to their dreams", "char_start": 376, "char_end": 404 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 7,
+      "rationale": "The narrative voice is distinct and fitting for the setting, enhancing the world-building.",
+      "evidence": [
+        { "snippet": "Froglore had it that when the world was a marshy swamp", "char_start": 114, "char_end": 142 },
+        { "snippet": "a small, dull-colored talisman that acted as a conduit to Gorf", "char_start": 259, "char_end": 305 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 6,
+      "rationale": "Scenes are vividly described but sometimes lack clarity in transitions.",
+      "evidence": [
+        { "snippet": "Nestled on a valley floor between jagged steep-faced rocks", "char_start": 46, "char_end": 83 },
+        { "snippet": "the outsiders with their strange skin coverings were more frequent attackers", "char_start": 404, "char_end": 458 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 3,
+      "rationale": "Dialogue is absent, limiting character interaction and emotional engagement.",
+      "evidence": [],
+      "recommendations": [
+        { "priority": "medium", "action": "Incorporate dialogue to enhance character interaction and emotional depth.", "expected_impact": "This will create a more engaging narrative.", "anchor_snippet": "" }
+      ]
+    },
+    {
+      "key": "theme",
+      "score_0_10": 5,
+      "rationale": "Themes of environmental change and cultural heritage are present but not fully developed.",
+      "evidence": [
+        { "snippet": "systematic removal of trees, clearing of underbrush", "char_start": 84, "char_end": 124 },
+        { "snippet": "the elders took delight in sharing their stories", "char_start": 228, "char_end": 258 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 8,
+      "rationale": "The world of Aqua World is richly imagined with unique elements that enhance immersion.",
+      "evidence": [
+        { "snippet": "Aqua World, a system of lakes, marshes, and swamps", "char_start": 0, "char_end": 45 },
+        { "snippet": "the shiny pyrite, mostly uniform, crystalline colors of these angry beasts", "char_start": 458, "char_end": 511 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 5,
+      "rationale": "Pacing is uneven, with some sections feeling rushed while others are overly detailed.",
+      "evidence": [
+        { "snippet": "But with the infiltration of the giants", "char_start": 45, "char_end": 75 },
+        { "snippet": "the leaves were more fully grown on the trees and the evenings were warmer", "char_start": 404, "char_end": 458 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 6,
+      "rationale": "Prose is generally clear but occasionally becomes convoluted with complex sentence structures.",
+      "evidence": [
+        { "snippet": "Life expectancy back then was longer than any of them could count to", "char_start": 163, "char_end": 205 },
+        { "snippet": "They were fascinated with the shiny pyrite", "char_start": 458, "char_end": 489 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "score_0_10": 7,
+      "rationale": "The tone is consistent and appropriately reflects the themes of nostalgia and loss.",
+      "evidence": [
+        { "snippet": "It might as well have been some distant out-of-reach fantasy", "char_start": 75, "char_end": 118 },
+        { "snippet": "upon death, all citizens received the equivalent of a state funeral", "char_start": 205, "char_end": 247 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 4,
+      "rationale": "The excerpt lacks a clear resolution or closure, leaving the narrative feeling incomplete.",
+      "evidence": [
+        { "snippet": "But she remained wart-faced cold to their pleas", "char_start": 376, "char_end": 404 },
+        { "snippet": "the tadpoles racing for safety and the frogs scampering for an observation perch", "char_start": 458, "char_end": 511 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 5,
+      "rationale": "While the premise is unique, the execution may limit its appeal to a broader audience.",
+      "evidence": [
+        { "snippet": "Aqua World, a system of lakes, marshes, and swamps", "char_start": 0, "char_end": 45 },
+        { "snippet": "the outsiders with their strange skin coverings", "char_start": 404, "char_end": 458 }
+      ],
+      "recommendations": []
+    }
+  ],
+  "model": "v1",
+  "prompt_version": "pass1-craft-v6-compressed",
+  "temperature": 0.3,
+  "generated_at": "2023-10-01T12:00:00Z"
+}

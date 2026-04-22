@@ -1,0 +1,55 @@
+{
+  "criteria": [
+    {"key":"concept","final_score_0_10":6,"final_rationale":"Confirmed."},
+    {"key":"narrativeDrive","final_score_0_10":6,"final_rationale":"Confirmed."},
+    {"key":"character","final_score_0_10":6,"final_rationale":"The character of Hyla is well-defined, but others lack depth, leading to a less engaging narrative overall."},
+    {"key":"voice","final_score_0_10":7,"final_rationale":"The narrative voice is engaging and effectively conveys myth and folklore, although some inconsistencies in tone exist."},
+    {"key":"sceneConstruction","final_score_0_10":8,"final_rationale":"Confirmed."},
+    {"key":"dialogue","final_score_0_10":4,"final_rationale":"Confirmed."},
+    {"key":"theme","final_score_0_10":6,"final_rationale":"Confirmed."}
+  ],
+  "agreement_map": [
+    {"key":"concept","pass1_score":6,"pass2_score":7},
+    {"key":"narrativeDrive","pass1_score":5,"pass2_score":6},
+    {"key":"sceneConstruction","pass1_score":8,"pass2_score":7},
+    {"key":"dialogue","pass1_score":4,"pass2_score":4},
+    {"key":"theme","pass1_score":5,"pass2_score":6}
+  ],
+  "divergence_map": [
+    {
+      "key":"character",
+      "pass1_score":7,
+      "pass2_score":5,
+      "arbitration_rationale":"The divergence arises from differing evaluations of character depth. While Hyla is well-defined, the overall character development is perceived as lacking by both evaluators, but to different extents.",
+      "disputed": true
+    },
+    {
+      "key":"voice",
+      "pass1_score":6,
+      "pass2_score":8,
+      "arbitration_rationale":"The divergence in voice evaluation stems from differing perceptions of tone consistency. One evaluator finds the voice engaging but inconsistent, while the other sees it as effectively conveying atmosphere.",
+      "disputed": true
+    }
+  ],
+  "overall": {
+    "overall_score_0_100": 66,
+    "verdict": "revise",
+    "one_paragraph_summary": "The manuscript presents an engaging concept with vivid scene construction and a strong narrative drive, yet it suffers from character depth issues and inconsistent voice. While the themes are relevant, they require further exploration to enhance the overall impact. Addressing these divergences will strengthen the manuscript significantly.",
+    "top_3_strengths": [
+      "Vivid scene construction that immerses readers in the frogs' world.",
+      "Engaging narrative drive that maintains interest through external threats.",
+      "Strong thematic elements related to environmental degradation."
+    ],
+    "top_3_risks": [
+      "Lack of character depth may lead to reader disengagement.",
+      "Inconsistent voice could confuse the narrative tone.",
+      "Underexplored themes might weaken the manuscript's overall message."
+    ]
+  },
+  "metadata": {
+    "pass1_model": "v1.0",
+    "pass2_model": "v1.0",
+    "pass3_model": "v1.0",
+    "generated_at": "2023-10-01T12:00:00Z"
+  }
+}

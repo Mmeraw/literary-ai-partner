@@ -1,0 +1,144 @@
+{
+  "pass": 2,
+  "axis": "editorial_literary",
+  "criteria": [
+    {
+      "key": "concept",
+      "score_0_10": 7,
+      "rationale": "The unique perspective of frogs in a changing environment presents a compelling concept.",
+      "evidence": [
+        { "snippet": "Aqua World, a system of lakes, marshes, and swamps...", "char_start": 0, "char_end": 61 },
+        { "snippet": "Froglore had it that when the world was a marshy swamp...", "char_start": 144, "char_end": 186 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeDrive",
+      "score_0_10": 5,
+      "rationale": "The narrative has a steady flow but lacks urgency in advancing the plot.",
+      "evidence": [
+        { "snippet": "Denizens found themselves victims of habitat fragmentation...", "char_start": 329, "char_end": 368 },
+        { "snippet": "But she remained wart-faced cold to their pleas...", "char_start": 377, "char_end": 414 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "character",
+      "score_0_10": 6,
+      "rationale": "Hyla is a well-defined character, but others lack depth and development.",
+      "evidence": [
+        { "snippet": "Hyla, the wisest of the elders, had been anointed crown...", "char_start": 232, "char_end": 267 },
+        { "snippet": "The elders took delight in sharing their stories...", "char_start": 215, "char_end": 246 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "voice",
+      "score_0_10": 8,
+      "rationale": "The narrative voice is distinctive and engaging, fitting the whimsical tone of the story.",
+      "evidence": [
+        { "snippet": "Frogs grew ever larger, boasting large paunches...", "char_start": 146, "char_end": 177 },
+        { "snippet": "Life expectancy back then was longer than any of them could count to.", "char_start": 178, "char_end": 228 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "sceneConstruction",
+      "score_0_10": 7,
+      "rationale": "Scenes are vividly described, creating a strong sense of place and atmosphere.",
+      "evidence": [
+        { "snippet": "Aqua World, a system of lakes, marshes, and swamps...", "char_start": 0, "char_end": 61 },
+        { "snippet": "Now that the leaves were more fully grown on the trees...", "char_start": 365, "char_end": 399 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "dialogue",
+      "score_0_10": 4,
+      "rationale": "Dialogue is minimal, limiting character interaction and development.",
+      "evidence": [
+        { "snippet": "The masses beseeched Hyla to invoke the power of the amulet.", "char_start": 369, "char_end": 413 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "theme",
+      "score_0_10": 6,
+      "rationale": "Themes of environmental change and cultural preservation are present but could be more deeply explored.",
+      "evidence": [
+        { "snippet": "The systematic removal of trees, clearing of underbrush...", "char_start": 62, "char_end": 104 },
+        { "snippet": "Denizens found themselves victims of habitat fragmentation...", "char_start": 329, "char_end": 368 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "worldbuilding",
+      "score_0_10": 8,
+      "rationale": "The world of Aqua World is richly imagined, with detailed descriptions of its ecology and culture.",
+      "evidence": [
+        { "snippet": "Froglore had it that when the world was a marshy swamp...", "char_start": 144, "char_end": 186 },
+        { "snippet": "It was a toadstone, a small, dull-colored talisman...", "char_start": 267, "char_end": 304 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "pacing",
+      "score_0_10": 5,
+      "rationale": "The pacing is uneven, with some sections feeling drawn out while others rush through important details.",
+      "evidence": [
+        { "snippet": "The systematic removal of trees, clearing of underbrush...", "char_start": 62, "char_end": 104 },
+        { "snippet": "But she remained wart-faced cold to their pleas...", "char_start": 377, "char_end": 414 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "proseControl",
+      "score_0_10": 7,
+      "rationale": "The prose is generally well-crafted, though some sentences could be more concise.",
+      "evidence": [
+        { "snippet": "Frogs grew ever larger, boasting large paunches...", "char_start": 146, "char_end": 177 },
+        { "snippet": "They would come and go riding angry, loud terra-firma-vibrating creatures...", "char_start": 399, "char_end": 442 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "tone",
+      "score_0_10": 8,
+      "rationale": "The tone is whimsical and fitting for the narrative, enhancing the reader's engagement.",
+      "evidence": [
+        { "snippet": "Froglore had it that when the world was a marshy swamp...", "char_start": 144, "char_end": 186 },
+        { "snippet": "Life expectancy back then was longer than any of them could count to.", "char_start": 178, "char_end": 228 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "narrativeClosure",
+      "score_0_10": 4,
+      "rationale": "The excerpt lacks a clear resolution or closure, leaving the reader wanting more.",
+      "evidence": [
+        { "snippet": "But she remained wart-faced cold to their pleas...", "char_start": 377, "char_end": 414 }
+      ],
+      "recommendations": []
+    },
+    {
+      "key": "marketability",
+      "score_0_10": 6,
+      "rationale": "The unique premise and engaging voice could appeal to niche audiences, but broader appeal may be limited.",
+      "evidence": [
+        { "snippet": "Aqua World, a system of lakes, marshes, and swamps...", "char_start": 0, "char_end": 61 },
+        { "snippet": "They were fascinated with the shiny pyrite...", "char_start": 399, "char_end": 442 }
+      ],
+      "recommendations": []
+    }
+  ],
+  "model": "editorial_model_v1",
+  "prompt_version": "pass2-editorial-v6-compressed",
+  "temperature": 0.3,
+  "generated_at": "2023-10-05T12:00:00Z",
+  "narrative_mode_assessment": {
+    "dominant_mode": "scene_driven",
+    "mode_confidence": "high",
+    "mode_rationale": "The narrative primarily unfolds through vivid descriptions and environmental details.",
+    "pressure_profile": "steady"
+  }
+}
