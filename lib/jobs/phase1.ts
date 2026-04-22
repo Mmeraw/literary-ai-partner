@@ -96,9 +96,13 @@ export async function runPhase1(jobId: string): Promise<void> {
   const llmClient = createLlmClient();
 
   // Acquire lease atomically with eligibility check
-    const { acquireLeaseForPhase1 } = await import("./store");
+  const { acquireLeaseForPhase1 } = await import("./store");
+  const workerId =
+    process.env.WORKER_ID?.trim() ||
+    process.env.VERCEL_REGION?.trim() ||
+    "phase1-worker-unknown";
   const lease_id = crypto.randomUUID();
-  const leasedJob = await acquireLeaseForPhase1(jobId, lease_id, 300); // 5 minutes TTL
+  const leasedJob = await acquireLeaseForPhase1(jobId, workerId, lease_id, 300); // 5 minutes TTL
 
   if (!leasedJob) {
     console.log("Phase1LeaseNotAcquired", {

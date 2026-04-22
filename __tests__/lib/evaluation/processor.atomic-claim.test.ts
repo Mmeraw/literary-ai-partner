@@ -140,19 +140,19 @@ describe('claimQueuedJobs', () => {
     expect(result).toHaveLength(0);
   });
 
-  test('returns empty array (graceful degradation) when RPC function does not exist', async () => {
+  test('throws when RPC function does not exist (fail-closed)', async () => {
     const stub = buildSupabaseStub({
       rpcResult: { data: null, error: { message: 'function claim_evaluation_jobs does not exist' } },
     }) as any;
     createClientMock.mockReturnValue(stub);
 
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const { claimQueuedJobs } = await import('../../../lib/evaluation/processor');
-    const result = await claimQueuedJobs({ workerId: 'worker-abc' });
 
-    expect(result).toHaveLength(0);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('RPC unavailable'));
-    warnSpy.mockRestore();
+    await expect(claimQueuedJobs({ workerId: 'worker-abc' })).rejects.toMatchObject({
+      message: 'function claim_evaluation_jobs does not exist',
+    });
+    errorSpy.mockRestore();
   });
 
   test('throws on unexpected RPC errors', async () => {
