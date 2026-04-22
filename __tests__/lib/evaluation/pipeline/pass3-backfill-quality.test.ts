@@ -69,6 +69,7 @@ describe("Pass 3 backfill quality", () => {
         one_paragraph_summary: "Test summary.",
         top_3_strengths: ["voice", "concept", "character"],
         top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
       },
       metadata: {
         pass1_model: "o3",
