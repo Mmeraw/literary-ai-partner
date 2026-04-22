@@ -94,6 +94,7 @@ import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
 
+// DB bootstrap — intentionally reads process.env directly (not evaluation config).
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
