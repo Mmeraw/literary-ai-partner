@@ -497,14 +497,6 @@ export function parsePass3Response(
   const verdict: "pass" | "revise" | "fail" =
     rawVerdict === "pass" || rawVerdict === "fail" ? rawVerdict : "revise";
 
-  const rawSubmissionReadiness = String(rawOverall["submission_readiness"] ?? "").trim();
-  const submissionReadiness =
-    rawSubmissionReadiness === "queryable_now" ||
-    rawSubmissionReadiness === "close" ||
-    rawSubmissionReadiness === "not_yet"
-      ? rawSubmissionReadiness
-      : undefined;
-
   const summary = String(rawOverall["one_paragraph_summary"] ?? "").substring(0, 500);
 
   const strengths = Array.isArray(rawOverall["top_3_strengths"])
@@ -524,7 +516,6 @@ export function parsePass3Response(
     overall: {
       overall_score_0_100: overallScore0_100,
       verdict,
-      submission_readiness: submissionReadiness,
       one_paragraph_summary: summary,
       top_3_strengths: strengths,
       top_3_risks: risks,

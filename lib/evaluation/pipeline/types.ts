@@ -156,8 +156,6 @@ export type SynthesisOutput = {
     /** Computed via Vol II-A §WCS */
     overall_score_0_100: number;
     verdict: "pass" | "revise" | "fail";
-    /** Submission readiness signal for writer decision-making — optional for backward compat, required on fresh Pass 3 output */
-    submission_readiness?: SubmissionReadiness;
     /** ≤500 chars */
     one_paragraph_summary: string;
     top_3_strengths: string[];
