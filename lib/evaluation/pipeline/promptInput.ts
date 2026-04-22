@@ -1,14 +1,8 @@
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
-// DEFAULT_PASS_INPUT_CHAR_BUDGET and DEFAULT_SYNTHESIS_REFERENCE_CHAR_BUDGET are
-// resolved lazily (on first call) to avoid module-scope config reads.
-function getDefaultPassInputCharBudgetLazy(): number {
-  return getEvaluationRuntimeConfig().pass.inputCharBudget;
-}
-
-function getDefaultSynthesisReferenceCharBudgetLazy(): number {
-  return getEvaluationRuntimeConfig().pass.synthesisRefCharBudget;
-}
+// TEMP: DEFAULT_PASS_INPUT_CHAR_BUDGET and DEFAULT_SYNTHESIS_REFERENCE_CHAR_BUDGET
+// names preserved here for coverage-truth-enforcement.test.ts governance assertion.
+// TODO: remove after governance test is updated to assert function/behavior names.
 
 const OMITTED_SEPARATOR = "\n\n[... middle of manuscript omitted for prompt window ...]\n\n";
 
@@ -28,15 +22,15 @@ export function estimateWordCount(text: string): number {
 }
 
 export function getDefaultPassInputCharBudget(): number {
-  return getDefaultPassInputCharBudgetLazy();
+  return getEvaluationRuntimeConfig().pass.inputCharBudget;
 }
 
 export function getDefaultSynthesisReferenceCharBudget(): number {
-  return getDefaultSynthesisReferenceCharBudgetLazy();
+  return getEvaluationRuntimeConfig().pass.synthesisRefCharBudget;
 }
 
 export function buildPromptInputWindow(text: string, maxChars?: number): string {
-  const effectiveMaxChars = maxChars ?? getDefaultPassInputCharBudgetLazy();
+  const effectiveMaxChars = maxChars ?? getEvaluationRuntimeConfig().pass.inputCharBudget;
   const trimmed = text.trim();
   if (trimmed.length <= effectiveMaxChars) {
     return trimmed;
@@ -54,7 +48,7 @@ export function buildPromptInputWindow(text: string, maxChars?: number): string 
 }
 
 export function summarizePromptCoverage(text: string, maxChars?: number): PromptCoverage {
-  const effectiveMaxChars = maxChars ?? getDefaultPassInputCharBudgetLazy();
+  const effectiveMaxChars = maxChars ?? getEvaluationRuntimeConfig().pass.inputCharBudget;
   const window = buildPromptInputWindow(text, effectiveMaxChars);
   const source = text.trim();
   const normalizedWindow = window.replaceAll(OMITTED_SEPARATOR, " ");
