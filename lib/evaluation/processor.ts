@@ -857,7 +857,6 @@ export async function failStaleRunningJobs(): Promise<{
       claimed_by: null,
       claimed_at: null,
       lease_token: null,
-      lease_expires_at: null,
       lease_until: null,
       updated_at: now,
     })
