@@ -25,7 +25,7 @@ import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseB
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS2_TEMPERATURE = 0.3;
-const PASS2_MAX_TOKENS = getEvaluationRuntimeConfig().pass.pass2MaxTokens;
+function getPass2MaxTokens(): number { return getEvaluationRuntimeConfig().pass.pass2MaxTokens; }
 const PASS2_MODEL = "o3";
 
 function getRetryPass2MaxTokens(currentMaxTokens: number): number {
@@ -187,7 +187,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
 
   console.log(`[Pass2] completion request model=${selectedModel}`);
 
-  let activeMaxTokens = PASS2_MAX_TOKENS;
+  let activeMaxTokens = getPass2MaxTokens();
   const modelCallStartMs = nowMs();
   let { completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens);
   let modelCallMs = nowMs() - modelCallStartMs;

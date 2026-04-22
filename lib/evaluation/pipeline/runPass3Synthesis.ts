@@ -28,9 +28,9 @@ import { enforcePass3QualityGuards } from "@/lib/evaluation/governance/runtimeQu
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS3_TEMPERATURE = 0.2;
-const PASS3_MAX_TOKENS = getEvaluationRuntimeConfig().pass.pass3MaxTokens;
+function getPass3MaxTokens(): number { return getEvaluationRuntimeConfig().pass.pass3MaxTokens; }
 const PASS3_MODEL = "o3";
-const PASS3_PROMPT_MAX_CHARS = getEvaluationRuntimeConfig().pass.pass3PromptMaxChars;
+function getPass3PromptMaxChars(): number { return getEvaluationRuntimeConfig().pass.pass3PromptMaxChars; }
 const PASS3_MIN_RATIONALE_LENGTH = 40;
 const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
 
@@ -98,7 +98,7 @@ function buildEmptyResponseDiagnostic(params: {
   return (
     `[Pass3] Empty response from OpenAI ` +
     `(model=${model} finish_reason=${finishReason} content_type=${contentType} choices=${choiceCount} ` +
-    `max_output_tokens=${PASS3_MAX_TOKENS} prompt_chars=${promptChars} comparison_packet_chars=${comparisonPacketChars} ` +
+    `max_output_tokens=${getPass3MaxTokens()} prompt_chars=${promptChars} comparison_packet_chars=${comparisonPacketChars} ` +
     `reference_chars=${coverage.analyzedChars} source_chars=${coverage.sourceChars}` +
     `${typeof usage?.prompt_tokens === "number" ? ` prompt_tokens=${usage.prompt_tokens}` : ""}` +
     `${typeof usage?.completion_tokens === "number" ? ` completion_tokens=${usage.completion_tokens}` : ""}` +
@@ -109,9 +109,9 @@ function buildEmptyResponseDiagnostic(params: {
 }
 
 function assertPass3PromptTripwires(userPrompt: string): void {
-  if (userPrompt.length > PASS3_PROMPT_MAX_CHARS) {
+  if (userPrompt.length > getPass3PromptMaxChars()) {
     throw new Error(
-      `[Pass3] PROMPT_TOO_LARGE: prompt_chars=${userPrompt.length} limit=${PASS3_PROMPT_MAX_CHARS}`,
+      `[Pass3] PROMPT_TOO_LARGE: prompt_chars=${userPrompt.length} limit=${getPass3PromptMaxChars()}`,
     );
   }
 
@@ -222,7 +222,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     comparison_packet_chars: comparisonPacketJson.length,
     system_prompt_chars: PASS3_SYSTEM_PROMPT.length,
     user_prompt_chars: userPrompt.length,
-    max_output_tokens: PASS3_MAX_TOKENS,
+    max_output_tokens: getPass3MaxTokens(),
   });
   
   // Compute coverage metadata (for truth enforcement)
@@ -238,7 +238,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
       { role: "user", content: userPrompt },
     ],
     ...buildOpenAITemperatureParam(selectedModel, PASS3_TEMPERATURE),
-    ...buildOpenAIOutputTokenParam(selectedModel, PASS3_MAX_TOKENS),
+    ...buildOpenAIOutputTokenParam(selectedModel, getPass3MaxTokens()),
     response_format: { type: "json_object" },
   });
 
@@ -271,7 +271,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
       comparisonPacketChars: comparisonPacketJson.length,
       promptChars: userPrompt.length,
       promptCoverage: coverage,
-      maxOutputTokens: PASS3_MAX_TOKENS,
+      maxOutputTokens: getPass3MaxTokens(),
       refusal:
         typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined,
     });
@@ -283,7 +283,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   if (finishReasonWarning === "length") {
     console.warn("[Pass3] finish_reason=length — output may be truncated", {
       model: selectedModel,
-      maxOutputTokens: PASS3_MAX_TOKENS,
+      maxOutputTokens: getPass3MaxTokens(),
       responseLen: responseText.length,
       usage: completion.usage,
     });
