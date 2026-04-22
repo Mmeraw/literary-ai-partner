@@ -19,13 +19,11 @@ import {
   getCanonicalPipelineModel,
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
+import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
+import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS1_TEMPERATURE = 0.3;
-const PASS1_MAX_TOKENS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS1_MAX_TOKENS || "3500", 10);
-  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 8000 ? parsed : 3500;
-})();
 const PASS1_MODEL = "o3";
 
 function nowMs(): number {
@@ -90,7 +88,7 @@ function buildEmptyResponseDiagnostic(params: {
   return (
     `[Pass1] Empty response from OpenAI ` +
     `(model=${model} finish_reason=${finishReason} content_type=${contentType} choices=${choiceCount} ` +
-    `max_output_tokens=${PASS1_MAX_TOKENS}` +
+    `max_output_tokens=${getEvaluationRuntimeConfig().pass.pass1MaxTokens}` +
     `${typeof usage?.prompt_tokens === "number" ? ` prompt_tokens=${usage.prompt_tokens}` : ""}` +
     `${typeof usage?.completion_tokens === "number" ? ` completion_tokens=${usage.completion_tokens}` : ""}` +
     `${typeof usage?.total_tokens === "number" ? ` total_tokens=${usage.total_tokens}` : ""}` +
@@ -116,6 +114,8 @@ export interface RunPass1Options {
   registry: CanonRegistry;
   model?: string;
   openaiApiKey?: string;
+  /** Job ID forwarded from the processor for latency trace correlation. */
+  jobId?: string;
   /** Override the completion function (for testing). Production callers omit this. */
   _createCompletion?: CreateCompletionFn;
   _onCompletion?: (capture: PassCompletionCapture) => void;
@@ -147,7 +147,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   const promptAssemblyMs = nowMs() - promptAssemblyStartMs;
   const inputChars = opts.manuscriptText.length;
 
-  const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, PASS1_MAX_TOKENS);
+  const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, getEvaluationRuntimeConfig().pass.pass1MaxTokens);
   const configuredMaxTokens =
     typeof (outputTokenParam as { max_completion_tokens?: unknown }).max_completion_tokens === "number"
       ? Number((outputTokenParam as { max_completion_tokens: number }).max_completion_tokens)
@@ -195,27 +195,31 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
       contentType: rawContent === null ? "null" : Array.isArray(rawContent) ? "array" : typeof rawContent,
       contentPreview: typeof rawContent === "string" ? rawContent.slice(0, 160) : undefined,
       usage: completion.usage,
-      maxOutputTokens: PASS1_MAX_TOKENS,
+      maxOutputTokens: getEvaluationRuntimeConfig().pass.pass1MaxTokens,
       refusal:
         typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined,
     });
     const parseValidationMs = nowMs() - parseValidationStartMs;
     const totalMs = nowMs() - passStartMs;
-    console.log("[Pass1][Timing]", {
-      stage: "failure",
-      model: selectedModel,
-      input_chars: inputChars,
-      output_chars: responseText.length,
-      prompt_assembly_ms: promptAssemblyMs,
-      model_call_ms: modelCallMs,
-      parse_validation_ms: parseValidationMs,
-      total_ms: totalMs,
-      configured_timeout_ms: getEvalOpenAiTimeoutMs(),
-      configured_max_tokens: configuredMaxTokens,
-      usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
-      usage_completion_tokens: completion.usage?.completion_tokens ?? null,
-      usage_total_tokens: completion.usage?.total_tokens ?? null,
-      error: "empty_response",
+    emitLatencyTrace({
+      job_id: opts.jobId ?? 'unknown',
+      stage: 'pass1',
+      state: 'pass1_timings_failure',
+      metadata: {
+        finish_reason: 'empty_response',
+        model: selectedModel,
+        input_chars: inputChars,
+        output_chars: responseText.length,
+        prompt_assembly_ms: promptAssemblyMs,
+        model_call_ms: modelCallMs,
+        parse_validation_ms: parseValidationMs,
+        total_ms: totalMs,
+        configured_timeout_ms: getEvalOpenAiTimeoutMs(),
+        configured_max_tokens: configuredMaxTokens,
+        usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
+        usage_completion_tokens: completion.usage?.completion_tokens ?? null,
+        usage_total_tokens: completion.usage?.total_tokens ?? null,
+      },
     });
     throw new Error(diagnosticMessage);
   }
@@ -225,7 +229,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   if (finishReasonWarning === "length") {
     console.warn("[Pass1] finish_reason=length — output may be truncated", {
       model: selectedModel,
-      maxOutputTokens: PASS1_MAX_TOKENS,
+      maxOutputTokens: getEvaluationRuntimeConfig().pass.pass1MaxTokens,
       responseLen: responseText.length,
       usage: completion.usage,
     });
@@ -274,20 +278,24 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   const parseValidationMs = nowMs() - parseValidationStartMs;
   const totalMs = nowMs() - passStartMs;
 
-  console.log("[Pass1][Timing]", {
-    stage: "success",
-    model: selectedModel,
-    input_chars: inputChars,
-    output_chars: responseText.length,
-    prompt_assembly_ms: promptAssemblyMs,
-    model_call_ms: modelCallMs,
-    parse_validation_ms: parseValidationMs,
-    total_ms: totalMs,
-    configured_timeout_ms: getEvalOpenAiTimeoutMs(),
-    configured_max_tokens: configuredMaxTokens,
-    usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
-    usage_completion_tokens: completion.usage?.completion_tokens ?? null,
-    usage_total_tokens: completion.usage?.total_tokens ?? null,
+  emitLatencyTrace({
+    job_id: opts.jobId ?? 'unknown',
+    stage: 'pass1',
+    state: 'pass1_timings',
+    metadata: {
+      model: selectedModel,
+      input_chars: inputChars,
+      output_chars: responseText.length,
+      prompt_assembly_ms: promptAssemblyMs,
+      model_call_ms: modelCallMs,
+      parse_validation_ms: parseValidationMs,
+      total_ms: totalMs,
+      configured_timeout_ms: getEvalOpenAiTimeoutMs(),
+      configured_max_tokens: configuredMaxTokens,
+      usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
+      usage_completion_tokens: completion.usage?.completion_tokens ?? null,
+      usage_total_tokens: completion.usage?.total_tokens ?? null,
+    },
   });
 
   return parsedOutput;
@@ -298,7 +306,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
  * Separated so the constructor is only called when no DI override is provided.
  */
 function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
-  const apiKey = openaiApiKey ?? process.env.OPENAI_API_KEY;
+  const apiKey = openaiApiKey ?? getEvaluationRuntimeConfig().openaiApiKey;
   if (!apiKey) {
     throw new Error("[Pass1] OPENAI_API_KEY is not configured");
   }
@@ -373,6 +381,12 @@ export function parsePass1Response(raw: string, fallbackModel = PASS1_MODEL): Si
             action: String(rec["action"] ?? ""),
             expected_impact: String(rec["expected_impact"] ?? ""),
             anchor_snippet: String(rec["anchor_snippet"] ?? ""),
+            issue_family:
+              (rec["issue_family"] ?? "scene_structure") as AxisCriterionResult["recommendations"][number]["issue_family"],
+            strategic_lever:
+              (rec["strategic_lever"] ?? "scene_goal_clarity") as AxisCriterionResult["recommendations"][number]["strategic_lever"],
+            revision_granularity:
+              (rec["revision_granularity"] ?? "scene") as AxisCriterionResult["recommendations"][number]["revision_granularity"],
           };
         })
       : [];

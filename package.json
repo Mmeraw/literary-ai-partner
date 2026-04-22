@@ -11,7 +11,7 @@
     "lint:fix": "eslint . --fix",
     "canon:guard": "bash ./scripts/canon-guard.sh",
     "spine:verify": "bash scripts/verify-spine.sh",
-    "config:validate": "node scripts/validate-production-config.mjs",
+    "config:validate": "tsx scripts/validate-production-config.ts",
     "docs:verify": "bash scripts/verification-contract.sh",
     "docs:runtime:guard": "bash scripts/verify-canonical-runtime-authority.sh",
     "verify:zero-drift": "bash scripts/verify-zero-drift.sh",

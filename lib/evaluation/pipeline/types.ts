@@ -9,6 +9,53 @@
 
 import type { CriterionKey } from "@/schemas/criteria-keys";
 
+// ── Recommendation semantic vocabulary ───────────────────────────────────────
+
+/**
+ * Broad craft/problem class. Controlled vocabulary — do not use free-form strings.
+ * Add new values here before using them in Pass 3 output.
+ */
+export type IssueFamily =
+  | "pacing"
+  | "dialogue"
+  | "closure"
+  | "characterization"
+  | "exposition"
+  | "tension"
+  | "prose_control"
+  | "scene_structure"
+  | "voice"
+  | "market_positioning"
+  | "concept"
+  | "theme"
+  | "worldbuilding";
+
+/**
+ * Higher-order editorial lever — the main semantic dedupe handle.
+ * Two recommendations sharing the same strategic_lever are candidates for collapse.
+ * Controlled vocabulary — do not use free-form strings.
+ */
+export type StrategicLever =
+  | "momentum_visibility"
+  | "dialogue_exposition_density"
+  | "scene_goal_clarity"
+  | "closure_state_lock"
+  | "character_voice_differentiation"
+  | "tension_escalation"
+  | "exposition_load_reduction"
+  | "prose_compression"
+  | "market_signal_clarity"
+  | "pov_rendering_precision"
+  | "structural_commitment"
+  | "thematic_grounding"
+  | "sensory_specificity";
+
+/**
+ * Where the revision fix primarily operates.
+ * Controls whether same-lever recommendations are truly distinct.
+ */
+export type RevisionGranularity = "line" | "beat" | "scene" | "chapter" | "manuscript";
+
 // ── Evidence ─────────────────────────────────────────────────────────────────
 
 export type EvidenceAnchor = {
@@ -34,6 +81,12 @@ export type AxisCriterionResult = {
     expected_impact: string;
     /** The specific text this recommendation targets */
     anchor_snippet: string;
+    /** Broad craft/problem class (canonical vocabulary) */
+    issue_family: IssueFamily;
+    /** Higher-order editorial lever — semantic dedupe handle (canonical vocabulary) */
+    strategic_lever: StrategicLever;
+    /** Where the fix primarily operates */
+    revision_granularity: RevisionGranularity;
   }[];
 };
 
@@ -78,6 +131,20 @@ export type SynthesizedCriterion = {
     anchor_snippet: string;
     /** Which pass originated this recommendation */
     source_pass: 1 | 2 | 3;
+    /** Broad craft/problem class (canonical vocabulary) */
+    issue_family: IssueFamily;
+    /** Higher-order editorial lever — semantic dedupe handle (canonical vocabulary) */
+    strategic_lever: StrategicLever;
+    /** Where the fix primarily operates */
+    revision_granularity: RevisionGranularity;
+    /**
+     * Deterministic collapse key for semantic dedup.
+     * Format: issue_family:strategic_lever:revision_granularity
+     * Built by buildRedundancyKey() after normalization.
+     */
+    redundancy_key?: string;
+    /** Number of distinct evidence spans supporting this recommendation */
+    evidence_span_count?: number;
   }[];
 };
 
@@ -93,6 +160,13 @@ export type SynthesisOutput = {
     one_paragraph_summary: string;
     top_3_strengths: string[];
     top_3_risks: string[];
+    /**
+     * Writer-facing submission readiness posture.
+     * queryable_now — strong enough to submit
+     * close — one focused revision pass would materially improve requestability
+     * not_yet — substantial issues prevent strong submission posture
+     */
+    submission_readiness: "queryable_now" | "close" | "not_yet";
   };
   metadata: {
     pass1_model: string;

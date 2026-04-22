@@ -49,6 +49,9 @@ function makeSinglePassOutput(pass: 1 | 2): SinglePassOutput {
           action: `Strengthen the ${key} dimension with more targeted evidence from the manuscript text.`,
           expected_impact: "Increases specificity and reader connection.",
           anchor_snippet: '"slowly"',
+          issue_family: "scene_structure",
+          strategic_lever: "scene_goal_clarity",
+          revision_granularity: "scene",
         },
       ],
     })),
@@ -79,6 +82,9 @@ function makeSynthesisOutput(): SynthesisOutput {
           expected_impact: "Elevates overall evaluation quality.",
           anchor_snippet: '"slowly"',
           source_pass: 3 as const,
+          issue_family: "scene_structure",
+          strategic_lever: "scene_goal_clarity",
+          revision_granularity: "scene",
         },
       ],
     })),
@@ -89,6 +95,7 @@ function makeSynthesisOutput(): SynthesisOutput {
         "This manuscript demonstrates solid craft and distinctive literary sensibility, requiring targeted revision before submission.",
       top_3_strengths: ["Strong narrative voice", "Clear structural arc", "Vivid sensory imagery"],
       top_3_risks: ["Pacing inconsistencies in act two", "Thin supporting character motivation", "World-building gaps"],
+      submission_readiness: "close",
     },
     metadata: {
       pass1_model: "gpt-4o-mini",
@@ -112,6 +119,7 @@ function makeTruncatedSynthesisOutput(): SynthesisOutput {
       one_paragraph_summary: "Partial output.",
       top_3_strengths: [],
       top_3_risks: [],
+      submission_readiness: "not_yet",
     },
   };
 }
@@ -445,6 +453,9 @@ describe("runPipeline (e2e with injected runners)", () => {
         expected_impact: "Elevates overall evaluation quality.",
         anchor_snippet: '"slowly"',
         source_pass: 3,
+        issue_family: "scene_structure",
+        strategic_lever: "scene_goal_clarity",
+        revision_granularity: "scene",
       },
     ];
 
@@ -455,6 +466,9 @@ describe("runPipeline (e2e with injected runners)", () => {
         expected_impact: "Elevates overall evaluation quality.",
         anchor_snippet: '"slowly"',
         source_pass: 3,
+        issue_family: "scene_structure",
+        strategic_lever: "scene_goal_clarity",
+        revision_granularity: "scene",
       },
     ];
 
@@ -754,6 +768,9 @@ describe("synthesisToEvaluationResult adapter", () => {
             expected_impact: "Significant improvement.",
             anchor_snippet: '"slowly"',
             source_pass: 1 as const,
+            issue_family: "scene_structure",
+            strategic_lever: "scene_goal_clarity",
+            revision_granularity: "scene",
           },
           {
             priority: "medium" as const,
@@ -761,6 +778,9 @@ describe("synthesisToEvaluationResult adapter", () => {
             expected_impact: "Incremental improvement.",
             anchor_snippet: '"moved"',
             source_pass: 2 as const,
+            issue_family: "scene_structure",
+            strategic_lever: "scene_goal_clarity",
+            revision_granularity: "scene",
           },
         ],
       })),
@@ -770,6 +790,7 @@ describe("synthesisToEvaluationResult adapter", () => {
         one_paragraph_summary: "Strong manuscript with clear revision needs.",
         top_3_strengths: ["Voice", "Arc", "Imagery"],
         top_3_risks: ["Pacing", "Characters", "World-building"],
+        submission_readiness: "close",
       },
       metadata: {
         pass1_model: "gpt-4o-mini",

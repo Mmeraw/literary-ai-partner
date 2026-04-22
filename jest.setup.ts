@@ -2,6 +2,8 @@
 // Pass through environment variables if set (GitHub Actions, local CI)
 // Otherwise use sensible test defaults
 
+import { resolveEvaluationTimeoutConfig } from "@/lib/evaluation/config";
+
 process.env.SUPABASE_URL =
   process.env.SUPABASE_URL ?? "http://localhost:54321";
 
@@ -34,18 +36,11 @@ if (!process.env.PG_URL) {
   }
 }
 
-function parseIntEnv(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
 // Evaluation timeout invariants (mistake-proof baseline for Jest):
 // EVAL_OPENAI_TIMEOUT_MS must be >= EVAL_PASS_TIMEOUT_MS.
-const evalPassTimeoutMs = parseIntEnv("EVAL_PASS_TIMEOUT_MS", 180000);
-const evalOpenAiTimeoutMsRaw = parseIntEnv("EVAL_OPENAI_TIMEOUT_MS", 180000);
-const evalOpenAiTimeoutMs = Math.max(evalOpenAiTimeoutMsRaw, evalPassTimeoutMs);
+const resolvedTimeouts = resolveEvaluationTimeoutConfig(process.env);
+const evalPassTimeoutMs = resolvedTimeouts.passTimeout.valueMs;
+const evalOpenAiTimeoutMs = Math.max(resolvedTimeouts.openAiTimeout.valueMs, evalPassTimeoutMs);
 
 process.env.EVAL_PASS_TIMEOUT_MS = String(evalPassTimeoutMs);
 process.env.EVAL_OPENAI_TIMEOUT_MS = String(evalOpenAiTimeoutMs);

@@ -22,12 +22,9 @@ import {
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
+import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS2_TEMPERATURE = 0.3;
-const PASS2_MAX_TOKENS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS2_MAX_TOKENS || "4000", 10);
-  return Number.isFinite(parsed) && parsed >= 1000 && parsed <= 8000 ? parsed : 4000;
-})();
 const PASS2_MODEL = "o3";
 
 function getRetryPass2MaxTokens(currentMaxTokens: number): number {
@@ -189,7 +186,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
 
   console.log(`[Pass2] completion request model=${selectedModel}`);
 
-  let activeMaxTokens = PASS2_MAX_TOKENS;
+  let activeMaxTokens = getEvaluationRuntimeConfig().pass.pass2MaxTokens;
   const modelCallStartMs = nowMs();
   let { completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens);
   let modelCallMs = nowMs() - modelCallStartMs;
@@ -349,7 +346,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
  * Separated so the constructor is only called when no DI override is provided.
  */
 function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
-  const apiKey = openaiApiKey ?? process.env.OPENAI_API_KEY;
+  const apiKey = openaiApiKey ?? getEvaluationRuntimeConfig().openaiApiKey;
   if (!apiKey) {
     throw new Error("[Pass2] OPENAI_API_KEY is not configured");
   }
@@ -424,6 +421,12 @@ export function parsePass2Response(raw: string, fallbackModel = PASS2_MODEL): Si
             action: String(rec["action"] ?? ""),
             expected_impact: String(rec["expected_impact"] ?? ""),
             anchor_snippet: String(rec["anchor_snippet"] ?? ""),
+            issue_family:
+              (rec["issue_family"] ?? "scene_structure") as AxisCriterionResult["recommendations"][number]["issue_family"],
+            strategic_lever:
+              (rec["strategic_lever"] ?? "scene_goal_clarity") as AxisCriterionResult["recommendations"][number]["strategic_lever"],
+            revision_granularity:
+              (rec["revision_granularity"] ?? "scene") as AxisCriterionResult["recommendations"][number]["revision_granularity"],
           };
         })
       : [];

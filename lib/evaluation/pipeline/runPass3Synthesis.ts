@@ -24,17 +24,12 @@ import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from "./promptInput";
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
+import { enforcePass3QualityGuards } from "@/lib/evaluation/governance/runtimeQualityGuards";
+import { normalizeIssueFamily, normalizeStrategicLever, normalizeRevisionGranularity } from "./recommendationSemantics";
+import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS3_TEMPERATURE = 0.2;
-const PASS3_MAX_TOKENS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS3_MAX_TOKENS || "5000", 10);
-  return Number.isFinite(parsed) && parsed >= 2000 && parsed <= 20000 ? parsed : 3500;
-})();
 const PASS3_MODEL = "o3";
-const PASS3_PROMPT_MAX_CHARS = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_PASS3_PROMPT_MAX_CHARS || "40000", 10);
-  return Number.isFinite(parsed) && parsed >= 8000 && parsed <= 120000 ? parsed : 40000;
-})();
 const PASS3_MIN_RATIONALE_LENGTH = 40;
 const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
 
@@ -102,7 +97,7 @@ function buildEmptyResponseDiagnostic(params: {
   return (
     `[Pass3] Empty response from OpenAI ` +
     `(model=${model} finish_reason=${finishReason} content_type=${contentType} choices=${choiceCount} ` +
-    `max_output_tokens=${PASS3_MAX_TOKENS} prompt_chars=${promptChars} comparison_packet_chars=${comparisonPacketChars} ` +
+    `max_output_tokens=${getEvaluationRuntimeConfig().pass.pass3MaxTokens} prompt_chars=${promptChars} comparison_packet_chars=${comparisonPacketChars} ` +
     `reference_chars=${coverage.analyzedChars} source_chars=${coverage.sourceChars}` +
     `${typeof usage?.prompt_tokens === "number" ? ` prompt_tokens=${usage.prompt_tokens}` : ""}` +
     `${typeof usage?.completion_tokens === "number" ? ` completion_tokens=${usage.completion_tokens}` : ""}` +
@@ -113,9 +108,9 @@ function buildEmptyResponseDiagnostic(params: {
 }
 
 function assertPass3PromptTripwires(userPrompt: string): void {
-  if (userPrompt.length > PASS3_PROMPT_MAX_CHARS) {
+  if (userPrompt.length > getEvaluationRuntimeConfig().pass.pass3PromptMaxChars) {
     throw new Error(
-      `[Pass3] PROMPT_TOO_LARGE: prompt_chars=${userPrompt.length} limit=${PASS3_PROMPT_MAX_CHARS}`,
+      `[Pass3] PROMPT_TOO_LARGE: prompt_chars=${userPrompt.length} limit=${getEvaluationRuntimeConfig().pass.pass3PromptMaxChars}`,
     );
   }
 
@@ -208,6 +203,9 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   });
   const promptPacket = buildPromptPacketFromComparison(comparisonPacket);
   const comparisonPacketJson = JSON.stringify(promptPacket);
+  const reducerTelemetry = {
+    criteria_count_by_state: comparisonPacket.criteria_count_by_state,
+  };
 
   const userPrompt = buildPass3UserPrompt({
     comparisonPacketJson,
@@ -219,11 +217,11 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
 
   console.log("[Pass3][ReducerTelemetry]", {
     prompt_version: PASS3_PROMPT_VERSION,
-    criteria_count_by_state: comparisonPacket.criteria_count_by_state,
+    criteria_count_by_state: reducerTelemetry.criteria_count_by_state,
     comparison_packet_chars: comparisonPacketJson.length,
     system_prompt_chars: PASS3_SYSTEM_PROMPT.length,
     user_prompt_chars: userPrompt.length,
-    max_output_tokens: PASS3_MAX_TOKENS,
+    max_output_tokens: getEvaluationRuntimeConfig().pass.pass3MaxTokens,
   });
   
   // Compute coverage metadata (for truth enforcement)
@@ -239,7 +237,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
       { role: "user", content: userPrompt },
     ],
     ...buildOpenAITemperatureParam(selectedModel, PASS3_TEMPERATURE),
-    ...buildOpenAIOutputTokenParam(selectedModel, PASS3_MAX_TOKENS),
+    ...buildOpenAIOutputTokenParam(selectedModel, getEvaluationRuntimeConfig().pass.pass3MaxTokens),
     response_format: { type: "json_object" },
   });
 
@@ -272,7 +270,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
       comparisonPacketChars: comparisonPacketJson.length,
       promptChars: userPrompt.length,
       promptCoverage: coverage,
-      maxOutputTokens: PASS3_MAX_TOKENS,
+      maxOutputTokens: getEvaluationRuntimeConfig().pass.pass3MaxTokens,
       refusal:
         typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined,
     });
@@ -284,7 +282,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   if (finishReasonWarning === "length") {
     console.warn("[Pass3] finish_reason=length — output may be truncated", {
       model: selectedModel,
-      maxOutputTokens: PASS3_MAX_TOKENS,
+      maxOutputTokens: getEvaluationRuntimeConfig().pass.pass3MaxTokens,
       responseLen: responseText.length,
       usage: completion.usage,
     });
@@ -313,6 +311,14 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   let synthesis: SynthesisOutput;
   try {
     synthesis = parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel);
+
+    // Normalization and required-field validation happen inside parsePass3Response
+    // (parseRecommendations + parseSubmissionReadiness are fail-closed at parse boundary).
+
+    enforcePass3QualityGuards({
+      telemetry: reducerTelemetry,
+      output: synthesis,
+    });
   } catch (error) {
     console.error("[Pass3] Parse boundary diagnostic", {
       title: opts.title,
@@ -349,7 +355,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
  * Separated so the constructor is only called when no DI override is provided.
  */
 function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
-  const apiKey = openaiApiKey ?? process.env.OPENAI_API_KEY;
+  const apiKey = openaiApiKey ?? getEvaluationRuntimeConfig().openaiApiKey;
   if (!apiKey) {
     throw new Error("[Pass3] OPENAI_API_KEY is not configured");
   }
@@ -513,6 +519,7 @@ export function parsePass3Response(
       one_paragraph_summary: summary,
       top_3_strengths: strengths,
       top_3_risks: risks,
+      submission_readiness: parseSubmissionReadiness(rawOverall["submission_readiness"], verdict, criteria),
     },
     metadata: {
       pass1_model: String(rawMeta["pass1_model"] ?? pass1.model),
@@ -548,6 +555,16 @@ function parseRecommendations(raw: unknown): SynthesizedCriterion["recommendatio
         expected_impact: String(r["expected_impact"] ?? ""),
         anchor_snippet: String(r["anchor_snippet"] ?? ""),
         source_pass: (sourcePass === 1 || sourcePass === 2 ? sourcePass : 3) as 1 | 2 | 3,
+        issue_family: (() => {
+          if (!("issue_family" in r) || r["issue_family"] === undefined || r["issue_family"] === null) {
+            throw new Error("[Pass3] recommendation is missing required field: issue_family");
+          }
+          return (normalizeIssueFamily(r["issue_family"]) ?? r["issue_family"]) as SynthesizedCriterion["recommendations"][number]["issue_family"];
+        })(),
+        strategic_lever:
+          (normalizeStrategicLever(r["strategic_lever"]) ?? r["strategic_lever"] ?? "scene_goal_clarity") as SynthesizedCriterion["recommendations"][number]["strategic_lever"],
+        revision_granularity:
+          (normalizeRevisionGranularity(r["revision_granularity"]) ?? r["revision_granularity"] ?? "scene") as SynthesizedCriterion["recommendations"][number]["revision_granularity"],
       };
     });
 }
@@ -630,6 +647,9 @@ function backfillRecommendationsFromAxis(
         expected_impact: String(r.expected_impact ?? "").trim(),
         anchor_snippet: String(r.anchor_snippet ?? "").trim(),
         source_pass: sourcePass,
+        issue_family: r.issue_family,
+        strategic_lever: r.strategic_lever,
+        revision_granularity: r.revision_granularity,
       }))
       .filter((r) => r.action.length > 0 && r.expected_impact.length > 0 && r.anchor_snippet.length > 0);
   };
@@ -670,4 +690,29 @@ function parseConsequenceStatus(
   if (scoreDelta >= 3) return "deferred";
   if (finalScore <= 4) return "dissipated";
   return "landed";
+}
+
+function parseSubmissionReadiness(
+  raw: unknown,
+  verdict: SynthesisOutput["overall"]["verdict"],
+  criteria: SynthesizedCriterion[],
+): SynthesisOutput["overall"]["submission_readiness"] {
+  if (raw === undefined || raw === null) {
+    throw new Error("[Pass3] overall.submission_readiness is required but was missing from model output");
+  }
+  const normalized = String(raw).trim().toLowerCase();
+  if (normalized === "queryable_now" || normalized === "close" || normalized === "not_yet") {
+    return normalized;
+  }
+
+  const lowScoreCount = criteria.filter((criterion) => criterion.final_score_0_10 < 5).length;
+  if (verdict === "fail" || lowScoreCount >= 3) {
+    return "not_yet";
+  }
+
+  if (verdict === "pass") {
+    return "queryable_now";
+  }
+
+  return "close";
 }

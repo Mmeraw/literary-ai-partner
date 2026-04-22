@@ -79,6 +79,12 @@ import {
   getEvalOpenAiTimeoutMs,
   getEvalPassTimeoutMs,
 } from '@/lib/evaluation/config';
+import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
+import {
+  emitLatencyTrace,
+  finishLatencyStage,
+  startLatencyStage,
+} from '@/lib/observability/latencyTrace';
 import {
   assertValidJobStatusTransition,
   normalizeEvaluationJobStatus,
@@ -88,44 +94,29 @@ import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
 
+// DB bootstrap — intentionally reads process.env directly (not evaluation config).
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const openaiApiKey = process.env.OPENAI_API_KEY;
-const perplexityApiKey = process.env.PERPLEXITY_API_KEY ?? "";
-const evalDebugEnabled = process.env.EVAL_DEBUG === '1';
-const evalMinManuscriptWords = (() => {
-  if (process.env.EVAL_MIN_MANUSCRIPT_WORDS) {
-    const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_WORDS, 10);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      return parsed;
-    }
-  }
 
-  if (process.env.EVAL_MIN_MANUSCRIPT_CHARS) {
-    const parsed = Number.parseInt(process.env.EVAL_MIN_MANUSCRIPT_CHARS, 10);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      console.warn(
-        '[Processor] EVAL_MIN_MANUSCRIPT_CHARS is deprecated. Converting chars to words (~5 chars/word). Prefer EVAL_MIN_MANUSCRIPT_WORDS.',
-      );
-      return Math.ceil(parsed / 5);
-    }
+function getProcessorRuntimeDeps() {
+  assertEvalTimeoutConfig();
+  const runtimeConfig = getEvaluationRuntimeConfig();
+  return {
+    runtimeConfig,
+    openaiApiKey: runtimeConfig.openaiApiKey,
+    perplexityApiKey: runtimeConfig.perplexityApiKey ?? "",
+    evalDebugEnabled: runtimeConfig.evalDebugEnabled,
+    evalMinManuscriptWords: runtimeConfig.minManuscriptWords,
+    openAiModel: runtimeConfig.model,
+    staleRunningMinutes: runtimeConfig.staleRunningMinutes,
+    evalWorkerBatchSize: getValidatedWorkerBatchSize(runtimeConfig.worker.batchSize, 5),
+    evalContextContaminationGuardEnabled: runtimeConfig.contextContaminationGuardEnabled,
+    evalPassTimeoutMs: getEvalPassTimeoutMs(),
+    evalOpenAiTimeoutMs: getEvalOpenAiTimeoutMs(),
+  };
+}
 
-    console.warn(
-      '[Processor] EVAL_MIN_MANUSCRIPT_CHARS is deprecated and invalid. Defaulting to 200 words. Prefer EVAL_MIN_MANUSCRIPT_WORDS.',
-    );
-  }
-
-  return 200;
-})();
-const openAiModel = (process.env.EVAL_OPENAI_MODEL || 'o3').trim() || 'o3';
-const evalPassTimeoutMs = getEvalPassTimeoutMs();
-const evalOpenAiTimeoutMs = getEvalOpenAiTimeoutMs();
-assertEvalTimeoutConfig();
 const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
-const staleRunningMinutes = (() => {
-  const parsed = Number.parseInt(process.env.EVAL_STALE_RUNNING_MINUTES || '10', 10);
-  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 240 ? parsed : 10;
-})();
 
 export function getValidatedWorkerBatchSize(raw: unknown, fallback = 5): number {
   const parsed =
@@ -151,19 +142,7 @@ function isMissingSchemaCacheColumnError(error: unknown, columnName: string): bo
   return code === 'PGRST204' && message.includes(columnName) && message.includes('schema cache');
 }
 
-const evalWorkerBatchSize = (() => {
-  return getValidatedWorkerBatchSize(process.env.EVAL_WORKER_BATCH_SIZE, 5);
-})();
-const evalContextContaminationGuardEnabled = (() => {
-  const raw = (process.env.EVAL_CONTEXT_CONTAMINATION_GUARD || 'auto').trim().toLowerCase();
-  if (raw === 'true' || raw === '1' || raw === 'yes' || raw === 'on') {
-    return true;
-  }
-  if (raw === 'false' || raw === '0' || raw === 'no' || raw === 'off') {
-    return false;
-  }
-  return process.env.NODE_ENV === 'production';
-})();
+
 
 interface EvaluationJob {
   id: string;
@@ -212,14 +191,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function evalDebugLog(message: string, ...args: unknown[]): void {
-  if (!evalDebugEnabled) {
+  if (!getEvaluationRuntimeConfig().evalDebugEnabled) {
     return;
   }
   console.log(message, ...args);
 }
 
 function evalDebugWarn(message: string, ...args: unknown[]): void {
-  if (!evalDebugEnabled) {
+  if (!getEvaluationRuntimeConfig().evalDebugEnabled) {
     return;
   }
   console.warn(message, ...args);
@@ -592,17 +571,18 @@ async function resolveManuscriptText(
 
 export function isManuscriptTextLongEnough(
   text: string,
-  minWords = evalMinManuscriptWords,
+  minWords?: number,
 ): boolean {
+  const effectiveMinWords = minWords ?? getProcessorRuntimeDeps().evalMinManuscriptWords;
   const trimmed = text.trim();
   if (!trimmed) {
-    return minWords <= 0;
+    return effectiveMinWords <= 0;
   }
 
   // Use word-boundary matching rather than split(/\s+/) to avoid overcounting
   // malformed whitespace-heavy text or undercounting punctuation-dense content.
   const wordCount = (trimmed.match(/\b\w+\b/g) || []).length;
-  return wordCount >= minWords;
+  return wordCount >= effectiveMinWords;
 }
 
 function normalizeCriterionEntry(
@@ -823,6 +803,7 @@ export async function failStaleRunningJobs(): Promise<{
   failed: number;
   ids: string[];
 }> {
+  const { staleRunningMinutes } = getProcessorRuntimeDeps();
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const now = new Date().toISOString();
   const cutoff = new Date(Date.now() - staleRunningMinutes * 60_000).toISOString();
@@ -903,8 +884,25 @@ export async function failStaleRunningJobs(): Promise<{
  * Process a single evaluation job
  */
 export async function processEvaluationJob(jobId: string): Promise<{ success: boolean; error?: string }> {
+  const {
+    openaiApiKey,
+    perplexityApiKey,
+    evalDebugEnabled,
+    evalMinManuscriptWords,
+    openAiModel,
+    evalPassTimeoutMs,
+    evalOpenAiTimeoutMs,
+    evalContextContaminationGuardEnabled,
+  } = getProcessorRuntimeDeps();
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   let lifecycleStatus: JobStatus | null = null;
+
+  emitLatencyTrace({
+    job_id: jobId,
+    stage: 'claim',
+    state: 'processor_entered',
+    started_at: new Date().toISOString(),
+  });
 
   const nextLifecycleStatus = (target: JobStatus): JobStatus => {
     const normalizedTarget = normalizeEvaluationJobStatus(target) as JobStatus;
@@ -1131,6 +1129,14 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     console.log(`[Processor] Job ${jobId} status updated to running`);
 
     // 3. Fetch the manuscript
+    const fetchManuscriptStartedAt = startLatencyStage({
+      jobId,
+      stage: 'fetch_manuscript',
+      metadata: {
+        manuscript_id: job.manuscript_id,
+      },
+    });
+
     const { data: manuscript, error: manuscriptError } = await supabase
       .from('manuscripts')
       .select('*')
@@ -1138,10 +1144,30 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       .single();
 
     if (manuscriptError || !manuscript) {
+      finishLatencyStage({
+        jobId,
+        stage: 'fetch_manuscript',
+        startedAt: fetchManuscriptStartedAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: 'manuscript_not_found',
+        },
+      });
+
       const message = `Manuscript not found: ${manuscriptError?.message}`;
       await markFailed(message);
       return { success: false, error: message };
     }
+
+    finishLatencyStage({
+      jobId,
+      stage: 'fetch_manuscript',
+      startedAt: fetchManuscriptStartedAt,
+      state: 'completed',
+      metadata: {
+        manuscript_id: manuscript.id,
+      },
+    });
 
     console.log(`[Processor] Manuscript ${manuscript.id} fetched: "${manuscript.title}"`);
 
@@ -1210,6 +1236,14 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     }
 
     console.log(`[Processor] ${jobId}: ENTER runPipeline model=${getCanonicalPipelineModel(openAiModel)} passTimeoutMs=${evalPassTimeoutMs}`);
+    const runPipelineStartedAt = startLatencyStage({
+      jobId,
+      stage: 'pipeline_run',
+      metadata: {
+        model: getCanonicalPipelineModel(openAiModel),
+      },
+    });
+
     const pipelineResult = await runPipeline({
       manuscriptText: manuscriptWithContent.content || '',
       workType: manuscriptWithContent.work_type || 'novel',
@@ -1222,6 +1256,19 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       executionMode: 'TRUSTED_PATH',
       _passTimeoutMs: evalPassTimeoutMs,
     });
+
+    finishLatencyStage({
+      jobId,
+      stage: 'pipeline_run',
+      startedAt: runPipelineStartedAt,
+      state: pipelineResult.ok ? 'completed' : 'failed',
+      metadata: {
+        finish_reason: pipelineResult.ok
+          ? 'ok'
+          : ('error_code' in pipelineResult ? pipelineResult.error_code : 'pipeline_failed'),
+      },
+    });
+
     console.log(
       `[Processor] ${jobId}: EXIT runPipeline ok=${pipelineResult.ok}` +
         (pipelineResult.ok === false
@@ -1380,6 +1427,14 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: invalidManuscriptIdError };
     }
 
+    const persistArtifactsStartedAt = startLatencyStage({
+      jobId,
+      stage: 'persist_artifacts',
+      metadata: {
+        manuscript_id: job.manuscript_id,
+      },
+    });
+
     try {
       console.log(
         `[Processor] ${jobId}: ENTER upsertEvaluationArtifact manuscriptId=${job.manuscript_id}`,
@@ -1406,11 +1461,38 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       .eq('artifact_type', 'evaluation_result_v2')
       .maybeSingle();
     if (readBackError || !readBackArtifact) {
+      finishLatencyStage({
+        jobId,
+        stage: 'persist_artifacts',
+        startedAt: persistArtifactsStartedAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: 'artifact_read_back_failed',
+        },
+      });
+
       const readBackMsg = `Fail-closed: artifact read-back failed after upsert (${readBackError?.message ?? 'row not found'})`;
       await markFailed(readBackMsg);
       return { success: false, error: readBackMsg };
     }
+
+    finishLatencyStage({
+      jobId,
+      stage: 'persist_artifacts',
+      startedAt: persistArtifactsStartedAt,
+      state: 'completed',
+    });
     } catch (artifactError) {
+      finishLatencyStage({
+        jobId,
+        stage: 'persist_artifacts',
+        startedAt: persistArtifactsStartedAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: artifactError instanceof Error ? artifactError.message : String(artifactError),
+        },
+      });
+
       const errorMsg = artifactError instanceof Error ? artifactError.message : String(artifactError);
       await markFailed(`Artifact persistence failed: ${errorMsg}`);
 
@@ -1448,6 +1530,14 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       completed_at: completionTime,
     };
 
+    const finalizeStartedAt = startLatencyStage({
+      jobId,
+      stage: 'finalize',
+      metadata: {
+        state: 'completion_update_started',
+      },
+    });
+
     let { error: updateError } = await supabase
       .from('evaluation_jobs')
       .update({
@@ -1471,11 +1561,28 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     );
 
     if (updateError) {
+      finishLatencyStage({
+        jobId,
+        stage: 'finalize',
+        startedAt: finalizeStartedAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: updateError.message,
+        },
+      });
+
       await markFailed(`Completion update failed: ${updateError.message}`);
 
       console.error(`[Processor] Failed to update job ${jobId}:`, updateError);
       return { success: false, error: `Failed to store result: ${updateError.message}` };
     }
+
+    finishLatencyStage({
+      jobId,
+      stage: 'finalize',
+      startedAt: finalizeStartedAt,
+      state: 'completed',
+    });
 
     logProcessorStageBoundary({
       jobId,
@@ -1538,7 +1645,8 @@ export async function claimQueuedJobs(
     batchSize?: number;
     leaseMs?: number;
   },
-): Promise<Array<{ id: string; phase: string }>> {
+): Promise<Array<{ id: string; phase: string; claimedAt?: string }>> {
+  const { evalWorkerBatchSize } = getProcessorRuntimeDeps();
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   const workerId = options.workerId;
@@ -1588,6 +1696,7 @@ export async function claimQueuedJobs(
         .map((row) => ({
           id: row.id as string,
           phase: typeof row.phase === 'string' ? row.phase : 'phase_1',
+          claimedAt: undefined,
         }));
     }
     console.error('[Processor] claim_evaluation_jobs RPC error:', error);
@@ -1603,6 +1712,7 @@ export async function claimQueuedJobs(
   return claimedRows.map((row) => ({
     id: row.id,
     phase: row.phase,
+    claimedAt: row.claimed_at ?? undefined,
   }));
 }
 
@@ -1620,6 +1730,7 @@ export async function processQueuedJobs(options?: {
   claimed: number;
   errors: Array<{ jobId: string; error: string }>;
 }> {
+  const { evalWorkerBatchSize } = getProcessorRuntimeDeps();
   const effectiveWorkerId = options?.workerId ?? randomUUID();
   const requestedBatchSize = options?.batchSize ?? evalWorkerBatchSize;
   const requestedLeaseMs = options?.leaseMs ?? 180_000;
@@ -1628,7 +1739,7 @@ export async function processQueuedJobs(options?: {
   await failStaleRunningJobs();
 
   // Atomically claim a batch of queued jobs via SKIP LOCKED RPC.
-  let jobs: Array<{ id: string; phase: string }> = [];
+  let jobs: Array<{ id: string; phase: string; claimedAt?: string }> = [];
   try {
     jobs = await claimQueuedJobs({
       workerId: effectiveWorkerId,
@@ -1654,6 +1765,19 @@ export async function processQueuedJobs(options?: {
 
   console.log(`[Processor] Claimed ${jobs.length} job(s) for worker ${effectiveWorkerId}`);
   console.log(`[Processor] Claimed job phase breakdown: ${JSON.stringify(phaseBreakdown)}`);
+
+  for (const job of jobs) {
+    emitLatencyTrace({
+      job_id: job.id,
+      stage: 'claim',
+      state: 'acquired',
+      started_at: job.claimedAt ?? new Date().toISOString(),
+      metadata: {
+        worker_id: effectiveWorkerId,
+        phase: job.phase,
+      },
+    });
+  }
 
   const results = {
     processed: jobs.length,

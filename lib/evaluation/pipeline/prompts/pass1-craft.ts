@@ -13,7 +13,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS1_PROMPT_VERSION = "pass1-craft-v5-compat";
+export const PASS1_PROMPT_VERSION = "pass1-craft-v6-compressed";
 
 export const PASS1_SYSTEM_PROMPT = `You are Pass 1 (craft_execution) in compatibility mode.
 
@@ -55,14 +55,9 @@ Return ONLY:
   "model": "<model_id>",
   "prompt_version": "${PASS1_PROMPT_VERSION}",
   "temperature": 0.3,
-  "generated_at": "<ISO 8601 timestamp>",
-  "narrative_mode_assessment": {
-    "dominant_mode": "scene_driven|investigative_dossier|reflective|braided_hybrid|epistolary_documentary|other",
-    "mode_confidence": "low|medium|high",
-    "mode_rationale": "<short>",
-    "pressure_profile": "<short>"
-  }
-}`;
+  "generated_at": "<ISO 8601 timestamp>"
+}
+Do not add sections beyond the specified schema.`;
 
 export function buildPass1UserPrompt(params: {
   manuscriptText: string;

@@ -62,6 +62,9 @@ function makeSynthesisOutput(): SynthesisOutput {
           expected_impact: "Increases specificity and reader connection.",
           anchor_snippet: '"test"',
           source_pass: 3 as const,
+          issue_family: "scene_structure",
+          strategic_lever: "scene_goal_clarity",
+          revision_granularity: "scene",
         },
       ],
     })),
@@ -71,6 +74,7 @@ function makeSynthesisOutput(): SynthesisOutput {
       one_paragraph_summary: "Manuscript shows promise and needs targeted revision before submission.",
       top_3_strengths: ["Strong voice", "Clear arc", "Vivid imagery"],
       top_3_risks: ["Pacing", "Motivation", "World-building"],
+      submission_readiness: "close",
     },
     metadata: {
       pass1_model: "gpt-4o-mini",
