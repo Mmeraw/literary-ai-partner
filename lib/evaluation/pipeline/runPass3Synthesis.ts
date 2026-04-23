@@ -32,6 +32,29 @@ const PASS3_TEMPERATURE = 0.2;
 const PASS3_MODEL = "o3";
 const PASS3_MIN_RATIONALE_LENGTH = 40;
 const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
+const PASS3_VOICE_MECHANISM_MARKERS = [
+  "pov",
+  "point of view",
+  "perspective",
+  "psychic distance",
+  "narrative distance",
+  "focali",
+  "first person",
+  "third person",
+  "close third",
+  "free indirect",
+  "interior",
+  "interiority",
+  "internal",
+  "narrat",
+  "rendering",
+  "diction",
+  "register",
+  "syntax",
+  "cadence",
+  "tone",
+  "rhythm",
+] as const;
 
 type CompletionChoice = {
   message?: {
@@ -461,7 +484,7 @@ export function parsePass3Response(
       recommendations = backfillRecommendationsFromAxis(pass1, pass2, key);
     }
 
-    const finalRationale = needsRationaleBackfill(baselineRationale)
+    const finalRationale = needsRationaleBackfill(key, baselineRationale)
       ? buildBackfilledRationale(key, p1c?.rationale, p2c?.rationale, evidence)
       : baselineRationale;
 
@@ -573,15 +596,28 @@ function normalizeForPhraseMatch(text: string): string {
   return (text || "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function needsRationaleBackfill(rationale: string): boolean {
+function hasVoiceMechanismMarker(text: string): boolean {
+  const normalized = normalizeForPhraseMatch(text);
+  return PASS3_VOICE_MECHANISM_MARKERS.some((marker) => normalized.includes(marker));
+}
+
+function needsRationaleBackfill(key: string, rationale: string): boolean {
   const normalized = normalizeForPhraseMatch(rationale);
   if (normalized.length < PASS3_MIN_RATIONALE_LENGTH) {
     return true;
   }
 
-  return PASS3_PLACEHOLDER_RATIONALE_PATTERNS.some((pattern) =>
-    normalized.includes(pattern),
-  );
+  if (PASS3_PLACEHOLDER_RATIONALE_PATTERNS.some((pattern) => normalized.includes(pattern))) {
+    return true;
+  }
+
+  // Deterministic guard: voice rationale must carry explicit POV/rendering
+  // mechanism language before entering Pass 4 gate.
+  if (key === "voice" && !hasVoiceMechanismMarker(normalized)) {
+    return true;
+  }
+
+  return false;
 }
 
 function buildBackfilledRationale(

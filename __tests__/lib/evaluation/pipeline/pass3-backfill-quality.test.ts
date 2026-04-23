@@ -16,9 +16,13 @@ function makePass(pass: 1 | 2): SinglePassOutput {
       key,
       score_0_10: 7,
       rationale:
-        pass === 1
-          ? `Pass 1 rationale for ${key} highlights structural pressure and chapter-level movement with specific manuscript grounding.`
-          : `Pass 2 rationale for ${key} highlights interpretive consequences and reader-facing impact with specific manuscript grounding.`,
+        key === "voice"
+          ? pass === 1
+            ? "Pass 1 rationale for voice highlights close third POV control, stable psychic distance, and diction-level rendering choices."
+            : "Pass 2 rationale for voice highlights focalization consistency, narrative distance discipline, and sentence-level perspective management."
+          : pass === 1
+            ? `Pass 1 rationale for ${key} highlights structural pressure and chapter-level movement with specific manuscript grounding.`
+            : `Pass 2 rationale for ${key} highlights interpretive consequences and reader-facing impact with specific manuscript grounding.`,
       evidence: [
         {
           snippet:
@@ -87,5 +91,45 @@ describe("Pass 3 backfill quality", () => {
     expect(concept!.evidence.length).toBeGreaterThan(0);
     expect(concept!.recommendations.length).toBeGreaterThan(0);
     expect(concept!.recommendations[0].source_pass).toBe(1);
+  });
+
+  test("backfills generic voice rationale with explicit POV/rendering mechanism language", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "voice",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "The voice feels strong and mostly effective throughout this section.",
+          evidence: [],
+          recommendations: [],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsed = parsePass3Response(raw, pass1, pass2, "o3");
+    const voice = parsed.criteria.find((c) => c.key === "voice");
+
+    expect(voice).toBeDefined();
+    expect(voice!.final_rationale.toLowerCase()).not.toContain("voice feels strong and mostly effective");
+    expect(voice!.final_rationale.toLowerCase()).toMatch(/pov|psychic distance|focali|narrative distance|perspective/);
+    expect(voice!.evidence.length).toBeGreaterThan(0);
   });
 });
