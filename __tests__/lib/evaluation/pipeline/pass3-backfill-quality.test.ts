@@ -233,4 +233,63 @@ describe("Pass 3 backfill quality", () => {
     expect(dialogue).toBeDefined();
     expect(dialogue!.final_rationale.toLowerCase()).toMatch(/speaker|attribution|tag|beat|quote|turn-taking|turn taking/);
   });
+
+  test("is idempotent for generic dialogue fallback inputs", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const genericPass1 = {
+      ...pass1,
+      criteria: pass1.criteria.map((c) =>
+        c.key === "dialogue"
+          ? { ...c, rationale: "Dialogue works and reads smoothly overall." }
+          : c,
+      ),
+    };
+    const genericPass2 = {
+      ...pass2,
+      criteria: pass2.criteria.map((c) =>
+        c.key === "dialogue"
+          ? { ...c, rationale: "Dialogue quality is generally effective." }
+          : c,
+      ),
+    };
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "dialogue",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Conversations are engaging and easy to follow.",
+          evidence: [],
+          recommendations: [],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsedA = parsePass3Response(raw, genericPass1, genericPass2, "o3");
+    const parsedB = parsePass3Response(raw, genericPass1, genericPass2, "o3");
+
+    const dialogueA = parsedA.criteria.find((c) => c.key === "dialogue");
+    const dialogueB = parsedB.criteria.find((c) => c.key === "dialogue");
+
+    expect(dialogueA).toBeDefined();
+    expect(dialogueB).toBeDefined();
+    expect(dialogueA!.final_rationale).toBe(dialogueB!.final_rationale);
+  });
 });
