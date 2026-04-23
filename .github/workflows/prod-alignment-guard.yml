@@ -7,6 +7,15 @@ on:
     # Every 15 minutes
     - cron: "*/15 * * * *"
   workflow_dispatch:
+    inputs:
+      apply_supabase_migrations:
+        description: "Apply Supabase production migrations (requires production environment approval)"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 permissions:
   contents: read
@@ -89,8 +98,95 @@ jobs:
 
           echo "✅ Vercel production alias matches origin/main SHA: $EXPECTED_SHA"
 
-  align-supabase-prod:
-    name: Apply + Verify Supabase Production Migrations
+  verify-supabase-prod-drift:
+    name: Verify Supabase Production Migration Parity
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.apply_supabase_migrations != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.PROD_SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_URL: ${{ secrets.PROD_SUPABASE_DB_URL }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.PROD_SUPABASE_DB_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUPABASE_VERSION="v2.90.0"
+          SUPABASE_TARBALL="supabase_linux_amd64.tar.gz"
+          SUPABASE_URL="https://github.com/supabase/cli/releases/download/${SUPABASE_VERSION}/${SUPABASE_TARBALL}"
+          SUPABASE_SHA256="34e264108d0502f922f2a11c4481d512335e8a6b621c8d8c25524eb9f25e9576"
+
+          curl -fsSL "$SUPABASE_URL" -o /tmp/$SUPABASE_TARBALL
+          echo "${SUPABASE_SHA256}  /tmp/${SUPABASE_TARBALL}" | sha256sum -c -
+          tar -xzf /tmp/$SUPABASE_TARBALL -C /tmp
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+
+      - name: Verify required Supabase production secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]] || { echo "Missing SUPABASE_ACCESS_TOKEN"; exit 1; }
+          [[ -n "${SUPABASE_PROJECT_REF:-}" ]] || { echo "Missing PROD_SUPABASE_PROJECT_REF"; exit 1; }
+          [[ -n "${SUPABASE_DB_URL:-}" ]] || { echo "Missing PROD_SUPABASE_DB_URL"; exit 1; }
+
+          if [[ -z "${SUPABASE_DB_PASSWORD:-}" ]]; then
+            DERIVED_DB_PASSWORD="$(python3 -c 'import os, urllib.parse; u=os.environ.get("SUPABASE_DB_URL", ""); print(urllib.parse.unquote(urllib.parse.urlparse(u).password or "") if u else "")')"
+            if [[ -n "$DERIVED_DB_PASSWORD" ]]; then
+              export SUPABASE_DB_PASSWORD="$DERIVED_DB_PASSWORD"
+              echo "Derived SUPABASE_DB_PASSWORD from PROD_SUPABASE_DB_URL"
+            else
+              echo "Missing PROD_SUPABASE_DB_PASSWORD and could not derive from PROD_SUPABASE_DB_URL"
+              exit 1
+            fi
+          fi
+
+      - name: Link Supabase production project
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" --yes
+
+      - name: Verify migration parity (repo vs production)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          LOCAL_IDS="$(ls supabase/migrations/*.sql | xargs -n1 basename | cut -d'_' -f1 | sort -u)"
+          REMOTE_IDS="$(supabase migration list --linked | grep -oE '20[0-9]{12}' | sort -u || true)"
+
+          echo "Local migration IDs:"
+          printf '%s\n' "$LOCAL_IDS"
+          echo "Remote migration IDs:"
+          printf '%s\n' "$REMOTE_IDS"
+
+          MISSING_REMOTE="$(comm -23 <(printf '%s\n' "$LOCAL_IDS") <(printf '%s\n' "$REMOTE_IDS") || true)"
+          EXTRA_REMOTE="$(comm -13 <(printf '%s\n' "$LOCAL_IDS") <(printf '%s\n' "$REMOTE_IDS") || true)"
+
+          if [[ -n "$MISSING_REMOTE" ]]; then
+            echo "❌ Production is missing repo migrations:"
+            printf '%s\n' "$MISSING_REMOTE"
+            exit 1
+          fi
+
+          if [[ -n "$EXTRA_REMOTE" ]]; then
+            echo "❌ Production has remote-only migrations not present in repo:"
+            printf '%s\n' "$EXTRA_REMOTE"
+            exit 1
+          fi
+
+          echo "✅ Supabase production migrations are fully aligned with repo"
+
+  apply-supabase-prod-migrations:
+    name: Apply + Verify Supabase Production Migrations (Manual)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_supabase_migrations == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
@@ -149,7 +245,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Use non-interactive path compatible with current CLI behavior.
+          # Manual-only mutation path, gated by workflow_dispatch + production env approval.
           (yes || true) | supabase db push --linked --include-all
 
       - name: Verify migration parity (repo vs production)

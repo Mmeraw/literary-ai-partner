@@ -13,11 +13,17 @@ This repository now includes a hardened alignment workflow:
    - Fails if production alias does not converge to `origin/main` within timeout.
 
 2. **Supabase production schema must match repo migrations**
-   - Applies migrations (`supabase db push --linked --include-all`) to linked production project.
+   - On `push`/`schedule`, performs **read-only drift detection** (no mutation).
    - Verifies migration ID parity between local `supabase/migrations` and remote linked DB.
    - Fails on either direction of drift:
      - repo migration missing in production
      - remote-only migration missing from repo
+
+3. **Manual-only production mutation path (approved)**
+   - `workflow_dispatch` input: `apply_supabase_migrations=true`
+   - Runs `supabase db push --linked --include-all` only on manual run.
+   - Requires `production` environment approval before applying changes.
+   - Re-verifies migration parity after apply.
 
 ## Required GitHub Secrets
 
@@ -42,7 +48,7 @@ Set the `production` GitHub Environment with:
 - branch restrictions (`main`)
 - scoped secret access
 
-This prevents unreviewed schema-changing automation while preserving deterministic alignment checks.
+This gates all production mutation behind explicit approval while preserving deterministic alignment checks.
 
 ## Operational note
 
