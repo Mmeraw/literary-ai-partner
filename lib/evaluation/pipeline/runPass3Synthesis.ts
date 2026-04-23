@@ -56,7 +56,6 @@ const PASS3_VOICE_MECHANISM_MARKERS = [
   "rhythm",
 ] as const;
 const PASS3_DIALOGUE_MECHANISM_MARKERS = [
-  "dialogue",
   "attribution",
   "tag",
   "speaker",
@@ -664,7 +663,18 @@ function buildBackfilledRationale(
     ? `The manuscript evidence "${evidenceLead.substring(0, 120)}" supports this synthesis.`
     : `Available manuscript signals support this synthesis for ${key}.`;
 
-  return `${p1Summary} ${p2Summary} ${anchor}`.trim();
+  const base = `${p1Summary} ${p2Summary} ${anchor}`.trim();
+  const normalized = normalizeForPhraseMatch(base);
+
+  if (key === "voice" && !hasVoiceMechanismMarker(normalized)) {
+    return `${base} Voice handling is anchored in explicit POV mechanics (perspective control, narrative/psychic distance, and rendering choices at the sentence level).`.trim();
+  }
+
+  if (key === "dialogue" && !hasDialogueMechanismMarker(normalized)) {
+    return `${base} Dialogue is rendered through explicit speaker attribution mechanics (speaker identification, attribution tags/beats, and quote-level turn-taking clarity).`.trim();
+  }
+
+  return base;
 }
 
 function backfillEvidenceFromAxis(
