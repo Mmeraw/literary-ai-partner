@@ -27,6 +27,19 @@ describe('assertClaimedJobsContract', () => {
     expect(parsed[0].status).toBe('running');
   });
 
+  test('postgres timestamptz offsets (+00:00) pass', () => {
+    const rows = [makeCanonicalClaimedRow({
+      claimed_at: '2026-04-23T20:09:41.554452+00:00',
+      lease_expires_at: '2026-04-23T20:12:41.527+00:00',
+    })];
+
+    const parsed = assertClaimedJobsContract(rows);
+
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].claimed_at).toBe('2026-04-23T20:09:41.554452+00:00');
+    expect(parsed[0].lease_expires_at).toBe('2026-04-23T20:12:41.527+00:00');
+  });
+
   test('missing claimed_by fails', () => {
     const rows = [makeCanonicalClaimedRow({ claimed_by: null })];
 

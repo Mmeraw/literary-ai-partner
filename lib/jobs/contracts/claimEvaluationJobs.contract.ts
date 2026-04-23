@@ -36,13 +36,15 @@ export const ClaimedJobRowSchema = z
     status: ClaimedJobStatusSchema,
     phase_status: z.string().nullable().optional(),
     claimed_by: z.string().nullable().optional(),
-    claimed_at: z.string().datetime().nullable().optional(),
+      // Postgres timestamptz can be returned as RFC3339 with numeric offset
+      // (e.g. 2026-04-23T20:09:41.554452+00:00) instead of trailing Z.
+      claimed_at: z.string().datetime({ offset: true }).nullable().optional(),
     lease_token: z
       .string()
       .uuid({ message: 'lease_token must be a UUID — check RPC arg type (text vs uuid)' })
       .nullable()
       .optional(),
-    lease_expires_at: z.string().datetime().nullable().optional(),
+      lease_expires_at: z.string().datetime({ offset: true }).nullable().optional(),
     manuscript_id: ClaimedJobManuscriptIdSchema.optional(),
   })
   .passthrough();
