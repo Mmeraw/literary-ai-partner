@@ -55,6 +55,23 @@ const PASS3_VOICE_MECHANISM_MARKERS = [
   "tone",
   "rhythm",
 ] as const;
+const PASS3_DIALOGUE_MECHANISM_MARKERS = [
+  "dialogue",
+  "attribution",
+  "tag",
+  "speaker",
+  "beat",
+  "quote",
+  "quotation",
+  "subtext",
+  "voicing",
+  "interruption",
+  "turn-taking",
+  "turn taking",
+  "direct speech",
+  "reported speech",
+  "rendering",
+] as const;
 
 type CompletionChoice = {
   message?: {
@@ -601,6 +618,11 @@ function hasVoiceMechanismMarker(text: string): boolean {
   return PASS3_VOICE_MECHANISM_MARKERS.some((marker) => normalized.includes(marker));
 }
 
+function hasDialogueMechanismMarker(text: string): boolean {
+  const normalized = normalizeForPhraseMatch(text);
+  return PASS3_DIALOGUE_MECHANISM_MARKERS.some((marker) => normalized.includes(marker));
+}
+
 function needsRationaleBackfill(key: string, rationale: string): boolean {
   const normalized = normalizeForPhraseMatch(rationale);
   if (normalized.length < PASS3_MIN_RATIONALE_LENGTH) {
@@ -614,6 +636,12 @@ function needsRationaleBackfill(key: string, rationale: string): boolean {
   // Deterministic guard: voice rationale must carry explicit POV/rendering
   // mechanism language before entering Pass 4 gate.
   if (key === "voice" && !hasVoiceMechanismMarker(normalized)) {
+    return true;
+  }
+
+  // Deterministic guard: dialogue rationale must carry explicit attribution/
+  // rendering mechanism language before entering Pass 4 gate.
+  if (key === "dialogue" && !hasDialogueMechanismMarker(normalized)) {
     return true;
   }
 

@@ -20,6 +20,10 @@ function makePass(pass: 1 | 2): SinglePassOutput {
           ? pass === 1
             ? "Pass 1 rationale for voice highlights close third POV control, stable psychic distance, and diction-level rendering choices."
             : "Pass 2 rationale for voice highlights focalization consistency, narrative distance discipline, and sentence-level perspective management."
+          : key === "dialogue"
+            ? pass === 1
+              ? "Pass 1 rationale for dialogue highlights clear speaker attribution via light tags and calibrated dialogue beats."
+              : "Pass 2 rationale for dialogue highlights subtext signaling through turn-taking rhythm and quote-level rendering control."
           : pass === 1
             ? `Pass 1 rationale for ${key} highlights structural pressure and chapter-level movement with specific manuscript grounding.`
             : `Pass 2 rationale for ${key} highlights interpretive consequences and reader-facing impact with specific manuscript grounding.`,
@@ -131,5 +135,45 @@ describe("Pass 3 backfill quality", () => {
     expect(voice!.final_rationale.toLowerCase()).not.toContain("voice feels strong and mostly effective");
     expect(voice!.final_rationale.toLowerCase()).toMatch(/pov|psychic distance|focali|narrative distance|perspective/);
     expect(voice!.evidence.length).toBeGreaterThan(0);
+  });
+
+  test("backfills generic dialogue rationale with explicit attribution/rendering mechanism language", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "dialogue",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Conversations are generally effective and easy to read.",
+          evidence: [],
+          recommendations: [],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsed = parsePass3Response(raw, pass1, pass2, "o3");
+    const dialogue = parsed.criteria.find((c) => c.key === "dialogue");
+
+    expect(dialogue).toBeDefined();
+    expect(dialogue!.final_rationale.toLowerCase()).not.toContain("conversations are generally effective and easy to read");
+    expect(dialogue!.final_rationale.toLowerCase()).toMatch(/dialogue|attribution|tag|speaker|beat|subtext|quote|rendering/);
+    expect(dialogue!.evidence.length).toBeGreaterThan(0);
   });
 });
