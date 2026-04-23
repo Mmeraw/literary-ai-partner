@@ -63,3 +63,5 @@ SECURITY_*.md
 scripts/inspect-jwt.js
 scripts/verify-secrets-alignment.sh
 .dev-server.pid
+.vercel
+.env*.local
