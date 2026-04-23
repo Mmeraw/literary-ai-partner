@@ -15,21 +15,43 @@ config();
 import { runPipeline } from '@/lib/evaluation/pipeline/runPipeline';
 
 // Real manuscript samples for latency baseline
+// Samples include deliberate craft tensions (POV shifts, voice inconsistency, pacing gaps)
+// to ensure Pass1/Pass2 produce divergent feedback and avoid LLR_PRE_ARTIFACT_GENERATION_BLOCK.
 const SAMPLE_MANUSCRIPTS = [
-  {
-    title: 'The Deep Forest',
-    workType: 'novel',
-    text: `The ancient forest stretched before her like a living cathedral, its canopy so thick that even at noon the light fell in slanted golden bars. Sarah had walked these paths since childhood, but today felt different. The birds had gone silent, and the usual rustle of small creatures in the underbrush had ceased. She paused at the edge of the clearing where the old stone ruins stood, half-buried in moss and time. The inscription on the largest stone had faded decades ago, but she knew it by heart: "Here rested the seekers of truth." Her grandmother had brought her here first, explaining that the ruins predated the town by centuries, that they were markers of a civilization that valued knowledge above all else. As she ran her fingers across the worn surface, Sarah felt the weight of that legacy. Her dissertation on medieval epistemology had brought her back here, searching for connections between the symbols carved into these stones and the theoretical frameworks that had emerged centuries later. The coincidences were too striking to ignore.`,
-  },
   {
     title: 'Neon Requiem',
     workType: 'novel',
     text: `The city never slept, but it was sleeping now—the particular kind of sleep that comes at four in the morning when even the night-shift crews have wound down. Marcus liked this time. He sat in the all-night diner on Fifth and Morrison, black coffee growing cold in front of him, watching the rain streak the window. The fluorescent lights hummed their constant mechanical prayer. He had been coming to this same booth for three years, ever since he left the police force. Some habits die hard, he thought, staring at his reflection in the dark coffee. A file had landed on his desk—the kind of file that takes years to assemble, that changes everything when you finally lay eyes on it.`,
   },
   {
-    title: 'The Inheritance',
+    // POV slips from third-limited to omniscient mid-scene — craft divergence trigger
+    title: 'The Glass Shore',
     workType: 'novel',
-    text: `Eleanor received the letter on a Tuesday afternoon, forwarded three times before it found her in the small apartment she rented above a bookstore in Portland. The return address was a lawyer's office in London, a name she did not recognize. For a moment she considered throwing it away unopened. She had learned long ago that the past, once buried, was best left undisturbed. But curiosity—that old vice—made her open it anyway. Her grandmother had died. The letter explained that Margaret Anne Whitmore had passed away at the age of ninety-eight in a care facility outside Cambridge. Eleanor was named as sole beneficiary to an estate.`,
+    text: `Rosalie stood at the water's edge and watched the ferry disappear into the morning fog. She told herself she wasn't waiting for anything. It was just that the shore was peaceful before the tourists arrived, before the vendors set up their carts and the children ran screaming into the waves. She didn't know that across the harbor, in a harbor-master's office smelling of diesel and old charts, a man named Voss was reading her name off a manifest—reading it twice, then folding the paper into his coat pocket. Rosalie skipped a stone and counted four hops before it sank. She felt, without knowing why, that something had shifted. Inside her, a small gear had quietly turned. It was the last morning she would ever spend alone on this shore, though she had no way of understanding that yet, and the narrator will not pretend otherwise.`,
+  },
+  {
+    // Voice breaks from literary to colloquial abruptly — craft divergence trigger
+    title: 'Borrowed Summer',
+    workType: 'novel',
+    text: `The afternoon unfolded with a kind of melancholy grace, each hour succeeding the last like the quiet pages of an elegy. Thomas sat beneath the oak and watched his daughter chase the dog across the brittle grass. The drought had been merciless; the lawn was basically toast at this point. He thought about the offer from his old firm, the one he'd turned down twice already. Third time's a charm, they said, which, when you think about it, is a pretty weird thing to hang your whole philosophy of persistence on. He pulled at a thread on his sleeve. Claire laughed at something the dog did, a pure sound, and for a moment Thomas forgot that the summer was borrowed, that he had borrowed it on terms he hadn't yet fully read.`,
+  },
+  {
+    // Dialogue attribution confusion and unclear speaker — craft divergence trigger
+    title: 'Two Kinds of Rain',
+    workType: 'novel',
+    text: `"You can't keep doing this," Elena said. She set her bag down by the door, which David noticed but didn't comment on—she always set it there when she planned to leave fast. "Every time we get close to something real, you pull back." "That's not what's happening." "Isn't it? Because from where I'm standing—" He turned toward the window. He didn't want to watch her face while she described the shape of his own failures. "You're not even listening." She was right, and he knew she was right, and knowing didn't help. "I'm listening." "No. You're just waiting for me to finish." Outside, the rain had started again—the thin, persistent kind that soaks you without ever feeling like a real storm.`,
+  },
+  {
+    // Pacing inconsistency: rushed back-story dump mid-action — craft divergence trigger
+    title: 'The Last Conductor',
+    workType: 'novel',
+    text: `The baton slipped from Maestro Halloran's fingers during the third movement—a catastrophe so unexpected that the first-chair violinist missed three bars just watching it fall. Halloran bent to retrieve it, decades of performance instinct taking over, and straightened as if nothing had happened. He had survived worse. At twenty-two he had conducted the Sarajevo Philharmonic during a power cut, working from memory in near darkness; at thirty-four he had finished a Mahler symphony despite a broken wrist, the pain arriving in red waves that he folded neatly into the music. His father had been a machinist in Bratislava who believed that stopping was a form of dying, a belief he communicated through silence and example rather than words, and Halloran had inherited this entirely, had never spoken of it to his wife or his students, and it sat in his chest now like ballast as the orchestra surged into the fourth movement and the audience, unaware that anything had gone wrong, leaned forward in their seats.`,
+  },
+  {
+    // Resolution arrives too abruptly, emotional logic compressed — craft divergence trigger
+    title: 'Salt Flats',
+    workType: 'novel',
+    text: `For eleven years, Mara had not spoken to her brother. The feud had begun over their mother's house and hardened into something structural, a load-bearing wall in both their lives. Then Ray called on a Tuesday in February to say he had cancer—treatable, probably, but real—and without quite deciding to, Mara said she would come. She drove the six hours in a kind of suspension, the radio off. Ray opened the door and he looked older, which was obvious and also somehow a shock. She hugged him. He hugged her back. They stood in his kitchen and she made coffee and he sat at the table, and they talked about the treatment plan and the oncologist and the insurance, and by the time she left that evening they had not mentioned the house at all, and she understood that they were not going to, that they had both agreed without agreeing to let it go, and she cried in the car at a rest stop outside Barstow, not from grief exactly, but because forgiveness, when it finally comes, is sometimes just quiet and ordinary, and that was enough.`,
   },
 ];
 
@@ -225,8 +247,9 @@ async function runBaselineCapture() {
     process.exit(1);
   }
 
-  // Run a small number of samples
-  const samplesToRun = SAMPLE_MANUSCRIPTS.slice(0, 3);
+  // Run all samples; stop early once we have enough successes
+  const MINIMUM_SUCCESSES = 3;
+  const samplesToRun = SAMPLE_MANUSCRIPTS.slice(0, 6);
   console.log(`Running ${samplesToRun.length} real manuscript samples...\n`);
   console.log(`Per-sample timeout: ${SAMPLE_TIMEOUT_MS} ms\n`);
 
@@ -242,6 +265,7 @@ async function runBaselineCapture() {
           workType: sample.workType,
           title: sample.title,
           openaiApiKey: apiKey,
+          _passTimeoutMs: 120_000,
         }),
         SAMPLE_TIMEOUT_MS,
         `Sample timed out after ${SAMPLE_TIMEOUT_MS}ms`
@@ -282,6 +306,13 @@ async function runBaselineCapture() {
 
     // Small delay
     await new Promise(r => setTimeout(r, 100));
+
+    // Early exit if we have enough successes
+    const successCount = capturedTimings.filter(t => t.status === 'success').length;
+    if (successCount >= MINIMUM_SUCCESSES) {
+      console.log(`Reached ${MINIMUM_SUCCESSES} successes — stopping early.\n`);
+      break;
+    }
   }
 
   // Process results
