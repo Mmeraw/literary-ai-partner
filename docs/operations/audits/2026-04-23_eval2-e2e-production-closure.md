@@ -63,7 +63,9 @@
 
 ## Evidence captured in this session
 
-- **Canonical re-check script output (archived):**
+- **Primary proof source (authoritative):**
+  - Vercel function execution trace `a196272a-8d3d-40aa-909b-beeeab2e46ec` for controlled job `779a864f-912b-4e5f-9d68-46f69e6e92f6`, showing full claim → running persistence → manuscript fetch → Pass 1/2/3/4 path → artifact upsert → completion update sequence.
+- **Corroborating re-check artifact (archived):**
   - `evidence/incident/canonical-proof-c13c72c-20260423T210106Z.log`
 - **Re-check outcome:** deploy SHA confirmed `c13c72c`; canonical job remained `complete` on rerun trigger (`claimed=0` expected for an already-complete row).
 - **Operational note:** fresh-job harness is an additional seal only; it is currently gated by missing `AUTH_TOKEN` in shell context and does not invalidate the controlled-path proof.
