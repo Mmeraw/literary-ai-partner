@@ -875,18 +875,23 @@ export async function failStaleRunningJobs(): Promise<{
     return { staleFound: 0, failed: 0, ids: [] };
   }
 
-  const { data: failedRows, error: failError } = await supabase
+  const failureResetPayloadBase = {
+    status: failedStatus,
+    phase_status: 'failed',
+    last_error:
+      'Auto-failed stale running job: worker timed out or crashed before completion update',
+    claimed_by: null,
+    claimed_at: null,
+    lease_token: null,
+    lease_until: null,
+    updated_at: now,
+  };
+
+  let { data: failedRows, error: failError } = await supabase
     .from('evaluation_jobs')
     .update({
-      status: failedStatus,
-      last_error:
-        'Auto-failed stale running job: worker timed out or crashed before completion update',
-      claimed_by: null,
-      claimed_at: null,
-      lease_token: null,
+      ...failureResetPayloadBase,
       lease_expires_at: null,
-      lease_until: null,
-      updated_at: now,
     })
     .in('id', staleIds)
     .eq('status', runningStatus)
@@ -1732,13 +1737,14 @@ export async function claimQueuedJobs(
     batch_size: batchSize,
     lease_ms: leaseMs,
     lease_token: leaseToken,
-    lease_until: leaseExpiresAt,
+    lease_expires_at: leaseExpiresAt,
   });
 
   const { data, error } = await supabase.rpc('claim_evaluation_jobs', {
     p_batch_size: batchSize,
     p_worker_id: workerId,
-    p_lease_seconds: Math.ceil(leaseMs / 1000),
+    p_lease_token: leaseToken,
+    p_lease_expires_at: leaseExpiresAt,
   });
 
   if (error) {
