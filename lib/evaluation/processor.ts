@@ -142,6 +142,20 @@ function isMissingSchemaCacheColumnError(error: unknown, columnName: string): bo
   return code === 'PGRST204' && message.includes(columnName) && message.includes('schema cache');
 }
 
+function isGeneratedColumnWriteError(error: unknown, columnName: string): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const record = error as { message?: unknown; details?: unknown; hint?: unknown };
+  const message = typeof record.message === 'string' ? record.message : '';
+  const details = typeof record.details === 'string' ? record.details : '';
+  const hint = typeof record.hint === 'string' ? record.hint : '';
+  const combined = `${message} ${details} ${hint}`.toLowerCase();
+
+  return combined.includes(columnName.toLowerCase()) && combined.includes('can only be updated to default');
+}
+
 
 
 interface EvaluationJob {
@@ -226,6 +240,19 @@ function logProcessorStageBoundary(args: {
     at: args.at,
     ...(args.metadata ? { metadata: args.metadata } : {}),
   });
+}
+
+function hasLiveLeaseExpiration(value: unknown, nowMs = Date.now()): boolean {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return false;
+  }
+
+  const leaseExpiryMs = Date.parse(value);
+  if (!Number.isFinite(leaseExpiryMs)) {
+    return false;
+  }
+
+  return leaseExpiryMs > nowMs;
 }
 
 function toFiniteNumber(value: unknown): number | undefined {
@@ -825,14 +852,14 @@ export async function failStaleRunningJobs(): Promise<{
     return { staleFound: 0, failed: 0, ids: [] };
   }
 
-  // Also collect jobs with expired claim leases (lease_expires_at in the past)
+  // Also collect jobs with expired claim leases (lease_expires_at in the past).
   const { data: staleByLease, error: leaseError } = await supabase
     .from('evaluation_jobs')
     .select('id')
     .eq('status', runningStatus)
-    .not('lease_expires_at', 'is', null)
-    .lt('lease_expires_at', now)
-    .order('lease_expires_at', { ascending: true })
+    .not('lease_until', 'is', null)
+    .lt('lease_until', now)
+    .order('lease_until', { ascending: true })
     .limit(25);
 
   if (leaseError) {
@@ -857,12 +884,26 @@ export async function failStaleRunningJobs(): Promise<{
       claimed_by: null,
       claimed_at: null,
       lease_token: null,
+      lease_expires_at: null,
       lease_until: null,
       updated_at: now,
     })
     .in('id', staleIds)
     .eq('status', runningStatus)
     .select('id');
+
+  if (failError && isGeneratedColumnWriteError(failError, 'lease_expires_at')) {
+    console.warn(
+      '[Processor] lease_expires_at appears generated in this environment; retrying stale reset without direct lease_expires_at write',
+    );
+
+    ({ data: failedRows, error: failError } = await supabase
+      .from('evaluation_jobs')
+      .update(failureResetPayloadBase)
+      .in('id', staleIds)
+      .eq('status', runningStatus)
+      .select('id'));
+  }
 
   if (failError) {
     console.warn('[Processor] Failed to auto-fail stale jobs:', failError.message);
@@ -965,15 +1006,24 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     // Pre-claimed running jobs: atomically claimed by the processor (claimed_by is set,
     // phase_status=running, lease not yet expired). These were transitioned queued->running
     // by claim_evaluation_jobs RPC before being handed to this function.
+    const hasCanonicalPreClaimOwnership =
+      typeof job.claimed_by === 'string' &&
+      job.claimed_by.trim().length > 0 &&
+      typeof job.lease_token === 'string' &&
+      job.lease_token.trim().length > 0;
+    const hasLivePreClaimLease = hasLiveLeaseExpiration(job.lease_expires_at);
+
     const isPhase1PreClaimed =
       job.status === 'running' &&
-      !!job.claimed_by &&
+      hasCanonicalPreClaimOwnership &&
+      hasLivePreClaimLease &&
       (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
       (job.phase_status === 'running' || progress.phase_status === 'running');
 
     const isPhase2PreClaimed =
       job.status === 'running' &&
-      !!job.claimed_by &&
+      hasCanonicalPreClaimOwnership &&
+      hasLivePreClaimLease &&
       (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
       (job.phase_status === 'running' || progress.phase_status === 'running');
 
@@ -987,9 +1037,25 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       !isPhase1PreClaimed &&
       !isPhase2PreClaimed
     ) {
+      console.warn('[Processor] Job eligibility rejection', {
+        job_id: jobId,
+        status: job.status,
+        phase: job.phase,
+        phase_status: job.phase_status,
+        progress_phase: progress.phase,
+        progress_phase_status: progress.phase_status,
+        claimed_by_present: Boolean(job.claimed_by),
+        lease_token_present: Boolean(job.lease_token),
+        lease_expires_at: job.lease_expires_at ?? null,
+        lease_is_live: hasLivePreClaimLease,
+      });
+
       return {
         success: false,
-        error: `Job not eligible for processing. status=${job.status}, phase=${job.phase}, phase_status=${job.phase_status}`,
+        error:
+          `Job not eligible for processing. status=${job.status}, phase=${job.phase}, phase_status=${job.phase_status}, ` +
+          `claimed_by=${Boolean(job.claimed_by)}, lease_token=${Boolean(job.lease_token)}, ` +
+          `lease_expires_at=${job.lease_expires_at ?? 'null'}`,
       };
     }
 
@@ -1661,11 +1727,18 @@ export async function claimQueuedJobs(
   const leaseToken = randomUUID();
   const leaseExpiresAt = new Date(Date.now() + leaseMs).toISOString();
 
+  console.log('[Processor] claim_evaluation_jobs request', {
+    worker_id: workerId,
+    batch_size: batchSize,
+    lease_ms: leaseMs,
+    lease_token: leaseToken,
+    lease_until: leaseExpiresAt,
+  });
+
   const { data, error } = await supabase.rpc('claim_evaluation_jobs', {
     p_batch_size: batchSize,
     p_worker_id: workerId,
-    p_lease_token: leaseToken,
-    p_lease_expires_at: leaseExpiresAt,
+    p_lease_seconds: Math.ceil(leaseMs / 1000),
   });
 
   if (error) {
@@ -1673,7 +1746,17 @@ export async function claimQueuedJobs(
     throw error;
   }
 
+  console.log('[Processor] claim_evaluation_jobs raw result', {
+    returned_rows: Array.isArray(data) ? data.length : 0,
+    sample_job_ids: Array.isArray(data)
+      ? data
+          .slice(0, 3)
+          .map((row) => (row && typeof row === 'object' && 'id' in row ? (row as { id?: unknown }).id : null))
+      : [],
+  });
+
   if (!data || data.length === 0) {
+    console.log('[Processor] claim_evaluation_jobs returned no rows; no jobs matched claim predicate');
     return [];
   }
 
@@ -1704,6 +1787,16 @@ export async function processQueuedJobs(options?: {
   const effectiveWorkerId = options?.workerId ?? randomUUID();
   const requestedBatchSize = options?.batchSize ?? evalWorkerBatchSize;
   const requestedLeaseMs = options?.leaseMs ?? 180_000;
+
+  console.log('[Processor] Claim assumptions', {
+    expected_status: JOB_STATUS.QUEUED,
+    expected_phase_status: JOB_STATUS.QUEUED,
+    expected_phases: ['phase_1', 'phase_2'],
+    canonical_ownership_fields: ['claimed_by', 'lease_token', 'lease_expires_at'],
+    worker_id: effectiveWorkerId,
+    requested_batch_size: requestedBatchSize,
+    requested_lease_ms: requestedLeaseMs,
+  });
 
   // Safety net: recover jobs left in running due to platform hard timeout/crash.
   await failStaleRunningJobs();

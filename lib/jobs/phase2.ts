@@ -400,7 +400,7 @@ export async function runPhase2(jobId: string): Promise<void> {
         total_units: null,
         completed_units: null,
         lease_id: null,
-        lease_expires_at: null,
+        lease_until: null,
       },
     });
     return;
@@ -420,7 +420,7 @@ export async function runPhase2(jobId: string): Promise<void> {
           total_units: null,
           completed_units: null,
           lease_id: null,
-          lease_expires_at: null,
+          lease_until: null,
         },
       });
 
@@ -450,7 +450,7 @@ export async function runPhase2(jobId: string): Promise<void> {
         total_units: result.chunkCount,
         completed_units: result.processedCount,
         lease_id: null,
-        lease_expires_at: null,
+        lease_until: null,
       },
     });
 
@@ -486,7 +486,7 @@ export async function runPhase2(jobId: string): Promise<void> {
         total_units: null,
         completed_units: null,
         lease_id: null,
-        lease_expires_at: null,
+        lease_until: null,
       },
     });
 

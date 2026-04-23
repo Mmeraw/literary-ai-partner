@@ -236,8 +236,8 @@ export async function getEligibleChunksWithStuckRecovery(
       .select("*")
       .eq("manuscript_id", manuscriptId)
       .eq("status", "processing")
-      .not("lease_expires_at", "is", null)
-      .lt("lease_expires_at", nowIso)
+      .not("lease_until", "is", null)
+      .lt("lease_until", nowIso)
       .lt("attempt_count", maxAttempts),
   ]);
 
@@ -565,7 +565,7 @@ export async function claimChunkForProcessing(
       attempt_count: attemptCount + 1,
       last_error: null,
       lease_id: workerId,
-      lease_expires_at: new Date(
+      lease_until: new Date(
         Date.now() + leaseSeconds * 1000
       ).toISOString(),
       processing_started_at: new Date().toISOString(),

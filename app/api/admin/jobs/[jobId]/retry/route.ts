@@ -101,7 +101,31 @@ export async function POST(req: NextRequest, context: RouteContext) {
       );
     }
 
-    // Success: job was retried
+    // Success: job was retried.
+    // Compensating write: admin_retry_job sets status='queued' but does NOT set
+    // phase_status='queued'. The claim predicate requires BOTH. Patch it here
+    // until the SQL function is updated to include phase_status in its SET clause.
+    const { error: phaseStatusError } = await supabase
+      .from("evaluation_jobs")
+      .update({
+        phase_status: "queued",
+        claimed_by: null,
+        lease_token: null,
+        last_error: null,
+        failed_at: null,
+      })
+      .eq("id", jobId)
+      .eq("status", "queued"); // guard: only touch the row if RPC already flipped it
+
+    if (phaseStatusError) {
+      console.error(
+        `[Admin Retry] Failed to set phase_status=queued for job ${jobId}:`,
+        phaseStatusError
+      );
+      // Log but don't fail — job was already retried; worker will skip it but
+      // repair-queued-phase-status.mjs can clean it up.
+    }
+
     // Optionally log to audit table (non-blocking)
     const now = new Date().toISOString();
     const { error: auditError } = await supabase.from("admin_actions").insert({
