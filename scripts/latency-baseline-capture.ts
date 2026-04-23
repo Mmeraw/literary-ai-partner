@@ -7,8 +7,7 @@
  * Usage: npx tsx -r tsconfig-paths/register scripts/latency-baseline-capture.ts
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { writeFileSync, mkdirSync } from 'fs';
 import { config } from 'dotenv';
 
 config();
@@ -46,36 +45,167 @@ interface CapturedTiming {
   status: 'success' | 'failure';
 }
 
+interface AttemptOutcome {
+  title: string;
+  workType: string;
+  status: 'success' | 'failure';
+  error_code?: string;
+  error_message?: string;
+  timed_out?: boolean;
+  duration_ms: number;
+}
+
 const capturedTimings: CapturedTiming[] = [];
+const attemptOutcomes: AttemptOutcome[] = [];
+
+const SAMPLE_TIMEOUT_MS = Number.parseInt(process.env.BASELINE_SAMPLE_TIMEOUT_MS || '210000', 10);
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function filterValidValues(records: CapturedTiming[], field: keyof CapturedTiming): number[] {
+  return records
+    .map(r => r[field] as number)
+    .filter((v): v is number => typeof v === 'number' && v > 0);
+}
+
+function writeArtifact() {
+  const successRecords = capturedTimings.filter(t => t.status === 'success');
+  const failureRecords = capturedTimings.filter(t => t.status === 'failure');
+
+  const totalMsValues = filterValidValues(successRecords, 'total_ms');
+  const pass1MsValues = filterValidValues(successRecords, 'pass1_ms');
+  const pass2MsValues = filterValidValues(successRecords, 'pass2_ms');
+  const pass3MsValues = filterValidValues(successRecords, 'pass3_ms');
+
+  const medianTotal = median(totalMsValues);
+  const medianPass1 = median(pass1MsValues);
+  const pass1Percent = medianTotal > 0 ? Math.round((medianPass1 / medianTotal) * 100) : 0;
+
+  const blockerReason =
+    successRecords.length >= 3
+      ? null
+      : `Insufficient successful captures: ${successRecords.length}/3 minimum required`;
+
+  const artifact = {
+    capture_timestamp: new Date().toISOString(),
+    sample_timeout_ms: SAMPLE_TIMEOUT_MS,
+    attempted_samples: attemptOutcomes.length,
+    samples_measured: successRecords.length,
+    minimum_required_successes: 3,
+    evidence_grade_ready: successRecords.length >= 3,
+    blocker_reason: blockerReason,
+    attempt_outcomes: attemptOutcomes,
+    captured_timings: {
+      total: capturedTimings.length,
+      successful: successRecords.length,
+      failed: failureRecords.length,
+    },
+    sample_jobs: successRecords.map(r => ({
+      title: r.title,
+      work_type: r.workType,
+      pass1_ms: r.pass1_ms,
+      pass2_ms: r.pass2_ms,
+      pass3_ms: r.pass3_ms,
+      pass4_ms: r.pass4_ms,
+      total_ms: r.total_ms,
+    })),
+    statistics: {
+      median_total_ms: Math.round(medianTotal),
+      median_pass1_ms: Math.round(medianPass1),
+      median_pass2_ms: Math.round(median(pass2MsValues)),
+      median_pass3_ms: Math.round(median(pass3MsValues)),
+      pass1_percent_of_total: pass1Percent,
+    },
+    analysis: {
+      dominant_cost_driver: pass1Percent > 50 ? 'Pass 1 (LLM inference)' : 'Pass 2/3 synthesis',
+      pass1_dominant: pass1Percent > 40,
+      candidate_for_optimization: successRecords.length >= 3
+        ? (pass1Percent > 45 ? 'Yes - Pass 1 compression justified' : 'No - investigate other passes')
+        : 'Undetermined - insufficient successful captures',
+    },
+  };
+
+  mkdirSync('docs/operations/evidence/runs', { recursive: true });
+  const artifactPath = 'docs/operations/evidence/runs/latency-baseline-capture.json';
+  writeFileSync(artifactPath, JSON.stringify(artifact, null, 2));
+
+  return { artifactPath, successRecords, medianTotal, medianPass1, pass1Percent };
+}
+
+function coerceCapturedTiming(raw: unknown): CapturedTiming | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const row = raw as Record<string, unknown>;
+  return {
+    title: typeof row.title === 'string' ? row.title : 'unknown',
+    workType: typeof row.work_type === 'string' ? row.work_type : 'unknown',
+    pass1_ms: typeof row.pass1_ms === 'number' ? row.pass1_ms : undefined,
+    pass2_ms: typeof row.pass2_ms === 'number' ? row.pass2_ms : undefined,
+    pass3_ms: typeof row.pass3_ms === 'number' ? row.pass3_ms : undefined,
+    pass4_ms: typeof row.pass4_ms === 'number' ? row.pass4_ms : undefined,
+    total_ms: typeof row.total_ms === 'number' ? row.total_ms : undefined,
+    status: row.stage === 'success' ? 'success' : 'failure',
+  };
+}
+
+function extractTimingFromArgs(args: unknown[]): CapturedTiming | null {
+  const first = args[0];
+  const hasPipelineTag = typeof first === 'string' && first.includes('[Pipeline][Timings]');
+  if (!hasPipelineTag) {
+    return null;
+  }
+
+  // Common case: console.log('[Pipeline][Timings]', { ...timing })
+  const second = args[1];
+  const fromObject = coerceCapturedTiming(second);
+  if (fromObject) {
+    return fromObject;
+  }
+
+  // Fallback case: single string line with embedded JSON payload
+  if (typeof first === 'string') {
+    const jsonStart = first.indexOf('{');
+    if (jsonStart > -1) {
+      try {
+        const parsed = JSON.parse(first.substring(jsonStart));
+        return coerceCapturedTiming(parsed);
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  return null;
+}
 
 // Monkey-patch console.log to intercept timing logs
 const originalLog = console.log;
 console.log = (...args: any[]) => {
-  const msg = args.join(' ');
-  
-  // Only capture [Pipeline][Timings] logs
-  if (msg.includes('[Pipeline][Timings]')) {
-    try {
-      // Parse the JSON from the log
-      const jsonStart = msg.indexOf('{');
-      if (jsonStart > -1) {
-        const jsonPart = msg.substring(jsonStart);
-        const parsed = JSON.parse(jsonPart);
-        
-        capturedTimings.push({
-          title: parsed.title || 'unknown',
-          workType: parsed.work_type || 'unknown',
-          pass1_ms: parsed.pass1_ms,
-          pass2_ms: parsed.pass2_ms,
-          pass3_ms: parsed.pass3_ms,
-          pass4_ms: parsed.pass4_ms,
-          total_ms: parsed.total_ms,
-          status: parsed.stage === 'success' ? 'success' : 'failure',
-        });
-      }
-    } catch (e) {
-      // Silent fail - log capture is non-critical
-    }
+  const captured = extractTimingFromArgs(args);
+  if (captured) {
+    capturedTimings.push(captured);
   }
   
   originalLog.apply(console, args);
@@ -98,26 +228,56 @@ async function runBaselineCapture() {
   // Run a small number of samples
   const samplesToRun = SAMPLE_MANUSCRIPTS.slice(0, 3);
   console.log(`Running ${samplesToRun.length} real manuscript samples...\n`);
+  console.log(`Per-sample timeout: ${SAMPLE_TIMEOUT_MS} ms\n`);
 
   for (let i = 0; i < samplesToRun.length; i++) {
     const sample = samplesToRun[i];
     console.log(`[${i + 1}/${samplesToRun.length}] Executing: "${sample.title}"`);
+    const startedAt = Date.now();
     
     try {
-      const result = await runPipeline({
-        manuscriptText: sample.text,
-        workType: sample.workType,
-        title: sample.title,
-        openaiApiKey: apiKey,
-      });
+      const result = await withTimeout(
+        runPipeline({
+          manuscriptText: sample.text,
+          workType: sample.workType,
+          title: sample.title,
+          openaiApiKey: apiKey,
+        }),
+        SAMPLE_TIMEOUT_MS,
+        `Sample timed out after ${SAMPLE_TIMEOUT_MS}ms`
+      );
 
       if (result.ok) {
+        attemptOutcomes.push({
+          title: sample.title,
+          workType: sample.workType,
+          status: 'success',
+          duration_ms: Date.now() - startedAt,
+        });
         console.log(`✓ Success\n`);
       } else {
+        attemptOutcomes.push({
+          title: sample.title,
+          workType: sample.workType,
+          status: 'failure',
+          error_code: result.error_code || 'UNKNOWN_PIPELINE_FAILURE',
+          duration_ms: Date.now() - startedAt,
+        });
         console.log(`✗ Failed: ${result.error_code}\n`);
       }
     } catch (err) {
-      console.error(`✗ Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      const message = err instanceof Error ? err.message : String(err);
+      const timedOut = message.includes('Sample timed out');
+      attemptOutcomes.push({
+        title: sample.title,
+        workType: sample.workType,
+        status: 'failure',
+        error_code: timedOut ? 'SAMPLE_TIMEOUT' : 'SAMPLE_RUNTIME_ERROR',
+        error_message: message,
+        timed_out: timedOut,
+        duration_ms: Date.now() - startedAt,
+      });
+      console.error(`✗ Error: ${message}\n`);
     }
 
     // Small delay
@@ -129,13 +289,14 @@ async function runBaselineCapture() {
   console.log('CAPTURED TIMING RECORDS');
   console.log('='.repeat(80));
 
-  const successRecords = capturedTimings.filter(t => t.status === 'success');
+  const { artifactPath, successRecords, medianTotal, medianPass1, pass1Percent } = writeArtifact();
   console.log(`Total captured: ${capturedTimings.length}`);
   console.log(`Successful: ${successRecords.length}`);
   console.log(`Failed: ${capturedTimings.length - successRecords.length}\n`);
+  console.log(`Attempted samples: ${attemptOutcomes.length}\n`);
 
   if (successRecords.length === 0) {
-    console.log('No successful runs captured. Check API credentials and network.');
+    console.log('No successful runs captured. Artifact written with blocker details.');
     process.exit(1);
   }
 
@@ -157,22 +318,6 @@ async function runBaselineCapture() {
   console.log('STATISTICS');
   console.log('='.repeat(80));
 
-  const filterValidValues = (records: CapturedTiming[], field: keyof CapturedTiming) => 
-    records.map(r => r[field] as number).filter((v): v is number => typeof v === 'number' && v > 0);
-
-  const totalMsValues = filterValidValues(successRecords, 'total_ms').sort((a, b) => a - b);
-  const pass1MsValues = filterValidValues(successRecords, 'pass1_ms').sort((a, b) => a - b);
-  
-  const median = (arr: number[]) => {
-    if (arr.length === 0) return 0;
-    const mid = Math.floor(arr.length / 2);
-    return arr.length % 2 !== 0 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
-  };
-
-  const medianTotal = median(totalMsValues);
-  const medianPass1 = pass1MsValues.length > 0 ? median(pass1MsValues) : 0;
-  const pass1Percent = medianTotal > 0 ? Math.round((medianPass1 / medianTotal) * 100) : 0;
-
   console.log(`Median total latency:     ${medianTotal.toFixed(0)} ms`);
   console.log(`Median Pass 1 latency:    ${medianPass1.toFixed(0)} ms (${pass1Percent}% of total)`);
   console.log(`Median Pass 2 latency:    ${median(filterValidValues(successRecords, 'pass2_ms')).toFixed(0)} ms`);
@@ -183,36 +328,14 @@ async function runBaselineCapture() {
   console.log('ARTIFACT OUTPUT');
   console.log('='.repeat(80));
 
-  const artifact = {
-    capture_timestamp: new Date().toISOString(),
-    samples_measured: successRecords.length,
-    sample_jobs: successRecords.map(r => ({
-      title: r.title,
-      work_type: r.workType,
-      pass1_ms: r.pass1_ms,
-      pass2_ms: r.pass2_ms,
-      pass3_ms: r.pass3_ms,
-      total_ms: r.total_ms,
-    })),
-    statistics: {
-      median_total_ms: Math.round(medianTotal),
-      median_pass1_ms: Math.round(medianPass1),
-      pass1_percent_of_total: pass1Percent,
-    },
-    analysis: {
-      dominant_cost_driver: pass1Percent > 50 ? 'Pass 1 (LLM inference)' : 'Pass 2/3 synthesis',
-      pass1_dominant: pass1Percent > 40,
-      candidate_for_optimization: pass1Percent > 45 ? 'Yes - Pass 1 compression justified' : 'No - investigate other passes',
-    },
-  };
-
-  mkdirSync('docs/operations/evidence/runs', { recursive: true });
-  const artifactPath = 'docs/operations/evidence/runs/latency-baseline-capture.json';
-  writeFileSync(artifactPath, JSON.stringify(artifact, null, 2));
-  
   console.log(`✓ Artifact: ${artifactPath}`);
   console.log(`✓ Records: ${successRecords.length} jobs`);
-  console.log(`✓ Status: Complete\n`);
+  if (successRecords.length >= 3) {
+    console.log(`✓ Status: Complete\n`);
+  } else {
+    console.log(`⚠ Status: Incomplete evidence (${successRecords.length}/3 successes); blocker recorded in artifact\n`);
+    process.exit(1);
+  }
 
   console.log('='.repeat(80));
   console.log(`End: ${new Date().toISOString()}`);

@@ -1,0 +1,59 @@
+{
+  "capture_timestamp": "2026-04-23T23:33:40.833Z",
+  "sample_timeout_ms": 150000,
+  "attempted_samples": 3,
+  "samples_measured": 1,
+  "minimum_required_successes": 3,
+  "evidence_grade_ready": false,
+  "blocker_reason": "Insufficient successful captures: 1/3 minimum required",
+  "attempt_outcomes": [
+    {
+      "title": "The Deep Forest",
+      "workType": "novel",
+      "status": "failure",
+      "error_code": "PASS3_FAILED",
+      "duration_ms": 67055
+    },
+    {
+      "title": "Neon Requiem",
+      "workType": "novel",
+      "status": "success",
+      "duration_ms": 76082
+    },
+    {
+      "title": "The Inheritance",
+      "workType": "novel",
+      "status": "failure",
+      "error_code": "LLR_PRE_ARTIFACT_GENERATION_BLOCK",
+      "duration_ms": 66412
+    }
+  ],
+  "captured_timings": {
+    "total": 2,
+    "successful": 1,
+    "failed": 1
+  },
+  "sample_jobs": [
+    {
+      "title": "Neon Requiem",
+      "work_type": "novel",
+      "pass1_ms": 34851,
+      "pass2_ms": 18528,
+      "pass3_ms": 41214,
+      "pass4_ms": 6,
+      "total_ms": 76082
+    }
+  ],
+  "statistics": {
+    "median_total_ms": 76082,
+    "median_pass1_ms": 34851,
+    "median_pass2_ms": 18528,
+    "median_pass3_ms": 41214,
+    "pass1_percent_of_total": 46
+  },
+  "analysis": {
+    "dominant_cost_driver": "Pass 2/3 synthesis",
+    "pass1_dominant": true,
+    "candidate_for_optimization": "Undetermined - insufficient successful captures"
+  }
+}
