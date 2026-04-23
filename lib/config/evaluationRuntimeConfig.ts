@@ -45,6 +45,7 @@ export interface EvaluationRuntimeConfig {
     leaseMs: number;
     maxExecutionMs: number;
     allowDevServiceRole: boolean;
+    disabled: boolean;
   };
   auth: {
     cronSecret: string;
@@ -226,6 +227,7 @@ export function resolveEvaluationRuntimeConfig(
       leaseMs,
       maxExecutionMs,
       allowDevServiceRole: env.WORKER_ALLOW_SERVICE_ROLE_DEV === "1",
+      disabled: env.EVAL_WORKER_DISABLED === "true" || env.EVAL_WORKER_DISABLED === "1",
     },
     auth: {
       cronSecret: env.CRON_SECRET || "",

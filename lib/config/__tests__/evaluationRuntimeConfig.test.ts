@@ -21,8 +21,26 @@ describe("resolveEvaluationRuntimeConfig", () => {
     expect(config.worker.batchSize).toBe(5);
     expect(config.worker.leaseMs).toBe(180000);
     expect(config.worker.maxExecutionMs).toBe(55000);
+    expect(config.worker.disabled).toBe(false);
     expect(config.timeouts.passTimeout.valueMs).toBe(180000);
     expect(config.timeouts.openAiTimeout.valueMs).toBe(180000);
+  });
+
+  it("parses worker disabled kill-switch from env", () => {
+    const configFromTrue = resolveWithoutBaseline({
+      EVAL_WORKER_DISABLED: "true",
+    });
+    expect(configFromTrue.worker.disabled).toBe(true);
+
+    const configFromOne = resolveWithoutBaseline({
+      EVAL_WORKER_DISABLED: "1",
+    });
+    expect(configFromOne.worker.disabled).toBe(true);
+
+    const configFromFalse = resolveWithoutBaseline({
+      EVAL_WORKER_DISABLED: "false",
+    });
+    expect(configFromFalse.worker.disabled).toBe(false);
   });
 
   it("throws on malformed numeric pass token values", () => {

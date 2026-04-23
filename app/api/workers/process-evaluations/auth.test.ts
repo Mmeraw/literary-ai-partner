@@ -267,6 +267,30 @@ describe('Process Evaluations Worker Auth', () => {
       expect(body.config).toBeDefined();
       expect(body.config.maxExecutionMs).toBeDefined();
       expect(body.config.batchSize).toBeDefined();
+      expect(body.config.disabled).toBeDefined();
+    });
+  });
+
+  describe('Worker Kill Switch', () => {
+    it('should return halted response when EVAL_WORKER_DISABLED is enabled', async () => {
+      setEnv('CRON_SECRET', 'test-secret');
+      setEnv('EVAL_WORKER_DISABLED', 'true');
+
+      const req = createMockRequest({
+        headers: { authorization: 'Bearer test-secret' },
+      });
+      const response = await GET(req);
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.success).toBe(true);
+      expect(body.disabled).toBe(true);
+      expect(body.halted).toBe(true);
+      expect(body.reason).toBe('EVAL_WORKER_DISABLED');
+      expect(body.claimed).toBe(0);
+      expect(body.processed).toBe(0);
+      expect(body.succeeded).toBe(0);
+      expect(body.failed).toBe(0);
     });
   });
 
