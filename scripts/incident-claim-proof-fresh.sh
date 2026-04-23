@@ -84,13 +84,11 @@ echo
 echo "[2/7] Pre-state snapshot"
 PRE_JSON="$(fetch_json "$BASE_URL/api/jobs")"
 PRE_JOB="$(
-  python - "$JOB_ID" <<'PY' <<< "$PRE_JSON"
-import json, sys
+  python -c 'import json, sys
 job_id = sys.argv[1]
 o = json.loads(sys.stdin.read())
 matches = [j for j in o.get("jobs", []) if j.get("id") == job_id]
-print(json.dumps(matches[0] if matches else {"missing": job_id}))
-PY
+print(json.dumps(matches[0] if matches else {"missing": job_id}))' "$JOB_ID" <<< "$PRE_JSON"
 )"
 echo "$PRE_JOB" | python -m json.tool
 
@@ -104,16 +102,14 @@ fi
 
 echo
 echo "[3/7] Fresh-row contract check"
-python - <<'PY' <<< "$PRE_JOB"
-import json, sys
+python -c 'import json, sys
 j = json.load(sys.stdin)
 has_top_phase = "phase" in j and j.get("phase") is not None
 has_top_phase_status = "phase_status" in j and j.get("phase_status") is not None
 print(f"top_level_phase_present={str(has_top_phase).lower()}")
 print(f"top_level_phase_status_present={str(has_top_phase_status).lower()}")
 if not has_top_phase or not has_top_phase_status:
-    print("WARNING: this row still looks pre-patch or non-canonical for claim eligibility.")
-PY
+  print("WARNING: this row still looks pre-patch or non-canonical for claim eligibility.")' <<< "$PRE_JOB"
 
 echo
 echo "[4/7] Trigger one worker run"
@@ -140,13 +136,11 @@ echo
 echo "[5/7] Post-state snapshot"
 POST_JSON="$(fetch_json "$BASE_URL/api/jobs")"
 POST_JOB="$(
-  python - "$JOB_ID" <<'PY' <<< "$POST_JSON"
-import json, sys
+  python -c 'import json, sys
 job_id = sys.argv[1]
 o = json.loads(sys.stdin.read())
 matches = [j for j in o.get("jobs", []) if j.get("id") == job_id]
-print(json.dumps(matches[0] if matches else {"missing": job_id}))
-PY
+print(json.dumps(matches[0] if matches else {"missing": job_id}))' "$JOB_ID" <<< "$POST_JSON"
 )"
 echo "$POST_JOB" | python -m json.tool
 
