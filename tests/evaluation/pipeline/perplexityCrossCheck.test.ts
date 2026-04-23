@@ -147,4 +147,34 @@ describe("runPerplexityCrossCheck", () => {
     const secondBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body ?? "{}"));
     expect(secondBody.max_tokens).toBeGreaterThan(firstBody.max_tokens);
   });
+
+  it("fails explicitly when both initial and retry responses are truncated/incomplete", async () => {
+    const payload = makePerplexityPayload();
+    const fullJson = JSON.stringify(payload);
+    const firstSlice = fullJson.slice(0, Math.floor(fullJson.length / 4));
+    const secondSlice = fullJson.slice(0, Math.floor(fullJson.length / 3));
+
+    const fetchMock = jest
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        makeFetchResponse(firstSlice, "length") as unknown as Response,
+      )
+      .mockResolvedValueOnce(
+        makeFetchResponse(secondSlice, "length") as unknown as Response,
+      );
+    global.fetch = fetchMock;
+
+    await expect(
+      runPerplexityCrossCheck({
+        openaiCriteria: makeOpenAICriteria(),
+        openaiSynthesis: "Primary evaluator synthesis.",
+        manuscriptExcerpt: "The river moved slowly through the valley.",
+        workType: "literary_fiction",
+        title: "The Valley",
+        perplexityApiKey: "pplx-test",
+      }),
+    ).rejects.toThrow(/\[Pass4\] JSON_PARSE_FAILED_/);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

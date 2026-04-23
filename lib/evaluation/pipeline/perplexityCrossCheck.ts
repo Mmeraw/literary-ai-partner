@@ -476,9 +476,30 @@ Now return the independent adjudication as JSON.`;
 
       activeMaxTokens = retryMaxTokens;
       ({ rawContent, finishReason } = await requestCompletion(activeMaxTokens));
+      if (finishReason === "length") {
+        console.warn("[Pass4] retry finish_reason=length — response may still be truncated", {
+          model: PERPLEXITY_MODEL,
+          rawContentLen: rawContent.length,
+          maxTokens: activeMaxTokens,
+        });
+      }
       console.log(`[Pass4] retry raw Perplexity response preview len=${rawContent.length}: ${rawContent.slice(0, 200)}`);
 
-      parsed = parsePerplexityResponse(rawContent);
+      try {
+        parsed = parsePerplexityResponse(rawContent);
+      } catch (retryError) {
+        if (retryError instanceof JsonBoundaryError) {
+          throw new Error(
+            `[Pass4] ${retryError.code}: ${retryError.message} (after retry; finish_reason=${finishReason}; preview=${rawContent
+              .slice(0, 200)
+              .replace(/\s+/g, " ")})`,
+          );
+        }
+
+        throw new Error(
+          `[Pass4] JSON parse/validation failed after retry: ${(retryError as Error).message}`,
+        );
+      }
     } else if (error instanceof JsonBoundaryError) {
       throw new Error(
         `[Pass4] ${error.code}: ${error.message}`

@@ -35,6 +35,7 @@ function makeJob(overrides: Record<string, unknown> = {}): Record<string, unknow
     created_at: new Date().toISOString(),
     claimed_by: null,
     claimed_at: null,
+    lease_token: null,
     lease_expires_at: null,
     ...overrides,
   };
@@ -262,6 +263,8 @@ describe('processQueuedJobs — atomic claim path', () => {
       phase: 'phase_1',
       phase_status: 'running',
       claimed_by: 'w',
+      lease_token: 'ffffffff-ffff-4fff-8fff-fffffffffff3',
+      lease_expires_at: new Date(Date.now() + 180_000).toISOString(),
     });
 
     const stub = {
@@ -437,12 +440,14 @@ describe('processEvaluationJob — pre-claimed running job eligibility', () => {
     };
   }
 
-  test('accepts pre-claimed phase_1 running job (claimed_by set)', async () => {
+  test('accepts pre-claimed phase_1 running job with canonical lease ownership', async () => {
     const preClaimedJob = makeJob({
       status: 'running',
       phase: 'phase_1',
       phase_status: 'running',
       claimed_by: 'worker-abc',
+      lease_token: '22222222-2222-4222-8222-222222222222',
+      lease_expires_at: new Date(Date.now() + 180_000).toISOString(),
       progress: { phase: 'phase_1', phase_status: 'running' },
     });
 
@@ -468,12 +473,14 @@ describe('processEvaluationJob — pre-claimed running job eligibility', () => {
     expect(result.error).not.toContain('Job not eligible for processing');
   });
 
-  test('accepts pre-claimed phase_2 running job (claimed_by set)', async () => {
+  test('accepts pre-claimed phase_2 running job with canonical lease ownership', async () => {
     const preClaimedJob = makeJob({
       status: 'running',
       phase: 'phase_2',
       phase_status: 'running',
       claimed_by: 'worker-abc',
+      lease_token: '33333333-3333-4333-8333-333333333333',
+      lease_expires_at: new Date(Date.now() + 180_000).toISOString(),
       progress: { phase: 'phase_2', phase_status: 'running' },
     });
 
@@ -498,7 +505,7 @@ describe('processEvaluationJob — pre-claimed running job eligibility', () => {
     expect(result.error).not.toContain('Job not eligible for processing');
   });
 
-  test('rejects running job without claimed_by (not atomically claimed)', async () => {
+  test('rejects running job without canonical ownership (not atomically claimed)', async () => {
     const unclaimedRunning = makeJob({
       status: 'running',
       phase: 'phase_1',
@@ -508,6 +515,26 @@ describe('processEvaluationJob — pre-claimed running job eligibility', () => {
     });
 
     createClientMock.mockReturnValue(makeStubForJob(unclaimedRunning));
+
+    const { processEvaluationJob } = await import('../../../lib/evaluation/processor');
+    const result = await processEvaluationJob('job-1');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Job not eligible for processing');
+  });
+
+  test('rejects running job with expired lease despite ownership fields', async () => {
+    const expiredLeaseJob = makeJob({
+      status: 'running',
+      phase: 'phase_1',
+      phase_status: 'running',
+      claimed_by: 'worker-abc',
+      lease_token: '44444444-4444-4444-8444-444444444444',
+      lease_expires_at: new Date(Date.now() - 60_000).toISOString(),
+      progress: { phase: 'phase_1', phase_status: 'running' },
+    });
+
+    createClientMock.mockReturnValue(makeStubForJob(expiredLeaseJob));
 
     const { processEvaluationJob } = await import('../../../lib/evaluation/processor');
     const result = await processEvaluationJob('job-1');
@@ -573,7 +600,7 @@ describe('failStaleRunningJobs — expired lease recovery', () => {
     expect(result.staleFound).toBeGreaterThanOrEqual(1);
   });
 
-  test('clears claimant and lease_until fields when failing stale jobs', async () => {
+  test('clears claimant fields and sets phase_status=failed when failing stale jobs', async () => {
     const staleJob = { id: 'stale-job' };
 
     const updateMock = jest.fn().mockReturnValue({
@@ -605,9 +632,88 @@ describe('failStaleRunningJobs — expired lease recovery', () => {
     const updatePayload = updateMock.mock.calls[0]?.[0];
     expect(updatePayload).toMatchObject({
       status: 'failed',
+      phase_status: 'failed',
       claimed_by: null,
       claimed_at: null,
-          lease_until: null,
+      lease_token: null,
     });
+    expect(updatePayload).not.toHaveProperty('lease_expires_at');
+  });
+});
+
+describe('processEvaluationJob — started_at sanitization', () => {
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
+    process.env.OPENAI_API_KEY = 'sk-test';
+    process.env.EVAL_PASS_TIMEOUT_MS = '180000';
+    process.env.EVAL_OPENAI_TIMEOUT_MS = '180000';
+    process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = 'optional';
+  });
+
+  test('does not persist out-of-range historical started_at values', async () => {
+    const createdAt = new Date().toISOString();
+    const jobRow = makeJob({
+      status: 'running',
+      phase: 'phase_1',
+      phase_status: 'running',
+      created_at: createdAt,
+      started_at: '1970-01-01T00:00:00.000Z',
+      claimed_by: 'worker-abc',
+      lease_token: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      lease_expires_at: new Date(Date.now() + 180_000).toISOString(),
+      progress: { phase: 'phase_1', phase_status: 'running' },
+    });
+
+    const updateMock = jest.fn().mockReturnValue({
+      eq: jest.fn().mockReturnThis(),
+      not: jest.fn().mockReturnThis(),
+      lt: jest.fn().mockReturnThis(),
+      in: jest.fn().mockReturnThis(),
+      order: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue({ data: [], error: null }),
+      select: jest.fn().mockResolvedValue({ data: [], error: null }),
+    });
+
+    createClientMock.mockReturnValue({
+      rpc: jest.fn().mockResolvedValue({ data: [], error: null }),
+      from: jest.fn().mockImplementation((table: string) => {
+        if (table === 'evaluation_jobs') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnThis(),
+              single: jest.fn().mockResolvedValue({ data: jobRow, error: null }),
+            }),
+            update: updateMock,
+          };
+        }
+
+        if (table === 'manuscripts') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnThis(),
+              single: jest.fn().mockResolvedValue({ data: null, error: { message: 'not found' } }),
+            }),
+          };
+        }
+
+        return {
+          select: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnThis(),
+            single: jest.fn().mockResolvedValue({ data: null, error: { message: 'not found' } }),
+            order: jest.fn().mockReturnThis(),
+          }),
+          update: updateMock,
+        };
+      }),
+    } as any);
+
+    const { processEvaluationJob } = await import('../../../lib/evaluation/processor');
+    await processEvaluationJob('job-1');
+
+    const runningPayload = updateMock.mock.calls[0]?.[0];
+    expect(runningPayload?.started_at).not.toBe('1970-01-01T00:00:00.000Z');
   });
 });

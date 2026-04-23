@@ -142,21 +142,23 @@ function isMissingSchemaCacheColumnError(error: unknown, columnName: string): bo
   return code === 'PGRST204' && message.includes(columnName) && message.includes('schema cache');
 }
 
-function isGeneratedColumnWriteError(error: unknown, columnName: string): boolean {
+function isMissingColumnError(error: unknown, columnName: string): boolean {
   if (!error || typeof error !== 'object') {
     return false;
   }
 
-  const record = error as { message?: unknown; details?: unknown; hint?: unknown };
+  const record = error as { code?: unknown; message?: unknown; details?: unknown };
+  const code = typeof record.code === 'string' ? record.code : '';
   const message = typeof record.message === 'string' ? record.message : '';
   const details = typeof record.details === 'string' ? record.details : '';
-  const hint = typeof record.hint === 'string' ? record.hint : '';
-  const combined = `${message} ${details} ${hint}`.toLowerCase();
+  const combined = `${message} ${details}`;
 
-  return combined.includes(columnName.toLowerCase()) && combined.includes('can only be updated to default');
+  const schemaCacheMissing =
+    code === 'PGRST204' && combined.includes(columnName) && combined.includes('schema cache');
+  const postgresMissing = code === '42703' && combined.includes(columnName);
+
+  return schemaCacheMissing || postgresMissing;
 }
-
-
 
 interface EvaluationJob {
   id: string;
@@ -253,6 +255,36 @@ function hasLiveLeaseExpiration(value: unknown, nowMs = Date.now()): boolean {
   }
 
   return leaseExpiryMs > nowMs;
+}
+
+function resolveSafeStartedAt(args: {
+  candidate: unknown;
+  createdAt: unknown;
+  fallbackIso: string;
+}): string {
+  const fallbackMs = Date.parse(args.fallbackIso);
+  if (!Number.isFinite(fallbackMs)) {
+    return new Date().toISOString();
+  }
+
+  if (typeof args.candidate !== 'string' || args.candidate.trim().length === 0) {
+    return new Date(fallbackMs).toISOString();
+  }
+
+  const candidateMs = Date.parse(args.candidate);
+  if (!Number.isFinite(candidateMs)) {
+    return new Date(fallbackMs).toISOString();
+  }
+
+  const createdMs = typeof args.createdAt === 'string' ? Date.parse(args.createdAt) : Number.NaN;
+  const minAllowedMs = Number.isFinite(createdMs) ? createdMs - 5 * 60_000 : Number.NEGATIVE_INFINITY;
+  const maxAllowedMs = fallbackMs + 5 * 60_000;
+
+  if (candidateMs < minAllowedMs || candidateMs > maxAllowedMs) {
+    return new Date(fallbackMs).toISOString();
+  }
+
+  return new Date(candidateMs).toISOString();
 }
 
 function toFiniteNumber(value: unknown): number | undefined {
@@ -852,15 +884,33 @@ export async function failStaleRunningJobs(): Promise<{
     return { staleFound: 0, failed: 0, ids: [] };
   }
 
-  // Also collect jobs with expired claim leases (lease_expires_at in the past).
-  const { data: staleByLease, error: leaseError } = await supabase
+  // Also collect jobs with expired claim leases. Canonical column is lease_expires_at.
+  // For mixed-schema environments, fall back to legacy lease_until if needed.
+  let staleByLease: Array<{ id: string }> | null = null;
+  let leaseScanUsedLegacyColumn = false;
+  let { data: leaseData, error: leaseError } = await supabase
     .from('evaluation_jobs')
     .select('id')
     .eq('status', runningStatus)
-    .not('lease_until', 'is', null)
-    .lt('lease_until', now)
-    .order('lease_until', { ascending: true })
+    .not('lease_expires_at', 'is', null)
+    .lt('lease_expires_at', now)
+    .order('lease_expires_at', { ascending: true })
     .limit(25);
+
+  if (leaseError && isMissingColumnError(leaseError, 'lease_expires_at')) {
+    console.warn('[Processor] lease_expires_at unavailable in this schema; retrying stale-lease scan with lease_until');
+    leaseScanUsedLegacyColumn = true;
+    ({ data: leaseData, error: leaseError } = await supabase
+      .from('evaluation_jobs')
+      .select('id')
+      .eq('status', runningStatus)
+      .not('lease_until', 'is', null)
+      .lt('lease_until', now)
+      .order('lease_until', { ascending: true })
+      .limit(25));
+  }
+
+  staleByLease = (leaseData as Array<{ id: string }> | null) ?? [];
 
   if (leaseError) {
     console.warn('[Processor] Failed to check stale running jobs (lease):', leaseError.message);
@@ -883,25 +933,25 @@ export async function failStaleRunningJobs(): Promise<{
     claimed_by: null,
     claimed_at: null,
     lease_token: null,
-    lease_until: null,
     updated_at: now,
   };
 
+  const failureResetPayload = leaseScanUsedLegacyColumn
+    ? {
+        ...failureResetPayloadBase,
+        lease_until: null,
+      }
+    : failureResetPayloadBase;
+
   let { data: failedRows, error: failError } = await supabase
     .from('evaluation_jobs')
-    .update({
-      ...failureResetPayloadBase,
-      lease_expires_at: null,
-    })
+    .update(failureResetPayload)
     .in('id', staleIds)
     .eq('status', runningStatus)
     .select('id');
 
-  if (failError && isGeneratedColumnWriteError(failError, 'lease_expires_at')) {
-    console.warn(
-      '[Processor] lease_expires_at appears generated in this environment; retrying stale reset without direct lease_expires_at write',
-    );
-
+  if (failError && leaseScanUsedLegacyColumn && isMissingColumnError(failError, 'lease_until')) {
+    console.warn('[Processor] lease_until missing; retrying stale-fail update without lease_until clear');
     ({ data: failedRows, error: failError } = await supabase
       .from('evaluation_jobs')
       .update(failureResetPayloadBase)
@@ -1067,6 +1117,12 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     const progressState =
       job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
 
+    const canonicalStartedAt = resolveSafeStartedAt({
+      candidate: (job as Record<string, unknown>).started_at,
+      createdAt: (job as Record<string, unknown>).created_at,
+      fallbackIso: new Date().toISOString(),
+    });
+
     const markRunning = async (
       message: string,
       completedUnits: number,
@@ -1109,28 +1165,45 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         },
       });
 
-      await supabase
+      const runningPayload = {
+        status: nextLifecycleStatus(JOB_STATUS.RUNNING),
+        phase,
+        phase_status: 'running',
+        total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+        completed_units: completedUnits,
+        progress: nextProgress,
+        started_at: canonicalStartedAt,
+        last_heartbeat: now,
+        last_heartbeat_at: now,
+        heartbeat_at: now,
+        updated_at: now,
+        // Per-stage timestamps (R4 observability)
+        ...(stageTimestampPatch as {
+          phase1_started_at?: string;
+          phase2_started_at?: string;
+          phase1_completed_at?: string;
+        }),
+      };
+
+      const { error: markRunningWriteError } = await supabase
         .from('evaluation_jobs')
-        .update({
-          status: nextLifecycleStatus(JOB_STATUS.RUNNING),
-          phase,
-          phase_status: 'running',
-          total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-          completed_units: completedUnits,
-          progress: nextProgress,
-          started_at: job.started_at ?? now,
-          last_heartbeat: now,
-          last_heartbeat_at: now,
-          heartbeat_at: now,
-          updated_at: now,
-          // Per-stage timestamps (R4 observability)
-          ...(stageTimestampPatch as {
-            phase1_started_at?: string;
-            phase2_started_at?: string;
-            phase1_completed_at?: string;
-          }),
-        })
+        .update(runningPayload)
         .eq('id', jobId);
+
+      if (markRunningWriteError) {
+        const message = `Running state update failed for job ${jobId}: ${markRunningWriteError.message}`;
+        console.error(`[Processor] ${message}`);
+        throw new Error(message);
+      }
+
+      console.log('[Worker] markRunning persisted', {
+        job_id: jobId,
+        phase,
+        phase_status: 'running',
+        completed_units: completedUnits,
+        started_at: runningPayload.started_at,
+        heartbeat_at: runningPayload.heartbeat_at,
+      });
     };
 
     const markFailed = async (errorMessage: string) => {
@@ -1836,6 +1909,13 @@ export async function processQueuedJobs(options?: {
   console.log(`[Processor] Claimed job phase breakdown: ${JSON.stringify(phaseBreakdown)}`);
 
   for (const job of jobs) {
+    console.log('[Worker] Claimed job', {
+      job_id: job.id,
+      phase: job.phase,
+      claimed_at: job.claimedAt ?? null,
+      worker_id: effectiveWorkerId,
+    });
+
     emitLatencyTrace({
       job_id: job.id,
       stage: 'claim',
