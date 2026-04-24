@@ -62,6 +62,8 @@ export async function POST(req: NextRequest, context: RouteContext) {
     // A5: Atomic retry via RPC (no read→decide→write race)
     const { data, error: rpcError } = await supabase.rpc("admin_retry_job", {
       p_job_id: jobId,
+      p_reason: reason,
+      p_actor: null,
     });
 
     if (rpcError) {

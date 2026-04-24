@@ -18,6 +18,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { processQueuedJobs } from '@/lib/evaluation/processor';
 import { checkServiceRoleAuth } from '@/lib/auth/api';
 import crypto from 'crypto';
@@ -43,7 +44,171 @@ function getWorkerConfig() {
     batchSize: runtimeConfig.worker.batchSize,
     // Lease duration for atomically claimed jobs
     leaseMs: runtimeConfig.worker.leaseMs,
+    // Circuit-breaker: stop processing while keeping endpoint operational
+    disabled: runtimeConfig.worker.disabled,
   } as const;
+}
+
+type CircuitBreakerConfig = {
+  enabled: boolean;
+  consecutiveFailuresThreshold: number;
+  staleRunningThreshold: number;
+  noSuccessMinutes: number;
+};
+
+type CircuitBreakerEvaluation = {
+  tripped: boolean;
+  reasons: string[];
+  metrics: {
+    consecutiveFailures: number;
+    staleRunningCount: number;
+    recentFailuresCount: number;
+    hasRecentSuccess: boolean;
+  };
+};
+
+function parseIntEnv(raw: string | undefined, fallback: number, min: number, max: number): number {
+  if (!raw || raw.trim().length === 0) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(raw.trim(), 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function getCircuitBreakerConfig(): CircuitBreakerConfig {
+  return {
+    enabled:
+      process.env.EVAL_WORKER_AUTO_KILL === '1' ||
+      process.env.EVAL_WORKER_AUTO_KILL === 'true',
+    consecutiveFailuresThreshold: parseIntEnv(
+      process.env.EVAL_WORKER_CB_CONSECUTIVE_FAILURES,
+      5,
+      2,
+      50,
+    ),
+    staleRunningThreshold: parseIntEnv(
+      process.env.EVAL_WORKER_CB_STALE_RUNNING_THRESHOLD,
+      3,
+      1,
+      100,
+    ),
+    noSuccessMinutes: parseIntEnv(
+      process.env.EVAL_WORKER_CB_NO_SUCCESS_MINUTES,
+      20,
+      5,
+      240,
+    ),
+  };
+}
+
+async function evaluateCircuitBreaker(config: CircuitBreakerConfig): Promise<CircuitBreakerEvaluation> {
+  const baseline: CircuitBreakerEvaluation = {
+    tripped: false,
+    reasons: [],
+    metrics: {
+      consecutiveFailures: 0,
+      staleRunningCount: 0,
+      recentFailuresCount: 0,
+      hasRecentSuccess: false,
+    },
+  };
+
+  if (!config.enabled) {
+    return baseline;
+  }
+
+  const runtimeConfig = getEvaluationRuntimeConfig();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    console.warn('[Worker] Circuit breaker enabled but Supabase env is unavailable; skipping auto-kill evaluation');
+    return baseline;
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+  const staleCutoff = new Date(
+    Date.now() - runtimeConfig.staleRunningMinutes * 60_000,
+  ).toISOString();
+  const successWindowCutoff = new Date(
+    Date.now() - config.noSuccessMinutes * 60_000,
+  ).toISOString();
+
+  const [
+    { data: latestJobs, error: latestJobsError },
+    { count: staleRunningCount, error: staleCountError },
+    { count: recentFailuresCount, error: recentFailuresError },
+    { data: recentSuccessRows, error: recentSuccessError },
+  ] = await Promise.all([
+    supabase
+      .from('evaluation_jobs')
+      .select('status')
+      .order('updated_at', { ascending: false })
+      .limit(config.consecutiveFailuresThreshold),
+    supabase
+      .from('evaluation_jobs')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'running')
+      .not('last_heartbeat_at', 'is', null)
+      .lt('last_heartbeat_at', staleCutoff),
+    supabase
+      .from('evaluation_jobs')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'failed')
+      .gte('updated_at', successWindowCutoff),
+    supabase
+      .from('evaluation_jobs')
+      .select('id')
+      .eq('status', 'complete')
+      .gte('updated_at', successWindowCutoff)
+      .limit(1),
+  ]);
+
+  if (latestJobsError || staleCountError || recentFailuresError || recentSuccessError) {
+    console.warn('[Worker] Circuit breaker query failed; continuing without auto-kill', {
+      latestJobsError: latestJobsError?.message,
+      staleCountError: staleCountError?.message,
+      recentFailuresError: recentFailuresError?.message,
+      recentSuccessError: recentSuccessError?.message,
+    });
+    return baseline;
+  }
+
+  const hasFullFailureWindow = (latestJobs?.length ?? 0) === config.consecutiveFailuresThreshold;
+  const allLatestFailed = hasFullFailureWindow &&
+    (latestJobs ?? []).every((job) => job.status === 'failed');
+  const consecutiveFailures = allLatestFailed ? config.consecutiveFailuresThreshold : 0;
+
+  const staleCount = staleRunningCount ?? 0;
+  const failureCount = recentFailuresCount ?? 0;
+  const hasRecentSuccess = (recentSuccessRows?.length ?? 0) > 0;
+
+  const reasons: string[] = [];
+  if (consecutiveFailures >= config.consecutiveFailuresThreshold) {
+    reasons.push('consecutive_failures');
+  }
+  if (staleCount >= config.staleRunningThreshold) {
+    reasons.push('stale_running_threshold');
+  }
+  if (!hasRecentSuccess && failureCount >= config.consecutiveFailuresThreshold) {
+    reasons.push('no_recent_success_with_failures');
+  }
+
+  return {
+    tripped: reasons.length > 0,
+    reasons,
+    metrics: {
+      consecutiveFailures,
+      staleRunningCount: staleCount,
+      recentFailuresCount: failureCount,
+      hasRecentSuccess,
+    },
+  };
 }
 
 // ============================================================================
@@ -290,8 +455,81 @@ export async function GET(request: NextRequest) {
           maxDurationSeconds: Math.floor(workerConfig.maxExecutionMs / 1000),
           batchSize: workerConfig.batchSize,
           maxExecutionMs: workerConfig.maxExecutionMs,
+          disabled: workerConfig.disabled,
         },
       });
+    }
+
+    if (workerConfig.disabled) {
+      const durationMs = Date.now() - startTime;
+
+      structuredLog({
+        traceId,
+        timestamp: new Date().toISOString(),
+        level: 'warn',
+        message: 'Worker invocation skipped: disabled via env guard',
+        data: {
+          authMethod: auth.method,
+          durationMs,
+          disabled: true,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        traceId,
+        authMethod: auth.method,
+        disabled: true,
+        halted: true,
+        reason: 'EVAL_WORKER_DISABLED',
+        message: 'Worker processing is disabled via runtime configuration',
+        claimed: 0,
+        processed: 0,
+        succeeded: 0,
+        failed: 0,
+        errors: [],
+        durationMs,
+        timestamp: new Date().toISOString(),
+      }, { status: 200 });
+    }
+
+    const circuitBreakerConfig = getCircuitBreakerConfig();
+    const circuitBreakerState = await evaluateCircuitBreaker(circuitBreakerConfig);
+    if (circuitBreakerState.tripped) {
+      const durationMs = Date.now() - startTime;
+
+      structuredLog({
+        traceId,
+        timestamp: new Date().toISOString(),
+        level: 'warn',
+        message: 'Worker invocation skipped: auto circuit breaker tripped',
+        data: {
+          authMethod: auth.method,
+          durationMs,
+          breakerReasons: circuitBreakerState.reasons,
+          breakerMetrics: circuitBreakerState.metrics,
+          breakerConfig: circuitBreakerConfig,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        traceId,
+        authMethod: auth.method,
+        disabled: true,
+        halted: true,
+        reason: 'AUTO_CIRCUIT_BREAKER',
+        breakerReasons: circuitBreakerState.reasons,
+        breakerMetrics: circuitBreakerState.metrics,
+        message: 'Worker processing halted by automatic circuit breaker',
+        claimed: 0,
+        processed: 0,
+        succeeded: 0,
+        failed: 0,
+        errors: [],
+        durationMs,
+        timestamp: new Date().toISOString(),
+      }, { status: 200 });
     }
     
     // Process queued jobs
