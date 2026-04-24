@@ -4,6 +4,7 @@ const runPipelineMock = jest.fn();
 const synthesisToEvaluationResultV2Mock = jest.fn();
 const runQualityGateV2Mock = jest.fn();
 const mapEvaluationResultV2ToGovernanceEnvelopeMock = jest.fn();
+const finalizeJobFailureMock = jest.fn();
 
 jest.mock("@/lib/evaluation/pipeline/runPipeline", () => ({
   runPipeline: (...args: any[]) => runPipelineMock(...args),
@@ -17,6 +18,10 @@ jest.mock("@/lib/evaluation/pipeline/qualityGate", () => ({
 jest.mock("@/lib/governance/evaluationBridge", () => ({
   mapEvaluationResultV2ToGovernanceEnvelope: (...args: any[]) =>
     mapEvaluationResultV2ToGovernanceEnvelopeMock(...args),
+}));
+
+jest.mock("@/lib/jobs/jobStore.supabase", () => ({
+  finalizeJobFailure: (...args: any[]) => finalizeJobFailureMock(...args),
 }));
 
 const upsertEvaluationArtifactMock = jest.fn();
@@ -45,6 +50,23 @@ jest.mock("@supabase/supabase-js", () => ({
   createClient: (...args: any[]) => createClientMock(...args),
 }));
 
+function makeUpdateEqChain(
+  firstResult: { error: unknown },
+  secondResult?: { error: unknown } | (() => Promise<{ error: unknown }> | { error: unknown }),
+) {
+  return {
+    eq: () => ({
+      ...firstResult,
+      eq: async () => {
+        if (typeof secondResult === "function") {
+          return await secondResult();
+        }
+        return secondResult ?? firstResult;
+      },
+    }),
+  };
+}
+
 function makeSupabaseStub() {
   const evaluationJobUpdates: Array<Record<string, unknown>> = [];
 
@@ -56,6 +78,7 @@ function makeSupabaseStub() {
     phase: "phase_1",
     phase_status: "queued",
     created_at: new Date().toISOString(),
+    started_at: new Date().toISOString(),
     progress: { phase: "phase_1", phase_status: "queued" },
   };
 
@@ -75,13 +98,12 @@ function makeSupabaseStub() {
           select: () => ({
             eq: () => ({
               single: async () => ({ data: queuedJob, error: null }),
+              maybeSingle: async () => ({ data: { status: queuedJob.status }, error: null }),
             }),
           }),
           update: (payload: Record<string, unknown>) => {
             evaluationJobUpdates.push(payload);
-            return {
-              eq: async () => ({ error: null }),
-            };
+            return makeUpdateEqChain({ error: null });
           },
         };
       }
@@ -118,6 +140,15 @@ describe("processEvaluationJob canonical pipeline integration", () => {
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
+    finalizeJobFailureMock.mockResolvedValue({
+      status: "failed",
+      retryEligible: false,
+      retryExhausted: false,
+      attemptCount: 1,
+      maxAttempts: 3,
+      shouldNotify: true,
+      failureCode: "PIPELINE_SLA_EXCEEDED",
+    });
     consoleLogSpy = jest.spyOn(console, "log").mockImplementation(() => {});
 
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
@@ -247,6 +278,11 @@ describe("processEvaluationJob canonical pipeline integration", () => {
 
     expect(result.success).toBe(true);
     expect(runPipelineMock).toHaveBeenCalledTimes(1);
+    expect(runPipelineMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        onHeartbeat: expect.any(Function),
+      }),
+    );
     expect(runQualityGateV2Mock).toHaveBeenCalledTimes(1);
     expect(OpenAIMock).not.toHaveBeenCalled();
     expect(upsertEvaluationArtifactMock).toHaveBeenCalledTimes(1);
@@ -322,23 +358,18 @@ describe("processEvaluationJob canonical pipeline integration", () => {
             }),
             update: (payload: Record<string, unknown>) => {
               evaluationJobUpdates.push(payload);
-              return {
-                eq: async () => {
-                  if (
-                    payload.status === "complete" &&
-                    Object.prototype.hasOwnProperty.call(payload, "phase2_completed_at")
-                  ) {
-                    return {
+              const firstResult =
+                payload.status === "complete" &&
+                Object.prototype.hasOwnProperty.call(payload, "phase2_completed_at")
+                  ? {
                       error: {
                         code: "PGRST204",
                         message:
                           "Could not find the 'phase2_completed_at' column of 'evaluation_jobs' in the schema cache",
                       },
-                    };
-                  }
-                  return { error: null };
-                },
-              };
+                    }
+                  : { error: null };
+              return makeUpdateEqChain(firstResult);
             },
           };
         }
@@ -568,5 +599,191 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         (payload: Record<string, unknown>) => payload.status === "complete",
       ),
     ).toBe(false);
+  });
+
+  test("finalizes as PIPELINE_SLA_EXCEEDED and aborts before runPipeline when SLA already exceeded", async () => {
+    const supabaseStub = makeSupabaseStub();
+    const jobSelectSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: "job-canonical-pipeline",
+        manuscript_id: 456,
+        job_type: "evaluate_full",
+        status: "queued",
+        phase: "phase_1",
+        phase_status: "queued",
+        created_at: "2026-04-24T19:00:00.000Z",
+        started_at: "2026-04-24T19:00:00.000Z",
+        progress: { phase: "phase_1", phase_status: "queued" },
+      },
+      error: null,
+    });
+
+    const statusMaybeSingle = jest.fn().mockResolvedValue({
+      data: { status: "running" },
+      error: null,
+    });
+
+    const manuscriptSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: 456,
+        title: "Canonical Manuscript",
+        content: "This manuscript is long enough to pass threshold validation. ".repeat(220),
+        work_type: "novel",
+        user_id: "00000000-0000-0000-0000-000000000001",
+      },
+      error: null,
+    });
+
+    createClientMock.mockReturnValue({
+      evaluationJobUpdates: supabaseStub.evaluationJobUpdates,
+      from(table: string) {
+        if (table === "evaluation_jobs") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: jobSelectSingle,
+                maybeSingle: statusMaybeSingle,
+              }),
+            }),
+            update: (payload: Record<string, unknown>) => {
+              supabaseStub.evaluationJobUpdates.push(payload);
+              return makeUpdateEqChain({ error: null }, { error: null });
+            },
+          };
+        }
+
+        if (table === "manuscripts") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: manuscriptSingle,
+              }),
+            }),
+          };
+        }
+
+        if (table === "evaluation_artifacts") {
+          return {
+            select: () => {
+              const query = {
+                eq: () => query,
+                maybeSingle: async () => ({ data: { id: "artifact-canonical-pass" }, error: null }),
+              };
+              return query;
+            },
+          };
+        }
+
+        throw new Error(`Unexpected table in SLA test stub: ${table}`);
+      },
+    });
+
+    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(Date.parse("2026-04-24T19:10:00.000Z"));
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(runPipelineMock).not.toHaveBeenCalled();
+    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    expect(finalizeJobFailureMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: "job-canonical-pipeline",
+        errorEnvelope: expect.objectContaining({
+          code: "PIPELINE_SLA_EXCEEDED",
+        }),
+      }),
+    );
+
+    nowSpy.mockRestore();
+  });
+
+  test("does not re-finalize if job is already terminal when SLA guard runs", async () => {
+    const supabaseStub = makeSupabaseStub();
+    const jobSelectSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: "job-canonical-pipeline",
+        manuscript_id: 456,
+        job_type: "evaluate_full",
+        status: "queued",
+        phase: "phase_1",
+        phase_status: "queued",
+        created_at: "2026-04-24T19:00:00.000Z",
+        started_at: "2026-04-24T19:00:00.000Z",
+        progress: { phase: "phase_1", phase_status: "queued" },
+      },
+      error: null,
+    });
+
+    const statusMaybeSingle = jest.fn().mockResolvedValue({
+      data: { status: "failed" },
+      error: null,
+    });
+
+    const manuscriptSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: 456,
+        title: "Canonical Manuscript",
+        content: "This manuscript is long enough to pass threshold validation. ".repeat(220),
+        work_type: "novel",
+        user_id: "00000000-0000-0000-0000-000000000001",
+      },
+      error: null,
+    });
+
+    createClientMock.mockReturnValue({
+      evaluationJobUpdates: supabaseStub.evaluationJobUpdates,
+      from(table: string) {
+        if (table === "evaluation_jobs") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: jobSelectSingle,
+                maybeSingle: statusMaybeSingle,
+              }),
+            }),
+            update: (payload: Record<string, unknown>) => {
+              supabaseStub.evaluationJobUpdates.push(payload);
+              return makeUpdateEqChain({ error: null }, { error: null });
+            },
+          };
+        }
+
+        if (table === "manuscripts") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: manuscriptSingle,
+              }),
+            }),
+          };
+        }
+
+        if (table === "evaluation_artifacts") {
+          return {
+            select: () => {
+              const query = {
+                eq: () => query,
+                maybeSingle: async () => ({ data: { id: "artifact-canonical-pass" }, error: null }),
+              };
+              return query;
+            },
+          };
+        }
+
+        throw new Error(`Unexpected table in SLA terminal-state test stub: ${table}`);
+      },
+    });
+
+    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(Date.parse("2026-04-24T19:10:00.000Z"));
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(runPipelineMock).not.toHaveBeenCalled();
+    expect(finalizeJobFailureMock).not.toHaveBeenCalled();
+
+    nowSpy.mockRestore();
   });
 });

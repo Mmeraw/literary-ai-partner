@@ -170,6 +170,35 @@ describe("runPipeline (e2e with injected runners)", () => {
     }
   });
 
+  it("emits onHeartbeat at expected stage boundaries in order", async () => {
+    const observedStages: string[] = [];
+
+    const result = await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      openaiApiKey: "sk-test",
+      onHeartbeat: async (stage) => {
+        observedStages.push(stage);
+      },
+      _lessonsLearned: permissiveLessonsLearned,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(observedStages).toEqual([
+      "parallel_passes_started",
+      "parallel_passes_settled",
+      "pass3_started",
+      "quality_gate_started",
+      "quality_gate_completed",
+    ]);
+  });
+
   it("does not block on post-convergence lessons-learned warnings when the stage is recoverable", async () => {
     const llrReport: LessonsLearnedReport = {
       overall_pass: false,
