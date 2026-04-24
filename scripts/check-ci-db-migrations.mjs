@@ -34,6 +34,8 @@ const REQUIRED_MIGRATIONS = [
       const testJobId = "00000000-0000-0000-0000-000000000000";
       const { data, error } = await supabase.rpc("admin_retry_job", {
         p_job_id: testJobId,
+        p_reason: null,
+        p_actor: null,
       });
 
       if (error) {

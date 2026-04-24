@@ -149,6 +149,8 @@ async function testRpcSignature() {
   const fakeJobId = "00000000-0000-0000-0000-000000000000";
   const { data, error } = await supabase.rpc("admin_retry_job", {
     p_job_id: fakeJobId,
+    p_reason: null,
+    p_actor: null,
   });
 
   if (error) {
@@ -229,8 +231,8 @@ async function testRetryContention(jobId, initialAttemptCount) {
 
   // Fire two parallel retry requests
   const [result1, result2] = await Promise.all([
-    supabase.rpc("admin_retry_job", { p_job_id: jobId }),
-    supabase.rpc("admin_retry_job", { p_job_id: jobId }),
+    supabase.rpc("admin_retry_job", { p_job_id: jobId, p_reason: null, p_actor: null }),
+    supabase.rpc("admin_retry_job", { p_job_id: jobId, p_reason: null, p_actor: null }),
   ]);
 
   // Check for RPC errors
@@ -326,6 +328,8 @@ async function testRetryNonRetryable(jobId) {
   // Trying to retry should return changed=false
   const { data, error } = await supabase.rpc("admin_retry_job", {
     p_job_id: jobId,
+    p_reason: null,
+    p_actor: null,
   });
 
   if (error) throw new Error(`RPC error: ${error.message}`);
