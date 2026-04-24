@@ -93,6 +93,31 @@ export const QG_POV_MECHANISM_MARKERS = Object.freeze([
   "somatic",
 ]);
 
+/**
+ * Shared dialogue mechanism marker contract.
+ * Used by both Pass 3 synthesis backfill and the Phase 2.7 Quality Gate
+ * so that the two layers recognise identical rendering-level vocabulary.
+ */
+export const DIALOGUE_MECHANISM_MARKERS: readonly string[] = Object.freeze([
+  // original QG inline list
+  "attribution",
+  "tag",
+  "speaker",
+  "quote",
+  "dialogue",
+  "beat",
+  // Pass 3 extended terms
+  "quotation",
+  "subtext",
+  "voicing",
+  "interruption",
+  "turn-taking",
+  "turn taking",
+  "direct speech",
+  "reported speech",
+  "rendering",
+]);
+
 export type QualityGateFailureTelemetry = {
   total_failed_checks: number;
   failures_by_error_code: Record<string, number>;
@@ -507,14 +532,9 @@ export function runQualityGate(
       const voiceRationale = (voiceCriterion?.final_rationale ?? "").toLowerCase();
       const dialogueRationale = (dialogueCriterion?.final_rationale ?? "").toLowerCase();
       const hasVoiceMechanismMarker = QG_POV_MECHANISM_MARKERS.some((m) => voiceRationale.includes(m));
-      const hasDialogueMechanismMarker = [
-        "attribution",
-        "tag",
-        "speaker",
-        "quote",
-        "dialogue",
-        "beat",
-      ].some((m) => dialogueRationale.includes(m));
+const hasDialogueMechanismMarker = DIALOGUE_MECHANISM_MARKERS.some(
+  (m) => dialogueRationale.includes(m)
+);
 
       checks.push({
         check_id: "voice_mechanism_specificity",

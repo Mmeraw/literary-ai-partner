@@ -26,6 +26,7 @@ import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { enforcePass3QualityGuards } from "@/lib/evaluation/governance/runtimeQualityGuards";
 import { normalizeIssueFamily, normalizeStrategicLever, normalizeRevisionGranularity } from "./recommendationSemantics";
+import { DIALOGUE_MECHANISM_MARKERS } from "./qualityGate";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS3_TEMPERATURE = 0.2;
@@ -54,22 +55,6 @@ const PASS3_VOICE_MECHANISM_MARKERS = [
   "cadence",
   "tone",
   "rhythm",
-] as const;
-const PASS3_DIALOGUE_MECHANISM_MARKERS = [
-  "attribution",
-  "tag",
-  "speaker",
-  "beat",
-  "quote",
-  "quotation",
-  "subtext",
-  "voicing",
-  "interruption",
-  "turn-taking",
-  "turn taking",
-  "direct speech",
-  "reported speech",
-  "rendering",
 ] as const;
 
 type CompletionChoice = {
@@ -619,7 +604,7 @@ function hasVoiceMechanismMarker(text: string): boolean {
 
 function hasDialogueMechanismMarker(text: string): boolean {
   const normalized = normalizeForPhraseMatch(text);
-  return PASS3_DIALOGUE_MECHANISM_MARKERS.some((marker) => normalized.includes(marker));
+    return DIALOGUE_MECHANISM_MARKERS.some((marker) => normalized.includes(marker));
 }
 
 function needsRationaleBackfill(key: string, rationale: string): boolean {
