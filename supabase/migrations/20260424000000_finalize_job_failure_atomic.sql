@@ -14,10 +14,11 @@ RETURNS table (
   notified_at timestamptz
 )
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_now timestamptz := now();
-  v_next_attempt_at timestamptz;
 BEGIN
   -- Single atomic UPDATE with retry classification
   -- This is the canonical failure finalization path
@@ -31,6 +32,7 @@ BEGIN
     failed_at = v_now,
     updated_at = v_now,
     status = 'failed',
+    phase_status = 'failed',
     next_attempt_at = CASE
       WHEN p_retryable = true
        AND (attempt_count + 1) < max_attempts
@@ -38,10 +40,11 @@ BEGIN
       ELSE NULL
     END
   WHERE id = p_job_id
+    AND status IN ('queued', 'running')
   RETURNING j.attempt_count, j.max_attempts, j.notified_at;
 END;
 $$;
 
--- Grant execution to necessary roles
-GRANT EXECUTE ON FUNCTION public.finalize_job_failure_atomic TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.finalize_job_failure_atomic FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.finalize_job_failure_atomic FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.finalize_job_failure_atomic TO service_role;

@@ -80,6 +80,31 @@ describe('finalizeJobFailure', () => {
     });
   });
 
+  test('honors explicit retryable override from caller', async () => {
+    supabaseMock.rpc.mockResolvedValueOnce({
+      data: [{ attempt_count: 2, max_attempts: 3, notified_at: null }],
+      error: null,
+    });
+
+    const result = await jobStore.finalizeJobFailure({
+      jobId: 'job-override',
+      errorEnvelope: {
+        code: 'TIMEOUT',
+        message: 'Caller marks terminal failure',
+        retryable: false,
+      },
+    });
+
+    expect(supabaseMock.rpc).toHaveBeenCalledWith('finalize_job_failure_atomic', {
+      p_job_id: 'job-override',
+      p_failure_code: 'TIMEOUT',
+      p_error_message: 'Caller marks terminal failure',
+      p_retryable: false,
+    });
+
+    expect(result.retryEligible).toBe(false);
+  });
+
   test('marks retryable failures as exhausted when attempts reach max', async () => {
     supabaseMock.rpc.mockResolvedValueOnce({
       data: [{ attempt_count: 3, max_attempts: 3, notified_at: null }],

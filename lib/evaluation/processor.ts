@@ -1254,6 +1254,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         },
       });
 
+      const failedStatus = nextLifecycleStatus(JOB_STATUS.FAILED);
+
       try {
         // Route through centralized failure finalizer — atomic, retryable-aware, audited
         const finalizeResult = await finalizeJobFailure({
@@ -1267,12 +1269,59 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
         // Log retry eligibility for observability
         console.log(`[Processor] Job ${jobId} failed with code ${errorCode}; retryEligible=${finalizeResult.retryEligible}; attempt=${finalizeResult.attemptCount}/${finalizeResult.maxAttempts}`);
+
+        // Persist phase/progress metadata that claim predicates and UI rely on.
+        // This is intentionally separate from failure status finalization.
+        const { error: metadataError } = await supabase
+          .from('evaluation_jobs')
+          .update({
+            status: failedStatus,
+            phase: nextProgress.phase,
+            phase_status: 'failed',
+            total_units: nextProgress.total_units,
+            completed_units: nextProgress.completed_units,
+            progress: nextProgress,
+            last_error: errorMessage,
+            failed_at: now,
+            updated_at: now,
+          })
+          .eq('id', jobId)
+          .eq('status', failedStatus);
+
+        if (metadataError) {
+          throw new Error(
+            `Failure metadata persistence failed for job ${jobId}: ${metadataError.message}`,
+          );
+        }
       } catch (finalizeError) {
         console.error(
           `[Processor] Failed to finalize job failure for ${jobId}:`,
           finalizeError instanceof Error ? finalizeError.message : String(finalizeError)
         );
-        // Don't throw — allow processor to complete even if finalization fails
+
+        // Fail-closed fallback: if atomic finalization failed, force failed terminal state.
+        const { error: fallbackError } = await supabase
+          .from('evaluation_jobs')
+          .update({
+            status: failedStatus,
+            phase: nextProgress.phase,
+            phase_status: 'failed',
+            total_units: nextProgress.total_units,
+            completed_units: nextProgress.completed_units,
+            progress: nextProgress,
+            last_error: errorMessage,
+            failed_at: now,
+            updated_at: now,
+          })
+          .eq('id', jobId);
+
+        if (fallbackError) {
+          throw new Error(
+            `[Processor] Failed to persist fallback failure state for ${jobId}: ${fallbackError.message}`,
+          );
+        }
+
+        return;
       }
     };
 
@@ -1523,7 +1572,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           offending_entities: contaminationCheck.offendingEntities.slice(0, 10),
           reasons: contaminationCheck.reasons.slice(0, 10),
         });
-        await markFailed(contaminationDetail);
+        await markFailed(contaminationDetail, 'CONTEXT_CONTAMINATION_DETECTED');
 
         return { success: false, error: 'CONTEXT_CONTAMINATION_DETECTED' };
       }
@@ -1752,6 +1801,12 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[Processor] Error processing job ${jobId}:`, errorMessage);
 
+    const now = new Date().toISOString();
+    const failedStatus = normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus;
+    if (lifecycleStatus && lifecycleStatus !== failedStatus) {
+      assertValidJobStatusTransition(lifecycleStatus, failedStatus);
+    }
+
     // Route uncaught errors through centralized failure finalizer
     try {
       await finalizeJobFailure({
@@ -1767,6 +1822,28 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         `[Processor] Failed to finalize uncaught error for ${jobId}:`,
         finalizeError instanceof Error ? finalizeError.message : String(finalizeError)
       );
+
+      // Fail-closed fallback persistence for uncaught failures.
+      const { error: fallbackError } = await supabase
+        .from('evaluation_jobs')
+        .update({
+          status: failedStatus,
+          phase_status: 'failed',
+          total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
+          completed_units: 0,
+          last_error: errorMessage,
+          failed_at: now,
+          updated_at: now,
+        })
+        .eq('id', jobId);
+
+      if (fallbackError) {
+        throw new Error(
+          `[Processor] Uncaught-error fallback finalization failed for ${jobId}: ${fallbackError.message}`,
+        );
+      }
+
+      // Preserve processEvaluationJob contract: return { success: false } from catch path
     }
 
     return { success: false, error: errorMessage };

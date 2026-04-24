@@ -1,4 +1,4 @@
-import { createAdminClient } from "../supabase/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { validateProgressForPhase } from "./validation";
 import {
   assertValidJobStatusTransition,
@@ -887,7 +887,10 @@ export async function finalizeJobFailure(
   const { jobId, errorEnvelope } = input;
 
   // 1. Classify retryability (deterministic vs transient)
-  const retryable = isRetryableFailure(errorEnvelope);
+  const retryable =
+    typeof errorEnvelope.retryable === 'boolean'
+      ? errorEnvelope.retryable
+      : isRetryableFailure(errorEnvelope);
 
   // 2. Atomic update via RPC (single source of truth)
   const { data, error } = await supabase.rpc('finalize_job_failure_atomic', {
@@ -910,8 +913,8 @@ export async function finalizeJobFailure(
   }
 
   const row = data[0];
-  const attemptCount = row.attempt_count as number;
-  const maxAttempts = row.max_attempts as number;
+  const attemptCount = Number(row.attempt_count ?? 0);
+  const maxAttempts = Number(row.max_attempts ?? 0);
 
   // 3. Classify retry eligibility
   const retryExhausted = attemptCount >= maxAttempts;
