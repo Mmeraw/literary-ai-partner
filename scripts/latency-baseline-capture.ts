@@ -279,7 +279,7 @@ async function runBaselineCapture() {
           duration_ms: Date.now() - startedAt,
         });
         console.log(`✓ Success\n`);
-      } else {
+      } else if (result.ok === false) {
         attemptOutcomes.push({
           title: sample.title,
           workType: sample.workType,
