@@ -163,7 +163,8 @@ describe("POV + dialogue diagnostics", () => {
   test(
     "quality gate passes when dialogue rationale uses extended contract markers (turn-taking)",
     () => {
-            const synthesis = makeSynthesis(
+                  const manuscriptText = `I looked at Cliff.\n\n"The Yucatán," I said.\n"Sounds familiar," he said.`;
+const synthesis = makeSynthesis(
         CRITERIA_KEYS.map((key) =>
           key === "dialogue"
             ? {
@@ -173,7 +174,7 @@ describe("POV + dialogue diagnostics", () => {
             : {}
         )
       );
-            const result = runQualityGate(synthesis);
+                  const result = runQualityGate(synthesis, undefined, undefined, manuscriptText);
       const dialogueCheck = result.checks.find(
         (c) => c.check_id === "dialogue_attribution_specificity"
       );
