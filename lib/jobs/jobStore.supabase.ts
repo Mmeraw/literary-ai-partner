@@ -778,3 +778,156 @@ function mapDbRowToJob(row: any): Job {
     failure_code: failureCode,
   };
 }
+
+/**
+ * Result from centralized failure finalization.
+ * Used to communicate retry eligibility, exhaustion, and notification policy.
+ */
+export interface FinalizeFailureResult {
+  status: 'failed';
+  retryEligible: boolean;
+  retryExhausted: boolean;
+  attemptCount: number;
+  maxAttempts: number;
+  shouldNotify: boolean;
+  failureCode: string;
+}
+
+/**
+ * Failure Retryability Classification
+ *
+ * Determines whether a failure should trigger automatic retries or immediate terminal failure.
+ *
+ * ❌ DETERMINISTIC (non-retryable, fail once):
+ * - PASS3_FAILED: Token starvation, model limits
+ * - LLR_PRE_ARTIFACT_GENERATION_BLOCK: Quality gate rejection
+ * - QG_*: Any quality gate failure
+ * - SCHEMA_INVALID: Database/payload schema violations
+ * - EVALUATION_INVALID: Malformed evaluation result
+ *
+ * 🔁 TRANSIENT (retryable, bounded attempts):
+ * - NETWORK_ERROR: Connectivity issues
+ * - TIMEOUT: Service timeouts
+ * - RATE_LIMIT: Provider rate limiting
+ * - SERVICE_UNAVAILABLE: Provider overload
+ */
+function isRetryableFailure(error: {
+  code: string;
+  message?: string;
+}): boolean {
+  const code = error.code || '';
+
+  // ❌ DETERMINISTIC — NEVER retry
+  const NON_RETRYABLE = [
+    'PASS3_FAILED',
+    'LLR_PRE_ARTIFACT_GENERATION_BLOCK',
+    'QG_', // All quality gate failures
+    'SCHEMA_INVALID',
+    'SCHEMA_VIOLATION',
+    'EVALUATION_INVALID',
+    'MANUSCRIPT_NOT_FOUND',
+    'CHUNK_MISSING',
+    'AUTH_FAILED',
+    'INVALID_INPUT',
+    'QUOTA_EXCEEDED',
+  ];
+
+  if (NON_RETRYABLE.some((c) => code.startsWith(c))) {
+    return false;
+  }
+
+  // 🔁 RETRYABLE — bounded retries
+  const RETRYABLE = [
+    'NETWORK_ERROR',
+    'TIMEOUT',
+    'RATE_LIMIT',
+    'SERVICE_UNAVAILABLE',
+    'PROVIDER_ERROR', // Generic provider transient
+  ];
+
+  if (RETRYABLE.some((c) => code.includes(c))) {
+    return true;
+  }
+
+  // Default: conservative (no retry unless explicitly known)
+  return false;
+}
+
+/**
+ * Centralized Failure Finalization
+ *
+ * Single source of truth for job failure updates. Replaces all direct DB writes.
+ *
+ * Flow:
+ * 1. Classify failure as deterministic (no retry) or transient (bounded retry)
+ * 2. Atomic DB update: increment attempt_count, set failure_code, status=failed
+ * 3. Calculate retry eligibility: retryable AND attempt < max_attempts
+ * 4. Return structured result for logging/alerting
+ *
+ * Contract Guarantees:
+ * - ✅ Atomic single UPDATE (no race conditions)
+ * - ✅ Canonical status only ('failed', no dead_lettered)
+ * - ✅ failure_code used for policy (retryable vs exhausted)
+ * - ✅ next_attempt_at set iff eligible for retry
+ *
+ * @param input.jobId - Job UUID to finalize
+ * @param input.errorEnvelope - { code, message, retryable? }
+ * @returns Structured result with retry eligibility and notification policy
+ */
+export async function finalizeJobFailure(
+  input: {
+    jobId: string;
+    errorEnvelope: {
+      code: string;
+      message: string;
+      retryable?: boolean;
+    };
+  }
+): Promise<FinalizeFailureResult> {
+  const { jobId, errorEnvelope } = input;
+
+  // 1. Classify retryability (deterministic vs transient)
+  const retryable = isRetryableFailure(errorEnvelope);
+
+  // 2. Atomic update via RPC (single source of truth)
+  const { data, error } = await supabase.rpc('finalize_job_failure_atomic', {
+    p_job_id: jobId,
+    p_failure_code: errorEnvelope.code,
+    p_error_message: errorEnvelope.message,
+    p_retryable: retryable,
+  });
+
+  if (error) {
+    throw new Error(
+      `[finalizeJobFailure] Atomic update failed for job ${jobId}: ${error.message}`
+    );
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error(
+      `[finalizeJobFailure] RPC returned no rows for job ${jobId}`
+    );
+  }
+
+  const row = data[0];
+  const attemptCount = row.attempt_count as number;
+  const maxAttempts = row.max_attempts as number;
+
+  // 3. Classify retry eligibility
+  const retryExhausted = attemptCount >= maxAttempts;
+  const retryEligible = retryable && !retryExhausted;
+
+  // 4. Determine notification policy
+  const shouldNotify =
+    (row.notified_at === null && attemptCount === 1) || retryExhausted;
+
+  return {
+    status: 'failed',
+    retryEligible,
+    retryExhausted,
+    attemptCount,
+    maxAttempts,
+    shouldNotify,
+    failureCode: errorEnvelope.code,
+  };
+}
