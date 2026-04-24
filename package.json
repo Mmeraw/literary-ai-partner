@@ -19,6 +19,7 @@
     "guard:clean-tree": "bash scripts/guard-clean-tree.sh",
     "guard:phase-integrity": "bash scripts/guard-phase-integrity.sh",
     "test": "jest",
+    "probe:llr003": "tsx scripts/probe-llr003-job.ts",
     "test:ci": "jest --silent",
     "test:polling": "jest --testPathPatterns=polling",
     "test:staging": "DOTENV_CONFIG_PATH=.env.test.local node -r dotenv/config node_modules/.bin/jest",
