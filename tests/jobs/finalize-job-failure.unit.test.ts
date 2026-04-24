@@ -5,8 +5,24 @@ jest.mock('@/lib/supabase/admin');
 const mockCreateAdminClient = require('@/lib/supabase/admin')
   .createAdminClient as jest.Mock;
 
+type RpcRow = {
+  attempt_count: number;
+  max_attempts: number;
+  notified_at: string | null;
+};
+
+type SupabaseRpcResponse =
+  | { data: RpcRow[]; error: null }
+  | { data: null; error: { message: string } };
+
+type RpcMock = jest.MockedFunction<
+  (fn: string, args: Record<string, unknown>) => Promise<SupabaseRpcResponse>
+>;
+
+const rpcMock = jest.fn() as RpcMock;
+
 const supabaseMock = {
-  rpc: jest.fn(),
+  rpc: rpcMock,
 };
 
 const jobStore = require('@/lib/jobs/jobStore.supabase') as typeof import('@/lib/jobs/jobStore.supabase');
@@ -14,12 +30,12 @@ const jobStore = require('@/lib/jobs/jobStore.supabase') as typeof import('@/lib
 describe('finalizeJobFailure', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    supabaseMock.rpc.mockReset();
+    rpcMock.mockReset();
     mockCreateAdminClient.mockReturnValue(supabaseMock);
   });
 
   test('passes deterministic failures to RPC as non-retryable', async () => {
-    supabaseMock.rpc.mockResolvedValueOnce({
+    rpcMock.mockResolvedValueOnce({
       data: [{ attempt_count: 1, max_attempts: 3, notified_at: null }],
       error: null,
     });
@@ -32,7 +48,7 @@ describe('finalizeJobFailure', () => {
       },
     });
 
-    expect(supabaseMock.rpc).toHaveBeenCalledWith('finalize_job_failure_atomic', {
+    expect(rpcMock).toHaveBeenCalledWith('finalize_job_failure_atomic', {
       p_job_id: 'job-1',
       p_failure_code: 'PASS3_FAILED',
       p_error_message: 'Token starvation',
@@ -50,7 +66,7 @@ describe('finalizeJobFailure', () => {
   });
 
   test('passes transient failures to RPC as retryable', async () => {
-    supabaseMock.rpc.mockResolvedValueOnce({
+    rpcMock.mockResolvedValueOnce({
       data: [{ attempt_count: 1, max_attempts: 3, notified_at: '2026-04-24T00:00:00Z' }],
       error: null,
     });
@@ -63,7 +79,7 @@ describe('finalizeJobFailure', () => {
       },
     });
 
-    expect(supabaseMock.rpc).toHaveBeenCalledWith('finalize_job_failure_atomic', {
+    expect(rpcMock).toHaveBeenCalledWith('finalize_job_failure_atomic', {
       p_job_id: 'job-2',
       p_failure_code: 'TIMEOUT',
       p_error_message: 'Provider timed out',
@@ -81,7 +97,7 @@ describe('finalizeJobFailure', () => {
   });
 
   test('honors explicit retryable override from caller', async () => {
-    supabaseMock.rpc.mockResolvedValueOnce({
+    rpcMock.mockResolvedValueOnce({
       data: [{ attempt_count: 2, max_attempts: 3, notified_at: null }],
       error: null,
     });
@@ -95,7 +111,7 @@ describe('finalizeJobFailure', () => {
       },
     });
 
-    expect(supabaseMock.rpc).toHaveBeenCalledWith('finalize_job_failure_atomic', {
+    expect(rpcMock).toHaveBeenCalledWith('finalize_job_failure_atomic', {
       p_job_id: 'job-override',
       p_failure_code: 'TIMEOUT',
       p_error_message: 'Caller marks terminal failure',
@@ -106,7 +122,7 @@ describe('finalizeJobFailure', () => {
   });
 
   test('marks retryable failures as exhausted when attempts reach max', async () => {
-    supabaseMock.rpc.mockResolvedValueOnce({
+    rpcMock.mockResolvedValueOnce({
       data: [{ attempt_count: 3, max_attempts: 3, notified_at: null }],
       error: null,
     });
@@ -131,7 +147,7 @@ describe('finalizeJobFailure', () => {
   });
 
   test('throws when RPC fails', async () => {
-    supabaseMock.rpc.mockResolvedValueOnce({
+    rpcMock.mockResolvedValueOnce({
       data: null,
       error: { message: 'Database exploded politely' },
     });
@@ -148,7 +164,7 @@ describe('finalizeJobFailure', () => {
   });
 
   test('throws when RPC returns no rows', async () => {
-    supabaseMock.rpc.mockResolvedValueOnce({
+    rpcMock.mockResolvedValueOnce({
       data: [],
       error: null,
     });
@@ -165,7 +181,7 @@ describe('finalizeJobFailure', () => {
   });
 
   test('always returns canonical failed status', async () => {
-    supabaseMock.rpc.mockResolvedValueOnce({
+    rpcMock.mockResolvedValueOnce({
       data: [{ attempt_count: 2, max_attempts: 5, notified_at: '2026-04-24T00:00:00Z' }],
       error: null,
     });
