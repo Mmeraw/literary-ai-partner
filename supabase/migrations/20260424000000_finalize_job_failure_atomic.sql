@@ -45,6 +45,22 @@ BEGIN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.finalize_job_failure_atomic FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.finalize_job_failure_atomic FROM authenticated;
+-- Idempotency guard: reset grants before applying to avoid SQLSTATE 42P05
+-- on CI Supabase re-runs against a non-reset database session.
+DO $$ BEGIN
+  REVOKE ALL PRIVILEGES ON FUNCTION public.finalize_job_failure_atomic
+    FROM PUBLIC;
+EXCEPTION
+  WHEN undefined_function THEN NULL;
+  WHEN undefined_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  REVOKE ALL PRIVILEGES ON FUNCTION public.finalize_job_failure_atomic
+    FROM authenticated;
+EXCEPTION
+  WHEN undefined_function THEN NULL;
+  WHEN undefined_object THEN NULL;
+END $$;
+
 GRANT EXECUTE ON FUNCTION public.finalize_job_failure_atomic TO service_role;
