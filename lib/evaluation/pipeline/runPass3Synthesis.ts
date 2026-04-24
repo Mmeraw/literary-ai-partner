@@ -604,7 +604,7 @@ function hasVoiceMechanismMarker(text: string): boolean {
 
 function hasDialogueMechanismMarker(text: string): boolean {
   const normalized = normalizeForPhraseMatch(text);
-    return DIALOGUE_MECHANISM_MARKERS.some((marker) => normalized.includes(marker));
+      return DIALOGUE_MECHANISM_MARKERS.some((marker) => normalized.includes(marker));
 }
 
 function needsRationaleBackfill(key: string, rationale: string): boolean {

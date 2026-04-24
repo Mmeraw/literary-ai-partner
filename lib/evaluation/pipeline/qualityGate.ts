@@ -104,7 +104,6 @@ export const DIALOGUE_MECHANISM_MARKERS: readonly string[] = Object.freeze([
   "tag",
   "speaker",
   "quote",
-  "dialogue",
   "beat",
   // Pass 3 extended terms
   "quotation",
@@ -532,9 +531,9 @@ export function runQualityGate(
       const voiceRationale = (voiceCriterion?.final_rationale ?? "").toLowerCase();
       const dialogueRationale = (dialogueCriterion?.final_rationale ?? "").toLowerCase();
       const hasVoiceMechanismMarker = QG_POV_MECHANISM_MARKERS.some((m) => voiceRationale.includes(m));
-const hasDialogueMechanismMarker = DIALOGUE_MECHANISM_MARKERS.some(
-  (m) => dialogueRationale.includes(m)
-);
+    const hasDialogueMechanismMarker = DIALOGUE_MECHANISM_MARKERS.some(
+      (m) => dialogueRationale.includes(m)
+    );
 
       checks.push({
         check_id: "voice_mechanism_specificity",
