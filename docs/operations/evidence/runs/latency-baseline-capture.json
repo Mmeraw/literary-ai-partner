@@ -1,5 +1,5 @@
 {
-  "capture_timestamp": "2026-04-23T23:54:31.320Z",
+  "capture_timestamp": "2026-04-24T00:21:31.423Z",
   "sample_timeout_ms": 300000,
   "attempted_samples": 5,
   "samples_measured": 3,
@@ -11,33 +11,33 @@
       "title": "Neon Requiem",
       "workType": "novel",
       "status": "success",
-      "duration_ms": 127560
+      "duration_ms": 87470
     },
     {
       "title": "The Glass Shore",
       "workType": "novel",
       "status": "success",
-      "duration_ms": 72550
+      "duration_ms": 85943
     },
     {
       "title": "Borrowed Summer",
       "workType": "novel",
       "status": "failure",
       "error_code": "QG_POV_MISSING_EVIDENCE",
-      "duration_ms": 81971
+      "duration_ms": 82763
     },
     {
       "title": "Two Kinds of Rain",
       "workType": "novel",
       "status": "failure",
       "error_code": "QG_POV_MISSING_EVIDENCE",
-      "duration_ms": 71836
+      "duration_ms": 80427
     },
     {
       "title": "The Last Conductor",
       "workType": "novel",
       "status": "success",
-      "duration_ms": 80022
+      "duration_ms": 64213
     }
   ],
   "captured_timings": {
@@ -49,37 +49,37 @@
     {
       "title": "Neon Requiem",
       "work_type": "novel",
-      "pass1_ms": 43984,
-      "pass2_ms": 52868,
-      "pass3_ms": 74677,
-      "pass4_ms": 3,
-      "total_ms": 127558
+      "pass1_ms": 30105,
+      "pass2_ms": 27210,
+      "pass3_ms": 57352,
+      "pass4_ms": 4,
+      "total_ms": 87468
     },
     {
       "title": "The Glass Shore",
       "work_type": "novel",
-      "pass1_ms": 20845,
-      "pass2_ms": 15410,
-      "pass3_ms": 51698,
-      "pass4_ms": 1,
-      "total_ms": 72549
+      "pass1_ms": 35694,
+      "pass2_ms": 28751,
+      "pass3_ms": 50243,
+      "pass4_ms": 2,
+      "total_ms": 85943
     },
     {
       "title": "The Last Conductor",
       "work_type": "novel",
-      "pass1_ms": 27385,
-      "pass2_ms": 22355,
-      "pass3_ms": 52632,
-      "pass4_ms": 1,
-      "total_ms": 80022
+      "pass1_ms": 13216,
+      "pass2_ms": 14746,
+      "pass3_ms": 49463,
+      "pass4_ms": 0,
+      "total_ms": 64213
     }
   ],
   "statistics": {
-    "median_total_ms": 80022,
-    "median_pass1_ms": 27385,
-    "median_pass2_ms": 22355,
-    "median_pass3_ms": 52632,
-    "pass1_percent_of_total": 34
+    "median_total_ms": 85943,
+    "median_pass1_ms": 30105,
+    "median_pass2_ms": 27210,
+    "median_pass3_ms": 50243,
+    "pass1_percent_of_total": 35
   },
   "analysis": {
     "dominant_cost_driver": "Pass 2/3 synthesis",
