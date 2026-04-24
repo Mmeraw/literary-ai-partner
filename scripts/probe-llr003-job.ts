@@ -7,6 +7,7 @@ import {
 
 type EvaluationJobRow = {
   id: string;
+  [key: string]: unknown;
   convergenceResult?: {
     overall?: {
       top_3_strengths?: string[];
@@ -26,7 +27,14 @@ type EvaluationJobRow = {
 };
 
 function toProbeInput(job: EvaluationJobRow): RuleEvaluationInputForProbe {
-  const convergence = job.convergenceResult ?? job.convergence_result ?? {};
+  const convergence =
+    job.convergence_result ??
+    job.convergenceResult ??
+    (job["convergenceResult"] as EvaluationJobRow["convergenceResult"]) ??
+    (job["convergence_result"] as EvaluationJobRow["convergence_result"]) ??
+    (job["pass3_result"] as EvaluationJobRow["convergence_result"]) ??
+    (job["convergence"] as EvaluationJobRow["convergence_result"]) ??
+    {};
 
   const strengths =
     convergence?.overall?.top_3_strengths ?? convergence?.overall?.top3strengths ?? [];
@@ -60,11 +68,14 @@ async function main() {
 
   const { data, error } = await supabase
     .from("evaluation_jobs")
-    .select("id, convergenceResult, convergence_result")
+    .select("*")
     .eq("id", jobId)
     .single();
 
   if (error || !data) {
+    if ((error as { code?: string } | null)?.code === "PGRST116") {
+      throw new Error(`No evaluation_jobs row found for ${jobId}`);
+    }
     throw new Error(`Failed to load evaluation_jobs row for ${jobId}: ${error?.message ?? "unknown error"}`);
   }
 
