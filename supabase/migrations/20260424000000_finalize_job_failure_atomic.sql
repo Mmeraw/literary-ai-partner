@@ -44,21 +44,3 @@ BEGIN
   RETURNING j.attempt_count, j.max_attempts, j.notified_at;
 END;
 $$;
-
-DO $guard$
-BEGIN
-  REVOKE EXECUTE ON FUNCTION public.finalize_job_failure_atomic FROM PUBLIC;
-EXCEPTION
-  WHEN undefined_function THEN NULL;
-  WHEN undefined_object  THEN NULL;
-END $guard$;
-
-DO $guard$
-BEGIN
-  REVOKE EXECUTE ON FUNCTION public.finalize_job_failure_atomic FROM authenticated;
-EXCEPTION
-  WHEN undefined_function THEN NULL;
-  WHEN undefined_object  THEN NULL;
-END $guard$;
-
-GRANT EXECUTE ON FUNCTION public.finalize_job_failure_atomic TO service_role;
