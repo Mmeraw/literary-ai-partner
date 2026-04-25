@@ -169,6 +169,20 @@ export type EvaluationResultV2 = {
         C?: Array<string>;
       };
       repro_anchor?: string;
+      artifact_validation_result?: "PASS" | "HOLD" | "FAIL";
+      artifact_reason_codes?: string[];
+      artifact_validated_at?: string;
+      artifact_validation_mode?: "log" | "enforce";
+      score_ledger?: {
+        raw_total: number;
+        max_total: number;
+        normalized_total: number;
+        weighting: "equal";
+      };
+      excellence_filter?: {
+        verdict: "submission-ready" | "close-but-not-ready" | "not-yet-ready";
+        blocking_criteria: string[];
+      };
     };
   };
 };

@@ -245,5 +245,90 @@ export type PipelineResult =
           normalized_tail?: string;
           candidate_tail?: string;
         };
+        llr_diagnostic_snapshot?: {
+          stage: "post_convergence" | "pre_artifact_generation";
+          blocked_rule_ids: string[];
+          convergence_result: SynthesisOutput;
+        };
       };
     };
+
+// ── Artifact Validation Layer ─────────────────────────────────────────────────
+// GOVERNANCE: ArtifactValidationResult is pipeline-internal ONLY.
+// It MUST NOT be conflated with JobStatus (queued|running|complete|failed).
+
+export type ArtifactGateResult = "PASS" | "HOLD" | "FAIL";
+
+export type ArtifactReasonCode =
+  | "CRIT-MISSING-ALL"       // no criteria at all
+  | "CRIT-MISSING-1"         // wrong count or missing expected keys
+  | "SCORE-NON-INTEGER-1"    // non-integer score
+  | "SCORE-OUT-OF-RANGE-1"   // <0 or >10
+  | "EVIDENCE-MISSING-1"     // empty/whitespace evidence
+  | "REASONING-MISSING-1"    // empty/whitespace reasoning
+  | "INTERP-MISSING-1"       // empty/whitespace interpretation
+  | "SCORE-NORM-1"           // ledger inconsistent with criteria
+  | "EFG-MISMATCH-1";        // verdict or blockers don't match deterministic builder
+
+export interface CriterionEvaluation {
+  key: CriterionKey;
+  final_score_0_10: number;
+  reasoning: string;
+  evidence: string;
+  interpretation: string;
+}
+
+export interface ArtifactScoreLedger {
+  rawTotal: number;
+  maxTotal: number;
+  normalized: number;
+  weighting: "equal";
+}
+
+export type SubmissionReadiness =
+  | "submission-ready"
+  | "close-but-not-ready"
+  | "not-yet-ready";
+
+export interface ExcellenceFilterFooter {
+  verdict: SubmissionReadiness;
+  blockingCriteria: CriterionKey[];
+}
+
+export interface EvaluationArtifact {
+  criteria: CriterionEvaluation[];
+  ledger: ArtifactScoreLedger;
+  efg: ExcellenceFilterFooter;
+}
+
+export interface ArtifactValidationSummary {
+  result: ArtifactGateResult;
+  reasonCodes: ArtifactReasonCode[];
+}
+
+// ── Advisory Plan Layer ───────────────────────────────────────────────────────
+
+export type AdvisorySeverity = "blocking" | "advisory";
+
+export type AdvisoryLane =
+  | "clarify_premise_hook"
+  | "increase_escalation_consequence"
+  | "deepen_character_pressure"
+  | "tighten_voice_control"
+  | "strengthen_scene_turns"
+  | "increase_dialogue_subtext"
+  | "dramatize_theme"
+  | "sharpen_environmental_function"
+  | "compress_pacing_drag"
+  | "tighten_line_level_prose"
+  | "stabilize_tonal_contract"
+  | "strengthen_promise_delivery"
+  | "clarify_market_positioning";
+
+export interface AdvisoryPlanItem {
+  criterion: CriterionKey;
+  score: number;
+  severity: AdvisorySeverity;
+  advisoryLane: AdvisoryLane;
+  requiredRevisionScope: "line" | "beat" | "scene" | "chapter" | "manuscript";
+}

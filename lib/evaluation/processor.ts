@@ -69,6 +69,11 @@ import {
   synthesisToEvaluationResultV2,
 } from '@/lib/evaluation/pipeline/runPipeline';
 import { runQualityGateV2 } from '@/lib/evaluation/pipeline/qualityGate';
+import {
+  validateEvaluationArtifact,
+} from '@/lib/evaluation/pipeline/validateEvaluationArtifact';
+import { buildScoreLedger } from '@/lib/evaluation/pipeline/buildScoreLedger';
+import { buildExcellenceFilter } from '@/lib/evaluation/pipeline/buildExcellenceFilter';
 import { mapEvaluationResultV2ToGovernanceEnvelope } from '@/lib/governance/evaluationBridge';
 import {
   getCanonicalPipelineModel,
@@ -341,6 +346,15 @@ function normalizeEffortOrImpact(value: unknown): 'low' | 'medium' | 'high' {
     return candidate;
   }
   return 'medium';
+}
+
+function firstNonEmpty(...candidates: Array<string | null | undefined>): string | null {
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return null;
 }
 
 export function getCalibrationProfile(workType: string | null): CalibrationProfile {
@@ -1498,6 +1512,50 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       const pipelineError =
         `[Pipeline:${pipelineResult.failed_at}] ${pipelineResult.error_code} ${pipelineResult.error}` +
         (serializedFailureDetails ? ` | failure_details=${serializedFailureDetails}` : "");
+
+      const llrDiagnosticSnapshot = pipelineResult.failure_details?.llr_diagnostic_snapshot;
+      if (llrDiagnosticSnapshot) {
+        try {
+          const diagnosticSourceHash = stableSourceHash({
+            manuscriptId: manuscript.id,
+            jobId: job.id,
+            userId: manuscriptWithContent.user_id,
+            manuscriptText: manuscriptWithContent.content || '(No content provided)',
+            promptVersion: `diagnostic_pass3_snapshot_v1:${llrDiagnosticSnapshot.stage}`,
+            model: getCanonicalPipelineModel(openAiModel),
+          });
+
+          await upsertEvaluationArtifact({
+            supabase,
+            jobId: job.id,
+            manuscriptId: job.manuscript_id,
+            artifactType: 'diagnostic_pass3_snapshot_v1',
+            artifactVersion: 'diagnostic_pass3_snapshot_v1',
+            sourceHash: diagnosticSourceHash,
+            content: {
+              schema_version: 'diagnostic_pass3_snapshot_v1',
+              created_at: new Date().toISOString(),
+              job_id: job.id,
+              manuscript_id: manuscript.id,
+              failed_at: pipelineResult.failed_at,
+              error_code: pipelineResult.error_code,
+              stage: llrDiagnosticSnapshot.stage,
+              blocked_rule_ids: llrDiagnosticSnapshot.blocked_rule_ids,
+              convergence_result: llrDiagnosticSnapshot.convergence_result,
+            },
+          });
+
+          console.log(`[Processor] ${jobId}: persisted diagnostic pass3 snapshot artifact`);
+        } catch (diagnosticPersistError) {
+          console.warn(
+            `[Processor] ${jobId}: failed to persist diagnostic pass3 snapshot`,
+            diagnosticPersistError instanceof Error
+              ? diagnosticPersistError.message
+              : String(diagnosticPersistError),
+          );
+        }
+      }
+
       console.error(`[Processor] Pipeline failed for job ${jobId}: ${pipelineError}`);
       await markFailed(pipelineError, pipelineResult.error_code || 'PIPELINE_ERROR');
 
@@ -1550,6 +1608,71 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
       return { success: false, error: gateError };
     }
+
+    const artifactCriteria = pipelineResult.synthesis.criteria.map((criterion) => ({
+      key: criterion.key,
+      final_score_0_10: criterion.final_score_0_10,
+      reasoning: criterion.final_rationale,
+      evidence: criterion.evidence.map((item) => item.snippet).filter(Boolean).join(' | '),
+      interpretation:
+        criterion.consequence_status === 'deferred'
+          ? firstNonEmpty(
+              criterion.deferred_consequence_risk,
+              criterion.decision_points?.length ? criterion.decision_points.join(' ') : null,
+              criterion.pressure_points?.length ? criterion.pressure_points.join(' ') : null,
+            ) ?? ''
+          : firstNonEmpty(
+              criterion.consequence_status
+                ? `${criterion.consequence_status}: ${criterion.decision_points.join(' ')}`.trim()
+                : null,
+              criterion.decision_points?.length ? criterion.decision_points.join(' ') : null,
+            ) ?? '',
+    }));
+    const scoreLedger = buildScoreLedger({
+      criteria: artifactCriteria.map((criterion) => ({
+        final_score_0_10: criterion.final_score_0_10,
+      })),
+    });
+    const excellenceFilter = buildExcellenceFilter({
+      criteria: artifactCriteria.map((criterion) => ({
+        key: criterion.key,
+        final_score_0_10: criterion.final_score_0_10,
+      })),
+    });
+
+    const artifactValidation = validateEvaluationArtifact(
+      {
+        criteria: artifactCriteria,
+        ledger: scoreLedger,
+        efg: excellenceFilter,
+      },
+      { mode: 'log' },
+    );
+
+    evaluationResult.governance.warnings = [
+      ...(evaluationResult.governance.warnings ?? []),
+      ...(artifactValidation.reasonCodes.length > 0
+        ? [
+            `[ArtifactValidation:${artifactValidation.result}] reason_codes=${artifactValidation.reasonCodes.join(',')}`,
+          ]
+        : []),
+    ];
+    evaluationResult.governance.transparency = {
+      ...(evaluationResult.governance.transparency ?? {}),
+      artifact_validation_result: artifactValidation.result,
+      artifact_reason_codes: artifactValidation.reasonCodes,
+      artifact_validated_at: artifactValidation.validatedAt,
+      score_ledger: {
+        raw_total: scoreLedger.rawTotal,
+        max_total: scoreLedger.maxTotal,
+        normalized_total: scoreLedger.normalized,
+        weighting: scoreLedger.weighting,
+      },
+      excellence_filter: {
+        verdict: excellenceFilter.verdict,
+        blocking_criteria: excellenceFilter.blockingCriteria,
+      },
+    };
 
     const governanceBridgeProjection = mapEvaluationResultV2ToGovernanceEnvelope(evaluationResult);
     console.log(

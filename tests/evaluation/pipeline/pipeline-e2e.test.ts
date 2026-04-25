@@ -712,6 +712,9 @@ describe("runPipeline (e2e with injected runners)", () => {
       expect(result.error_code).toBe("LLR_PRE_ARTIFACT_GENERATION_BLOCK");
       expect(result.failed_at).toBe("pass4");
       expect(result.error).toContain("checkpoint=LLR_PRE_ARTIFACT_GENERATION");
+      expect(result.failure_details?.llr_diagnostic_snapshot).toBeDefined();
+      expect(result.failure_details?.llr_diagnostic_snapshot?.stage).toBe("pre_artifact_generation");
+      expect(result.failure_details?.llr_diagnostic_snapshot?.convergence_result.criteria).toHaveLength(13);
     }
 
     expect(mockRunPass1).toHaveBeenCalledTimes(1);
