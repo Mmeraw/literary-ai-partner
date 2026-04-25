@@ -85,8 +85,8 @@ const META_ARTIFACT_PATTERNS: ReadonlyArray<RegExp> = [
 ];
 
 const CRITERION_TERMS: Record<string, readonly string[]> = {
-  concept: ["premise", "hook", "concept", "dilemma", "engine", "stakes", "promise"],
-  narrativeDrive: ["momentum", "drive", "goal", "pressure", "tension", "escalation", "turn"],
+  concept: ["premise", "hook", "concept", "dilemma", "engine", "risk", "promise"],
+  narrativeDrive: ["propulsion", "drive", "goal", "pressure", "tension", "escalation", "turn"],
   character: ["character", "motivation", "choice", "arc", "interiority", "conflict", "change", "agency"],
   voice: ["voice", "pov", "point of view", "diction", "syntax", "register", "focalization", "cadence"],
   sceneConstruction: ["scene", "beat", "turn", "goal", "reversal", "entry", "exit", "conflict", "outcome"],
@@ -95,26 +95,26 @@ const CRITERION_TERMS: Record<string, readonly string[]> = {
   worldbuilding: ["world", "setting", "environment", "logic", "system", "rules", "place", "ritual"],
   pacing: ["pacing", "pace", "tempo", "compression", "drag", "acceleration", "rhythm", "movement"],
   proseControl: ["prose", "sentence", "syntax", "diction", "imagery", "metaphor", "cadence", "line", "paragraph"],
-  tone: ["tone", "mood", "register", "atmosphere", "consistency", "authority"],
-  narrativeClosure: ["closure", "ending", "resolution", "payoff", "promise", "climax", "thread"],
-  marketability: ["market", "audience", "positioning", "pitch", "genre", "commercial", "readiness"],
+  tone: ["tone", "affect", "register", "atmosphere", "consistency", "control"],
+  narrativeClosure: ["closure", "closeout", "aftermath", "consequence", "promise", "climax", "thread"],
+  marketability: ["market", "audience", "positioning", "pitch", "genre", "queryability", "readiness"],
 };
 
 const CRAFT_MECHANISM_TERMS = Array.from(new Set(Object.values(CRITERION_TERMS).flat()));
 
 const READER_EFFECT_TERMS = [
   "reader",
-  "clarity",
+  "specificity",
   "immersion",
   "empathy",
   "suspense",
   "tension",
-  "momentum",
-  "payoff",
+  "propulsion",
+  "consequence",
   "engagement",
   "readability",
   "impact",
-  "stakes",
+  "risk",
 ];
 
 function clamp(value: number, min = 0, max = 100): number {
