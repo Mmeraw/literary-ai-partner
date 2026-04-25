@@ -69,9 +69,6 @@ import {
   synthesisToEvaluationResultV2,
 } from '@/lib/evaluation/pipeline/runPipeline';
 import { runQualityGateV2 } from '@/lib/evaluation/pipeline/qualityGate';
-import {
-  validateEvaluationArtifact,
-} from '@/lib/evaluation/pipeline/validateEvaluationArtifact';
 import { buildScoreLedger } from '@/lib/evaluation/pipeline/buildScoreLedger';
 import { buildExcellenceFilter } from '@/lib/evaluation/pipeline/buildExcellenceFilter';
 import { mapEvaluationResultV2ToGovernanceEnvelope } from '@/lib/governance/evaluationBridge';
@@ -1598,17 +1595,6 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
     );
 
-    const qualityGateV2 = runQualityGateV2(evaluationResult);
-    if (!qualityGateV2.pass) {
-      const failedChecks = qualityGateV2.checks
-        .filter((check) => !check.passed)
-        .map((check) => `${check.check_id}: ${check.details ?? check.error_code ?? 'failed'}`);
-      const gateError = `[QualityGateV2] ${failedChecks.join('; ')}`;
-      await markFailed(gateError, 'QG_FAILED');
-
-      return { success: false, error: gateError };
-    }
-
     const artifactCriteria = pipelineResult.synthesis.criteria.map((criterion) => ({
       key: criterion.key,
       final_score_0_10: criterion.final_score_0_10,
@@ -1640,28 +1626,42 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       })),
     });
 
-    const artifactValidation = validateEvaluationArtifact(
-      {
-        criteria: artifactCriteria,
-        ledger: scoreLedger,
-        efg: excellenceFilter,
-      },
-      { mode: 'log' },
-    );
+    const qualityGateV2 = runQualityGateV2(evaluationResult, {
+      criteria: artifactCriteria,
+      ledger: scoreLedger,
+      efg: excellenceFilter,
+    });
+
+    if (!qualityGateV2.pass) {
+      const failedChecks = qualityGateV2.checks
+        .filter((check) => !check.passed)
+        .map((check) => `${check.check_id}: ${check.details ?? check.error_code ?? 'failed'}`);
+      const gateError = `[QualityGateV2] ${failedChecks.join('; ')}`;
+      await markFailed(gateError, 'QG_FAILED');
+
+      return { success: false, error: gateError };
+    }
+
+    const artifactGateDecision = qualityGateV2.artifactGate ?? {
+      verdict: 'PASS',
+      reasonCodes: [] as string[],
+      validatedAt: new Date().toISOString(),
+      enforcementMode: 'enforce' as const,
+    };
 
     evaluationResult.governance.warnings = [
       ...(evaluationResult.governance.warnings ?? []),
-      ...(artifactValidation.reasonCodes.length > 0
+      ...(artifactGateDecision.reasonCodes.length > 0
         ? [
-            `[ArtifactValidation:${artifactValidation.result}] reason_codes=${artifactValidation.reasonCodes.join(',')}`,
+            `[ArtifactValidation:${artifactGateDecision.verdict}] reason_codes=${artifactGateDecision.reasonCodes.join(',')}`,
           ]
         : []),
     ];
     evaluationResult.governance.transparency = {
       ...(evaluationResult.governance.transparency ?? {}),
-      artifact_validation_result: artifactValidation.result,
-      artifact_reason_codes: artifactValidation.reasonCodes,
-      artifact_validated_at: artifactValidation.validatedAt,
+      artifact_validation_result: artifactGateDecision.verdict,
+      artifact_reason_codes: artifactGateDecision.reasonCodes,
+      artifact_validated_at: artifactGateDecision.validatedAt,
       score_ledger: {
         raw_total: scoreLedger.rawTotal,
         max_total: scoreLedger.maxTotal,

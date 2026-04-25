@@ -138,6 +138,16 @@ function makeSupabaseStub() {
 
   return {
     evaluationJobUpdates,
+    rpc: async (fn: string) => {
+      if (fn === "finalize_job_failure_atomic") {
+        return {
+          data: [{ attempt_count: 1, max_attempts: 3, notified_at: null }],
+          error: null,
+        };
+      }
+
+      return { data: null, error: null };
+    },
     from(table: string) {
       if (table === "evaluation_jobs") {
         return {
@@ -148,7 +158,12 @@ function makeSupabaseStub() {
           }),
           update: (payload: Record<string, unknown>) => {
             evaluationJobUpdates.push(payload);
-            return { eq: async () => ({ error: null }) };
+            const query = {
+              eq: () => query,
+              then: (resolve: (value: { error: null }) => void) =>
+                resolve({ error: null }),
+            };
+            return { eq: () => query };
           },
         };
       }

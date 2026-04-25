@@ -31,6 +31,9 @@ import { analyzePovRendering } from "@/lib/evaluation/pov/analyzePovRendering";
 import { analyzeDialogueAttribution } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { validatePovCriterionEvidence } from "@/lib/evaluation/pov/validatePovCriterionEvidence";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
+import type { EvaluationArtifact } from "./types";
+import type { ArtifactGateDecision } from "./gates";
+import { evaluateArtifactGate } from "./gates";
 import {
   isCriterionComplete,
   minAnchorsFor,
@@ -98,6 +101,10 @@ export type QualityGateFailureTelemetry = {
   failures_by_error_code: Record<string, number>;
   failed_check_ids: string[];
 };
+
+export interface QualityGateV2Result extends QualityGateResult {
+  artifactGate: ArtifactGateDecision;
+}
 
 function normalizeForPhraseMatch(text: string): string {
   return (text || "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -642,9 +649,21 @@ export function summarizeQualityGateFailures(checks: QualityGateCheck[]): Qualit
  * completed EvaluationResultV2 obeys status/score invariants and canonical
  * 13-key coverage.
  */
-export function runQualityGateV2(result: EvaluationResultV2): QualityGateResult {
+export function runQualityGateV2(
+  result: EvaluationResultV2,
+  artifact?: EvaluationArtifact,
+): QualityGateV2Result {
   const checks: QualityGateCheck[] = [];
   const warnings: string[] = [];
+
+  const artifactGate = artifact
+    ? evaluateArtifactGate(artifact, "enforce")
+    : {
+        verdict: "PASS" as const,
+        reasonCodes: [],
+        validatedAt: new Date().toISOString(),
+        enforcementMode: "enforce" as const,
+      };
 
   const criteria = result.criteria;
   const expectedCount = CRITERIA_KEYS.length;
@@ -795,10 +814,33 @@ export function runQualityGateV2(result: EvaluationResultV2): QualityGateResult 
     warnings.push(`LOW_EVALUABILITY_COVERAGE: scored_criteria_count=${scoredCount}/${expectedCount}`);
   }
 
+  const artifactReasonSummary = artifactGate.reasonCodes.join(",") || "none";
+  if (artifactGate.verdict === "FAIL") {
+    checks.push({
+      check_id: "v2_artifact_gate",
+      passed: false,
+      error_code: "QG_ARTIFACT_GATE_FAIL",
+      details: `Artifact gate verdict=FAIL reason_codes=${artifactReasonSummary}`,
+    });
+  } else {
+    checks.push({
+      check_id: "v2_artifact_gate",
+      passed: true,
+      details: `Artifact gate verdict=${artifactGate.verdict} reason_codes=${artifactReasonSummary}`,
+    });
+
+    if (artifactGate.verdict === "HOLD") {
+      warnings.push(
+        `[ArtifactGate:HOLD] reason_codes=${artifactReasonSummary}`,
+      );
+    }
+  }
+
   const failedHardChecks = checks.filter((c) => !c.passed);
   return {
     pass: failedHardChecks.length === 0,
     checks,
     warnings,
+    artifactGate,
   };
 }

@@ -69,6 +69,16 @@ function makeSupabaseStub() {
 
   return {
     evaluationJobUpdates,
+    rpc: async (fn: string) => {
+      if (fn === "finalize_job_failure_atomic") {
+        return {
+          data: [{ attempt_count: 1, max_attempts: 3, notified_at: null }],
+          error: null,
+        };
+      }
+
+      return { data: null, error: null };
+    },
     from(table: string) {
       if (table === "evaluation_jobs") {
         return {
@@ -79,8 +89,13 @@ function makeSupabaseStub() {
           }),
           update: (payload: Record<string, unknown>) => {
             evaluationJobUpdates.push(payload);
+            const query = {
+              eq: () => query,
+              then: (resolve: (value: { error: null }) => void) =>
+                resolve({ error: null }),
+            };
             return {
-              eq: async () => ({ error: null }),
+              eq: () => query,
             };
           },
         };
@@ -312,6 +327,16 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     };
 
     const supabaseStub = {
+      rpc: async (fn: string) => {
+        if (fn === "finalize_job_failure_atomic") {
+          return {
+            data: [{ attempt_count: 1, max_attempts: 3, notified_at: null }],
+            error: null,
+          };
+        }
+
+        return { data: null, error: null };
+      },
       from(table: string) {
         if (table === "evaluation_jobs") {
           return {
@@ -322,22 +347,28 @@ describe("processEvaluationJob canonical pipeline integration", () => {
             }),
             update: (payload: Record<string, unknown>) => {
               evaluationJobUpdates.push(payload);
-              return {
-                eq: async () => {
+              const query = {
+                eq: () => query,
+                then: (resolve: (value: { error: { code: string; message: string } | null }) => void) => {
                   if (
                     payload.status === "complete" &&
                     Object.prototype.hasOwnProperty.call(payload, "phase2_completed_at")
                   ) {
-                    return {
+                    resolve({
                       error: {
                         code: "PGRST204",
                         message:
                           "Could not find the 'phase2_completed_at' column of 'evaluation_jobs' in the schema cache",
                       },
-                    };
+                    });
+                    return;
                   }
-                  return { error: null };
+
+                  resolve({ error: null });
                 },
+              };
+              return {
+                eq: () => query,
               };
             },
           };
