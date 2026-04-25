@@ -196,4 +196,31 @@ describe('finalizeJobFailure', () => {
 
     expect(result.status).toBe('failed');
   });
+
+  test('persists failure_code and uses notified_at return shape', async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: [{ attempt_count: 1, max_attempts: 3, notified_at: null }],
+      error: null,
+    });
+
+    const result = await jobStore.finalizeJobFailure({
+      jobId: 'job-x',
+      errorEnvelope: {
+        code: 'QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED',
+        message: '[Pipeline:pass4] QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED ...',
+        retryable: false,
+      },
+    });
+
+    expect(rpcMock).toHaveBeenCalledWith('finalize_job_failure_atomic', {
+      p_job_id: 'job-x',
+      p_failure_code: 'QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED',
+      p_error_message: expect.stringContaining('QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED'),
+      p_retryable: false,
+    });
+    expect(result.attemptCount).toBe(1);
+    expect(result.maxAttempts).toBe(3);
+    expect(result.shouldNotify).toBe(true);
+    expect(result.status).toBe('failed');
+  });
 });
