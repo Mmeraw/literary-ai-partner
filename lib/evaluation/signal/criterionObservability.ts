@@ -13,6 +13,7 @@ import type {
   SignalStrength,
 } from "@/schemas/evaluation-result-v2";
 import type { CriterionKey } from "@/schemas/criteria-keys";
+import { computeCriterionConfidence } from "@/lib/evaluation/pipeline/criterionConfidence";
 
 export type CriteriaPlanCode = "R" | "O" | "NA" | "C";
 export type CriteriaPlanMap = Partial<Record<CriterionKey, CriteriaPlanCode>>;
@@ -37,6 +38,7 @@ export type RawCriterionInput = {
     priority?: "high" | "medium" | "low";
     action?: string;
     expected_impact?: string;
+    anchor_snippet?: string;
   }>;
   insufficient_signal_reason?: InsufficientSignalReason;
 };
@@ -227,6 +229,7 @@ export function normalizeCriterion(
     criteriaPlan?: CriteriaPlanMap;
     passageCoverageRatio?: number;
     sentenceCount?: number;
+    sourceText?: string;
   },
 ): EvaluationCriterionV2 {
   const evidence = dedupeAnchors(raw.evidence ?? []).map((e) => ({
@@ -241,9 +244,27 @@ export function normalizeCriterion(
       priority: (r.priority ?? "medium") as "high" | "medium" | "low",
       action: r.action!,
       expected_impact: r.expected_impact ?? "",
+      anchor_snippet: r.anchor_snippet,
     }));
 
   const rationale = (raw.rationale ?? "").trim() || `Criterion ${raw.key} evaluation status was derived by governed observability checks.`;
+  const confidence = computeCriterionConfidence(
+    {
+      key: raw.key,
+      score_0_10: raw.score_0_10,
+      rationale,
+      evidence,
+      recommendations,
+    },
+    opts?.sourceText,
+  );
+
+  const confidenceBandFromLevel: "LOW" | "MEDIUM" | "HIGH" =
+    confidence.confidence_level === "high"
+      ? "HIGH"
+      : confidence.confidence_level === "moderate"
+        ? "MEDIUM"
+        : "LOW";
 
   // GOVERNED NOT_APPLICABLE path (model must not invent this)
   if (opts?.criteriaPlan?.[raw.key] === "NA") {
@@ -254,7 +275,11 @@ export function normalizeCriterion(
       signal_present: false,
       signal_strength: "NONE",
       score_0_10: null,
-      confidence_band: "LOW",
+      confidence_band: confidenceBandFromLevel,
+      confidence_score_0_100: confidence.confidence_score_0_100,
+      confidence_level: confidence.confidence_level,
+      confidence_reasons: confidence.confidence_reasons,
+      scorability_status: "non_scorable",
       rationale,
       evidence,
       recommendations,
@@ -265,41 +290,37 @@ export function normalizeCriterion(
     passageCoverageRatio: opts?.passageCoverageRatio,
     sentenceCount: opts?.sentenceCount,
   });
-  const status = deriveCriterionStatus(signalStrength);
+  const hasNumericScore = typeof raw.score_0_10 === "number" && Number.isFinite(raw.score_0_10);
 
-  if (status === "SCORABLE") {
-    if (typeof raw.score_0_10 !== "number" || !Number.isFinite(raw.score_0_10)) {
-      // Fail-closed downgrade: not enough trustworthy score payload
-      const downgradedStatus: "INSUFFICIENT_SIGNAL" = "INSUFFICIENT_SIGNAL";
-      return {
-        key: raw.key,
-        scorable: false,
-        status: downgradedStatus,
-        signal_present: true,
-        signal_strength: "WEAK",
-        score_0_10: null,
-        confidence_band: "LOW",
-        rationale,
-        evidence,
-        recommendations,
-        insufficient_signal_reason: buildStructuredReason(downgradedStatus, raw.insufficient_signal_reason),
-      };
-    }
+  // Scorability semantics: thin support lowers confidence, it does not erase a scorable score.
+  if (hasNumericScore) {
+    const rounded = Math.max(0, Math.min(10, Math.round(raw.score_0_10 as number)));
+    const normalizedSignal: "SUFFICIENT" | "STRONG" =
+      signalStrength === "STRONG" ? "STRONG" : "SUFFICIENT";
 
-    const rounded = Math.max(0, Math.min(10, Math.round(raw.score_0_10)));
     return {
       key: raw.key,
       scorable: true,
       status: "SCORABLE",
       signal_present: true,
-      signal_strength: signalStrength as "SUFFICIENT" | "STRONG",
+      signal_strength: normalizedSignal,
       score_0_10: rounded,
-      confidence_band: toConfidenceBand(signalStrength),
+      confidence_band: confidenceBandFromLevel,
+      confidence_score_0_100: confidence.confidence_score_0_100,
+      confidence_level: confidence.confidence_level,
+      confidence_reasons: confidence.confidence_reasons,
+      scorability_status:
+        confidence.scorability_status === "non_scorable"
+          ? "scorable_low_confidence"
+          : confidence.scorability_status,
       rationale,
       evidence,
       recommendations,
     };
   }
+
+  const status: "NO_SIGNAL" | "INSUFFICIENT_SIGNAL" =
+    signalStrength === "NONE" ? "NO_SIGNAL" : "INSUFFICIENT_SIGNAL";
 
   return {
     key: raw.key,
@@ -308,7 +329,11 @@ export function normalizeCriterion(
     signal_present: signalStrength === "WEAK",
     signal_strength: signalStrength as "NONE" | "WEAK",
     score_0_10: null,
-    confidence_band: "LOW",
+    confidence_band: confidenceBandFromLevel,
+    confidence_score_0_100: confidence.confidence_score_0_100,
+    confidence_level: confidence.confidence_level,
+    confidence_reasons: confidence.confidence_reasons,
+    scorability_status: "non_scorable",
     rationale,
     evidence,
     recommendations,

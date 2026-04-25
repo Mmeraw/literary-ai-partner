@@ -315,4 +315,82 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
       );
     }
   });
+
+  test("E2E LOCK: low-confidence scorable criteria emit warning and still complete", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+    upsertEvaluationArtifactMock.mockResolvedValue("artifact-real-gate-pass");
+
+    const lowConfidenceSynthesis = makeRealSynthesisOutput();
+    lowConfidenceSynthesis.criteria = lowConfidenceSynthesis.criteria.map((c) => ({
+      ...c,
+      // No anchors -> low confidence. Score remains present (scorable_low_confidence path).
+      evidence: [],
+      recommendations: [],
+      final_rationale:
+        `Criterion ${c.key} is assessed with limited direct textual support in this submission window.`,
+    }));
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: lowConfidenceSynthesis,
+      quality_gate: { pass: true, checks: [], warnings: [] },
+      pass4_governance: { ok: true },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-real-gate-test");
+
+    expect(result.success).toBe(true);
+    expect(upsertEvaluationArtifactMock).toHaveBeenCalledTimes(1);
+
+    const [persistedArg] = upsertEvaluationArtifactMock.mock.calls[0];
+    const warnings = (persistedArg.content as any)?.governance?.warnings ?? [];
+    expect(
+      warnings.some((warning: string) =>
+        warning.includes("LOW_CONFIDENCE_SCORABLE_CRITERIA:"),
+      ),
+    ).toBe(true);
+
+  });
+
+  test("E2E LOCK: fully-scorable under-anchor criterion hard-fails and blocks persistence", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    const underAnchoredSynthesis = makeRealSynthesisOutput();
+    underAnchoredSynthesis.criteria = underAnchoredSynthesis.criteria.map((c) => ({
+      ...c,
+      // Exactly one anchor keeps confidence moderate/scorable for many criteria,
+      // but remains below v2 minAnchorsFor threshold (typically 2), which must hard-fail.
+      evidence: [{ snippet: `Single anchor for ${c.key} (intentionally below threshold).` }],
+      recommendations: [
+        {
+          priority: "medium" as const,
+          action: `Refine ${c.key} with a focused revision tied to this excerpt and its reader effect.`,
+          expected_impact: `Improves ${c.key} specificity and coherence.`,
+        },
+      ],
+      final_rationale:
+        `Criterion ${c.key} is supported by one concrete anchor with explicit mechanism and reader-effect analysis.`,
+    }));
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: underAnchoredSynthesis,
+      quality_gate: { pass: true, checks: [], warnings: [] },
+      pass4_governance: { ok: true },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-real-gate-test");
+
+    expect(result.success).toBe(false);
+    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    expect(
+      supabaseStub.evaluationJobUpdates.some(
+        (u: Record<string, unknown>) => u.status === "complete",
+      ),
+    ).toBe(false);
+  });
 });

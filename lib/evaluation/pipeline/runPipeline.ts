@@ -25,6 +25,7 @@ import {
 import { buildScoreLedger } from "./buildScoreLedger";
 import { buildExcellenceFilter } from "./buildExcellenceFilter";
 import { buildAdvisoryPlan } from "./buildAdvisoryPlan";
+import { computeCriterionConfidence } from "./criterionConfidence";
 import type { PipelineResult, SinglePassOutput, SynthesisOutput, QualityGateResult } from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
@@ -934,6 +935,8 @@ export interface SynthesisToEvaluationResultOptions {
   /** Optional passage-level coverage hints for observability classification. */
   passageCoverageRatio?: number;
   sentenceCount?: number;
+  /** Optional source text for deterministic anchor/source matching in confidence computation. */
+  sourceText?: string;
 }
 
 const DEFAULT_ADAPTER_CONFIDENCE = 0.85;
@@ -1035,28 +1038,45 @@ export function synthesisToEvaluationResult(
 ): EvaluationResultV1 {
   const { synthesis, ids, crossCheckResult, pass4Governance } = opts;
 
-  const criteria: EvaluationResultV1["criteria"] = synthesis.criteria.map((c) => ({
-    key: c.key,
-    score_0_10: c.final_score_0_10,
-    rationale: c.final_rationale,
-    evidence: c.evidence.map((e) => ({
-      snippet: e.snippet,
-      ...(e.char_start !== undefined || e.char_end !== undefined
-        ? {
-            location: {
-              char_start: e.char_start,
-              char_end: e.char_end,
-              segment_id: e.segment_id,
-            },
-          }
-        : {}),
-    })),
-    recommendations: c.recommendations.map((r) => ({
-      priority: r.priority,
-      action: r.action,
-      expected_impact: r.expected_impact,
-    })),
-  }));
+  const criteria: EvaluationResultV1["criteria"] = synthesis.criteria.map((c) => {
+    const confidence = computeCriterionConfidence(
+      {
+        key: c.key,
+        final_score_0_10: c.final_score_0_10,
+        final_rationale: c.final_rationale,
+        evidence: c.evidence,
+        recommendations: c.recommendations,
+      },
+      opts.sourceText,
+    );
+
+    return {
+      key: c.key,
+      score_0_10: c.final_score_0_10,
+      confidence_score_0_100: confidence.confidence_score_0_100,
+      confidence_level: confidence.confidence_level,
+      confidence_reasons: confidence.confidence_reasons,
+      scorability_status: confidence.scorability_status,
+      rationale: c.final_rationale,
+      evidence: c.evidence.map((e) => ({
+        snippet: e.snippet,
+        ...(e.char_start !== undefined || e.char_end !== undefined
+          ? {
+              location: {
+                char_start: e.char_start,
+                char_end: e.char_end,
+                segment_id: e.segment_id,
+              },
+            }
+          : {}),
+      })),
+      recommendations: c.recommendations.map((r) => ({
+        priority: r.priority,
+        action: r.action,
+        expected_impact: r.expected_impact,
+      })),
+    };
+  });
 
   // Derive quick_wins (high-priority recs from all criteria)
   const quick_wins = synthesis.criteria
@@ -1150,6 +1170,7 @@ export function synthesisToEvaluationResultV2(
     criteriaPlan,
     passageCoverageRatio,
     sentenceCount,
+    sourceText,
   } = opts;
 
   const criteria = synthesis.criteria.map((c) =>
@@ -1173,12 +1194,14 @@ export function synthesisToEvaluationResultV2(
           priority: r.priority,
           action: r.action,
           expected_impact: r.expected_impact,
+          anchor_snippet: r.anchor_snippet,
         })),
       },
       {
         criteriaPlan,
         passageCoverageRatio,
         sentenceCount,
+        sourceText,
       },
     ),
   );

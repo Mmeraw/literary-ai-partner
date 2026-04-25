@@ -52,6 +52,16 @@ Recommendation deduplication rule:
 - When multiple upstream recommendations reduce to the same lever, collapse them into ONE sharper recommendation.
 - Prefer decisive single-lever recommendations over three mild paraphrases of the same fix.
 
+CONFIDENCE AND EVIDENCE HANDLING:
+- Do NOT convert a scorable criterion into N/A because evidence is thin or because manuscript hygiene issues are present.
+- If upstream evidence is thin:
+  - preserve the criterion score
+  - preserve the summary
+  - surface reduced confidence
+  - do not invent evidence
+- N/A is allowed only when the submitted text genuinely makes the criterion impossible to evaluate.
+- Meta artifacts, bracketed notes, TODOs, or ChatGPT/editor comments are artifact hygiene issues, not reasons to erase a craft score.
+
 Return ONLY JSON with keys:
 - criteria MUST be a flat array of criterion objects (one per key), not grouped/nested by state.
 - criteria[] by state:
