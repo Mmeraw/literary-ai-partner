@@ -237,6 +237,28 @@ describe("runQualityGateV2 integration", () => {
     ).toBe(true);
   });
 
+  it("treats SCORABLE criteria with missing scorability_status as fully scorable and hard-fails under threshold", () => {
+    const fixture = makeBaseV2Fixture();
+    const proseControlIndex = CRITERIA_KEYS.indexOf("proseControl");
+
+    fixture.criteria[proseControlIndex] = {
+      ...fixture.criteria[proseControlIndex],
+      evidence: [],
+      confidence_level: "high",
+      confidence_score_0_100: 90,
+      // Intentionally absent to validate legacy/default behavior.
+      scorability_status: undefined,
+    } as EvaluationResultV2["criteria"][number];
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(false);
+    expect(
+      result.checks.some(
+        (check) => check.check_id === "v2_scored_anchor_threshold" && !check.passed,
+      ),
+    ).toBe(true);
+  });
+
   it("does not emit low-confidence warning for non_scorable criteria", () => {
     const fixture = makeBaseV2Fixture();
     const narrativeClosureIndex = CRITERIA_KEYS.indexOf("narrativeClosure");
