@@ -166,3 +166,20 @@ export const CRITERIA_METADATA: Record<
       "Assesses cohesion, clarity, and alignment with professional publication standards."
   }
 };
+
+export type EvaluationScope = "chapter" | "excerpt" | "full_manuscript";
+
+/**
+ * Scope-aware label resolver.
+ * Canonical key IDs remain unchanged; only display label changes by scope.
+ */
+export function getCriterionDisplayLabel(
+  key: CriterionKey,
+  scope: EvaluationScope = "full_manuscript",
+): string {
+  if (key === "narrativeClosure" && (scope === "chapter" || scope === "excerpt")) {
+    return "Chapter Closure & Promise Integrity";
+  }
+
+  return CRITERIA_METADATA[key].label;
+}

@@ -22,6 +22,9 @@ import {
   runQualityGate as defaultRunQualityGate,
   summarizeQualityGateFailures,
 } from "./qualityGate";
+import { buildScoreLedger } from "./buildScoreLedger";
+import { buildExcellenceFilter } from "./buildExcellenceFilter";
+import { buildAdvisoryPlan } from "./buildAdvisoryPlan";
 import type { PipelineResult, SinglePassOutput, SynthesisOutput, QualityGateResult } from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
@@ -296,16 +299,33 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     const checkpoint = getLlrCheckpointForStage(stage, governanceInjectionMap);
 
     if (decision.action === "BLOCK") {
-      const failedRules = report.results
+      const blockedRuleIds = report.results
         .filter((r) => !r.passed && r.severity === "ERROR")
-        .map((r) => r.rule_id)
-        .join(", ");
+        .map((r) => r.rule_id);
+      const failedRules = blockedRuleIds.join(", ");
+
+      const llrDiagnosticSnapshot =
+        (stage === "post_convergence" || stage === "pre_artifact_generation") &&
+        typeof pass3Output !== "undefined"
+          ? {
+              stage,
+              blocked_rule_ids: blockedRuleIds,
+              convergence_result: pass3Output,
+            }
+          : undefined;
 
       return {
         ok: false,
         error: `Lessons-learned enforcement blocked at ${stage}: ${decision.reason}${failedRules ? ` (rules: ${failedRules})` : ""}${checkpointContext(checkpoint)}`,
         error_code: checkpoint.blockErrorCode ?? `LLR_${stage.toUpperCase()}_BLOCK`,
         failed_at: failedAt,
+        ...(llrDiagnosticSnapshot
+          ? {
+              failure_details: {
+                llr_diagnostic_snapshot: llrDiagnosticSnapshot,
+              },
+            }
+          : {}),
       };
     }
 
@@ -672,6 +692,30 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   {
+    const criteriaForDerivedPlans = pass3Output.criteria.map((criterion) => ({
+      key: criterion.key,
+      final_score_0_10: criterion.final_score_0_10,
+    }));
+
+    const scoreLedger = buildScoreLedger({
+      criteria: criteriaForDerivedPlans,
+    });
+    const excellenceFilter = buildExcellenceFilter({
+      criteria: criteriaForDerivedPlans,
+    });
+    const advisoryPlan = buildAdvisoryPlan({
+      criteria: criteriaForDerivedPlans,
+    });
+
+    console.log("[Pipeline][DerivedEvaluationPlans]", {
+      manuscript_id: opts.manuscriptId ?? null,
+      title: opts.title,
+      score_ledger: scoreLedger,
+      excellence_filter: excellenceFilter,
+      advisory_plan_count: advisoryPlan.length,
+      blocking_advisory_count: advisoryPlan.filter((item) => item.severity === "blocking").length,
+    });
+
     const llrPostConvergence = enforceLessonsLearnedStage("post_convergence", "pass3", {
       structural_result: pass1Output,
       diagnostic_result: pass2Output,

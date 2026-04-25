@@ -6,7 +6,8 @@ import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import {
   CRITERIA_KEYS,
-  CRITERIA_METADATA,
+  getCriterionDisplayLabel,
+  type EvaluationScope,
   type CriterionKey,
 } from "@/schemas/criteria-keys";
 import { EvaluationPoller } from "@/components/EvaluationPoller";
@@ -67,7 +68,27 @@ type ArtifactContentV1 = {
     manuscript?: { word_count?: number; char_count?: number; genre?: string };
     processing?: { segment_count?: number; total_tokens_estimated?: number; runtime_ms?: number };
   };
-  governance?: { confidence?: number; warnings?: string[]; limitations?: string[] };
+  governance?: {
+    confidence?: number;
+    warnings?: string[];
+    limitations?: string[];
+    transparency?: {
+      artifact_validation_result?: "PASS" | "HOLD" | "FAIL";
+      artifact_reason_codes?: string[];
+      artifact_validated_at?: string;
+      artifact_validation_mode?: "log" | "enforce";
+      score_ledger?: {
+        raw_total: number;
+        max_total: number;
+        normalized_total: number;
+        weighting: "equal";
+      };
+      excellence_filter?: {
+        verdict: "submission-ready" | "close-but-not-ready" | "not-yet-ready";
+        blocking_criteria: string[];
+      };
+    };
+  };
 };
 
 async function getJob(jobId: string): Promise<Job | null> {
@@ -194,6 +215,14 @@ function criterionStatusLabel(
   return "N/A — Insufficient manuscript evidence";
 }
 
+function inferEvaluationScope(jobType?: string, genre?: string): EvaluationScope {
+  const raw = `${jobType ?? ""} ${genre ?? ""}`.toLowerCase();
+
+  if (raw.includes("excerpt")) return "excerpt";
+  if (raw.includes("chapter")) return "chapter";
+  return "full_manuscript";
+}
+
 function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-md border p-3">
@@ -279,6 +308,7 @@ export default async function EvaluationReportPage({
   const orderedCriteria = CRITERIA_KEYS
     .map((key) => criteriaByKey.get(key))
     .filter((criterion): criterion is NonNullable<ArtifactContentV1["criteria"]>[number] => Boolean(criterion));
+  const evaluationScope = inferEvaluationScope(job.job_type, artifact?.metrics?.manuscript?.genre);
 
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -409,7 +439,7 @@ export default async function EvaluationReportPage({
                           return (
                         <div className="flex items-center justify-between">
                           <h3 className="font-medium">
-                            {isCriterionKey(c.key) ? CRITERIA_METADATA[c.key].label : c.key}
+                            {isCriterionKey(c.key) ? getCriterionDisplayLabel(c.key, evaluationScope) : c.key}
                           </h3>
                           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClasses}`}>
                             {scorable ? `${scoreValue ?? "—"} / 10` : "N/A"}
@@ -463,6 +493,34 @@ export default async function EvaluationReportPage({
               <Metric label="Chunks Analyzed" value={artifact.chunk_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"} />
               <Metric label="Successfully Processed" value={artifact.processed_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"} />
             </div>
+
+            {artifact.governance?.transparency?.score_ledger && (
+              <div className="mt-3 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
+                <p>
+                  <span className="font-medium">Score Ledger:</span>{" "}
+                  Raw {artifact.governance.transparency.score_ledger.raw_total} / {artifact.governance.transparency.score_ledger.max_total},
+                  Normalized {artifact.governance.transparency.score_ledger.normalized_total} / 100,
+                  Weighting {artifact.governance.transparency.score_ledger.weighting}
+                </p>
+              </div>
+            )}
+
+            {artifact.governance?.transparency?.artifact_validation_result && (
+              <div className="mt-3 rounded-md border bg-gray-50 p-3 text-xs text-gray-700 space-y-1">
+                <p>
+                  <span className="font-medium">Gate Result:</span>{" "}
+                  {artifact.governance.transparency.artifact_validation_result}
+                </p>
+                {Array.isArray(artifact.governance.transparency.artifact_reason_codes) &&
+                  artifact.governance.transparency.artifact_reason_codes.length > 0 && (
+                    <p>
+                      <span className="font-medium">Reason Codes:</span>{" "}
+                      {artifact.governance.transparency.artifact_reason_codes.join(", ")}
+                    </p>
+                  )}
+              </div>
+            )}
+
             <p className="mt-3 text-xs text-gray-500">
               Generated: {artifact.generated_at ? new Date(artifact.generated_at).toLocaleString() : "N/A"}
             </p>

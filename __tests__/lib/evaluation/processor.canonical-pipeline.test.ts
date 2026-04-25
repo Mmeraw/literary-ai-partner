@@ -569,4 +569,160 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       ),
     ).toBe(false);
   });
+
+  test("persists diagnostic pass3 snapshot artifact when pipeline is blocked pre-artifact", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    upsertEvaluationArtifactMock.mockResolvedValue("artifact-diagnostic-pass3");
+
+    runPipelineMock.mockResolvedValue({
+      ok: false,
+      failed_at: "pass4",
+      error_code: "LLR_PRE_ARTIFACT_GENERATION_BLOCK",
+      error: "Lessons-learned enforcement blocked at pre_artifact_generation",
+      failure_details: {
+        llr_diagnostic_snapshot: {
+          stage: "pre_artifact_generation",
+          blocked_rule_ids: ["LLR-003"],
+          convergence_result: {
+            criteria: [],
+            overall: {
+              overall_score_0_100: 74,
+              verdict: "revise",
+              one_paragraph_summary: "Summary",
+              top_3_strengths: [],
+              top_3_risks: [],
+              submission_readiness: "close",
+            },
+            metadata: {
+              pass1_model: "o3",
+              pass2_model: "o3",
+              pass3_model: "o3",
+              generated_at: new Date().toISOString(),
+            },
+            partial_evaluation: false,
+          },
+        },
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(upsertEvaluationArtifactMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artifactType: "diagnostic_pass3_snapshot_v1",
+        artifactVersion: "diagnostic_pass3_snapshot_v1",
+      }),
+    );
+    expect(
+      supabaseStub.evaluationJobUpdates.some(
+        (payload: Record<string, unknown>) => payload.status === "complete",
+      ),
+    ).toBe(false);
+  });
+
+  test("blocks persistence in enforce mode when artifact validation returns structural reason codes", async () => {
+    process.env.EVAL_ARTIFACT_VALIDATION_MODE = "enforce";
+
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: {
+        criteria: [],
+        overall: {
+          overall_score_0_100: 50,
+          verdict: "revise",
+          one_paragraph_summary: "Summary",
+          top_3_strengths: [],
+          top_3_risks: [],
+        },
+        metadata: {
+          pass1_model: "o3",
+          pass2_model: "o3",
+          pass3_model: "o3",
+          generated_at: new Date().toISOString(),
+        },
+      },
+      quality_gate: {
+        pass: true,
+        checks: [],
+        warnings: [],
+      },
+      pass4_governance: { ok: true },
+    });
+
+    synthesisToEvaluationResultV2Mock.mockReturnValue({
+      schema_version: "evaluation_result_v2",
+      ids: {
+        evaluation_run_id: "run-enforce-1",
+        manuscript_id: 456,
+        user_id: "00000000-0000-0000-0000-000000000001",
+      },
+      generated_at: new Date().toISOString(),
+      engine: { model: "o3", provider: "openai", prompt_version: "test" },
+      overview: {
+        verdict: "revise",
+        overall_score_0_100: 50,
+        scored_criteria_count: 13,
+        one_paragraph_summary: "Summary",
+        top_3_strengths: [],
+        top_3_risks: [],
+      },
+      criteria: new Array(13).fill(null).map((_, idx) => ({
+        key: [
+          "concept",
+          "narrativeDrive",
+          "character",
+          "voice",
+          "sceneConstruction",
+          "dialogue",
+          "theme",
+          "worldbuilding",
+          "pacing",
+          "proseControl",
+          "tone",
+          "narrativeClosure",
+          "marketability",
+        ][idx],
+        scorable: true,
+        status: "SCORABLE",
+        signal_present: true,
+        signal_strength: "SUFFICIENT",
+        confidence_band: "MEDIUM",
+        score_0_10: 7,
+        rationale: "Criterion rationale",
+        evidence: [{ snippet: "Evidence snippet with sufficient detail for quality gate checks." }],
+        recommendations: [],
+      })),
+      recommendations: { quick_wins: [], strategic_revisions: [] },
+      metrics: { manuscript: {}, processing: {} },
+      artifacts: [],
+      governance: {
+        confidence: 0.9,
+        warnings: [],
+        limitations: [],
+        policy_family: "multi-pass-dual-axis",
+      },
+    });
+
+    runQualityGateV2Mock.mockReturnValue({
+      pass: true,
+      checks: [],
+      warnings: [],
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("ArtifactValidation");
+    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+
+    delete process.env.EVAL_ARTIFACT_VALIDATION_MODE;
+  });
 });
