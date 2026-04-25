@@ -348,6 +348,15 @@ function normalizeEffortOrImpact(value: unknown): 'low' | 'medium' | 'high' {
   return 'medium';
 }
 
+function firstNonEmpty(...candidates: Array<string | null | undefined>): string | null {
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return null;
+}
+
 export function getCalibrationProfile(workType: string | null): CalibrationProfile {
   const normalized = (workType || '').toLowerCase();
 
@@ -1607,12 +1616,18 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       evidence: criterion.evidence.map((item) => item.snippet).filter(Boolean).join(' | '),
       interpretation:
         criterion.consequence_status === 'deferred'
-          ? criterion.deferred_consequence_risk ??
-            criterion.decision_points.join(' ') ??
-            criterion.pressure_points.join(' ')
-          : `${criterion.consequence_status}: ${criterion.decision_points.join(' ')}`,
+          ? firstNonEmpty(
+              criterion.deferred_consequence_risk,
+              criterion.decision_points?.length ? criterion.decision_points.join(' ') : null,
+              criterion.pressure_points?.length ? criterion.pressure_points.join(' ') : null,
+            ) ?? ''
+          : firstNonEmpty(
+              criterion.consequence_status
+                ? `${criterion.consequence_status}: ${criterion.decision_points.join(' ')}`.trim()
+                : null,
+              criterion.decision_points?.length ? criterion.decision_points.join(' ') : null,
+            ) ?? '',
     }));
-
     const scoreLedger = buildScoreLedger({
       criteria: artifactCriteria.map((criterion) => ({
         final_score_0_10: criterion.final_score_0_10,

@@ -46,15 +46,8 @@ function evidenceIsAnchored(evidence: string): boolean {
 }
 
 function sortedUnique(codes: ArtifactReasonCode[]): ArtifactReasonCode[] {
-  const seen = new Set<ArtifactReasonCode>();
-  const deduped: ArtifactReasonCode[] = [];
-  for (const code of codes) {
-    if (!seen.has(code)) {
-      seen.add(code);
-      deduped.push(code);
-    }
-  }
-  return deduped;
+  const deduped = Array.from(new Set(codes));
+  return deduped.sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'variant' }));
 }
 
 export function hasBlockingArtifactReasonCodes(reasonCodes: ArtifactReasonCode[]): boolean {
