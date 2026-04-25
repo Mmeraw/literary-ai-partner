@@ -3,6 +3,9 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import { validateEvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import { runQualityGateV2 } from "@/lib/evaluation/pipeline/qualityGate";
+import type { EvaluationArtifact } from "@/lib/evaluation/pipeline/types";
+import { buildScoreLedger } from "@/lib/evaluation/pipeline/buildScoreLedger";
+import { buildExcellenceFilter } from "@/lib/evaluation/pipeline/buildExcellenceFilter";
 
 function makeBaseV2Fixture(): EvaluationResultV2 {
   return {
@@ -68,19 +71,51 @@ function makeBaseV2Fixture(): EvaluationResultV2 {
   };
 }
 
+function makeArtifactFixtureFromV2(result: EvaluationResultV2): EvaluationArtifact {
+  const criteria = result.criteria.map((criterion) => ({
+    key: criterion.key,
+    final_score_0_10: criterion.score_0_10 ?? 0,
+    reasoning: criterion.rationale,
+    evidence: criterion.evidence.map((e) => `"${e.snippet}"`).join(" | "),
+    interpretation: criterion.rationale,
+  }));
+
+  const scoreLedger = buildScoreLedger({
+    criteria: criteria.map((criterion) => ({
+      final_score_0_10: criterion.final_score_0_10,
+    })),
+  });
+
+  const efg = buildExcellenceFilter({
+    criteria: criteria.map((criterion) => ({
+      key: criterion.key,
+      final_score_0_10: criterion.final_score_0_10,
+    })),
+  });
+
+  return {
+    criteria,
+    ledger: scoreLedger,
+    efg,
+  };
+}
+
 describe("runQualityGateV2 integration", () => {
   it("passes a canonical EvaluationResultV2 fixture", () => {
     const fixture = makeBaseV2Fixture();
+    const artifact = makeArtifactFixtureFromV2(fixture);
     const validation = validateEvaluationResultV2(fixture);
     expect(validation.valid).toBe(true);
 
-    const result = runQualityGateV2(fixture);
+    const result = runQualityGateV2(fixture, artifact);
     expect(result.pass).toBe(true);
     expect(result.checks.every((check) => check.passed)).toBe(true);
+    expect(result.artifactGate.verdict).toBe("PASS");
   });
 
   it("fails when non-scorable criteria carry numeric scores", () => {
     const fixture = makeBaseV2Fixture();
+    const artifact = makeArtifactFixtureFromV2(fixture);
     fixture.criteria[0] = {
       ...fixture.criteria[0],
       scorable: false,
@@ -100,9 +135,47 @@ describe("runQualityGateV2 integration", () => {
       },
     } as EvaluationResultV2["criteria"][number];
 
-    const result = runQualityGateV2(fixture);
+    const result = runQualityGateV2(fixture, artifact);
     expect(result.pass).toBe(false);
     expect(result.checks.some((check) => check.check_id === "v2_score_without_signal" && !check.passed)).toBe(true);
+  });
+
+  it("fails closed when artifact gate verdict is FAIL", () => {
+    const fixture = makeBaseV2Fixture();
+    const artifact = makeArtifactFixtureFromV2(fixture);
+
+    artifact.criteria = [];
+    artifact.ledger = {
+      rawTotal: 0,
+      maxTotal: 130,
+      normalized: 0,
+      weighting: "equal",
+    };
+    artifact.efg = {
+      verdict: "not-yet-ready",
+      blockingCriteria: ["concept"],
+    };
+
+    const result = runQualityGateV2(fixture, artifact);
+    expect(result.pass).toBe(false);
+    expect(result.artifactGate.verdict).toBe("FAIL");
+    expect(
+      result.checks.some(
+        (check) => check.check_id === "v2_artifact_gate" && !check.passed,
+      ),
+    ).toBe(true);
+  });
+
+  it("allows HOLD artifact verdict with warning-only behavior", () => {
+    const fixture = makeBaseV2Fixture();
+    const artifact = makeArtifactFixtureFromV2(fixture);
+
+    artifact.criteria[0].evidence = "";
+
+    const result = runQualityGateV2(fixture, artifact);
+    expect(result.pass).toBe(true);
+    expect(result.artifactGate.verdict).toBe("HOLD");
+    expect(result.warnings.some((w) => w.includes("[ArtifactGate:HOLD]"))).toBe(true);
   });
 
   it("rejects non-canonical signal values via schema contract", () => {

@@ -1,4 +1,13 @@
 import type { ValidityState } from "@/lib/governance/types";
+import {
+  validateEvaluationArtifact,
+  type ArtifactValidationMode,
+} from "./validateEvaluationArtifact";
+import type {
+  ArtifactGateResult,
+  ArtifactReasonCode,
+  EvaluationArtifact,
+} from "./types";
 // RevisionGrade EG Validator Layer — Fail-Closed
 // Enforces EG-6 (Evidence integrity + anchor parity),
 // EG-7 (Generic language prohibition),
@@ -63,6 +72,13 @@ export interface GateResult {
   passed: boolean;
   validity: ValidityState;
   violations: GateViolation[];
+}
+
+export interface ArtifactGateDecision {
+  verdict: ArtifactGateResult;
+  reasonCodes: ArtifactReasonCode[];
+  validatedAt: string;
+  enforcementMode: ArtifactValidationMode;
 }
 
 /** Optional context for anchor-aware EG-6 validation */
@@ -397,4 +413,26 @@ export function adaptResultToCriteria(
   }
 
   return criteria.length > 0 ? criteria : null;
+}
+
+/**
+ * Canonical artifact gate decision.
+ *
+ * Ownership boundary:
+ * - gates.ts decides PASS/HOLD/FAIL from deterministic validation output
+ * - qualityGate.ts enforces fail-close policy based on this verdict
+ * - processor.ts reads persisted decision, but never decides enforcement
+ */
+export function evaluateArtifactGate(
+  artifact: EvaluationArtifact,
+  mode: ArtifactValidationMode = "enforce",
+): ArtifactGateDecision {
+  const validation = validateEvaluationArtifact(artifact, { mode });
+
+  return {
+    verdict: validation.result,
+    reasonCodes: validation.reasonCodes,
+    validatedAt: validation.validatedAt,
+    enforcementMode: validation.enforcementMode,
+  };
 }
