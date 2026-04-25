@@ -146,6 +146,14 @@ export type SynthesizedCriterion = {
     /** Number of distinct evidence spans supporting this recommendation */
     evidence_span_count?: number;
   }[];
+  /** Deterministic confidence score derived from evidence support + explanation quality (0-100). */
+  confidence_score_0_100?: number;
+  /** Confidence bucket for user-facing trust rendering. */
+  confidence_level?: "high" | "moderate" | "low";
+  /** Explainability breadcrumbs for confidence classification. */
+  confidence_reasons?: string[];
+  /** Scorability semantics separated from confidence semantics. */
+  scorability_status?: "scorable" | "scorable_low_confidence" | "non_scorable";
 };
 
 // ── Pass 3 output ────────────────────────────────────────────────────────────

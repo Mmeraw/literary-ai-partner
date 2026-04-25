@@ -40,6 +40,10 @@ type CriterionBase = {
   signal_present: boolean;
   signal_strength: SignalStrength;
   confidence_band: ConfidenceBand;
+  confidence_score_0_100?: number;
+  confidence_level?: "high" | "moderate" | "low";
+  confidence_reasons?: string[];
+  scorability_status?: "scorable" | "scorable_low_confidence" | "non_scorable";
   rationale: string;
   evidence: Array<{
     snippet: string;
@@ -234,6 +238,38 @@ export function validateEvaluationResultV2(
       errors.push(`Duplicate criterion key: ${c.key}`);
     }
     seen.add(c.key);
+
+    if (c.confidence_score_0_100 !== undefined) {
+      if (
+        typeof c.confidence_score_0_100 !== "number" ||
+        c.confidence_score_0_100 < 0 ||
+        c.confidence_score_0_100 > 100
+      ) {
+        errors.push(`criteria[${idx}].confidence_score_0_100 must be 0-100 when present`);
+      }
+    }
+
+    if (
+      c.confidence_level !== undefined &&
+      c.confidence_level !== "high" &&
+      c.confidence_level !== "moderate" &&
+      c.confidence_level !== "low"
+    ) {
+      errors.push(`criteria[${idx}].confidence_level invalid: ${String(c.confidence_level)}`);
+    }
+
+    if (
+      c.scorability_status !== undefined &&
+      c.scorability_status !== "scorable" &&
+      c.scorability_status !== "scorable_low_confidence" &&
+      c.scorability_status !== "non_scorable"
+    ) {
+      errors.push(`criteria[${idx}].scorability_status invalid: ${String(c.scorability_status)}`);
+    }
+
+    if (c.confidence_reasons !== undefined && !Array.isArray(c.confidence_reasons)) {
+      errors.push(`criteria[${idx}].confidence_reasons must be an array when present`);
+    }
 
     if (!c.rationale || c.rationale.trim().length === 0) {
       errors.push(`criteria[${idx}].rationale is empty`);

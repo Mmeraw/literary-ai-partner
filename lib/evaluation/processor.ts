@@ -1590,6 +1590,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       },
       crossCheckResult: pipelineResult.cross_check,
       pass4Governance: pipelineResult.pass4_governance,
+      sourceText: manuscriptWithContent.content || "",
     });
     console.log(
       `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
@@ -1651,6 +1652,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     evaluationResult.governance.warnings = [
       ...(evaluationResult.governance.warnings ?? []),
+      ...(qualityGateV2.warnings ?? []),
       ...(artifactGateDecision.reasonCodes.length > 0
         ? [
             `[ArtifactValidation:${artifactGateDecision.verdict}] reason_codes=${artifactGateDecision.reasonCodes.join(',')}`,

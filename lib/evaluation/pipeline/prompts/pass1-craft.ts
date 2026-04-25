@@ -39,6 +39,24 @@ Rules:
 6) Canonical v2 vocabulary lock: signal_strength uses ONLY NONE|WEAK|SUFFICIENT|STRONG (never MODERATE);
   criterion status uses ONLY SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL when status is emitted.
 
+EVIDENCE REQUIREMENT
+- For every criterion, provide at least 2 concrete evidence anchors from the submitted text whenever possible.
+- Each evidence anchor must be:
+  - a direct excerpt or clearly identifiable moment from the submitted text
+  - specific to the criterion being scored
+  - short enough to be readable
+  - not a generic summary of the manuscript
+
+SCORING + CONFIDENCE HANDLING
+- Do not use N/A when the submitted text contains enough material to assess the criterion.
+- If evidence is limited, still provide the best score available and indicate reduced confidence through evidence limitations.
+- For each criterion:
+  - score the criterion
+  - summarize the judgment
+  - include evidence anchors
+  - explain how the evidence supports the score
+- Do not collapse artifact hygiene issues, bracketed notes, or drafting residue into criterion N/A. Flag those separately.
+
 Return ONLY:
 {
   "pass": 1,
@@ -83,7 +101,7 @@ Mandatory behavior:
 - Cover all 13 criteria.
 - Extraction-dominant output: prioritize mechanism/failure detection and anchored evidence.
 - Rationale must be exactly 1 sentence per criterion.
-- Evidence array max 2 entries per criterion.
+- Evidence array max 2 entries per criterion and target 2 anchors whenever source support is available.
 - Recommendations array max 1 entry per criterion (0-1 is allowed).
 - Keep score_0_10 present for compatibility but minimal/non-authoritative.
 - No convergence/arbitration language.`;

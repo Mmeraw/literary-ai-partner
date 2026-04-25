@@ -704,7 +704,35 @@ export function runQualityGateV2(
         : "No duplicates and full canonical key coverage",
   });
 
-  const incompleteKeys = criteria.filter((c) => !isCriterionComplete(c)).map((c) => c.key);
+  // SLICE SPEC LOCK (per-criterion confidence + evidence-density):
+  // Low confidence lowers trust; it does not erase a defensible score.
+  //
+  // We keep SCORABLE + scorable_low_confidence criteria out of hard-fail
+  // completeness rejection for thin evidence, as long as they still carry a
+  // valid numeric score + rationale. Anchor sparsity for this narrow class is
+  // surfaced via warnings (LOW_CONFIDENCE_SCORABLE_CRITERIA), not hard fail.
+  //
+  // Fully scorable criteria (scorability_status !== scorable_low_confidence)
+  // remain fail-closed against completeness and anchor thresholds.
+  const incompleteKeys = criteria
+    .filter((c) => {
+      if (isCriterionComplete(c)) {
+        return false;
+      }
+
+      if (
+        c.status === "SCORABLE" &&
+        c.scorability_status === "scorable_low_confidence"
+      ) {
+        const hasValidScore =
+          typeof c.score_0_10 === "number" && c.score_0_10 >= 0 && c.score_0_10 <= 10;
+        const hasRationale = typeof c.rationale === "string" && c.rationale.trim().length > 0;
+        return !(hasValidScore && hasRationale);
+      }
+
+      return true;
+    })
+    .map((c) => c.key);
   checks.push({
     check_id: "v2_completeness_bridge",
     passed: incompleteKeys.length === 0,
@@ -781,8 +809,19 @@ export function runQualityGateV2(
         : "NOT_APPLICABLE criteria (if any) are governed",
   });
 
+  /**
+   * SLICE SPEC LOCK:
+   * scorable_low_confidence criteria are exempt from hard-fail anchor threshold
+   * checks. Thin support for this narrow class is warning-only; it does not
+   * invalidate scorability by itself.
+   */
   const scoredMissingAnchors = criteria
-    .filter((c) => c.status === "SCORABLE" && c.evidence.length < minAnchorsFor(c.key))
+    .filter(
+      (c) =>
+        c.status === "SCORABLE" &&
+        c.scorability_status !== "scorable_low_confidence" &&
+        c.evidence.length < minAnchorsFor(c.key),
+    )
     .map((c) => `${c.key}:${c.evidence.length}<${minAnchorsFor(c.key)}`);
   checks.push({
     check_id: "v2_scored_anchor_threshold",
@@ -793,6 +832,20 @@ export function runQualityGateV2(
         ? `Scored criteria under anchor threshold: ${scoredMissingAnchors.join(",")}`
         : "All scored criteria meet anchor thresholds",
   });
+
+  const lowConfidenceScored = criteria
+    .filter(
+      (c) =>
+        c.status === "SCORABLE" &&
+        c.scorability_status === "scorable_low_confidence",
+    )
+    .map((c) => `${c.key}:${c.confidence_score_0_100 ?? "n/a"}`);
+
+  if (lowConfidenceScored.length > 0) {
+    warnings.push(
+      `LOW_CONFIDENCE_SCORABLE_CRITERIA: ${lowConfidenceScored.join(",")}`,
+    );
+  }
 
   const scoredCount = criteria.filter((c) => c.status === "SCORABLE").length;
 

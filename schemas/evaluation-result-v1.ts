@@ -69,6 +69,12 @@ export type EvaluationResultV1 = {
     
     /** Score for this criterion (0-10) */
     score_0_10: number;
+
+    /** Optional confidence payload for score support strength. */
+    confidence_score_0_100?: number;
+    confidence_level?: "high" | "moderate" | "low";
+    confidence_reasons?: string[];
+    scorability_status?: "scorable" | "scorable_low_confidence" | "non_scorable";
     
     /** Short rationale explaining the score */
     rationale: string;
