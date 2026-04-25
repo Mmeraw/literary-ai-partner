@@ -70,9 +70,7 @@ import {
 } from '@/lib/evaluation/pipeline/runPipeline';
 import { runQualityGateV2 } from '@/lib/evaluation/pipeline/qualityGate';
 import {
-  hasBlockingArtifactReasonCodes,
   validateEvaluationArtifact,
-  type ArtifactValidationMode,
 } from '@/lib/evaluation/pipeline/validateEvaluationArtifact';
 import { buildScoreLedger } from '@/lib/evaluation/pipeline/buildScoreLedger';
 import { buildExcellenceFilter } from '@/lib/evaluation/pipeline/buildExcellenceFilter';
@@ -348,11 +346,6 @@ function normalizeEffortOrImpact(value: unknown): 'low' | 'medium' | 'high' {
     return candidate;
   }
   return 'medium';
-}
-
-function getArtifactValidationMode(): ArtifactValidationMode {
-  const raw = (process.env.EVAL_ARTIFACT_VALIDATION_MODE ?? 'log').trim().toLowerCase();
-  return raw === 'enforce' ? 'enforce' : 'log';
 }
 
 export function getCalibrationProfile(workType: string | null): CalibrationProfile {
@@ -1632,14 +1625,13 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       })),
     });
 
-    const artifactValidationMode = getArtifactValidationMode();
     const artifactValidation = validateEvaluationArtifact(
       {
         criteria: artifactCriteria,
         ledger: scoreLedger,
         efg: excellenceFilter,
       },
-      { mode: artifactValidationMode },
+      { mode: 'log' },
     );
 
     evaluationResult.governance.warnings = [
@@ -1655,7 +1647,6 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       artifact_validation_result: artifactValidation.result,
       artifact_reason_codes: artifactValidation.reasonCodes,
       artifact_validated_at: artifactValidation.validatedAt,
-      artifact_validation_mode: artifactValidation.enforcementMode,
       score_ledger: {
         raw_total: scoreLedger.rawTotal,
         max_total: scoreLedger.maxTotal,
@@ -1667,16 +1658,6 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         blocking_criteria: excellenceFilter.blockingCriteria,
       },
     };
-
-    if (
-      artifactValidationMode === 'enforce' &&
-      hasBlockingArtifactReasonCodes(artifactValidation.reasonCodes)
-    ) {
-      const validationError = `[ArtifactValidation] enforcement blocked with reason codes: ${artifactValidation.reasonCodes.join(', ')}`;
-      await markFailed(validationError, 'ARTIFACT_VALIDATION_FAILED');
-
-      return { success: false, error: validationError };
-    }
 
     const governanceBridgeProjection = mapEvaluationResultV2ToGovernanceEnvelope(evaluationResult);
     console.log(

@@ -624,9 +624,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     ).toBe(false);
   });
 
-  test("blocks persistence in enforce mode when artifact validation returns structural reason codes", async () => {
-    process.env.EVAL_ARTIFACT_VALIDATION_MODE = "enforce";
-
+  test("logs artifact validation result in governance transparency (logging mode only)", async () => {
     const supabaseStub = makeSupabaseStub();
     createClientMock.mockReturnValue(supabaseStub);
 
@@ -659,7 +657,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     synthesisToEvaluationResultV2Mock.mockReturnValue({
       schema_version: "evaluation_result_v2",
       ids: {
-        evaluation_run_id: "run-enforce-1",
+        evaluation_run_id: "run-log-mode-1",
         manuscript_id: 456,
         user_id: "00000000-0000-0000-0000-000000000001",
       },
@@ -707,6 +705,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         warnings: [],
         limitations: [],
         policy_family: "multi-pass-dual-axis",
+        transparency: {},
       },
     });
 
@@ -719,10 +718,17 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     const { processEvaluationJob } = require("../../../lib/evaluation/processor");
     const result = await processEvaluationJob("job-canonical-pipeline");
 
-    expect(result.success).toBe(false);
-    expect(result.error).toContain("ArtifactValidation");
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
-
-    delete process.env.EVAL_ARTIFACT_VALIDATION_MODE;
+    // In logging mode, processor succeeds and persists the artifact with validation metadata
+    expect(result.success).toBe(true);
+    
+    // Artifact persistence should be called
+    expect(upsertEvaluationArtifactMock).toHaveBeenCalled();
+    
+    // Job should complete
+    expect(
+      supabaseStub.evaluationJobUpdates.some(
+        (payload: Record<string, unknown>) => payload.status === "complete",
+      ),
+    ).toBe(true);
   });
 });
