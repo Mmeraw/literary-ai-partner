@@ -7,9 +7,45 @@ name: Latency PR Enforcement
 jobs:
   enforce-latency-template:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      contents: read
 
     steps:
+      - name: Detect migration/docs-only scope
+        id: scope
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            const files = await github.paginate(
+              github.rest.pulls.listFiles,
+              { owner, repo, pull_number, per_page: 100 }
+            );
+
+            const changed = files.map((f) => f.filename);
+            const docsOnly =
+              changed.length > 0 &&
+              changed.every((name) => name.startsWith("docs/"));
+            const migrationsOnly =
+              changed.length > 0 &&
+              changed.every((name) => name.startsWith("supabase/migrations/"));
+
+            const skip = docsOnly || migrationsOnly;
+
+            core.setOutput("skip", skip ? "true" : "false");
+            core.info(`Changed files: ${changed.length}`);
+            core.info(`migrationsOnly=${migrationsOnly} docsOnly=${docsOnly} skip=${skip}`);
+
+      - name: Skip for migration/docs-only PRs
+        if: steps.scope.outputs.skip == 'true'
+        run: |
+          echo "Skipping latency template enforcement: migration/docs-only diff."
+
       - name: Validate PR body structure
+        if: steps.scope.outputs.skip != 'true'
         uses: actions/github-script@v7
         with:
           script: |
