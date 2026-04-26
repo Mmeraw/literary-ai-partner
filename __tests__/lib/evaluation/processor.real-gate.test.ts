@@ -324,11 +324,11 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     const lowConfidenceSynthesis = makeRealSynthesisOutput();
     lowConfidenceSynthesis.criteria = lowConfidenceSynthesis.criteria.map((c) => ({
       ...c,
-      // No anchors -> low confidence. Score remains present (scorable_low_confidence path).
-      evidence: [],
+      // Keep exactly one weak anchor and intentionally vague rationale to force
+      // low confidence while retaining a numeric score (scorable_low_confidence path).
+      evidence: [{ snippet: "x" }],
       recommendations: [],
-      final_rationale:
-        `Criterion ${c.key} is assessed with limited direct textual support in this submission window.`,
+      final_rationale: "Overall this generally works but could be improved.",
     }));
 
     runPipelineMock.mockResolvedValue({

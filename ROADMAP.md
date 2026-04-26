@@ -87,6 +87,27 @@ Rule:
 - `FAIL` → no persistence
 - `PASS` → atomic write
 
+## STEP 1.5 — Type-Level Contract Hardening (OPEN / DEFERRED)
+
+Current Step 1 behavior computes validation/gate/confidence inside `persistEvaluationResultV2()`.
+
+Step 1.5 refactor target:
+- require caller-supplied typed inputs for:
+  - `validation`
+  - `gate`
+  - `confidence`
+- invoke structural `validateEvaluationArtifact()` inside `persistEvaluationResultV2()` immediately before any persistence call
+- keep boundary validation non-bypassable across worker, replay, test harness, service-role, and internal routes
+
+Goal:
+- preserve current runtime fail-closed behavior
+- add compile-time non-bypassability for boundary callers
+
+Promotion to hard enforcement:
+- begin in warning mode
+- promote only after ≥ 20 production PASS-gate artifacts OR ≥ 7 days (whichever is later)
+- require 0 validation warnings during calibration window
+
 ## STEP 2 — Guard Invariants
 
 Add tests:

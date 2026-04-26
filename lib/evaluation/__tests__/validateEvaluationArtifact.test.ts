@@ -1,0 +1,130 @@
+import { describe, expect, test } from "@jest/globals";
+import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
+import { validateEvaluationArtifact } from "@/lib/evaluation/validateEvaluationArtifact";
+
+function makeValidArtifact(): EvaluationResultV2 {
+  return {
+    schema_version: "evaluation_result_v2",
+    ids: {
+      evaluation_run_id: "run-mutation-test",
+      job_id: "job-mutation-test",
+      manuscript_id: 1,
+      user_id: "00000000-0000-0000-0000-000000000001",
+    },
+    generated_at: new Date().toISOString(),
+    engine: {
+      model: "o3",
+      provider: "openai",
+      prompt_version: "mutation-test",
+    },
+    overview: {
+      verdict: "revise",
+      overall_score_0_100: 70,
+      scored_criteria_count: CRITERIA_KEYS.length,
+      one_paragraph_summary: "summary",
+      top_3_strengths: [],
+      top_3_risks: [],
+    },
+    criteria: CRITERIA_KEYS.map((key) => ({
+      key,
+      scorable: true,
+      status: "SCORABLE",
+      signal_present: true,
+      signal_strength: "SUFFICIENT",
+      confidence_band: "MEDIUM",
+      score_0_10: 7,
+      rationale: `Rationale for ${key}`,
+      evidence: [{ snippet: `Evidence for ${key}` }],
+      recommendations: [],
+    })),
+    recommendations: {
+      quick_wins: [],
+      strategic_revisions: [],
+    },
+    metrics: {
+      manuscript: {},
+      processing: {},
+    },
+    artifacts: [],
+    governance: {
+      confidence: 0.8,
+      warnings: [],
+      limitations: [],
+      policy_family: "multi-pass-dual-axis",
+    },
+  };
+}
+
+describe("validateEvaluationArtifact (boundary structural validator)", () => {
+  test("rejects a missing canonical criterion", () => {
+    const artifact = makeValidArtifact();
+    artifact.criteria = artifact.criteria.filter((criterion) => criterion.key !== "narrativeDrive");
+
+    const result = validateEvaluationArtifact(artifact);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          code: "CRITERION_MISSING",
+          path: "$.criteria.narrativeDrive",
+        }),
+      );
+    }
+  });
+
+  test("rejects score above 10", () => {
+    const artifact = makeValidArtifact();
+    artifact.criteria[0].score_0_10 = 11;
+
+    const result = validateEvaluationArtifact(artifact);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({ code: "CRITERION_SCORE_OUT_OF_RANGE" }),
+      );
+    }
+  });
+
+  test("rejects non-integer score", () => {
+    const artifact = makeValidArtifact();
+    artifact.criteria[0].score_0_10 = 5.5;
+
+    const result = validateEvaluationArtifact(artifact);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({ code: "CRITERION_SCORE_NOT_INTEGER" }),
+      );
+    }
+  });
+
+  test("rejects empty evidence", () => {
+    const artifact = makeValidArtifact();
+    artifact.criteria[0].evidence = [{ snippet: "   " }];
+
+    const result = validateEvaluationArtifact(artifact);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({ code: "CRITERION_EVIDENCE_MISSING" }),
+      );
+    }
+  });
+
+  test("rejects non-canonical criteria keys", () => {
+    const artifact = makeValidArtifact();
+    artifact.criteria.push({
+      ...(artifact.criteria[0] as EvaluationResultV2["criteria"][number]),
+      key: "fakeKey" as (typeof artifact.criteria)[number]["key"],
+    });
+
+    const result = validateEvaluationArtifact(artifact);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({ code: "CRITERION_NON_CANONICAL_KEY" }),
+      );
+    }
+  });
+});

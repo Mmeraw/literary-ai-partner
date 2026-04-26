@@ -21,6 +21,13 @@ You are NOT allowed to:
 - Set `evaluation_jobs.status = "complete"` outside the boundary
 - Introduce alternate persistence paths
 
+## 🧩 Evaluation Layering Rule
+
+Pass 3 may produce.  
+Pass 4 may judge.  
+Only the boundary may persist.  
+The boundary must validate first.
+
 ---
 
 ## 🔒 Enforcement-First Development

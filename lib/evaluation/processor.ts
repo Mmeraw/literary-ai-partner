@@ -1774,6 +1774,34 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         completedUnits: EVALUATION_PROGRESS_TOTAL_UNITS,
       });
 
+      if (!persistenceResult.persisted) {
+        const failureReason = 'reason' in persistenceResult
+          ? persistenceResult.reason
+          : 'Boundary rejected persistence without reason';
+
+        finishLatencyStage({
+          jobId,
+          stage: 'persist_artifacts',
+          startedAt: persistArtifactsStartedAt,
+          state: 'failed',
+          metadata: {
+            finish_reason: failureReason,
+          },
+        });
+
+        finishLatencyStage({
+          jobId,
+          stage: 'finalize',
+          startedAt: finalizeStartedAt,
+          state: 'failed',
+          metadata: {
+            finish_reason: failureReason,
+          },
+        });
+
+        return { success: false, error: failureReason };
+      }
+
       console.log(
         `[Processor] ${jobId}: EXIT persistEvaluationResultV2 artifactId=${persistenceResult.artifactId}`,
       );
