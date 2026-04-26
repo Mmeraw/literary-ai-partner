@@ -1149,6 +1149,9 @@ export function synthesisToEvaluationResult(
       warnings: governanceWarnings,
       limitations: ["Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"],
       policy_family: "multi-pass-dual-axis",
+      transparency: {
+        score_denominator_policy: "full_canonical",
+      },
       // Pass 4 governance data is returned on PipelineResult, not stored on EvaluationResultV1
       // Callers who need it read it from the pipeline success result directly.
     },
@@ -1283,6 +1286,9 @@ export function synthesisToEvaluationResultV2(
       limitations: ["Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"],
       policy_family: "multi-pass-dual-axis",
       observability_warnings: observabilityWarnings,
+      transparency: {
+        score_denominator_policy: "full_canonical",
+      },
     },
   };
 }

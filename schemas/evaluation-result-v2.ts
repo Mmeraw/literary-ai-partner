@@ -164,6 +164,7 @@ export type EvaluationResultV2 = {
     policy_family: string;
     observability_warnings?: string[];
     transparency?: {
+      score_denominator_policy?: "full_canonical" | "scorable_only";
       final_work_type_used?: string;
       matrix_version?: string;
       criteria_plan?: {
@@ -352,6 +353,17 @@ export function validateEvaluationResultV2(
 
   if (!result.governance || typeof result.governance.confidence !== "number" || result.governance.confidence < 0 || result.governance.confidence > 1) {
     errors.push("governance.confidence must be 0.0-1.0");
+  }
+
+  const denominatorPolicy = result.governance?.transparency?.score_denominator_policy;
+  if (
+    denominatorPolicy !== undefined &&
+    denominatorPolicy !== "full_canonical" &&
+    denominatorPolicy !== "scorable_only"
+  ) {
+    errors.push(
+      `governance.transparency.score_denominator_policy invalid: ${String(denominatorPolicy)}`,
+    );
   }
 
   return { valid: errors.length === 0, errors };

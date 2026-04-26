@@ -825,6 +825,7 @@ describe("synthesisToEvaluationResult adapter", () => {
     expect(result.governance.policy_family).toBe("multi-pass-dual-axis");
     expect(result.governance.warnings).toEqual([]);
     expect(result.governance.confidence).toBe(0.85);
+    expect(result.governance.transparency?.score_denominator_policy).toBe("full_canonical");
     expect(result.ids.evaluation_run_id).toBe("run-test-123");
     expect(result.ids.manuscript_id).toBe(42);
   });

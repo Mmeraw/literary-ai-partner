@@ -242,6 +242,11 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     const [persistedArg] = upsertEvaluationArtifactMock.mock.calls[0];
     expect(persistedArg.content).toMatchObject({
       schema_version: "evaluation_result_v2",
+      governance: {
+        transparency: {
+          score_denominator_policy: "full_canonical",
+        },
+      },
     });
     // Criteria count matches canonical registry (13) — proves real mapping ran.
     expect((persistedArg.content as any).criteria).toHaveLength(CRITERIA_KEYS.length);

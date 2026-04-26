@@ -200,6 +200,9 @@ export type EvaluationResultV1 = {
     
     /** D2 Boundary: Optional agent-facing transparency fields (required only on agent-view surfaces) */
     transparency?: {
+      /** Persisted score denominator policy for artifact interpretation */
+      score_denominator_policy?: "full_canonical" | "scorable_only";
+
       /** Work Type used in evaluation (e.g., "mainstream_agent_ready") */
       final_work_type_used?: string;
       
@@ -353,6 +356,17 @@ export function validateEvaluationResult(
     result.governance.confidence > 1
   ) {
     errors.push("governance.confidence must be 0.0-1.0");
+  }
+
+  const denominatorPolicy = result.governance.transparency?.score_denominator_policy;
+  if (
+    denominatorPolicy !== undefined &&
+    denominatorPolicy !== "full_canonical" &&
+    denominatorPolicy !== "scorable_only"
+  ) {
+    errors.push(
+      `governance.transparency.score_denominator_policy invalid: ${String(denominatorPolicy)}`,
+    );
   }
 
   return {
