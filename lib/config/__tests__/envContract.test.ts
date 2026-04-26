@@ -7,6 +7,9 @@ const BASE_ENV: NodeJS.ProcessEnv = {
   NODE_ENV: 'test',
 };
 
+const asProcessEnv = (env: Record<string, string | undefined>): NodeJS.ProcessEnv =>
+  env as NodeJS.ProcessEnv;
+
 beforeEach(() => {
   __resetEvalEnvContract();
 });
@@ -84,7 +87,7 @@ describe('resolveEvalEnvContract', () => {
     });
 
     it('throws on invalid NODE_ENV value', () => {
-      const env = { ...BASE_ENV, NODE_ENV: 'staging' };
+      const env = asProcessEnv({ ...BASE_ENV, NODE_ENV: 'staging' });
       expect(() => resolveEvalEnvContract(env)).toThrow('NODE_ENV must be one of');
     });
   });
@@ -162,22 +165,22 @@ describe('resolveEvalEnvContract', () => {
 
   describe('forbidden combinations', () => {
     it('throws when CI=true in Vercel production', () => {
-      const env = { NODE_ENV: 'production', VERCEL_ENV: 'production', CI: 'true' };
+      const env = asProcessEnv({ NODE_ENV: 'production', VERCEL_ENV: 'production', CI: 'true' });
       expect(() => resolveEvalEnvContract(env)).toThrow('CI=true is not permitted in Vercel production');
     });
 
     it('throws when NODE_ENV=test in Vercel production', () => {
-      const env = { NODE_ENV: 'test', VERCEL_ENV: 'production' };
+      const env = asProcessEnv({ NODE_ENV: 'test', VERCEL_ENV: 'production' });
       expect(() => resolveEvalEnvContract(env)).toThrow('NODE_ENV=test is not permitted in Vercel production');
     });
 
     it('throws when FLOW1_EVIDENCE=1 in Vercel production', () => {
-      const env = { NODE_ENV: 'production', VERCEL_ENV: 'production', FLOW1_EVIDENCE: '1' };
+      const env = asProcessEnv({ NODE_ENV: 'production', VERCEL_ENV: 'production', FLOW1_EVIDENCE: '1' });
       expect(() => resolveEvalEnvContract(env)).toThrow('FLOW1_EVIDENCE=1 is not permitted in Vercel production');
     });
 
     it('throws when FLOW_A7_EVIDENCE=1 in Vercel production', () => {
-      const env = { NODE_ENV: 'production', VERCEL_ENV: 'production', FLOW_A7_EVIDENCE: '1' };
+      const env = asProcessEnv({ NODE_ENV: 'production', VERCEL_ENV: 'production', FLOW_A7_EVIDENCE: '1' });
       expect(() => resolveEvalEnvContract(env)).toThrow('FLOW_A7_EVIDENCE=1 is not permitted in Vercel production');
     });
   });
