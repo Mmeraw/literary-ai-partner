@@ -223,6 +223,7 @@ describe("runPass3Synthesis", () => {
         manuscriptText: "test",
         title: "Test",
         registry,
+        openaiApiKey: "",
       }),
     ).rejects.toThrow("OPENAI_API_KEY is not configured");
 
