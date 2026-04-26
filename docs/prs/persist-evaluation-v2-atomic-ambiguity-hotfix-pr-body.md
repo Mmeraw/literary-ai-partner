@@ -44,10 +44,15 @@ Pass selection:
 - [ ] Pass 2
 - [x] Pass 3
 
+### Baseline (Pre-change)
+
 | Run | pass3_ms | total_ms | Notes |
 |-----|---------:|---------:|-------|
 | Baseline Run 1 | N/A | N/A | Pre-hotfix: atomic persistence failed at RPC |
 | Baseline Run 2 | N/A | N/A | Pre-hotfix: 3 consecutive failures with same error |
+
+### Post-change Runs
+
 | Post-change Run 1 | N/A | ~3:00 | Job 29089ed6, manuscript 5800, completed cleanly |
 | Post-change Run 2 | N/A | TBD | Pending next smoke |
 
