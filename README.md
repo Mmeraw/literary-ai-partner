@@ -20,7 +20,7 @@ The immediate goal is to establish a single persistence boundary for evaluation 
 
 Until that exists, downstream work is secondary.
 
-Start with:
+Read first:
 
 - `ROADMAP.md` — authoritative execution order
 - `CONTRIBUTING.md` — contribution rules and forbidden patterns

@@ -6,6 +6,8 @@
 
 > If it is not enforced, it is not real.
 
+> Before any enforcement diff, prove the boundary it will be installed at.
+
 This roadmap separates:
 - **System Build (what we build)**
 - **System Truth (what is provably enforced)**
@@ -67,9 +69,13 @@ Paths:
 grep shows exactly ONE persistence path
 ```
 
+### Gating rule:
+
+Step 1 and all later steps are blocked until Step 0c is green.
+
 ## STEP 1 — Install Enforcement Kernel
 
-Only AFTER Step 0 is complete.
+Only AFTER Step 0c is complete.
 
 Inside `persistEvaluationResultV2()`:
 
@@ -124,6 +130,15 @@ System is CERTIFIED only when:
 
 ---
 
+## 🧭 ROADMAP vs WORKBOOK (SOURCE SPLIT)
+
+- `ROADMAP.md` = contract (stable, external, what must be true)
+- Workbook/Ledger artifacts = state (live, internal, what is currently true)
+
+If they diverge, treat `ROADMAP.md` as contract authority and reconcile workbook state to match.
+
+---
+
 ## 🧱 SYSTEM BUILD ROADMAP (SECONDARY)
 
 These remain important, but are blocked until the trust layer is enforced.
@@ -165,6 +180,7 @@ These remain important, but are blocked until the trust layer is enforced.
 - No bypass
 - Fail closed
 - Prove before proceed
+- Enforce before claiming progress
 
 ---
 

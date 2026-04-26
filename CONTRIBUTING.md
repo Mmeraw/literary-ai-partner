@@ -57,10 +57,13 @@ System MUST fail if:
 Do NOT introduce:
 
 - `skip_gate` flags
+- equivalent bypass parameters (renamed forms of `skip_gate`)
 - “temporary” bypass logic
 - silent fallbacks
 - partial persistence (artifact without validation/gate)
 - multiple write paths to evaluation artifacts
+- “deprecated but callable” persistence paths for V2
+- convention-only enforcement (every invariant must be backed by tests and/or CI guard)
 
 ---
 
