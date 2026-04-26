@@ -40,11 +40,11 @@ If those are not true, the system can still lie, and feature work is premature.
 
 ## Canonical persistence direction
 
-All evaluation-result persistence is converging on a single named boundary:
+All evaluation-result persistence must route through a single named boundary:
 
 `persistEvaluationResultV2(...)`
 
-That boundary is intended to become the only place where the system may:
+That boundary is the only place where the system is permitted to:
 
 - validate an evaluation artifact
 - apply the quality gate
@@ -107,6 +107,6 @@ A change is done only when:
 
 ## Final note
 
-This repository should prefer explicit failure over comforting fiction.
+This repository must prefer explicit failure over comforting fiction.
 
 If the system can persist an invalid evaluation, it is not finished.
