@@ -61,10 +61,23 @@ jest.mock("@supabase/supabase-js", () => ({
   createClient: (...args: any[]) => createClientMock(...args),
 }));
 
+jest.mock("@/lib/jobs/jobStore.supabase", () => ({
+  finalizeJobFailure: jest.fn(async () => ({
+    status: "failed",
+    retryEligible: false,
+    retryExhausted: false,
+    attemptCount: 1,
+    maxAttempts: 3,
+    shouldNotify: true,
+    failureCode: "CONTEXT_CONTAMINATION_DETECTED",
+  })),
+}));
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 function makeSupabaseStub() {
   const jobUpdates: Array<Record<string, unknown>> = [];
+  const rpcCalls: Array<{ name: string; payload: Record<string, unknown> }> = [];
 
   const queuedJob = {
     id: "job-contamination-test",
@@ -87,6 +100,14 @@ function makeSupabaseStub() {
 
   return {
     jobUpdates,
+    rpcCalls,
+    rpc(name: string, payload: Record<string, unknown>) {
+      rpcCalls.push({ name, payload });
+      return Promise.resolve({
+        data: [{ artifact_id: "artifact-rpc-contamination-1" }],
+        error: null,
+      });
+    },
     from(table: string) {
       if (table === "evaluation_jobs") {
         return {
@@ -97,7 +118,11 @@ function makeSupabaseStub() {
           }),
           update: (payload: Record<string, unknown>) => {
             jobUpdates.push(payload);
-            return { eq: () => ({ error: null }) };
+            const chain = {
+              eq: () => chain,
+              error: null,
+            };
+            return chain;
           },
         };
       }
@@ -237,16 +262,16 @@ describe("processEvaluationJob contamination guard enforcement", () => {
       (u) => u.status === "failed",
     );
     expect(failedUpdate).toBeDefined();
-    expect(failedUpdate!.last_error).toBeDefined();
+    expect(failedUpdate?.last_error).toBeDefined();
 
-    const parsedError = JSON.parse(failedUpdate!.last_error as string);
+    const parsedError = JSON.parse(failedUpdate?.last_error as string);
     expect(parsedError.code).toBe("CONTEXT_CONTAMINATION_DETECTED");
     expect(parsedError.offending_entities).toEqual(
       expect.arrayContaining(["maria", "cartel"]),
     );
 
     // 3. Artifact persistence must NOT have been called
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    expect(supabaseStub.rpcCalls).toHaveLength(0);
   });
 
   test("completes normally and persists artifact when output is clean", async () => {
@@ -292,8 +317,6 @@ describe("processEvaluationJob contamination guard enforcement", () => {
       reasons: [],
     });
 
-    upsertEvaluationArtifactMock.mockResolvedValue({ ok: true });
-
     const { processEvaluationJob } = await import(
       "../../../lib/evaluation/processor"
     );
@@ -312,7 +335,8 @@ describe("processEvaluationJob contamination guard enforcement", () => {
     );
     expect(failedUpdate).toBeUndefined();
 
-    // Artifact persistence was attempted
-    expect(upsertEvaluationArtifactMock).toHaveBeenCalled();
+    // Artifact persistence was attempted via atomic RPC
+    expect(supabaseStub.rpcCalls).toHaveLength(1);
+    expect(supabaseStub.rpcCalls[0].name).toBe("persist_evaluation_v2_atomic");
   });
 });
