@@ -31,7 +31,7 @@ No additional migration execution is required.
 
 ## Behavioral Quality
 
-- Quality gate logic untouched.
+- quality gate logic untouched.
 - Boundary ownership unchanged.
 - `persistEvaluationResultV2` remains the caller.
 - Layering doctrine intact: pipeline produces, boundary persists, boundary validates first.
