@@ -8,6 +8,8 @@
 
 export {};
 
+import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+
 // ── Mock pipeline and synthesis ──────────────────────────────────────────────
 const runPipelineMock = jest.fn();
 const synthesisToEvaluationResultV2Mock = jest.fn();
@@ -133,14 +135,28 @@ function makeEvaluationResult() {
     engine: { model: "o3", provider: "openai", prompt_version: "test" },
     overview: {
       verdict: "revise",
-      overall_score_0_100: 58,
-      scored_criteria_count: 0,
+      overall_score_0_100: 70,
+      scored_criteria_count: CRITERIA_KEYS.length,
       one_paragraph_summary:
         "Maria receives a letter from her missing father deep in cartel territory.",
       top_3_strengths: ["Atmosphere"],
       top_3_risks: ["Cross-manuscript bleed"],
     },
-    criteria: [],
+    criteria: CRITERIA_KEYS.map((key) => ({
+      key,
+      scorable: true,
+      status: "SCORABLE",
+      signal_present: true,
+      signal_strength: "SUFFICIENT",
+      confidence_band: "MEDIUM",
+      score_0_10: 7,
+      rationale: `Criterion ${key} is supported by manuscript evidence and coherent analysis.`,
+      evidence: [
+        { snippet: `Primary textual evidence for ${key}.` },
+        { snippet: `Secondary textual evidence for ${key}.` },
+      ],
+      recommendations: [],
+    })),
     recommendations: { quick_wins: [], strategic_revisions: [] },
     metrics: { manuscript: {}, processing: {} },
     artifacts: [],
