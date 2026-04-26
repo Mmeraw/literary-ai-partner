@@ -4,6 +4,7 @@ describe("validateProductionConfig", () => {
   it("rejects worker timing when lease is shorter than max execution", () => {
     const result = validateProductionConfig(
       {
+        NODE_ENV: "test",
         EVAL_WORKER_LEASE_MS: "180000",
         EVAL_WORKER_MAX_EXECUTION_MS: "280000",
       },
@@ -22,6 +23,7 @@ describe("validateProductionConfig", () => {
   it("accepts aligned worker lease and execution values at the policy ceiling", () => {
     const result = validateProductionConfig(
       {
+        NODE_ENV: "test",
         EVAL_WORKER_LEASE_MS: "180000",
         EVAL_WORKER_MAX_EXECUTION_MS: "180000",
       },
