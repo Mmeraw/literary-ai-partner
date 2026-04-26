@@ -257,14 +257,18 @@ describe("processEvaluationJob contamination guard enforcement", () => {
     expect(result.success).toBe(false);
     expect(result.error).toBe("CONTEXT_CONTAMINATION_DETECTED");
 
-    // 2. last_error in DB update must contain structured contamination detail
-    const failedUpdate = supabaseStub.jobUpdates.find(
-      (u) => u.status === "failed",
-    );
-    expect(failedUpdate).toBeDefined();
-    expect(failedUpdate?.last_error).toBeDefined();
+    // 2. Canonical failure envelope patch must contain structured contamination detail
+    const envelopePatch = supabaseStub.jobUpdates.find(
+      (u) =>
+        typeof u?.progress === "object" &&
+        (u as Record<string, any>).progress?.pipeline_failure_envelope?.error_code ===
+          "CONTEXT_CONTAMINATION_DETECTED",
+    ) as Record<string, any> | undefined;
+    expect(envelopePatch).toBeDefined();
 
-    const parsedError = JSON.parse(failedUpdate?.last_error as string);
+    const envelopeErrorMessage = envelopePatch?.progress?.pipeline_failure_envelope?.error_message;
+    expect(typeof envelopeErrorMessage).toBe("string");
+    const parsedError = JSON.parse(envelopeErrorMessage as string);
     expect(parsedError.code).toBe("CONTEXT_CONTAMINATION_DETECTED");
     expect(parsedError.offending_entities).toEqual(
       expect.arrayContaining(["maria", "cartel"]),
