@@ -26,6 +26,7 @@ Read first:
 - `CONTRIBUTING.md` — contribution rules and forbidden patterns
 - `AI_GOVERNANCE.md` — binding AI governance policy
 - `docs/JOB_CONTRACT_v1.md` — canonical job status contract
+- `docs/CANONICAL_RUNTIME_OPERATIONS.md` — canonical runtime authority
 
 ## What must be true before new feature work
 
