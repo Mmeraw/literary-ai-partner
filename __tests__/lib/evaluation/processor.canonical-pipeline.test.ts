@@ -47,6 +47,7 @@ jest.mock("@supabase/supabase-js", () => ({
 
 function makeSupabaseStub() {
   const evaluationJobUpdates: Array<Record<string, unknown>> = [];
+  const rpcCalls: Array<{ fn: string; args?: Record<string, unknown> }> = [];
 
   const queuedJob = {
     id: "job-canonical-pipeline",
@@ -69,10 +70,20 @@ function makeSupabaseStub() {
 
   return {
     evaluationJobUpdates,
-    rpc: async (fn: string) => {
+    rpcCalls,
+    rpc: async (fn: string, args?: Record<string, unknown>) => {
+      rpcCalls.push({ fn, args });
+
       if (fn === "finalize_job_failure_atomic") {
         return {
           data: [{ attempt_count: 1, max_attempts: 3, notified_at: null }],
+          error: null,
+        };
+      }
+
+      if (fn === "persist_evaluation_v2_atomic") {
+        return {
+          data: [{ artifact_id: "artifact-canonical-pass" }],
           error: null,
         };
       }
@@ -264,21 +275,16 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     expect(runPipelineMock).toHaveBeenCalledTimes(1);
     expect(runQualityGateV2Mock).toHaveBeenCalledTimes(1);
     expect(OpenAIMock).not.toHaveBeenCalled();
-    expect(upsertEvaluationArtifactMock).toHaveBeenCalledTimes(1);
-    expect(upsertEvaluationArtifactMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        artifactType: "evaluation_result_v2",
-        artifactVersion: "evaluation_result_v2",
-      }),
-    );
+    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(true);
 
-    const completionUpdate = supabaseStub.evaluationJobUpdates.find(
-      (payload: Record<string, unknown>) => payload.status === "complete",
-    ) as Record<string, any> | undefined;
-    expect(completionUpdate).toBeDefined();
-    expect(completionUpdate?.progress?.pass3_started_at).toBeDefined();
-    expect(completionUpdate?.progress?.pass3_completed_at).toBeDefined();
-    expect(completionUpdate?.progress?.finalized_at).toBeDefined();
+    expect(
+      supabaseStub.evaluationJobUpdates.some(
+        (payload: Record<string, unknown>) => payload.status === "failed",
+      ),
+    ).toBe(false);
 
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "ProcessorStageBoundary",
@@ -306,99 +312,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     );
   });
 
-  test("retries completion update without phase2_completed_at when schema cache is stale", async () => {
-    const evaluationJobUpdates: Array<Record<string, unknown>> = [];
-    const queuedJob = {
-      id: "job-canonical-pipeline",
-      manuscript_id: 456,
-      job_type: "evaluate_full",
-      status: "queued",
-      phase: "phase_1",
-      phase_status: "queued",
-      created_at: new Date().toISOString(),
-      progress: { phase: "phase_1", phase_status: "queued" },
-    };
-    const manuscript = {
-      id: 456,
-      title: "Canonical Manuscript",
-      content: "This manuscript is long enough to pass threshold validation. ".repeat(220),
-      work_type: "novel",
-      user_id: "00000000-0000-0000-0000-000000000001",
-    };
-
-    const supabaseStub = {
-      rpc: async (fn: string) => {
-        if (fn === "finalize_job_failure_atomic") {
-          return {
-            data: [{ attempt_count: 1, max_attempts: 3, notified_at: null }],
-            error: null,
-          };
-        }
-
-        return { data: null, error: null };
-      },
-      from(table: string) {
-        if (table === "evaluation_jobs") {
-          return {
-            select: () => ({
-              eq: () => ({
-                single: async () => ({ data: queuedJob, error: null }),
-              }),
-            }),
-            update: (payload: Record<string, unknown>) => {
-              evaluationJobUpdates.push(payload);
-              const query = {
-                eq: () => query,
-                then: (resolve: (value: { error: { code: string; message: string } | null }) => void) => {
-                  if (
-                    payload.status === "complete" &&
-                    Object.prototype.hasOwnProperty.call(payload, "phase2_completed_at")
-                  ) {
-                    resolve({
-                      error: {
-                        code: "PGRST204",
-                        message:
-                          "Could not find the 'phase2_completed_at' column of 'evaluation_jobs' in the schema cache",
-                      },
-                    });
-                    return;
-                  }
-
-                  resolve({ error: null });
-                },
-              };
-              return {
-                eq: () => query,
-              };
-            },
-          };
-        }
-
-        if (table === "manuscripts") {
-          return {
-            select: () => ({
-              eq: () => ({
-                single: async () => ({ data: manuscript, error: null }),
-              }),
-            }),
-          };
-        }
-
-        if (table === "evaluation_artifacts") {
-          return {
-            select: () => {
-              const query = {
-                eq: () => query,
-                maybeSingle: async () => ({ data: { id: "artifact-canonical-pass" }, error: null }),
-              };
-              return query;
-            },
-          };
-        }
-
-        throw new Error(`Unexpected table in canonical pipeline test stub: ${table}`);
-      },
-    };
+  test("persists success via atomic RPC without direct completion updates", async () => {
+    const supabaseStub = makeSupabaseStub();
 
     createClientMock.mockReturnValue(supabaseStub);
 
@@ -508,12 +423,14 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     const result = await processEvaluationJob("job-canonical-pipeline");
 
     expect(result.success).toBe(true);
-    const completionUpdates = evaluationJobUpdates.filter(
-      (payload) => payload.status === "complete",
-    );
-    expect(completionUpdates).toHaveLength(2);
-    expect(completionUpdates[0]).toHaveProperty("phase2_completed_at");
-    expect(completionUpdates[1]).not.toHaveProperty("phase2_completed_at");
+    expect(
+      supabaseStub.rpcCalls.filter((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toHaveLength(1);
+    expect(
+      supabaseStub.evaluationJobUpdates.some(
+        (payload: Record<string, unknown>) => payload.status === "complete",
+      ),
+    ).toBe(false);
   });
 
   test("fails closed before persistence when v2 quality gate fails", async () => {
@@ -655,6 +572,52 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     ).toBe(false);
   });
 
+  test("persists canonical pipeline failure envelope for PASS1_FAILED with optional diagnostics", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    runPipelineMock.mockResolvedValue({
+      ok: false,
+      failed_at: "pass1",
+      error_code: "PASS1_FAILED",
+      error: "Pass 1 failed to produce valid JSON",
+      failure_details: {
+        json_boundary: {
+          code: "NO_JSON_BLOCK",
+          candidate_tail: "...truncated tail...",
+        },
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+
+    const envelopePatch = supabaseStub.evaluationJobUpdates.find(
+      (payload: Record<string, any>) =>
+        payload?.progress?.pipeline_failure_envelope?.error_code === "PASS1_FAILED",
+    ) as Record<string, any> | undefined;
+
+    expect(envelopePatch).toBeDefined();
+    expect(envelopePatch?.progress?.pipeline_failure_envelope).toEqual(
+      expect.objectContaining({
+        failure_origin: "processor",
+        error_code: "PASS1_FAILED",
+        pipeline_stage: "pass1",
+        failed_at: "pass1",
+        reason_codes: ["PASS1_FAILED"],
+      }),
+    );
+    expect(envelopePatch?.progress?.pipeline_failure_diagnostics).toEqual(
+      expect.objectContaining({
+        json_boundary: expect.objectContaining({
+          code: "NO_JSON_BLOCK",
+        }),
+      }),
+    );
+  });
+
   test("logs artifact validation result in governance transparency (logging mode only)", async () => {
     const supabaseStub = makeSupabaseStub();
     createClientMock.mockReturnValue(supabaseStub);
@@ -751,15 +714,18 @@ describe("processEvaluationJob canonical pipeline integration", () => {
 
     // In logging mode, processor succeeds and persists the artifact with validation metadata
     expect(result.success).toBe(true);
-    
-    // Artifact persistence should be called
-    expect(upsertEvaluationArtifactMock).toHaveBeenCalled();
-    
-    // Job should complete
+
+    // Success path persists via atomic RPC (diagnostic artifact upsert is not expected)
+    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(true);
+
+    // No explicit "complete" update should be issued from processor in atomic mode
     expect(
       supabaseStub.evaluationJobUpdates.some(
         (payload: Record<string, unknown>) => payload.status === "complete",
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 });

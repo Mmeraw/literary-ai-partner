@@ -112,6 +112,7 @@ function makeRealSynthesisOutput() {
 
 function makeSupabaseStub() {
   const evaluationJobUpdates: Array<Record<string, unknown>> = [];
+  const rpcCalls: Array<{ fn: string; args?: Record<string, unknown> }> = [];
 
   const queuedJob = {
     id: "job-real-gate-test",
@@ -138,10 +139,20 @@ function makeSupabaseStub() {
 
   return {
     evaluationJobUpdates,
-    rpc: async (fn: string) => {
+    rpcCalls,
+    rpc: async (fn: string, args?: Record<string, unknown>) => {
+      rpcCalls.push({ fn, args });
+
       if (fn === "finalize_job_failure_atomic") {
         return {
           data: [{ attempt_count: 1, max_attempts: 3, notified_at: null }],
+          error: null,
+        };
+      }
+
+      if (fn === "persist_evaluation_v2_atomic") {
+        return {
+          data: [{ artifact_id: "artifact-real-gate-pass" }],
           error: null,
         };
       }
@@ -227,24 +238,23 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     // 1. Job terminates with success.
     expect(result.success).toBe(true);
 
-    // 2 & 3. Artifact persisted with canonical V2 type and version.
-    expect(upsertEvaluationArtifactMock).toHaveBeenCalledTimes(1);
-    expect(upsertEvaluationArtifactMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        artifactType: "evaluation_result_v2",
-        artifactVersion: "evaluation_result_v2",
-      }),
-    );
+    // 2 & 3. Artifact persisted via atomic RPC with canonical V2 type/version.
+    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    const persistCall = supabaseStub.rpcCalls.find(
+      (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
+    ) as { fn: string; args?: Record<string, unknown> } | undefined;
+    expect(persistCall).toBeDefined();
+    expect(persistCall?.args?.p_artifact_version).toBe("evaluation_result_v2");
 
     // 5. Gate actually ran — the persisted artifact payload must have a real
     //    schema_version field (from the real synthesisToEvaluationResultV2 output),
     //    not a mocked placeholder.
-    const [persistedArg] = upsertEvaluationArtifactMock.mock.calls[0];
-    expect(persistedArg.content).toMatchObject({
+    const persistedContent = persistCall?.args?.p_artifact_content as Record<string, unknown>;
+    expect(persistedContent).toMatchObject({
       schema_version: "evaluation_result_v2",
     });
     // Criteria count matches canonical registry (13) — proves real mapping ran.
-    expect((persistedArg.content as any).criteria).toHaveLength(CRITERIA_KEYS.length);
+    expect((persistedContent as any).criteria).toHaveLength(CRITERIA_KEYS.length);
   });
 
   test("FAILING PATH: real gate blocks persistence when synthesis produces invalid V2 output", async () => {
@@ -298,6 +308,9 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     if (!result.success) {
       // Gate failed → persistence must NOT have been called.
       expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+      expect(
+        supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+      ).toBe(false);
       // And no "complete" status update wrote to the DB.
       expect(
         supabaseStub.evaluationJobUpdates.some(
@@ -305,13 +318,9 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
         ),
       ).toBe(false);
     } else {
-      // Gate passed for all-non-scorable (valid edge case) →
-      // artifact must still use v2 types.
-      expect(upsertEvaluationArtifactMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          artifactType: "evaluation_result_v2",
-          artifactVersion: "evaluation_result_v2",
-        }),
+      // Gate passed for all-non-scorable (valid edge case) → atomic V2 persistence must land.
+      expect(
+        supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
       );
     }
   });
@@ -342,10 +351,15 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     const result = await processEvaluationJob("job-real-gate-test");
 
     expect(result.success).toBe(true);
-    expect(upsertEvaluationArtifactMock).toHaveBeenCalledTimes(1);
+    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
 
-    const [persistedArg] = upsertEvaluationArtifactMock.mock.calls[0];
-    const warnings = (persistedArg.content as any)?.governance?.warnings ?? [];
+    const persistCall = supabaseStub.rpcCalls.find(
+      (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
+    ) as { fn: string; args?: Record<string, unknown> } | undefined;
+    expect(persistCall).toBeDefined();
+
+    const warnings =
+      ((persistCall?.args?.p_artifact_content as any)?.governance?.warnings as string[] | undefined) ?? [];
     expect(
       warnings.some((warning: string) =>
         warning.includes("LOW_CONFIDENCE_SCORABLE_CRITERIA:"),

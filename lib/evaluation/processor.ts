@@ -194,8 +194,88 @@ type QualitySignalAssessment = {
   warnings: string[];
 };
 
+type PipelineFailureContext = {
+  pipelineStage?: string;
+  reasonCodes?: string[];
+  diagnostics?: unknown;
+};
+
+type PipelineFailureEnvelope = {
+  failure_origin: string;
+  error_code: string;
+  error_message: string;
+  reason_codes: string[];
+  failed_at: string;
+  pipeline_stage: string;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function normalizeReasonCodes(candidates: unknown, fallbackCode: string): string[] {
+  if (!Array.isArray(candidates)) {
+    return [fallbackCode];
+  }
+
+  const unique = Array.from(
+    new Set(
+      candidates
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0),
+    ),
+  );
+
+  return unique.length > 0 ? unique : [fallbackCode];
+}
+
+function normalizeFailureDiagnostics(value: unknown): Record<string, unknown> | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  try {
+    const serialized = JSON.stringify(value);
+    if (!serialized) {
+      return null;
+    }
+
+    if (serialized.length <= 4_000) {
+      const parsed = JSON.parse(serialized);
+      return isRecord(parsed) ? parsed : { value: parsed };
+    }
+
+    return {
+      truncated: true,
+      serialized_head: serialized.slice(0, 4_000),
+      serialized_length: serialized.length,
+    };
+  } catch {
+    return {
+      diagnostics_unserializable: true,
+    };
+  }
+}
+
+function buildPipelineFailureEnvelope(args: {
+  errorCode: string;
+  errorMessage: string;
+  context?: PipelineFailureContext;
+}): PipelineFailureEnvelope {
+  const pipelineStage =
+    typeof args.context?.pipelineStage === 'string' && args.context.pipelineStage.trim().length > 0
+      ? args.context.pipelineStage
+      : 'processor';
+
+  return {
+    failure_origin: 'processor',
+    error_code: args.errorCode,
+    error_message: args.errorMessage,
+    reason_codes: normalizeReasonCodes(args.context?.reasonCodes, args.errorCode),
+    failed_at: pipelineStage,
+    pipeline_stage: pipelineStage,
+  };
 }
 
 function evalDebugLog(message: string, ...args: unknown[]): void {
@@ -1207,19 +1287,31 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       });
     };
 
-    const markFailed = async (errorMessage: string, errorCode: string = 'EVALUATION_FAILED') => {
+    const markFailed = async (
+      errorMessage: string,
+      errorCode: string = 'EVALUATION_FAILED',
+      failureContext?: PipelineFailureContext,
+    ) => {
       /**
        * CRITICAL: This function now routes through the centralized failure finalizer.
        * DO NOT add direct DB writes here — all failures flow through finalizeJobFailure().
        * This ensures atomic updates, consistent retry logic, and auditable error codes.
        */
       const now = new Date().toISOString();
+      const pipelineFailureEnvelope = buildPipelineFailureEnvelope({
+        errorCode,
+        errorMessage,
+        context: failureContext,
+      });
+      const pipelineFailureDiagnostics = normalizeFailureDiagnostics(failureContext?.diagnostics);
+      const failedPhase =
+        progressState.phase === 'phase_2' || executionPhase === 'phase_2'
+          ? 'phase_2'
+          : 'phase_1';
+
       const nextProgress = {
         ...progressState,
-        phase:
-          progressState.phase === 'phase_2' || progressState.phase === 'phase_1'
-            ? progressState.phase
-            : executionPhase,
+        phase: failedPhase,
         phase_status: 'failed',
         total_units:
           typeof progressState.total_units === 'number'
@@ -1231,6 +1323,11 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
             : 0,
         message: 'Evaluation failed',
         failed_at: now,
+        error_code: errorCode,
+        pipeline_failure_envelope: pipelineFailureEnvelope,
+        ...(pipelineFailureDiagnostics
+          ? { pipeline_failure_diagnostics: pipelineFailureDiagnostics }
+          : {}),
       };
 
       if (!nextProgress.pass3_completed_at && nextProgress.pass3_started_at) {
@@ -1239,10 +1336,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
       Object.assign(progressState, nextProgress);
 
-      const phaseLabel =
-        nextProgress.phase === 'phase_2'
-          ? 'phase2'
-          : 'phase1';
+      const phaseLabel = failedPhase === 'phase_2' ? 'phase2' : 'phase1';
       logProcessorStageBoundary({
         jobId,
         stage: phaseLabel,
@@ -1255,6 +1349,20 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       });
 
       const failedStatus = nextLifecycleStatus(JOB_STATUS.FAILED);
+      let finalizeSucceeded = false;
+
+      const fallbackPayload = {
+        status: failedStatus,
+        phase: failedPhase,
+        phase_status: 'failed',
+        total_units: nextProgress.total_units,
+        completed_units: nextProgress.completed_units,
+        progress: nextProgress,
+        last_error: errorMessage,
+        failure_code: errorCode,
+        failed_at: now,
+        updated_at: now,
+      };
 
       try {
         // Route through centralized failure finalizer — atomic, retryable-aware, audited
@@ -1269,59 +1377,43 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
         // Log retry eligibility for observability
         console.log(`[Processor] Job ${jobId} failed with code ${errorCode}; retryEligible=${finalizeResult.retryEligible}; attempt=${finalizeResult.attemptCount}/${finalizeResult.maxAttempts}`);
-
-        // Persist phase/progress metadata that claim predicates and UI rely on.
-        // This is intentionally separate from failure status finalization.
-        const { error: metadataError } = await supabase
-          .from('evaluation_jobs')
-          .update({
-            status: failedStatus,
-            phase: nextProgress.phase,
-            phase_status: 'failed',
-            total_units: nextProgress.total_units,
-            completed_units: nextProgress.completed_units,
-            progress: nextProgress,
-            last_error: errorMessage,
-            failed_at: now,
-            updated_at: now,
-          })
-          .eq('id', jobId)
-          .eq('status', failedStatus);
-
-        if (metadataError) {
-          throw new Error(
-            `Failure metadata persistence failed for job ${jobId}: ${metadataError.message}`,
-          );
-        }
+        finalizeSucceeded = true;
       } catch (finalizeError) {
         console.error(
-          `[Processor] Failed to finalize job failure for ${jobId}:`,
+          `[Processor] finalizeJobFailure failed for ${jobId}; using fallback failure write:`,
           finalizeError instanceof Error ? finalizeError.message : String(finalizeError)
         );
+      }
 
-        // Fail-closed fallback: if atomic finalization failed, force failed terminal state.
-        const { error: fallbackError } = await supabase
+      if (finalizeSucceeded) {
+        // Preserve centralized failure ownership: patch envelope diagnostics into progress only.
+        const { error: progressPatchError } = await supabase
           .from('evaluation_jobs')
           .update({
-            status: failedStatus,
-            phase: nextProgress.phase,
-            phase_status: 'failed',
-            total_units: nextProgress.total_units,
-            completed_units: nextProgress.completed_units,
             progress: nextProgress,
-            last_error: errorMessage,
-            failed_at: now,
             updated_at: now,
           })
           .eq('id', jobId);
 
-        if (fallbackError) {
-          throw new Error(
-            `[Processor] Failed to persist fallback failure state for ${jobId}: ${fallbackError.message}`,
+        if (progressPatchError) {
+          console.warn(
+            `[Processor] Envelope progress patch failed for ${jobId}: ${progressPatchError.message}`,
           );
         }
 
         return;
+      }
+
+      // Fail-closed fallback: centralized finalization failed, so we must persist terminal state here.
+      const { error: fallbackError } = await supabase
+        .from('evaluation_jobs')
+        .update(fallbackPayload)
+        .eq('id', jobId);
+
+      if (fallbackError) {
+        throw new Error(
+          `[Processor] Failed to persist terminal failure state for ${jobId}: ${fallbackError.message}`,
+        );
       }
     };
 
@@ -1543,7 +1635,11 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       }
 
       console.error(`[Processor] Pipeline failed for job ${jobId}: ${pipelineError}`);
-      await markFailed(pipelineError, pipelineResult.error_code || 'PIPELINE_ERROR');
+      await markFailed(pipelineError, pipelineResult.error_code || 'PIPELINE_ERROR', {
+        pipelineStage: pipelineResult.failed_at,
+        reasonCodes: [pipelineResult.error_code || 'PIPELINE_ERROR'],
+        diagnostics: pipelineResult.failure_details,
+      });
 
       return { success: false, error: pipelineError };
     }
@@ -1840,7 +1936,10 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       });
 
       const errorMsg = artifactError instanceof Error ? artifactError.message : String(artifactError);
-      await markFailed(`Artifact persistence failed: ${errorMsg}`, 'ARTIFACT_PERSISTENCE_FAILED');
+      await markFailed(`Artifact persistence failed: ${errorMsg}`, 'ARTIFACT_PERSISTENCE_FAILED', {
+        pipelineStage: 'phase_2',
+        reasonCodes: ['ARTIFACT_PERSISTENCE_FAILED'],
+      });
 
       return { success: false, error: `Artifact persistence failed: ${errorMsg}` };
     }
