@@ -64,6 +64,7 @@ import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { CRITERIA_KEYS, type CriterionKey } from '@/schemas/criteria-keys';
 import { WAVE_GUIDE_SUMMARY, WAVE_GUIDE_VERSION } from './WAVE_GUIDE';
 import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistence';
+import { persistEvaluationResultV2 } from './persistEvaluationResultV2';
 import {
   runPipeline,
   synthesisToEvaluationResultV2,
@@ -131,18 +132,6 @@ export function getValidatedWorkerBatchSize(raw: unknown, fallback = 5): number 
   }
   const normalized = Math.trunc(parsed);
   return normalized >= 1 && normalized <= 5 ? normalized : fallback;
-}
-
-function isMissingSchemaCacheColumnError(error: unknown, columnName: string): boolean {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
-  const record = error as { code?: unknown; message?: unknown };
-  const code = typeof record.code === 'string' ? record.code : '';
-  const message = typeof record.message === 'string' ? record.message : '';
-
-  return code === 'PGRST204' && message.includes(columnName) && message.includes('schema cache');
 }
 
 function isMissingColumnError(error: unknown, columnName: string): boolean {
@@ -1730,7 +1719,6 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     await markRunning('Persisting evaluation artifacts', 2, 'phase_2');
 
-    const completionTime = new Date().toISOString();
     const existingProgress = { ...progressState };
 
     // 5. Persist canonical artifact with idempotent upsert (fail-closed)
@@ -1764,51 +1752,54 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     try {
       console.log(
-        `[Processor] ${jobId}: ENTER upsertEvaluationArtifact manuscriptId=${job.manuscript_id}`,
+        `[Processor] ${jobId}: ENTER persistEvaluationResultV2 manuscriptId=${job.manuscript_id}`,
       );
-      const artifactId = await upsertEvaluationArtifact({
+
+      const finalizeStartedAt = startLatencyStage({
+        jobId,
+        stage: 'finalize',
+        metadata: {
+          state: 'completion_update_started',
+        },
+      });
+
+      const persistenceResult = await persistEvaluationResultV2({
         supabase,
         jobId: job.id,
         manuscriptId: job.manuscript_id,
-        artifactType: 'evaluation_result_v2',
-        content: evaluationResult,
+        evaluationResult,
         sourceHash,
-        artifactVersion: 'evaluation_result_v2',
+        progressSnapshot: existingProgress,
+        totalUnits: EVALUATION_PROGRESS_TOTAL_UNITS,
+        completedUnits: EVALUATION_PROGRESS_TOTAL_UNITS,
       });
 
-      console.log(`[Processor] ${jobId}: EXIT upsertEvaluationArtifact id=${artifactId}`);
-      console.log(`[Processor] Canonical artifact upserted: ${artifactId}`);
+      console.log(
+        `[Processor] ${jobId}: EXIT persistEvaluationResultV2 artifactId=${persistenceResult.artifactId}`,
+      );
 
-          // Fail-closed read-back: verify artifact was actually persisted
-    const { data: readBackArtifact, error: readBackError } = await supabase
-      .from('evaluation_artifacts')
-      .select('id')
-      .eq('job_id', job.id)
-      .eq('manuscript_id', job.manuscript_id)
-      .eq('artifact_type', 'evaluation_result_v2')
-      .maybeSingle();
-    if (readBackError || !readBackArtifact) {
       finishLatencyStage({
         jobId,
         stage: 'persist_artifacts',
         startedAt: persistArtifactsStartedAt,
-        state: 'failed',
-        metadata: {
-          finish_reason: 'artifact_read_back_failed',
-        },
+        state: 'completed',
       });
 
-      const readBackMsg = `Fail-closed: artifact read-back failed after upsert (${readBackError?.message ?? 'row not found'})`;
-      await markFailed(readBackMsg, 'ARTIFACT_PERSISTENCE_FAILED');
-      return { success: false, error: readBackMsg };
-    }
+      finishLatencyStage({
+        jobId,
+        stage: 'finalize',
+        startedAt: finalizeStartedAt,
+        state: 'completed',
+      });
 
-    finishLatencyStage({
-      jobId,
-      stage: 'persist_artifacts',
-      startedAt: persistArtifactsStartedAt,
-      state: 'completed',
-    });
+      logProcessorStageBoundary({
+        jobId,
+        stage: 'finalized',
+        state: 'complete',
+        at: persistenceResult.completedAt,
+      });
+
+      nextLifecycleStatus(JOB_STATUS.COMPLETE);
     } catch (artifactError) {
       finishLatencyStage({
         jobId,
@@ -1825,98 +1816,6 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
       return { success: false, error: `Artifact persistence failed: ${errorMsg}` };
     }
-
-    // 6. Store evaluation result and mark complete only after artifact exists
-    console.log(`[Processor] ${jobId}: ENTER completion update`);
-
-    const completionStatus = nextLifecycleStatus(JOB_STATUS.COMPLETE);
-    const completionPayloadBase = {
-      status: completionStatus,
-      phase: 'phase_2',
-      phase_status: 'complete',
-      total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-      completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-      progress: {
-        ...existingProgress,
-        finalized_at: completionTime,
-        phase: 'phase_2',
-        phase_status: 'complete',
-        total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-        completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-        message: 'Evaluation completed',
-        finished_at: completionTime,
-      },
-      evaluation_result: evaluationResult,
-      evaluation_result_version: 'evaluation_result_v2',
-      last_heartbeat: completionTime,
-      last_heartbeat_at: completionTime,
-      heartbeat_at: completionTime,
-      last_error: null,
-      updated_at: completionTime,
-      // Per-stage timestamps (R4 observability)
-      completed_at: completionTime,
-    };
-
-    const finalizeStartedAt = startLatencyStage({
-      jobId,
-      stage: 'finalize',
-      metadata: {
-        state: 'completion_update_started',
-      },
-    });
-
-    let { error: updateError } = await supabase
-      .from('evaluation_jobs')
-      .update({
-        ...completionPayloadBase,
-        phase2_completed_at: completionTime,
-      })
-      .eq('id', jobId);
-
-    if (updateError && isMissingSchemaCacheColumnError(updateError, 'phase2_completed_at')) {
-      console.warn(
-        `[Processor] ${jobId}: stale schema cache for phase2_completed_at; retrying completion update without optional column`,
-      );
-      ({ error: updateError } = await supabase
-        .from('evaluation_jobs')
-        .update(completionPayloadBase)
-        .eq('id', jobId));
-    }
-
-    console.log(
-      `[Processor] ${jobId}: EXIT completion update error=${updateError ? updateError.message : 'none'}`,
-    );
-
-    if (updateError) {
-      finishLatencyStage({
-        jobId,
-        stage: 'finalize',
-        startedAt: finalizeStartedAt,
-        state: 'failed',
-        metadata: {
-          finish_reason: updateError.message,
-        },
-      });
-
-      await markFailed(`Completion update failed: ${updateError.message}`);
-
-      console.error(`[Processor] Failed to update job ${jobId}:`, updateError);
-      return { success: false, error: `Failed to store result: ${updateError.message}` };
-    }
-
-    finishLatencyStage({
-      jobId,
-      stage: 'finalize',
-      startedAt: finalizeStartedAt,
-      state: 'completed',
-    });
-
-    logProcessorStageBoundary({
-      jobId,
-      stage: 'finalized',
-      state: 'complete',
-      at: completionTime,
-    });
 
     console.log(`[Processor] Job ${jobId} completed successfully`);
 
