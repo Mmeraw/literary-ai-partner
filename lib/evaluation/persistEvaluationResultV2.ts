@@ -12,7 +12,15 @@ import { buildScoreLedger } from "@/lib/evaluation/pipeline/buildScoreLedger";
 import type { ArtifactGateResult, ArtifactValidationSummary, EvaluationArtifact } from "@/lib/evaluation/pipeline/types";
 import { validateEvaluationArtifact } from "@/lib/evaluation/pipeline/validateEvaluationArtifact";
 import { EVALUATION_ARTIFACT_VALIDATION_FAILED } from "@/lib/evaluation/pipeline/failures";
-import { upsertEvaluationArtifact } from "./artifactPersistence";
+
+type PipelineFailureEnvelope = {
+  failure_origin: string;
+  error_code: string;
+  error_message: string;
+  reason_codes: string[];
+  failed_at: string;
+  pipeline_stage: string;
+};
 
 function isMissingSchemaCacheColumnError(error: unknown, columnName: string): boolean {
   if (!error || typeof error !== "object") {
@@ -316,30 +324,6 @@ export async function persistEvaluationResultV2(params: {
     };
   }
 
-  const artifactId = await upsertEvaluationArtifact({
-    supabase: params.supabase,
-    jobId: params.jobId,
-    manuscriptId: params.manuscriptId,
-    artifactType: "evaluation_result_v2",
-    content: params.evaluationResult,
-    sourceHash: params.sourceHash,
-    artifactVersion: "evaluation_result_v2",
-  });
-
-  const { data: readBackArtifact, error: readBackError } = await params.supabase
-    .from("evaluation_artifacts")
-    .select("id")
-    .eq("job_id", params.jobId)
-    .eq("manuscript_id", params.manuscriptId)
-    .eq("artifact_type", "evaluation_result_v2")
-    .maybeSingle();
-
-  if (readBackError || !readBackArtifact) {
-    throw new Error(
-      `Fail-closed: artifact read-back failed after upsert (${readBackError?.message ?? "row not found"})`,
-    );
-  }
-
   const completionTime = new Date().toISOString();
   const completionStatus = normalizeEvaluationJobStatus(JOB_STATUS.COMPLETE) as JobStatus;
   const validValidity = normalizeEvaluationValidityStatus("valid");
@@ -379,64 +363,130 @@ export async function persistEvaluationResultV2(params: {
     last_error: null,
     updated_at: completionTime,
     completed_at: completionTime,
+    phase2_completed_at: completionTime,
   };
 
-  let includePhase2CompletedAt = true;
-  let includeValidityStatus = true;
-  let updateError: { message?: string } | null = null;
+  const { data: atomicRows, error: atomicError } = await params.supabase.rpc(
+    "persist_evaluation_v2_atomic",
+    {
+      p_job_id: params.jobId,
+      p_manuscript_id: params.manuscriptId,
+      p_artifact_type: "evaluation_result_v2",
+      p_artifact_content: params.evaluationResult,
+      p_source_hash: params.sourceHash,
+      p_artifact_version: "evaluation_result_v2",
+      p_evaluation_result: params.evaluationResult,
+      p_progress: completionPayloadBase.progress,
+      p_completed_at: completionTime,
+      p_phase2_completed_at: completionTime,
+      p_validity_status: validValidity,
+      p_total_units: params.totalUnits,
+      p_completed_units: params.completedUnits,
+      p_last_heartbeat: completionTime,
+      p_last_heartbeat_at: completionTime,
+      p_heartbeat_at: completionTime,
+    },
+  );
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const payload = {
-      ...completionPayloadBase,
-      ...(includePhase2CompletedAt ? { phase2_completed_at: completionTime } : {}),
-      ...(includeValidityStatus ? {} : { validity_status: undefined }),
-    };
-
-    const { error } = await params.supabase
-      .from("evaluation_jobs")
-      .update(payload)
-      .eq("id", params.jobId);
-
-    updateError = error;
-    if (!updateError) {
-      break;
-    }
-
-    let retried = false;
-
-    if (includePhase2CompletedAt && isMissingSchemaCacheColumnError(updateError, "phase2_completed_at")) {
-      console.warn("[Eval2Boundary] stale schema cache; retrying completion update without optional phase2_completed_at", {
-        job_id: params.jobId,
-        manuscript_id: params.manuscriptId,
-      });
-      includePhase2CompletedAt = false;
-      retried = true;
-    }
-
-    if (includeValidityStatus && isMissingSchemaCacheColumnError(updateError, "validity_status")) {
-      console.warn("[Eval2Boundary] stale schema cache; retrying completion update without optional validity_status", {
-        job_id: params.jobId,
-        manuscript_id: params.manuscriptId,
-      });
-      includeValidityStatus = false;
-      retried = true;
-    }
-
-    if (!retried) {
-      break;
-    }
+  if (atomicError) {
+    throw new Error(`Atomic persistence failed: ${atomicError.message}`);
   }
 
-  if (updateError) {
-    throw new Error(`Completion update failed: ${updateError.message}`);
+  const atomicRow = Array.isArray(atomicRows) ? atomicRows[0] : undefined;
+  if (!atomicRow || typeof atomicRow.artifact_id !== "string" || atomicRow.artifact_id.length === 0) {
+    throw new Error("Atomic persistence returned no artifact_id");
   }
 
   return {
     persisted: true,
-    artifactId,
+    artifactId: atomicRow.artifact_id,
     completedAt: completionTime,
     gateDecision: "PASS",
     validationResult: validation.result,
     confidence,
+  };
+}
+
+export type FinalizeEvaluationFailureInput = {
+  supabase: SupabaseClient;
+  jobId: string;
+  failureEnvelope: PipelineFailureEnvelope;
+  lastError: string;
+  failureCode?: string;
+  phase: "phase_1" | "phase_2";
+  totalUnits: number;
+  completedUnits: number;
+};
+
+export type FinalizeEvaluationFailureOutput = {
+  finalized: true;
+  jobId: string;
+  failureCode: string;
+};
+
+export async function finalizeEvaluationFailure(
+  params: FinalizeEvaluationFailureInput,
+): Promise<FinalizeEvaluationFailureOutput> {
+  const now = new Date().toISOString();
+  const failureCode = params.failureCode ?? params.failureEnvelope.error_code;
+
+  const { data: existingJob, error: readError } = await params.supabase
+    .from("evaluation_jobs")
+    .select("progress, phase")
+    .eq("id", params.jobId)
+    .single();
+
+  if (readError) {
+    throw new Error(
+      `[finalizeEvaluationFailure] read failed for job ${params.jobId}: ${readError.message}`,
+    );
+  }
+
+  const existingProgress =
+    existingJob?.progress && typeof existingJob.progress === "object"
+      ? (existingJob.progress as Record<string, unknown>)
+      : {};
+  const existingPhase =
+    typeof existingJob?.phase === "string" && existingJob.phase.length > 0
+      ? existingJob.phase
+      : params.phase;
+
+  const progress = {
+    ...existingProgress,
+    phase: existingPhase,
+    phase_status: "failed",
+    total_units: params.totalUnits,
+    completed_units: params.completedUnits,
+    message: "Evaluation failed",
+    failed_at: now,
+    pipeline_failure_envelope: params.failureEnvelope,
+  };
+
+  const { error: updateError } = await params.supabase
+    .from("evaluation_jobs")
+    .update({
+      status: normalizeEvaluationJobStatus(JOB_STATUS.FAILED),
+      phase: existingPhase,
+      phase_status: "failed",
+      total_units: params.totalUnits,
+      completed_units: params.completedUnits,
+      progress,
+      last_error: params.lastError,
+      failure_code: failureCode,
+      updated_at: now,
+      failed_at: now,
+    })
+    .eq("id", params.jobId);
+
+  if (updateError) {
+    throw new Error(
+      `[finalizeEvaluationFailure] update failed for job ${params.jobId}: ${updateError.message}`,
+    );
+  }
+
+  return {
+    finalized: true,
+    jobId: params.jobId,
+    failureCode,
   };
 }
