@@ -56,6 +56,17 @@ Pass selection:
 | Post-change Run 1 | N/A | ~3:00 | Job 29089ed6, manuscript 5800, completed cleanly |
 | Post-change Run 2 | N/A | TBD | Pending next smoke |
 
+Pass 3 divergence distribution (`criteria_count_by_state`):
+
+```json
+{
+  "criteria_count_by_state": {
+    "SCORABLE": "unchanged (hotfix does not alter scoring paths)",
+    "NON_SCORABLE": "unchanged (hotfix does not alter scoring paths)"
+  }
+}
+```
+
 ## Empirical Evidence
 
 - Job ID: `29089ed6-0fc7-485b-a699-56498b950295`
