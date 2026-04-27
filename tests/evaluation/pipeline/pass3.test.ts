@@ -186,6 +186,30 @@ describe("parsePass3Response", () => {
     expect(result.criteria[0].score_delta).toBe(6);
     expect(result.criteria[0].delta_explanation).toBeDefined();
   });
+
+  it("injects weak-criterion mention into summary when omitted", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria = fixture.criteria.map((criterion, index) =>
+      index < 3
+        ? {
+            ...criterion,
+            final_score_0_10: 4,
+          }
+        : criterion,
+    );
+    fixture.overall.one_paragraph_summary =
+      "The manuscript has momentum and vivid prose with a clear emotional throughline.";
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    const summary = result.overall.one_paragraph_summary.toLowerCase();
+
+    expect(summary).toContain("key revision pressure remains in");
+    expect(
+      result.criteria
+        .filter((criterion) => criterion.final_score_0_10 <= 5)
+        .some((criterion) => summary.includes(criterion.key.toLowerCase())),
+    ).toBe(true);
+  });
 });
 
 // ── Runner integration tests (DI, no real OpenAI) ─────────────────────────────

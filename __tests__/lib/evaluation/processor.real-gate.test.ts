@@ -331,14 +331,21 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     upsertEvaluationArtifactMock.mockResolvedValue("artifact-real-gate-pass");
 
     const lowConfidenceSynthesis = makeRealSynthesisOutput();
-    lowConfidenceSynthesis.criteria = lowConfidenceSynthesis.criteria.map((c) => ({
-      ...c,
-      // Keep exactly one weak anchor and intentionally vague rationale to force
-      // low confidence while retaining a numeric score (scorable_low_confidence path).
-      evidence: [{ snippet: "x" }],
-      recommendations: [],
-      final_rationale: "Overall this generally works but could be improved.",
-    }));
+    lowConfidenceSynthesis.criteria = lowConfidenceSynthesis.criteria.map((c, index) =>
+      index < 3
+        ? {
+            ...c,
+            // Keep exactly one weak anchor and intentionally vague rationale to force
+            // low confidence while retaining a numeric score within U2 cap.
+            final_score_0_10: 5,
+            evidence: [{ snippet: "x" }],
+            recommendations: [],
+            final_rationale: "Overall this generally works but could be improved.",
+          }
+        : c,
+    );
+    lowConfidenceSynthesis.overall.one_paragraph_summary =
+      "The manuscript demonstrates baseline craft strengths, but concept and narrative drive remain the weakest areas and need focused revision.";
 
     runPipelineMock.mockResolvedValue({
       ok: true,

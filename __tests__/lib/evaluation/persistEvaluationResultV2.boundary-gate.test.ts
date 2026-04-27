@@ -71,11 +71,25 @@ function makeValidEvaluationResultV2(): EvaluationResultV2 {
     artifacts: [],
     governance: {
       confidence: 0.8,
+      confidence_label: "medium",
+      confidence_reasons: ["mixed_confidence_profile"],
       warnings: [],
       limitations: [],
       policy_family: "multi-pass-dual-axis",
       observability_warnings: [],
-      transparency: {},
+      transparency: {
+        propagation_summary: {
+          low_confidence_count: 3,
+          moderate_confidence_count: 4,
+          weak_evidence_count: 1,
+          missing_evidence_count: 0,
+          scorable_low_confidence_count: 2,
+          bottom_score_criteria: ["pacing", "theme"],
+          upstream_integrity: "mixed",
+          authority_level: "constrained",
+          reasons: ["mixed_confidence_profile"],
+        },
+      },
     },
   };
 }
@@ -195,6 +209,17 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
       confidence: {
         confidence: expect.any(String),
         reasons: expect.any(Array),
+      },
+      propagation: {
+        low_confidence_count: 3,
+        moderate_confidence_count: 4,
+        weak_evidence_count: 1,
+        missing_evidence_count: 0,
+        scorable_low_confidence_count: 2,
+        bottom_score_criteria: ["pacing", "theme"],
+        upstream_integrity: "mixed",
+        authority_level: "constrained",
+        reasons: ["mixed_confidence_profile"],
       },
       reason_codes: expect.any(Array),
     });

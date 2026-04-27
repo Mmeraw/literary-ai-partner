@@ -59,6 +59,7 @@ import {
   startLatencyStage,
 } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
+import { summarizePropagationIntegrity } from "./propagationIntegrity";
 import type {
   RuleEvaluationInput,
   RuleStage,
@@ -1215,6 +1216,26 @@ export function synthesisToEvaluationResultV2(
   );
 
   const weighted = computeWeightedScore(criteria);
+  const propagation = summarizePropagationIntegrity(criteria);
+
+  const derivedGovernanceConfidence =
+    propagation.upstreamIntegrity === "strong"
+      ? 0.9
+      : propagation.upstreamIntegrity === "mixed"
+        ? 0.7
+        : 0.55;
+
+  const derivedConfidenceLabel: "high" | "medium" | "low" | "withheld" =
+    propagation.upstreamIntegrity === "strong"
+      ? "high"
+      : propagation.upstreamIntegrity === "mixed"
+        ? "medium"
+        : "low";
+
+  const derivedConfidenceReasons =
+    propagation.reasons.length > 0
+      ? propagation.reasons
+      : [`propagation_integrity_${propagation.upstreamIntegrity}`];
 
   const quick_wins = criteria
     .flatMap((c) =>
@@ -1258,6 +1279,19 @@ export function synthesisToEvaluationResultV2(
     observabilityWarnings.push(pass4Governance.message);
   }
 
+  if (propagation.upstreamIntegrity !== "strong") {
+    observabilityWarnings.push(
+      `PROPAGATION_${propagation.upstreamIntegrity.toUpperCase()}: low=${propagation.lowConfidenceCount} moderate=${propagation.moderateConfidenceCount} missingEvidence=${propagation.missingEvidenceCount}`,
+    );
+  }
+
+  const governanceWarnings: string[] = [];
+  if (propagation.upstreamIntegrity === "mixed") {
+    governanceWarnings.push("CONFIDENCE VARIES ACROSS THIS REPORT");
+  } else if (propagation.upstreamIntegrity === "weak") {
+    governanceWarnings.push("CONFIDENCE IS CONSTRAINED BY WEAK UPSTREAM EVIDENCE");
+  }
+
   return {
     schema_version: "evaluation_result_v2",
     ids,
@@ -1286,11 +1320,29 @@ export function synthesisToEvaluationResultV2(
     },
     artifacts: [],
     governance: {
-      confidence: weighted.scored_count === 0 ? 0.55 : DEFAULT_ADAPTER_CONFIDENCE,
-      warnings: [],
+      confidence:
+        weighted.scored_count === 0
+          ? 0.55
+          : derivedGovernanceConfidence,
+      confidence_label: derivedConfidenceLabel,
+      confidence_reasons: derivedConfidenceReasons,
+      warnings: governanceWarnings,
       limitations: ["Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"],
       policy_family: "multi-pass-dual-axis",
       observability_warnings: observabilityWarnings,
+      transparency: {
+        propagation_summary: {
+          low_confidence_count: propagation.lowConfidenceCount,
+          moderate_confidence_count: propagation.moderateConfidenceCount,
+          weak_evidence_count: propagation.weakEvidenceCount,
+          missing_evidence_count: propagation.missingEvidenceCount,
+          scorable_low_confidence_count: propagation.scorableLowConfidenceCount,
+          bottom_score_criteria: propagation.bottomScoreCriteria,
+          upstream_integrity: propagation.upstreamIntegrity,
+          authority_level: propagation.authorityLevel,
+          reasons: propagation.reasons,
+        },
+      },
     },
   };
 }

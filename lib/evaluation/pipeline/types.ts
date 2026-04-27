@@ -307,6 +307,12 @@ export type PipelineResult =
           blocked_rule_ids: string[];
           convergence_result: SynthesisOutput;
         };
+        quality_gate_checks?: Array<{
+          check_id: string;
+          error_code?: string;
+          details?: string;
+          diagnostics?: unknown;
+        }>;
       };
     };
 

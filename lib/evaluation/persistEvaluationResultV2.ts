@@ -58,6 +58,19 @@ export type PersistEvaluationResultV2Result =
       reason: string;
     };
 
+type PropagationSummary =
+  NonNullable<
+    NonNullable<
+      NonNullable<EvaluationResultV2["governance"]["transparency"]>["propagation_summary"]
+    >
+  >;
+
+function readPropagationSummary(
+  evaluationResult: EvaluationResultV2,
+): PropagationSummary | undefined {
+  return evaluationResult.governance?.transparency?.propagation_summary;
+}
+
 function buildArtifactForValidation(evaluationResult: EvaluationResultV2): EvaluationArtifact {
   const criteria = evaluationResult.criteria.map((criterion) => ({
     key: criterion.key,
@@ -170,6 +183,7 @@ export async function persistEvaluationResultV2(params: {
       gate_decision: "FAIL",
       gate_reason: "Boundary structural validation failed",
       confidence,
+      propagation: readPropagationSummary(params.evaluationResult),
       validation_issues: structuralValidation.issues,
     };
 
@@ -252,6 +266,7 @@ export async function persistEvaluationResultV2(params: {
       gate_decision: gate.decision,
       gate_reason: gate.reason,
       confidence,
+      propagation: readPropagationSummary(params.evaluationResult),
     };
 
     const failurePayloadBase = {
@@ -335,6 +350,7 @@ export async function persistEvaluationResultV2(params: {
     gate_decision: gate.decision,
     gate_reason: gate.reason,
     confidence,
+    propagation: readPropagationSummary(params.evaluationResult),
   };
 
   const completionPayloadBase = {

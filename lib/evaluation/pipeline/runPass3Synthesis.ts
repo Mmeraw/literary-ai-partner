@@ -523,7 +523,8 @@ export function parsePass3Response(
   const verdict: "pass" | "revise" | "fail" =
     rawVerdict === "pass" || rawVerdict === "fail" ? rawVerdict : "revise";
 
-  const summary = String(rawOverall["one_paragraph_summary"] ?? "").substring(0, 500);
+  const rawSummary = String(rawOverall["one_paragraph_summary"] ?? "").substring(0, 500);
+  const summary = enforceSummaryWeaknessPresence(rawSummary, criteria);
 
   const strengths = Array.isArray(rawOverall["top_3_strengths"])
     ? (rawOverall["top_3_strengths"] as unknown[]).slice(0, 3).map(String)
@@ -812,4 +813,64 @@ function parseSubmissionReadiness(
   }
 
   return "close";
+}
+
+function getBottomScoreCriteriaKeys(criteria: SynthesizedCriterion[]): string[] {
+  const scored = criteria
+    .filter((criterion) => Number.isFinite(criterion.final_score_0_10))
+    .map((criterion) => ({
+      key: criterion.key,
+      score: criterion.final_score_0_10,
+    }));
+
+  if (scored.length === 0) {
+    return [];
+  }
+
+  const minScore = Math.min(...scored.map((criterion) => criterion.score));
+  const threshold = Math.min(5, minScore + 1);
+
+  return scored
+    .filter((criterion) => criterion.score <= threshold)
+    .map((criterion) => criterion.key);
+}
+
+function criterionKeyToReadableToken(key: string): string {
+  return key
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2")
+    .toLowerCase();
+}
+
+function summaryMentionsCriteria(summary: string, criteriaKeys: string[]): boolean {
+  const normalizedSummary = summary.toLowerCase();
+  return criteriaKeys.some((key) =>
+    normalizedSummary.includes(criterionKeyToReadableToken(key)),
+  );
+}
+
+function enforceSummaryWeaknessPresence(
+  summary: string,
+  criteria: SynthesizedCriterion[],
+): string {
+  const trimmedSummary = summary.trim();
+  const bottomScoreCriteria = getBottomScoreCriteriaKeys(criteria);
+
+  if (trimmedSummary.length === 0 || bottomScoreCriteria.length === 0) {
+    return trimmedSummary;
+  }
+
+  if (summaryMentionsCriteria(trimmedSummary, bottomScoreCriteria)) {
+    return trimmedSummary;
+  }
+
+  const weaknessTokens = bottomScoreCriteria
+    .slice(0, 3)
+    .map((key) => criterionKeyToReadableToken(key));
+  const weaknessClause = `Key revision pressure remains in ${weaknessTokens.join(", ")}.`;
+  const punctuatedSummary = /[.!?]$/.test(trimmedSummary)
+    ? trimmedSummary
+    : `${trimmedSummary}.`;
+
+  return `${punctuatedSummary} ${weaknessClause}`.substring(0, 500);
 }
