@@ -798,6 +798,14 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       error: `Quality gate failed: ${details}${checkpointContext(qualityGateCheckpoint)}`,
       error_code: errorCode,
       failed_at: "pass4",
+      failure_details: {
+        quality_gate_checks: failedChecks.map((c) => ({
+          check_id: c.check_id,
+          error_code: c.error_code,
+          details: c.details,
+          ...(c.diagnostics !== undefined ? { diagnostics: c.diagnostics } : {}),
+        })),
+      },
     };
   }
 

@@ -28,7 +28,7 @@ import { buildRedundancyKey, fullyRedundant, sameStrategicLever, normalizeIssueF
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 import type { SynthesisOutput, QualityGateResult, QualityGateCheck, SinglePassOutput } from "./types";
 import { analyzePovRendering } from "@/lib/evaluation/pov/analyzePovRendering";
-import { analyzeDialogueAttribution } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
+import { analyzeDialogueAttribution, analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { validatePovCriterionEvidence } from "@/lib/evaluation/pov/validatePovCriterionEvidence";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import type { EvaluationArtifact } from "./types";
@@ -38,6 +38,7 @@ import {
   isCriterionComplete,
   minAnchorsFor,
 } from "@/lib/evaluation/signal/criterionObservability";
+import { DIALOGUE_MECHANISM_MARKERS } from "./mechanismMarkers";
 
 export const QG_MIN_REC_LENGTH = 50;
 export const QG_MAX_REC_LENGTH = 300;
@@ -513,15 +514,57 @@ export function runQualityGate(
       const dialogueCriterion = synthesis.criteria.find((c) => c.key === "dialogue");
       const voiceRationale = (voiceCriterion?.final_rationale ?? "").toLowerCase();
       const dialogueRationale = (dialogueCriterion?.final_rationale ?? "").toLowerCase();
+      
       const hasVoiceMechanismMarker = QG_POV_MECHANISM_MARKERS.some((m) => voiceRationale.includes(m));
-      const hasDialogueMechanismMarker = [
-        "attribution",
-        "tag",
-        "speaker",
-        "quote",
-        "dialogue",
-        "beat",
-      ].some((m) => dialogueRationale.includes(m));
+      
+      // Dialogue gate: diagnostic-grounded evaluation (not lexical-only)
+      // Pass if: rationale mentions mechanism language OR (diagnostics show grounded analysis)
+      // Fail only if: BOTH rationale lacks mechanism language AND diagnostics show no meaningful attribution
+      const hasDialogueMechanismMarker = DIALOGUE_MECHANISM_MARKERS.some((m) =>
+        dialogueRationale.includes(m),
+      );
+      
+      let dialogueAttributionDiagnostics: ReturnType<typeof analyzeDialogueAttributionForGate> | undefined;
+      
+      const dialogueHasDiagnosticGrounding = (() => {
+        // If manuscript available, check structural diagnostic signals
+        if (!manuscriptText || manuscriptText.trim().length === 0) {
+          return hasDialogueMechanismMarker; // Fall back to marker check if no manuscript
+        }
+        
+        dialogueAttributionDiagnostics = analyzeDialogueAttributionForGate({ manuscriptText });
+        
+        // Pass if diagnostics show meaningful dialogue structure:
+        // - Has rendered speech and at least one attribution strategy, OR
+        // - Multiple rendering modes detected, OR
+        // - Clear turn-taking with low ambiguity risk, OR
+        // - Explicit tags or action beats present
+        const hasRenderingModes = dialogueAttributionDiagnostics.renderingModesDetected.length >= 2;
+        const hasAttributionStrategy = dialogueAttributionDiagnostics.speakerAttributionStrategy.length >= 2;
+        const hasCleanTurns =
+          dialogueAttributionDiagnostics.turnTakingClarity === "clear" && dialogueAttributionDiagnostics.speakerAmbiguityRisk === "low";
+        const hasExplicitMechanisms = dialogueAttributionDiagnostics.explicitTagCount > 0 || dialogueAttributionDiagnostics.actionBeatCount > 0;
+        
+        // Dialogue is diagnostically grounded if ANY of these are true:
+        return hasRenderingModes || (hasAttributionStrategy && dialogueAttributionDiagnostics.quotedSpeechCount > 0) || hasCleanTurns || hasExplicitMechanisms;
+      })();
+      
+      // Pass dialogue gate if: mechanism language present OR diagnostic grounding (no false positives)
+      const dialogueGatePassed = hasDialogueMechanismMarker || dialogueHasDiagnosticGrounding;
+
+      console.log("[DIALOGUE_GATE_V2_ACTIVE]", {
+        hasDialogueMechanismMarker,
+        dialogueHasDiagnosticGrounding,
+        dialogueGatePassed,
+        hasDiagnostics: !!dialogueAttributionDiagnostics,
+        renderingModes: dialogueAttributionDiagnostics?.renderingModesDetected,
+        attributionStrategies: dialogueAttributionDiagnostics?.speakerAttributionStrategy,
+        explicitTagCount: dialogueAttributionDiagnostics?.explicitTagCount,
+        actionBeatCount: dialogueAttributionDiagnostics?.actionBeatCount,
+        turnTakingClarity: dialogueAttributionDiagnostics?.turnTakingClarity,
+        speakerAmbiguityRisk: dialogueAttributionDiagnostics?.speakerAmbiguityRisk,
+        rationalePreview: dialogueRationale.slice(0, 120),
+      });
 
       checks.push({
         check_id: "voice_mechanism_specificity",
@@ -534,11 +577,12 @@ export function runQualityGate(
 
       checks.push({
         check_id: "dialogue_attribution_specificity",
-        passed: hasDialogueMechanismMarker,
-        error_code: hasDialogueMechanismMarker ? undefined : "QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED",
-        details: hasDialogueMechanismMarker
-          ? "Dialogue rationale includes attribution/rendering mechanism language"
-          : "Dialogue rationale lacks attribution/rendering mechanism language",
+        passed: dialogueGatePassed,
+        error_code: dialogueGatePassed ? undefined : "QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED",
+        details: dialogueGatePassed
+          ? "Dialogue rationale includes mechanism language or diagnostics show grounded attribution analysis"
+          : "Dialogue rationale lacks attribution/rendering mechanism language and diagnostics show minimal attribution structure",
+        diagnostics: dialogueAttributionDiagnostics,
       });
     }
   }

@@ -66,6 +66,54 @@ export type EvidenceAnchor = {
   segment_id?: string;
 };
 
+// ── Dialogue Attribution Diagnostics (FR-1: Canonical shared type) ───────────
+
+/**
+ * Structured diagnostic signals for dialogue attribution and rendering.
+ * Single source of truth imported by: quality gate, Pass 3 backfill, fallback logic, tests.
+ * Prevents lexical-semantic mismatch between enforcement layers.
+ * Canonical import: lib/evaluation/pipeline/types.ts
+ */
+export type DialogueAttributionDiagnostics = {
+  /** Count of quoted speech segments in manuscript */
+  quotedSpeechCount: number;
+  /** Number of dialogue turn transitions */
+  dialogueTurnCount: number;
+  /** Explicit attribution tags (said, asked, replied, etc.) */
+  explicitTagCount: number;
+  /** Action beats adjacent to or replacing attribution */
+  actionBeatCount: number;
+  /** Attribution tag frequency per 1000 words */
+  tagDensity: number;
+  /** Action beat frequency per 1000 words */
+  actionBeatDensity: number;
+  /** Speaker identification clarity across narrative */
+  turnTakingClarity: "clear" | "mixed" | "unclear";
+  /** Risk of speaker confusion or ambiguity */
+  speakerAmbiguityRisk: "low" | "medium" | "high";
+  /** Observable rendering techniques found in dialogue */
+  renderingModesDetected: Array<
+    | "direct_speech"
+    | "indirect_speech"
+    | "reported_speech"
+    | "interiority_during_dialogue"
+    | "action_beat_attribution"
+    | "tagged_speech"
+    | "tagless_exchange"
+  >;
+  /** How the manuscript attributes or renders speaker identity */
+  speakerAttributionStrategy: Array<
+    | "explicit_tags"
+    | "action_beats"
+    | "voice_differentiation"
+    | "alternating_turns"
+    | "contextual_anchoring"
+  >;
+  /** Human-readable summary of dialogue attribution mechanisms */
+  diagnosticSummary: string;
+};
+
+
 // ── Single-axis criterion result (Pass 1 or 2) ──────────────────────────────
 
 export type AxisCriterionResult = {
@@ -201,6 +249,7 @@ export type QualityGateCheck = {
   passed: boolean;
   error_code?: string;
   details?: string;
+  diagnostics?: unknown;
 };
 
 export type QualityGateResult = {

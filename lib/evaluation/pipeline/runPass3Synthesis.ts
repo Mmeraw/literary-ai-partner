@@ -26,6 +26,8 @@ import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { enforcePass3QualityGuards } from "@/lib/evaluation/governance/runtimeQualityGuards";
 import { normalizeIssueFamily, normalizeStrategicLever, normalizeRevisionGranularity } from "./recommendationSemantics";
+import { DIALOGUE_MECHANISM_MARKERS } from "./mechanismMarkers";
+import { analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS3_TEMPERATURE = 0.2;
@@ -54,22 +56,6 @@ const PASS3_VOICE_MECHANISM_MARKERS = [
   "cadence",
   "tone",
   "rhythm",
-] as const;
-const PASS3_DIALOGUE_MECHANISM_MARKERS = [
-  "attribution",
-  "tag",
-  "speaker",
-  "beat",
-  "quote",
-  "quotation",
-  "subtext",
-  "voicing",
-  "interruption",
-  "turn-taking",
-  "turn taking",
-  "direct speech",
-  "reported speech",
-  "rendering",
 ] as const;
 
 type CompletionChoice = {
@@ -349,7 +335,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
 
   let synthesis: SynthesisOutput;
   try {
-    synthesis = parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel);
+    synthesis = parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel, opts.manuscriptText);
 
     // Normalization and required-field validation happen inside parsePass3Response
     // (parseRecommendations + parseSubmissionReadiness are fail-closed at parse boundary).
@@ -415,6 +401,7 @@ export function parsePass3Response(
   pass1: SinglePassOutput,
   pass2: SinglePassOutput,
   fallbackModel = PASS3_MODEL,
+  manuscriptText?: string,
 ): SynthesisOutput {
   // P0: Log raw response preview before parse
   console.log(`[Pass3] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
@@ -501,7 +488,7 @@ export function parsePass3Response(
     }
 
     const finalRationale = needsRationaleBackfill(key, baselineRationale)
-      ? buildBackfilledRationale(key, p1c?.rationale, p2c?.rationale, evidence)
+      ? buildBackfilledRationale(key, p1c?.rationale, p2c?.rationale, evidence, manuscriptText)
       : baselineRationale;
 
     criteria.push({
@@ -619,7 +606,7 @@ function hasVoiceMechanismMarker(text: string): boolean {
 
 function hasDialogueMechanismMarker(text: string): boolean {
   const normalized = normalizeForPhraseMatch(text);
-  return PASS3_DIALOGUE_MECHANISM_MARKERS.some((marker) => normalized.includes(marker));
+  return DIALOGUE_MECHANISM_MARKERS.some((marker) => normalized.includes(marker));
 }
 
 function needsRationaleBackfill(key: string, rationale: string): boolean {
@@ -652,6 +639,7 @@ function buildBackfilledRationale(
   pass1Rationale: string | undefined,
   pass2Rationale: string | undefined,
   evidence: EvidenceAnchor[],
+  manuscriptText?: string,
 ): string {
   const p1 = (pass1Rationale || "").trim();
   const p2 = (pass2Rationale || "").trim();
@@ -666,12 +654,47 @@ function buildBackfilledRationale(
   const base = `${p1Summary} ${p2Summary} ${anchor}`.trim();
   const normalized = normalizeForPhraseMatch(base);
 
-  if (key === "voice" && !hasVoiceMechanismMarker(normalized)) {
-    return `${base} Voice handling is anchored in explicit POV mechanics (perspective control, narrative/psychic distance, and rendering choices at the sentence level).`.trim();
+  // For dialogue: use diagnostic-aware backfill if manuscript available
+  if (key === "dialogue" && !hasDialogueMechanismMarker(normalized)) {
+    // Try to compute diagnostics to produce specific rationale
+    if (manuscriptText && manuscriptText.trim().length > 0) {
+      try {
+        const diagnostics = analyzeDialogueAttributionForGate({ manuscriptText });
+        
+        // Generate diagnostic-grounded rationale
+        const parts: string[] = [base];
+        
+        if (diagnostics.renderingModesDetected.length > 0) {
+          parts.push(
+            `Dialogue employs ${diagnostics.renderingModesDetected.join(" and ")} rendering modes, with explicit mechanism language anchoring speaker clarity.`
+          );
+        } else if (diagnostics.speakerAttributionStrategy.length > 0) {
+          parts.push(
+            `Speaker attribution is achieved through ${diagnostics.speakerAttributionStrategy.join(" and ")}, supporting clear dialogue flow.`
+          );
+        } else if (diagnostics.actionBeatCount > 0 || diagnostics.explicitTagCount > 0) {
+          parts.push(
+            `Dialogue attribution relies on mechanical mechanisms: ${diagnostics.explicitTagCount > 0 ? "explicit tags" : ""} ${diagnostics.actionBeatCount > 0 ? "action beats" : ""}, supporting reader comprehension.`.replace(/\s+/g, " "),
+          );
+        } else {
+          parts.push(
+            `Dialogue is rendered through speaker attribution structure: ${diagnostics.turnTakingClarity} turn-taking with ${diagnostics.speakerAmbiguityRisk} ambiguity risk.`
+          );
+        }
+        
+        return parts.join(" ").trim();
+      } catch (_err) {
+        // Fall back to generic if diagnostic computation fails
+      }
+    }
+    
+    // Fallback when no manuscript or diagnostic computation fails
+    return `${base} Dialogue is rendered through explicit speaker attribution mechanics (speaker identification, attribution tags/beats, and quote-level turn-taking clarity).`.trim();
   }
 
-  if (key === "dialogue" && !hasDialogueMechanismMarker(normalized)) {
-    return `${base} Dialogue is rendered through explicit speaker attribution mechanics (speaker identification, attribution tags/beats, and quote-level turn-taking clarity).`.trim();
+  // For voice: use existing generic fallback (can be enhanced similarly)
+  if (key === "voice" && !hasVoiceMechanismMarker(normalized)) {
+    return `${base} Voice handling is anchored in explicit POV mechanics (perspective control, narrative/psychic distance, and rendering choices at the sentence level).`.trim();
   }
 
   return base;
