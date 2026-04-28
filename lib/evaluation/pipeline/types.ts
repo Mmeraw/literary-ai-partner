@@ -120,6 +120,8 @@ export type AxisCriterionResult = {
   key: CriterionKey;
   /** Integer 0-10, no half-points (Canon) */
   score_0_10: number;
+  /** Deterministic parser/validator reason codes from pass boundary enforcement. */
+  reason_codes?: string[];
   rationale: string;
   evidence: EvidenceAnchor[];
   recommendations: {

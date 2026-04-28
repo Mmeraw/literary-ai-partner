@@ -373,6 +373,13 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
       ),
     ).toBe(true);
 
+    const governance = (persistCall?.args?.p_artifact_content as any)?.governance;
+    expect(governance?.confidence_label).not.toBe("high");
+    expect(Array.isArray(governance?.confidence_reasons)).toBe(true);
+    expect(
+      (governance?.confidence_reasons as string[]).some((reason) => reason.startsWith("low=")),
+    ).toBe(true);
+
   });
 
   test("E2E LOCK: fully-scorable under-anchor criterion hard-fails and blocks persistence", async () => {
