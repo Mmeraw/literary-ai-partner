@@ -1,0 +1,10 @@
+Value,Definition,Use In Workbook,Allowed Status?
+ENFORCED,"Hard gate or runtime invariant is implemented, tested, and has proof evidence.","CURRENT_STATE, ROADMAP_LANES, RCA, U_GATES_ENFORCEMENT",YES
+ENFORCED — boundary scope,Hard gate is true only for the named boundary/scope; not a whole-system claim.,"CURRENT_STATE, Complete-Partially-Pending",YES
+PARTIAL,"Implemented or specified in part, but not fully proven or not end-to-end authoritative.",All tracker sheets,YES
+OBSERVED,"Detected or measured, but not yet enforced as a gate/control-flow rule.","RCA, CURRENT_STATE",YES
+OPEN,Known issue/failure class requiring root-cause closure.,"RCA, Current State",YES
+RESOLVED,Root cause fixed and proof evidence exists.,RCA,YES
+NOT_STARTED,Specified or known work that has not been implemented.,"ROADMAP_LANES, EXECUTION_BLOCK",YES
+BLOCKED,Cannot progress until listed dependency/RCA is addressed.,"ROADMAP_LANES, RCA_BATCH_PLAN",YES
+AMBIGUOUS,Cause cannot be assigned yet; requires classification before fix can be treated as final.,RCA,YES

@@ -66,6 +66,44 @@ describe("classifyEvaluationIntegrityBanner", () => {
     expect(banner?.message).toMatch(/well-supported by evidence from your text/i);
   });
 
+  it("downgrades PASS to HOLD when propagation integrity is mixed", () => {
+    const banner = classifyEvaluationIntegrityBanner({
+      governance: {
+        warnings: [],
+        transparency: {
+          artifact_validation_result: "PASS",
+          propagation_summary: {
+            upstream_integrity: "mixed",
+            authority_level: "constrained",
+          },
+        },
+      },
+    });
+
+    expect(banner?.kind).toBe("HOLD");
+    expect(banner?.label).toBe("Confidence Varies");
+    expect(banner?.title).toBe("⚠️ CONFIDENCE VARIES ACROSS THIS REPORT");
+  });
+
+  it("returns constrained banner when propagation integrity is weak", () => {
+    const banner = classifyEvaluationIntegrityBanner({
+      governance: {
+        warnings: [],
+        transparency: {
+          artifact_validation_result: "PASS",
+          propagation_summary: {
+            upstream_integrity: "weak",
+            authority_level: "blocked",
+          },
+        },
+      },
+    });
+
+    expect(banner?.kind).toBe("HOLD");
+    expect(banner?.label).toBe("Confidence Constrained");
+    expect(banner?.title).toBe("⚠️ CONFIDENCE IS CONSTRAINED");
+  });
+
   it("returns null when no warnings and no gate signal", () => {
     const banner = classifyEvaluationIntegrityBanner({
       governance: {

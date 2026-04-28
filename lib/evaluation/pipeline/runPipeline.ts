@@ -59,6 +59,7 @@ import {
   startLatencyStage,
 } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
+import { summarizePropagationIntegrity } from "./propagationIntegrity";
 import type {
   RuleEvaluationInput,
   RuleStage,
@@ -145,6 +146,12 @@ type PipelineTimings = {
   pass4_ms?: number;
 };
 
+type GovernanceConfidenceDerivation = {
+  confidence: number;
+  confidenceLabel: "high" | "medium" | "low" | "withheld";
+  confidenceReasons: string[];
+};
+
 function logPipelineTimings(
   stage: "success" | "failure",
   meta: {
@@ -165,6 +172,84 @@ function logPipelineTimings(
     error_code: meta.errorCode ?? null,
     ...meta.timings,
   });
+}
+
+function hasTextualAnchorSignal(criterion: EvaluationResultV2["criteria"][number]): boolean {
+  if (/["“”][^"“”]{8,}["“”]/.test(criterion.rationale ?? "")) {
+    return true;
+  }
+
+  return criterion.evidence.some((anchor) => {
+    const snippet = (anchor.snippet ?? "").trim();
+    if (/["“”][^"“”]{8,}["“”]/.test(snippet)) {
+      return true;
+    }
+
+    return snippet.length >= 20;
+  });
+}
+
+function enforceTextualAnchorConfidence(
+  criterion: EvaluationResultV2["criteria"][number],
+): EvaluationResultV2["criteria"][number] {
+  if (hasTextualAnchorSignal(criterion)) {
+    return criterion;
+  }
+
+  const existingReasons = Array.isArray(criterion.confidence_reasons)
+    ? criterion.confidence_reasons
+    : [];
+
+  return {
+    ...criterion,
+    confidence_band: "LOW",
+    confidence_level: "low",
+    confidence_score_0_100: Math.min(criterion.confidence_score_0_100 ?? 100, 45),
+    confidence_reasons: Array.from(new Set([...existingReasons, "NO_TEXTUAL_ANCHOR"])),
+    scorability_status:
+      criterion.scorability_status === "non_scorable"
+        ? "non_scorable"
+        : "scorable_low_confidence",
+  };
+}
+
+function deriveGovernanceConfidenceFromCriteria(
+  criteria: EvaluationResultV2["criteria"],
+  propagation: ReturnType<typeof summarizePropagationIntegrity>,
+): GovernanceConfidenceDerivation {
+  const low = criteria.filter((c) => c.confidence_level === "low").length;
+  const moderate = criteria.filter((c) => c.confidence_level === "moderate").length;
+  const missing = criteria.filter((c) => c.evidence.length === 0).length;
+  const weak = criteria.filter((c) => c.status === "SCORABLE" && c.evidence.length < 2).length;
+
+  let confidenceLabel: GovernanceConfidenceDerivation["confidenceLabel"] = "high";
+  if (propagation.upstreamIntegrity === "weak" || low >= 5 || missing >= 4) {
+    confidenceLabel = "low";
+  } else if (
+    propagation.upstreamIntegrity === "mixed" ||
+    low >= 3 ||
+    moderate >= 4 ||
+    weak >= 4
+  ) {
+    confidenceLabel = "medium";
+  }
+
+  const confidence =
+    confidenceLabel === "high" ? 0.9 : confidenceLabel === "medium" ? 0.7 : 0.55;
+
+  const confidenceReasons = [
+    ...propagation.reasons,
+    `low=${low}`,
+    `moderate=${moderate}`,
+    `missing=${missing}`,
+    `weak=${weak}`,
+  ];
+
+  return {
+    confidence,
+    confidenceLabel,
+    confidenceReasons,
+  };
 }
 
 function validatePipelineInput(opts: RunPipelineOptions): string | null {
@@ -1181,40 +1266,45 @@ export function synthesisToEvaluationResultV2(
     sourceText,
   } = opts;
 
-  const criteria = synthesis.criteria.map((c) =>
-    normalizeCriterion(
-      {
-        key: c.key,
-        score_0_10: c.final_score_0_10,
-        rationale: c.final_rationale,
-        evidence: c.evidence.map((e) => ({
-          snippet: e.snippet,
-          location:
-            e.char_start !== undefined || e.char_end !== undefined || e.segment_id !== undefined
-              ? {
-                  char_start: e.char_start,
-                  char_end: e.char_end,
-                  segment_id: e.segment_id,
-                }
-              : undefined,
-        })),
-        recommendations: c.recommendations.map((r) => ({
-          priority: r.priority,
-          action: r.action,
-          expected_impact: r.expected_impact,
-          anchor_snippet: r.anchor_snippet,
-        })),
-      },
-      {
-        criteriaPlan,
-        passageCoverageRatio,
-        sentenceCount,
-        sourceText,
-      },
-    ),
-  );
+  const criteria = synthesis.criteria
+    .map((c) =>
+      normalizeCriterion(
+        {
+          key: c.key,
+          score_0_10: c.final_score_0_10,
+          rationale: c.final_rationale,
+          evidence: c.evidence.map((e) => ({
+            snippet: e.snippet,
+            location:
+              e.char_start !== undefined || e.char_end !== undefined || e.segment_id !== undefined
+                ? {
+                    char_start: e.char_start,
+                    char_end: e.char_end,
+                    segment_id: e.segment_id,
+                  }
+                : undefined,
+          })),
+          recommendations: c.recommendations.map((r) => ({
+            priority: r.priority,
+            action: r.action,
+            expected_impact: r.expected_impact,
+            anchor_snippet: r.anchor_snippet,
+          })),
+        },
+        {
+          criteriaPlan,
+          passageCoverageRatio,
+          sentenceCount,
+          sourceText,
+        },
+      ),
+    )
+    .map(enforceTextualAnchorConfidence);
 
   const weighted = computeWeightedScore(criteria);
+  const propagation = summarizePropagationIntegrity(criteria);
+
+  const derivedConfidence = deriveGovernanceConfidenceFromCriteria(criteria, propagation);
 
   const quick_wins = criteria
     .flatMap((c) =>
@@ -1258,6 +1348,19 @@ export function synthesisToEvaluationResultV2(
     observabilityWarnings.push(pass4Governance.message);
   }
 
+  if (propagation.upstreamIntegrity !== "strong") {
+    observabilityWarnings.push(
+      `PROPAGATION_${propagation.upstreamIntegrity.toUpperCase()}: low=${propagation.lowConfidenceCount} moderate=${propagation.moderateConfidenceCount} missingEvidence=${propagation.missingEvidenceCount}`,
+    );
+  }
+
+  const governanceWarnings: string[] = [];
+  if (propagation.upstreamIntegrity === "mixed") {
+    governanceWarnings.push("CONFIDENCE VARIES ACROSS THIS REPORT");
+  } else if (propagation.upstreamIntegrity === "weak") {
+    governanceWarnings.push("CONFIDENCE IS CONSTRAINED BY WEAK UPSTREAM EVIDENCE");
+  }
+
   return {
     schema_version: "evaluation_result_v2",
     ids,
@@ -1286,11 +1389,32 @@ export function synthesisToEvaluationResultV2(
     },
     artifacts: [],
     governance: {
-      confidence: weighted.scored_count === 0 ? 0.55 : DEFAULT_ADAPTER_CONFIDENCE,
-      warnings: [],
+      confidence:
+        weighted.scored_count === 0
+          ? 0.55
+          : derivedConfidence.confidence,
+      confidence_label: weighted.scored_count === 0 ? "withheld" : derivedConfidence.confidenceLabel,
+      confidence_reasons:
+        weighted.scored_count === 0
+          ? ["no_scorable_criteria"]
+          : derivedConfidence.confidenceReasons,
+      warnings: governanceWarnings,
       limitations: ["Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"],
       policy_family: "multi-pass-dual-axis",
       observability_warnings: observabilityWarnings,
+      transparency: {
+        propagation_summary: {
+          low_confidence_count: propagation.lowConfidenceCount,
+          moderate_confidence_count: propagation.moderateConfidenceCount,
+          weak_evidence_count: propagation.weakEvidenceCount,
+          missing_evidence_count: propagation.missingEvidenceCount,
+          scorable_low_confidence_count: propagation.scorableLowConfidenceCount,
+          bottom_score_criteria: propagation.bottomScoreCriteria,
+          upstream_integrity: propagation.upstreamIntegrity,
+          authority_level: propagation.authorityLevel,
+          reasons: propagation.reasons,
+        },
+      },
     },
   };
 }

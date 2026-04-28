@@ -1,0 +1,17 @@
+Current Execution Block: U2 Fidelity Enforcement = Close Six RCAs,,,,,,,,,,
+Seq,Active Now?,RCA_ID,Work Item,Layer,Current Level,Target Level,Blocking Gap,Done Criteria,Status,DEPENDS_ON_RCA
+1,YES,RCA-U2-003,Confidence derivation,Pipeline / Confidence,PARTIAL — REMOTE/TEST PROOF,ENFORCED,"Implementation is pushed in commit 8ecdde70, but live server/API artifact proof is missing.",governance.confidence_label and reasons derived from evidence profile in committed branch plus live server/API artifact proof.,PARTIAL — LIVE_PROOF_PENDING,NONE
+2,YES,RCA-U2-004,Propagation layer,Pipeline / Gate,NOT_STARTED,ENFORCED,Weak criteria do not affect overall artifact authority,Propagation profile + upstreamIntegrity strong|mixed|weak computed and gate-consumable,NEXT,RCA-U2-003
+3,YES,RCA-U2-001,Score-confidence enforcement,Quality Gate,NOT_STARTED,ENFORCED,Score can overclaim when confidence is low,QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH tested and enforced,NEXT,RCA-U2-003
+4,YES,RCA-U2-006,Evidence anchor enforcement,Pass2 / Quality Gate,PARTIAL — REMOTE/TEST PROOF,ENFORCED,"Anchor enforcement is pushed in commit 8ecdde70, but live proof is not yet complete.","NO_TEXTUAL_ANCHOR/anchor enforcement committed, tested, and proven on real server/API path.",PARTIAL — LIVE_PROOF_PENDING,NONE
+5,YES,RCA-U2-002,Pass3 anti-washing,Synthesis,NOT_STARTED,ENFORCED,Summary can omit bottom-scoring weakness,Summary references weakest cluster or QG_SUMMARY_OMITS_WEAKNESS fires,NEXT,RCA-U2-006
+6,YES,RCA-U2-005,UI authority lock,UI Truth,NOT_STARTED,ENFORCED,High-confidence UI can overstate weak artifact,PASS + low/weak/mixed confidence cannot render high-confidence banner,NEXT,RCA-U2-004
+7,YES,PV115-GOLDEN-FIXTURE,"Golden fixture validation (verification artifact, not RCA)",Proof / Verification Artifact,NOT_READY,ENFORCED,PV115 can still miss real signals until U2 RCAs close,Fixture passes only after required U2 RCAs close; PROMOTION_RULE must pass before U2 is ENFORCED.,NEXT,RCA-U2-001; RCA-U2-002; RCA-U2-004; RCA-U2-005; RCA-U2-006
+8,PARALLEL,RCA-PASS1-TOKEN-001,PASS1_OUTPUT_FEASIBILITY minimal patch,Pipeline Feasibility,OPEN,OBSERVED,PASS1 finish_reason=length can block proof reachability,Only minimal output-surface reduction; no latency side quest,OPEN,NONE
+9,PARALLEL,RCA-LLR-004-001,LLR_POST_STRUCTURAL_BLOCK triage,Governance / LLR,AMBIGUOUS,RESOLVED,LLR-004 can block before U2 evidence is observable,Classify MODEL_OUTPUT_INVALID vs RULE_TOO_STRICT vs REGISTRY_DRIFT; AMBIGUOUS → RESOLVED.,AMBIGUOUS,NONE
+10,NO,POST-U2-PROMPT-DEPTH,Prompt reasoning depth upgrades,Prompt Quality,SPECIFIED,OBSERVED,Prompts miss meta-fiction/parallel/animal/env/withholding/cultural texture,Update prompts only after U2 truth-control closes,WAIT,U2 RCAs
+,,,,,,,,,,
+,,,,,,,,,,
+13,REFERENCE,PV115-GOLDEN-FIXTURE,Verification artifact tracking,Proof,NOT_READY,READY,PV115 was previously pseudo-RCA,Tracked in VERIFICATION_ARTIFACTS; remains non-RCA proof item,NOT_READY,U2 RCAs
+,,,,,,,,,,
+,,,,,,,,,,

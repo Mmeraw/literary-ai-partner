@@ -39,6 +39,10 @@ import {
   minAnchorsFor,
 } from "@/lib/evaluation/signal/criterionObservability";
 import { DIALOGUE_MECHANISM_MARKERS } from "./mechanismMarkers";
+import {
+  summarizePropagationIntegrity,
+  summaryMentionsBottomWeakness,
+} from "./propagationIntegrity";
 
 export const QG_MIN_REC_LENGTH = 50;
 export const QG_MAX_REC_LENGTH = 300;
@@ -50,6 +54,7 @@ export const QG_INDEPENDENCE_RATIONALE_PREVIEW_CHARS = 320;
 export const QG_MIN_RATIONALE_LENGTH = 40;
 export const QG_MIN_EVIDENCE_COVERED_CRITERIA = 10;
 export const QG_MIN_EVIDENCE_SNIPPET_LENGTH = 20;
+export const QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE = 5;
 export const QG_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
 export const QG_SPINE_CRITERIA_REQUIRED_EVIDENCE = Object.freeze<CriterionKey[]>([
   "concept",
@@ -710,6 +715,7 @@ export function runQualityGateV2(
       };
 
   const criteria = result.criteria;
+  const propagation = summarizePropagationIntegrity(criteria);
   const expectedCount = CRITERIA_KEYS.length;
 
   if (criteria.length !== expectedCount) {
@@ -891,6 +897,49 @@ export function runQualityGateV2(
     );
   }
 
+  const scoreConfidenceMismatches = criteria
+    .filter(
+      (c) =>
+        c.status === "SCORABLE" &&
+        c.confidence_level === "low" &&
+        typeof c.score_0_10 === "number" &&
+        c.score_0_10 > QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE,
+    )
+    .map((c) => `${c.key}:${c.score_0_10}`);
+
+  checks.push({
+    check_id: "v2_fidelity_score_confidence_alignment",
+    passed: scoreConfidenceMismatches.length === 0,
+    error_code:
+      scoreConfidenceMismatches.length > 0
+        ? "QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH"
+        : undefined,
+    details:
+      scoreConfidenceMismatches.length > 0
+        ? `Low-confidence criteria exceed score cap (${QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE}): ${scoreConfidenceMismatches.join(",")}`
+        : "Score-confidence alignment holds",
+  });
+
+  const summaryMentionsWeakness = summaryMentionsBottomWeakness(
+    result.overview.one_paragraph_summary,
+    propagation.bottomScoreCriteria,
+  );
+
+  checks.push({
+    check_id: "v2_summary_weakness_presence",
+    passed:
+      propagation.bottomScoreCriteria.length === 0 ||
+      summaryMentionsWeakness,
+    error_code:
+      propagation.bottomScoreCriteria.length > 0 && !summaryMentionsWeakness
+        ? "QG_SUMMARY_OMITS_WEAKNESS"
+        : undefined,
+    details:
+      propagation.bottomScoreCriteria.length > 0 && !summaryMentionsWeakness
+        ? `Overview summary omits bottom-score weakness criteria: ${propagation.bottomScoreCriteria.join(",")}`
+        : "Overview summary references low-score weakness cluster or no weak cluster exists",
+  });
+
   const scoredCount = criteria.filter((c) => c.status === "SCORABLE").length;
 
   const aggregateScoreMismatch =
@@ -909,6 +958,31 @@ export function runQualityGateV2(
 
   if (scoredCount < 7) {
     warnings.push(`LOW_EVALUABILITY_COVERAGE: scored_criteria_count=${scoredCount}/${expectedCount}`);
+  }
+
+  const presentingHighAuthority =
+    artifactGate.verdict === "PASS" &&
+    !result.governance.warnings.some((warning) =>
+      warning.toUpperCase().includes("CONFIDENCE VARIES"),
+    );
+
+  checks.push({
+    check_id: "v2_propagation_integrity",
+    passed: !(propagation.upstreamIntegrity === "weak" && presentingHighAuthority),
+    error_code:
+      propagation.upstreamIntegrity === "weak" && presentingHighAuthority
+        ? "QG_PROPAGATION_INTEGRITY"
+        : undefined,
+    details:
+      propagation.upstreamIntegrity === "weak" && presentingHighAuthority
+        ? "Upstream integrity is weak while artifact presentation remains high-authority"
+        : `Propagation integrity enforced (upstream=${propagation.upstreamIntegrity}, authority=${propagation.authorityLevel})`,
+  });
+
+  if (propagation.upstreamIntegrity === "mixed") {
+    warnings.push(
+      `PROPAGATION_MIXED_CONFIDENCE: low=${propagation.lowConfidenceCount} moderate=${propagation.moderateConfidenceCount} missingEvidence=${propagation.missingEvidenceCount}`,
+    );
   }
 
   const artifactReasonSummary = artifactGate.reasonCodes.join(",") || "none";

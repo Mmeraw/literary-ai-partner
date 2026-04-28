@@ -1,212 +1,365 @@
-# RevisionGrade System Roadmap (V2 – Enforcement First)
+# RevisionGrade System Roadmap (V9 — RCA-Led Enforcement)
+
+_Last updated: 2026-04-28_
 
 ---
 
-## 🎯 Core Principle
+## Core Principle
 
 > If it is not enforced, it is not real.
 
 > Before any enforcement diff, prove the boundary it will be installed at.
 
+> RCA is the system of record; roadmap lanes are views of RCA state.
+
 This roadmap separates:
-- **System Build (what we build)**
-- **System Truth (what is provably enforced)**
 
-Certification is based ONLY on enforced invariants.
+- **System Build** — what we intend to build
+- **System Truth** — what is provably enforced
+- **System Evidence** — what has code-level, test-level, and production/live-path proof
 
----
-
-# 🔴 CURRENT PRIORITY: EVAL 2.0 TRUST LAYER
-
-We are not building features.
-
-We are building:
-
-> **A system where invalid evaluation artifacts cannot exist.**
+Certification is based only on enforced invariants and recorded proof.
 
 ---
 
-# 🧠 EXECUTION MODEL
+## Current System State
+
+```text
+U1: ENFORCED
+U2: RCA BATCH 2 DEFINED / PARTIAL REMOTE IMPLEMENTATION / LIVE_PROOF_PENDING
+U3: BLOCKED UNTIL U2 ENFORCED
+BOUNDARY SHAPE GAP: RESOLVED WITH LIVE DB PROOF
+PASS1 OUTPUT FEASIBILITY: OPEN / MINIMAL PARALLEL PATCH ONLY
+LLR-004: AMBIGUOUS / CLASSIFICATION REQUIRED BEFORE TUNING
+```
+
+The active trust-layer work is no longer a generic feature block. It is a sequence of closeable RCA failure classes.
+
+---
+
+## Execution Model
 
 All work follows this rule:
 
-> **Prove the prerequisite before installing the next layer**
+> Prove the prerequisite before installing the next layer.
 
----
-
-# 🔴 EXECUTION BLOCK (ACTIVE)
-
-## STEP 0 — Establish Persistence Boundary (CRITICAL)
-
-Goal:
-Create the only door where evaluation results can be persisted.
-
-### 0a — Define boundary
-- Create:
-  `persistEvaluationResultV2()`
-- No logic yet
-
-### 0b — Route all paths
-All of the following must:
-- route through the function OR
-- be removed/quarantined
-
-Paths:
-- `processor.ts`
-- `store.finalizer.ts`
-- `phase2.ts`
-- `claimJob.ts`
-- `writeArtifact.ts`
-
-### 0c — Enforce via CI
-- Repo-wide guard:
-  - No writes to `evaluation_artifacts` outside boundary
-  - No `status = complete` outside boundary
-
-### Success condition:
+A work item is not complete until it is:
 
 ```text
-grep shows exactly ONE persistence path
+implemented + hard-enforced + proven
 ```
 
-### Gating rule:
+Where applicable, proof must include:
 
-Step 1 and all later steps are blocked until Step 0c is green.
+- code-level proof
+- targeted regression proof
+- remote branch / PR proof
+- live server/API-path or persisted artifact proof
 
-## STEP 1 — Install Enforcement Kernel
+Local-only implementation or local-only test proof is **PARTIAL**, not RESOLVED.
 
-Only AFTER Step 0c is complete.
+Remote implementation with local tests is still **PARTIAL** until live server/API-path or persisted artifact proof exists.
 
-Inside `persistEvaluationResultV2()`:
+---
 
-- `validateEvaluationArtifact()`
-- `evaluateQualityGate()`
-- `deriveConfidence()`
+## Source of Truth Split
+
+- `ROADMAP.md` = stable execution contract and current top-level state
+- RCA workbook / system ledger = live relational operating ledger
+- Git branch / PR = code truth
+- production DB / live artifact = runtime truth
+
+If these diverge, do not promote status. Reconcile to the most conservative provable state.
+
+---
+
+## Active Execution Block: U2 Fidelity Enforcement
+
+U2 is now defined as six RCAs, not as a prose project.
+
+### Current U2 entry status
+
+```text
+RCA-U2-003: PARTIAL — implemented + pushed + local test-proven / live proof pending
+RCA-U2-006: PARTIAL — implemented + pushed + local test-proven / live proof pending
+```
+
+Reason:
+
+- deterministic confidence and anchor enforcement are now present on remote branch `feat/u2-propagation-enforcement`
+- pushed implementation commit: `8ecdde70` (`feat(u2): enforce deterministic confidence and anchor validation`)
+- focused local tests passed before push
+- live server/API-path U2 proof remains pending
+
+Do not mark either RCA RESOLVED until the pushed branch is backed by correct U2 closure evidence from a live server/API path or persisted artifact.
+
+### Required U2 closure order
+
+```text
+1. Close RCA-U2-003 — deterministic confidence derivation
+2. Close RCA-U2-006 — evidence anchor enforcement
+3. Close RCA-U2-004 — propagation aggregation / upstreamIntegrity
+4. Close RCA-U2-001 — score-confidence enforcement
+5. Close RCA-U2-002 — summary anti-washing
+6. Close RCA-U2-005 — UI authority lock
+7. Validate PV115-GOLDEN-FIXTURE promotion rule
+```
+
+### U2 RCA definitions
+
+#### RCA-U2-003 — Confidence Derivation
+
+Goal:
+
+- derive governance confidence from criterion evidence profile
+- populate `governance.confidence_label`
+- populate deterministic `governance.confidence_reasons`
+- eliminate model-originated/static confidence as authority
+
+Status:
+
+```text
+PARTIAL — implemented/pushed/tested locally; pending live artifact proof
+```
+
+Primary surfaces:
+
+- `lib/evaluation/pipeline/runPipeline.ts`
+- `schemas/evaluation-result-v2.ts`
+- `lib/evaluation/pipeline/propagationIntegrity.ts`
+
+Closure requires:
+
+- remote branch contains implementation
+- tests prove deterministic mapping across weak/mixed/strong profiles
+- persisted artifact or live server/API path shows `confidence_label` and `confidence_reasons`
+
+#### RCA-U2-006 — Evidence Anchor Enforcement
+
+Goal:
+
+- enforce textual/scene/action anchors for criterion reasoning
+- emit reason code such as `NO_TEXTUAL_ANCHOR` when anchor support is missing
+- cap/downgrade confidence or score authority when anchor support is absent
+
+Status:
+
+```text
+PARTIAL — implemented/pushed/tested locally; pending live proof
+```
+
+Primary surfaces:
+
+- `lib/evaluation/pipeline/runPass2.ts`
+- `lib/evaluation/pipeline/types.ts`
+- `lib/evaluation/pipeline/__tests__/runPass2.anchor-enforcement.test.ts`
+
+Closure requires:
+
+- remote branch contains anchor-enforcement implementation and test
+- test proves no-anchor downgrade/cap behavior
+- live or real-path proof shows anchor enforcement in artifact/gate evidence
+
+#### RCA-U2-004 — Propagation Layer
+
+Goal:
+
+- aggregate weak/moderate/missing evidence into `upstreamIntegrity`
+- expose propagation summary to gate and persistence
+
+Status:
+
+```text
+BLOCKED BY RCA-U2-003
+```
+
+#### RCA-U2-001 — Score-Confidence Mismatch
+
+Goal:
+
+- fail or constrain cases where low-confidence criteria exceed permitted score authority
+- enforce `QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH`
+
+Status:
+
+```text
+BLOCKED BY RCA-U2-003 and RCA-U2-004
+```
+
+#### RCA-U2-002 — Summary Anti-Washing
+
+Goal:
+
+- prevent positive summaries from omitting bottom-score weakness clusters
+- enforce `QG_SUMMARY_OMITS_WEAKNESS` or equivalent anti-washing contract
+
+Status:
+
+```text
+BLOCKED BY RCA-U2-006
+```
+
+#### RCA-U2-005 — UI Authority Lock
+
+Goal:
+
+- prevent high-confidence UI presentation when propagation or confidence topology is weak/constrained
+- bind warning classification to confidence and propagation state
+
+Status:
+
+```text
+BLOCKED BY RCA-U2-004
+```
+
+---
+
+## Boundary Shape RCA — Closed
+
+### RCA-BOUNDARY-SHAPE-001
+
+Status:
+
+```text
+RESOLVED
+```
+
+Evidence:
+
+- `gate_enforcement` lives at `progress.gate_enforcement` in `evaluation_jobs.progress` JSONB
+- structural validator runs on raw `EvaluationResultV2` before validation projection
+- persisted object is the raw artifact
+- regression test exists and passes for boundary gate persistence
+- live DB proof exists: job `533a77a5-11cd-4b06-9167-41332cd12390` with populated `progress.gate_enforcement`, `validation_result=PASS`, `gate_decision=PASS`, `artifact_schema=evaluation_result_v2`, completed at `2026-04-27T04:26:09.436+00:00`
+
+Important note:
+
+The earlier `gate_enforcement: null` concern was a query-shape error: it looked for a top-level column instead of `progress -> 'gate_enforcement'`.
+
+---
+
+## Parallel Tracks — Strictly Limited
+
+### PASS1 Output Feasibility
+
+Status:
+
+```text
+OPEN — minimal parallel patch only
+```
+
+Allowed scope:
+
+- reduce Pass 1 output surface
+- reduce required anchors where safe
+- remove recommendations from Pass 1 if needed
+- prevent finish_reason=length / empty output instability
+
+Not allowed:
+
+- broad latency project
+- retry architecture expansion
+- unrelated prompt-depth work
+
+### LLR-004 Classification
+
+Status:
+
+```text
+AMBIGUOUS → RESOLVED required
+```
 
 Rule:
-- `FAIL` → no persistence
-- `PASS` → atomic write
 
-## STEP 1.5 — Type-Level Contract Hardening (OPEN / DEFERRED)
+LLR-004 must not be treated as a model failure by default.
 
-Current Step 1 behavior computes validation/gate/confidence inside `persistEvaluationResultV2()`.
+It must first be classified as one of:
 
-Step 1.5 refactor target:
-- require caller-supplied typed inputs for:
-  - `validation`
-  - `gate`
-  - `confidence`
-- invoke structural `validateEvaluationArtifact()` inside `persistEvaluationResultV2()` immediately before any persistence call
-- keep boundary validation non-bypassable across worker, replay, test harness, service-role, and internal routes
+- model output truly invalid
+- rule strictness / calibration issue
+- registry/canon mapping drift
 
-Goal:
-- preserve current runtime fail-closed behavior
-- add compile-time non-bypassability for boundary callers
-
-Promotion to hard enforcement:
-- begin in warning mode
-- promote only after ≥ 20 production PASS-gate artifacts OR ≥ 7 days (whichever is later)
-- require 0 validation warnings during calibration window
-
-## STEP 2 — Guard Invariants
-
-Add tests:
-
-- invalid artifact → no DB row
-- invalid artifact → no `status = complete`
-- no completed job has failed gate
-
-## STEP 3 — Golden Proof (Initial)
-
-Add:
-
-- 1 valid case
-- 1 invalid case
-
-Goal:
-
-- prove fail-closed behavior
-
-## STEP 4 — Secondary work (blocked until trust layer lands)
-
-Blocked until the persistence boundary and enforcement kernel are real:
-
-- Liveness & latency
-- Observability dashboards
-- UX improvements
-- Prompt tuning
-- Calibration expansion
-- Recommendation semantics improvements
+Only after classification may the system tune Pass 2, tune the rule, or fix registry mapping.
 
 ---
 
-## 📊 CERTIFICATION DEFINITION
+## Verification Artifacts
 
-System is CERTIFIED only when:
+### PV115-GOLDEN-FIXTURE
 
-- U1 ENFORCED
-- U2 ENFORCED
-- U3 ENFORCED
-- Invalid escape rate = 0 on golden set
+Type:
 
----
+```text
+REGRESSION / PROOF FIXTURE
+```
 
-## 🧭 ROADMAP vs WORKBOOK (SOURCE SPLIT)
+Promotion rule:
 
-- `ROADMAP.md` = contract (stable, external, what must be true)
-- Workbook/Ledger artifacts = state (live, internal, what is currently true)
+```text
+Required green before U2_FIDELITY_ENFORCEMENT moves to ENFORCED
+```
 
-If they diverge, treat `ROADMAP.md` as contract authority and reconcile workbook state to match.
-
----
-
-## 🧱 SYSTEM BUILD ROADMAP (SECONDARY)
-
-These remain important, but are blocked until the trust layer is enforced.
-
-### Liveness & Latency
-- worker kickoff improvements
-- sub-3-minute E2E execution
-
-### Observability
-- per-stage timing
-- structured logs
-- metrics dashboard
-
-### UX
-- job progress UI
-- evaluation visibility
-- governance transparency
-
-### Prompt & Quality
-- calibration
-- convergence testing
-- recommendation semantics
+PV115 is not an RCA. It is a verification artifact. It proves the closed U2 RCAs hold together on real manuscript signals.
 
 ---
 
-## 🚫 WHAT IS NOT ALLOWED
+## Certification Definition
 
-- No “COMPLETE” without enforcement
+The system is certified only when:
+
+```text
+U1 ENFORCED
+U2 ENFORCED
+U3 ENFORCED
+Invalid escape rate = 0 on golden set
+PV115-GOLDEN-FIXTURE green for U2 promotion
+```
+
+U2 may not be marked ENFORCED until all six U2 RCAs are resolved and PV115 passes its promotion rule.
+
+---
+
+## What Is Not Allowed
+
+- No `COMPLETE` without enforcement proof
+- No `RESOLVED` for local-only implementation
+- No `RESOLVED` for pushed implementation without live proof
+- No use of Phase 2E/RLS evidence to close U2 RCAs
 - No new persistence paths
-- No feature work before enforcement boundary
-- No “temporary bypass” flags
-- No “deprecated but callable” code paths
+- No temporary bypass flags
+- No prompt-depth expansion before U2 enforcement closes
+- No U3 execution before U2 is enforced
+- No treating verification artifacts as RCAs
 
 ---
 
-## 🧠 DEVELOPMENT RULES
+## Development Rules
 
 - One boundary
 - No bypass
 - Fail closed
 - Prove before proceed
 - Enforce before claiming progress
+- RCA before implementation
+- Verification artifact before promotion
 
 ---
 
-## 🔑 FINAL PRINCIPLE
+## Immediate Next Steps
+
+1. Run correct U2 proof path, not Phase 2E/RLS proof.
+2. Capture persisted artifact or live server/API-path evidence:
+   - `governance.confidence_label`
+   - `governance.confidence_reasons`
+   - propagation summary
+   - anchor-enforcement reason codes when applicable
+   - `progress.gate_enforcement`
+3. Only then move RCA-U2-003 and RCA-U2-006 from PARTIAL to RESOLVED.
+
+---
+
+## Final Principle
 
 We are not building features.
 
-We are building a system that cannot lie.
+We are building a system that cannot lie — and a ledger that refuses to say it is done before the system proves it.
