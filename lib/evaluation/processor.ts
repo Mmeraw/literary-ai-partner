@@ -1119,26 +1119,6 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         ? (job.progress as Record<string, unknown>)
         : {};
 
-    const isPhase1CompleteHandoff =
-      job.status === 'running' &&
-      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
-      (job.phase_status === 'complete' || progress.phase_status === 'complete');
-
-    const isQueueEligiblePhaseStatus =
-      job.phase_status === 'queued' ||
-      progress.phase_status === 'queued';
-
-
-    const isPhase1QueuedCandidate =
-      job.status === 'queued' &&
-      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
-      isQueueEligiblePhaseStatus;
-
-    const isPhase2QueuedCandidate =
-      job.status === 'queued' &&
-      (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
-      isQueueEligiblePhaseStatus;
-
     // Pre-claimed running jobs: atomically claimed by the processor (claimed_by is set,
     // phase_status=running, lease not yet expired). These were transitioned queued->running
     // by claim_evaluation_jobs RPC before being handed to this function.
@@ -1148,6 +1128,13 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       typeof job.lease_token === 'string' &&
       job.lease_token.trim().length > 0;
     const hasLivePreClaimLease = hasLiveLeaseExpiration(job.lease_expires_at);
+
+    const isPhase1CompleteHandoff =
+      job.status === 'running' &&
+      hasCanonicalPreClaimOwnership &&
+      hasLivePreClaimLease &&
+      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
+      (job.phase_status === 'complete' || progress.phase_status === 'complete');
 
     const isPhase1PreClaimed =
       job.status === 'running' &&
@@ -1164,12 +1151,20 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       (job.phase_status === 'running' || progress.phase_status === 'running');
 
     const executionPhase: 'phase_1' | 'phase_2' =
-      isPhase2QueuedCandidate || isPhase2PreClaimed ? 'phase_2' : 'phase_1';
+      isPhase1CompleteHandoff || isPhase2PreClaimed ? 'phase_2' : 'phase_1';
+
+    // Hard guard: queued jobs must be atomically claimed before direct processing.
+    // This function is execution-only for already-claimed running rows.
+    if (job.status === 'queued') {
+      return {
+        success: false,
+        error:
+          `Queued jobs must be claimed before processing. status=${job.status}, phase=${job.phase}, phase_status=${job.phase_status}`,
+      };
+    }
 
     if (
-      !isPhase1QueuedCandidate &&
       !isPhase1CompleteHandoff &&
-      !isPhase2QueuedCandidate &&
       !isPhase1PreClaimed &&
       !isPhase2PreClaimed
     ) {
@@ -1209,6 +1204,10 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       completedUnits: number,
       phase: 'phase_1' | 'phase_2' = 'phase_1',
     ) => {
+      if (!hasCanonicalPreClaimOwnership || !hasLivePreClaimLease) {
+        throw new Error('markRunning requires claimed job');
+      }
+
       const now = new Date().toISOString();
       const stageTimestampPatch: Record<string, unknown> = {};
 
