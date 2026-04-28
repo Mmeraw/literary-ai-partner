@@ -143,7 +143,12 @@ export interface RunPass1Options {
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   registry: CanonRegistry;
   model?: string;
-  openaiApiKey?: string;
+  /**
+   * Explicit API key override. Pass `null` to force "no key" in tests without
+   * relying on process.env mutation (prevents fallback to runtime config).
+   * Omit (undefined) to fall back to getEvaluationRuntimeConfig().openaiApiKey.
+   */
+  openaiApiKey?: string | null;
   /** Job ID forwarded from the processor for latency trace correlation. */
   jobId?: string;
   /** Override the completion function (for testing). Production callers omit this. */
@@ -335,8 +340,10 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
  * Build the default OpenAI completion function.
  * Separated so the constructor is only called when no DI override is provided.
  */
-function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
-  const apiKey = openaiApiKey ?? getEvaluationRuntimeConfig().openaiApiKey;
+function defaultCreateCompletion(openaiApiKey?: string | null): CreateCompletionFn {
+  // null = explicit "no key" (test sentinel). undefined = fall back to runtime config.
+  const apiKey =
+    openaiApiKey === null ? undefined : (openaiApiKey ?? getEvaluationRuntimeConfig().openaiApiKey);
   if (!apiKey) {
     throw new Error("[Pass1] OPENAI_API_KEY is not configured");
   }

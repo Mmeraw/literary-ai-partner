@@ -210,26 +210,20 @@ describe("runPass1", () => {
     expect(result.model).toBe("gpt-4o");
   });
 
-  // Skip in environments where OPENAI_API_KEY is always set (e.g., CI with secrets).
-  // The guard is unit-tested by inspecting defaultCreateCompletion directly in isolation.
-  it.skip("throws when OPENAI_API_KEY is not configured", async () => {
-    const savedKey = process.env.OPENAI_API_KEY;
-    delete process.env.OPENAI_API_KEY;
-
-    // Pass a throwing completion so there's no real network attempt.
-    // The guard should fire before any HTTP call happens.
+  it("throws when OPENAI_API_KEY is not configured", async () => {
+    // Use openaiApiKey: null as the explicit "no key" sentinel.
+    // This bypasses the runtime-config fallback without mutating process.env,
+    // making the test hermetic in CI environments where OPENAI_API_KEY is always set.
     await expect(
       runPass1({
         manuscriptText: "test",
         workType: "literary_fiction",
         title: "Test",
         registry,
-        // No openaiApiKey, no _createCompletion — triggers the API key guard.
+        openaiApiKey: null,
       }),
     ).rejects.toThrow("OPENAI_API_KEY is not configured");
-
-    if (savedKey) process.env.OPENAI_API_KEY = savedKey;
-  }, 10_000);
+  });
 
   it("throws when OpenAI returns empty content", async () => {
     await expect(
