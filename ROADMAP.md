@@ -26,7 +26,7 @@ Certification is based only on enforced invariants and recorded proof.
 
 ```text
 U1: ENFORCED
-U2: RCA BATCH 2 DEFINED / PARTIAL LOCAL IMPLEMENTATION
+U2: RCA BATCH 2 DEFINED / PARTIAL REMOTE IMPLEMENTATION / LIVE_PROOF_PENDING
 U3: BLOCKED UNTIL U2 ENFORCED
 BOUNDARY SHAPE GAP: RESOLVED WITH LIVE DB PROOF
 PASS1 OUTPUT FEASIBILITY: OPEN / MINIMAL PARALLEL PATCH ONLY
@@ -58,6 +58,8 @@ Where applicable, proof must include:
 
 Local-only implementation or local-only test proof is **PARTIAL**, not RESOLVED.
 
+Remote implementation with local tests is still **PARTIAL** until live server/API-path or persisted artifact proof exists.
+
 ---
 
 ## Source of Truth Split
@@ -78,18 +80,18 @@ U2 is now defined as six RCAs, not as a prose project.
 ### Current U2 entry status
 
 ```text
-RCA-U2-003: PARTIAL
-RCA-U2-006: PARTIAL
+RCA-U2-003: PARTIAL — implemented + pushed + local test-proven / live proof pending
+RCA-U2-006: PARTIAL — implemented + pushed + local test-proven / live proof pending
 ```
 
 Reason:
 
-- local implementation exists for deterministic confidence and anchor enforcement
-- focused local tests have passed
-- local edits were not yet confirmed as committed/pushed in remote history at the time of this roadmap update
+- deterministic confidence and anchor enforcement are now present on remote branch `feat/u2-propagation-enforcement`
+- pushed implementation commit: `8ecdde70` (`feat(u2): enforce deterministic confidence and anchor validation`)
+- focused local tests passed before push
 - live server/API-path U2 proof remains pending
 
-Do not mark either RCA RESOLVED until the local edits are committed, pushed, visible in branch/PR diff, and backed by correct U2 closure evidence.
+Do not mark either RCA RESOLVED until the pushed branch is backed by correct U2 closure evidence from a live server/API path or persisted artifact.
 
 ### Required U2 closure order
 
@@ -117,7 +119,7 @@ Goal:
 Status:
 
 ```text
-PARTIAL — implemented/tested locally; pending commit/push and live artifact proof
+PARTIAL — implemented/pushed/tested locally; pending live artifact proof
 ```
 
 Primary surfaces:
@@ -143,7 +145,7 @@ Goal:
 Status:
 
 ```text
-PARTIAL — implemented/tested locally; pending commit/push and live proof
+PARTIAL — implemented/pushed/tested locally; pending live proof
 ```
 
 Primary surfaces:
@@ -321,6 +323,7 @@ U2 may not be marked ENFORCED until all six U2 RCAs are resolved and PV115 passe
 
 - No `COMPLETE` without enforcement proof
 - No `RESOLVED` for local-only implementation
+- No `RESOLVED` for pushed implementation without live proof
 - No use of Phase 2E/RLS evidence to close U2 RCAs
 - No new persistence paths
 - No temporary bypass flags
@@ -344,18 +347,14 @@ U2 may not be marked ENFORCED until all six U2 RCAs are resolved and PV115 passe
 
 ## Immediate Next Steps
 
-1. Commit and push local U2-003/U2-006 implementation files.
-2. Re-check remote branch/PR diff for:
-   - deterministic confidence implementation
-   - `NO_TEXTUAL_ANCHOR` / anchor enforcement
-   - `runPass2.anchor-enforcement.test.ts`
-3. Run correct U2 proof path, not Phase 2E/RLS proof.
-4. Capture persisted artifact or live server/API-path evidence:
+1. Run correct U2 proof path, not Phase 2E/RLS proof.
+2. Capture persisted artifact or live server/API-path evidence:
    - `governance.confidence_label`
    - `governance.confidence_reasons`
    - propagation summary
    - anchor-enforcement reason codes when applicable
-5. Only then move RCA-U2-003 and RCA-U2-006 from PARTIAL to RESOLVED.
+   - `progress.gate_enforcement`
+3. Only then move RCA-U2-003 and RCA-U2-006 from PARTIAL to RESOLVED.
 
 ---
 
