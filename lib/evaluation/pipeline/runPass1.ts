@@ -24,7 +24,37 @@ import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseB
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS1_TEMPERATURE = 0.3;
-const PASS1_MODEL = "o3";
+
+/**
+ * RCA-PASS1-TOKEN-001: o3 is disabled for Pass1 in production.
+ * o3 burns all output tokens on reasoning and emits empty content for PV115-class manuscripts.
+ * Production Pass1 uses the reliable JSON extraction model.
+ * o3 is only permitted in non-production environments with an explicit opt-in flag:
+ *   NODE_ENV !== "production" && ENABLE_PASS1_O3_EXPERIMENT="true"
+ */
+const PASS1_PRODUCTION_MODEL = "gpt-4o";
+const PASS1_EXPERIMENT_MODEL = "o3";
+
+function resolvePass1Model(callerModel?: string): string {
+  const allowPass1O3 =
+    process.env.NODE_ENV !== "production" &&
+    process.env.ENABLE_PASS1_O3_EXPERIMENT === "true";
+
+  if (callerModel) {
+    // If calling code explicitly requests o3 in production, block it.
+    const isO3Request = callerModel.trim().toLowerCase().startsWith("o3");
+    if (isO3Request && !allowPass1O3) {
+      console.warn(
+        `[Pass1] RCA-PASS1-TOKEN-001: o3 requested for Pass1 in production — overriding to ${PASS1_PRODUCTION_MODEL}. ` +
+          `Set ENABLE_PASS1_O3_EXPERIMENT=true in a non-production environment to allow o3 for Pass1.`,
+      );
+      return PASS1_PRODUCTION_MODEL;
+    }
+    return callerModel;
+  }
+
+  return allowPass1O3 ? PASS1_EXPERIMENT_MODEL : PASS1_PRODUCTION_MODEL;
+}
 
 function nowMs(): number {
   return Date.now();
@@ -134,7 +164,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   }
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
-  const selectedModel = getCanonicalPipelineModel(opts.model ?? PASS1_MODEL);
+  const selectedModel = getCanonicalPipelineModel(resolvePass1Model(opts.model));
 
   const promptAssemblyStartMs = nowMs();
 
@@ -330,7 +360,7 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
  * @returns Validated SinglePassOutput with axis="craft_execution"
  * @throws on invalid structure, empty criteria, or parse errors
  */
-export function parsePass1Response(raw: string, fallbackModel = PASS1_MODEL): SinglePassOutput {
+export function parsePass1Response(raw: string, fallbackModel = PASS1_PRODUCTION_MODEL): SinglePassOutput {
   // P0: Log raw response preview before parse
   console.log(`[Pass1] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
 
