@@ -14,14 +14,14 @@ BEGIN
     phase_status = 'queued',
     claimed_by = NULL,
     lease_token = NULL,
-    lease_expires_at = NULL,
+    lease_until = NULL,
     last_error = COALESCE(last_error, '') || ' | repaired_orphaned_running'
   WHERE
     status = 'running'
     AND (
       claimed_by IS NULL
       OR lease_token IS NULL
-      OR lease_expires_at IS NULL
+      OR lease_until IS NULL
     );
 
   GET DIAGNOSTICS repaired_count = ROW_COUNT;
