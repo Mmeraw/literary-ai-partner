@@ -1,0 +1,24 @@
+RCA_ID,E2E Stage ID,Relevance,Known Failing / Known Proof Surface,Investigation Files / Scripts
+RCA-PASS1-TOKEN-001,E2E-04,PRIMARY,Known failing,runPass1.ts; pass1-craft.ts; runPipeline.ts; jsonParseBoundary.ts; scripts/pipeline/run-phase2-7-real-run.ts
+RCA-PASS1-TOKEN-001,E2E-10,SECONDARY,Proof harness,scripts/e2e-golden-run.sh; scripts/check-e2e-summary.mjs; scripts/jobs-smoke-service-role.mjs
+RCA-LLR-004-001,E2E-04,PRIMARY,Known failing / ambiguous cause,runPass2.ts; pass2-editorial.ts; ACTIVE_RULES.ts; canonRegistry.ts; scripts/pipeline/run-phase2-7-real-run.ts
+RCA-LLR-004-001,E2E-06,SECONDARY,Rule/gate calibration context,qualityGate.ts; lessonsLearned/*; qualityGate.coverage.test.ts
+RCA-DIALOGUE-GATE-001,E2E-06,PRIMARY,Known resolved/proof surface,qualityGate.ts; gates.ts; qualityGate.coverage.test.ts; gate-replay-check.ts
+RCA-DIALOGUE-GATE-001,E2E-07,SECONDARY,Cross-check context,evaluatePass4Governance.ts; perplexityCrossCheck.ts
+RCA-ATOMIC-PERSISTENCE-001,E2E-08,PRIMARY,Known resolved/proof surface,persistEvaluationResultV2.ts; artifactPersistence.ts; persist_evaluation_v2_atomic migrations; persistEvaluationResultV2.boundary-gate.test.ts
+RCA-ATOMIC-PERSISTENCE-001,E2E-10,SECONDARY,Reliability proof,soak:qualify; gate-reliability.sh; jobs-smoke-service-role.mjs
+RCA-FAILURE-ENVELOPE-001,E2E-03,PRIMARY,Partial diagnostic proof,processor.ts; finalizeJobFailure.ts; failures.ts; processor.test.ts
+RCA-FAILURE-ENVELOPE-001,E2E-06,SECONDARY,Gate failure envelope proof,qualityGate.ts; qualityGate.coverage.test.ts; pipeline-e2e.test.ts
+RCA-U2-001,E2E-06,PRIMARY,New U2 gate failure class,qualityGate.ts; qualityGate.coverage.test.ts; QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH
+RCA-U2-001,E2E-10,SECONDARY,Proof harness,scripts/e2e-golden-run.sh; PV115 golden fixture
+RCA-U2-002,E2E-05,PRIMARY,Pass3 anti-washing proof,runPass3Synthesis.ts; pass3-semantic-contract.test.ts; QG_SUMMARY_OMITS_WEAKNESS
+RCA-U2-002,E2E-06,SECONDARY,Gate catches summary omission,qualityGate.ts; qualityGate.coverage.test.ts
+RCA-U2-003,E2E-05,PRIMARY,Derived confidence source,runPipeline.ts; synthesisToEvaluationResultV2; evaluation-result-v2.ts
+RCA-U2-004,E2E-06,PRIMARY,Propagation integrity profile,qualityGate.ts; runPipeline.ts; upstreamIntegrity strong|mixed|weak
+RCA-U2-004,E2E-08,SECONDARY,Persistence needs propagation trace,persistEvaluationResultV2.boundary-gate.test.ts
+RCA-U2-005,E2E-09,PRIMARY,Report authority rendering,warningClassification.ts; warningClassification.test.ts; components/report/*
+RCA-U2-006,E2E-04,PRIMARY,Pass2 rationale anchor source,runPass2.ts; pass2-editorial.ts; anchor detector / textual reference
+RCA-U2-006,E2E-06,SECONDARY,Gate downgrades/holds on missing anchors,qualityGate.ts; qualityGate.coverage.test.ts
+RCA-BOUNDARY-SHAPE-001,E2E-08,PRIMARY,Resolved proof surface,persistEvaluationResultV2.ts; validateStructuralArtifact raw check; evaluation-result-v2.ts; persistEvaluationResultV2.boundary-gate.test.ts (6/6 passing)
+RCA-BOUNDARY-SHAPE-001,E2E-10,SECONDARY,Resolved / ongoing guard,scripts/e2e-golden-run.sh; scripts/check-e2e-summary.mjs; live SQL must query progress->'gate_enforcement'
+PV115-GOLDEN-FIXTURE,E2E-10,VERIFICATION,Proof fixture after U2 closures,PV115 golden fixture test; scripts/e2e-golden-run.sh; scripts/check-e2e-summary.mjs
