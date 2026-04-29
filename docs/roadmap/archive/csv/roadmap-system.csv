@@ -1,0 +1,232 @@
+RevisionGrade Roadmap System — Current Accurate Version
+
+System status
+
+SYSTEM_STATUS: EXECUTION_STABLE
+FAILURE_VISIBILITY: HIGH
+TRUTH_ENFORCEMENT: IN_PROGRESS
+PRIMARY_BLOCKER: U2_PROPAGATION_ENFORCEMENT
+SECONDARY_BLOCKER: PASS_1_OUTPUT_FEASIBILITY
+ACTIVE_LLR_TRACK: LLR-004 CLASSIFICATION / CALIBRATION
+
+
+
+Completed / Enforced
+
+BLOCK_B_ATOMICITY — ENFORCED
+
+PR #241: persist_evaluation_v2_atomic RPC added
+PR #242: V2 persistence success path switched to atomic RPC
+PR #243: RPC ambiguity hotfix merged
+DB migration applied
+service_role EXECUTE verified
+Production success-path empirically proven:
+job 29089ed6-0fc7-485b-a699-56498b950295
+artifact af699bd8-1618-4971-a097-b4345f3e7733
+
+Status:
+
+ENFORCED
+
+
+
+RELIABILITY_GATE — ENFORCED
+
+100k soak passed
+0 unclassified failures
+0 wrong-location edits
+0 lost writes
+0 non-canonical statuses
+0 silent fallbacks
+
+Status:
+
+ENFORCED
+
+
+
+DIALOGUE_ATTRIBUTION_GATE_V2 — ENFORCED at gate level
+
+Gate-level fix validated.
+No current evidence that QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED remains the active blocker on reachable post-fix runs.
+
+Status:
+
+"ENFORCED, with continued monitoring"
+
+
+
+PHASE_1_OBSERVABILITY — STRUCTURAL ENFORCED / EMPIRICAL PARTIAL
+
+Failure envelopes now exist on current paths.
+Older jobs correctly show null envelopes.
+Some PASS1 / LLR paths still need empirical proof and/or final catch-site hardening.
+
+Status:
+
+STRUCTURAL_ENFORCED
+EMPIRICAL_PARTIAL
+
+
+
+Open / Active
+
+U2_PROPAGATION_ENFORCEMENT — PRIMARY BLOCKER
+
+Problem:
+
+The system detects uncertainty but does not yet enforce consequences.
+Weak evidence can still coexist with confident summary/authority.
+
+Required RCA Batch 2:
+
+RCA-U2-001: Score / confidence mismatch
+RCA-U2-002: Summary washing
+RCA-U2-003: UI authority overstatement
+RCA-U2-004: Confidence not deterministically derived
+RCA-U2-005: Missing propagation aggregation
+
+Files:
+
+qualityGate.ts
+runPipeline.ts
+runPass3Synthesis.ts
+persistEvaluationResultV2.ts
+warningClassification.ts
+evaluation-result-v2.ts
+confidenceDerivation.ts
+tests / PV115 golden fixture
+
+Status:
+
+NOT_STARTED / NEXT ACTIVE EXECUTION BLOCK
+
+
+
+PASS_1_OUTPUT_FEASIBILITY — SECONDARY BLOCKER
+
+Problem:
+
+Pass 1 frequently exceeds output capacity:
+finish_reason=length
+completion_tokens=3500
+empty response
+PASS1_FAILED
+
+Correct framing:
+
+PASS1 is not the main truth-enforcement priority.
+PASS1 is the reachability blocker that prevents U2 from being empirically exercised.
+
+Minimal fix only:
+
+Reduce Pass 1 output surface
+Limit evidence anchors to 1
+Remove recommendations from Pass 1
+Remove deep rationale from Pass 1
+Keep fail-closed behavior
+
+Status:
+
+OPEN / PARALLEL MINIMAL FIX
+
+
+
+LLR-004 / LLR_POST_DIAGNOSTIC_BLOCK — OPEN CLASSIFICATION TRACK
+
+Meaning:
+
+Pass 2 diagnostic output is being blocked by Lessons Learned enforcement.
+This is upstream of U2 and unrelated to dialogue gate.
+
+Possible causes:
+
+MODEL_VIOLATION
+RULE_OVERSTRICT
+REGISTRY_DRIFT
+AMBIGUOUS
+
+Workbook change required:
+
+Add rule_strictness_flag
+Add enforcement_vs_calibration
+Set RCA-LLR-004-001:
+  rule_strictness_flag = AMBIGUOUS
+  enforcement_vs_calibration = UNKNOWN
+
+Status:
+
+OPEN / NEEDS INCIDENT CLASSIFICATION
+
+
+
+Workbook control upgrades
+
+Add sheet:
+
+ENFORCEMENT_SCALE
+
+Values:
+
+NOT_ENFORCED
+PARTIAL
+STRUCTURAL_ENFORCED
+ENFORCED
+
+Add README cockpit:
+
+LAST_LEDGER_REFRESH: 2026-04-27
+SYSTEM_STATE: EXECUTION_STABLE / TRUTH_ENFORCEMENT_IN_PROGRESS
+PRIMARY_BLOCKER: U2_PROPAGATION_ENFORCEMENT
+SECONDARY_BLOCKER: PASS_1_OUTPUT_FEASIBILITY
+
+Add to ROADMAP_LANES:
+
+BLOCKED_BY
+
+Rule:
+
+"If BLOCKED_BY is not ENFORCED, item cannot move to ACTIVE."
+
+
+
+Correct next execution order
+
+1. Apply RCA/workbook hardening:
+   - LLR ambiguity fields
+   - ENFORCEMENT_SCALE
+   - README cockpit header
+   - BLOCKED_BY
+   - U2 RCA Batch 2
+
+2. Apply minimal PASS1 feasibility patch:
+   - reduce output surface only enough to improve Pass 4 reachability
+
+3. Execute U2 propagation enforcement:
+   - confidence derivation
+   - propagation profile
+   - score-confidence alignment
+   - anti-washing rule
+   - UI authority fusion
+   - persistence trace
+   - PV115 golden fixture
+
+4. Re-run real production evaluation proof.
+
+5. Only after U2:
+   - prompt depth upgrades
+   - meta-fiction / cultural texture / structural nuance improvements
+   - U3 contradiction detection
+
+
+
+Final cockpit lines
+
+BLOCK_B_ATOMICITY: ENFORCED.
+RELIABILITY_GATE: ENFORCED.
+DIALOGUE_ATTRIBUTION_GATE_V2: ENFORCED.
+PHASE_1_OBSERVABILITY: STRUCTURAL_ENFORCED / EMPIRICAL_PARTIAL.
+PASS_1_OUTPUT_FEASIBILITY: OPEN.
+LLR_POST_STRUCTURAL_BLOCK / LLR-004: OPEN CLASSIFICATION TRACK.
+U2_PROPAGATION_ENFORCEMENT: PRIMARY NEXT BLOCK.
+EVALUATION_TRUTH_ENFORCEMENT: NOT COMPLETE.

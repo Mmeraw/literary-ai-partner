@@ -22,15 +22,28 @@ import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
-
 const PASS1_TEMPERATURE = 0.3;
-const PASS1_MODEL = "o3";
+
 const PASS1_STABILITY_MAX_OUTPUT_TOKENS = 1800;
 const PASS1_LIMITS = {
   maxRationaleChars: 220,
   maxEvidencePerCriterion: 1,
   maxEvidenceSnippetChars: 180,
 } as const;
+
+/**
+ * RCA-PASS1-TOKEN-001: Pass1 model is strictly authoritative.
+ * gpt-4o is the only permitted Pass1 model. Caller model input is not accepted.
+ * The o3 experiment path has been removed from this PR; it will be reintroduced
+ * after U2 production proof in a separate, dedicated PR.
+ */
+type Pass1Model = "gpt-4o";
+const PASS1_PRODUCTION_MODEL: Pass1Model = "gpt-4o";
+
+/** No-arg resolver. Returns the single production model unconditionally. No caller influence. */
+function resolvePass1Model(): Pass1Model {
+  return PASS1_PRODUCTION_MODEL;
+}
 
 function nowMs(): number {
   return Date.now();
@@ -130,8 +143,13 @@ export interface RunPass1Options {
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   registry: CanonRegistry;
-  model?: string;
-  openaiApiKey?: string;
+  // NOTE: model is intentionally absent — Pass1 model authority is not caller-controlled.
+  /**
+   * Explicit API key override. Pass `null` to force "no key" in tests without
+   * relying on process.env mutation (prevents fallback to runtime config).
+   * Omit (undefined) to fall back to getEvaluationRuntimeConfig().openaiApiKey.
+   */
+  openaiApiKey?: string | null;
   /** Job ID forwarded from the processor for latency trace correlation. */
   jobId?: string;
   /** Override the completion function (for testing). Production callers omit this. */
@@ -152,8 +170,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   }
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
-  const selectedModel = getCanonicalPipelineModel(opts.model ?? PASS1_MODEL);
-  const effectiveMaxTokens = getEffectivePass1MaxTokens();
+  const selectedModel = getCanonicalPipelineModel(resolvePass1Model());
 
   const promptAssemblyStartMs = nowMs();
 
@@ -167,7 +184,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   const inputChars = opts.manuscriptText.length;
   const promptChars = PASS1_SYSTEM_PROMPT.length + userPrompt.length;
 
-  const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, effectiveMaxTokens);
+  const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, getEffectivePass1MaxTokens());
   const configuredMaxTokens =
     typeof (outputTokenParam as { max_completion_tokens?: unknown }).max_completion_tokens === "number"
       ? Number((outputTokenParam as { max_completion_tokens: number }).max_completion_tokens)
@@ -329,8 +346,10 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
  * Build the default OpenAI completion function.
  * Separated so the constructor is only called when no DI override is provided.
  */
-function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
-  const apiKey = openaiApiKey ?? getEvaluationRuntimeConfig().openaiApiKey;
+function defaultCreateCompletion(openaiApiKey?: string | null): CreateCompletionFn {
+  // null = explicit "no key" (test sentinel). undefined = fall back to runtime config.
+  const apiKey =
+    openaiApiKey === null ? undefined : (openaiApiKey ?? getEvaluationRuntimeConfig().openaiApiKey);
   if (!apiKey) {
     throw new Error("[Pass1] OPENAI_API_KEY is not configured");
   }
@@ -354,7 +373,8 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
  * @returns Validated SinglePassOutput with axis="craft_execution"
  * @throws on invalid structure, empty criteria, or parse errors
  */
-export function parsePass1Response(raw: string, fallbackModel = PASS1_MODEL): SinglePassOutput {
+export function parsePass1Response(raw: string, fallbackModel: string = PASS1_PRODUCTION_MODEL): SinglePassOutput {
+  // P0: Log raw response preview before parse
   console.log(`[Pass1] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
 
   let parsed: Record<string, unknown>;
