@@ -521,7 +521,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     expect(mockRunPass3).not.toHaveBeenCalled();
   });
 
-  it("threads a model override to all three passes", async () => {
+  it("threads a model override to Pass 2 and Pass 3 only", async () => {
     await runPipeline({
       manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
       workType: "literary_fiction",
@@ -536,7 +536,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     });
 
     expect(mockRunPass1).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "gpt-4o" }),
+      expect.not.objectContaining({ model: expect.anything() }),
     );
     expect(mockRunPass2).toHaveBeenCalledWith(
       expect.objectContaining({ model: "gpt-4o" }),

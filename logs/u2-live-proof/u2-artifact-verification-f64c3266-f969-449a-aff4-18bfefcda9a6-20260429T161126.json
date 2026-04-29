@@ -1,0 +1,87 @@
+{
+  "jobId": "f64c3266-f969-449a-aff4-18bfefcda9a6",
+  "derivedAt": "2026-04-29T16:10:40.008Z",
+  "artifactFileChecked": "logs/u2-live-proof/artifact-raw-f64c3266-f969-449a-aff4-18bfefcda9a6.json",
+  "jobDbFileChecked": "logs/u2-live-proof/job-row-f64c3266-f969-449a-aff4-18bfefcda9a6-20260429T160949.json",
+  "checks": {
+    "bottomWeaknessInSummary": {
+      "summary": "Untitled Manuscript delivers a commercially viable Yukon-set thriller voice, vivid terrain, and a compelling conspiracy hook, but momentum is hampered by digressions, thin support characters, and deferred payoffs. Targeted tightening of scene goals, exposition, and early revelations could elevate tension and secure reader trust. Key revision pressure remains in pacing, narrative closure.",
+      "bottom_score_criteria": [
+        "pacing",
+        "narrativeClosure"
+      ],
+      "pass": true
+    },
+    "confidenceBannerMatchesLabel": {
+      "confidence_label": "medium",
+      "confidence_reasons": [
+        "mixed_confidence_profile",
+        "low=0",
+        "moderate=4",
+        "missing=0",
+        "weak=0"
+      ],
+      "warnings": [
+        "CONFIDENCE VARIES ACROSS THIS REPORT",
+        "PROPAGATION_MIXED_CONFIDENCE: low=0 moderate=4 missingEvidence=0",
+        "[ArtifactGate:HOLD] reason_codes=EVIDENCE-MISSING-1",
+        "[ArtifactValidation:HOLD] reason_codes=EVIDENCE-MISSING-1"
+      ],
+      "artifact_validation_result": "HOLD",
+      "pass": true
+    },
+    "noFalseHighConfidenceAuthority": {
+      "confidence_label": "medium",
+      "artifact_validation_result": "HOLD",
+      "authority_level": "constrained",
+      "upstream_integrity": "mixed",
+      "pass": true
+    },
+    "propagationPersistedInDB": {
+      "progress_gate_enforcement": {
+        "confidence": {
+          "reasons": [],
+          "confidence": "high"
+        },
+        "gate_reason": "Artifact validation result is PASS",
+        "propagation": {
+          "reasons": [
+            "mixed_confidence_profile"
+          ],
+          "authority_level": "constrained",
+          "upstream_integrity": "mixed",
+          "weak_evidence_count": 0,
+          "low_confidence_count": 0,
+          "bottom_score_criteria": [
+            "pacing",
+            "narrativeClosure"
+          ],
+          "missing_evidence_count": 0,
+          "moderate_confidence_count": 4,
+          "scorable_low_confidence_count": 0
+        },
+        "reason_codes": [],
+        "validated_at": "2026-04-28T20:23:01.729Z",
+        "gate_decision": "PASS",
+        "validation_result": "PASS"
+      },
+      "propagation": {
+        "reasons": [
+          "mixed_confidence_profile"
+        ],
+        "authority_level": "constrained",
+        "upstream_integrity": "mixed",
+        "weak_evidence_count": 0,
+        "low_confidence_count": 0,
+        "bottom_score_criteria": [
+          "pacing",
+          "narrativeClosure"
+        ],
+        "missing_evidence_count": 0,
+        "moderate_confidence_count": 4,
+        "scorable_low_confidence_count": 0
+      },
+      "pass": true
+    }
+  }
+}

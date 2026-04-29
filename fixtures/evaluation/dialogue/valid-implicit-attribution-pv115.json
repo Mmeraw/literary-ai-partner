@@ -1,0 +1,27 @@
+{
+  "id": "40b377de-30af-4b86-9594-aceda2a5b4ba",
+  "evaluation_result": null,
+  "progress": {
+    "phase": "phase_1",
+    "message": "Evaluation failed",
+    "failed_at": "2026-04-27T00:23:13.985Z",
+    "error_code": "QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED",
+    "total_units": 3,
+    "phase_status": "failed",
+    "completed_units": 1,
+    "pass3_started_at": "2026-04-27T00:22:07.497Z",
+    "last_heartbeat_at": "2026-04-27T00:22:07.469Z",
+    "phase1_started_at": "2026-04-27T00:22:07.364Z",
+    "pass3_completed_at": "2026-04-27T00:23:13.985Z",
+    "pipeline_failure_envelope": {
+      "failed_at": "pass4",
+      "error_code": "QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED",
+      "reason_codes": [
+        "QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED"
+      ],
+      "error_message": "[Pipeline:pass4] QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED Quality gate failed: Dialogue rationale lacks attribution/rendering mechanism language [checkpoint=QUALITY_GATE authority=Phase 2.7 Quality Gate]",
+      "failure_origin": "processor",
+      "pipeline_stage": "pass4"
+    }
+  }
+}

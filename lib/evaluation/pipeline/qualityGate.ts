@@ -28,7 +28,7 @@ import { buildRedundancyKey, fullyRedundant, sameStrategicLever, normalizeIssueF
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 import type { SynthesisOutput, QualityGateResult, QualityGateCheck, SinglePassOutput } from "./types";
 import { analyzePovRendering } from "@/lib/evaluation/pov/analyzePovRendering";
-import { analyzeDialogueAttribution } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
+import { analyzeDialogueAttribution, analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { validatePovCriterionEvidence } from "@/lib/evaluation/pov/validatePovCriterionEvidence";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import type { EvaluationArtifact } from "./types";
@@ -38,6 +38,11 @@ import {
   isCriterionComplete,
   minAnchorsFor,
 } from "@/lib/evaluation/signal/criterionObservability";
+import { DIALOGUE_MECHANISM_MARKERS } from "./mechanismMarkers";
+import {
+  summarizePropagationIntegrity,
+  summaryMentionsBottomWeakness,
+} from "./propagationIntegrity";
 
 export const QG_MIN_REC_LENGTH = 50;
 export const QG_MAX_REC_LENGTH = 300;
@@ -49,6 +54,7 @@ export const QG_INDEPENDENCE_RATIONALE_PREVIEW_CHARS = 320;
 export const QG_MIN_RATIONALE_LENGTH = 40;
 export const QG_MIN_EVIDENCE_COVERED_CRITERIA = 10;
 export const QG_MIN_EVIDENCE_SNIPPET_LENGTH = 20;
+export const QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE = 5;
 export const QG_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
 export const QG_SPINE_CRITERIA_REQUIRED_EVIDENCE = Object.freeze<CriterionKey[]>([
   "concept",
@@ -513,15 +519,57 @@ export function runQualityGate(
       const dialogueCriterion = synthesis.criteria.find((c) => c.key === "dialogue");
       const voiceRationale = (voiceCriterion?.final_rationale ?? "").toLowerCase();
       const dialogueRationale = (dialogueCriterion?.final_rationale ?? "").toLowerCase();
+      
       const hasVoiceMechanismMarker = QG_POV_MECHANISM_MARKERS.some((m) => voiceRationale.includes(m));
-      const hasDialogueMechanismMarker = [
-        "attribution",
-        "tag",
-        "speaker",
-        "quote",
-        "dialogue",
-        "beat",
-      ].some((m) => dialogueRationale.includes(m));
+      
+      // Dialogue gate: diagnostic-grounded evaluation (not lexical-only)
+      // Pass if: rationale mentions mechanism language OR (diagnostics show grounded analysis)
+      // Fail only if: BOTH rationale lacks mechanism language AND diagnostics show no meaningful attribution
+      const hasDialogueMechanismMarker = DIALOGUE_MECHANISM_MARKERS.some((m) =>
+        dialogueRationale.includes(m),
+      );
+      
+      let dialogueAttributionDiagnostics: ReturnType<typeof analyzeDialogueAttributionForGate> | undefined;
+      
+      const dialogueHasDiagnosticGrounding = (() => {
+        // If manuscript available, check structural diagnostic signals
+        if (!manuscriptText || manuscriptText.trim().length === 0) {
+          return hasDialogueMechanismMarker; // Fall back to marker check if no manuscript
+        }
+        
+        dialogueAttributionDiagnostics = analyzeDialogueAttributionForGate({ manuscriptText });
+        
+        // Pass if diagnostics show meaningful dialogue structure:
+        // - Has rendered speech and at least one attribution strategy, OR
+        // - Multiple rendering modes detected, OR
+        // - Clear turn-taking with low ambiguity risk, OR
+        // - Explicit tags or action beats present
+        const hasRenderingModes = dialogueAttributionDiagnostics.renderingModesDetected.length >= 2;
+        const hasAttributionStrategy = dialogueAttributionDiagnostics.speakerAttributionStrategy.length >= 2;
+        const hasCleanTurns =
+          dialogueAttributionDiagnostics.turnTakingClarity === "clear" && dialogueAttributionDiagnostics.speakerAmbiguityRisk === "low";
+        const hasExplicitMechanisms = dialogueAttributionDiagnostics.explicitTagCount > 0 || dialogueAttributionDiagnostics.actionBeatCount > 0;
+        
+        // Dialogue is diagnostically grounded if ANY of these are true:
+        return hasRenderingModes || (hasAttributionStrategy && dialogueAttributionDiagnostics.quotedSpeechCount > 0) || hasCleanTurns || hasExplicitMechanisms;
+      })();
+      
+      // Pass dialogue gate if: mechanism language present OR diagnostic grounding (no false positives)
+      const dialogueGatePassed = hasDialogueMechanismMarker || dialogueHasDiagnosticGrounding;
+
+      console.log("[DIALOGUE_GATE_V2_ACTIVE]", {
+        hasDialogueMechanismMarker,
+        dialogueHasDiagnosticGrounding,
+        dialogueGatePassed,
+        hasDiagnostics: !!dialogueAttributionDiagnostics,
+        renderingModes: dialogueAttributionDiagnostics?.renderingModesDetected,
+        attributionStrategies: dialogueAttributionDiagnostics?.speakerAttributionStrategy,
+        explicitTagCount: dialogueAttributionDiagnostics?.explicitTagCount,
+        actionBeatCount: dialogueAttributionDiagnostics?.actionBeatCount,
+        turnTakingClarity: dialogueAttributionDiagnostics?.turnTakingClarity,
+        speakerAmbiguityRisk: dialogueAttributionDiagnostics?.speakerAmbiguityRisk,
+        rationalePreview: dialogueRationale.slice(0, 120),
+      });
 
       checks.push({
         check_id: "voice_mechanism_specificity",
@@ -534,11 +582,12 @@ export function runQualityGate(
 
       checks.push({
         check_id: "dialogue_attribution_specificity",
-        passed: hasDialogueMechanismMarker,
-        error_code: hasDialogueMechanismMarker ? undefined : "QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED",
-        details: hasDialogueMechanismMarker
-          ? "Dialogue rationale includes attribution/rendering mechanism language"
-          : "Dialogue rationale lacks attribution/rendering mechanism language",
+        passed: dialogueGatePassed,
+        error_code: dialogueGatePassed ? undefined : "QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED",
+        details: dialogueGatePassed
+          ? "Dialogue rationale includes mechanism language or diagnostics show grounded attribution analysis"
+          : "Dialogue rationale lacks attribution/rendering mechanism language and diagnostics show minimal attribution structure",
+        diagnostics: dialogueAttributionDiagnostics,
       });
     }
   }
@@ -666,6 +715,7 @@ export function runQualityGateV2(
       };
 
   const criteria = result.criteria;
+  const propagation = summarizePropagationIntegrity(criteria);
   const expectedCount = CRITERIA_KEYS.length;
 
   if (criteria.length !== expectedCount) {
@@ -704,7 +754,35 @@ export function runQualityGateV2(
         : "No duplicates and full canonical key coverage",
   });
 
-  const incompleteKeys = criteria.filter((c) => !isCriterionComplete(c)).map((c) => c.key);
+  // SLICE SPEC LOCK (per-criterion confidence + evidence-density):
+  // Low confidence lowers trust; it does not erase a defensible score.
+  //
+  // We keep SCORABLE + scorable_low_confidence criteria out of hard-fail
+  // completeness rejection for thin evidence, as long as they still carry a
+  // valid numeric score + rationale. Anchor sparsity for this narrow class is
+  // surfaced via warnings (LOW_CONFIDENCE_SCORABLE_CRITERIA), not hard fail.
+  //
+  // Fully scorable criteria (scorability_status !== scorable_low_confidence)
+  // remain fail-closed against completeness and anchor thresholds.
+  const incompleteKeys = criteria
+    .filter((c) => {
+      if (isCriterionComplete(c)) {
+        return false;
+      }
+
+      if (
+        c.status === "SCORABLE" &&
+        c.scorability_status === "scorable_low_confidence"
+      ) {
+        const hasValidScore =
+          typeof c.score_0_10 === "number" && c.score_0_10 >= 0 && c.score_0_10 <= 10;
+        const hasRationale = typeof c.rationale === "string" && c.rationale.trim().length > 0;
+        return !(hasValidScore && hasRationale);
+      }
+
+      return true;
+    })
+    .map((c) => c.key);
   checks.push({
     check_id: "v2_completeness_bridge",
     passed: incompleteKeys.length === 0,
@@ -781,8 +859,19 @@ export function runQualityGateV2(
         : "NOT_APPLICABLE criteria (if any) are governed",
   });
 
+  /**
+   * SLICE SPEC LOCK:
+   * scorable_low_confidence criteria are exempt from hard-fail anchor threshold
+   * checks. Thin support for this narrow class is warning-only; it does not
+   * invalidate scorability by itself.
+   */
   const scoredMissingAnchors = criteria
-    .filter((c) => c.status === "SCORABLE" && c.evidence.length < minAnchorsFor(c.key))
+    .filter(
+      (c) =>
+        c.status === "SCORABLE" &&
+        c.scorability_status !== "scorable_low_confidence" &&
+        c.evidence.length < minAnchorsFor(c.key),
+    )
     .map((c) => `${c.key}:${c.evidence.length}<${minAnchorsFor(c.key)}`);
   checks.push({
     check_id: "v2_scored_anchor_threshold",
@@ -792,6 +881,63 @@ export function runQualityGateV2(
       scoredMissingAnchors.length > 0
         ? `Scored criteria under anchor threshold: ${scoredMissingAnchors.join(",")}`
         : "All scored criteria meet anchor thresholds",
+  });
+
+  const lowConfidenceScored = criteria
+    .filter(
+      (c) =>
+        c.status === "SCORABLE" &&
+        c.scorability_status === "scorable_low_confidence",
+    )
+    .map((c) => `${c.key}:${c.confidence_score_0_100 ?? "n/a"}`);
+
+  if (lowConfidenceScored.length > 0) {
+    warnings.push(
+      `LOW_CONFIDENCE_SCORABLE_CRITERIA: ${lowConfidenceScored.join(",")}`,
+    );
+  }
+
+  const scoreConfidenceMismatches = criteria
+    .filter(
+      (c) =>
+        c.status === "SCORABLE" &&
+        c.confidence_level === "low" &&
+        typeof c.score_0_10 === "number" &&
+        c.score_0_10 > QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE,
+    )
+    .map((c) => `${c.key}:${c.score_0_10}`);
+
+  checks.push({
+    check_id: "v2_fidelity_score_confidence_alignment",
+    passed: scoreConfidenceMismatches.length === 0,
+    error_code:
+      scoreConfidenceMismatches.length > 0
+        ? "QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH"
+        : undefined,
+    details:
+      scoreConfidenceMismatches.length > 0
+        ? `Low-confidence criteria exceed score cap (${QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE}): ${scoreConfidenceMismatches.join(",")}`
+        : "Score-confidence alignment holds",
+  });
+
+  const summaryMentionsWeakness = summaryMentionsBottomWeakness(
+    result.overview.one_paragraph_summary,
+    propagation.bottomScoreCriteria,
+  );
+
+  checks.push({
+    check_id: "v2_summary_weakness_presence",
+    passed:
+      propagation.bottomScoreCriteria.length === 0 ||
+      summaryMentionsWeakness,
+    error_code:
+      propagation.bottomScoreCriteria.length > 0 && !summaryMentionsWeakness
+        ? "QG_SUMMARY_OMITS_WEAKNESS"
+        : undefined,
+    details:
+      propagation.bottomScoreCriteria.length > 0 && !summaryMentionsWeakness
+        ? `Overview summary omits bottom-score weakness criteria: ${propagation.bottomScoreCriteria.join(",")}`
+        : "Overview summary references low-score weakness cluster or no weak cluster exists",
   });
 
   const scoredCount = criteria.filter((c) => c.status === "SCORABLE").length;
@@ -812,6 +958,31 @@ export function runQualityGateV2(
 
   if (scoredCount < 7) {
     warnings.push(`LOW_EVALUABILITY_COVERAGE: scored_criteria_count=${scoredCount}/${expectedCount}`);
+  }
+
+  const presentingHighAuthority =
+    artifactGate.verdict === "PASS" &&
+    !result.governance.warnings.some((warning) =>
+      warning.toUpperCase().includes("CONFIDENCE VARIES"),
+    );
+
+  checks.push({
+    check_id: "v2_propagation_integrity",
+    passed: !(propagation.upstreamIntegrity === "weak" && presentingHighAuthority),
+    error_code:
+      propagation.upstreamIntegrity === "weak" && presentingHighAuthority
+        ? "QG_PROPAGATION_INTEGRITY"
+        : undefined,
+    details:
+      propagation.upstreamIntegrity === "weak" && presentingHighAuthority
+        ? "Upstream integrity is weak while artifact presentation remains high-authority"
+        : `Propagation integrity enforced (upstream=${propagation.upstreamIntegrity}, authority=${propagation.authorityLevel})`,
+  });
+
+  if (propagation.upstreamIntegrity === "mixed") {
+    warnings.push(
+      `PROPAGATION_MIXED_CONFIDENCE: low=${propagation.lowConfidenceCount} moderate=${propagation.moderateConfidenceCount} missingEvidence=${propagation.missingEvidenceCount}`,
+    );
   }
 
   const artifactReasonSummary = artifactGate.reasonCodes.join(",") || "none";

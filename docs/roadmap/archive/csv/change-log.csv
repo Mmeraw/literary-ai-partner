@@ -1,0 +1,3 @@
+date,version,summary,rca_ids,evidence
+2026-04-28,V9-canonical-import,"Repo onboards RCA-driven ledger; legacy Roadmap_UPDATED archived.",-,docs/roadmap/archive/RevisionGrade_Roadmap_UPDATED_2026-04-24.xlsx
+2026-04-28,V9.1-pending,"U2-003/U2-006 still PARTIAL_REMOTE LIVE_PROOF_PENDING; do NOT close with Phase 2E evidence.",RCA-U2-003;RCA-U2-006,logs/phase2e-evidence_20260428_111827.log (RLS proof only — NOT U2 closure)

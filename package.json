@@ -15,9 +15,12 @@
     "worker:verify-recovery": "bash scripts/verify-worker-recovery.sh",
     "docs:verify": "bash scripts/verification-contract.sh",
     "docs:runtime:guard": "bash scripts/verify-canonical-runtime-authority.sh",
+    "guard:eval2-persistence-boundary": "bash scripts/guard-eval2-persistence-boundary.sh",
     "verify:zero-drift": "bash scripts/verify-zero-drift.sh",
     "guard:clean-tree": "bash scripts/guard-clean-tree.sh",
     "guard:phase-integrity": "bash scripts/guard-phase-integrity.sh",
+    "guard:u3-prereq": "bash scripts/guard-u3-prereq.sh",
+    "u2:proof:validate": "node scripts/validate-u2-proof.mjs",
     "test": "jest",
     "test:ci": "jest --silent",
     "test:polling": "jest --testPathPatterns=polling",
@@ -151,7 +154,8 @@
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.21.0",
     "typescript": "^5.8.2",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.4",
+    "xlsx": "^0.18.5"
   },
   "overrides": {
     "axios": "1.15.0",

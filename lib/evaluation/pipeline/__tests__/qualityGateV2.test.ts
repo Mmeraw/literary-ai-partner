@@ -189,4 +189,242 @@ describe("runQualityGateV2 integration", () => {
     expect(validation.valid).toBe(false);
     expect(validation.errors.some((error) => error.includes("NONE|WEAK") || error.includes("SUFFICIENT|STRONG"))).toBe(true);
   });
+
+  it("treats scorable_low_confidence below anchor threshold as warning-only", () => {
+    const fixture = makeBaseV2Fixture();
+    const proseControlIndex = CRITERIA_KEYS.indexOf("proseControl");
+
+    fixture.criteria[proseControlIndex] = {
+      ...fixture.criteria[proseControlIndex],
+      evidence: [],
+      score_0_10: 5,
+      scorability_status: "scorable_low_confidence",
+      confidence_level: "low",
+      confidence_score_0_100: 25,
+    } as EvaluationResultV2["criteria"][number];
+    fixture.overview.one_paragraph_summary =
+      "The chapter maintains voice strength, while prose control remains the primary weakness to revise.";
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(true);
+    expect(
+      result.checks.some(
+        (check) => check.check_id === "v2_scored_anchor_threshold" && check.passed,
+      ),
+    ).toBe(true);
+    expect(
+      result.warnings.some((warning) =>
+        warning.includes("LOW_CONFIDENCE_SCORABLE_CRITERIA:"),
+      ),
+    ).toBe(true);
+  });
+
+  it("still hard-fails fully scorable criteria below anchor threshold", () => {
+    const fixture = makeBaseV2Fixture();
+    const proseControlIndex = CRITERIA_KEYS.indexOf("proseControl");
+
+    fixture.criteria[proseControlIndex] = {
+      ...fixture.criteria[proseControlIndex],
+      evidence: [],
+      scorability_status: "scorable",
+      confidence_level: "high",
+      confidence_score_0_100: 90,
+    } as EvaluationResultV2["criteria"][number];
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(false);
+    expect(
+      result.checks.some(
+        (check) => check.check_id === "v2_scored_anchor_threshold" && !check.passed,
+      ),
+    ).toBe(true);
+  });
+
+  it("treats SCORABLE criteria with missing scorability_status as fully scorable and hard-fails under threshold", () => {
+    const fixture = makeBaseV2Fixture();
+    const proseControlIndex = CRITERIA_KEYS.indexOf("proseControl");
+
+    fixture.criteria[proseControlIndex] = {
+      ...fixture.criteria[proseControlIndex],
+      evidence: [],
+      confidence_level: "high",
+      confidence_score_0_100: 90,
+      // Intentionally absent to validate legacy/default behavior.
+      scorability_status: undefined,
+    } as EvaluationResultV2["criteria"][number];
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(false);
+    expect(
+      result.checks.some(
+        (check) => check.check_id === "v2_scored_anchor_threshold" && !check.passed,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not emit low-confidence warning for non_scorable criteria", () => {
+    const fixture = makeBaseV2Fixture();
+    const narrativeClosureIndex = CRITERIA_KEYS.indexOf("narrativeClosure");
+
+    fixture.criteria[narrativeClosureIndex] = {
+      ...fixture.criteria[narrativeClosureIndex],
+      scorable: false,
+      status: "NO_SIGNAL",
+      signal_present: false,
+      signal_strength: "NONE",
+      score_0_10: null,
+      evidence: [],
+      scorability_status: "non_scorable",
+      insufficient_signal_reason: {
+        looked_for: ["closure payoff cues"],
+        not_found: ["insufficient narrative endpoint evidence"],
+      },
+    } as EvaluationResultV2["criteria"][number];
+
+    fixture.overview.scored_criteria_count = CRITERIA_KEYS.length - 1;
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(true);
+    expect(
+      result.warnings.some((warning) =>
+        warning.includes("LOW_CONFIDENCE_SCORABLE_CRITERIA:"),
+      ),
+    ).toBe(false);
+  });
+
+  it("handles mixed scorable states distinctly in one gate run", () => {
+    const fixture = makeBaseV2Fixture();
+    const worldbuildingIndex = CRITERIA_KEYS.indexOf("worldbuilding");
+    const dialogueIndex = CRITERIA_KEYS.indexOf("dialogue");
+    const narrativeClosureIndex = CRITERIA_KEYS.indexOf("narrativeClosure");
+
+    fixture.criteria[worldbuildingIndex] = {
+      ...fixture.criteria[worldbuildingIndex],
+      evidence: [{ snippet: "One sufficient worldbuilding anchor to satisfy threshold." }],
+      scorability_status: "scorable",
+      confidence_level: "high",
+      confidence_score_0_100: 90,
+    } as EvaluationResultV2["criteria"][number];
+
+    fixture.criteria[dialogueIndex] = {
+      ...fixture.criteria[dialogueIndex],
+      evidence: [],
+      score_0_10: 5,
+      scorability_status: "scorable_low_confidence",
+      confidence_level: "low",
+      confidence_score_0_100: 30,
+    } as EvaluationResultV2["criteria"][number];
+
+    fixture.criteria[narrativeClosureIndex] = {
+      ...fixture.criteria[narrativeClosureIndex],
+      scorable: false,
+      status: "NO_SIGNAL",
+      signal_present: false,
+      signal_strength: "NONE",
+      score_0_10: null,
+      evidence: [],
+      scorability_status: "non_scorable",
+      insufficient_signal_reason: {
+        looked_for: ["closure payoff cues"],
+        not_found: ["insufficient narrative endpoint evidence"],
+      },
+    } as EvaluationResultV2["criteria"][number];
+
+    fixture.overview.scored_criteria_count = CRITERIA_KEYS.length - 1;
+    fixture.overview.one_paragraph_summary =
+      "The draft is coherent overall, but dialogue remains the weakest criterion and needs targeted revision.";
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(true);
+    expect(
+      result.warnings.some((warning) =>
+        warning.includes("LOW_CONFIDENCE_SCORABLE_CRITERIA:"),
+      ),
+    ).toBe(true);
+  });
+
+  it("fails on low-confidence criteria exceeding score cap", () => {
+    const fixture = makeBaseV2Fixture();
+    const conceptIndex = CRITERIA_KEYS.indexOf("concept");
+
+    fixture.criteria[conceptIndex] = {
+      ...fixture.criteria[conceptIndex],
+      score_0_10: 8,
+      confidence_level: "low",
+      confidence_score_0_100: 22,
+    } as EvaluationResultV2["criteria"][number];
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(false);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.check_id === "v2_fidelity_score_confidence_alignment" &&
+          !check.passed &&
+          check.error_code === "QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH",
+      ),
+    ).toBe(true);
+  });
+
+  it("fails when summary omits bottom-score weakness cluster", () => {
+    const fixture = makeBaseV2Fixture();
+    const weakKeys = ["pacing", "theme", "narrativeClosure"] as const;
+
+    for (const key of weakKeys) {
+      const idx = CRITERIA_KEYS.indexOf(key);
+      fixture.criteria[idx] = {
+        ...fixture.criteria[idx],
+        score_0_10: 4,
+        confidence_level: "moderate",
+      } as EvaluationResultV2["criteria"][number];
+    }
+
+    fixture.overview.one_paragraph_summary =
+      "The chapter demonstrates strong atmosphere and voice with clear progression.";
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(false);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.check_id === "v2_summary_weakness_presence" &&
+          !check.passed &&
+          check.error_code === "QG_SUMMARY_OMITS_WEAKNESS",
+      ),
+    ).toBe(true);
+  });
+
+  it("fails propagation integrity when upstream is weak but presentation remains high-authority", () => {
+    const fixture = makeBaseV2Fixture();
+    const lowConfidenceKeys = [
+      "concept",
+      "narrativeDrive",
+      "character",
+      "theme",
+      "pacing",
+    ] as const;
+
+    for (const key of lowConfidenceKeys) {
+      const idx = CRITERIA_KEYS.indexOf(key);
+      fixture.criteria[idx] = {
+        ...fixture.criteria[idx],
+        score_0_10: 5,
+        confidence_level: "low",
+        confidence_score_0_100: 20,
+      } as EvaluationResultV2["criteria"][number];
+    }
+
+    fixture.governance.warnings = [];
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(false);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.check_id === "v2_propagation_integrity" &&
+          !check.passed &&
+          check.error_code === "QG_PROPAGATION_INTEGRITY",
+      ),
+    ).toBe(true);
+  });
 });

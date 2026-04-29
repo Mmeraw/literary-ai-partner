@@ -1,0 +1,22 @@
+Source,Type,Use In This Workbook,Status,Notes
+PR #240,GitHub PR,Step 1.5 persistence boundary/U1 Audit boundary scope,Merged,Merge ab611810; boundary suite 4/4.
+PR #241,GitHub PR,Atomic RPC migration,Merged,persist_evaluation_v2_atomic created.
+PR #242,GitHub PR,Boundary success path switched to atomic RPC,Merged,Sequential write path removed.
+PR #243,GitHub PR,Atomic RPC ambiguity hotfix source alignment,Merged,Fix for column reference job_id ambiguity.
+PR #245,GitHub PR,Dialogue Attribution Gate V2,Merged / gate-level enforced,Diagnostic-grounded gate; local + reachable runtime proof.
+Job 29089ed6-0fc7-485b-a699-56498b950295,Supabase evaluation_jobs,Atomic production success-path proof,Complete,"status complete, phase_2, gate_enforcement PASS."
+Artifact af699bd8-1618-4971-a097-b4345f3e7733,Supabase evaluation_artifacts,Atomic artifact proof,Persisted,artifact_type/version evaluation_result_v2.
+100k soak run 2026-04-26T21-32-48-713Z,Evidence artifact,Reliability gate proof,Pass,"100000 events, 0 lost/wrong/unclassified."
+Job 40b377de-30af-4b86-9594-aceda2a5b4ba,Supabase evaluation_jobs,Post-fix QG envelope proof,Failure with envelope,failed_at/pass4 and pipeline_stage/pass4; diagnostics null.
+Jobs 5a413a7f / 3ef78daf,Supabase evaluation_jobs,Pre-fix no-envelope baseline,Historical,Do not use against current envelope work.
+Manuscript 5907 calibration,Production calibration,Dialogue gate reachability / upstream blocker proof,Executed / non-deterministic,"2 complete, 2 PASS1_FAILED, 1 LLR_POST_STRUCTURAL_BLOCK."
+7-day failure query,DB empirical query,PASS1/LLR baseline,Current baseline,"PASS1_FAILED=6, LLR_POST_STRUCTURAL_BLOCK=2."
+Evaluation No. 3 PV115 Final V3 critique,Evaluation review,U2 fidelity/propagation diagnosis,Accepted as planning input,Used to define PV115 golden fixture and U2 scope.
+RevisionGrade canon / NOMENCLATURE / job contract,Docs,Criteria count and lifecycle status contracts,Binding,13 criteria; statuses queued/running/complete/failed.
+This chat session,Conversation,Completed/partial/pending session truth,Current source,Use workbook as persistent state after export.
+Local-vs-remote U2 verification,Repo/workspace assessment,U2-003/U2-006 closure status,Current,"Local workspace edits/tests exist, but remote branch/proof path is not sufficient to mark RESOLVED; use PARTIAL until commit/push + live proof."
+Branch feat/u2-propagation-enforcement @ 35f933a,GitHub branch check,Remote truth check,Current,Remote branch was 1 commit ahead of main; changed files did not include runPass2.anchor-enforcement.test.ts / NO_TEXTUAL_ANCHOR at last remote check.
+ROADMAP.md,Repo markdown roadmap,Roadmap contract status,STALE / NEEDS UPDATE,"Still describes older Step 0/1/1.5 contract and does not reflect RCA-led U2 Batch 2, boundary live proof closure, or U2-003/U2-006 partial status."
+Commit 8ecdde70,GitHub commit,U2-003/U2-006 remote implementation proof,Pushed,feat(u2): enforce deterministic confidence and anchor validation; adds runPipeline/runPass2/types/test surfaces.
+Commit ca12ade4,GitHub commit,ROADMAP.md status precision update,Pushed,docs(roadmap): update U2 status after remote implementation push; records PARTIAL REMOTE IMPLEMENTATION / LIVE_PROOF_PENDING.
+Phase 2E evidence logs,Evidence logs,Not valid for U2 RCA closure,Do not use for U2 closure,Phase 2E/RLS evidence may remain a separate proof class; not closure evidence for U2-003/U2-006.

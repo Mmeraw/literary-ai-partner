@@ -362,6 +362,21 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
     }>;
 }
 
+function hasTextualAnchor(reasoning: string, evidence: EvidenceAnchor[]): boolean {
+  if (/["“”][^"“”]{8,}["“”]/.test(reasoning)) {
+    return true;
+  }
+
+  return evidence.some((anchor) => {
+    const snippet = (anchor.snippet ?? "").trim();
+    if (/["“”][^"“”]{8,}["“”]/.test(snippet)) {
+      return true;
+    }
+
+    return snippet.length >= 20;
+  });
+}
+
 /**
  * Parse and validate a raw OpenAI response for Pass 2.
  * Pure function — no I/O, deterministic, fully testable.
@@ -433,11 +448,20 @@ export function parsePass2Response(raw: string, fallbackModel = PASS2_MODEL): Si
 
     const rawScore = c["score_0_10"];
     const score = Number.isFinite(Number(rawScore)) ? Math.round(Number(rawScore)) : 0;
+    const rationale = String(c["rationale"] ?? "");
+
+    const reasonCodes: string[] = [];
+    let boundedScore = Math.min(10, Math.max(0, score));
+    if (!hasTextualAnchor(rationale, evidence)) {
+      reasonCodes.push("NO_TEXTUAL_ANCHOR");
+      boundedScore = Math.min(boundedScore, 5);
+    }
 
     criteria.push({
       key: key as AxisCriterionResult["key"],
-      score_0_10: Math.min(10, Math.max(0, score)),
-      rationale: String(c["rationale"] ?? ""),
+      score_0_10: boundedScore,
+      reason_codes: reasonCodes.length > 0 ? reasonCodes : undefined,
+      rationale,
       evidence,
       recommendations,
     });

@@ -1,3 +1,6 @@
+> Superseded by `ROADMAP.md` as of 2026-04-25.
+> Do not use as current guidance.
+
 # README
 
 | RevisionGrade Project Management Roadmap Tracker |

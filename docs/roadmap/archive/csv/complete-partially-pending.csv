@@ -1,0 +1,72 @@
+Complete / Partially Complete / Pending — Session Ledger,,,,,,,,,,,,
+Status,Lane,Item,Enforcement_Level,Completed_Scope,Proof_Evidence,Remaining_Gap,Next_Action,Date,Notes,RCA_ID,CAUSE_TYPE,BLOCKED_BY
+Completed,Persistence Boundary,Step 1.5 V2 boundary hardening / U1 Audit scope,ENFORCED — boundary scope,persistEvaluationResultV2 is the sole V2 persistence boundary; validation/gate/confidence happen before persistence; U1 Audit is honestly scoped to persistence boundary.,PR #240; merge ab611810; 4/4 boundary suite; production smokes 5cca06a2 and 01cbbf9e; QG fail 3ef78daf excluded as phase_1,Full system audit trace beyond boundary remains separate.,Keep U1 Audit row as ENFORCED — persistence boundary scope only.,2026-04-26,Cockpit moved to 10/23 at this closeout point.,RCA-ATOMIC-PERSISTENCE-001,DB_RPC,None
+Completed,Atomicity,Block B atomic persistence delivered and proven,ENFORCED,Success path moved from artifact upsert + completion update to atomic RPC; ambiguity hotfix applied live and committed to source.,PR #241 RPC; PR #242 boundary switch; PR #243 ambiguity hotfix; DB function verified SECURITY DEFINER + service_role EXECUTE,None for Block B; monitor regression only.,Keep status ENFORCED; source/DB/runtime aligned.,2026-04-26,Production success proof closed the empirical gap.,RCA-ATOMIC-PERSISTENCE-001,DB_RPC,None
+Completed,Atomicity,Production success-path proof captured,ENFORCED,Controlled service-role smoke on manuscript 5800 completed phase_2 with gate_enforcement PASS and matching artifact row.,Job 29089ed6-0fc7-485b-a699-56498b950295; artifact af699bd8-1618-4971-a097-b4345f3e7733,None for atomicity.,Use as canonical proof row.,2026-04-26,completed_at 2026-04-26T22:23:39.34Z; artifact source_hash recorded.,RCA-ATOMIC-PERSISTENCE-001,DB_RPC,None
+Completed,Reliability,100k soak gate passed,ENFORCED,"Stress soak processed 100,000 events with zero unclassified failures, zero wrong-location edits, zero lost writes, no non-canonical status, no silent fallback.",Evidence dir docs/operations/evidence/runs/2026-04-26T21-32-48-713Z; 9040 retries all handled,None for harness proof; keep it required for reliability lane.,Preserve gate:reliability / soak proof as release guard.,2026-04-26,"Throughput 7058.657 events/sec, concurrency 10.",,,
+Completed,Dialogue Gate V2,Diagnostic-grounded dialogue attribution gate implemented and locally proven,ENFORCED — gate-level deterministic,Lexical-only QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED path replaced by marker OR diagnostic-grounded analysis; local tests green; post-fix reachable runs did not re-trigger QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED.,PR #245; qualityGate.ts; analyzeDialogueAttribution; runPass3Synthesis; runPipeline; fixture PV115,System-level reachability still blocked by upstream Pass 1/LLR on some manuscripts.,"Keep DIALOGUE_ATTRIBUTION_GATE_V2 as gate-level ENFORCED, with reachability caveat.",2026-04-27,Do not confuse upstream non-determinism with dialogue gate failure.,RCA-DIALOGUE-GATE-001,GATE_LOGIC,Upstream reachability only
+Completed,Failure Envelopes,Canonical pipeline_failure_envelope now observable on current failure path,ENFORCED,Recent QG failure job 40b377de has envelope with failed_at=pass4 and pipeline_stage=pass4; older jobs lacked envelope as expected pre-fix baseline.,Job 40b377de-30af-4b86-9594-aceda2a5b4ba; older 5a413a7f and 3ef78daf are pre-fix/no-envelope baseline,Diagnostics propagation is separate and still needs fresh runtime lock.,Keep envelope row ENFORCED; do not overclaim diagnostics.,2026-04-27,This is the diagnostic surface for next investigations.,RCA-FAILURE-ENVELOPE-001,OBSERVABILITY,Fresh diagnostics sample
+Completed,Calibration,Corrected 5-run manuscript 5907 calibration executed,OBSERVED,"5-run calibration produced non-deterministic upstream outcomes: 2 complete, 2 PASS1_FAILED, 1 LLR_POST_STRUCTURAL_BLOCK.","Runs: failed 36s, complete 181s, failed 57s, complete 139s, LLR fail 46s",It did not prove full-pipeline determinism; it proved upstream blockers.,Use results to open Pass 1 feasibility and LLR tracks.,2026-04-27,Discard invalid earlier error_message polling attempt.,RCA-PASS1-TOKEN-001,PROMPT_SCHEMA_BUDGET,Output surface reduction proof
+Completed,Empirical Baseline,7-day failure baseline collected,OBSERVED,Recent PASS1 failures cluster around finish_reason=length at completion_tokens=3500 with empty response; LLR_POST_STRUCTURAL_BLOCK observed separately.,7-day counts: PASS1_FAILED=6; LLR_POST_STRUCTURAL_BLOCK=2; manuscripts 5832 and 5907 affected,Needs mitigation design and proof.,Create PASS_1_OUTPUT_FEASIBILITY track.,2026-04-27,"This is token-budget/output-exhaustion, not dialogue gate.",RCA-PASS1-TOKEN-001,PROMPT_SCHEMA_BUDGET,Output surface reduction proof
+Completed,Evaluation Quality,PV115 Evaluation No. 3 critique synthesized,OBSERVED,Four systems converged: evaluation directionally correct but shallow; confidence is advisory rather than authoritative; U2 is the blocker.,Evaluation No. 3 PV115 Final V3; external AI consensus; repo trace,Implementation still pending.,Use PV115 as golden fixture for U2 fidelity tests.,2026-04-27,"Accuracy target reframed as 99% honesty, not impossible 99% literary truth.",,,
+Completed,Planning,U2 implementation plan locked,SPEC COMPLETE,"Concrete file list, rule logic, thresholds, test cases, and acceptance criteria defined.","qualityGate.ts, runPipeline.ts, runPass3Synthesis.ts, persistEvaluationResultV2.ts, warningClassification.ts, evaluation-result-v2.ts, confidenceDerivation.ts",No code implemented yet in this workbook state.,Begin one implementation PR.,2026-04-27,No more specification needed before coding.,,,
+Partially Complete,Phase 1 Observability,PHASE_1_OBSERVABILITY split from U1 Audit,STRUCTURAL/EMPIRICAL MIXED,"Structured failure envelope exists for current QG path; PASS1/LLR diagnostic surface is improving, but diagnostics are not uniformly proven on every phase_1 failure class.",QG job 40b377de envelope true; PASS1/LLR baseline queried; prior PASS1 jobs had null diagnostics/envelope before patch path,Need fresh post-fix PASS1_FAILED proof with pipeline_failure_envelope populated and diagnostics as applicable.,Patch exact PASS1_FAILED markFailed route and run proof.,2026-04-27,Do not count phase_1 failures against U1 boundary enforcement.,RCA-PASS1-TOKEN-001,PROMPT_SCHEMA_BUDGET,Output surface reduction proof
+Partially Complete,Dialogue Diagnostics,pipeline_failure_diagnostics propagation implemented but not empirically locked,STRUCTURAL ENFORCED / EMPIRICAL PENDING,qualityGate.ts attaches diagnostics; runPipeline carries failure_details; code structure exists.,Repo trace: QualityGateCheck.diagnostics; runPipeline.failure_details; types support diagnostics,Fresh post-deploy failure sample with non-null pipeline_failure_diagnostics still needed.,Force/reproduce post-fix diagnostic-bearing failure and query DB.,2026-04-27,Old 40b377de lacks diagnostics because it predates wiring.,RCA-DIALOGUE-GATE-001,GATE_LOGIC,Upstream reachability only
+Partially Complete,Production Alignment Guard,Guard intentionally parked during dev,PARKED,Production Alignment Guard secrets were not configured by decision; dev work should not churn prod alignment settings.,Decision: leave Vercel/Supabase/GitHub prod guard secrets alone during dev,Will remain blind until production cutover.,"Record as PARKED, not failed.",2026-04-26,Revisit at launch/prod alignment phase.,,,
+Completed,PASS1 Output Feasibility,Pass 1 prerequisite doctrine flip,RESOLVED,Workbook prerequisite flipped after PR #249 structural fix and validated U2 live proof closure run.,PR #249 + U2 proof validator pass (`logs/u2-live-proof/u2-proof-20260429T155922.validation.txt`),No active blocker for U2 closure sequencing.,Reopen only on fresh empirical PASS1 feasibility regression.,2026-04-29,Recorded as deliberate doctrine override before workbook flip; now reconciled.,RCA-PASS1-TOKEN-001,PROMPT_SCHEMA_BUDGET,None
+Partially Complete,LLR,LLR_POST_STRUCTURAL_BLOCK observed as upstream blocker,OPEN,LLR_POST_STRUCTURAL_BLOCK appears in calibration as a pre-gate blocker separate from dialogue attribution gate.,5-run calibration; 7-day counts show 2 LLR_POST_STRUCTURAL_BLOCK,Requires separate RCA/calibration.,Triage LLR-004/LLR post-structural criteria and registry behavior.,2026-04-27,Keep separate from dialogue gate.,RCA-LLR-004-001,AMBIGUOUS,Classify subtype before fix
+Pending,U2,U2 Fidelity / Propagation Enforcement,PENDING,Confidence/weakness signals are still not hard control-flow authority; summary/UI can overstate certainty.,PV115 critique; repo trace confirms static-ish confidence and warning-only low-confidence behavior,Primary next block.,Implement U2 single PR in commit order: schema/types → qualityGate → runPipeline → Pass3 anti-washing → persistence trace → UI → tests.,2026-04-27,This is the Monday first task.,RCA-ATOMIC-PERSISTENCE-001,DB_RPC,None
+Pending,Pass 3,Anti-washing synthesis constraint,PENDING,Pass 3 can sound cleaner/more confident than the score and evidence profile supports.,PV115: positive summary while pacing/theme/closure are weak,Needs deterministic gate/signal.,Require summary to reference at least one bottom-scoring weakness.,2026-04-27,Part of U2 PR.,,,
+Pending,UI Authority,Warning/high-confidence banner fusion,PENDING,UI authority is not yet fully bound to confidence topology and propagation severity.,warningClassification.ts trace,Needs update/test.,Block high-confidence banner when artifact PASS conflicts with low/mixed/weak confidence.,2026-04-27,Part of U2 PR.,,,
+Pending,Golden Fixture,PV115 golden fidelity fixture,PENDING,"PV115 should prove that meta-fiction, Mexico parallel, dogs/environmental signaling, river force imagery, and deliberate withholding cannot be missed while confidence stays high.",Evaluation No. 3 critique,Fixture not yet implemented.,"Add fixture-driven test; if those signals are missed, confidence cannot remain high.",2026-04-27,"Golden fixture supports fidelity, not just schema.",,,
+Pending,Pass 1,Output-surface reduction,PENDING,Pass 1 asks for too much output: likely too many anchors/rationales/recommendations/schema fields for long manuscripts.,PASS1_FAILED finish_reason=length at 3500 completion tokens,Needs design + test.,Measure prompt; remove recommendations/deep rationale from Pass 1; cap evidence to 0–1; shift depth to Pass 2/3.,2026-04-27,"Quality-first fix is output reduction, not optimism.",RCA-PASS1-TOKEN-001,PROMPT_SCHEMA_BUDGET,Output surface reduction proof
+Pending,Prompt Depth,Reasoning depth improvements after U2,PENDING,"Prompts need explicit craft dimensions: meta-fiction, parallel structures, animal/environmental signaling, withholding, cultural texture.",PV115 critique,Should follow U2 truth-control layer.,Update pass1-craft.ts and pass2-editorial.ts after U2 enforcement.,2026-04-27,Prompt depth without U2 can create polished overclaiming.,,,
+Pending,U3,Contradiction detection / Gate 15.2,PENDING,Contradictions can still remain unresolved and clean/high-confidence.,Existing U3 roadmap,Not implemented.,Build detector/taxonomy/artifact fields/gate/UI after U2.,2026-04-27,Still part of remaining 7 open rows.,,,
+Completed,U2 Fidelity,RCA-U2-003 derived confidence,RESOLVED,Deterministic confidence derivation now closed by live persisted artifact proof and validator pass.,`logs/u2-live-proof/u2-proof-20260429T155922.json` + `.validation.txt`,None for RCA-U2-003 closure lane.,Proceed with RCA-U2-004 then downstream U2 sequence.,2026-04-29,Private-beta report wall handled with canonical artifact verification path.,RCA-U2-003,,
+Completed,U2 Fidelity,RCA-U2-006 evidence anchor enforcement,RESOLVED,Anchor-enforcement lane closed with live persisted artifact proof and validator pass.,`logs/u2-live-proof/u2-proof-20260429T155922.json` + `.validation.txt`,None for RCA-U2-006 closure lane.,Proceed with RCA-U2-002 and remaining U2 RCAs.,2026-04-29,"Scope preserved: anchor/citation enforcement evidence captured without widening RCA boundaries.",RCA-U2-006,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
