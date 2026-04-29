@@ -102,7 +102,7 @@ function makeRealSynthesisOutput() {
       top_3_risks: ["pacing", "theme", "narrativeClosure"],
     },
     metadata: {
-      pass1_model: "o3",
+      pass1_model: "gpt-4o",
       pass2_model: "o3",
       pass3_model: "o3",
       generated_at: new Date().toISOString(),
@@ -114,15 +114,25 @@ function makeSupabaseStub() {
   const evaluationJobUpdates: Array<Record<string, unknown>> = [];
   const rpcCalls: Array<{ fn: string; args?: Record<string, unknown> }> = [];
 
+  const now = new Date();
+  const leaseUntil = new Date(now.getTime() + 5 * 60_000).toISOString();
+
   const queuedJob = {
     id: "job-real-gate-test",
     manuscript_id: 789,
     job_type: "evaluate_full",
-    status: "queued",
+    status: "running",
     phase: "phase_1",
-    phase_status: "queued",
-    created_at: new Date().toISOString(),
-    progress: { phase: "phase_1", phase_status: "queued" },
+    phase_status: "running",
+    claimed_by: "test-worker",
+    worker_id: "test-worker",
+    lease_token: "test-lease-token",
+    lease_until: leaseUntil,
+    lease_expires_at: leaseUntil,
+    heartbeat_at: now.toISOString(),
+    started_at: now.toISOString(),
+    created_at: now.toISOString(),
+    progress: { phase: "phase_1", phase_status: "running" },
   };
 
   const manuscript = {
