@@ -154,13 +154,13 @@ describe("parsePass1Response", () => {
     );
   });
 
-  it("truncates evidence snippets to 200 chars", () => {
+  it("truncates evidence snippets to 180 chars", () => {
     const fixture = makePass1Fixture();
     fixture.criteria[0].evidence = [{ snippet: "x".repeat(300) }];
 
     const result = parsePass1Response(JSON.stringify(fixture));
 
-    expect(result.criteria[0].evidence[0].snippet.length).toBe(200);
+        expect(result.criteria[0].evidence[0].snippet.length).toBe(180);
   });
 });
 
