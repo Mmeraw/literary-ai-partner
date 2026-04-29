@@ -127,7 +127,7 @@ export function resolveEvaluationRuntimeConfig(
     max: 8000,
   });
   const pass3MaxTokens = parseBoundedInteger(env, "EVAL_PASS3_MAX_TOKENS", {
-    defaultValue: 5000,
+      defaultValue: 16000,
     min: 2000,
     max: 20000,
   });

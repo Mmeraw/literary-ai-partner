@@ -528,3 +528,30 @@ async function main() {
 }
 
 main();
+
+// claim_job_canonical_assert — added by side-PR C (RCA-JOB-LIFECYCLE-001).
+// After a successful claim RPC call, all canonical claim/lease fields must be
+// non-null on the resulting row. On failure, log full claim/lease state.
+export function assertClaimedRowCanonical(row) {
+  const required = [
+    "claimed_by",
+    "worker_id",
+    "lease_token",
+    "lease_until",
+    "heartbeat_at",
+    "started_at",
+  ];
+  const missing = required.filter((k) => row?.[k] == null);
+  if (missing.length > 0) {
+    console.error("[claim_failure] canonical fields missing", {
+      id: row?.id,
+      status: row?.status,
+      missing,
+      row,
+    });
+    throw new Error(
+      "claim_job_atomic returned a 'running' row without canonical fields: " +
+        missing.join(", ")
+    );
+  }
+}

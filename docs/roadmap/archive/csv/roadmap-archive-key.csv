@@ -1,0 +1,22 @@
+#,Action Item,Original Status,Current Session Reframe,Current Level,Where Now,Success Looks Like,Superseded By
+1,Step 0 / persistence boundary,COMPLETE,Now actually ENFORCED at boundary scope after PR #240,ENFORCED,CURRENT_STATE rows 1–6,Invalid artifacts cannot persist,PR #240
+2,Atomicity hardening,OPEN/PENDING,Completed and empirically proven after PR #241–#243,ENFORCED,CURRENT_STATE rows 7–10,Artifact and job completion are all-or-nothing,Block B Atomicity
+3,Dialogue Attribution Gate V2,PR OPEN / TEST VERIFIED,Gate-level ENFORCED; upstream reachability caveat remains,ENFORCED — gate-level,CURRENT_STATE row 15,No false QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED on reachable runs,PR #245
+4,Quality-gate diagnostics,WIRED LOCALLY,Structural but fresh empirical diagnostics sample still pending,STRUCTURAL ENFORCED / EMPIRICAL PENDING,CURRENT_STATE row 17,New failed gate row has non-null diagnostics,Diagnostics proof
+5,Phase 1 Observability,NONE,Separated from U1; mixed/partial until fresh PASS1 proof is locked,PARTIAL,CURRENT_STATE row 18,PASS1/LLR failures emit canonical envelope and useful diagnostics,PASS1 catch-site work
+6,Pass 1 token budget,Not explicit,Now primary feasibility blocker,FAILED / OPEN,CURRENT_STATE row 19,finish_reason=length eliminated for failing manuscript class,PASS_1_OUTPUT_FEASIBILITY
+7,U2 propagation,PENDING,Now the next mandatory block,PENDING,EXECUTION_BLOCK rows 1–7,Evidence controls confidence/score/summary/UI,U2 PR
+8,Prompt reasoning depth,PENDING,Important but intentionally post-U2,PENDING,ROADMAP_LANES,Prompts look for meta-fiction/parallel/dogs/withholding/cultural texture,Prompt depth PR after U2
+9,U3 contradiction detection,PENDING,Still pending after U2,PENDING,U_GATES_ENFORCEMENT,Contradictions cannot pass clean/high,Gate 15.2
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,

@@ -64,11 +64,14 @@ import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { CRITERIA_KEYS, type CriterionKey } from '@/schemas/criteria-keys';
 import { WAVE_GUIDE_SUMMARY, WAVE_GUIDE_VERSION } from './WAVE_GUIDE';
 import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistence';
+import { persistEvaluationResultV2 } from './persistEvaluationResultV2';
 import {
   runPipeline,
   synthesisToEvaluationResultV2,
 } from '@/lib/evaluation/pipeline/runPipeline';
 import { runQualityGateV2 } from '@/lib/evaluation/pipeline/qualityGate';
+import { buildScoreLedger } from '@/lib/evaluation/pipeline/buildScoreLedger';
+import { buildExcellenceFilter } from '@/lib/evaluation/pipeline/buildExcellenceFilter';
 import { mapEvaluationResultV2ToGovernanceEnvelope } from '@/lib/governance/evaluationBridge';
 import {
   getCanonicalPipelineModel,
@@ -93,6 +96,7 @@ import { JOB_STATUS, type JobStatus } from '@/lib/jobs/types';
 import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
+import { finalizeJobFailure } from '@/lib/jobs/jobStore.supabase';
 
 // DB bootstrap — intentionally reads process.env directly (not evaluation config).
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -128,18 +132,6 @@ export function getValidatedWorkerBatchSize(raw: unknown, fallback = 5): number 
   }
   const normalized = Math.trunc(parsed);
   return normalized >= 1 && normalized <= 5 ? normalized : fallback;
-}
-
-function isMissingSchemaCacheColumnError(error: unknown, columnName: string): boolean {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
-  const record = error as { code?: unknown; message?: unknown };
-  const code = typeof record.code === 'string' ? record.code : '';
-  const message = typeof record.message === 'string' ? record.message : '';
-
-  return code === 'PGRST204' && message.includes(columnName) && message.includes('schema cache');
 }
 
 function isMissingColumnError(error: unknown, columnName: string): boolean {
@@ -202,8 +194,88 @@ type QualitySignalAssessment = {
   warnings: string[];
 };
 
+type PipelineFailureContext = {
+  pipelineStage?: string;
+  reasonCodes?: string[];
+  diagnostics?: unknown;
+};
+
+type PipelineFailureEnvelope = {
+  failure_origin: string;
+  error_code: string;
+  error_message: string;
+  reason_codes: string[];
+  failed_at: string;
+  pipeline_stage: string;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function normalizeReasonCodes(candidates: unknown, fallbackCode: string): string[] {
+  if (!Array.isArray(candidates)) {
+    return [fallbackCode];
+  }
+
+  const unique = Array.from(
+    new Set(
+      candidates
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0),
+    ),
+  );
+
+  return unique.length > 0 ? unique : [fallbackCode];
+}
+
+function normalizeFailureDiagnostics(value: unknown): Record<string, unknown> | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  try {
+    const serialized = JSON.stringify(value);
+    if (!serialized) {
+      return null;
+    }
+
+    if (serialized.length <= 4_000) {
+      const parsed = JSON.parse(serialized);
+      return isRecord(parsed) ? parsed : { value: parsed };
+    }
+
+    return {
+      truncated: true,
+      serialized_head: serialized.slice(0, 4_000),
+      serialized_length: serialized.length,
+    };
+  } catch {
+    return {
+      diagnostics_unserializable: true,
+    };
+  }
+}
+
+function buildPipelineFailureEnvelope(args: {
+  errorCode: string;
+  errorMessage: string;
+  context?: PipelineFailureContext;
+}): PipelineFailureEnvelope {
+  const pipelineStage =
+    typeof args.context?.pipelineStage === 'string' && args.context.pipelineStage.trim().length > 0
+      ? args.context.pipelineStage
+      : 'processor';
+
+  return {
+    failure_origin: 'processor',
+    error_code: args.errorCode,
+    error_message: args.errorMessage,
+    reason_codes: normalizeReasonCodes(args.context?.reasonCodes, args.errorCode),
+    failed_at: pipelineStage,
+    pipeline_stage: pipelineStage,
+  };
 }
 
 function evalDebugLog(message: string, ...args: unknown[]): void {
@@ -340,6 +412,15 @@ function normalizeEffortOrImpact(value: unknown): 'low' | 'medium' | 'high' {
     return candidate;
   }
   return 'medium';
+}
+
+function firstNonEmpty(...candidates: Array<string | null | undefined>): string | null {
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return null;
 }
 
 export function getCalibrationProfile(workType: string | null): CalibrationProfile {
@@ -1038,26 +1119,6 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         ? (job.progress as Record<string, unknown>)
         : {};
 
-    const isPhase1CompleteHandoff =
-      job.status === 'running' &&
-      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
-      (job.phase_status === 'complete' || progress.phase_status === 'complete');
-
-    const isQueueEligiblePhaseStatus =
-      job.phase_status === 'queued' ||
-      progress.phase_status === 'queued';
-
-
-    const isPhase1QueuedCandidate =
-      job.status === 'queued' &&
-      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
-      isQueueEligiblePhaseStatus;
-
-    const isPhase2QueuedCandidate =
-      job.status === 'queued' &&
-      (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
-      isQueueEligiblePhaseStatus;
-
     // Pre-claimed running jobs: atomically claimed by the processor (claimed_by is set,
     // phase_status=running, lease not yet expired). These were transitioned queued->running
     // by claim_evaluation_jobs RPC before being handed to this function.
@@ -1067,6 +1128,13 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       typeof job.lease_token === 'string' &&
       job.lease_token.trim().length > 0;
     const hasLivePreClaimLease = hasLiveLeaseExpiration(job.lease_expires_at);
+
+    const isPhase1CompleteHandoff =
+      job.status === 'running' &&
+      hasCanonicalPreClaimOwnership &&
+      hasLivePreClaimLease &&
+      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
+      (job.phase_status === 'complete' || progress.phase_status === 'complete');
 
     const isPhase1PreClaimed =
       job.status === 'running' &&
@@ -1083,12 +1151,20 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       (job.phase_status === 'running' || progress.phase_status === 'running');
 
     const executionPhase: 'phase_1' | 'phase_2' =
-      isPhase2QueuedCandidate || isPhase2PreClaimed ? 'phase_2' : 'phase_1';
+      isPhase1CompleteHandoff || isPhase2PreClaimed ? 'phase_2' : 'phase_1';
+
+    // Hard guard: queued jobs must be atomically claimed before direct processing.
+    // This function is execution-only for already-claimed running rows.
+    if (job.status === 'queued') {
+      return {
+        success: false,
+        error:
+          `Queued jobs must be claimed before processing. status=${job.status}, phase=${job.phase}, phase_status=${job.phase_status}`,
+      };
+    }
 
     if (
-      !isPhase1QueuedCandidate &&
       !isPhase1CompleteHandoff &&
-      !isPhase2QueuedCandidate &&
       !isPhase1PreClaimed &&
       !isPhase2PreClaimed
     ) {
@@ -1128,6 +1204,10 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       completedUnits: number,
       phase: 'phase_1' | 'phase_2' = 'phase_1',
     ) => {
+      if (!hasCanonicalPreClaimOwnership || !hasLivePreClaimLease) {
+        throw new Error('markRunning requires claimed job');
+      }
+
       const now = new Date().toISOString();
       const stageTimestampPatch: Record<string, unknown> = {};
 
@@ -1206,14 +1286,31 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       });
     };
 
-    const markFailed = async (errorMessage: string) => {
+    const markFailed = async (
+      errorMessage: string,
+      errorCode: string = 'EVALUATION_FAILED',
+      failureContext?: PipelineFailureContext,
+    ) => {
+      /**
+       * CRITICAL: This function now routes through the centralized failure finalizer.
+       * DO NOT add direct DB writes here — all failures flow through finalizeJobFailure().
+       * This ensures atomic updates, consistent retry logic, and auditable error codes.
+       */
       const now = new Date().toISOString();
+      const pipelineFailureEnvelope = buildPipelineFailureEnvelope({
+        errorCode,
+        errorMessage,
+        context: failureContext,
+      });
+      const pipelineFailureDiagnostics = normalizeFailureDiagnostics(failureContext?.diagnostics);
+      const failedPhase =
+        progressState.phase === 'phase_2' || executionPhase === 'phase_2'
+          ? 'phase_2'
+          : 'phase_1';
+
       const nextProgress = {
         ...progressState,
-        phase:
-          progressState.phase === 'phase_2' || progressState.phase === 'phase_1'
-            ? progressState.phase
-            : executionPhase,
+        phase: failedPhase,
         phase_status: 'failed',
         total_units:
           typeof progressState.total_units === 'number'
@@ -1225,6 +1322,11 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
             : 0,
         message: 'Evaluation failed',
         failed_at: now,
+        error_code: errorCode,
+        pipeline_failure_envelope: pipelineFailureEnvelope,
+        ...(pipelineFailureDiagnostics
+          ? { pipeline_failure_diagnostics: pipelineFailureDiagnostics }
+          : {}),
       };
 
       if (!nextProgress.pass3_completed_at && nextProgress.pass3_started_at) {
@@ -1233,10 +1335,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
       Object.assign(progressState, nextProgress);
 
-      const phaseLabel =
-        nextProgress.phase === 'phase_2'
-          ? 'phase2'
-          : 'phase1';
+      const phaseLabel = failedPhase === 'phase_2' ? 'phase2' : 'phase1';
       logProcessorStageBoundary({
         jobId,
         stage: phaseLabel,
@@ -1244,26 +1343,76 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         at: now,
         metadata: {
           error: errorMessage,
+          errorCode,
         },
       });
 
+      const failedStatus = nextLifecycleStatus(JOB_STATUS.FAILED);
+      let finalizeSucceeded = false;
+
+      const fallbackPayload = {
+        status: failedStatus,
+        phase: failedPhase,
+        phase_status: 'failed',
+        total_units: nextProgress.total_units,
+        completed_units: nextProgress.completed_units,
+        progress: nextProgress,
+        last_error: errorMessage,
+        failure_code: errorCode,
+        failed_at: now,
+        updated_at: now,
+      };
+
       try {
-        await supabase
+        // Route through centralized failure finalizer — atomic, retryable-aware, audited
+        const finalizeResult = await finalizeJobFailure({
+          jobId,
+          errorEnvelope: {
+            code: errorCode,
+            message: errorMessage,
+            retryable: false, // Processor failures are typically deterministic
+          },
+        });
+
+        // Log retry eligibility for observability
+        console.log(`[Processor] Job ${jobId} failed with code ${errorCode}; retryEligible=${finalizeResult.retryEligible}; attempt=${finalizeResult.attemptCount}/${finalizeResult.maxAttempts}`);
+        finalizeSucceeded = true;
+      } catch (finalizeError) {
+        console.error(
+          `[Processor] finalizeJobFailure failed for ${jobId}; using fallback failure write:`,
+          finalizeError instanceof Error ? finalizeError.message : String(finalizeError)
+        );
+      }
+
+      if (finalizeSucceeded) {
+        // Preserve centralized failure ownership: patch envelope diagnostics into progress only.
+        const { error: progressPatchError } = await supabase
           .from('evaluation_jobs')
           .update({
-            status: nextLifecycleStatus(JOB_STATUS.FAILED),
-            phase: nextProgress.phase,
-            phase_status: 'failed',
-            total_units: nextProgress.total_units,
-            completed_units: nextProgress.completed_units,
             progress: nextProgress,
-            last_error: errorMessage,
-            failed_at: now, // Per-stage timestamp (R4 observability)
             updated_at: now,
           })
           .eq('id', jobId);
-      } catch (writeError) {
-        console.error(`[Processor] Failed writing failure state for job ${jobId}:`, writeError);
+
+        if (progressPatchError) {
+          console.warn(
+            `[Processor] Envelope progress patch failed for ${jobId}: ${progressPatchError.message}`,
+          );
+        }
+
+        return;
+      }
+
+      // Fail-closed fallback: centralized finalization failed, so we must persist terminal state here.
+      const { error: fallbackError } = await supabase
+        .from('evaluation_jobs')
+        .update(fallbackPayload)
+        .eq('id', jobId);
+
+      if (fallbackError) {
+        throw new Error(
+          `[Processor] Failed to persist terminal failure state for ${jobId}: ${fallbackError.message}`,
+        );
       }
     };
 
@@ -1440,8 +1589,56 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       const pipelineError =
         `[Pipeline:${pipelineResult.failed_at}] ${pipelineResult.error_code} ${pipelineResult.error}` +
         (serializedFailureDetails ? ` | failure_details=${serializedFailureDetails}` : "");
+
+      const llrDiagnosticSnapshot = pipelineResult.failure_details?.llr_diagnostic_snapshot;
+      if (llrDiagnosticSnapshot) {
+        try {
+          const diagnosticSourceHash = stableSourceHash({
+            manuscriptId: manuscript.id,
+            jobId: job.id,
+            userId: manuscriptWithContent.user_id,
+            manuscriptText: manuscriptWithContent.content || '(No content provided)',
+            promptVersion: `diagnostic_pass3_snapshot_v1:${llrDiagnosticSnapshot.stage}`,
+            model: getCanonicalPipelineModel(openAiModel),
+          });
+
+          await upsertEvaluationArtifact({
+            supabase,
+            jobId: job.id,
+            manuscriptId: job.manuscript_id,
+            artifactType: 'diagnostic_pass3_snapshot_v1',
+            artifactVersion: 'diagnostic_pass3_snapshot_v1',
+            sourceHash: diagnosticSourceHash,
+            content: {
+              schema_version: 'diagnostic_pass3_snapshot_v1',
+              created_at: new Date().toISOString(),
+              job_id: job.id,
+              manuscript_id: manuscript.id,
+              failed_at: pipelineResult.failed_at,
+              error_code: pipelineResult.error_code,
+              stage: llrDiagnosticSnapshot.stage,
+              blocked_rule_ids: llrDiagnosticSnapshot.blocked_rule_ids,
+              convergence_result: llrDiagnosticSnapshot.convergence_result,
+            },
+          });
+
+          console.log(`[Processor] ${jobId}: persisted diagnostic pass3 snapshot artifact`);
+        } catch (diagnosticPersistError) {
+          console.warn(
+            `[Processor] ${jobId}: failed to persist diagnostic pass3 snapshot`,
+            diagnosticPersistError instanceof Error
+              ? diagnosticPersistError.message
+              : String(diagnosticPersistError),
+          );
+        }
+      }
+
       console.error(`[Processor] Pipeline failed for job ${jobId}: ${pipelineError}`);
-      await markFailed(pipelineError);
+      await markFailed(pipelineError, pipelineResult.error_code || 'PIPELINE_ERROR', {
+        pipelineStage: pipelineResult.failed_at,
+        reasonCodes: [pipelineResult.error_code || 'PIPELINE_ERROR'],
+        diagnostics: pipelineResult.failure_details,
+      });
 
       return { success: false, error: pipelineError };
     }
@@ -1477,21 +1674,91 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       },
       crossCheckResult: pipelineResult.cross_check,
       pass4Governance: pipelineResult.pass4_governance,
+      sourceText: manuscriptWithContent.content || "",
     });
     console.log(
       `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
     );
 
-    const qualityGateV2 = runQualityGateV2(evaluationResult);
+    const artifactCriteria = pipelineResult.synthesis.criteria.map((criterion) => ({
+      key: criterion.key,
+      final_score_0_10: criterion.final_score_0_10,
+      reasoning: criterion.final_rationale,
+      evidence: criterion.evidence.map((item) => item.snippet).filter(Boolean).join(' | '),
+      interpretation:
+        criterion.consequence_status === 'deferred'
+          ? firstNonEmpty(
+              criterion.deferred_consequence_risk,
+              criterion.decision_points?.length ? criterion.decision_points.join(' ') : null,
+              criterion.pressure_points?.length ? criterion.pressure_points.join(' ') : null,
+            ) ?? ''
+          : firstNonEmpty(
+              criterion.consequence_status
+                ? `${criterion.consequence_status}: ${criterion.decision_points.join(' ')}`.trim()
+                : null,
+              criterion.decision_points?.length ? criterion.decision_points.join(' ') : null,
+            ) ?? '',
+    }));
+    const scoreLedger = buildScoreLedger({
+      criteria: artifactCriteria.map((criterion) => ({
+        final_score_0_10: criterion.final_score_0_10,
+      })),
+    });
+    const excellenceFilter = buildExcellenceFilter({
+      criteria: artifactCriteria.map((criterion) => ({
+        key: criterion.key,
+        final_score_0_10: criterion.final_score_0_10,
+      })),
+    });
+
+    const qualityGateV2 = runQualityGateV2(evaluationResult, {
+      criteria: artifactCriteria,
+      ledger: scoreLedger,
+      efg: excellenceFilter,
+    });
+
     if (!qualityGateV2.pass) {
       const failedChecks = qualityGateV2.checks
         .filter((check) => !check.passed)
         .map((check) => `${check.check_id}: ${check.details ?? check.error_code ?? 'failed'}`);
       const gateError = `[QualityGateV2] ${failedChecks.join('; ')}`;
-      await markFailed(gateError);
+      await markFailed(gateError, 'QG_FAILED');
 
       return { success: false, error: gateError };
     }
+
+    const artifactGateDecision = qualityGateV2.artifactGate ?? {
+      verdict: 'PASS',
+      reasonCodes: [] as string[],
+      validatedAt: new Date().toISOString(),
+      enforcementMode: 'enforce' as const,
+    };
+
+    evaluationResult.governance.warnings = [
+      ...(evaluationResult.governance.warnings ?? []),
+      ...(qualityGateV2.warnings ?? []),
+      ...(artifactGateDecision.reasonCodes.length > 0
+        ? [
+            `[ArtifactValidation:${artifactGateDecision.verdict}] reason_codes=${artifactGateDecision.reasonCodes.join(',')}`,
+          ]
+        : []),
+    ];
+    evaluationResult.governance.transparency = {
+      ...(evaluationResult.governance.transparency ?? {}),
+      artifact_validation_result: artifactGateDecision.verdict,
+      artifact_reason_codes: artifactGateDecision.reasonCodes,
+      artifact_validated_at: artifactGateDecision.validatedAt,
+      score_ledger: {
+        raw_total: scoreLedger.rawTotal,
+        max_total: scoreLedger.maxTotal,
+        normalized_total: scoreLedger.normalized,
+        weighting: scoreLedger.weighting,
+      },
+      excellence_filter: {
+        verdict: excellenceFilter.verdict,
+        blocking_criteria: excellenceFilter.blockingCriteria,
+      },
+    };
 
     const governanceBridgeProjection = mapEvaluationResultV2ToGovernanceEnvelope(evaluationResult);
     console.log(
@@ -1514,7 +1781,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           offending_entities: contaminationCheck.offendingEntities.slice(0, 10),
           reasons: contaminationCheck.reasons.slice(0, 10),
         });
-        await markFailed(contaminationDetail);
+        await markFailed(contaminationDetail, 'CONTEXT_CONTAMINATION_DETECTED');
 
         return { success: false, error: 'CONTEXT_CONTAMINATION_DETECTED' };
       }
@@ -1547,7 +1814,6 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     await markRunning('Persisting evaluation artifacts', 2, 'phase_2');
 
-    const completionTime = new Date().toISOString();
     const existingProgress = { ...progressState };
 
     // 5. Persist canonical artifact with idempotent upsert (fail-closed)
@@ -1581,51 +1847,82 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     try {
       console.log(
-        `[Processor] ${jobId}: ENTER upsertEvaluationArtifact manuscriptId=${job.manuscript_id}`,
+        `[Processor] ${jobId}: ENTER persistEvaluationResultV2 manuscriptId=${job.manuscript_id}`,
       );
-      const artifactId = await upsertEvaluationArtifact({
+
+      const finalizeStartedAt = startLatencyStage({
+        jobId,
+        stage: 'finalize',
+        metadata: {
+          state: 'completion_update_started',
+        },
+      });
+
+      const persistenceResult = await persistEvaluationResultV2({
         supabase,
         jobId: job.id,
         manuscriptId: job.manuscript_id,
-        artifactType: 'evaluation_result_v2',
-        content: evaluationResult,
+        evaluationResult,
         sourceHash,
-        artifactVersion: 'evaluation_result_v2',
+        progressSnapshot: existingProgress,
+        totalUnits: EVALUATION_PROGRESS_TOTAL_UNITS,
+        completedUnits: EVALUATION_PROGRESS_TOTAL_UNITS,
       });
 
-      console.log(`[Processor] ${jobId}: EXIT upsertEvaluationArtifact id=${artifactId}`);
-      console.log(`[Processor] Canonical artifact upserted: ${artifactId}`);
+      if (!persistenceResult.persisted) {
+        const failureReason = 'reason' in persistenceResult
+          ? persistenceResult.reason
+          : 'Boundary rejected persistence without reason';
 
-          // Fail-closed read-back: verify artifact was actually persisted
-    const { data: readBackArtifact, error: readBackError } = await supabase
-      .from('evaluation_artifacts')
-      .select('id')
-      .eq('job_id', job.id)
-      .eq('manuscript_id', job.manuscript_id)
-      .eq('artifact_type', 'evaluation_result_v2')
-      .maybeSingle();
-    if (readBackError || !readBackArtifact) {
+        finishLatencyStage({
+          jobId,
+          stage: 'persist_artifacts',
+          startedAt: persistArtifactsStartedAt,
+          state: 'failed',
+          metadata: {
+            finish_reason: failureReason,
+          },
+        });
+
+        finishLatencyStage({
+          jobId,
+          stage: 'finalize',
+          startedAt: finalizeStartedAt,
+          state: 'failed',
+          metadata: {
+            finish_reason: failureReason,
+          },
+        });
+
+        return { success: false, error: failureReason };
+      }
+
+      console.log(
+        `[Processor] ${jobId}: EXIT persistEvaluationResultV2 artifactId=${persistenceResult.artifactId}`,
+      );
+
       finishLatencyStage({
         jobId,
         stage: 'persist_artifacts',
         startedAt: persistArtifactsStartedAt,
-        state: 'failed',
-        metadata: {
-          finish_reason: 'artifact_read_back_failed',
-        },
+        state: 'completed',
       });
 
-      const readBackMsg = `Fail-closed: artifact read-back failed after upsert (${readBackError?.message ?? 'row not found'})`;
-      await markFailed(readBackMsg);
-      return { success: false, error: readBackMsg };
-    }
+      finishLatencyStage({
+        jobId,
+        stage: 'finalize',
+        startedAt: finalizeStartedAt,
+        state: 'completed',
+      });
 
-    finishLatencyStage({
-      jobId,
-      stage: 'persist_artifacts',
-      startedAt: persistArtifactsStartedAt,
-      state: 'completed',
-    });
+      logProcessorStageBoundary({
+        jobId,
+        stage: 'finalized',
+        state: 'complete',
+        at: persistenceResult.completedAt,
+      });
+
+      nextLifecycleStatus(JOB_STATUS.COMPLETE);
     } catch (artifactError) {
       finishLatencyStage({
         jobId,
@@ -1638,102 +1935,13 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       });
 
       const errorMsg = artifactError instanceof Error ? artifactError.message : String(artifactError);
-      await markFailed(`Artifact persistence failed: ${errorMsg}`);
+      await markFailed(`Artifact persistence failed: ${errorMsg}`, 'ARTIFACT_PERSISTENCE_FAILED', {
+        pipelineStage: 'phase_2',
+        reasonCodes: ['ARTIFACT_PERSISTENCE_FAILED'],
+      });
 
       return { success: false, error: `Artifact persistence failed: ${errorMsg}` };
     }
-
-    // 6. Store evaluation result and mark complete only after artifact exists
-    console.log(`[Processor] ${jobId}: ENTER completion update`);
-
-    const completionStatus = nextLifecycleStatus(JOB_STATUS.COMPLETE);
-    const completionPayloadBase = {
-      status: completionStatus,
-      phase: 'phase_2',
-      phase_status: 'complete',
-      total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-      completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-      progress: {
-        ...existingProgress,
-        finalized_at: completionTime,
-        phase: 'phase_2',
-        phase_status: 'complete',
-        total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-        completed_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-        message: 'Evaluation completed',
-        finished_at: completionTime,
-      },
-      evaluation_result: evaluationResult,
-      evaluation_result_version: 'evaluation_result_v2',
-      last_heartbeat: completionTime,
-      last_heartbeat_at: completionTime,
-      heartbeat_at: completionTime,
-      last_error: null,
-      updated_at: completionTime,
-      // Per-stage timestamps (R4 observability)
-      completed_at: completionTime,
-    };
-
-    const finalizeStartedAt = startLatencyStage({
-      jobId,
-      stage: 'finalize',
-      metadata: {
-        state: 'completion_update_started',
-      },
-    });
-
-    let { error: updateError } = await supabase
-      .from('evaluation_jobs')
-      .update({
-        ...completionPayloadBase,
-        phase2_completed_at: completionTime,
-      })
-      .eq('id', jobId);
-
-    if (updateError && isMissingSchemaCacheColumnError(updateError, 'phase2_completed_at')) {
-      console.warn(
-        `[Processor] ${jobId}: stale schema cache for phase2_completed_at; retrying completion update without optional column`,
-      );
-      ({ error: updateError } = await supabase
-        .from('evaluation_jobs')
-        .update(completionPayloadBase)
-        .eq('id', jobId));
-    }
-
-    console.log(
-      `[Processor] ${jobId}: EXIT completion update error=${updateError ? updateError.message : 'none'}`,
-    );
-
-    if (updateError) {
-      finishLatencyStage({
-        jobId,
-        stage: 'finalize',
-        startedAt: finalizeStartedAt,
-        state: 'failed',
-        metadata: {
-          finish_reason: updateError.message,
-        },
-      });
-
-      await markFailed(`Completion update failed: ${updateError.message}`);
-
-      console.error(`[Processor] Failed to update job ${jobId}:`, updateError);
-      return { success: false, error: `Failed to store result: ${updateError.message}` };
-    }
-
-    finishLatencyStage({
-      jobId,
-      stage: 'finalize',
-      startedAt: finalizeStartedAt,
-      state: 'completed',
-    });
-
-    logProcessorStageBoundary({
-      jobId,
-      stage: 'finalized',
-      state: 'complete',
-      at: completionTime,
-    });
 
     console.log(`[Processor] Job ${jobId} completed successfully`);
 
@@ -1743,35 +1951,49 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[Processor] Error processing job ${jobId}:`, errorMessage);
 
-    // Update job status to failed
     const now = new Date().toISOString();
     const failedStatus = normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus;
     if (lifecycleStatus && lifecycleStatus !== failedStatus) {
-      try {
-        assertValidJobStatusTransition(lifecycleStatus, failedStatus);
-      } catch (transitionError) {
-        console.warn(
-          `[Processor] transition validator rejected catch-path status change ${lifecycleStatus} -> ${failedStatus}: ${String(
-            transitionError,
-          )}`,
-        );
-      }
+      assertValidJobStatusTransition(lifecycleStatus, failedStatus);
     }
 
+    // Route uncaught errors through centralized failure finalizer
     try {
-      await supabase
+      await finalizeJobFailure({
+        jobId,
+        errorEnvelope: {
+          code: 'PROCESSOR_UNCAUGHT_ERROR',
+          message: errorMessage,
+          retryable: false, // Conservative: uncaught errors are terminal until investigated
+        },
+      });
+    } catch (finalizeError) {
+      console.error(
+        `[Processor] Failed to finalize uncaught error for ${jobId}:`,
+        finalizeError instanceof Error ? finalizeError.message : String(finalizeError)
+      );
+
+      // Fail-closed fallback persistence for uncaught failures.
+      const { error: fallbackError } = await supabase
         .from('evaluation_jobs')
         .update({
           status: failedStatus,
+          phase_status: 'failed',
           total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
           completed_units: 0,
-          phase_status: 'failed',
           last_error: errorMessage,
+          failed_at: now,
           updated_at: now,
         })
         .eq('id', jobId);
-    } catch (updateError) {
-      console.error(`[Processor] Failed to update job status to failed:`, updateError);
+
+      if (fallbackError) {
+        throw new Error(
+          `[Processor] Uncaught-error fallback finalization failed for ${jobId}: ${fallbackError.message}`,
+        );
+      }
+
+      // Preserve processEvaluationJob contract: return { success: false } from catch path
     }
 
     return { success: false, error: errorMessage };

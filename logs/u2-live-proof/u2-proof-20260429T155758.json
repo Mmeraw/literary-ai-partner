@@ -1,0 +1,75 @@
+{
+  "collectedAt": "2026-04-29T15:57:59.217Z",
+  "jobId": "f64c3266-f969-449a-aff4-18bfefcda9a6",
+  "job": {
+    "id": "f64c3266-f969-449a-aff4-18bfefcda9a6",
+    "status": "complete",
+    "createdAt": "2026-04-28T20:20:30.840275+00:00",
+    "updatedAt": "2026-04-28T20:23:01.791784+00:00",
+    "claimedBy": "production:169.254.50.147:39d3c6f9-d04",
+    "leaseUntil": "2026-04-28T20:23:31.351+00:00",
+    "progress": {
+      "gate_enforcement": {
+        "confidence": {
+          "reasons": [],
+          "confidence": "high"
+        },
+        "gate_reason": "Artifact validation result is PASS",
+        "propagation": {
+          "reasons": [
+            "mixed_confidence_profile"
+          ],
+          "authority_level": "constrained",
+          "upstream_integrity": "mixed",
+          "weak_evidence_count": 0,
+          "low_confidence_count": 0,
+          "bottom_score_criteria": [
+            "pacing",
+            "narrativeClosure"
+          ],
+          "missing_evidence_count": 0,
+          "moderate_confidence_count": 4,
+          "scorable_low_confidence_count": 0
+        },
+        "reason_codes": [],
+        "validated_at": "2026-04-28T20:23:01.729Z",
+        "gate_decision": "PASS",
+        "validation_result": "PASS"
+      }
+    }
+  },
+  "artifact": {
+    "id": "a44448e7-fa58-422d-8343-559772044a0e",
+    "type": "evaluation_result_v2",
+    "version": "evaluation_result_v2",
+    "createdAt": "2026-04-28T20:23:01.729+00:00"
+  },
+  "u2Proof": {
+    "confidenceLabel": null,
+    "confidenceReasons": null,
+    "anchors": null,
+    "reasonCodes": null,
+    "propagation": {
+      "reasons": [
+        "mixed_confidence_profile"
+      ],
+      "authority_level": "constrained",
+      "upstream_integrity": "mixed",
+      "weak_evidence_count": 0,
+      "low_confidence_count": 0,
+      "bottom_score_criteria": [
+        "pacing",
+        "narrativeClosure"
+      ],
+      "missing_evidence_count": 0,
+      "moderate_confidence_count": 4,
+      "scorable_low_confidence_count": 0
+    }
+  },
+  "verificationChecklist": {
+    "bottomWeaknessInSummary": "PENDING ❌ — set to PASS after manual report verification",
+    "confidenceBannerMatchesLabel": "PENDING ❌ — set to PASS after manual report verification",
+    "noFalseHighConfidenceAuthority": "PENDING ❌ — set to PASS after manual report verification",
+    "propagationPersistedInDB": "PASS"
+  }
+}

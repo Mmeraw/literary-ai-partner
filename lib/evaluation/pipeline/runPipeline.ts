@@ -22,6 +22,10 @@ import {
   runQualityGate as defaultRunQualityGate,
   summarizeQualityGateFailures,
 } from "./qualityGate";
+import { buildScoreLedger } from "./buildScoreLedger";
+import { buildExcellenceFilter } from "./buildExcellenceFilter";
+import { buildAdvisoryPlan } from "./buildAdvisoryPlan";
+import { computeCriterionConfidence } from "./criterionConfidence";
 import type { PipelineResult, SinglePassOutput, SynthesisOutput, QualityGateResult } from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
@@ -55,6 +59,7 @@ import {
   startLatencyStage,
 } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
+import { summarizePropagationIntegrity } from "./propagationIntegrity";
 import type {
   RuleEvaluationInput,
   RuleStage,
@@ -141,6 +146,12 @@ type PipelineTimings = {
   pass4_ms?: number;
 };
 
+type GovernanceConfidenceDerivation = {
+  confidence: number;
+  confidenceLabel: "high" | "medium" | "low" | "withheld";
+  confidenceReasons: string[];
+};
+
 function logPipelineTimings(
   stage: "success" | "failure",
   meta: {
@@ -161,6 +172,84 @@ function logPipelineTimings(
     error_code: meta.errorCode ?? null,
     ...meta.timings,
   });
+}
+
+function hasTextualAnchorSignal(criterion: EvaluationResultV2["criteria"][number]): boolean {
+  if (/["“”][^"“”]{8,}["“”]/.test(criterion.rationale ?? "")) {
+    return true;
+  }
+
+  return criterion.evidence.some((anchor) => {
+    const snippet = (anchor.snippet ?? "").trim();
+    if (/["“”][^"“”]{8,}["“”]/.test(snippet)) {
+      return true;
+    }
+
+    return snippet.length >= 20;
+  });
+}
+
+function enforceTextualAnchorConfidence(
+  criterion: EvaluationResultV2["criteria"][number],
+): EvaluationResultV2["criteria"][number] {
+  if (hasTextualAnchorSignal(criterion)) {
+    return criterion;
+  }
+
+  const existingReasons = Array.isArray(criterion.confidence_reasons)
+    ? criterion.confidence_reasons
+    : [];
+
+  return {
+    ...criterion,
+    confidence_band: "LOW",
+    confidence_level: "low",
+    confidence_score_0_100: Math.min(criterion.confidence_score_0_100 ?? 100, 45),
+    confidence_reasons: Array.from(new Set([...existingReasons, "NO_TEXTUAL_ANCHOR"])),
+    scorability_status:
+      criterion.scorability_status === "non_scorable"
+        ? "non_scorable"
+        : "scorable_low_confidence",
+  };
+}
+
+function deriveGovernanceConfidenceFromCriteria(
+  criteria: EvaluationResultV2["criteria"],
+  propagation: ReturnType<typeof summarizePropagationIntegrity>,
+): GovernanceConfidenceDerivation {
+  const low = criteria.filter((c) => c.confidence_level === "low").length;
+  const moderate = criteria.filter((c) => c.confidence_level === "moderate").length;
+  const missing = criteria.filter((c) => c.evidence.length === 0).length;
+  const weak = criteria.filter((c) => c.status === "SCORABLE" && c.evidence.length < 2).length;
+
+  let confidenceLabel: GovernanceConfidenceDerivation["confidenceLabel"] = "high";
+  if (propagation.upstreamIntegrity === "weak" || low >= 5 || missing >= 4) {
+    confidenceLabel = "low";
+  } else if (
+    propagation.upstreamIntegrity === "mixed" ||
+    low >= 3 ||
+    moderate >= 4 ||
+    weak >= 4
+  ) {
+    confidenceLabel = "medium";
+  }
+
+  const confidence =
+    confidenceLabel === "high" ? 0.9 : confidenceLabel === "medium" ? 0.7 : 0.55;
+
+  const confidenceReasons = [
+    ...propagation.reasons,
+    `low=${low}`,
+    `moderate=${moderate}`,
+    `missing=${missing}`,
+    `weak=${weak}`,
+  ];
+
+  return {
+    confidence,
+    confidenceLabel,
+    confidenceReasons,
+  };
 }
 
 function validatePipelineInput(opts: RunPipelineOptions): string | null {
@@ -296,16 +385,33 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     const checkpoint = getLlrCheckpointForStage(stage, governanceInjectionMap);
 
     if (decision.action === "BLOCK") {
-      const failedRules = report.results
+      const blockedRuleIds = report.results
         .filter((r) => !r.passed && r.severity === "ERROR")
-        .map((r) => r.rule_id)
-        .join(", ");
+        .map((r) => r.rule_id);
+      const failedRules = blockedRuleIds.join(", ");
+
+      const llrDiagnosticSnapshot =
+        (stage === "post_convergence" || stage === "pre_artifact_generation") &&
+        typeof pass3Output !== "undefined"
+          ? {
+              stage,
+              blocked_rule_ids: blockedRuleIds,
+              convergence_result: pass3Output,
+            }
+          : undefined;
 
       return {
         ok: false,
         error: `Lessons-learned enforcement blocked at ${stage}: ${decision.reason}${failedRules ? ` (rules: ${failedRules})` : ""}${checkpointContext(checkpoint)}`,
         error_code: checkpoint.blockErrorCode ?? `LLR_${stage.toUpperCase()}_BLOCK`,
         failed_at: failedAt,
+        ...(llrDiagnosticSnapshot
+          ? {
+              failure_details: {
+                llr_diagnostic_snapshot: llrDiagnosticSnapshot,
+              },
+            }
+          : {}),
       };
     }
 
@@ -399,7 +505,6 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       workType: opts.workType,
       title: opts.title,
       executionMode: opts.executionMode,
-      model: opts.model,
       openaiApiKey: opts.openaiApiKey,
       jobId: opts.jobId,
       registry,
@@ -672,6 +777,30 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   {
+    const criteriaForDerivedPlans = pass3Output.criteria.map((criterion) => ({
+      key: criterion.key,
+      final_score_0_10: criterion.final_score_0_10,
+    }));
+
+    const scoreLedger = buildScoreLedger({
+      criteria: criteriaForDerivedPlans,
+    });
+    const excellenceFilter = buildExcellenceFilter({
+      criteria: criteriaForDerivedPlans,
+    });
+    const advisoryPlan = buildAdvisoryPlan({
+      criteria: criteriaForDerivedPlans,
+    });
+
+    console.log("[Pipeline][DerivedEvaluationPlans]", {
+      manuscript_id: opts.manuscriptId ?? null,
+      title: opts.title,
+      score_ledger: scoreLedger,
+      excellence_filter: excellenceFilter,
+      advisory_plan_count: advisoryPlan.length,
+      blocking_advisory_count: advisoryPlan.filter((item) => item.severity === "blocking").length,
+    });
+
     const llrPostConvergence = enforceLessonsLearnedStage("post_convergence", "pass3", {
       structural_result: pass1Output,
       diagnostic_result: pass2Output,
@@ -753,6 +882,14 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       error: `Quality gate failed: ${details}${checkpointContext(qualityGateCheckpoint)}`,
       error_code: errorCode,
       failed_at: "pass4",
+      failure_details: {
+        quality_gate_checks: failedChecks.map((c) => ({
+          check_id: c.check_id,
+          error_code: c.error_code,
+          details: c.details,
+          ...(c.diagnostics !== undefined ? { diagnostics: c.diagnostics } : {}),
+        })),
+      },
     };
   }
 
@@ -890,6 +1027,8 @@ export interface SynthesisToEvaluationResultOptions {
   /** Optional passage-level coverage hints for observability classification. */
   passageCoverageRatio?: number;
   sentenceCount?: number;
+  /** Optional source text for deterministic anchor/source matching in confidence computation. */
+  sourceText?: string;
 }
 
 const DEFAULT_ADAPTER_CONFIDENCE = 0.85;
@@ -991,28 +1130,45 @@ export function synthesisToEvaluationResult(
 ): EvaluationResultV1 {
   const { synthesis, ids, crossCheckResult, pass4Governance } = opts;
 
-  const criteria: EvaluationResultV1["criteria"] = synthesis.criteria.map((c) => ({
-    key: c.key,
-    score_0_10: c.final_score_0_10,
-    rationale: c.final_rationale,
-    evidence: c.evidence.map((e) => ({
-      snippet: e.snippet,
-      ...(e.char_start !== undefined || e.char_end !== undefined
-        ? {
-            location: {
-              char_start: e.char_start,
-              char_end: e.char_end,
-              segment_id: e.segment_id,
-            },
-          }
-        : {}),
-    })),
-    recommendations: c.recommendations.map((r) => ({
-      priority: r.priority,
-      action: r.action,
-      expected_impact: r.expected_impact,
-    })),
-  }));
+  const criteria: EvaluationResultV1["criteria"] = synthesis.criteria.map((c) => {
+    const confidence = computeCriterionConfidence(
+      {
+        key: c.key,
+        final_score_0_10: c.final_score_0_10,
+        final_rationale: c.final_rationale,
+        evidence: c.evidence,
+        recommendations: c.recommendations,
+      },
+      opts.sourceText,
+    );
+
+    return {
+      key: c.key,
+      score_0_10: c.final_score_0_10,
+      confidence_score_0_100: confidence.confidence_score_0_100,
+      confidence_level: confidence.confidence_level,
+      confidence_reasons: confidence.confidence_reasons,
+      scorability_status: confidence.scorability_status,
+      rationale: c.final_rationale,
+      evidence: c.evidence.map((e) => ({
+        snippet: e.snippet,
+        ...(e.char_start !== undefined || e.char_end !== undefined
+          ? {
+              location: {
+                char_start: e.char_start,
+                char_end: e.char_end,
+                segment_id: e.segment_id,
+              },
+            }
+          : {}),
+      })),
+      recommendations: c.recommendations.map((r) => ({
+        priority: r.priority,
+        action: r.action,
+        expected_impact: r.expected_impact,
+      })),
+    };
+  });
 
   // Derive quick_wins (high-priority recs from all criteria)
   const quick_wins = synthesis.criteria
@@ -1106,40 +1262,48 @@ export function synthesisToEvaluationResultV2(
     criteriaPlan,
     passageCoverageRatio,
     sentenceCount,
+    sourceText,
   } = opts;
 
-  const criteria = synthesis.criteria.map((c) =>
-    normalizeCriterion(
-      {
-        key: c.key,
-        score_0_10: c.final_score_0_10,
-        rationale: c.final_rationale,
-        evidence: c.evidence.map((e) => ({
-          snippet: e.snippet,
-          location:
-            e.char_start !== undefined || e.char_end !== undefined || e.segment_id !== undefined
-              ? {
-                  char_start: e.char_start,
-                  char_end: e.char_end,
-                  segment_id: e.segment_id,
-                }
-              : undefined,
-        })),
-        recommendations: c.recommendations.map((r) => ({
-          priority: r.priority,
-          action: r.action,
-          expected_impact: r.expected_impact,
-        })),
-      },
-      {
-        criteriaPlan,
-        passageCoverageRatio,
-        sentenceCount,
-      },
-    ),
-  );
+  const criteria = synthesis.criteria
+    .map((c) =>
+      normalizeCriterion(
+        {
+          key: c.key,
+          score_0_10: c.final_score_0_10,
+          rationale: c.final_rationale,
+          evidence: c.evidence.map((e) => ({
+            snippet: e.snippet,
+            location:
+              e.char_start !== undefined || e.char_end !== undefined || e.segment_id !== undefined
+                ? {
+                    char_start: e.char_start,
+                    char_end: e.char_end,
+                    segment_id: e.segment_id,
+                  }
+                : undefined,
+          })),
+          recommendations: c.recommendations.map((r) => ({
+            priority: r.priority,
+            action: r.action,
+            expected_impact: r.expected_impact,
+            anchor_snippet: r.anchor_snippet,
+          })),
+        },
+        {
+          criteriaPlan,
+          passageCoverageRatio,
+          sentenceCount,
+          sourceText,
+        },
+      ),
+    )
+    .map(enforceTextualAnchorConfidence);
 
   const weighted = computeWeightedScore(criteria);
+  const propagation = summarizePropagationIntegrity(criteria);
+
+  const derivedConfidence = deriveGovernanceConfidenceFromCriteria(criteria, propagation);
 
   const quick_wins = criteria
     .flatMap((c) =>
@@ -1183,6 +1347,19 @@ export function synthesisToEvaluationResultV2(
     observabilityWarnings.push(pass4Governance.message);
   }
 
+  if (propagation.upstreamIntegrity !== "strong") {
+    observabilityWarnings.push(
+      `PROPAGATION_${propagation.upstreamIntegrity.toUpperCase()}: low=${propagation.lowConfidenceCount} moderate=${propagation.moderateConfidenceCount} missingEvidence=${propagation.missingEvidenceCount}`,
+    );
+  }
+
+  const governanceWarnings: string[] = [];
+  if (propagation.upstreamIntegrity === "mixed") {
+    governanceWarnings.push("CONFIDENCE VARIES ACROSS THIS REPORT");
+  } else if (propagation.upstreamIntegrity === "weak") {
+    governanceWarnings.push("CONFIDENCE IS CONSTRAINED BY WEAK UPSTREAM EVIDENCE");
+  }
+
   return {
     schema_version: "evaluation_result_v2",
     ids,
@@ -1211,11 +1388,32 @@ export function synthesisToEvaluationResultV2(
     },
     artifacts: [],
     governance: {
-      confidence: weighted.scored_count === 0 ? 0.55 : DEFAULT_ADAPTER_CONFIDENCE,
-      warnings: [],
+      confidence:
+        weighted.scored_count === 0
+          ? 0.55
+          : derivedConfidence.confidence,
+      confidence_label: weighted.scored_count === 0 ? "withheld" : derivedConfidence.confidenceLabel,
+      confidence_reasons:
+        weighted.scored_count === 0
+          ? ["no_scorable_criteria"]
+          : derivedConfidence.confidenceReasons,
+      warnings: governanceWarnings,
       limitations: ["Single-chunk evaluation; multi-chunk synthesis in Phase 2.8"],
       policy_family: "multi-pass-dual-axis",
       observability_warnings: observabilityWarnings,
+      transparency: {
+        propagation_summary: {
+          low_confidence_count: propagation.lowConfidenceCount,
+          moderate_confidence_count: propagation.moderateConfidenceCount,
+          weak_evidence_count: propagation.weakEvidenceCount,
+          missing_evidence_count: propagation.missingEvidenceCount,
+          scorable_low_confidence_count: propagation.scorableLowConfidenceCount,
+          bottom_score_criteria: propagation.bottomScoreCriteria,
+          upstream_integrity: propagation.upstreamIntegrity,
+          authority_level: propagation.authorityLevel,
+          reasons: propagation.reasons,
+        },
+      },
     },
   };
 }

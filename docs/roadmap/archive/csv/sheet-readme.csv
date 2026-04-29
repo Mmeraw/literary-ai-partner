@@ -1,0 +1,14 @@
+RevisionGrade System Ledger — Control Cockpit,,,,
+LAST_LEDGER_REFRESH,2026-04-28,SYSTEM_STATE,U1 ENFORCED / BOUNDARY SHAPE RESOLVED / U2-003 + U2-006 IMPLEMENTED + PUSHED + LOCAL TEST-PROVEN / LIVE_PROOF_PENDING,Updated 2026-04-28
+ACTIVE_BLOCKER,"Run U2 live server/API-path proof; capture confidence_label, confidence_reasons, propagation_summary, NO_TEXTUAL_ANCHOR/reason_codes when applicable, and progress.gate_enforcement.",ACTIVE_EXECUTION_BLOCK,"U2_FIDELITY_ENFORCEMENT = close 6 RCAs; U2-003/U2-006 are PARTIAL REMOTE IMPLEMENTATION, not RESOLVED",
+RCA_SYSTEM_STATUS,Batch 1 + Batch 2 applied; boundary RCA resolved; U2 entry RCAs implemented/pushed/test-proven locally but awaiting live proof.,NEXT_BATCH,Next: live U2 closure proof; do not use Phase 2E/RLS evidence to close U2.,
+RULE,RCA becomes the source of truth; roadmap tabs become views of RCA.,,,
+FINAL_PATCH,"PV115 is a verification artifact, not an RCA. Boundary validation calibration uncertainty is now RESOLVED by raw PASS shape proof.",,,
+BOUNDARY_RCA,RCA-BOUNDARY-SHAPE-001,STATUS,RESOLVED,
+PV115_ARTIFACT,PV115-GOLDEN-FIXTURE,STATUS,NOT_READY,
+RULE,No truth exists outside RCA rows or explicit verification artifacts.,,,
+NEXT_EXECUTION,Boundary shape closed; ROADMAP.md updated through ca12ade4; U2 commit 8ecdde70 pushed. Next: prove U2 behavior on live server/API path before resolving RCAs.,,,
+MICRO_PATCH,PROMOTION_RULE added to VERIFICATION_ARTIFACTS; ambiguity lifecycle normalized as AMBIGUOUS → RESOLVED.,STATUS,APPLIED,2026-04-27
+,,,,
+,,,,
+,,,,
