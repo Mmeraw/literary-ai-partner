@@ -11,6 +11,18 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Canonical proof-artifact exceptions under logs/
+!logs/
+!logs/u2-live-proof/
+logs/u2-live-proof/*
+!logs/u2-live-proof/RUN_NOTES.md
+!logs/u2-live-proof/u2-proof-*.json
+!logs/u2-live-proof/u2-proof-*.validation.txt
+!logs/u2-live-proof/u2-artifact-verification-*.json
+!logs/u2-live-proof/job-row-*.json
+!logs/u2-live-proof/artifact-raw-*.json
+!logs/u2-live-proof/artifacts-*.json
+
 node_modules
 dist
 dist-ssr

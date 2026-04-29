@@ -68,16 +68,40 @@ CI parses this file as the source of truth. Any high/critical advisory not liste
 
 ### @base44/sdk
 - **Status**: KNOWN — direct SDK dependency
+- Advisory chain: inherits `uuid` vulnerability (`GHSA-w5hq-g745-h8pq`) via SDK dependency graph
+- Severity/CVSS: moderate (via `uuid` advisory)
+- Vulnerable range: `@base44/sdk >=0.7.5` (audit-reported chain includes vulnerable uuid path)
+- Blocker: direct major downgrade path offered by audit (`0.7.4`) is incompatible with current Base44 integration contract
+- Time-boxed expiry: **2026-07-31**
+- Follow-up issue: https://github.com/Mmeraw/literary-ai-partner/issues/254
 - Accepted: required for imported Base44 iteration compatibility; monitored upstream
 
 ### postcss
 - **Status**: KNOWN — build tooling dependency
+- Advisory: `GHSA-qx2v-qp2m-jg93` — PostCSS XSS via unescaped `</style>` in CSS stringify output
+- Severity/CVSS: moderate / 6.1
+- Vulnerable range: `<8.5.10` (audit-flagged transitive path: `next/node_modules/postcss`)
+- Blocker: fix path requires major Next.js dependency jump on current production branch
+- Time-boxed expiry: **2026-07-31**
+- Follow-up issue: https://github.com/Mmeraw/literary-ai-partner/issues/254
 - Accepted: not runtime-exposed to user-controlled input in production request paths
 
 ### uuid
 - **Status**: KNOWN — utility dependency / audit key
+- Advisory: `GHSA-w5hq-g745-h8pq` — missing buffer bounds check in v3/v5/v6 when `buf` is provided
+- Severity/CVSS: moderate / (NVD vector not provided by advisory feed; score reported as 0 in npm advisory payload)
+- Vulnerable range: `<14.0.0`
+- Blocker: upgrading to `uuid@14` is semver-major and requires compatibility sweep with direct + transitive consumers
+- Time-boxed expiry: **2026-07-31**
+- Follow-up issue: https://github.com/Mmeraw/literary-ai-partner/issues/254
 - Accepted: retained while dependency chain is stabilized; no known exploit path in current usage
 
 ### xlsx
 - **Status**: KNOWN — dev/report tooling dependency
+- Advisories:
+	- `GHSA-4r6h-8v6p-xvw6` — Prototype Pollution in sheetJS (high, CVSS 7.8, vulnerable `<0.19.3`)
+	- `GHSA-5pgg-2g8v-p4x9` — ReDoS in SheetJS (high, CVSS 7.5, vulnerable `<0.20.2`)
+- Blocker: no audit-provided safe upgrade path currently available (`fixAvailable: false`)
+- Time-boxed expiry: **2026-07-31**
+- Follow-up issue: https://github.com/Mmeraw/literary-ai-partner/issues/254
 - Accepted: not used on untrusted runtime uploads in production request paths
