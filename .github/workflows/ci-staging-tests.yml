@@ -62,7 +62,7 @@ jobs:
             const vulns = j.vulnerabilities || {};
             const keys = Object.keys(vulns);
 
-          const allow = ["tar", "supabase", "next", "eslint", "ajv", "flatted", "minimatch", "socket.io-parser", "underscore", "@xmldom/xmldom", "xmldom", "brace-expansion", "lodash", "picomatch", "axios", "@base44/sdk", "postcss", "uuid", "xlsx"];
+          const allow = ["tar", "supabase", "next", "eslint", "ajv", "flatted", "minimatch", "socket.io-parser", "underscore", "@xmldom/xmldom", "xmldom", "brace-expansion", "lodash", "picomatch", "axios"];
           const bad = keys.filter(k => !allow.some(a => k === a || k.includes(a)));
 
             if (bad.length) {
