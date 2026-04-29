@@ -4,8 +4,14 @@
 --
 -- The published evaluation_jobs_running_requires_claim invariant is
 -- intentionally NOT relaxed. The released invariant migration is NOT mutated.
+--
+-- Postgres does not allow CREATE OR REPLACE FUNCTION to change OUT/RETURNS TABLE
+-- row types. Drop the exact overload first so local and CI migration replay can
+-- install the canonical return contract deterministically.
 
-CREATE OR REPLACE FUNCTION public.claim_job_atomic(
+DROP FUNCTION IF EXISTS public.claim_job_atomic(text, timestamptz, integer);
+
+CREATE FUNCTION public.claim_job_atomic(
   p_worker_id text,
   p_now timestamptz DEFAULT now(),
   p_lease_seconds integer DEFAULT 300
