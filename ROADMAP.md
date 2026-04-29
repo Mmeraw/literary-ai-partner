@@ -1,6 +1,6 @@
 # RevisionGrade System Roadmap (V9 — RCA-Led Enforcement)
 
-_Last updated: 2026-04-28_
+_Last updated: 2026-04-29_
 
 ---
 
@@ -26,7 +26,7 @@ Certification is based only on enforced invariants and recorded proof.
 
 ```text
 U1: ENFORCED
-U2: RCA BATCH 2 DEFINED / PARTIAL REMOTE IMPLEMENTATION / LIVE_PROOF_PENDING
+U2: RCA BATCH 2 ACTIVE / RCA-U2-003 + RCA-U2-006 LIVE_PROOF_CLOSED / DOWNSTREAM RCAs PENDING
 U3: BLOCKED UNTIL U2 ENFORCED
 BOUNDARY SHAPE GAP: RESOLVED WITH LIVE DB PROOF
 PASS1 OUTPUT FEASIBILITY: OPEN / MINIMAL PARALLEL PATCH ONLY
@@ -80,8 +80,8 @@ U2 is now defined as six RCAs, not as a prose project.
 ### Current U2 entry status
 
 ```text
-RCA-U2-003: PARTIAL — implemented + pushed + local test-proven / live proof pending
-RCA-U2-006: PARTIAL — implemented + pushed + local test-proven / live proof pending
+RCA-U2-003: RESOLVED — live artifact proof + validator pass
+RCA-U2-006: RESOLVED — live artifact proof + validator pass
 ```
 
 Reason:
@@ -89,15 +89,17 @@ Reason:
 - deterministic confidence and anchor enforcement are now present on remote branch `feat/u2-propagation-enforcement`
 - pushed implementation commit: `8ecdde70` (`feat(u2): enforce deterministic confidence and anchor validation`)
 - focused local tests passed before push
-- live server/API-path U2 proof remains pending
+- live server/API-path U2 proof captured and validated
+- proof bundle: `logs/u2-live-proof/u2-proof-20260429T155922.json`
+- validator output: `logs/u2-live-proof/u2-proof-20260429T155922.validation.txt`
 
 Do not mark either RCA RESOLVED until the pushed branch is backed by correct U2 closure evidence from a live server/API path or persisted artifact.
 
 ### Required U2 closure order
 
 ```text
-1. Close RCA-U2-003 — deterministic confidence derivation
-2. Close RCA-U2-006 — evidence anchor enforcement
+1. ✅ Close RCA-U2-003 — deterministic confidence derivation
+2. ✅ Close RCA-U2-006 — evidence anchor enforcement
 3. Close RCA-U2-004 — propagation aggregation / upstreamIntegrity
 4. Close RCA-U2-001 — score-confidence enforcement
 5. Close RCA-U2-002 — summary anti-washing
@@ -119,7 +121,7 @@ Goal:
 Status:
 
 ```text
-PARTIAL — implemented/pushed/tested locally; pending live artifact proof
+RESOLVED — live artifact proof captured and validator passed
 ```
 
 Primary surfaces:
@@ -128,11 +130,11 @@ Primary surfaces:
 - `schemas/evaluation-result-v2.ts`
 - `lib/evaluation/pipeline/propagationIntegrity.ts`
 
-Closure requires:
+Closure proof captured:
 
-- remote branch contains implementation
-- tests prove deterministic mapping across weak/mixed/strong profiles
-- persisted artifact or live server/API path shows `confidence_label` and `confidence_reasons`
+- persisted artifact includes `governance.confidence_label` + `governance.confidence_reasons`
+- live proof JSON: `logs/u2-live-proof/u2-proof-20260429T155922.json`
+- validator output: `U2 proof validation passed ✅`
 
 #### RCA-U2-006 — Evidence Anchor Enforcement
 
@@ -145,7 +147,7 @@ Goal:
 Status:
 
 ```text
-PARTIAL — implemented/pushed/tested locally; pending live proof
+RESOLVED — live artifact proof captured and validator passed
 ```
 
 Primary surfaces:
@@ -154,11 +156,11 @@ Primary surfaces:
 - `lib/evaluation/pipeline/types.ts`
 - `lib/evaluation/pipeline/__tests__/runPass2.anchor-enforcement.test.ts`
 
-Closure requires:
+Closure proof captured:
 
-- remote branch contains anchor-enforcement implementation and test
-- test proves no-anchor downgrade/cap behavior
-- live or real-path proof shows anchor enforcement in artifact/gate evidence
+- persisted artifact includes reason-code evidence via `governance.transparency.artifact_reason_codes`
+- live proof JSON: `logs/u2-live-proof/u2-proof-20260429T155922.json`
+- validator output: `U2 proof validation passed ✅`
 
 #### RCA-U2-004 — Propagation Layer
 
@@ -347,16 +349,9 @@ U2 may not be marked ENFORCED until all six U2 RCAs are resolved and PV115 passe
 
 ## Immediate Next Steps
 
-1. Run correct U2 proof path, not Phase 2E/RLS proof.
-2. Capture persisted artifact or live server/API-path evidence:
-   - `governance.confidence_label`
-   - `governance.confidence_reasons`
-   - propagation summary
-   - anchor-enforcement reason codes when applicable
-   - `progress.gate_enforcement`
-3. Validate the collected proof pack with fail-fast guard:
-   - `cat proof.json | node scripts/validate-u2-proof.mjs`
-4. Only then move RCA-U2-003 and RCA-U2-006 from PARTIAL to RESOLVED.
+1. Proceed to RCA-U2-004 / RCA-U2-001 / RCA-U2-002 / RCA-U2-005 closure order.
+2. Preserve U2 proof artifacts and validator output in workbook references.
+3. Keep private-beta report auth wall note: canonical truth is persisted artifact + job row.
 
 ---
 

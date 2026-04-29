@@ -37,6 +37,23 @@ if (!JOB_ID) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
+const firstDefined = (...values) => values.find((value) => value !== null && value !== undefined);
+
+const uniqueNonEmptyStrings = (values) => {
+  const seen = new Set();
+  const result = [];
+
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    result.push(trimmed);
+  }
+
+  return result;
+};
+
 async function main() {
   // ── 1. Job row ────────────────────────────────────────────────────────────
   const { data: job, error: jobError } = await supabase
@@ -71,10 +88,52 @@ async function main() {
   const artifactRow = Array.isArray(artifact) ? artifact[0] ?? null : artifact;
   const body = artifactRow?.content ?? null;
   const governance = body?.governance ?? null;
-  const confidenceLabel = governance?.confidenceLabel ?? null;
-  const confidenceReasons = governance?.confidenceReasons ?? null;
-  const anchors = body?.evidenceAnchors ?? null;
-  const reasonCodes = body?.reasonCodes ?? null;
+  const transparency = governance?.transparency ?? null;
+
+  const confidenceLabel = firstDefined(
+    governance?.confidenceLabel,
+    governance?.confidence_label,
+    gate?.confidence?.confidence,
+    null,
+  );
+
+  const confidenceReasons = firstDefined(
+    governance?.confidenceReasons,
+    governance?.confidence_reasons,
+    gate?.confidence?.reasons,
+    null,
+  );
+
+  const anchorsFromTopLevel = firstDefined(body?.evidenceAnchors, body?.evidence_anchors, null);
+  const anchorsFromCriteria = Array.isArray(body?.criteria)
+    ? uniqueNonEmptyStrings(
+        body.criteria.flatMap((criterion) =>
+          Array.isArray(criterion?.recommendations)
+            ? criterion.recommendations.map((rec) => rec?.anchor_snippet)
+            : [],
+        ),
+      )
+    : [];
+
+  const anchors = firstDefined(
+    Array.isArray(anchorsFromTopLevel) && anchorsFromTopLevel.length > 0 ? anchorsFromTopLevel : null,
+    anchorsFromCriteria.length > 0 ? anchorsFromCriteria : null,
+    null,
+  );
+
+  const reasonCodes = firstDefined(
+    body?.reasonCodes,
+    body?.reason_codes,
+    transparency?.artifact_reason_codes,
+    gate?.reason_codes,
+    null,
+  );
+
+  const derivedPropagation = firstDefined(
+    gate?.propagation,
+    transparency?.propagation_summary,
+    null,
+  );
 
   // ── 3. Assemble proof pack ────────────────────────────────────────────────
   const proof = {
@@ -112,7 +171,7 @@ async function main() {
       reasonCodes,
 
       // Weakness propagation — must appear in gate_enforcement for U2 propagation lane
-      propagation,
+      propagation: derivedPropagation,
     },
 
     // Human-readable verification checklist (fill in manually after reviewing report page)
@@ -120,7 +179,7 @@ async function main() {
       bottomWeaknessInSummary: "PENDING ❌ — set to PASS after manual report verification",
       confidenceBannerMatchesLabel: "PENDING ❌ — set to PASS after manual report verification",
       noFalseHighConfidenceAuthority: "PENDING ❌ — set to PASS after manual report verification",
-      propagationPersistedInDB: propagation !== null ? "PASS" : "FAIL — propagation is null",
+      propagationPersistedInDB: derivedPropagation !== null ? "PASS" : "FAIL — propagation is null",
     },
   };
 
