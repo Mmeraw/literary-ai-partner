@@ -2,6 +2,9 @@
 -- Class A fix: enforce at the DB level that status='running' requires canonical claim ownership
 
 ALTER TABLE evaluation_jobs
+DROP CONSTRAINT IF EXISTS evaluation_jobs_running_requires_claim;
+
+ALTER TABLE evaluation_jobs
 ADD CONSTRAINT evaluation_jobs_running_requires_claim
 CHECK (
   status <> 'running'

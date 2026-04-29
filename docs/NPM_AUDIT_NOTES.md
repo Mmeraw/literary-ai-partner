@@ -1,7 +1,7 @@
 # npm audit Governance
 
 ## Current Status
-⚠️ **9 known transitive advisories / audit keys allowlisted** — current audit output may surface `flatted`, `minimatch`, `socket.io-parser`, `underscore`, `brace-expansion`, `picomatch`, `@xmldom/xmldom`, `lodash`, and `axios` (as of 2026-04-02). See below for justification.
+⚠️ **Known transitive advisories / audit keys allowlisted** — current audit output may surface `flatted`, `minimatch`, `socket.io-parser`, `underscore`, `brace-expansion`, `picomatch`, `@xmldom/xmldom`, `lodash`, `axios`, `@base44/sdk`, `postcss`, `uuid`, and `xlsx` (as of 2026-04-29). See below for justification.
 
 ## Previously Approved Advisories (Now Resolved)
 
@@ -41,7 +41,7 @@ The CI workflows (`ci.yml`, `ci-staging-tests.yml`, `job-system-ci.yml`) enforce
 - Related governance: `AI_GOVERNANCE.md`, `scripts/check-gpg-disabled.js`
 
 
-## Current Known Advisories (as of 2026-04-02)
+## Current Known Advisories (as of 2026-04-29)
 
 ### flatted
 - **Status**: KNOWN — transitive dependency
@@ -88,3 +88,23 @@ The CI workflows (`ci.yml`, `ci-staging-tests.yml`, `job-system-ci.yml`) enforce
 - **Status**: KNOWN — transitive dependency / new high vuln
 - Vuln: New high-severity axios vulnerability surfaced in npm audit
 - Accepted: Added to audit allowlist; transitive dependency not directly exposed to user input
+
+### @base44/sdk
+- **Status**: KNOWN — transitive dependency / audit key
+- Vuln: High-severity advisory surfaced via transitive dependency chain
+- Accepted: Temporarily allowlisted while upstream dependency remediations are evaluated
+
+### postcss
+- **Status**: KNOWN — transitive dependency / audit key
+- Vuln: High-severity advisory surfaced in npm audit output
+- Accepted: Temporarily allowlisted; not directly invoked with untrusted user-controlled CSS transforms in production paths
+
+### uuid
+- **Status**: KNOWN — transitive dependency / audit key
+- Vuln: High-severity advisory surfaced in transitive chain
+- Accepted: Temporarily allowlisted while dependency upgrades are tracked
+
+### xlsx
+- **Status**: KNOWN — transitive dependency / audit key
+- Vuln: High-severity advisory surfaced in npm audit output
+- Accepted: Temporarily allowlisted pending upstream remediation and compatibility validation

@@ -57,16 +57,19 @@ async function main() {
   // ── 2. Artifact row ───────────────────────────────────────────────────────
   const { data: artifact, error: artifactError } = await supabase
     .from("evaluation_artifacts")
-    .select("id,type,version,body,created_at")
+    .select("id,artifact_type,artifact_version,content,created_at")
     .eq("job_id", JOB_ID)
-    .maybeSingle();
+    .in("artifact_type", ["evaluation_result_v2", "evaluation_result_v1", "evaluationresultv2", "evaluationresultv1"])
+    .order("created_at", { ascending: false })
+    .limit(1);
 
   if (artifactError) {
     console.error(`Artifact fetch failed: ${artifactError.message}`);
     process.exit(1);
   }
 
-  const body = artifact?.body ?? null;
+  const artifactRow = Array.isArray(artifact) ? artifact[0] ?? null : artifact;
+  const body = artifactRow?.content ?? null;
   const governance = body?.governance ?? null;
   const confidenceLabel = governance?.confidenceLabel ?? null;
   const confidenceReasons = governance?.confidenceReasons ?? null;
@@ -90,12 +93,12 @@ async function main() {
       },
     },
 
-    artifact: artifact
+    artifact: artifactRow
       ? {
-          id: artifact.id,
-          type: artifact.type,
-          version: artifact.version,
-          createdAt: artifact.created_at,
+          id: artifactRow.id,
+          type: artifactRow.artifact_type,
+          version: artifactRow.artifact_version,
+          createdAt: artifactRow.created_at,
         }
       : null,
 
@@ -129,7 +132,7 @@ async function main() {
 U2 Proof Summary
 ────────────────
 Job status:         ${job.status}
-Artifact present:   ${artifact ? "YES" : "NO"}
+Artifact present:   ${artifactRow ? "YES" : "NO"}
 confidenceLabel:    ${ok(confidenceLabel) ? confidenceLabel : "MISSING ❌"}
 confidenceReasons:  ${ok(confidenceReasons) ? "present" : "MISSING ❌"}
 propagation:        ${ok(propagation) ? "present" : "MISSING ❌"}
