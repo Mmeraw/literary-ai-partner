@@ -5,7 +5,7 @@
  * into a validated SinglePassOutput.
  *
  * Temperature: 0.3 (per Vol III Tools §PASS1)
- * Max tokens: 3500 (default, override via EVAL_PASS1_MAX_TOKENS)
+ * Effective max tokens: 1800 unless a lower runtime cap is configured.
  */
 
 import OpenAI from "openai";
@@ -22,8 +22,14 @@ import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
-
 const PASS1_TEMPERATURE = 0.3;
+
+const PASS1_STABILITY_MAX_OUTPUT_TOKENS = 1800;
+const PASS1_LIMITS = {
+  maxRationaleChars: 220,
+  maxEvidencePerCriterion: 1,
+  maxEvidenceSnippetChars: 180,
+} as const;
 
 /**
  * RCA-PASS1-TOKEN-001: Pass1 model is strictly authoritative.
@@ -50,6 +56,16 @@ type CompletionChoice = {
   };
   finish_reason?: unknown;
 };
+
+function getEffectivePass1MaxTokens(): number {
+  const configured = getEvaluationRuntimeConfig().pass.pass1MaxTokens;
+  return Math.min(configured, PASS1_STABILITY_MAX_OUTPUT_TOKENS);
+}
+
+function truncateText(value: unknown, maxChars: number): string {
+  const text = String(value ?? "").trim();
+  return text.length > maxChars ? text.slice(0, maxChars).trimEnd() : text;
+}
 
 function extractResponseText(content: unknown): string {
   if (typeof content === "string") {
@@ -87,8 +103,9 @@ function buildEmptyResponseDiagnostic(params: {
   completion: { choices?: unknown; usage?: CompletionUsage };
   firstChoice: CompletionChoice | undefined;
   rawContent: unknown;
+  effectiveMaxTokens: number;
 }): string {
-  const { model, completion, firstChoice, rawContent } = params;
+  const { model, completion, firstChoice, rawContent, effectiveMaxTokens } = params;
   const usage = completion.usage;
   const finishReason =
     typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
@@ -97,11 +114,12 @@ function buildEmptyResponseDiagnostic(params: {
   const refusal =
     typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined;
   const choiceCount = Array.isArray(completion.choices) ? completion.choices.length : 0;
+  const code = finishReason === "length" ? "PASS1_TRUNCATED_EMPTY_RESPONSE" : "PASS1_EMPTY_RESPONSE";
 
   return (
-    `[Pass1] Empty response from OpenAI ` +
+    `[Pass1] ${code} Empty response from OpenAI ` +
     `(model=${model} finish_reason=${finishReason} content_type=${contentType} choices=${choiceCount} ` +
-    `max_output_tokens=${getEvaluationRuntimeConfig().pass.pass1MaxTokens}` +
+    `max_output_tokens=${effectiveMaxTokens}` +
     `${typeof usage?.prompt_tokens === "number" ? ` prompt_tokens=${usage.prompt_tokens}` : ""}` +
     `${typeof usage?.completion_tokens === "number" ? ` completion_tokens=${usage.completion_tokens}` : ""}` +
     `${typeof usage?.total_tokens === "number" ? ` total_tokens=${usage.total_tokens}` : ""}` +
@@ -164,8 +182,10 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   });
   const promptAssemblyMs = nowMs() - promptAssemblyStartMs;
   const inputChars = opts.manuscriptText.length;
+  const promptChars = PASS1_SYSTEM_PROMPT.length + userPrompt.length;
 
-  const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, getEvaluationRuntimeConfig().pass.pass1MaxTokens);
+const effectiveMaxTokens = getEffectivePass1MaxTokens();
+    const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, getEffectivePass1MaxTokens());
   const configuredMaxTokens =
     typeof (outputTokenParam as { max_completion_tokens?: unknown }).max_completion_tokens === "number"
       ? Number((outputTokenParam as { max_completion_tokens: number }).max_completion_tokens)
@@ -200,6 +220,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
       completion,
       firstChoice,
       rawContent,
+      effectiveMaxTokens,
     });
 
     console.error("[Pass1] Completion boundary diagnostic", {
@@ -213,7 +234,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
       contentType: rawContent === null ? "null" : Array.isArray(rawContent) ? "array" : typeof rawContent,
       contentPreview: typeof rawContent === "string" ? rawContent.slice(0, 160) : undefined,
       usage: completion.usage,
-      maxOutputTokens: getEvaluationRuntimeConfig().pass.pass1MaxTokens,
+      maxOutputTokens: effectiveMaxTokens,
       refusal:
         typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined,
     });
@@ -224,9 +245,10 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
       stage: 'pass1',
       state: 'pass1_timings_failure',
       metadata: {
-        finish_reason: 'empty_response',
+        finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : 'empty_response',
         model: selectedModel,
         input_chars: inputChars,
+        prompt_chars: promptChars,
         output_chars: responseText.length,
         prompt_assembly_ms: promptAssemblyMs,
         model_call_ms: modelCallMs,
@@ -234,6 +256,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
         total_ms: totalMs,
         configured_timeout_ms: getEvalOpenAiTimeoutMs(),
         configured_max_tokens: configuredMaxTokens,
+        stability_max_tokens: PASS1_STABILITY_MAX_OUTPUT_TOKENS,
         usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
         usage_completion_tokens: completion.usage?.completion_tokens ?? null,
         usage_total_tokens: completion.usage?.total_tokens ?? null,
@@ -242,12 +265,11 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     throw new Error(diagnosticMessage);
   }
 
-  // P0: Check finish_reason — log a warning if the model stopped due to token limit
   const finishReasonWarning = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined;
   if (finishReasonWarning === "length") {
     console.warn("[Pass1] finish_reason=length — output may be truncated", {
       model: selectedModel,
-      maxOutputTokens: getEvaluationRuntimeConfig().pass.pass1MaxTokens,
+      maxOutputTokens: effectiveMaxTokens,
       responseLen: responseText.length,
       usage: completion.usage,
     });
@@ -303,6 +325,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     metadata: {
       model: selectedModel,
       input_chars: inputChars,
+      prompt_chars: promptChars,
       output_chars: responseText.length,
       prompt_assembly_ms: promptAssemblyMs,
       model_call_ms: modelCallMs,
@@ -310,6 +333,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
       total_ms: totalMs,
       configured_timeout_ms: getEvalOpenAiTimeoutMs(),
       configured_max_tokens: configuredMaxTokens,
+      stability_max_tokens: PASS1_STABILITY_MAX_OUTPUT_TOKENS,
       usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
       usage_completion_tokens: completion.usage?.completion_tokens ?? null,
       usage_total_tokens: completion.usage?.total_tokens ?? null,
@@ -375,38 +399,19 @@ export function parsePass1Response(raw: string, fallbackModel: string = PASS1_PR
   }
 
   const criteria: AxisCriterionResult[] = [];
-  for (const item of rawCriteria) {
+  for (const item of rawCriteria.slice(0, CRITERIA_KEYS.length)) {
     if (typeof item !== "object" || item === null) continue;
     const c = item as Record<string, unknown>;
     const key = String(c["key"] ?? "");
     if (!(CRITERIA_KEYS as readonly string[]).includes(key)) continue;
 
     const evidence: EvidenceAnchor[] = Array.isArray(c["evidence"])
-      ? (c["evidence"] as unknown[]).map((e) => {
+      ? (c["evidence"] as unknown[]).slice(0, PASS1_LIMITS.maxEvidencePerCriterion).map((e) => {
           const ev = e as Record<string, unknown>;
           return {
-            snippet: String(ev["snippet"] ?? "").substring(0, 200),
+            snippet: truncateText(ev["snippet"], PASS1_LIMITS.maxEvidenceSnippetChars),
             char_start: typeof ev["char_start"] === "number" ? ev["char_start"] : undefined,
             char_end: typeof ev["char_end"] === "number" ? ev["char_end"] : undefined,
-          };
-        })
-      : [];
-
-    const recommendations = Array.isArray(c["recommendations"])
-      ? (c["recommendations"] as unknown[]).map((r) => {
-          const rec = r as Record<string, unknown>;
-          const priority = String(rec["priority"] ?? "medium");
-          return {
-            priority: (priority === "high" || priority === "low" ? priority : "medium") as "high" | "medium" | "low",
-            action: String(rec["action"] ?? ""),
-            expected_impact: String(rec["expected_impact"] ?? ""),
-            anchor_snippet: String(rec["anchor_snippet"] ?? ""),
-            issue_family:
-              (rec["issue_family"] ?? "scene_structure") as AxisCriterionResult["recommendations"][number]["issue_family"],
-            strategic_lever:
-              (rec["strategic_lever"] ?? "scene_goal_clarity") as AxisCriterionResult["recommendations"][number]["strategic_lever"],
-            revision_granularity:
-              (rec["revision_granularity"] ?? "scene") as AxisCriterionResult["recommendations"][number]["revision_granularity"],
           };
         })
       : [];
@@ -417,9 +422,9 @@ export function parsePass1Response(raw: string, fallbackModel: string = PASS1_PR
     criteria.push({
       key: key as AxisCriterionResult["key"],
       score_0_10: Math.min(10, Math.max(0, score)),
-      rationale: String(c["rationale"] ?? ""),
+      rationale: truncateText(c["rationale"], PASS1_LIMITS.maxRationaleChars),
       evidence,
-      recommendations,
+      recommendations: [],
     });
   }
 
