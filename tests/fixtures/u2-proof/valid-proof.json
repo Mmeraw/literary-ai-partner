@@ -1,0 +1,32 @@
+{
+  "job": {
+    "status": "complete"
+  },
+  "u2Proof": {
+    "confidenceLabel": "weak",
+    "confidenceReasons": [
+      "deterministic confidence derivation applied"
+    ],
+    "propagation": {
+      "weakCriteria": [
+        "consequence_propagation"
+      ]
+    },
+    "anchors": [
+      {
+        "criterion": "consequence_propagation",
+        "anchorType": "textual",
+        "quote": "The final decision echoes the opening promise."
+      }
+    ],
+    "reasonCodes": [
+      "NO_TEXTUAL_ANCHOR"
+    ]
+  },
+  "verificationChecklist": {
+    "bottomWeaknessInSummary": "PASS",
+    "confidenceBannerMatchesLabel": "PASS",
+    "noFalseHighConfidenceAuthority": "PASS",
+    "propagationPersistedInDB": "PASS"
+  }
+}

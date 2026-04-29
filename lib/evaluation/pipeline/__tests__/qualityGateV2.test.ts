@@ -197,10 +197,13 @@ describe("runQualityGateV2 integration", () => {
     fixture.criteria[proseControlIndex] = {
       ...fixture.criteria[proseControlIndex],
       evidence: [],
+      score_0_10: 5,
       scorability_status: "scorable_low_confidence",
       confidence_level: "low",
       confidence_score_0_100: 25,
     } as EvaluationResultV2["criteria"][number];
+    fixture.overview.one_paragraph_summary =
+      "The chapter maintains voice strength, while prose control remains the primary weakness to revise.";
 
     const result = runQualityGateV2(fixture);
     expect(result.pass).toBe(true);
@@ -306,6 +309,7 @@ describe("runQualityGateV2 integration", () => {
     fixture.criteria[dialogueIndex] = {
       ...fixture.criteria[dialogueIndex],
       evidence: [],
+      score_0_10: 5,
       scorability_status: "scorable_low_confidence",
       confidence_level: "low",
       confidence_score_0_100: 30,
@@ -327,12 +331,99 @@ describe("runQualityGateV2 integration", () => {
     } as EvaluationResultV2["criteria"][number];
 
     fixture.overview.scored_criteria_count = CRITERIA_KEYS.length - 1;
+    fixture.overview.one_paragraph_summary =
+      "The draft is coherent overall, but dialogue remains the weakest criterion and needs targeted revision.";
 
     const result = runQualityGateV2(fixture);
     expect(result.pass).toBe(true);
     expect(
       result.warnings.some((warning) =>
         warning.includes("LOW_CONFIDENCE_SCORABLE_CRITERIA:"),
+      ),
+    ).toBe(true);
+  });
+
+  it("fails on low-confidence criteria exceeding score cap", () => {
+    const fixture = makeBaseV2Fixture();
+    const conceptIndex = CRITERIA_KEYS.indexOf("concept");
+
+    fixture.criteria[conceptIndex] = {
+      ...fixture.criteria[conceptIndex],
+      score_0_10: 8,
+      confidence_level: "low",
+      confidence_score_0_100: 22,
+    } as EvaluationResultV2["criteria"][number];
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(false);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.check_id === "v2_fidelity_score_confidence_alignment" &&
+          !check.passed &&
+          check.error_code === "QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH",
+      ),
+    ).toBe(true);
+  });
+
+  it("fails when summary omits bottom-score weakness cluster", () => {
+    const fixture = makeBaseV2Fixture();
+    const weakKeys = ["pacing", "theme", "narrativeClosure"] as const;
+
+    for (const key of weakKeys) {
+      const idx = CRITERIA_KEYS.indexOf(key);
+      fixture.criteria[idx] = {
+        ...fixture.criteria[idx],
+        score_0_10: 4,
+        confidence_level: "moderate",
+      } as EvaluationResultV2["criteria"][number];
+    }
+
+    fixture.overview.one_paragraph_summary =
+      "The chapter demonstrates strong atmosphere and voice with clear progression.";
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(false);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.check_id === "v2_summary_weakness_presence" &&
+          !check.passed &&
+          check.error_code === "QG_SUMMARY_OMITS_WEAKNESS",
+      ),
+    ).toBe(true);
+  });
+
+  it("fails propagation integrity when upstream is weak but presentation remains high-authority", () => {
+    const fixture = makeBaseV2Fixture();
+    const lowConfidenceKeys = [
+      "concept",
+      "narrativeDrive",
+      "character",
+      "theme",
+      "pacing",
+    ] as const;
+
+    for (const key of lowConfidenceKeys) {
+      const idx = CRITERIA_KEYS.indexOf(key);
+      fixture.criteria[idx] = {
+        ...fixture.criteria[idx],
+        score_0_10: 5,
+        confidence_level: "low",
+        confidence_score_0_100: 20,
+      } as EvaluationResultV2["criteria"][number];
+    }
+
+    fixture.governance.warnings = [];
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(false);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.check_id === "v2_propagation_integrity" &&
+          !check.passed &&
+          check.error_code === "QG_PROPAGATION_INTEGRITY",
       ),
     ).toBe(true);
   });

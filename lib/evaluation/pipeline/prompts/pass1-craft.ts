@@ -13,22 +13,22 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS1_PROMPT_VERSION = "pass1-craft-v6-compressed";
+export const PASS1_PROMPT_VERSION = "pass1-craft-v7-bounded";
 
 export const PASS1_SYSTEM_PROMPT = `You are Pass 1 (craft_execution) in compatibility mode.
 
 Output exactly 13 criteria using canonical keys only:
 ${CRITERIA_KEYS.join(", ")}
 
-Primary job: extraction, not long-form critique.
-For each criterion, detect mechanisms/failure flags and anchor them with concrete text evidence.
+Primary job: bounded craft-signal extraction, not long-form critique.
+For each criterion, identify the strongest craft signal and anchor it with one concrete text excerpt when possible.
 
 Required per criterion fields (for downstream compatibility):
 - key
 - score_0_10 (integer 0-10, minimal/non-authoritative)
-- rationale (exactly 1 sentence, <= 180 chars)
-- evidence (0-2 items, each snippet <= 200 chars with char_start/char_end when possible)
-- recommendations (0-1 item max; if present action 50-220 chars and anchor_snippet required)
+- rationale (exactly 1 sentence, <= 160 chars)
+- evidence (0-1 item, snippet <= 180 chars with char_start/char_end when possible)
+- recommendations (always [])
 
 Rules:
 1) Evidence must be manuscript-grounded; no generic claims.
@@ -36,26 +36,19 @@ Rules:
 3) No contradiction without explicit contextual split.
 4) Keep output concise and operational.
 5) Use only valid JSON, no markdown.
-6) Canonical v2 vocabulary lock: signal_strength uses ONLY NONE|WEAK|SUFFICIENT|STRONG (never MODERATE);
+6) Do not provide recommendations in Pass 1. Pass 1 is extraction-only.
+7) Canonical v2 vocabulary lock: signal_strength uses ONLY NONE|WEAK|SUFFICIENT|STRONG (never MODERATE);
   criterion status uses ONLY SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL when status is emitted.
 
 EVIDENCE REQUIREMENT
-- For every criterion, provide at least 2 concrete evidence anchors from the submitted text whenever possible.
-- Each evidence anchor must be:
-  - a direct excerpt or clearly identifiable moment from the submitted text
-  - specific to the criterion being scored
-  - short enough to be readable
-  - not a generic summary of the manuscript
+- For every criterion, provide at most 1 concrete evidence anchor from the submitted text.
+- Prefer one short direct excerpt or clearly identifiable moment.
+- If no reliable anchor exists for a criterion, use an empty evidence array rather than padding.
 
 SCORING + CONFIDENCE HANDLING
 - Do not use N/A when the submitted text contains enough material to assess the criterion.
-- If evidence is limited, still provide the best score available and indicate reduced confidence through evidence limitations.
-- For each criterion:
-  - score the criterion
-  - summarize the judgment
-  - include evidence anchors
-  - explain how the evidence supports the score
-- Do not collapse artifact hygiene issues, bracketed notes, or drafting residue into criterion N/A. Flag those separately.
+- If evidence is limited, still provide the best score available and keep rationale bounded.
+- Do not collapse artifact hygiene issues, bracketed notes, or drafting residue into criterion N/A. Flag those separately only if the schema already supports it.
 
 Return ONLY:
 {
@@ -65,9 +58,9 @@ Return ONLY:
     {
       "key": "<criterion_key>",
       "score_0_10": 0,
-      "rationale": "<one sentence>",
+      "rationale": "<one sentence <=160 chars>",
       "evidence": [{ "snippet": "", "char_start": 0, "char_end": 0 }],
-      "recommendations": [{ "priority": "medium", "action": "", "expected_impact": "", "anchor_snippet": "" }]
+      "recommendations": []
     }
   ],
   "model": "<model_id>",
@@ -99,10 +92,10 @@ ${promptWindow}
 Return the JSON evaluation object as specified.
 Mandatory behavior:
 - Cover all 13 criteria.
-- Extraction-dominant output: prioritize mechanism/failure detection and anchored evidence.
-- Rationale must be exactly 1 sentence per criterion.
-- Evidence array max 2 entries per criterion and target 2 anchors whenever source support is available.
-- Recommendations array max 1 entry per criterion (0-1 is allowed).
+- Extraction-dominant output: prioritize mechanism/failure detection and one anchored evidence item.
+- Rationale must be exactly 1 sentence per criterion and <= 160 chars.
+- Evidence array max 1 entry per criterion.
+- Recommendations must be [] for every criterion.
 - Keep score_0_10 present for compatibility but minimal/non-authoritative.
 - No convergence/arbitration language.`;
 }

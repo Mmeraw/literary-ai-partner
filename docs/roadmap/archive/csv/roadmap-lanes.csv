@@ -1,0 +1,20 @@
+Lane,Purpose,Current Truth,Primary Gap,Next Move,Do Not Do Yet,BLOCKED_BY,DEPENDS_ON_RCA
+System Liveness,Keep jobs moving reliably and under latency target,Stable baseline; auth and dev/prod guards verified,Monitor only,Protect with smoke/reliability gates,Further latency tuning before truth enforcement,,
+Persistence / Boundary,Make invalid artifact persistence impossible,ENFORCED; atomic success path proven; boundary raw-shape gap RESOLVED with live DB evidence,None for covered PASS persistence path,Preserve PR #240–#243 guard/tests; keep PASS-path gate_enforcement regression; future live checks must query progress->'gate_enforcement'.,Assume future schema changes are covered without rerunning raw PASS shape proof,RCA-BOUNDARY-SHAPE-001,RCA-ATOMIC-PERSISTENCE-001; RCA-BOUNDARY-SHAPE-001
+Governance,Make invalid or overconfident output impossible to present,"Execution gates strong; U2-003/U2-006 are implemented and pushed, but live proof pending.",U2-003/U2-006 need live server/API proof before closure.,Run U2 live proof and capture persisted/API artifact fields before RESOLVED.,More prompt work before U2,U2 RCA closure order,RCA-U2-003; RCA-U2-004; RCA-U2-001; RCA-U2-006; RCA-U2-002; RCA-U2-005
+Artifact Quality,Make output evidence-bound and not shallow,Structurally complete; U2 anchor/confidence enforcement is implemented+pushed but not live-proven.,Evidence→confidence→score→summary still pending live closure proof.,Treat U2-003/U2-006 as PARTIAL REMOTE; do not promote PV115 until live proof and downstream RCAs close.,Treat polished summary as proof of accuracy,U2 RCA closure order,RCA-U2-006; RCA-U2-002; RCA-U2-001; RCA-U2-004
+Confidence / CEL,Turn confidence into deterministic control-flow authority,U1 boundary enforced; U2 confidence derivation is implemented+pushed but live-proof pending.,Need live artifact proof for deterministic confidence authority.,"Close RCA-U2-003 only after live proof, then proceed to U2-004.",Let model confidence drive release authority,U2 RCA closure order; PV115 waits on U2 RCAs,RCA-U2-003; RCA-U2-004; RCA-U2-005; PV115-GOLDEN-FIXTURE
+Pipeline Feasibility,Ensure the system reaches gates reliably,Pass1 output budget fails on longer manuscripts,finish_reason=length at 3500 tokens,Measure/reduce Pass1 output surface,Generic retries or token bump as sole fix,PASS1_OUTPUT_FEASIBILITY,RCA-PASS1-TOKEN-001
+Dialogue Attribution Gate V2,Prevent false QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED while preserving fail-closed behavior,Gate-level ENFORCED on reachable post-fix runs,Upstream reachability can mask proof,Keep gate; use diagnostics if future failures recur,Rework gate based on pre-fix jobs,Upstream reachability only,RCA-DIALOGUE-GATE-001
+Failure Diagnostics,Make failures queryable and causal,pipeline_failure_envelope works; diagnostics structural only,Need fresh non-null pipeline_failure_diagnostics sample,Run targeted post-fix diagnostic failure proof,Call diagnostics enforced from old jobs,Fresh non-null diagnostics sample,RCA-FAILURE-ENVELOPE-001
+User UI,Show users system truth clearly,Lifecycle visible; truth authority not fully fused,warningClassification must obey confidence topology,Block high-confidence UI when upstream is weak/mixed,Decorative confidence banners,U2 propagation topology,RCA-U2-005 depends on RCA-U2-004
+Admin Ops,Expose process/subprocess failures,Ops useful but secondary,Not primary blocker,Build after U2/Pass1 tracks stabilize,Admin UX before truth state is locked,PASS1_OUTPUT_FEASIBILITY,RCA-PASS1-TOKEN-001
+Canon / Docs,Keep doctrine aligned to code,Canon strong; system state must stay committed,Need persistent current ledger,Commit/update SYSTEM_STATE or workbook each block,Rely on chat memory,,
+U3 Contradiction Detection,Detect and surface contradictions,Pending,No detector/taxonomy/runtime gate,Schedule after U2,Mix with U2 initial PR,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,

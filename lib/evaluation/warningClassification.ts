@@ -13,13 +13,42 @@ export type EvaluationIntegrityBanner = {
 
 type GovernanceWarningSource = {
   governance?: {
+    confidence_label?: "high" | "medium" | "low" | "withheld";
     warnings?: string[];
     transparency?: {
       artifact_validation_result?: "PASS" | "HOLD" | "FAIL";
+      propagation_summary?: {
+        upstream_integrity?: "strong" | "mixed" | "weak";
+        authority_level?: "normal" | "constrained" | "blocked";
+      };
       [key: string]: unknown;
     };
   };
 };
+
+function inferPropagationConstraintFromWarnings(
+  warnings: string[],
+): "constrained" | "blocked" | null {
+  const normalized = warnings.map((warning) => warning.toUpperCase());
+
+  if (
+    normalized.some((warning) =>
+      warning.includes("CONFIDENCE IS CONSTRAINED BY WEAK UPSTREAM EVIDENCE"),
+    )
+  ) {
+    return "blocked";
+  }
+
+  if (
+    normalized.some((warning) =>
+      warning.includes("CONFIDENCE VARIES ACROSS THIS REPORT"),
+    )
+  ) {
+    return "constrained";
+  }
+
+  return null;
+}
 
 function inferArtifactValidationResultFromWarnings(
   warnings: string[],
@@ -58,6 +87,19 @@ export function classifyEvaluationIntegrityBanner(
   const transparencyResult = source.governance?.transparency?.artifact_validation_result ?? null;
   const inferredResult = inferArtifactValidationResultFromWarnings(warnings);
   const gateResult = transparencyResult ?? inferredResult;
+  const propagationSummary = source.governance?.transparency?.propagation_summary;
+  const inferredConstraint = inferPropagationConstraintFromWarnings(warnings);
+  const upstreamIntegrity = propagationSummary?.upstream_integrity;
+  const authorityLevel = propagationSummary?.authority_level;
+
+  const constrainedByPropagation =
+    upstreamIntegrity === "mixed" ||
+    upstreamIntegrity === "weak" ||
+    authorityLevel === "constrained" ||
+    authorityLevel === "blocked" ||
+    source.governance?.confidence_label === "low" ||
+    source.governance?.confidence_label === "withheld" ||
+    inferredConstraint !== null;
 
   if (!hasWarnings && !gateResult) {
     return null;
@@ -98,6 +140,29 @@ export function classifyEvaluationIntegrityBanner(
       title: "⚠️ CONFIDENCE VARIES ACROSS THIS REPORT",
       message:
         "Evaluation completed successfully using LiteraryAI-Partner. Some scores and summaries carry lower confidence depending on how much clear text support was available for each story area. Review the confidence indicators beside each score for details.",
+      containerClassName: "mt-4 rounded-md border-2 border-amber-400 bg-amber-50 p-4",
+      titleClassName: "text-sm font-bold text-amber-900",
+      warningClassName: "text-sm font-medium text-amber-800",
+      detailClassName: "mt-3 text-xs text-amber-700",
+    };
+  }
+
+  if (constrainedByPropagation) {
+    const isBlocked =
+      upstreamIntegrity === "weak" ||
+      authorityLevel === "blocked" ||
+      source.governance?.confidence_label === "withheld" ||
+      inferredConstraint === "blocked";
+
+    return {
+      kind: "HOLD",
+      label: isBlocked ? "Confidence Constrained" : "Confidence Varies",
+      title: isBlocked
+        ? "⚠️ CONFIDENCE IS CONSTRAINED"
+        : "⚠️ CONFIDENCE VARIES ACROSS THIS REPORT",
+      message: isBlocked
+        ? "Evaluation completed, but confidence is constrained by weak upstream evidence. Prioritize evidence-backed revisions before acting on high-impact recommendations."
+        : "Evaluation completed successfully using LiteraryAI-Partner. Some scores and summaries carry lower confidence depending on how much clear text support was available for each story area. Review the confidence indicators beside each score for details.",
       containerClassName: "mt-4 rounded-md border-2 border-amber-400 bg-amber-50 p-4",
       titleClassName: "text-sm font-bold text-amber-900",
       warningClassName: "text-sm font-medium text-amber-800",

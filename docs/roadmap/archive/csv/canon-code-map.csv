@@ -1,0 +1,15 @@
+Canon Rule / Invariant,Current Enforcement,Can Fail Silently?,Primary Code Boundary,Proof Required,Notes
+Only V2 boundary may persist evaluation artifacts,ENFORCED,NO,persistEvaluationResultV2.ts; guard script,Boundary guard + mutation tests,PR #240 / Step 1.5.
+Artifact + completion success path is atomic,ENFORCED,NO,persist_evaluation_v2_atomic RPC,Production job + artifact proof,PR #241–#243; job 29089ed6; artifact af699bd8.
+QualityGate must run before persistence,ENFORCED,NO,persistEvaluationResultV2.ts,Fail-closed tests,Invalid artifact cannot persist as complete.
+All 13 canonical criteria must exist exactly once,OBSERVED,YES,evaluation-result-v2 schema / validators,Schema + mutation tests,Canon remains 13 criteria; no 14th criterion without formal canon change.
+Scores are integer 0–10 only,OBSERVED,YES,validator / qualityGate,Unit + artifact snapshot,U2 will add score-confidence constraints.
+Evidence must control confidence,PENDING,YES,qualityGate.ts / confidenceDerivation.ts,U2 propagation tests,Core fidelity gap.
+Low confidence cannot support high score/authority,PENDING,YES,qualityGate.ts / warningClassification.ts,QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH,Proposed U2 rule.
+Pass 3 cannot wash over weaknesses,PENDING,YES,runPass3Synthesis.ts + qualityGate.ts,QG_SUMMARY_OMITS_WEAKNESS,Summary must cite bottom-scoring weakness cluster.
+UI can only show what governance has proven,PENDING,YES,warningClassification.ts,PASS + low confidence contradiction test,High-confidence banner must obey confidence topology.
+Dialogue rationale must prove attribution/rendering analysis,ENFORCED — gate-level,NO,qualityGate.ts / analyzeDialogueAttributionForGate,Post-fix reached-gate proof,PR #245; upstream reachability caveat.
+Pipeline failure envelope must persist for terminal failures,ENFORCED,NO,processor markFailed / failure finalizer,DB query job 40b377de and fresh failures,Diagnostics trace is separate.
+Quality-gate diagnostics must persist when available,STRUCTURAL ENFORCED / EMPIRICAL PENDING,YES,QualityGateCheck.diagnostics → runPipeline.failure_details,Fresh non-null diagnostics failure sample,Do not overclaim from pre-fix jobs.
+Pass 1 output must fit bounded response budget,FAILED / OPEN,YES,Pass1 prompt/output contract,finish_reason length elimination proof,PASS1_OUTPUT_FEASIBILITY track.
+Contradictions must be detected and surfaced,PENDING,YES,Gate 15.2 detector / QualityGate,Contradiction golden set,U3 after U2.

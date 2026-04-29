@@ -112,6 +112,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
       .update({
         phase_status: "queued",
         claimed_by: null,
+        claimed_at: null,
         lease_token: null,
         last_error: null,
         failed_at: null,
