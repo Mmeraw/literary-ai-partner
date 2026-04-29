@@ -8,13 +8,10 @@ if [ ! -f "$FILE" ]; then
   exit 1
 fi
 
-if ! grep -q "@/" "$FILE"; then
-  echo "❌ jest.setup.ts must use '@/...' alias imports only"
-  exit 1
-fi
-
-if grep -q "\.\./" "$FILE"; then
-  echo "❌ relative imports detected in jest.setup.ts"
+if rg -n 'from "@/|from '\''@/' "$FILE"; then
+  echo ""
+  echo "❌ Alias import in jest.setup.ts is forbidden."
+  echo "Jest setup files run before path alias resolution is reliable; use relative imports."
   exit 1
 fi
 
