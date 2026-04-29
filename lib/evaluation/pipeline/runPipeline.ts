@@ -505,7 +505,6 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       workType: opts.workType,
       title: opts.title,
       executionMode: opts.executionMode,
-      model: opts.model,
       openaiApiKey: opts.openaiApiKey,
       jobId: opts.jobId,
       registry,

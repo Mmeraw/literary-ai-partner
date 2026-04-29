@@ -201,7 +201,6 @@ describe("runPass1", () => {
       workType: "literary_fiction",
       title: "Test Manuscript",
       registry,
-      model: "gpt-4o",
       openaiApiKey: "sk-test",
       _createCompletion: captureCompletion,
     });
@@ -281,22 +280,16 @@ describe("runPass1", () => {
 // ── RCA-PASS1-TOKEN-001: Pass1 model routing and reachability regressions ──────
 //
 // These tests enforce that:
-//   1. Production Pass1 never uses o3 (the model that caused PV115-class empty-content failures).
-//   2. o3 is only permitted behind a non-production env flag.
+//   1. Production Pass1 always uses gpt-4o — model selection is not caller-controlled.
+//   2. RunPass1Options intentionally has no `model` field; the type guard below prevents
+//      that field from ever being re-introduced without a compile error.
 //   3. When finish_reason=length produces empty content, Pass1 always throws — never
 //      silently emits an empty artifact (the exact failure mode of job 6abcc20c).
 
 describe("RCA-PASS1-TOKEN-001 — Pass1 model routing and PV115-class reachability", () => {
   const registry = loadCanonicalRegistry();
 
-  it("E2E-04: production Pass1 uses the reliable JSON model, not o3, when no caller override is given", async () => {
-    const savedNodeEnv = process.env.NODE_ENV;
-    const savedFlag = process.env.ENABLE_PASS1_O3_EXPERIMENT;
-
-    // Simulate a production environment with experiment flag absent.
-    Object.defineProperty(process.env, "NODE_ENV", { value: "production", configurable: true });
-    delete process.env.ENABLE_PASS1_O3_EXPERIMENT;
-
+  it("E2E-04: production Pass1 always uses gpt-4o regardless of environment", async () => {
     let requestedModel: string | undefined;
     const captureModel: CreateCompletionFn = async (params) => {
       requestedModel = params.model;
@@ -312,42 +305,21 @@ describe("RCA-PASS1-TOKEN-001 — Pass1 model routing and PV115-class reachabili
       _createCompletion: captureModel,
     });
 
-    // Restore env before the assertion so failures don't leak.
-    Object.defineProperty(process.env, "NODE_ENV", { value: savedNodeEnv, configurable: true });
-    if (savedFlag !== undefined) process.env.ENABLE_PASS1_O3_EXPERIMENT = savedFlag;
-
-    expect(requestedModel).toBeDefined();
-    expect(requestedModel!.toLowerCase().startsWith("o3")).toBe(false);
+    expect(requestedModel).toBe(getCanonicalPipelineModel("gpt-4o"));
   });
 
-  it("E2E-04: production Pass1 overrides an explicit o3 caller request to the reliable JSON model", async () => {
-    const savedNodeEnv = process.env.NODE_ENV;
-    const savedFlag = process.env.ENABLE_PASS1_O3_EXPERIMENT;
-
-    Object.defineProperty(process.env, "NODE_ENV", { value: "production", configurable: true });
-    delete process.env.ENABLE_PASS1_O3_EXPERIMENT;
-
-    let requestedModel: string | undefined;
-    const captureModel: CreateCompletionFn = async (params) => {
-      requestedModel = params.model;
-      return { choices: [{ message: { content: JSON.stringify(makePass1Fixture()) } }] };
-    };
-
-    await runPass1({
-      manuscriptText: "The river moved slowly through the valley.",
+  it("type-level: RunPass1Options must not accept a model override", () => {
+    // Compile-time regression guard. If `model` is re-introduced to RunPass1Options
+    // this @ts-expect-error will become an error and the build will fail.
+    const _opts: import("@/lib/evaluation/pipeline/runPass1").RunPass1Options = {
+      // @ts-expect-error model must not exist on RunPass1Options
+      model: "o3",
+      manuscriptText: "test",
       workType: "literary_fiction",
-      title: "Production o3-override test",
-      registry,
-      model: "o3",           // caller requests o3 explicitly
-      openaiApiKey: "sk-test",
-      _createCompletion: captureModel,
-    });
-
-    Object.defineProperty(process.env, "NODE_ENV", { value: savedNodeEnv, configurable: true });
-    if (savedFlag !== undefined) process.env.ENABLE_PASS1_O3_EXPERIMENT = savedFlag;
-
-    expect(requestedModel).toBeDefined();
-    expect(requestedModel!.toLowerCase().startsWith("o3")).toBe(false);
+      title: "guard",
+      registry: loadCanonicalRegistry(),
+    };
+    expect(_opts).toBeDefined();
   });
 
   it("E2E-12: PV115-class Pass1 finish_reason=length with empty content always throws (never silently returns empty artifact)", async () => {
@@ -366,39 +338,5 @@ describe("RCA-PASS1-TOKEN-001 — Pass1 model routing and PV115-class reachabili
         _createCompletion: lengthLimitedEmptyCompletion(),
       }),
     ).rejects.toThrow("finish_reason=length");
-  });
-
-  it("E2E-12: non-production env with ENABLE_PASS1_O3_EXPERIMENT=true allows o3 for Pass1", async () => {
-    const savedNodeEnv = process.env.NODE_ENV;
-    const savedFlag = process.env.ENABLE_PASS1_O3_EXPERIMENT;
-
-    Object.defineProperty(process.env, "NODE_ENV", { value: "test", configurable: true });
-    process.env.ENABLE_PASS1_O3_EXPERIMENT = "true";
-
-    let requestedModel: string | undefined;
-    const captureModel: CreateCompletionFn = async (params) => {
-      requestedModel = params.model;
-      return { choices: [{ message: { content: JSON.stringify(makePass1Fixture()) } }] };
-    };
-
-    await runPass1({
-      manuscriptText: "The river moved slowly through the valley.",
-      workType: "literary_fiction",
-      title: "Non-prod o3 experiment test",
-      registry,
-      openaiApiKey: "sk-test",
-      _createCompletion: captureModel,
-    });
-
-    Object.defineProperty(process.env, "NODE_ENV", { value: savedNodeEnv, configurable: true });
-    if (savedFlag !== undefined) {
-      process.env.ENABLE_PASS1_O3_EXPERIMENT = savedFlag;
-    } else {
-      delete process.env.ENABLE_PASS1_O3_EXPERIMENT;
-    }
-
-    // When the experiment is explicitly enabled in non-prod, o3 should be used.
-    expect(requestedModel).toBeDefined();
-    expect(getCanonicalPipelineModel(requestedModel!)).toBeDefined();
   });
 });
