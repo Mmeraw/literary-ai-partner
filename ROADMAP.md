@@ -354,7 +354,9 @@ U2 may not be marked ENFORCED until all six U2 RCAs are resolved and PV115 passe
    - propagation summary
    - anchor-enforcement reason codes when applicable
    - `progress.gate_enforcement`
-3. Only then move RCA-U2-003 and RCA-U2-006 from PARTIAL to RESOLVED.
+3. Validate the collected proof pack with fail-fast guard:
+   - `cat proof.json | node scripts/validate-u2-proof.mjs`
+4. Only then move RCA-U2-003 and RCA-U2-006 from PARTIAL to RESOLVED.
 
 ---
 
