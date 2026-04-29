@@ -20,16 +20,25 @@ describe("processEvaluationJob phase routing guard", () => {
   });
 
   test("routes queued phase_2 jobs through phase_2 execution path (no phase_1 rejection)", async () => {
+    const now = new Date();
+    const leaseUntil = new Date(now.getTime() + 5 * 60_000).toISOString();
     const queuedPhase2Job = {
       id: "job-phase2-queued",
       manuscript_id: 42,
       job_type: "evaluate_full",
-      status: "queued",
+      status: "running",
       phase: "phase_2",
-      phase_status: "queued",
+      phase_status: "running",
+      claimed_by: "test-worker",
+      worker_id: "test-worker",
+      lease_token: "test-lease-token",
+      lease_until: leaseUntil,
+      lease_expires_at: leaseUntil,
+      heartbeat_at: now.toISOString(),
+      started_at: now.toISOString(),
       progress: {
         phase: "phase_2",
-        phase_status: "queued",
+        phase_status: "running",
       },
       created_at: new Date().toISOString(),
     };
@@ -80,16 +89,25 @@ describe("processEvaluationJob phase routing guard", () => {
   });
 
   test("allows queued phase_1 jobs to continue into processor flow", async () => {
+    const now = new Date();
+    const leaseUntil = new Date(now.getTime() + 5 * 60_000).toISOString();
     const queuedPhase1Job = {
       id: "job-phase1-queued",
       manuscript_id: 84,
       job_type: "evaluate_full",
-      status: "queued",
+      status: "running",
       phase: "phase_1",
-      phase_status: "queued",
+      phase_status: "running",
+      claimed_by: "test-worker",
+      worker_id: "test-worker",
+      lease_token: "test-lease-token",
+      lease_until: leaseUntil,
+      lease_expires_at: leaseUntil,
+      heartbeat_at: now.toISOString(),
+      started_at: now.toISOString(),
       progress: {
         phase: "phase_1",
-        phase_status: "queued",
+        phase_status: "running",
       },
       created_at: new Date().toISOString(),
     };

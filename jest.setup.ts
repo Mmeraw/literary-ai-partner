@@ -2,7 +2,7 @@
 // Pass through environment variables if set (GitHub Actions, local CI)
 // Otherwise use sensible test defaults
 
-import { resolveEvaluationTimeoutConfig } from "@/lib/evaluation/config";
+import { resolveEvaluationTimeoutConfig } from "./lib/evaluation/config";
 
 process.env.SUPABASE_URL =
   process.env.SUPABASE_URL ?? "http://localhost:54321";
