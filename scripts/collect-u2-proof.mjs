@@ -117,9 +117,9 @@ async function main() {
 
     // Human-readable verification checklist (fill in manually after reviewing report page)
     verificationChecklist: {
-      bottomWeaknessInSummary: "PENDING — check /evaluate/<jobId>/report manually",
-      confidenceBannerMatchesLabel: "PENDING — verify banner shows mixed/constrained when label is weak",
-      noFalseHighConfidenceAuthority: "PENDING — confirm no 'High' badge when governance label is weak/mixed",
+      bottomWeaknessInSummary: "PENDING ❌ — set to PASS after manual report verification",
+      confidenceBannerMatchesLabel: "PENDING ❌ — set to PASS after manual report verification",
+      noFalseHighConfidenceAuthority: "PENDING ❌ — set to PASS after manual report verification",
       propagationPersistedInDB: propagation !== null ? "PASS" : "FAIL — propagation is null",
     },
   };
@@ -144,7 +144,8 @@ Manual steps remaining:
   2. Confirm bottom weakness appears in summary
   3. Confirm confidence banner matches governance label
   4. Confirm no false high-confidence authority
-  5. Paste full JSON proof pack into workbook row for RCA-U2-003 / RCA-U2-006
+  5. Set checklist fields to PASS and run: cat proof.json | node scripts/validate-u2-proof.mjs
+  6. Paste full JSON proof pack into workbook row for RCA-U2-003 / RCA-U2-006
 `);
 }
 
