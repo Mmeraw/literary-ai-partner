@@ -11,7 +11,7 @@ CHECK (
   OR (
     (claimed_by IS NOT NULL OR worker_id IS NOT NULL)
     AND lease_token IS NOT NULL
-    AND lease_until IS NOT NULL
+    AND (lease_until IS NOT NULL OR lease_expires_at IS NOT NULL)
   )
 ) NOT VALID;
 
