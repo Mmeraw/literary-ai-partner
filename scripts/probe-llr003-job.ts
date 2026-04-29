@@ -52,16 +52,18 @@ function toProbeInput(job: EvaluationJobRow): RuleEvaluationInputForProbe {
 
 async function main() {
   const jobId = process.argv[2];
-
   if (!jobId) {
     throw new Error("Usage: tsx scripts/probe-llr003-job.ts <job-id>");
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY;
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error("Missing SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY)");
+    throw new Error(
+      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL, and SUPABASE_SERVICE_ROLE_KEY",
+    );
   }
 
   const supabase = createClient(supabaseUrl, supabaseKey);
@@ -76,7 +78,9 @@ async function main() {
     if ((error as { code?: string } | null)?.code === "PGRST116") {
       throw new Error(`No evaluation_jobs row found for ${jobId}`);
     }
-    throw new Error(`Failed to load evaluation_jobs row for ${jobId}: ${error?.message ?? "unknown error"}`);
+    throw new Error(
+      `Failed to load evaluation_jobs row for ${jobId}: ${error?.message ?? "unknown error"}`,
+    );
   }
 
   const input = toProbeInput(data as EvaluationJobRow);
