@@ -184,7 +184,8 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   const inputChars = opts.manuscriptText.length;
   const promptChars = PASS1_SYSTEM_PROMPT.length + userPrompt.length;
 
-  const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, getEffectivePass1MaxTokens());
+const effectiveMaxTokens = getEffectivePass1MaxTokens();
+    const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, getEffectivePass1MaxTokens());
   const configuredMaxTokens =
     typeof (outputTokenParam as { max_completion_tokens?: unknown }).max_completion_tokens === "number"
       ? Number((outputTokenParam as { max_completion_tokens: number }).max_completion_tokens)
