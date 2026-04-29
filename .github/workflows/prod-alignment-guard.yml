@@ -3,9 +3,6 @@ name: Production Alignment Guard
 on:
   push:
     branches: [main]
-  schedule:
-    # Every 15 minutes
-    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       apply_supabase_migrations:

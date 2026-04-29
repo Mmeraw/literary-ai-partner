@@ -40,6 +40,10 @@ type CriterionBase = {
   signal_present: boolean;
   signal_strength: SignalStrength;
   confidence_band: ConfidenceBand;
+  confidence_score_0_100?: number;
+  confidence_level?: "high" | "moderate" | "low";
+  confidence_reasons?: string[];
+  scorability_status?: "scorable" | "scorable_low_confidence" | "non_scorable";
   rationale: string;
   evidence: Array<{
     snippet: string;
@@ -155,6 +159,8 @@ export type EvaluationResultV2 = {
   }>;
   governance: {
     confidence: number;
+    confidence_label?: "high" | "medium" | "low" | "withheld";
+    confidence_reasons?: string[];
     warnings: string[];
     limitations: string[];
     policy_family: string;
@@ -169,6 +175,31 @@ export type EvaluationResultV2 = {
         C?: Array<string>;
       };
       repro_anchor?: string;
+      artifact_validation_result?: "PASS" | "HOLD" | "FAIL";
+      artifact_reason_codes?: string[];
+      artifact_validated_at?: string;
+      artifact_validation_mode?: "log" | "enforce";
+      score_ledger?: {
+        raw_total: number;
+        max_total: number;
+        normalized_total: number;
+        weighting: "equal";
+      };
+      excellence_filter?: {
+        verdict: "submission-ready" | "close-but-not-ready" | "not-yet-ready";
+        blocking_criteria: string[];
+      };
+      propagation_summary?: {
+        low_confidence_count: number;
+        moderate_confidence_count: number;
+        weak_evidence_count: number;
+        missing_evidence_count: number;
+        scorable_low_confidence_count: number;
+        bottom_score_criteria: string[];
+        upstream_integrity: "strong" | "mixed" | "weak";
+        authority_level: "normal" | "constrained" | "blocked";
+        reasons: string[];
+      };
     };
   };
 };
@@ -220,6 +251,38 @@ export function validateEvaluationResultV2(
       errors.push(`Duplicate criterion key: ${c.key}`);
     }
     seen.add(c.key);
+
+    if (c.confidence_score_0_100 !== undefined) {
+      if (
+        typeof c.confidence_score_0_100 !== "number" ||
+        c.confidence_score_0_100 < 0 ||
+        c.confidence_score_0_100 > 100
+      ) {
+        errors.push(`criteria[${idx}].confidence_score_0_100 must be 0-100 when present`);
+      }
+    }
+
+    if (
+      c.confidence_level !== undefined &&
+      c.confidence_level !== "high" &&
+      c.confidence_level !== "moderate" &&
+      c.confidence_level !== "low"
+    ) {
+      errors.push(`criteria[${idx}].confidence_level invalid: ${String(c.confidence_level)}`);
+    }
+
+    if (
+      c.scorability_status !== undefined &&
+      c.scorability_status !== "scorable" &&
+      c.scorability_status !== "scorable_low_confidence" &&
+      c.scorability_status !== "non_scorable"
+    ) {
+      errors.push(`criteria[${idx}].scorability_status invalid: ${String(c.scorability_status)}`);
+    }
+
+    if (c.confidence_reasons !== undefined && !Array.isArray(c.confidence_reasons)) {
+      errors.push(`criteria[${idx}].confidence_reasons must be an array when present`);
+    }
 
     if (!c.rationale || c.rationale.trim().length === 0) {
       errors.push(`criteria[${idx}].rationale is empty`);
@@ -302,6 +365,67 @@ export function validateEvaluationResultV2(
 
   if (!result.governance || typeof result.governance.confidence !== "number" || result.governance.confidence < 0 || result.governance.confidence > 1) {
     errors.push("governance.confidence must be 0.0-1.0");
+  }
+
+  if (
+    result.governance?.confidence_label !== undefined &&
+    result.governance.confidence_label !== "high" &&
+    result.governance.confidence_label !== "medium" &&
+    result.governance.confidence_label !== "low" &&
+    result.governance.confidence_label !== "withheld"
+  ) {
+    errors.push("governance.confidence_label invalid");
+  }
+
+  if (
+    result.governance?.confidence_reasons !== undefined &&
+    !Array.isArray(result.governance.confidence_reasons)
+  ) {
+    errors.push("governance.confidence_reasons must be an array when present");
+  }
+
+  const propagationSummary = result.governance?.transparency?.propagation_summary;
+  if (propagationSummary !== undefined) {
+    if (
+      typeof propagationSummary.low_confidence_count !== "number" ||
+      typeof propagationSummary.moderate_confidence_count !== "number" ||
+      typeof propagationSummary.weak_evidence_count !== "number" ||
+      typeof propagationSummary.missing_evidence_count !== "number" ||
+      typeof propagationSummary.scorable_low_confidence_count !== "number"
+    ) {
+      errors.push("governance.transparency.propagation_summary count fields must be numbers");
+    }
+
+    if (!Array.isArray(propagationSummary.bottom_score_criteria)) {
+      errors.push("governance.transparency.propagation_summary.bottom_score_criteria must be an array");
+    }
+
+    if (
+      propagationSummary.upstream_integrity !== "strong" &&
+      propagationSummary.upstream_integrity !== "mixed" &&
+      propagationSummary.upstream_integrity !== "weak"
+    ) {
+      errors.push("governance.transparency.propagation_summary.upstream_integrity invalid");
+    }
+
+    if (
+      propagationSummary.authority_level !== "normal" &&
+      propagationSummary.authority_level !== "constrained" &&
+      propagationSummary.authority_level !== "blocked"
+    ) {
+      errors.push("governance.transparency.propagation_summary.authority_level invalid");
+    }
+
+    if (!Array.isArray(propagationSummary.reasons)) {
+      errors.push("governance.transparency.propagation_summary.reasons must be an array");
+    }
+
+    if (
+      propagationSummary.upstream_integrity === "weak" &&
+      result.governance?.confidence_label === "high"
+    ) {
+      errors.push("governance.confidence_label cannot be high when propagation upstream_integrity is weak");
+    }
   }
 
   return { valid: errors.length === 0, errors };

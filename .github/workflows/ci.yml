@@ -28,11 +28,16 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Eval2 persistence boundary guard
+        run: npm run guard:eval2-persistence-boundary
+
       - name: Build
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key-for-build"
+          EVAL_OPENAI_TIMEOUT_MS: "180000"
+          EVAL_PASS_TIMEOUT_MS: "180000"
 
       - name: Gate replay (strict codes)
         run: npm run gate:replay -- --run-dir tests/fixtures/gate-replay/ch11b_pass
@@ -127,4 +132,6 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key-for-build"
+          EVAL_OPENAI_TIMEOUT_MS: "180000"
+          EVAL_PASS_TIMEOUT_MS: "180000"
       - run: npm test

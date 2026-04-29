@@ -7,6 +7,7 @@ import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { EvaluationResultV1, isEvaluationResultV1, hasD2TransparencyFields } from '@/schemas/evaluation-result-v1';
 import AgentTrustHeader from '@/components/reports/AgentTrustHeader';
 import { scanObjectForForbiddenMarketClaims } from '@/lib/release/forbiddenMarketClaims';
+import { classifyEvaluationIntegrityBanner } from '@/lib/evaluation/warningClassification';
 
 // D1 Boundary: server-only. Service key must not leak to client.
 // Hybrid owner-gate: SSR client for auth identity, admin client for
@@ -15,6 +16,25 @@ import { scanObjectForForbiddenMarketClaims } from '@/lib/release/forbiddenMarke
 // TODO(gate7): migrate to full RLS once evaluation_jobs has user_id column.
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+function getConfidenceBadge(criterion: EvaluationResultV1["criteria"][number]): {
+  label: string;
+  classes: string;
+} | null {
+  if (criterion.confidence_level === "high" || (typeof criterion.confidence_score_0_100 === "number" && criterion.confidence_score_0_100 >= 85)) {
+    return { label: "High Confidence", classes: "bg-emerald-100 text-emerald-800" };
+  }
+
+  if (criterion.confidence_level === "moderate" || (typeof criterion.confidence_score_0_100 === "number" && criterion.confidence_score_0_100 >= 60)) {
+    return { label: "Moderate Confidence", classes: "bg-amber-100 text-amber-800" };
+  }
+
+  if (criterion.confidence_level === "low" || (typeof criterion.confidence_score_0_100 === "number" && criterion.confidence_score_0_100 >= 0)) {
+    return { label: "Low Confidence", classes: "bg-rose-100 text-rose-800" };
+  }
+
+  return null;
+}
 
 async function getEvaluationResult(jobId: string, userId: string): Promise<EvaluationResultV1 | null> {
   noStore();
@@ -96,6 +116,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
   }
 
   const { overview, criteria, recommendations, metrics, artifacts, governance } = result;
+  const integrityBanner = classifyEvaluationIntegrityBanner({ governance });
 
   // D2 Transparency: validate all required fields are present before rendering agent view.
   if (!hasD2TransparencyFields(result)) {
@@ -154,6 +175,14 @@ export default async function ReportPage({ params }: { params: { jobId: string }
           criteriaPlan={criteriaPlan}
         />
 
+        {/* Evaluation integrity status (single source of truth) */}
+        {integrityBanner && (
+          <section className={integrityBanner.containerClassName}>
+            <p className={integrityBanner.titleClassName}>{integrityBanner.title}</p>
+            <p className={integrityBanner.detailClassName}>{integrityBanner.message}</p>
+          </section>
+        )}
+
         {/* Overview Section */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -207,6 +236,17 @@ export default async function ReportPage({ params }: { params: { jobId: string }
         {/* Criteria Scores */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">Detailed Scores</h2>
+          <div className="mb-4 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
+            <p className="font-medium">Confidence Guide</p>
+            <p className="mt-1">
+              Confidence shows how strongly each score and summary is supported by clear examples from your submitted text.
+            </p>
+            <ul className="mt-2 list-disc pl-5 space-y-1">
+              <li>High (≥85): strong support from the text</li>
+              <li>Moderate (60–84): partial or uneven support from the text</li>
+              <li>Low (&lt;60): limited support from the text</li>
+            </ul>
+          </div>
           <div className="grid md:grid-cols-2 gap-4">
             {criteria.map((criterion) => (
               <div key={criterion.key} className="border border-gray-200 rounded-lg p-4">
@@ -214,13 +254,24 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                   <h3 className="font-semibold text-gray-900 capitalize">
                     {criterion.key}
                   </h3>
-                  <span className={`text-lg font-bold ${
-                    criterion.score_0_10 >= 8 ? 'text-green-600' :
-                    criterion.score_0_10 >= 6 ? 'text-yellow-600' :
-                    'text-red-600'
-                  }`}>
-                    {criterion.score_0_10}/10
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-lg font-bold ${
+                      criterion.score_0_10 >= 8 ? 'text-green-600' :
+                      criterion.score_0_10 >= 6 ? 'text-yellow-600' :
+                      'text-red-600'
+                    }`}>
+                      {criterion.score_0_10}/10
+                    </span>
+                    {(() => {
+                      const confidence = getConfidenceBadge(criterion);
+                      if (!confidence) return null;
+                      return (
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${confidence.classes}`}>
+                          {confidence.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
                 </div>
                 <p className="text-sm text-gray-600">
                   {criterion.rationale}
@@ -334,14 +385,10 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               </div>
             )}
           </div>
-          {governance.warnings.length > 0 && (
+          {integrityBanner?.label && (
             <div className="mt-4">
-              <p className="text-gray-600 mb-2">Warnings</p>
-              <ul className="space-y-1">
-                {governance.warnings.map((warning, idx) => (
-                  <li key={idx} className="text-sm text-amber-700">{"\u26A0"} {warning}</li>
-                ))}
-              </ul>
+              <p className="text-gray-600 mb-2">Evaluation Status</p>
+              <p className="text-sm text-gray-800">{integrityBanner.label}</p>
             </div>
           )}
         </section>

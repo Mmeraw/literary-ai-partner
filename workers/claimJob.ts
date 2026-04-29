@@ -412,6 +412,20 @@ async function fallbackRenewLease(
  * Mark job complete
  */
 export async function completeJob(jobId: string, result: any): Promise<boolean> {
+  const looksLikeEvalResultV2 =
+    result &&
+    typeof result === 'object' &&
+    (
+      (result as { schema_version?: unknown }).schema_version === 'evaluation_result_v2' ||
+      (result as { evaluation_result_version?: unknown }).evaluation_result_version === 'evaluation_result_v2'
+    );
+
+  if (looksLikeEvalResultV2) {
+    throw new Error(
+      'Legacy worker completeJob cannot persist evaluation_result_v2. Use persistEvaluationResultV2 boundary.',
+    );
+  }
+
     const supabase = getSupabaseClient();
   const now = new Date().toISOString();
   const chunkCount =

@@ -22,16 +22,25 @@ type UpdatePayload = Record<string, unknown>;
 
 function makeSupabaseStub(shortText: string) {
   const evaluationJobUpdates: UpdatePayload[] = [];
+  const now = new Date();
+  const leaseUntil = new Date(now.getTime() + 5 * 60_000).toISOString();
 
   const queuedJob = {
     id: "job-short-text",
     manuscript_id: 123,
     job_type: "evaluation",
-    status: "queued",
+    status: "running",
     phase: "phase_1",
-    phase_status: "queued",
-    created_at: new Date().toISOString(),
-    progress: { phase: "phase_1", phase_status: "queued" },
+    phase_status: "running",
+    claimed_by: "test-worker",
+    worker_id: "test-worker",
+    lease_token: "test-lease-token",
+    lease_until: leaseUntil,
+    lease_expires_at: leaseUntil,
+    heartbeat_at: now.toISOString(),
+    started_at: now.toISOString(),
+    created_at: now.toISOString(),
+    progress: { phase: "phase_1", phase_status: "running" },
   };
 
   const manuscript = {

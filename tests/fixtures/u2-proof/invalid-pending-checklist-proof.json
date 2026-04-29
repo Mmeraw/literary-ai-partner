@@ -1,0 +1,32 @@
+{
+  "job": {
+    "status": "complete"
+  },
+  "u2Proof": {
+    "confidenceLabel": "mixed",
+    "confidenceReasons": [
+      "propagation downgraded confidence"
+    ],
+    "propagation": {
+      "weakCriteria": [
+        "anchor_support"
+      ]
+    },
+    "anchors": [
+      {
+        "criterion": "anchor_support",
+        "anchorType": "scene",
+        "quote": "A concrete scene anchor exists."
+      }
+    ],
+    "reasonCodes": [
+      "QG_SUMMARY_OMITS_WEAKNESS"
+    ]
+  },
+  "verificationChecklist": {
+    "bottomWeaknessInSummary": "PENDING",
+    "confidenceBannerMatchesLabel": "PASS",
+    "noFalseHighConfidenceAuthority": "PASS",
+    "propagationPersistedInDB": "PASS"
+  }
+}

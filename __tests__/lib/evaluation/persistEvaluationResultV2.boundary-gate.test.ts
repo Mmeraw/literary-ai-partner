@@ -1,0 +1,349 @@
+export {};
+
+import { describe, expect, jest, test } from "@jest/globals";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
+import { persistEvaluationResultV2 } from "../../../lib/evaluation/persistEvaluationResultV2";
+
+function isIsoTimestamp(value: unknown): boolean {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
+}
+
+function readGateEnforcement(payload: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  return (payload?.progress as Record<string, unknown> | undefined)?.gate_enforcement as
+    | Record<string, unknown>
+    | undefined;
+}
+
+function makeValidEvaluationResultV2(): EvaluationResultV2 {
+  return {
+    schema_version: "evaluation_result_v2",
+    ids: {
+      evaluation_run_id: "run-step1-boundary",
+      job_id: "job-step1-boundary",
+      manuscript_id: 101,
+      user_id: "00000000-0000-0000-0000-000000000101",
+    },
+    generated_at: new Date().toISOString(),
+    engine: {
+      model: "o3",
+      provider: "openai",
+      prompt_version: "step1-boundary-test",
+    },
+    overview: {
+      verdict: "revise",
+      overall_score_0_100: 70,
+      scored_criteria_count: CRITERIA_KEYS.length,
+      one_paragraph_summary: "Boundary gate valid fixture summary.",
+      top_3_strengths: ["voice", "character", "dialogue"],
+      top_3_risks: ["pacing", "theme", "closure"],
+    },
+    criteria: CRITERIA_KEYS.map((key) => ({
+      key,
+      scorable: true as const,
+      status: "SCORABLE" as const,
+      signal_present: true,
+      signal_strength: "SUFFICIENT" as const,
+      confidence_band: "MEDIUM" as const,
+      score_0_10: 7,
+      rationale: `Criterion ${key} is supported by concrete manuscript evidence.`,
+      evidence: [
+        { snippet: `"Evidence anchor A for ${key}"` },
+        { snippet: `"Evidence anchor B for ${key}"` },
+      ],
+      recommendations: [
+        {
+          priority: "medium" as const,
+          action: `Improve ${key} with a targeted line-level revision tied to this evidence span.`,
+          expected_impact: `Improves ${key} clarity and execution consistency.`,
+        },
+      ],
+    })),
+    recommendations: {
+      quick_wins: [],
+      strategic_revisions: [],
+    },
+    metrics: {
+      manuscript: {},
+      processing: {},
+    },
+    artifacts: [],
+    governance: {
+      confidence: 0.8,
+      confidence_label: "medium",
+      confidence_reasons: ["mixed_confidence_profile"],
+      warnings: [],
+      limitations: [],
+      policy_family: "multi-pass-dual-axis",
+      observability_warnings: [],
+      transparency: {
+        propagation_summary: {
+          low_confidence_count: 3,
+          moderate_confidence_count: 4,
+          weak_evidence_count: 1,
+          missing_evidence_count: 0,
+          scorable_low_confidence_count: 2,
+          bottom_score_criteria: ["pacing", "theme"],
+          upstream_integrity: "mixed",
+          authority_level: "constrained",
+          reasons: ["mixed_confidence_profile"],
+        },
+      },
+    },
+  };
+}
+
+function makeSupabaseStub() {
+  const evaluationJobUpdates: Array<Record<string, unknown>> = [];
+  const rpcCalls: Array<{ name: string; payload: Record<string, unknown> }> = [];
+  let rpcResult: { data: Array<{ artifact_id?: string }>; error: { message?: string } | null } = {
+    data: [{ artifact_id: "artifact-rpc-1" }],
+    error: null,
+  };
+
+  return {
+    evaluationJobUpdates,
+    setRpcResult(next: { data: Array<{ artifact_id?: string }>; error: { message?: string } | null }) {
+      rpcResult = next;
+    },
+    rpc(name: string, payload: Record<string, unknown>) {
+      rpcCalls.push({ name, payload });
+      return Promise.resolve(rpcResult);
+    },
+    from(table: string) {
+      if (table === "evaluation_jobs") {
+        return {
+          update: (payload: Record<string, unknown>) => {
+            evaluationJobUpdates.push(payload);
+            return {
+              eq: async () => ({ error: null }),
+            };
+          },
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    },
+    rpcCalls,
+  };
+}
+
+describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
+  test("invalid artifact rejects before persistence and never completes job", async () => {
+    const supabase = makeSupabaseStub();
+
+    const invalid = {
+      ...makeValidEvaluationResultV2(),
+      criteria: [],
+      overview: {
+        ...makeValidEvaluationResultV2().overview,
+        scored_criteria_count: 0,
+        overall_score_0_100: null,
+      },
+    } as EvaluationResultV2;
+
+    const result = await persistEvaluationResultV2({
+      supabase: supabase as unknown as SupabaseClient,
+      jobId: "job-step1-invalid",
+      manuscriptId: 101,
+      evaluationResult: invalid,
+      sourceHash: "sha256:invalid",
+      progressSnapshot: { phase: "phase_2", phase_status: "running" },
+      totalUnits: 5,
+      completedUnits: 4,
+    });
+
+    expect(result.persisted).toBe(false);
+    expect(result.gateDecision).toBe("FAIL");
+    expect(supabase.rpcCalls).toHaveLength(0);
+
+    const completeWrites = supabase.evaluationJobUpdates.filter((p) => p.status === "complete");
+    expect(completeWrites).toHaveLength(0);
+
+    const failedWrite = supabase.evaluationJobUpdates.find((p) => p.status === "failed");
+    expect(failedWrite).toBeDefined();
+    expect(failedWrite).toMatchObject({
+      phase_status: "failed",
+      failure_code: "EVALUATION_ARTIFACT_VALIDATION_FAILED",
+      validity_status: "invalid",
+    });
+  });
+
+  test("valid artifact persists and marks job complete", async () => {
+    const supabase = makeSupabaseStub();
+
+    const result = await persistEvaluationResultV2({
+      supabase: supabase as unknown as SupabaseClient,
+      jobId: "job-step1-valid",
+      manuscriptId: 102,
+      evaluationResult: makeValidEvaluationResultV2(),
+      sourceHash: "sha256:valid",
+      progressSnapshot: { phase: "phase_2", phase_status: "running" },
+      totalUnits: 5,
+      completedUnits: 5,
+    });
+
+    expect(result.persisted).toBe(true);
+    expect(result.gateDecision).toBe("PASS");
+    expect(supabase.rpcCalls).toHaveLength(1);
+    expect(supabase.rpcCalls[0].name).toBe("persist_evaluation_v2_atomic");
+
+    const rpcPayload = supabase.rpcCalls[0].payload;
+    expect(rpcPayload).toMatchObject({
+      p_job_id: "job-step1-valid",
+      p_manuscript_id: 102,
+      p_artifact_type: "evaluation_result_v2",
+      p_artifact_version: "evaluation_result_v2",
+      p_total_units: 5,
+      p_completed_units: 5,
+    });
+
+    const gateEnforcement = (rpcPayload.p_progress as Record<string, unknown> | undefined)
+      ?.gate_enforcement as Record<string, unknown> | undefined;
+    expect(gateEnforcement).toBeDefined();
+    expect(gateEnforcement).toMatchObject({
+      validation_result: "PASS",
+      gate_decision: "PASS",
+      gate_reason: expect.any(String),
+      confidence: {
+        confidence: expect.any(String),
+        reasons: expect.any(Array),
+      },
+      propagation: {
+        low_confidence_count: 3,
+        moderate_confidence_count: 4,
+        weak_evidence_count: 1,
+        missing_evidence_count: 0,
+        scorable_low_confidence_count: 2,
+        bottom_score_criteria: ["pacing", "theme"],
+        upstream_integrity: "mixed",
+        authority_level: "constrained",
+        reasons: ["mixed_confidence_profile"],
+      },
+      reason_codes: expect.any(Array),
+    });
+    expect((gateEnforcement?.gate_reason as string).length).toBeGreaterThan(0);
+    expect(isIsoTimestamp(gateEnforcement?.validated_at)).toBe(true);
+  });
+
+  test("structural rejection writes structured gate_enforcement trace on failed status", async () => {
+    const supabase = makeSupabaseStub();
+
+    const invalid = {
+      ...makeValidEvaluationResultV2(),
+      criteria: [],
+      overview: {
+        ...makeValidEvaluationResultV2().overview,
+        scored_criteria_count: 0,
+        overall_score_0_100: null,
+      },
+    } as EvaluationResultV2;
+
+    const result = await persistEvaluationResultV2({
+      supabase: supabase as unknown as SupabaseClient,
+      jobId: "job-step1-structural-trace",
+      manuscriptId: 104,
+      evaluationResult: invalid,
+      sourceHash: "sha256:structural-trace",
+      progressSnapshot: { phase: "phase_2", phase_status: "running" },
+      totalUnits: 5,
+      completedUnits: 4,
+    });
+
+    expect(result.persisted).toBe(false);
+    expect(result.gateDecision).toBe("FAIL");
+    expect(result.validationResult).toBe("FAIL");
+    expect(supabase.rpcCalls).toHaveLength(0);
+
+    const failedWrite = supabase.evaluationJobUpdates.find((p) => p.status === "failed");
+    expect(failedWrite).toBeDefined();
+
+    const gateEnforcement = readGateEnforcement(failedWrite);
+    expect(gateEnforcement).toBeDefined();
+    expect(gateEnforcement).toMatchObject({
+      validation_result: "FAIL",
+      gate_decision: "FAIL",
+      gate_reason: "Boundary structural validation failed",
+      confidence: {
+        confidence: expect.any(String),
+        reasons: expect.any(Array),
+      },
+      reason_codes: expect.any(Array),
+      validation_issues: expect.any(Array),
+    });
+    expect((gateEnforcement?.reason_codes as Array<unknown>).length).toBeGreaterThan(0);
+    expect((gateEnforcement?.validation_issues as Array<unknown>).length).toBeGreaterThan(0);
+    expect(isIsoTimestamp(gateEnforcement?.validated_at)).toBe(true);
+  });
+
+  test("invariant: gate FAIL path never writes status complete", async () => {
+    const supabase = makeSupabaseStub();
+
+    const invalid = {
+      ...makeValidEvaluationResultV2(),
+      criteria: [],
+      overview: {
+        ...makeValidEvaluationResultV2().overview,
+        scored_criteria_count: 0,
+        overall_score_0_100: null,
+      },
+    } as EvaluationResultV2;
+
+    await persistEvaluationResultV2({
+      supabase: supabase as unknown as SupabaseClient,
+      jobId: "job-step1-invariant",
+      manuscriptId: 103,
+      evaluationResult: invalid,
+      sourceHash: "sha256:invariant",
+      progressSnapshot: { phase: "phase_2", phase_status: "running" },
+      totalUnits: 5,
+      completedUnits: 4,
+    });
+
+    expect(supabase.rpcCalls).toHaveLength(0);
+
+    for (const payload of supabase.evaluationJobUpdates) {
+      const gateDecision = readGateEnforcement(payload)?.gate_decision;
+      if (gateDecision === "FAIL") {
+        expect(payload.status).not.toBe("complete");
+      }
+    }
+  });
+
+  test("rpc failure on success path throws atomic persistence error", async () => {
+    const supabase = makeSupabaseStub();
+    supabase.setRpcResult({ data: [], error: { message: "atomic failure simulated" } });
+
+    await expect(
+      persistEvaluationResultV2({
+        supabase: supabase as unknown as SupabaseClient,
+        jobId: "job-step1-rpc-fail",
+        manuscriptId: 105,
+        evaluationResult: makeValidEvaluationResultV2(),
+        sourceHash: "sha256:rpc-fail",
+        progressSnapshot: { phase: "phase_2", phase_status: "running" },
+        totalUnits: 5,
+        completedUnits: 5,
+      }),
+    ).rejects.toThrow(/Atomic persistence failed/i);
+  });
+
+  test("rpc success without artifact_id throws fail-closed error", async () => {
+    const supabase = makeSupabaseStub();
+    supabase.setRpcResult({ data: [{}], error: null });
+
+    await expect(
+      persistEvaluationResultV2({
+        supabase: supabase as unknown as SupabaseClient,
+        jobId: "job-step1-rpc-no-artifact",
+        manuscriptId: 106,
+        evaluationResult: makeValidEvaluationResultV2(),
+        sourceHash: "sha256:rpc-no-artifact",
+        progressSnapshot: { phase: "phase_2", phase_status: "running" },
+        totalUnits: 5,
+        completedUnits: 5,
+      }),
+    ).rejects.toThrow(/no artifact_id/i);
+  });
+});
