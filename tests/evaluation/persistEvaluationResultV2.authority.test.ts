@@ -137,9 +137,9 @@ describe("persistEvaluationResultV2 authority cap enforcement", () => {
     );
   });
 
-  test("does not raise score when rounded cap is greater than original", async () => {
+  test("does not raise score when computed cap is greater than original", async () => {
     const persisted = await persistAndCapture(
-      makeBaseResult(55, { voice: 5.95, proseControl: 5.95, tone: 5.95 }),
+      makeBaseResult(55, { voice: 5, proseControl: 6, tone: 6 }),
     );
 
     expect(persisted.overview.overall_score_0_100).toBe(55);
