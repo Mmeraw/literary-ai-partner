@@ -35,6 +35,19 @@ export type InsufficientSignalReason = {
   } | null;
 };
 
+export type ScoreAdjustmentV2 = {
+  reason: "AUTHORITY_CAP_APPLIED";
+  composite_0_10: number;
+  threshold_0_10: number;
+  original_overall_0_100: number;
+  capped_overall_0_100: number;
+  inputs: {
+    voice: number;
+    proseControl: number;
+    tone: number;
+  };
+};
+
 type CriterionBase = {
   key: CriterionKey;
   signal_present: boolean;
@@ -116,6 +129,8 @@ export type EvaluationResultV2 = {
     top_3_risks: string[];
   };
   criteria: EvaluationCriterionV2[];
+  /** Deterministic score adjustments applied at artifact finalization boundaries. */
+  score_adjustments?: ScoreAdjustmentV2[];
   recommendations: {
     quick_wins: Array<{
       action: string;
