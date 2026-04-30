@@ -847,6 +847,7 @@ describe("synthesisToEvaluationResult adapter", () => {
     });
 
     expect(result.schema_version).toBe("evaluation_result_v1");
+    expect(result.score_denominator_policy).toBe("full_canonical");
     expect(result.overview.overall_score_0_100).toBe(70);
     expect(result.criteria).toHaveLength(13);
     expect(result.recommendations.quick_wins.length).toBeGreaterThan(0);
@@ -927,6 +928,7 @@ describe("synthesisToEvaluationResult adapter", () => {
     });
 
     expect(result.schema_version).toBe("evaluation_result_v1");
+    expect(result.score_denominator_policy).toBe("full_canonical");
     expect(result.overview).toEqual(
       expect.objectContaining({
         verdict: expect.any(String),

@@ -262,6 +262,7 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     const persistedContent = persistCall?.args?.p_artifact_content as Record<string, unknown>;
     expect(persistedContent).toMatchObject({
       schema_version: "evaluation_result_v2",
+      score_denominator_policy: "full_canonical",
     });
     // Criteria count matches canonical registry (13) — proves real mapping ran.
     expect((persistedContent as any).criteria).toHaveLength(CRITERIA_KEYS.length);
