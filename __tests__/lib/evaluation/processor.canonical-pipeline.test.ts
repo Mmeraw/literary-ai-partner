@@ -845,6 +845,43 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     );
   });
 
+  test("stamps pass3_completed_at when persisting failure envelope progress", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    runPipelineMock.mockResolvedValue({
+      ok: false,
+      failed_at: "pass3",
+      error_code: "PASS3_FAILED",
+      error: "Pass 3 arbitration failed",
+      failure_details: {
+        arbitration: {
+          reason: "insufficient consensus",
+        },
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+
+    const envelopePatch = supabaseStub.evaluationJobUpdates.find(
+      (payload: Record<string, any>) =>
+        payload?.progress?.pipeline_failure_envelope?.error_code === "PASS3_FAILED",
+    ) as Record<string, any> | undefined;
+
+    expect(envelopePatch).toBeDefined();
+    expect(envelopePatch?.progress).toEqual(
+      expect.objectContaining({
+        pass3_started_at: expect.any(String),
+        pass3_completed_at: expect.any(String),
+        phase_status: "failed",
+        error_code: "PASS3_FAILED",
+      }),
+    );
+  });
+
   test("logs artifact validation result in governance transparency (logging mode only)", async () => {
     const supabaseStub = makeSupabaseStub();
     createClientMock.mockReturnValue(supabaseStub);
