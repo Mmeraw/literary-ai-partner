@@ -1,0 +1,105 @@
+import { createClient } from "@supabase/supabase-js";
+import {
+  logLlr003Probe,
+  probeLlr003PairsFromInput,
+  type RuleEvaluationInputForProbe,
+} from "../lib/governance/lessonsLearned/ACTIVE_RULES";
+
+type EvaluationJobRow = {
+  id: string;
+  [key: string]: unknown;
+  convergenceResult?: {
+    overall?: {
+      top_3_strengths?: string[];
+      top_3_risks?: string[];
+      top3strengths?: string[];
+      top3risks?: string[];
+    };
+  } | null;
+  convergence_result?: {
+    overall?: {
+      top_3_strengths?: string[];
+      top_3_risks?: string[];
+      top3strengths?: string[];
+      top3risks?: string[];
+    };
+  } | null;
+};
+
+function toProbeInput(job: EvaluationJobRow): RuleEvaluationInputForProbe {
+  const convergence =
+    job.convergence_result ??
+    job.convergenceResult ??
+    (job["convergenceResult"] as EvaluationJobRow["convergenceResult"]) ??
+    (job["convergence_result"] as EvaluationJobRow["convergence_result"]) ??
+    (job["pass3_result"] as EvaluationJobRow["convergence_result"]) ??
+    (job["convergence"] as EvaluationJobRow["convergence_result"]) ??
+    {};
+
+  const strengths =
+    convergence?.overall?.top_3_strengths ?? convergence?.overall?.top3strengths ?? [];
+  const risks = convergence?.overall?.top_3_risks ?? convergence?.overall?.top3risks ?? [];
+
+  return {
+    convergence_result: {
+      overall: {
+        top_3_strengths: strengths,
+        top_3_risks: risks,
+      },
+    },
+  };
+}
+
+async function main() {
+  const jobId = process.argv[2];
+  if (!jobId) {
+    throw new Error("Usage: tsx scripts/probe-llr003-job.ts <job-id>");
+  }
+
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL, and SUPABASE_SERVICE_ROLE_KEY",
+    );
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const { data, error } = await supabase
+    .from("evaluation_jobs")
+    .select("*")
+    .eq("id", jobId)
+    .single();
+
+  if (error || !data) {
+    if ((error as { code?: string } | null)?.code === "PGRST116") {
+      throw new Error(`No evaluation_jobs row found for ${jobId}`);
+    }
+    throw new Error(
+      `Failed to load evaluation_jobs row for ${jobId}: ${error?.message ?? "unknown error"}`,
+    );
+  }
+
+  const input = toProbeInput(data as EvaluationJobRow);
+  const pairs = probeLlr003PairsFromInput(input);
+  const blocking = pairs.filter((pair) => pair.decision === "error_polarity");
+
+  logLlr003Probe(`job ${jobId}`, input);
+
+  console.log("\nSummary");
+  console.log({
+    jobId,
+    strengths: input.convergence_result?.overall?.top_3_strengths?.length ?? 0,
+    risks: input.convergence_result?.overall?.top_3_risks?.length ?? 0,
+    totalPairs: pairs.length,
+    blockingPairs: blocking.length,
+  });
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

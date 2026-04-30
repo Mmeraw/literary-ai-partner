@@ -66,12 +66,62 @@ export type EvidenceAnchor = {
   segment_id?: string;
 };
 
+// ── Dialogue Attribution Diagnostics (FR-1: Canonical shared type) ───────────
+
+/**
+ * Structured diagnostic signals for dialogue attribution and rendering.
+ * Single source of truth imported by: quality gate, Pass 3 backfill, fallback logic, tests.
+ * Prevents lexical-semantic mismatch between enforcement layers.
+ * Canonical import: lib/evaluation/pipeline/types.ts
+ */
+export type DialogueAttributionDiagnostics = {
+  /** Count of quoted speech segments in manuscript */
+  quotedSpeechCount: number;
+  /** Number of dialogue turn transitions */
+  dialogueTurnCount: number;
+  /** Explicit attribution tags (said, asked, replied, etc.) */
+  explicitTagCount: number;
+  /** Action beats adjacent to or replacing attribution */
+  actionBeatCount: number;
+  /** Attribution tag frequency per 1000 words */
+  tagDensity: number;
+  /** Action beat frequency per 1000 words */
+  actionBeatDensity: number;
+  /** Speaker identification clarity across narrative */
+  turnTakingClarity: "clear" | "mixed" | "unclear";
+  /** Risk of speaker confusion or ambiguity */
+  speakerAmbiguityRisk: "low" | "medium" | "high";
+  /** Observable rendering techniques found in dialogue */
+  renderingModesDetected: Array<
+    | "direct_speech"
+    | "indirect_speech"
+    | "reported_speech"
+    | "interiority_during_dialogue"
+    | "action_beat_attribution"
+    | "tagged_speech"
+    | "tagless_exchange"
+  >;
+  /** How the manuscript attributes or renders speaker identity */
+  speakerAttributionStrategy: Array<
+    | "explicit_tags"
+    | "action_beats"
+    | "voice_differentiation"
+    | "alternating_turns"
+    | "contextual_anchoring"
+  >;
+  /** Human-readable summary of dialogue attribution mechanisms */
+  diagnosticSummary: string;
+};
+
+
 // ── Single-axis criterion result (Pass 1 or 2) ──────────────────────────────
 
 export type AxisCriterionResult = {
   key: CriterionKey;
   /** Integer 0-10, no half-points (Canon) */
   score_0_10: number;
+  /** Deterministic parser/validator reason codes from pass boundary enforcement. */
+  reason_codes?: string[];
   rationale: string;
   evidence: EvidenceAnchor[];
   recommendations: {
@@ -146,6 +196,14 @@ export type SynthesizedCriterion = {
     /** Number of distinct evidence spans supporting this recommendation */
     evidence_span_count?: number;
   }[];
+  /** Deterministic confidence score derived from evidence support + explanation quality (0-100). */
+  confidence_score_0_100?: number;
+  /** Confidence bucket for user-facing trust rendering. */
+  confidence_level?: "high" | "moderate" | "low";
+  /** Explainability breadcrumbs for confidence classification. */
+  confidence_reasons?: string[];
+  /** Scorability semantics separated from confidence semantics. */
+  scorability_status?: "scorable" | "scorable_low_confidence" | "non_scorable";
 };
 
 // ── Pass 3 output ────────────────────────────────────────────────────────────
@@ -193,6 +251,7 @@ export type QualityGateCheck = {
   passed: boolean;
   error_code?: string;
   details?: string;
+  diagnostics?: unknown;
 };
 
 export type QualityGateResult = {
@@ -245,5 +304,96 @@ export type PipelineResult =
           normalized_tail?: string;
           candidate_tail?: string;
         };
+        llr_diagnostic_snapshot?: {
+          stage: "post_convergence" | "pre_artifact_generation";
+          blocked_rule_ids: string[];
+          convergence_result: SynthesisOutput;
+        };
+        quality_gate_checks?: Array<{
+          check_id: string;
+          error_code?: string;
+          details?: string;
+          diagnostics?: unknown;
+        }>;
       };
     };
+
+// ── Artifact Validation Layer ─────────────────────────────────────────────────
+// GOVERNANCE: ArtifactValidationResult is pipeline-internal ONLY.
+// It MUST NOT be conflated with JobStatus (queued|running|complete|failed).
+
+export type ArtifactGateResult = "PASS" | "HOLD" | "FAIL";
+
+export type ArtifactReasonCode =
+  | "CRIT-MISSING-ALL"       // no criteria at all
+  | "CRIT-MISSING-1"         // wrong count or missing expected keys
+  | "SCORE-NON-INTEGER-1"    // non-integer score
+  | "SCORE-OUT-OF-RANGE-1"   // <0 or >10
+  | "EVIDENCE-MISSING-1"     // empty/whitespace evidence
+  | "REASONING-MISSING-1"    // empty/whitespace reasoning
+  | "INTERP-MISSING-1"       // empty/whitespace interpretation
+  | "SCORE-NORM-1"           // ledger inconsistent with criteria
+  | "EFG-MISMATCH-1";        // verdict or blockers don't match deterministic builder
+
+export interface CriterionEvaluation {
+  key: CriterionKey;
+  final_score_0_10: number;
+  reasoning: string;
+  evidence: string;
+  interpretation: string;
+}
+
+export interface ArtifactScoreLedger {
+  rawTotal: number;
+  maxTotal: number;
+  normalized: number;
+  weighting: "equal";
+}
+
+export type SubmissionReadiness =
+  | "submission-ready"
+  | "close-but-not-ready"
+  | "not-yet-ready";
+
+export interface ExcellenceFilterFooter {
+  verdict: SubmissionReadiness;
+  blockingCriteria: CriterionKey[];
+}
+
+export interface EvaluationArtifact {
+  criteria: CriterionEvaluation[];
+  ledger: ArtifactScoreLedger;
+  efg: ExcellenceFilterFooter;
+}
+
+export interface ArtifactValidationSummary {
+  result: ArtifactGateResult;
+  reasonCodes: ArtifactReasonCode[];
+}
+
+// ── Advisory Plan Layer ───────────────────────────────────────────────────────
+
+export type AdvisorySeverity = "blocking" | "advisory";
+
+export type AdvisoryLane =
+  | "clarify_premise_hook"
+  | "increase_escalation_consequence"
+  | "deepen_character_pressure"
+  | "tighten_voice_control"
+  | "strengthen_scene_turns"
+  | "increase_dialogue_subtext"
+  | "dramatize_theme"
+  | "sharpen_environmental_function"
+  | "compress_pacing_drag"
+  | "tighten_line_level_prose"
+  | "stabilize_tonal_contract"
+  | "strengthen_promise_delivery"
+  | "clarify_market_positioning";
+
+export interface AdvisoryPlanItem {
+  criterion: CriterionKey;
+  score: number;
+  severity: AdvisorySeverity;
+  advisoryLane: AdvisoryLane;
+  requiredRevisionScope: "line" | "beat" | "scene" | "chapter" | "manuscript";
+}

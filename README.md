@@ -1,165 +1,114 @@
-# RevisionGrade - Literary AI Partner
+# RevisionGrade
 
-## 🎯 Quick Start
+## What this repository is optimizing for
 
-### 🚀 NEXT 72 HOURS: Build Agent Proof
-**Start here:** [72HR-INDEX.md](./72HR-INDEX.md) — Complete sprint documentation hub
+RevisionGrade is not currently prioritizing feature velocity.
 
-Then choose your entry point:
-- **Quick action plan:** [START-HERE-72HR.md](./START-HERE-72HR.md)
-- **Copy-paste code:** [72-HOUR-SPRINT-QUICK-START.md](./72-HOUR-SPRINT-QUICK-START.md)
-- **Full context:** [72-HOUR-SPRINT.md](./72-HOUR-SPRINT.md)
-- **Executive summary:** [72HR-EXECUTIVE-SUMMARY.md](./72HR-EXECUTIVE-SUMMARY.md)
+It is prioritizing **truthful evaluation persistence**.
 
-### ⚠️ First Time Setup
-Start here:** [docs/QUICK_START.md](./docs/QUICK_START.md)
+The governing principle for work in this repository is:
 
-### Daily Workflow
-```bash
-# 1. Verify configuration (CRITICAL - do this daily!)
-bash scripts/verify-supabase-project.sh
+> **If it is not enforced, it is not real.**
 
-# 2. Start development
-npm run dev
-```
+That means roadmap claims, completion labels, and UX signals are only meaningful when the runtime prevents invalid states from being persisted.
 
-## 🔒 Supabase Configuration
+## Current priority
 
-### Production Project (Active)
-- **Name**: RevisionGrade Production
-- **Project ID**: `xtumxjnzdswuumndcbwc`
-- **Status**: ✅ ALL CODE POINTS HERE
-- **Used By**: Local dev, Vercel, CI/CD
+The active priority is the **Eval 2.0 trust layer**.
 
-**Full Details**: [docs/SUPABASE_PROJECTS.md](./docs/SUPABASE_PROJECTS.md)
+The immediate goal is to establish a single persistence boundary for evaluation results and then enforce validation, gating, and confidence derivation at that boundary.
 
-## 📋 Prerequisites
+Until that exists, downstream work is secondary.
 
-1. Clone the repository using the project's Git URL
-2. Navigate to the project directory
-3. Install dependencies: `npm install`
-4. Create an `.env.local` file with production credentials:
+Read first:
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=https://xtumxjnzdswuumndcbwc.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=[from Supabase Dashboard → RevisionGrade Production → Settings → API]
-NEXT_PUBLIC_SUPABASE_ANON_KEY=[from same location]
-USE_SUPABASE_JOBS=true
-ALLOW_HEADER_USER_ID=true
-```
+- `ROADMAP.md` — authoritative execution order
+- `CONTRIBUTING.md` — contribution rules and forbidden patterns
+- `AI_GOVERNANCE.md` — binding AI governance policy
+- `docs/CANONICAL_RUNTIME_OPERATIONS.md` — canonical runtime authority
+- `docs/JOB_CONTRACT_v1.md` — canonical job status contract
+- `docs/CANONICAL_RUNTIME_OPERATIONS.md` — canonical runtime authority
 
-## 🛡️ Safety Features
+## What must be true before new feature work
 
-### Automatic Guards
-- ✅ **Project Guard**: Prevents accidental use of testing database
-- ✅ **RLS Security**: Row Level Security enabled on all production tables
-- ✅ **Verification Scripts**: Check configuration before work
+Before adding behavior to the evaluation pipeline, the system must prove:
 
-### Manual Checks
-```bash
-# Verify Supabase project
-bash scripts/verify-supabase-project.sh
+1. There is exactly one persistence boundary for `evaluation_result_v2`
+2. Invalid artifacts cannot persist
+3. Invalid artifacts cannot mark jobs `complete`
+4. CI fails if a bypass path is introduced
 
-# Verify remote migrations
-bash scripts/verify-remote-migration.sh
+If those are not true, the system can still lie, and feature work is premature.
 
-# Run tests
-npm test
-```
+## Canonical persistence direction
 
-### Phase 2C Evidence (TypeScript Type Verification)
-⚠️ **CRITICAL**: Evidence must be produced via `tsc -p <tsconfig>`, never single-file tsc.
+All evaluation-result persistence must route through a single named boundary:
 
-Single-file TypeScript compilation bypasses project configuration and surfaces spurious errors (e.g., ES2018 private field errors in ES2020+ code).
+`persistEvaluationResultV2(...)`
 
-```bash
-# ✅ CANONICAL (use this for evidence)
-npm run evidence:phase2c
+That boundary is the only place where the system is permitted to:
 
-# ❌ WRONG (surfaces TS18028 errors, not in actual build)
-npx tsc --noEmit workers/phase2Evaluation.ts
-```
+- validate an evaluation artifact
+- apply the quality gate
+- derive confidence
+- persist the artifact
+- mark the job complete
 
-See [docs/CANONICAL_RUNTIME_OPERATIONS.md](./docs/CANONICAL_RUNTIME_OPERATIONS.md) for current runtime authority,
-and [docs/PERSISTENCE_CONTRACT.md](./docs/PERSISTENCE_CONTRACT.md) for legacy Phase 2C persistence history.
+Any alternative write path is a defect.
 
-## 📚 Documentation
+## What is blocked right now
 
-- **[QUICK_START.md](./docs/QUICK_START.md)** - First-time setup and daily workflow
-- **[SUPABASE_PROJECTS.md](./docs/SUPABASE_PROJECTS.md)** - Complete Supabase configuration
-- **[JOB_CONTRACT_v1.md](./docs/JOB_CONTRACT_v1.md)** - Canonical job state machine contract
-- **[DEPLOYMENT_QUICK_REFERENCE.md](./DEPLOYMENT_QUICK_REFERENCE.md)** - Deployment guide
+The following remain intentionally blocked until the trust layer is real:
 
-## 🚀 Deployment
+- liveness and latency improvements
+- dashboards and observability polish
+- UX progress enhancements
+- prompt tuning and calibration expansion
+- recommendation semantics improvements
 
-### Vercel (Automatic)
-```bash
-git push origin main
-# Vercel auto-deploys from main branch
-# ✅ Already configured to use Production project
-```
+Nice ideas can wait. False confidence cannot.
 
-### Base44 (Manual Publish)
-Open [Base44.com](http://Base44.com) and click Publish.
+## Repository rules in one minute
 
-## 🔧 Development
+- Do not invent or rename canonical identifiers
+- Do not introduce new job statuses
+- Do not add bypass flags or silent fallbacks
+- Do not write evaluation artifacts outside the canonical boundary
+- Do not treat documentation claims as reality unless tests and enforcement prove them
 
-### Run Development Server
-```bash
-npm run dev
-```
+## Development entry points
 
-### Evaluation Timeout Env Contract
+Use these documents first:
 
-For `EVAL_OPENAI_TIMEOUT_MS` and `EVAL_PASS_TIMEOUT_MS`, the canonical resolver prefers local file-backed values in `.env.local`, then `.env`, then built-in defaults. Conflicting exported shell values are treated as stale local overrides for this subsystem and are ignored with diagnostics so builds and local test runs stay deterministic.
+- `ROADMAP.md` — what happens next
+- `CONTRIBUTING.md` — how changes are allowed to happen
+- `docs/NOMENCLATURE_CANON_v1.md` — canonical identifiers only
+- `docs/JOB_CONTRACT_v1.md` — allowed job states only
+- `docs/QUICK_START.md` — local setup when you actually need to run the app
 
-```bash
-npm run config:validate
-```
+## Local setup
 
-Expected startup message:
-```
-✅ Supabase Project Configuration ✅
-   Environment: PRODUCTION
-   Project ID: xtumxjnzdswuumndcbwc
-   ✅ Production database active
-```
+When local execution is needed:
 
-### Run Tests
-```bash
-npm test                     # All tests
-npm test -- jobStore.test.ts # Specific test
-```
+1. Install dependencies with `npm install`
+2. Configure local environment files as required by the app
+3. Run the project checks relevant to your change
 
-## 🚨 Troubleshooting
+If your change affects enforcement or persistence behavior, tests are not optional.
 
-### Wrong Supabase Project Error
-If you see: `❌ CRITICAL ERROR: TESTING DATABASE DETECTED!`
+## Definition of done
 
-**Fix**: Update `.env.local` to use production URL (see Prerequisites above)
+A change is not done because code exists.
 
-### Migration Not Found
-If `verify-remote-migration.sh` fails:
+A change is done only when:
 
-1. Go to Supabase Dashboard → **RevisionGrade Production** (not testing!)
-2. SQL Editor → Run your migration
-3. Rerun: `bash scripts/verify-remote-migration.sh`
+- the invariant is enforced
+- the tests prove it
+- bypass paths do not exist
+- CI guards would fail on regression
 
-### Full Troubleshooting
-See [docs/QUICK_START.md](./docs/QUICK_START.md#-emergency-procedures)
+## Final note
 
-## 📞 Support
+This repository must prefer explicit failure over comforting fiction.
 
-- **Documentation**: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
-- **Support**: [https://app.base44.com/support](https://app.base44.com/support)
-
----
-
-**⚠️ CRITICAL**: Always verify you're using the **Production** project before starting work!
-
-```bash
-bash scripts/verify-supabase-project.sh
-```
-
-**Last Updated**: January 27, 2026  
-**Status**: ✅ Error-proof and production-ready
+If the system can persist an invalid evaluation, it is not finished.

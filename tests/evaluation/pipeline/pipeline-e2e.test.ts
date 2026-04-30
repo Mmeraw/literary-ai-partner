@@ -170,6 +170,35 @@ describe("runPipeline (e2e with injected runners)", () => {
     }
   });
 
+  it("emits onHeartbeat at expected stage boundaries in order", async () => {
+    const observedStages: string[] = [];
+
+    const result = await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      openaiApiKey: "sk-test",
+      onHeartbeat: async (stage) => {
+        observedStages.push(stage);
+      },
+      _lessonsLearned: permissiveLessonsLearned,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(observedStages).toEqual([
+      "parallel_passes_started",
+      "parallel_passes_settled",
+      "pass3_started",
+      "quality_gate_started",
+      "quality_gate_completed",
+    ]);
+  });
+
   it("does not block on post-convergence lessons-learned warnings when the stage is recoverable", async () => {
     const llrReport: LessonsLearnedReport = {
       overall_pass: false,
@@ -521,7 +550,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     expect(mockRunPass3).not.toHaveBeenCalled();
   });
 
-  it("threads a model override to all three passes", async () => {
+  it("threads a model override to Pass 2 and Pass 3 only", async () => {
     await runPipeline({
       manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
       workType: "literary_fiction",
@@ -536,7 +565,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     });
 
     expect(mockRunPass1).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "gpt-4o" }),
+      expect.not.objectContaining({ model: expect.anything() }),
     );
     expect(mockRunPass2).toHaveBeenCalledWith(
       expect.objectContaining({ model: "gpt-4o" }),
@@ -712,6 +741,9 @@ describe("runPipeline (e2e with injected runners)", () => {
       expect(result.error_code).toBe("LLR_PRE_ARTIFACT_GENERATION_BLOCK");
       expect(result.failed_at).toBe("pass4");
       expect(result.error).toContain("checkpoint=LLR_PRE_ARTIFACT_GENERATION");
+      expect(result.failure_details?.llr_diagnostic_snapshot).toBeDefined();
+      expect(result.failure_details?.llr_diagnostic_snapshot?.stage).toBe("pre_artifact_generation");
+      expect(result.failure_details?.llr_diagnostic_snapshot?.convergence_result.criteria).toHaveLength(13);
     }
 
     expect(mockRunPass1).toHaveBeenCalledTimes(1);

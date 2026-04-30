@@ -40,17 +40,22 @@ Agree-state rationale rule:
 - Do NOT emit "Confirmed." alone.
 - For agree-state criteria (score_delta <= 1), final_rationale MUST briefly state:
   (1) what was confirmed, (2) the evidence basis, (3) why it matters.
-  Keep it 1-3 sentences. Example: "Both passes converge on strong scene-level tension, grounded in the narrowing-choice evidence cluster. This is a genuine execution strength, not a surface read."
+  Keep it 1-3 sentences.
 
 Recommendation semantic fields (REQUIRED for every recommendation):
-- issue_family: one of: pacing | dialogue | closure | characterization | exposition | tension | prose_control | scene_structure | voice | market_positioning | concept | theme | worldbuilding
-- strategic_lever: one of: momentum_visibility | dialogue_exposition_density | scene_goal_clarity | closure_state_lock | character_voice_differentiation | tension_escalation | exposition_load_reduction | prose_compression | market_signal_clarity | pov_rendering_precision | structural_commitment | thematic_grounding | sensory_specificity
+- issue_family: pacing | dialogue | closure | characterization | exposition | tension | prose_control | scene_structure | voice | market_positioning | concept | theme | worldbuilding
+- strategic_lever: momentum_visibility | dialogue_exposition_density | scene_goal_clarity | closure_state_lock | character_voice_differentiation | tension_escalation | exposition_load_reduction | prose_compression | market_signal_clarity | pov_rendering_precision | structural_commitment | thematic_grounding | sensory_specificity
 - revision_granularity: one of: line | beat | scene | chapter | manuscript
 
 Recommendation deduplication rule:
 - Do NOT emit two or more recommendations that share the same strategic_lever unless they have genuinely different evidence bases AND different revision_granularity values.
 - When multiple upstream recommendations reduce to the same lever, collapse them into ONE sharper recommendation.
 - Prefer decisive single-lever recommendations over three mild paraphrases of the same fix.
+
+CONFIDENCE AND EVIDENCE HANDLING:
+- Do NOT convert a scorable criterion into N/A due to thin evidence or hygiene artifacts.
+- If evidence is thin: preserve score and summary, lower confidence, and do not invent evidence.
+- N/A is allowed only when the criterion is genuinely impossible to evaluate from the submitted text.
 
 Return ONLY JSON with keys:
 - criteria MUST be a flat array of criterion objects (one per key), not grouped/nested by state.
@@ -63,12 +68,9 @@ Return ONLY JSON with keys:
 - agreement_map[]
 - divergence_map[] with arbitration_rationale
 - overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, top_3_strengths[3], top_3_risks[3], submission_readiness }
-  - submission_readiness: one of queryable_now | close | not_yet
-    - queryable_now: strong enough to submit, even if not finished in absolute terms
-    - close: viable foundation; one focused revision pass would materially improve requestability
-    - not_yet: substantial issues prevent strong submission posture
-  - RULE: top_3_strengths and top_3_risks must each address distinct aspects. Never repeat the same topic in both lists. If a concept must appear in both, use contextual differentiation (e.g. "however", "in contrast", "whereas").
-  - RULE: submission_readiness must be consistent with verdict, top_3_risks, and criterion score distribution. Do not emit queryable_now when verdict is fail or when 3+ criteria are below 5.
+  - submission_readiness: queryable_now | close | not_yet
+  - RULE: top_3_strengths and top_3_risks must cover distinct aspects (no mirrored topic).
+  - RULE: submission_readiness must align with verdict, top_3_risks, and score distribution; never emit queryable_now when verdict=fail or when 3+ criteria are below 5.
 - metadata { pass1_model, pass2_model, pass3_model, generated_at }
 
 Criteria keys:

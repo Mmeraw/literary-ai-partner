@@ -13,7 +13,10 @@
 import crypto from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type ArtifactType = "evaluation_result_v1" | "evaluation_result_v2";
+export type ArtifactType =
+  | "evaluation_result_v1"
+  | "evaluation_result_v2"
+  | "diagnostic_pass3_snapshot_v1";
 
 /**
  * Compute SHA256 hex digest of input string

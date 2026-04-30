@@ -292,4 +292,244 @@ describe("Pass 3 backfill quality", () => {
     expect(dialogueB).toBeDefined();
     expect(dialogueA!.final_rationale).toBe(dialogueB!.final_rationale);
   });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Dialogue Attribution v2 Gate: Diagnostic-grounded enforcement tests
+  // (FR-2: Real production regression fixture, AC-1 through AC-5)
+  // ─────────────────────────────────────────────────────────────────────
+
+  test("dialogue gate: rejects genuinely shallow dialogue praise without mechanism grounding", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    // Simulate a shallow dialogue assessment (true negative)
+    const shallowPass1 = {
+      ...pass1,
+      criteria: pass1.criteria.map((c) =>
+        c.key === "dialogue"
+          ? { ...c, rationale: "Dialogue is good. Characters speak naturally." }
+          : c,
+      ),
+    };
+    const shallowPass2 = {
+      ...pass2,
+      criteria: pass2.criteria.map((c) =>
+        c.key === "dialogue"
+          ? { ...c, rationale: "Dialogue quality is nice. Easy to read." }
+          : c,
+      ),
+    };
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "dialogue",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Overall the dialogue is good and feels natural.",
+          evidence: [],
+          recommendations: [],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsed = parsePass3Response(raw, shallowPass1, shallowPass2, "o3");
+    const dialogue = parsed.criteria.find((c) => c.key === "dialogue");
+
+    // With no manuscript available for diagnostic grounding, should still include mechanism language
+    expect(dialogue).toBeDefined();
+    expect(dialogue!.final_rationale.toLowerCase()).toMatch(
+      /speaker|attribution|tag|beat|quote|turn-taking|turn taking|rendering/,
+    );
+  });
+
+  test("dialogue gate: accepts rationale with valid craft vocabulary (non-exact keyword matching)", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    // Simulate good dialogue analysis using broader craft vocabulary
+    const craftPass1 = {
+      ...pass1,
+      criteria: pass1.criteria.map((c) =>
+        c.key === "dialogue"
+          ? {
+              ...c,
+              rationale:
+                "Dialogue rendering is controlled through inter-speaker turn-taking rhythm, preserving speaker clarity without mechanical tags.",
+            }
+          : c,
+      ),
+    };
+    const craftPass2 = {
+      ...pass2,
+      criteria: pass2.criteria.map((c) =>
+        c.key === "dialogue"
+          ? {
+              ...c,
+              rationale:
+                "Speaker voices are differentiated through reported speech patterns and action-beat adjacency, creating implicit attribution.",
+            }
+          : c,
+      ),
+    };
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "dialogue",
+          craft_score: 8,
+          editorial_score: 8,
+          final_score_0_10: 8,
+          final_rationale:
+            "The dialogue relies on implicit attribution through alternating speaker turns and action-beat rendering, maintaining clarity without mechanical tags.",
+          evidence: [],
+          recommendations: [],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 78,
+        verdict: "pass",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "dialogue", "character"],
+        top_3_risks: [],
+        submission_readiness: "queryable_now",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsed = parsePass3Response(raw, craftPass1, craftPass2, "o3");
+    const dialogue = parsed.criteria.find((c) => c.key === "dialogue");
+
+    // Rationale includes valid craft vocabulary: "rendering", "turn-taking", "attribution", "action-beat"
+    expect(dialogue).toBeDefined();
+    expect(dialogue!.final_rationale.toLowerCase()).toMatch(
+      /rendering|turn.?taking|attribution|action.?beat|speaker|quote|tag|beat|dialogue/,
+    );
+  });
+
+  test("dialogue gate: deterministic output across multiple runs (idempotency check for gate determinism)", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "dialogue",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Dialogue is clear and readable.",
+          evidence: [],
+          recommendations: [],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    // Parse the same input 5 times to verify deterministic behavior
+    const results = Array.from({ length: 5 }, () =>
+      parsePass3Response(raw, pass1, pass2, "o3").criteria.find((c) => c.key === "dialogue")!.final_rationale,
+    );
+
+    // All results should be identical (deterministic gate decision)
+    const [first, ...rest] = results;
+    for (const result of rest) {
+      expect(result).toBe(first);
+    }
+  });
+
+  test("dialogue gate: passes when mechanism language is present (keyword pass)", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const goodPass1 = {
+      ...pass1,
+      criteria: pass1.criteria.map((c) =>
+        c.key === "dialogue"
+          ? {
+              ...c,
+              rationale:
+                "Dialogue uses speaker attribution tags and action beats to maintain clarity without becoming mechanical.",
+            }
+          : c,
+      ),
+    };
+    const goodPass2 = {
+      ...pass2,
+      criteria: pass2.criteria.map((c) =>
+        c.key === "dialogue"
+          ? {
+              ...c,
+              rationale:
+                "Quoted dialogue combines with narrative beats to render speaker identity, creating subtext through turn-taking patterns.",
+            }
+          : c,
+      ),
+    };
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "dialogue",
+          craft_score: 8,
+          editorial_score: 8,
+          final_score_0_10: 8,
+          final_rationale:
+            "Both passes identify strong dialogue attribution through tags and beats, with effective subtext via quoted turn-taking.",
+          evidence: [],
+          recommendations: [],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 78,
+        verdict: "pass",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["dialogue", "voice", "character"],
+        top_3_risks: [],
+        submission_readiness: "queryable_now",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsed = parsePass3Response(raw, goodPass1, goodPass2, "o3");
+    const dialogue = parsed.criteria.find((c) => c.key === "dialogue");
+
+    expect(dialogue).toBeDefined();
+    // Should include mechanism language from synthesis output
+    expect(dialogue!.final_rationale.toLowerCase()).toMatch(/tag|beat|quote|turn|attribution|speaker|dialogue/);
+  });
 });

@@ -47,16 +47,27 @@ jest.mock("@supabase/supabase-js", () => ({
 
 function makeSupabaseStub() {
   const evaluationJobUpdates: Array<Record<string, unknown>> = [];
+  const rpcCalls: Array<{ fn: string; args?: Record<string, unknown> }> = [];
+
+  const now = new Date();
+  const leaseUntil = new Date(now.getTime() + 5 * 60_000).toISOString();
 
   const queuedJob = {
     id: "job-canonical-pipeline",
     manuscript_id: 456,
     job_type: "evaluate_full",
-    status: "queued",
+    status: "running",
     phase: "phase_1",
-    phase_status: "queued",
-    created_at: new Date().toISOString(),
-    progress: { phase: "phase_1", phase_status: "queued" },
+    phase_status: "running",
+    claimed_by: "test-worker",
+    worker_id: "test-worker",
+    lease_token: "test-lease-token",
+    lease_until: leaseUntil,
+    lease_expires_at: leaseUntil,
+    heartbeat_at: now.toISOString(),
+    started_at: now.toISOString(),
+    created_at: now.toISOString(),
+    progress: { phase: "phase_1", phase_status: "running" },
   };
 
   const manuscript = {
@@ -69,18 +80,44 @@ function makeSupabaseStub() {
 
   return {
     evaluationJobUpdates,
+    rpcCalls,
+    rpc: async (fn: string, args?: Record<string, unknown>) => {
+      rpcCalls.push({ fn, args });
+
+      if (fn === "finalize_job_failure_atomic") {
+        return {
+          data: [{ attempt_count: 1, max_attempts: 3, notified_at: null }],
+          error: null,
+        };
+      }
+
+      if (fn === "persist_evaluation_v2_atomic") {
+        return {
+          data: [{ artifact_id: "artifact-canonical-pass" }],
+          error: null,
+        };
+      }
+
+      return { data: null, error: null };
+    },
     from(table: string) {
       if (table === "evaluation_jobs") {
         return {
           select: () => ({
             eq: () => ({
               single: async () => ({ data: queuedJob, error: null }),
+              maybeSingle: async () => ({ data: { status: queuedJob.status }, error: null }),
             }),
           }),
           update: (payload: Record<string, unknown>) => {
             evaluationJobUpdates.push(payload);
+            const query = {
+              eq: () => query,
+              then: (resolve: (value: { error: null }) => void) =>
+                resolve({ error: null }),
+            };
             return {
-              eq: async () => ({ error: null }),
+              eq: () => query,
             };
           },
         };
@@ -151,7 +188,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
           top_3_risks: [],
         },
         metadata: {
-          pass1_model: "o3",
+          pass1_model: "gpt-4o",
           pass2_model: "o3",
           pass3_model: "o3",
           generated_at: new Date().toISOString(),
@@ -247,23 +284,23 @@ describe("processEvaluationJob canonical pipeline integration", () => {
 
     expect(result.success).toBe(true);
     expect(runPipelineMock).toHaveBeenCalledTimes(1);
-    expect(runQualityGateV2Mock).toHaveBeenCalledTimes(1);
-    expect(OpenAIMock).not.toHaveBeenCalled();
-    expect(upsertEvaluationArtifactMock).toHaveBeenCalledTimes(1);
-    expect(upsertEvaluationArtifactMock).toHaveBeenCalledWith(
+    expect(runPipelineMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        artifactType: "evaluation_result_v2",
-        artifactVersion: "evaluation_result_v2",
+        onHeartbeat: expect.any(Function),
       }),
     );
+    expect(runQualityGateV2Mock).toHaveBeenCalledTimes(1);
+    expect(OpenAIMock).not.toHaveBeenCalled();
+    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(true);
 
-    const completionUpdate = supabaseStub.evaluationJobUpdates.find(
-      (payload: Record<string, unknown>) => payload.status === "complete",
-    ) as Record<string, any> | undefined;
-    expect(completionUpdate).toBeDefined();
-    expect(completionUpdate?.progress?.pass3_started_at).toBeDefined();
-    expect(completionUpdate?.progress?.pass3_completed_at).toBeDefined();
-    expect(completionUpdate?.progress?.finalized_at).toBeDefined();
+    expect(
+      supabaseStub.evaluationJobUpdates.some(
+        (payload: Record<string, unknown>) => payload.status === "failed",
+      ),
+    ).toBe(false);
 
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "ProcessorStageBoundary",
@@ -291,83 +328,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     );
   });
 
-  test("retries completion update without phase2_completed_at when schema cache is stale", async () => {
-    const evaluationJobUpdates: Array<Record<string, unknown>> = [];
-    const queuedJob = {
-      id: "job-canonical-pipeline",
-      manuscript_id: 456,
-      job_type: "evaluate_full",
-      status: "queued",
-      phase: "phase_1",
-      phase_status: "queued",
-      created_at: new Date().toISOString(),
-      progress: { phase: "phase_1", phase_status: "queued" },
-    };
-    const manuscript = {
-      id: 456,
-      title: "Canonical Manuscript",
-      content: "This manuscript is long enough to pass threshold validation. ".repeat(220),
-      work_type: "novel",
-      user_id: "00000000-0000-0000-0000-000000000001",
-    };
-
-    const supabaseStub = {
-      from(table: string) {
-        if (table === "evaluation_jobs") {
-          return {
-            select: () => ({
-              eq: () => ({
-                single: async () => ({ data: queuedJob, error: null }),
-              }),
-            }),
-            update: (payload: Record<string, unknown>) => {
-              evaluationJobUpdates.push(payload);
-              return {
-                eq: async () => {
-                  if (
-                    payload.status === "complete" &&
-                    Object.prototype.hasOwnProperty.call(payload, "phase2_completed_at")
-                  ) {
-                    return {
-                      error: {
-                        code: "PGRST204",
-                        message:
-                          "Could not find the 'phase2_completed_at' column of 'evaluation_jobs' in the schema cache",
-                      },
-                    };
-                  }
-                  return { error: null };
-                },
-              };
-            },
-          };
-        }
-
-        if (table === "manuscripts") {
-          return {
-            select: () => ({
-              eq: () => ({
-                single: async () => ({ data: manuscript, error: null }),
-              }),
-            }),
-          };
-        }
-
-        if (table === "evaluation_artifacts") {
-          return {
-            select: () => {
-              const query = {
-                eq: () => query,
-                maybeSingle: async () => ({ data: { id: "artifact-canonical-pass" }, error: null }),
-              };
-              return query;
-            },
-          };
-        }
-
-        throw new Error(`Unexpected table in canonical pipeline test stub: ${table}`);
-      },
-    };
+  test("persists success via atomic RPC without direct completion updates", async () => {
+    const supabaseStub = makeSupabaseStub();
 
     createClientMock.mockReturnValue(supabaseStub);
 
@@ -383,7 +345,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
           top_3_risks: [],
         },
         metadata: {
-          pass1_model: "o3",
+          pass1_model: "gpt-4o",
           pass2_model: "o3",
           pass3_model: "o3",
           generated_at: new Date().toISOString(),
@@ -477,12 +439,14 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     const result = await processEvaluationJob("job-canonical-pipeline");
 
     expect(result.success).toBe(true);
-    const completionUpdates = evaluationJobUpdates.filter(
-      (payload) => payload.status === "complete",
-    );
-    expect(completionUpdates).toHaveLength(2);
-    expect(completionUpdates[0]).toHaveProperty("phase2_completed_at");
-    expect(completionUpdates[1]).not.toHaveProperty("phase2_completed_at");
+    expect(
+      supabaseStub.rpcCalls.filter((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toHaveLength(1);
+    expect(
+      supabaseStub.evaluationJobUpdates.some(
+        (payload: Record<string, unknown>) => payload.status === "complete",
+      ),
+    ).toBe(false);
   });
 
   test("fails closed before persistence when v2 quality gate fails", async () => {
@@ -501,7 +465,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
           top_3_risks: [],
         },
         metadata: {
-          pass1_model: "o3",
+          pass1_model: "gpt-4o",
           pass2_model: "o3",
           pass3_model: "o3",
           generated_at: new Date().toISOString(),
@@ -563,6 +527,373 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain("[QualityGateV2]");
     expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    expect(
+      supabaseStub.evaluationJobUpdates.some(
+        (payload: Record<string, unknown>) => payload.status === "complete",
+      ),
+    ).toBe(false);
+  });
+
+  test("fails closed with PIPELINE_SLA_EXCEEDED before runPipeline when hard SLA is already exceeded", async () => {
+    const supabaseStub = makeSupabaseStub();
+    const expiredStartedAt = "2026-01-01T00:00:00.000Z";
+
+    createClientMock.mockReturnValue({
+      ...supabaseStub,
+      from(table: string) {
+        if (table === "evaluation_jobs") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: "job-canonical-pipeline",
+                    manuscript_id: 456,
+                    job_type: "evaluate_full",
+                    status: "running",
+                    phase: "phase_1",
+                    phase_status: "running",
+                    claimed_by: "test-worker",
+                    lease_token: "test-lease-token",
+                    lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+                    created_at: expiredStartedAt,
+                    started_at: expiredStartedAt,
+                    progress: { phase: "phase_1", phase_status: "running" },
+                  },
+                  error: null,
+                }),
+                maybeSingle: async () => ({ data: { status: "running" }, error: null }),
+              }),
+            }),
+            update: (payload: Record<string, unknown>) => {
+              supabaseStub.evaluationJobUpdates.push(payload);
+              const query = {
+                eq: () => query,
+                then: (resolve: (value: { error: null }) => void) =>
+                  resolve({ error: null }),
+              };
+              return {
+                eq: () => query,
+              };
+            },
+          };
+        }
+
+        if (table === "manuscripts") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: 456,
+                    title: "Canonical Manuscript",
+                    content: "This manuscript is long enough to pass threshold validation. ".repeat(220),
+                    work_type: "novel",
+                    user_id: "00000000-0000-0000-0000-000000000001",
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table in SLA exceeded test stub: ${table}`);
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(runPipelineMock).not.toHaveBeenCalled();
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "finalize_job_failure_atomic"),
+    ).toBe(true);
+  });
+
+  test("does not re-finalize when SLA guard sees an already-terminal job", async () => {
+    const supabaseStub = makeSupabaseStub();
+    const expiredStartedAt = "2026-01-01T00:00:00.000Z";
+
+    createClientMock.mockReturnValue({
+      ...supabaseStub,
+      from(table: string) {
+        if (table === "evaluation_jobs") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: "job-canonical-pipeline",
+                    manuscript_id: 456,
+                    job_type: "evaluate_full",
+                    status: "running",
+                    phase: "phase_1",
+                    phase_status: "running",
+                    claimed_by: "test-worker",
+                    lease_token: "test-lease-token",
+                    lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+                    created_at: expiredStartedAt,
+                    started_at: expiredStartedAt,
+                    progress: { phase: "phase_1", phase_status: "running" },
+                  },
+                  error: null,
+                }),
+                maybeSingle: async () => ({ data: { status: "failed" }, error: null }),
+              }),
+            }),
+            update: (payload: Record<string, unknown>) => {
+              supabaseStub.evaluationJobUpdates.push(payload);
+              const query = {
+                eq: () => query,
+                then: (resolve: (value: { error: null }) => void) =>
+                  resolve({ error: null }),
+              };
+              return {
+                eq: () => query,
+              };
+            },
+          };
+        }
+
+        if (table === "manuscripts") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: 456,
+                    title: "Canonical Manuscript",
+                    content: "This manuscript is long enough to pass threshold validation. ".repeat(220),
+                    work_type: "novel",
+                    user_id: "00000000-0000-0000-0000-000000000001",
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table in SLA terminal-state test stub: ${table}`);
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(runPipelineMock).not.toHaveBeenCalled();
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "finalize_job_failure_atomic"),
+    ).toBe(false);
+  });
+
+  test("persists diagnostic pass3 snapshot artifact when pipeline is blocked pre-artifact", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    upsertEvaluationArtifactMock.mockResolvedValue("artifact-diagnostic-pass3");
+
+    runPipelineMock.mockResolvedValue({
+      ok: false,
+      failed_at: "pass4",
+      error_code: "LLR_PRE_ARTIFACT_GENERATION_BLOCK",
+      error: "Lessons-learned enforcement blocked at pre_artifact_generation",
+      failure_details: {
+        llr_diagnostic_snapshot: {
+          stage: "pre_artifact_generation",
+          blocked_rule_ids: ["LLR-003"],
+          convergence_result: {
+            criteria: [],
+            overall: {
+              overall_score_0_100: 74,
+              verdict: "revise",
+              one_paragraph_summary: "Summary",
+              top_3_strengths: [],
+              top_3_risks: [],
+              submission_readiness: "close",
+            },
+            metadata: {
+              pass1_model: "o3",
+              pass2_model: "o3",
+              pass3_model: "o3",
+              generated_at: new Date().toISOString(),
+            },
+            partial_evaluation: false,
+          },
+        },
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(upsertEvaluationArtifactMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artifactType: "diagnostic_pass3_snapshot_v1",
+        artifactVersion: "diagnostic_pass3_snapshot_v1",
+      }),
+    );
+    expect(
+      supabaseStub.evaluationJobUpdates.some(
+        (payload: Record<string, unknown>) => payload.status === "complete",
+      ),
+    ).toBe(false);
+  });
+
+  test("persists canonical pipeline failure envelope for PASS1_FAILED with optional diagnostics", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    runPipelineMock.mockResolvedValue({
+      ok: false,
+      failed_at: "pass1",
+      error_code: "PASS1_FAILED",
+      error: "Pass 1 failed to produce valid JSON",
+      failure_details: {
+        json_boundary: {
+          code: "NO_JSON_BLOCK",
+          candidate_tail: "...truncated tail...",
+        },
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+
+    const envelopePatch = supabaseStub.evaluationJobUpdates.find(
+      (payload: Record<string, any>) =>
+        payload?.progress?.pipeline_failure_envelope?.error_code === "PASS1_FAILED",
+    ) as Record<string, any> | undefined;
+
+    expect(envelopePatch).toBeDefined();
+    expect(envelopePatch?.progress?.pipeline_failure_envelope).toEqual(
+      expect.objectContaining({
+        failure_origin: "processor",
+        error_code: "PASS1_FAILED",
+        pipeline_stage: "pass1",
+        failed_at: "pass1",
+        reason_codes: ["PASS1_FAILED"],
+      }),
+    );
+    expect(envelopePatch?.progress?.pipeline_failure_diagnostics).toEqual(
+      expect.objectContaining({
+        json_boundary: expect.objectContaining({
+          code: "NO_JSON_BLOCK",
+        }),
+      }),
+    );
+  });
+
+  test("logs artifact validation result in governance transparency (logging mode only)", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: {
+        criteria: [],
+        overall: {
+          overall_score_0_100: 50,
+          verdict: "revise",
+          one_paragraph_summary: "Summary",
+          top_3_strengths: [],
+          top_3_risks: [],
+        },
+        metadata: {
+          pass1_model: "gpt-4o",
+          pass2_model: "o3",
+          pass3_model: "o3",
+          generated_at: new Date().toISOString(),
+        },
+      },
+      quality_gate: {
+        pass: true,
+        checks: [],
+        warnings: [],
+      },
+      pass4_governance: { ok: true },
+    });
+
+    synthesisToEvaluationResultV2Mock.mockReturnValue({
+      schema_version: "evaluation_result_v2",
+      ids: {
+        evaluation_run_id: "run-log-mode-1",
+        manuscript_id: 456,
+        user_id: "00000000-0000-0000-0000-000000000001",
+      },
+      generated_at: new Date().toISOString(),
+      engine: { model: "o3", provider: "openai", prompt_version: "test" },
+      overview: {
+        verdict: "revise",
+        overall_score_0_100: 50,
+        scored_criteria_count: 13,
+        one_paragraph_summary: "Summary",
+        top_3_strengths: [],
+        top_3_risks: [],
+      },
+      criteria: new Array(13).fill(null).map((_, idx) => ({
+        key: [
+          "concept",
+          "narrativeDrive",
+          "character",
+          "voice",
+          "sceneConstruction",
+          "dialogue",
+          "theme",
+          "worldbuilding",
+          "pacing",
+          "proseControl",
+          "tone",
+          "narrativeClosure",
+          "marketability",
+        ][idx],
+        scorable: true,
+        status: "SCORABLE",
+        signal_present: true,
+        signal_strength: "SUFFICIENT",
+        confidence_band: "MEDIUM",
+        score_0_10: 7,
+        rationale: "Criterion rationale",
+        evidence: [{ snippet: "Evidence snippet with sufficient detail for quality gate checks." }],
+        recommendations: [],
+      })),
+      recommendations: { quick_wins: [], strategic_revisions: [] },
+      metrics: { manuscript: {}, processing: {} },
+      artifacts: [],
+      governance: {
+        confidence: 0.9,
+        warnings: [],
+        limitations: [],
+        policy_family: "multi-pass-dual-axis",
+        transparency: {},
+      },
+    });
+
+    runQualityGateV2Mock.mockReturnValue({
+      pass: true,
+      checks: [],
+      warnings: [],
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    // In logging mode, processor succeeds and persists the artifact with validation metadata
+    expect(result.success).toBe(true);
+
+    // Success path persists via atomic RPC (diagnostic artifact upsert is not expected)
+    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(true);
+
+    // No explicit "complete" update should be issued from processor in atomic mode
     expect(
       supabaseStub.evaluationJobUpdates.some(
         (payload: Record<string, unknown>) => payload.status === "complete",
