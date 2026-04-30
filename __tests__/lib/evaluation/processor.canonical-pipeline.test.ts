@@ -106,6 +106,7 @@ function makeSupabaseStub() {
           select: () => ({
             eq: () => ({
               single: async () => ({ data: queuedJob, error: null }),
+              maybeSingle: async () => ({ data: { status: queuedJob.status }, error: null }),
             }),
           }),
           update: (payload: Record<string, unknown>) => {
@@ -283,6 +284,11 @@ describe("processEvaluationJob canonical pipeline integration", () => {
 
     expect(result.success).toBe(true);
     expect(runPipelineMock).toHaveBeenCalledTimes(1);
+    expect(runPipelineMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        onHeartbeat: expect.any(Function),
+      }),
+    );
     expect(runQualityGateV2Mock).toHaveBeenCalledTimes(1);
     expect(OpenAIMock).not.toHaveBeenCalled();
     expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
@@ -525,6 +531,162 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       supabaseStub.evaluationJobUpdates.some(
         (payload: Record<string, unknown>) => payload.status === "complete",
       ),
+    ).toBe(false);
+  });
+
+  test("fails closed with PIPELINE_SLA_EXCEEDED before runPipeline when hard SLA is already exceeded", async () => {
+    const supabaseStub = makeSupabaseStub();
+    const expiredStartedAt = "2026-01-01T00:00:00.000Z";
+
+    createClientMock.mockReturnValue({
+      ...supabaseStub,
+      from(table: string) {
+        if (table === "evaluation_jobs") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: "job-canonical-pipeline",
+                    manuscript_id: 456,
+                    job_type: "evaluate_full",
+                    status: "running",
+                    phase: "phase_1",
+                    phase_status: "running",
+                    claimed_by: "test-worker",
+                    lease_token: "test-lease-token",
+                    lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+                    created_at: expiredStartedAt,
+                    started_at: expiredStartedAt,
+                    progress: { phase: "phase_1", phase_status: "running" },
+                  },
+                  error: null,
+                }),
+                maybeSingle: async () => ({ data: { status: "running" }, error: null }),
+              }),
+            }),
+            update: (payload: Record<string, unknown>) => {
+              supabaseStub.evaluationJobUpdates.push(payload);
+              const query = {
+                eq: () => query,
+                then: (resolve: (value: { error: null }) => void) =>
+                  resolve({ error: null }),
+              };
+              return {
+                eq: () => query,
+              };
+            },
+          };
+        }
+
+        if (table === "manuscripts") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: 456,
+                    title: "Canonical Manuscript",
+                    content: "This manuscript is long enough to pass threshold validation. ".repeat(220),
+                    work_type: "novel",
+                    user_id: "00000000-0000-0000-0000-000000000001",
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table in SLA exceeded test stub: ${table}`);
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(runPipelineMock).not.toHaveBeenCalled();
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "finalize_job_failure_atomic"),
+    ).toBe(true);
+  });
+
+  test("does not re-finalize when SLA guard sees an already-terminal job", async () => {
+    const supabaseStub = makeSupabaseStub();
+    const expiredStartedAt = "2026-01-01T00:00:00.000Z";
+
+    createClientMock.mockReturnValue({
+      ...supabaseStub,
+      from(table: string) {
+        if (table === "evaluation_jobs") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: "job-canonical-pipeline",
+                    manuscript_id: 456,
+                    job_type: "evaluate_full",
+                    status: "running",
+                    phase: "phase_1",
+                    phase_status: "running",
+                    claimed_by: "test-worker",
+                    lease_token: "test-lease-token",
+                    lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+                    created_at: expiredStartedAt,
+                    started_at: expiredStartedAt,
+                    progress: { phase: "phase_1", phase_status: "running" },
+                  },
+                  error: null,
+                }),
+                maybeSingle: async () => ({ data: { status: "failed" }, error: null }),
+              }),
+            }),
+            update: (payload: Record<string, unknown>) => {
+              supabaseStub.evaluationJobUpdates.push(payload);
+              const query = {
+                eq: () => query,
+                then: (resolve: (value: { error: null }) => void) =>
+                  resolve({ error: null }),
+              };
+              return {
+                eq: () => query,
+              };
+            },
+          };
+        }
+
+        if (table === "manuscripts") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: 456,
+                    title: "Canonical Manuscript",
+                    content: "This manuscript is long enough to pass threshold validation. ".repeat(220),
+                    work_type: "novel",
+                    user_id: "00000000-0000-0000-0000-000000000001",
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table in SLA terminal-state test stub: ${table}`);
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(runPipelineMock).not.toHaveBeenCalled();
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "finalize_job_failure_atomic"),
     ).toBe(false);
   });
 
