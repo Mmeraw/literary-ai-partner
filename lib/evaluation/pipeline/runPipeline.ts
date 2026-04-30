@@ -1220,6 +1220,7 @@ export function synthesisToEvaluationResult(
 
   return {
     schema_version: "evaluation_result_v1",
+    score_denominator_policy: "full_canonical",
     ids,
     generated_at: synthesis.metadata.generated_at,
     engine: {
@@ -1370,6 +1371,7 @@ export function synthesisToEvaluationResultV2(
 
   return {
     schema_version: "evaluation_result_v2",
+    score_denominator_policy: "full_canonical",
     ids,
     generated_at: synthesis.metadata.generated_at,
     engine: {

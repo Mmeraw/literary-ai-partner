@@ -1199,6 +1199,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
   } = getProcessorRuntimeDeps();
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   let lifecycleStatus: JobStatus | null = null;
+  // Hoisted so outer-catch can persist partial progress metadata (#223)
+  let progressState: Record<string, unknown> = {};
 
   emitLatencyTrace({
     job_id: jobId,
@@ -1315,7 +1317,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       };
     }
 
-    const progressState =
+    progressState =
       job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
 
     const canonicalStartedAt = resolveSafeStartedAt({
@@ -1461,8 +1463,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           : {}),
       };
 
-      if (!nextProgress.pass3_completed_at && nextProgress.pass3_started_at) {
-        (nextProgress as Record<string, unknown>).pass3_completed_at = now;
+      const nextProgressRecord = nextProgress as Record<string, unknown>;
+      if (!nextProgressRecord.pass3_completed_at && nextProgressRecord.pass3_started_at) {
+        nextProgressRecord.pass3_completed_at = now;
       }
 
       Object.assign(progressState, nextProgress);
@@ -2150,15 +2153,29 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       );
 
       // Fail-closed fallback persistence for uncaught failures.
+      // Aligned with markFailed fallback: persist phase, progress, failure_code,
+      // and clear lease metadata so the job is never left in a running-like state (#223).
       const { error: fallbackError } = await supabase
         .from('evaluation_jobs')
         .update({
           status: failedStatus,
+          phase: progressState.phase ?? 'phase_1',
           phase_status: 'failed',
           total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-          completed_units: 0,
+          completed_units: typeof progressState.completed_units === 'number' ? progressState.completed_units : 0,
+          progress: {
+            ...progressState,
+            phase_status: 'failed',
+            message: 'Evaluation failed (uncaught error)',
+            failed_at: now,
+            error_code: 'PROCESSOR_UNCAUGHT_ERROR',
+          },
           last_error: errorMessage,
+          failure_code: 'PROCESSOR_UNCAUGHT_ERROR',
           failed_at: now,
+          claimed_by: null,
+          claimed_at: null,
+          lease_token: null,
           updated_at: now,
         })
         .eq('id', jobId);

@@ -449,6 +449,61 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     ).toBe(false);
   });
 
+  test("uncaught processor fallback persists failure metadata when atomic finalization fails", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    supabaseStub.rpc = async (fn: string) => {
+      if (fn === "finalize_job_failure_atomic") {
+        return {
+          data: null,
+          error: { message: "rpc unavailable" },
+        };
+      }
+
+      if (fn === "persist_evaluation_v2_atomic") {
+        return {
+          data: [{ artifact_id: "artifact-canonical-pass" }],
+          error: null,
+        };
+      }
+
+      return { data: null, error: null };
+    };
+
+    runPipelineMock.mockRejectedValue(new Error("boom during pipeline"));
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("boom during pipeline");
+
+    const fallbackWrite = supabaseStub.evaluationJobUpdates.find(
+      (payload: Record<string, any>) => payload?.failure_code === "PROCESSOR_UNCAUGHT_ERROR",
+    ) as Record<string, any> | undefined;
+
+    expect(fallbackWrite).toBeDefined();
+    expect(fallbackWrite).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        phase: "phase_1",
+        phase_status: "failed",
+        failure_code: "PROCESSOR_UNCAUGHT_ERROR",
+        claimed_by: null,
+        claimed_at: null,
+        lease_token: null,
+      }),
+    );
+    expect(fallbackWrite?.progress).toEqual(
+      expect.objectContaining({
+        phase_status: "failed",
+        error_code: "PROCESSOR_UNCAUGHT_ERROR",
+        failed_at: expect.any(String),
+      }),
+    );
+  });
+
   test("fails closed before persistence when v2 quality gate fails", async () => {
     const supabaseStub = makeSupabaseStub();
     createClientMock.mockReturnValue(supabaseStub);
@@ -786,6 +841,43 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         json_boundary: expect.objectContaining({
           code: "NO_JSON_BLOCK",
         }),
+      }),
+    );
+  });
+
+  test("stamps pass3_completed_at when persisting failure envelope progress", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    runPipelineMock.mockResolvedValue({
+      ok: false,
+      failed_at: "pass3",
+      error_code: "PASS3_FAILED",
+      error: "Pass 3 arbitration failed",
+      failure_details: {
+        arbitration: {
+          reason: "insufficient consensus",
+        },
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+
+    const envelopePatch = supabaseStub.evaluationJobUpdates.find(
+      (payload: Record<string, any>) =>
+        payload?.progress?.pipeline_failure_envelope?.error_code === "PASS3_FAILED",
+    ) as Record<string, any> | undefined;
+
+    expect(envelopePatch).toBeDefined();
+    expect(envelopePatch?.progress).toEqual(
+      expect.objectContaining({
+        pass3_started_at: expect.any(String),
+        pass3_completed_at: expect.any(String),
+        phase_status: "failed",
+        error_code: "PASS3_FAILED",
       }),
     );
   });
