@@ -1,9 +1,9 @@
 // app/api/jobs/[jobId]/artifacts/route.ts
 // User-facing artifact endpoint with authentication
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createClient } from "@supabase/supabase-js";
 import { canReleaseEvaluationRead } from "@/lib/jobs/readReleaseGate";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type Params = { params: Promise<{ jobId: string }> };
 
@@ -14,37 +14,17 @@ export async function GET(_: Request, { params }: Params) {
     return NextResponse.json({ ok: false, error: "Missing jobId" }, { status: 400 });
   }
 
-  const cookieStore = await cookies();
-  
-  // Get session token from cookies
-  const accessToken = cookieStore.get('sb-access-token')?.value || 
-                      cookieStore.get('supabase-auth-token')?.value;
-  
-  if (!accessToken) {
+  const user = await getAuthenticatedUser();
+  if (!user) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
-  
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-  });
 
-  // Auth
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth?.user) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-  }
+  const admin = createAdminClient();
 
   // Ownership check
-  const { data: job, error: jobError } = await supabase
+  const { data: job, error: jobError } = await admin
     .from("evaluation_jobs")
-    .select("id, user_id, status, validity_status, evaluation_result")
+    .select("id, user_id, status, validity_status, evaluation_result, manuscripts!inner(user_id)")
     .eq("id", jobId)
     .maybeSingle();
 
@@ -56,7 +36,19 @@ export async function GET(_: Request, { params }: Params) {
     return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
   }
 
-  if (job.user_id !== auth.user.id) {
+  const ownerId =
+    typeof (job as { user_id?: unknown }).user_id === "string"
+      ? ((job as { user_id?: string }).user_id ?? null)
+      : null;
+  const manuscriptOwnerId =
+    (job as { manuscripts?: { user_id?: string } | Array<{ user_id?: string }> }).manuscripts &&
+    !Array.isArray((job as { manuscripts?: unknown }).manuscripts)
+      ? ((job as { manuscripts?: { user_id?: string } }).manuscripts?.user_id ?? null)
+      : Array.isArray((job as { manuscripts?: Array<{ user_id?: string }> }).manuscripts)
+        ? ((job as { manuscripts?: Array<{ user_id?: string }> }).manuscripts?.[0]?.user_id ?? null)
+        : null;
+
+  if (ownerId !== user.id && manuscriptOwnerId !== user.id) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 
@@ -65,7 +57,7 @@ export async function GET(_: Request, { params }: Params) {
   }
 
   // Fetch latest artifact
-  const { data: artifact, error } = await supabase
+  const { data: artifact, error } = await admin
     .from("evaluation_artifacts")
     .select("id, job_id, artifact_type, content, created_at")
     .eq("job_id", jobId)
