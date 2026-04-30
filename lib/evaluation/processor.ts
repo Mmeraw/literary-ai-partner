@@ -1463,8 +1463,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           : {}),
       };
 
-      if (!nextProgress.pass3_completed_at && nextProgress.pass3_started_at) {
-        (nextProgress as Record<string, unknown>).pass3_completed_at = now;
+      const nextProgressRecord = nextProgress as Record<string, unknown>;
+      if (!nextProgressRecord.pass3_completed_at && nextProgressRecord.pass3_started_at) {
+        nextProgressRecord.pass3_completed_at = now;
       }
 
       Object.assign(progressState, nextProgress);
