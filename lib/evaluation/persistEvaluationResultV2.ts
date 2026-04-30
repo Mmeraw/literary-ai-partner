@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
+import type { EvaluationResultV2, ScoreAdjustmentV2 } from "@/schemas/evaluation-result-v2";
 import { JOB_STATUS, type JobStatus } from "@/lib/jobs/types";
 import {
   normalizeEvaluationJobStatus,
@@ -8,7 +8,7 @@ import {
 import { validateEvaluationArtifact as validateStructuralArtifact } from "@/lib/evaluation/validateEvaluationArtifact";
 import { deriveConfidence, type ConfidenceResult } from "@/lib/governance/confidenceDerivation";
 import { buildExcellenceFilter } from "@/lib/evaluation/pipeline/buildExcellenceFilter";
-import { buildScoreLedger } from "@/lib/evaluation/pipeline/buildScoreLedger";
+import { buildScoreLedger, computeAuthorityComposite } from "@/lib/evaluation/pipeline/buildScoreLedger";
 import type { ArtifactGateResult, ArtifactValidationSummary, EvaluationArtifact } from "@/lib/evaluation/pipeline/types";
 import { validateEvaluationArtifact } from "@/lib/evaluation/pipeline/validateEvaluationArtifact";
 import { EVALUATION_ARTIFACT_VALIDATION_FAILED } from "@/lib/evaluation/pipeline/failures";
@@ -71,6 +71,45 @@ function readPropagationSummary(
   return evaluationResult.governance?.transparency?.propagation_summary;
 }
 
+function applyAuthorityCompositeCap(evaluationResult: EvaluationResultV2): EvaluationResultV2 {
+  const criteriaForComposite = evaluationResult.criteria.map((criterion) => ({
+    key: criterion.key,
+    final_score_0_10: typeof criterion.score_0_10 === "number" ? criterion.score_0_10 : 0,
+  }));
+  const authorityComposite = computeAuthorityComposite(criteriaForComposite);
+  const originalOverall = evaluationResult.overview.overall_score_0_100;
+
+  if (!authorityComposite.capApplied || originalOverall === null) {
+    return evaluationResult;
+  }
+
+  const cap_0_100 = Math.round(authorityComposite.score_0_10 * 10);
+  if (cap_0_100 >= originalOverall) {
+    return evaluationResult;
+  }
+
+  const adjustment: ScoreAdjustmentV2 = {
+    reason: "AUTHORITY_CAP_APPLIED",
+    composite_0_10: authorityComposite.score_0_10,
+    threshold_0_10: authorityComposite.threshold,
+    original_overall_0_100: originalOverall,
+    capped_overall_0_100: cap_0_100,
+    inputs: authorityComposite.originalCompositeInputs,
+  };
+
+  return {
+    ...evaluationResult,
+    overview: {
+      ...evaluationResult.overview,
+      overall_score_0_100: cap_0_100,
+    },
+    score_adjustments: [
+      ...(evaluationResult.score_adjustments ?? []),
+      adjustment,
+    ],
+  };
+}
+
 function buildArtifactForValidation(evaluationResult: EvaluationResultV2): EvaluationArtifact {
   const criteria = evaluationResult.criteria.map((criterion) => ({
     key: criterion.key,
@@ -82,6 +121,7 @@ function buildArtifactForValidation(evaluationResult: EvaluationResultV2): Evalu
 
   const ledger = buildScoreLedger({
     criteria: criteria.map((criterion) => ({
+      key: criterion.key,
       final_score_0_10: criterion.final_score_0_10,
     })),
   });
@@ -151,7 +191,9 @@ export async function persistEvaluationResultV2(params: {
     throw new Error(`Invalid manuscript_id for persistEvaluationResultV2: ${params.manuscriptId}`);
   }
 
-  const structuralValidation = validateStructuralArtifact(params.evaluationResult);
+  const evaluationResult = applyAuthorityCompositeCap(params.evaluationResult);
+
+  const structuralValidation = validateStructuralArtifact(evaluationResult);
   if (!structuralValidation.ok) {
     const rejectedAt = new Date().toISOString();
     const failedStatus = normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus;
@@ -183,7 +225,7 @@ export async function persistEvaluationResultV2(params: {
       gate_decision: "FAIL",
       gate_reason: "Boundary structural validation failed",
       confidence,
-      propagation: readPropagationSummary(params.evaluationResult),
+      propagation: readPropagationSummary(evaluationResult),
       validation_issues: structuralValidation.issues,
     };
 
@@ -247,7 +289,7 @@ export async function persistEvaluationResultV2(params: {
     };
   }
 
-  const artifactForValidation = buildArtifactForValidation(params.evaluationResult);
+  const artifactForValidation = buildArtifactForValidation(evaluationResult);
   const validation = validateEvaluationArtifact(artifactForValidation, { mode: "enforce" });
   const gate = evaluateQualityGate(validation);
   const confidence = deriveBoundaryConfidence(validation, gate);
@@ -266,7 +308,7 @@ export async function persistEvaluationResultV2(params: {
       gate_decision: gate.decision,
       gate_reason: gate.reason,
       confidence,
-      propagation: readPropagationSummary(params.evaluationResult),
+      propagation: readPropagationSummary(evaluationResult),
     };
 
     const failurePayloadBase = {
@@ -350,7 +392,7 @@ export async function persistEvaluationResultV2(params: {
     gate_decision: gate.decision,
     gate_reason: gate.reason,
     confidence,
-    propagation: readPropagationSummary(params.evaluationResult),
+    propagation: readPropagationSummary(evaluationResult),
   };
 
   const completionPayloadBase = {
@@ -371,7 +413,7 @@ export async function persistEvaluationResultV2(params: {
       finished_at: completionTime,
       gate_enforcement: gateTrace,
     },
-    evaluation_result: params.evaluationResult,
+    evaluation_result: evaluationResult,
     evaluation_result_version: "evaluation_result_v2",
     last_heartbeat: completionTime,
     last_heartbeat_at: completionTime,
@@ -388,10 +430,10 @@ export async function persistEvaluationResultV2(params: {
       p_job_id: params.jobId,
       p_manuscript_id: params.manuscriptId,
       p_artifact_type: "evaluation_result_v2",
-      p_artifact_content: params.evaluationResult,
+      p_artifact_content: evaluationResult,
       p_source_hash: params.sourceHash,
       p_artifact_version: "evaluation_result_v2",
-      p_evaluation_result: params.evaluationResult,
+      p_evaluation_result: evaluationResult,
       p_progress: completionPayloadBase.progress,
       p_completed_at: completionTime,
       p_phase2_completed_at: completionTime,
