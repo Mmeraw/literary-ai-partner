@@ -1,0 +1,28 @@
+name: Authority Cap Artifact Gate
+
+"on":
+  workflow_dispatch:
+    inputs:
+      artifact_json:
+        description: 'Paste JSON with run_1_low_authority (required) and run_2_boundary_optional (optional)'
+        required: true
+        type: string
+
+jobs:
+  validate-artifact-contract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Validate authority-cap artifact contract
+        env:
+          ARTIFACT_JSON: ${{ github.event.inputs.artifact_json }}
+        run: node scripts/validate-authority-cap-artifact.mjs
