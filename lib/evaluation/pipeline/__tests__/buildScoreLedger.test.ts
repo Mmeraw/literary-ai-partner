@@ -25,6 +25,17 @@ describe("buildScoreLedger", () => {
       maxTotal: 130,
       normalized: 64,
       weighting: "equal",
+      authorityComposite: {
+        score_0_10: 0,
+        threshold: 6,
+        capApplied: true,
+        capReasonCodes: ["AUTHORITY_COMPOSITE_BELOW_THRESHOLD"],
+        originalCompositeInputs: {
+          voice: 0,
+          proseControl: 0,
+          tone: 0,
+        },
+      },
     });
   });
 
@@ -34,6 +45,17 @@ describe("buildScoreLedger", () => {
       maxTotal: 0,
       normalized: 0,
       weighting: "equal",
+      authorityComposite: {
+        score_0_10: 0,
+        threshold: 6,
+        capApplied: true,
+        capReasonCodes: ["AUTHORITY_COMPOSITE_BELOW_THRESHOLD"],
+        originalCompositeInputs: {
+          voice: 0,
+          proseControl: 0,
+          tone: 0,
+        },
+      },
     });
   });
 });
