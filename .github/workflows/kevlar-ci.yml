@@ -1,0 +1,129 @@
+name: Kevlar Hardening CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: ["chore/ci-hardening-kevlar"]
+
+jobs:
+  kevlar-guards:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run migration safety guard
+        run: bash scripts/guard-migration-safety.sh
+
+      - name: Run jest setup guard
+        run: bash scripts/guard-jest-setup.sh
+
+      - name: Validate npm audit against docs
+        run: |
+          set -e
+          if npm audit --audit-level=high >/dev/null 2>&1; then
+            echo "npm audit clean"
+            exit 0
+          fi
+          npm audit --json | node scripts/validate-npm-audit-notes.mjs
+
+      - name: Validate U2 proof fixtures (pass and fail paths)
+        run: |
+          set -euo pipefail
+          node scripts/validate-u2-proof.mjs < tests/fixtures/u2-proof/valid-proof.json
+          if node scripts/validate-u2-proof.mjs < tests/fixtures/u2-proof/invalid-pending-checklist-proof.json; then
+            echo "❌ Negative fixture unexpectedly passed"
+            exit 1
+          fi
+          echo "U2 proof negative fixture failed as expected ✅"
+
+      - name: Guard U3 prerequisite remains blocked on U2
+        run: bash scripts/guard-u3-prereq.sh
+
+  db-contract:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Bootstrap contract fixtures
+        run: |
+          psql postgres://postgres:postgres@localhost:5432/testdb <<'SQL'
+          CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+          CREATE TABLE IF NOT EXISTS public.evaluation_jobs (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            status text NOT NULL,
+            claimed_by text,
+            worker_id text,
+            lease_token uuid,
+            lease_until timestamptz,
+            heartbeat_at timestamptz,
+            started_at timestamptz
+          );
+
+          DROP FUNCTION IF EXISTS public.claim_job_atomic(text, timestamptz, integer);
+          CREATE FUNCTION public.claim_job_atomic(
+            p_worker_id text,
+            p_now timestamptz,
+            p_lease_seconds integer
+          )
+          RETURNS TABLE (
+            id uuid,
+            status text,
+            claimed_by text,
+            worker_id text,
+            lease_token uuid,
+            lease_until timestamptz,
+            heartbeat_at timestamptz,
+            started_at timestamptz
+          )
+          LANGUAGE sql
+          AS $$
+            SELECT
+              gen_random_uuid(),
+              'running'::text,
+              p_worker_id,
+              p_worker_id,
+              gen_random_uuid(),
+              p_now + make_interval(secs => p_lease_seconds),
+              p_now,
+              p_now;
+          $$;
+          SQL
+
+      - name: Verify claim contract invariant SQL compiles
+        run: psql postgres://postgres:postgres@localhost:5432/testdb -f scripts/verify-claim-contract.sql
+
+      - name: Verify claim RPC signature visible
+        run: psql postgres://postgres:postgres@localhost:5432/testdb -f scripts/verify-claim-job-atomic-signature.sql

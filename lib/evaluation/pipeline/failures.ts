@@ -4,6 +4,9 @@
  * Canonical rejection is non-transient and fail-closed.
  */
 
+export const EVALUATION_ARTIFACT_VALIDATION_FAILED =
+  "EVALUATION_ARTIFACT_VALIDATION_FAILED" as const;
+
 export const FAILURE_CODES = [
   // Transient (retry allowed)
   "TRANSIENT_NETWORK",
@@ -23,11 +26,109 @@ export const FAILURE_CODES = [
   "RLS_BLOCKED",
   "MANUAL_REVIEW_REQUIRED",
   "EVALUATION_GATE_REJECTED",
+  EVALUATION_ARTIFACT_VALIDATION_FAILED,
 ] as const;
 
 export type FailureCode = (typeof FAILURE_CODES)[number];
 
 export const FAILURE_CODE_SET: ReadonlySet<string> = new Set(FAILURE_CODES);
+
+export const FAILURE_CODE_METADATA: Readonly<
+  Record<
+    FailureCode,
+    {
+      classification: "transient" | "validation" | "system";
+      validity_status: "pending" | "valid" | "invalid" | "quarantined";
+      description: string;
+    }
+  >
+> = {
+  TRANSIENT_NETWORK: {
+    classification: "transient",
+    validity_status: "pending",
+    description: "Network transport failure while executing evaluation runtime.",
+  },
+  TRANSIENT_UPSTREAM: {
+    classification: "transient",
+    validity_status: "pending",
+    description: "Transient upstream provider failure.",
+  },
+  RATE_LIMITED: {
+    classification: "transient",
+    validity_status: "pending",
+    description: "Provider or platform rate-limit condition.",
+  },
+  VALIDATION_ERROR: {
+    classification: "validation",
+    validity_status: "invalid",
+    description: "Generic validation failure.",
+  },
+  SCHEMA_ERROR: {
+    classification: "validation",
+    validity_status: "invalid",
+    description: "Schema mismatch or malformed payload.",
+  },
+  GOVERNANCE_BLOCK: {
+    classification: "validation",
+    validity_status: "invalid",
+    description: "Governance policy blocked artifact release.",
+  },
+  ANCHOR_CONTRACT_VIOLATION: {
+    classification: "validation",
+    validity_status: "invalid",
+    description: "Evidence anchor contract violated.",
+  },
+  MISSING_PASS_ARTIFACT: {
+    classification: "system",
+    validity_status: "invalid",
+    description: "Required pass artifact missing at merge phase.",
+  },
+  PASS_CONVERGENCE_FAILURE: {
+    classification: "validation",
+    validity_status: "invalid",
+    description: "Pass outputs failed convergence policy.",
+  },
+  CANONICAL_ARTIFACT_WRITE_FAILED: {
+    classification: "system",
+    validity_status: "invalid",
+    description: "Canonical artifact persistence failed.",
+  },
+  SUMMARY_PROJECTION_FAILED: {
+    classification: "system",
+    validity_status: "invalid",
+    description: "Summary projection failed during finalization.",
+  },
+  LEASE_EXPIRED: {
+    classification: "system",
+    validity_status: "invalid",
+    description: "Worker lease expired during execution.",
+  },
+  STATE_TRANSITION_INVALID: {
+    classification: "system",
+    validity_status: "invalid",
+    description: "Illegal state transition attempted.",
+  },
+  RLS_BLOCKED: {
+    classification: "system",
+    validity_status: "invalid",
+    description: "Row-level security blocked required mutation.",
+  },
+  MANUAL_REVIEW_REQUIRED: {
+    classification: "validation",
+    validity_status: "quarantined",
+    description: "Artifact requires manual review before release.",
+  },
+  EVALUATION_GATE_REJECTED: {
+    classification: "validation",
+    validity_status: "invalid",
+    description: "Quality gate rejected the artifact.",
+  },
+  EVALUATION_ARTIFACT_VALIDATION_FAILED: {
+    classification: "validation",
+    validity_status: "invalid",
+    description: "Artifact failed structural validation before persistence.",
+  },
+};
 
 const TRANSIENT_CODES: ReadonlySet<FailureCode> = new Set([
   "TRANSIENT_NETWORK",

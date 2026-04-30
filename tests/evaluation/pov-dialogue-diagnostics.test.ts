@@ -122,7 +122,9 @@ describe("POV + dialogue diagnostics", () => {
       ),
     );
 
-    const manuscript = `I looked at Cliff.\n\n"The Yucatán," I said.\n"Sounds familiar," he said.`;
+    // Deliberately under-audited dialogue context: no attribution mechanisms,
+    // plus POV rendering friction to ensure manuscript-aware checks execute.
+    const manuscript = `Why am I still trusting him?\n\n*He is lying.*\n\nThe room was very quiet.`;
     const result = runQualityGate(synthesis, undefined, undefined, manuscript);
 
     expect(result.pass).toBe(false);

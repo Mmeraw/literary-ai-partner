@@ -8,6 +8,8 @@
 
 export {};
 
+import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+
 // ── Mock pipeline and synthesis ──────────────────────────────────────────────
 const runPipelineMock = jest.fn();
 const synthesisToEvaluationResultV2Mock = jest.fn();
@@ -59,20 +61,43 @@ jest.mock("@supabase/supabase-js", () => ({
   createClient: (...args: any[]) => createClientMock(...args),
 }));
 
+jest.mock("@/lib/jobs/jobStore.supabase", () => ({
+  finalizeJobFailure: jest.fn(async () => ({
+    status: "failed",
+    retryEligible: false,
+    retryExhausted: false,
+    attemptCount: 1,
+    maxAttempts: 3,
+    shouldNotify: true,
+    failureCode: "CONTEXT_CONTAMINATION_DETECTED",
+  })),
+}));
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 function makeSupabaseStub() {
   const jobUpdates: Array<Record<string, unknown>> = [];
+  const rpcCalls: Array<{ name: string; payload: Record<string, unknown> }> = [];
+
+  const now = new Date();
+  const leaseUntil = new Date(now.getTime() + 5 * 60_000).toISOString();
 
   const queuedJob = {
     id: "job-contamination-test",
     manuscript_id: 789,
     job_type: "evaluate_full",
-    status: "queued",
+    status: "running",
     phase: "phase_1",
-    phase_status: "queued",
-    created_at: new Date().toISOString(),
-    progress: { phase: "phase_1", phase_status: "queued" },
+    phase_status: "running",
+    claimed_by: "test-worker",
+    worker_id: "test-worker",
+    lease_token: "test-lease-token",
+    lease_until: leaseUntil,
+    lease_expires_at: leaseUntil,
+    heartbeat_at: now.toISOString(),
+    started_at: now.toISOString(),
+    created_at: now.toISOString(),
+    progress: { phase: "phase_1", phase_status: "running" },
   };
 
   const manuscript = {
@@ -85,6 +110,14 @@ function makeSupabaseStub() {
 
   return {
     jobUpdates,
+    rpcCalls,
+    rpc(name: string, payload: Record<string, unknown>) {
+      rpcCalls.push({ name, payload });
+      return Promise.resolve({
+        data: [{ artifact_id: "artifact-rpc-contamination-1" }],
+        error: null,
+      });
+    },
     from(table: string) {
       if (table === "evaluation_jobs") {
         return {
@@ -95,7 +128,11 @@ function makeSupabaseStub() {
           }),
           update: (payload: Record<string, unknown>) => {
             jobUpdates.push(payload);
-            return { eq: () => ({ error: null }) };
+            const chain = {
+              eq: () => chain,
+              error: null,
+            };
+            return chain;
           },
         };
       }
@@ -133,14 +170,28 @@ function makeEvaluationResult() {
     engine: { model: "o3", provider: "openai", prompt_version: "test" },
     overview: {
       verdict: "revise",
-      overall_score_0_100: 58,
-      scored_criteria_count: 0,
+      overall_score_0_100: 70,
+      scored_criteria_count: CRITERIA_KEYS.length,
       one_paragraph_summary:
         "Maria receives a letter from her missing father deep in cartel territory.",
       top_3_strengths: ["Atmosphere"],
       top_3_risks: ["Cross-manuscript bleed"],
     },
-    criteria: [],
+    criteria: CRITERIA_KEYS.map((key) => ({
+      key,
+      scorable: true,
+      status: "SCORABLE",
+      signal_present: true,
+      signal_strength: "SUFFICIENT",
+      confidence_band: "MEDIUM",
+      score_0_10: 7,
+      rationale: `Criterion ${key} is supported by manuscript evidence and coherent analysis.`,
+      evidence: [
+        { snippet: `Primary textual evidence for ${key}.` },
+        { snippet: `Secondary textual evidence for ${key}.` },
+      ],
+      recommendations: [],
+    })),
     recommendations: { quick_wins: [], strategic_revisions: [] },
     metrics: { manuscript: {}, processing: {} },
     artifacts: [],
@@ -179,7 +230,7 @@ describe("processEvaluationJob contamination guard enforcement", () => {
           top_3_risks: [],
         },
         metadata: {
-          pass1_model: "o3",
+          pass1_model: "gpt-4o",
           pass2_model: "o3",
           pass3_model: "o3",
           generated_at: new Date().toISOString(),
@@ -216,21 +267,25 @@ describe("processEvaluationJob contamination guard enforcement", () => {
     expect(result.success).toBe(false);
     expect(result.error).toBe("CONTEXT_CONTAMINATION_DETECTED");
 
-    // 2. last_error in DB update must contain structured contamination detail
-    const failedUpdate = supabaseStub.jobUpdates.find(
-      (u) => u.status === "failed",
-    );
-    expect(failedUpdate).toBeDefined();
-    expect(failedUpdate!.last_error).toBeDefined();
+    // 2. Canonical failure envelope patch must contain structured contamination detail
+    const envelopePatch = supabaseStub.jobUpdates.find(
+      (u) =>
+        typeof u?.progress === "object" &&
+        (u as Record<string, any>).progress?.pipeline_failure_envelope?.error_code ===
+          "CONTEXT_CONTAMINATION_DETECTED",
+    ) as Record<string, any> | undefined;
+    expect(envelopePatch).toBeDefined();
 
-    const parsedError = JSON.parse(failedUpdate!.last_error as string);
+    const envelopeErrorMessage = envelopePatch?.progress?.pipeline_failure_envelope?.error_message;
+    expect(typeof envelopeErrorMessage).toBe("string");
+    const parsedError = JSON.parse(envelopeErrorMessage as string);
     expect(parsedError.code).toBe("CONTEXT_CONTAMINATION_DETECTED");
     expect(parsedError.offending_entities).toEqual(
       expect.arrayContaining(["maria", "cartel"]),
     );
 
     // 3. Artifact persistence must NOT have been called
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    expect(supabaseStub.rpcCalls).toHaveLength(0);
   });
 
   test("completes normally and persists artifact when output is clean", async () => {
@@ -249,7 +304,7 @@ describe("processEvaluationJob contamination guard enforcement", () => {
           top_3_risks: [],
         },
         metadata: {
-          pass1_model: "o3",
+          pass1_model: "gpt-4o",
           pass2_model: "o3",
           pass3_model: "o3",
           generated_at: new Date().toISOString(),
@@ -276,8 +331,6 @@ describe("processEvaluationJob contamination guard enforcement", () => {
       reasons: [],
     });
 
-    upsertEvaluationArtifactMock.mockResolvedValue({ ok: true });
-
     const { processEvaluationJob } = await import(
       "../../../lib/evaluation/processor"
     );
@@ -296,7 +349,8 @@ describe("processEvaluationJob contamination guard enforcement", () => {
     );
     expect(failedUpdate).toBeUndefined();
 
-    // Artifact persistence was attempted
-    expect(upsertEvaluationArtifactMock).toHaveBeenCalled();
+    // Artifact persistence was attempted via atomic RPC
+    expect(supabaseStub.rpcCalls).toHaveLength(1);
+    expect(supabaseStub.rpcCalls[0].name).toBe("persist_evaluation_v2_atomic");
   });
 });

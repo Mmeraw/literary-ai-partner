@@ -248,6 +248,19 @@ describe("Phase 0.2 lessons-learned rule engine", () => {
     expect(result.passed).toBe(false);
   });
 
+  it("LLR-003 skips polarity pairs without shared anchor", () => {
+    const input = makeInput({
+      convergence_result: makeSynthesis(
+        "Cross-domain language",
+        ["Strong pacing and momentum"],
+        ["Voice is weak and inconsistent"],
+      ),
+    });
+
+    const result = ruleById("LLR-003").predicate(input);
+    expect(result.passed).toBe(true);
+  });
+
   it("LLR-003 allows warning-only outcomes", () => {
     const input = makeInput({
       convergence_result: makeSynthesis(

@@ -6,11 +6,13 @@ import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import {
   CRITERIA_KEYS,
-  CRITERIA_METADATA,
+  getCriterionDisplayLabel,
+  type EvaluationScope,
   type CriterionKey,
 } from "@/schemas/criteria-keys";
 import { EvaluationPoller } from "@/components/EvaluationPoller";
 import { buildTopRecommendations } from "@/lib/evaluation/reportRecommendations";
+import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
 
 type Job = {
   id: string;
@@ -47,6 +49,10 @@ type ArtifactContentV1 = {
     key: string;
     score_0_10: number | null;
     status?: "NOT_APPLICABLE" | "NO_SIGNAL" | "INSUFFICIENT_SIGNAL" | "SCORABLE";
+    scorability_status?: "scorable" | "scorable_low_confidence" | "non_scorable";
+    confidence_score_0_100?: number;
+    confidence_level?: "high" | "moderate" | "low";
+    confidence_reasons?: string[];
     scorable?: boolean;
     rationale?: string;
     insufficient_signal_reason?: {
@@ -67,7 +73,27 @@ type ArtifactContentV1 = {
     manuscript?: { word_count?: number; char_count?: number; genre?: string };
     processing?: { segment_count?: number; total_tokens_estimated?: number; runtime_ms?: number };
   };
-  governance?: { confidence?: number; warnings?: string[]; limitations?: string[] };
+  governance?: {
+    confidence?: number;
+    warnings?: string[];
+    limitations?: string[];
+    transparency?: {
+      artifact_validation_result?: "PASS" | "HOLD" | "FAIL";
+      artifact_reason_codes?: string[];
+      artifact_validated_at?: string;
+      artifact_validation_mode?: "log" | "enforce";
+      score_ledger?: {
+        raw_total: number;
+        max_total: number;
+        normalized_total: number;
+        weighting: "equal";
+      };
+      excellence_filter?: {
+        verdict: "submission-ready" | "close-but-not-ready" | "not-yet-ready";
+        blocking_criteria: string[];
+      };
+    };
+  };
 };
 
 async function getJob(jobId: string): Promise<Job | null> {
@@ -194,6 +220,50 @@ function criterionStatusLabel(
   return "N/A — Insufficient manuscript evidence";
 }
 
+function getConfidencePresentation(
+  c: NonNullable<ArtifactContentV1["criteria"]>[number],
+): { label: string; classes: string } | null {
+  const confidenceLevel = c.confidence_level;
+  const confidenceScore = c.confidence_score_0_100;
+
+  if (confidenceLevel === "high" || (typeof confidenceScore === "number" && confidenceScore >= 85)) {
+    return {
+      label: "High Confidence",
+      classes: "bg-emerald-100 text-emerald-800",
+    };
+  }
+
+  if (
+    confidenceLevel === "moderate" ||
+    (typeof confidenceScore === "number" && confidenceScore >= 60)
+  ) {
+    return {
+      label: "Moderate Confidence",
+      classes: "bg-amber-100 text-amber-800",
+    };
+  }
+
+  if (
+    confidenceLevel === "low" ||
+    (typeof confidenceScore === "number" && confidenceScore >= 0)
+  ) {
+    return {
+      label: "Low Confidence",
+      classes: "bg-rose-100 text-rose-800",
+    };
+  }
+
+  return null;
+}
+
+function inferEvaluationScope(jobType?: string, genre?: string): EvaluationScope {
+  const raw = `${jobType ?? ""} ${genre ?? ""}`.toLowerCase();
+
+  if (raw.includes("excerpt")) return "excerpt";
+  if (raw.includes("chapter")) return "chapter";
+  return "full_manuscript";
+}
+
 function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-md border p-3">
@@ -279,6 +349,8 @@ export default async function EvaluationReportPage({
   const orderedCriteria = CRITERIA_KEYS
     .map((key) => criteriaByKey.get(key))
     .filter((criterion): criterion is NonNullable<ArtifactContentV1["criteria"]>[number] => Boolean(criterion));
+  const evaluationScope = inferEvaluationScope(job.job_type, artifact?.metrics?.manuscript?.genre);
+  const integrityBanner = artifact ? classifyEvaluationIntegrityBanner(artifact) : null;
 
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -365,23 +437,11 @@ export default async function EvaluationReportPage({
             </div>
           )}
 
-          {/* ── Governance Warnings (Mock Detection) ── */}
-          {artifact.governance?.warnings && artifact.governance.warnings.length > 0 && (
-            <div className="mt-4 rounded-md bg-red-50 border-2 border-red-400 p-4">
-              <p className="text-sm font-bold text-red-900">
-                ⚠️ EVALUATION INTEGRITY WARNING
-              </p>
-              <div className="mt-2 space-y-1">
-                {artifact.governance.warnings.map((warning, i) => (
-                  <p key={i} className="text-sm text-red-800 font-medium">
-                    {warning}
-                  </p>
-                ))}
-              </div>
-              <p className="mt-3 text-xs text-red-700">
-                This evaluation did not use real AI analysis. Scores and recommendations are generic placeholders.
-                To get a real evaluation, ensure OPENAI_API_KEY is configured in Vercel environment variables.
-              </p>
+          {/* ── Governance Warnings (Classified: provenance vs quality vs structural) ── */}
+          {integrityBanner && (
+            <div className={integrityBanner.containerClassName}>
+              <p className={integrityBanner.titleClassName}>{integrityBanner.title}</p>
+              <p className={integrityBanner.detailClassName}>{integrityBanner.message}</p>
             </div>
           )}
 
@@ -405,12 +465,24 @@ export default async function EvaluationReportPage({
               {orderedCriteria.length > 0 && (
                 <section className="mt-6 rounded-lg border p-5">
                   <h2 className="text-lg font-semibold">Story Criteria Scores</h2>
+                  <div className="mt-3 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
+                    <p className="font-medium">Confidence Guide</p>
+                    <p className="mt-1">
+                      Confidence shows how strongly each score and summary is supported by clear examples from your submitted text.
+                    </p>
+                    <ul className="mt-2 list-disc pl-5 space-y-1">
+                      <li>High (≥85): strong support from the text</li>
+                      <li>Moderate (60–84): partial or uneven support from the text</li>
+                      <li>Low (&lt;60): limited support from the text</li>
+                    </ul>
+                  </div>
                   <div className="mt-3 space-y-4">
                     {orderedCriteria.map((c) => (
                       <div key={c.key} className="rounded-md border p-4">
                         {(() => {
                           const scorable = isScorableCriterion(c);
                           const scoreValue = scorable ? c.score_0_10 : null;
+                          const confidence = getConfidencePresentation(c);
                           const badgeClasses = !scorable
                             ? "bg-slate-100 text-slate-700"
                             : (typeof scoreValue === "number" && scoreValue >= 8)
@@ -420,13 +492,20 @@ export default async function EvaluationReportPage({
                                 : "bg-red-100 text-red-800";
 
                           return (
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-3">
                           <h3 className="font-medium">
-                            {isCriterionKey(c.key) ? CRITERIA_METADATA[c.key].label : c.key}
+                            {isCriterionKey(c.key) ? getCriterionDisplayLabel(c.key, evaluationScope) : c.key}
                           </h3>
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClasses}`}>
-                            {scorable ? `${scoreValue ?? "—"} / 10` : "N/A"}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClasses}`}>
+                              {scorable ? `${scoreValue ?? "—"} / 10` : "N/A"}
+                            </span>
+                            {confidence && (
+                              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${confidence.classes}`}>
+                                {confidence.label}
+                              </span>
+                            )}
+                          </div>
                         </div>
                           );
                         })()}
@@ -476,6 +555,27 @@ export default async function EvaluationReportPage({
               <Metric label="Chunks Analyzed" value={artifact.chunk_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"} />
               <Metric label="Successfully Processed" value={artifact.processed_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"} />
             </div>
+
+            {artifact.governance?.transparency?.score_ledger && (
+              <div className="mt-3 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
+                <p>
+                  <span className="font-medium">Score Ledger:</span>{" "}
+                  Raw {artifact.governance.transparency.score_ledger.raw_total} / {artifact.governance.transparency.score_ledger.max_total},
+                  Normalized {artifact.governance.transparency.score_ledger.normalized_total} / 100,
+                  Weighting {artifact.governance.transparency.score_ledger.weighting}
+                </p>
+              </div>
+            )}
+
+            {integrityBanner?.label && (
+              <div className="mt-3 rounded-md border bg-gray-50 p-3 text-xs text-gray-700 space-y-1">
+                <p>
+                  <span className="font-medium">Evaluation Status:</span>{" "}
+                  {integrityBanner.label}
+                </p>
+              </div>
+            )}
+
             <p className="mt-3 text-xs text-gray-500">
               Generated: {artifact.generated_at ? new Date(artifact.generated_at).toLocaleString() : "N/A"}
             </p>

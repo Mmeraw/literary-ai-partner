@@ -290,7 +290,149 @@ function pairWeakTension(strength: string, risk: string): string | null {
   return null;
 }
 
-type Llr003Decision = "clean" | "audit_topical" | "warning_tension" | "error_polarity";
+export type Llr003Decision = "clean" | "audit_topical" | "warning_tension" | "error_polarity";
+
+export type Llr003PairProbe = {
+  strength: string;
+  risk: string;
+  shared_anchor: string[];
+  canonical_anchor_ids: string[];
+  matched_polarity?: { positive: string; negative: string };
+  local_differentiator?: string;
+  decision: Llr003Decision;
+};
+
+export type RuleEvaluationInputForProbe = {
+  convergence_result?: {
+    overall?: {
+      top_3_strengths?: string[];
+      top_3_risks?: string[];
+      top3strengths?: string[];
+      top3risks?: string[];
+    };
+  };
+};
+
+export function probeLlr003PairsFromInput(input: RuleEvaluationInputForProbe): Llr003PairProbe[] {
+  const overall = input.convergence_result?.overall;
+  const strengths = overall?.top_3_strengths ?? overall?.top3strengths ?? [];
+  const risks = overall?.top_3_risks ?? overall?.top3risks ?? [];
+
+  const pairs: Llr003PairProbe[] = [];
+
+  if (strengths.length === 0 || risks.length === 0) {
+    return pairs;
+  }
+
+  for (const strength of strengths) {
+    for (const risk of risks) {
+      const sharedAnchor = pairSharedAnchors(strength, risk);
+      // Locked v2 invariant: contradictions are only meaningful on shared craft-domain anchors.
+      if (sharedAnchor.length === 0) continue;
+
+      const polarity = pairPolarityCollision(strength, risk);
+      const differentiator = pairLocalDifferentiator(strength, risk);
+      const weakTension = pairWeakTension(strength, risk);
+
+      const canonicalAnchorIds = CRITERIA_KEYS.filter((key) => {
+        const keyMatch = containsBoundedTerm(strength, key) && containsBoundedTerm(risk, key);
+        const synonymMatch = (CANON_DOMAIN_SYNONYMS[key] ?? []).some(
+          (syn) => containsBoundedTerm(strength, syn) && containsBoundedTerm(risk, syn),
+        );
+        return keyMatch || synonymMatch;
+      }).map((key) => PIPELINE_CRITERION_CANON_ID_MAP[key]);
+
+      if (polarity && !differentiator) {
+        pairs.push({
+          strength,
+          risk,
+          shared_anchor: sharedAnchor,
+          canonical_anchor_ids: canonicalAnchorIds,
+          matched_polarity: polarity,
+          decision: "error_polarity",
+        });
+        continue;
+      }
+
+      if (!polarity && weakTension && !differentiator) {
+        pairs.push({
+          strength,
+          risk,
+          shared_anchor: sharedAnchor,
+          canonical_anchor_ids: canonicalAnchorIds,
+          decision: "warning_tension",
+        });
+        continue;
+      }
+
+      if (!polarity && !weakTension && !differentiator) {
+        pairs.push({
+          strength,
+          risk,
+          shared_anchor: sharedAnchor,
+          canonical_anchor_ids: canonicalAnchorIds,
+          decision: "audit_topical",
+        });
+        continue;
+      }
+
+      pairs.push({
+        strength,
+        risk,
+        shared_anchor: sharedAnchor,
+        canonical_anchor_ids: canonicalAnchorIds,
+        matched_polarity: polarity ?? undefined,
+        local_differentiator: differentiator ?? undefined,
+        decision: "clean",
+      });
+    }
+  }
+
+  return pairs;
+}
+
+export function logLlr003Probe(label: string, input: RuleEvaluationInputForProbe): void {
+  const pairs = probeLlr003PairsFromInput(input);
+  const blocking = pairs.filter((pair) => pair.decision === "error_polarity");
+
+  console.log(`\nLLR-003 probe: ${label}`);
+  console.log({
+    totalEvaluatedPairs: pairs.length,
+    errorPolarityPairs: blocking.length,
+  });
+
+  if (blocking.length > 0) {
+    console.log("\nBlocking pairs");
+    console.table(
+      blocking.map((pair) => ({
+        decision: pair.decision,
+        shared_anchor: pair.shared_anchor.join(", "),
+        canonical_anchor_ids: pair.canonical_anchor_ids.join(", "),
+        matched_polarity: pair.matched_polarity
+          ? `${pair.matched_polarity.positive} <> ${pair.matched_polarity.negative}`
+          : "",
+        local_differentiator: pair.local_differentiator ?? "",
+        strength: pair.strength,
+        risk: pair.risk,
+      })),
+    );
+  }
+
+  console.log("\nAll evaluated pairs");
+  console.table(
+    pairs.map((pair) => ({
+      decision: pair.decision,
+      shared_anchor: pair.shared_anchor.join(", "),
+      canonical_anchor_ids: pair.canonical_anchor_ids.join(", "),
+      matched_polarity: pair.matched_polarity
+        ? `${pair.matched_polarity.positive} <> ${pair.matched_polarity.negative}`
+        : "",
+      local_differentiator: pair.local_differentiator ?? "",
+      strength: pair.strength,
+      risk: pair.risk,
+    })),
+  );
+}
 
 function llr003NoContradictoryDiagnosticFraming(input: RuleEvaluationInput): RuleResult {
   const strengths = input.convergence_result?.overall.top_3_strengths ?? [];
@@ -313,10 +455,13 @@ function llr003NoContradictoryDiagnosticFraming(input: RuleEvaluationInput): Rul
 
   for (const strength of strengths) {
     for (const risk of risks) {
+      const sharedAnchor = pairSharedAnchors(strength, risk);
+      // Locked v2 invariant: contradictions require a shared craft-domain anchor.
+      if (sharedAnchor.length === 0) continue;
+
       const polarity = pairPolarityCollision(strength, risk);
       const differentiator = pairLocalDifferentiator(strength, risk);
       const weakTension = pairWeakTension(strength, risk);
-      const sharedAnchor = pairSharedAnchors(strength, risk);
 
       const canonicalAnchorIds = CRITERIA_KEYS.filter((key) => {
         const keyMatch = containsBoundedTerm(strength, key) && containsBoundedTerm(risk, key);

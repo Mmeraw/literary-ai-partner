@@ -1,0 +1,27 @@
+"U_GATES_ENFORCEMENT — U1 advanced, U2 now primary blocker",,,,,,,,,,
+Gate,Area,Check,Must,Level,Owner,Target PR / Branch,Target Date,Can Fail Silently?,Gap,Proof
+U1,Formula,Canonical inputs only,Y,ENFORCED,Mike,Merged (#240),Done,NO,Scoped to persistence boundary; broader UI authority handled by U2,Boundary guard + tests
+U1,Formula,C1–C5 penalties implemented,Y,ENFORCED,Mike,Merged (#240),Done,NO,Boundary-scope confidence penalties enforced,Boundary tests
+U1,Authority,Single deriveConfidence path,Y,ENFORCED,Mike,Merged (#240),Done,NO,No shadow confidence in V2 persistence path,Code search + guard
+U1,Release,Confidence controls boundary release,Y,ENFORCED — boundary scope,Mike,Merged (#240),Done,NO,UI/product authority still U2,Boundary fail-closed tests
+U1,Audit,Penalty trace emitted,Y,ENFORCED — boundary scope,Mike,U1 Audit closure,Done,NO,Phase1 failures are separate PHASE_1_OBSERVABILITY row,U1 closure + production IDs
+U1,Proof,Bad cases lower/block confidence,Y,ENFORCED — boundary scope,Mike,Merged (#240),Done,NO,Golden breadth can expand later,Boundary fixtures
+U2,Signals,Pass 1/2 weakness flags,Y,OBSERVED,Mike,Next: U2 fidelity PR,2026-04-27,YES,Signals exist but do not fully control artifact authority,PV115 critique + repo trace
+U2,Handoff,Weakness reaches governance,Y,PENDING,Mike,Next: U2 fidelity PR,2026-04-27,YES,Propagation summary not enforced,Add propagation_summary
+U2,Penalty,Weakness reduces confidence/validity,Y,PENDING,Mike,Next: U2 fidelity PR,2026-04-27,YES,Confidence can be decorative,Derived confidence rules
+U2,Non-bypass,Pass 3 cannot discard weakness,Y,PENDING,Mike,Next: U2 fidelity PR,2026-04-27,YES,Summary can wash over low scores,QG_SUMMARY_OMITS_WEAKNESS
+U2,Artifact,Propagation summary emitted,Y,PENDING,Mike,Next: U2 fidelity PR,2026-04-27,YES,No persisted propagation trace yet,persistEvaluationResultV2 gate_enforcement
+U2,Proof,Weak case cannot stay clean/high,Y,PENDING,Mike,Next: U2 fidelity PR,2026-04-27,YES,Need contradiction/golden fixtures,PV115 fixture
+U3,Detector,Contradiction module exists,Y,PENDING,Mike,Post-U2,TBD,YES,No detector,Unit tests
+U3,Taxonomy,Rules live in code,Y,PENDING,Mike,Post-U2,TBD,YES,No taxonomy,Canon/code map
+U3,Artifact,contradictionCount/details emitted,Y,PENDING,Mike,Post-U2,TBD,YES,No fields,Schema test
+U3,Governance,QualityGate reads contradictions,Y,PENDING,Mike,Post-U2,TBD,YES,Not wired,Integration
+U3,Confidence,Contradictions reduce confidence,Y,PENDING,Mike,Post-U2,TBD,YES,No penalty,Regression
+U3,UI,Contradictions surface as DISPUTED,Y,PENDING,Mike,Post-U2,TBD,YES,No UI mapping,UI test
+U3,Proof,Contradiction cannot pass clean/high,Y,PENDING,Mike,Post-U2,TBD,YES,Need golden case,Golden harness
+QG,Dialogue Attribution,"Gate uses diagnostic truth, not lexical-only keywords",Y,ENFORCED — gate-level,Mike,PR #245,Done,NO,"Reachability constrained by upstream Pass1/LLR, not gate",Post-fix reached-gate runs
+QG,Diagnostics,Quality gate diagnostics persist on failure path,Y,STRUCTURAL ENFORCED / EMPIRICAL PENDING,Mike,PR #245 + proof,TBD,YES,Need fresh non-null diagnostics sample,DB query for pipeline_failure_diagnostics
+CERT,System,Invalid escape rate = 0,Y,PENDING,Mike,Certification proof run,TBD,YES,U2/U3/golden proof not complete,Fixed scenarios
+CERT,System,U1/U2/U3 fully enforced,Y,PENDING,Mike,Certification proof run,TBD,YES,U2/U3 pending,All gate proofs
+,,,,,,,,,,
+,,,,,,,,,,

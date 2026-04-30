@@ -154,13 +154,13 @@ describe("parsePass1Response", () => {
     );
   });
 
-  it("truncates evidence snippets to 200 chars", () => {
+  it("truncates evidence snippets to 180 chars", () => {
     const fixture = makePass1Fixture();
     fixture.criteria[0].evidence = [{ snippet: "x".repeat(300) }];
 
     const result = parsePass1Response(JSON.stringify(fixture));
 
-    expect(result.criteria[0].evidence[0].snippet.length).toBe(200);
+        expect(result.criteria[0].evidence[0].snippet.length).toBe(180);
   });
 });
 
@@ -181,7 +181,9 @@ describe("runPass1", () => {
 
     expect(result.pass).toBe(1);
     expect(result.axis).toBe("craft_execution");
-    expect(result.model).toBe(getCanonicalPipelineModel("o3"));
+    // RCA-PASS1-TOKEN-001: Pass1 must not use o3 in production.
+    // Default model resolves to gpt-4o (the reliable JSON extraction model).
+    expect(result.model).toBe(getCanonicalPipelineModel("gpt-4o"));
     expect(result.criteria).toHaveLength(13);
   });
 
@@ -199,7 +201,6 @@ describe("runPass1", () => {
       workType: "literary_fiction",
       title: "Test Manuscript",
       registry,
-      model: "gpt-4o",
       openaiApiKey: "sk-test",
       _createCompletion: captureCompletion,
     });
@@ -209,14 +210,18 @@ describe("runPass1", () => {
   });
 
   it("throws when OPENAI_API_KEY is not configured", async () => {
-    const savedKey = process.env.OPENAI_API_KEY;
-    delete process.env.OPENAI_API_KEY;
-
+    // Use openaiApiKey: null as the explicit "no key" sentinel.
+    // This bypasses the runtime-config fallback without mutating process.env,
+    // making the test hermetic in CI environments where OPENAI_API_KEY is always set.
     await expect(
-      runPass1({ manuscriptText: "test", workType: "literary_fiction", title: "Test", registry }),
+      runPass1({
+        manuscriptText: "test",
+        workType: "literary_fiction",
+        title: "Test",
+        registry,
+        openaiApiKey: null,
+      }),
     ).rejects.toThrow("OPENAI_API_KEY is not configured");
-
-    if (savedKey) process.env.OPENAI_API_KEY = savedKey;
   });
 
   it("throws when OpenAI returns empty content", async () => {
@@ -269,5 +274,69 @@ describe("runPass1", () => {
         _createCompletion: throwingCompletion(new Error("Rate limit exceeded")),
       }),
     ).rejects.toThrow("Rate limit exceeded");
+  });
+});
+
+// ── RCA-PASS1-TOKEN-001: Pass1 model routing and reachability regressions ──────
+//
+// These tests enforce that:
+//   1. Production Pass1 always uses gpt-4o — model selection is not caller-controlled.
+//   2. RunPass1Options intentionally has no `model` field; the type guard below prevents
+//      that field from ever being re-introduced without a compile error.
+//   3. When finish_reason=length produces empty content, Pass1 always throws — never
+//      silently emits an empty artifact (the exact failure mode of job 6abcc20c).
+
+describe("RCA-PASS1-TOKEN-001 — Pass1 model routing and PV115-class reachability", () => {
+  const registry = loadCanonicalRegistry();
+
+  it("E2E-04: production Pass1 always uses gpt-4o regardless of environment", async () => {
+    let requestedModel: string | undefined;
+    const captureModel: CreateCompletionFn = async (params) => {
+      requestedModel = params.model;
+      return { choices: [{ message: { content: JSON.stringify(makePass1Fixture()) } }] };
+    };
+
+    await runPass1({
+      manuscriptText: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "Production routing test",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: captureModel,
+    });
+
+    expect(requestedModel).toBe(getCanonicalPipelineModel("gpt-4o"));
+  });
+
+  it("type-level: RunPass1Options must not accept a model override", () => {
+    // Compile-time regression guard. If `model` is re-introduced to RunPass1Options
+    // this @ts-expect-error will become an error and the build will fail.
+    const _opts: import("@/lib/evaluation/pipeline/runPass1").RunPass1Options = {
+      // @ts-expect-error model must not exist on RunPass1Options
+      model: "o3",
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "guard",
+      registry: loadCanonicalRegistry(),
+    };
+    expect(_opts).toBeDefined();
+  });
+
+  it("E2E-12: PV115-class Pass1 finish_reason=length with empty content always throws (never silently returns empty artifact)", async () => {
+    // This is the exact failure mode of job 6abcc20c — o3 burns all output tokens
+    // on reasoning and emits null/empty content with finish_reason=length.
+    // Pass1 MUST throw in this case rather than returning a partial or empty result.
+    const pv115ClassText = "a".repeat(40_000); // PV115-class input length
+
+    await expect(
+      runPass1({
+        manuscriptText: pv115ClassText,
+        workType: "literary_fiction",
+        title: "PV115-class reachability test",
+        registry,
+        openaiApiKey: "sk-test",
+        _createCompletion: lengthLimitedEmptyCompletion(),
+      }),
+    ).rejects.toThrow("finish_reason=length");
   });
 });

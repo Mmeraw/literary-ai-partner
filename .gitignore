@@ -3,13 +3,26 @@
 .env.*
 
 # Logs
-logs
+logs/**
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# Canonical proof-artifact exceptions under logs/
+# Double-unignore required: un-ignore directory first, re-ignore its contents,
+# then selectively un-ignore specific canonical files.
+!logs/u2-live-proof/
+logs/u2-live-proof/**
+!logs/u2-live-proof/RUN_NOTES.md
+!logs/u2-live-proof/u2-proof-*.json
+!logs/u2-live-proof/u2-proof-*.validation.txt
+!logs/u2-live-proof/u2-artifact-verification-*.json
+!logs/u2-live-proof/job-row-*.json
+!logs/u2-live-proof/artifact-raw-*.json
+!logs/u2-live-proof/artifacts-*.json
 
 node_modules
 dist

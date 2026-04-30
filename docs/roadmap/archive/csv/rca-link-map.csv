@@ -1,0 +1,34 @@
+RCA_ID,Linked_Sheet,Linked_Key_or_Row,Relationship,Update_Instruction
+RCA-PASS1-TOKEN-001,CURRENT_STATE,PASS1_OUTPUT_FEASIBILITY,Primary open blocker,Show as OPEN / blocking gate reachability.
+RCA-PASS1-TOKEN-001,ROADMAP_LANES,Pipeline Feasibility,Lane blocker,Do not treat as latency-only; this is feasibility/fidelity reachability.
+RCA-PASS1-TOKEN-001,Complete-Partially-Pending,Pass1 output feasibility,Pending/partial,Use minimal unblocking patch before large latency work.
+RCA-LLR-004-001,CURRENT_STATE,LLR_POST_STRUCTURAL_BLOCK / LLR-004,Primary open blocker,Keep AMBIGUOUS until failing Pass2 output is inspected.
+RCA-LLR-004-001,ROADMAP_LANES,Governance / Pipeline Feasibility,Calibration blocker,Separate model invalidity from rule strictness and registry drift.
+RCA-DIALOGUE-GATE-001,CURRENT_STATE,Dialogue Gate V2,Resolved gate-level proof,Keep closed unless fresh post-fix evidence reopens.
+RCA-DIALOGUE-GATE-001,Complete-Partially-Pending,Dialogue Gate V2,Completed with caveat,Caveat: upstream reachability can mask further proof.
+RCA-ATOMIC-PERSISTENCE-001,CURRENT_STATE,Atomic persistence RPC,Resolved proof row,Keep as release guard / proof evidence.
+RCA-ATOMIC-PERSISTENCE-001,Complete-Partially-Pending,Atomicity / production proof,Completed,No action unless regression appears.
+RCA-FAILURE-ENVELOPE-001,CURRENT_STATE,Failure Diagnostics,Partial/open diagnostic proof,Need fresh non-null diagnostics sample.
+RCA-U2-001,CURRENT_STATE,U2_PROPAGATION / U2_SCORE_CONFIDENCE_MISMATCH,Primary U2 failure class,Show as NOT_STARTED; blocked by RCA-U2-003 until confidence derivation exists.
+RCA-U2-001,EXECUTION_BLOCK,STEP 3,Execution sequencing,Close after RCA-U2-003 and RCA-U2-004 inputs are stable enough for gate check.
+RCA-U2-002,EXECUTION_BLOCK,STEP 5 / PASS3_SYNTHESIS,Execution sequencing,Anti-washing closes after RCA-U2-006 anchor enforcement is defined.
+RCA-U2-003,CURRENT_STATE,CONFIDENCE_SYSTEM,Primary U2 prerequisite,First U2 closure item; all downstream U2 authority depends on it.
+RCA-U2-003,EXECUTION_BLOCK,STEP 1,Execution sequencing,Start U2 implementation here.
+RCA-U2-004,EXECUTION_BLOCK,STEP 2 / U2_PROPAGATION,Execution sequencing,Close after RCA-U2-003; supplies upstreamIntegrity for gate/UI.
+RCA-U2-004,ROADMAP_LANES,Governance / Artifact Quality / Confidence,Lane blocker,Replace prose U2 blocker with this RCA dependency.
+RCA-U2-005,ROADMAP_LANES,User UI / UI_AUTHORITY,Lane blocker,Close after RCA-U2-004; UI authority must read propagation topology.
+RCA-U2-005,EXECUTION_BLOCK,STEP 6,Execution sequencing,Final UI authority lock after backend propagation exists.
+RCA-U2-006,CURRENT_STATE,EVIDENCE_VALIDATION,Primary U2 failure class,Anchor/citation enforcement only; do not merge with confidence derivation or score mismatch.
+RCA-U2-006,EXECUTION_BLOCK,STEP 4,Execution sequencing,Close before RCA-U2-002 so anti-washing references concrete evidence.
+RCA-BOUNDARY-SHAPE-001,CURRENT_STATE,BOUNDARY_VALIDATION / BOUNDARY_VALIDATION_SHAPE_GAP,Resolved validation-risk row,Boundary validation can now show ENFORCED without calibration uncertainty; keep PASS-path regression as guard.
+RCA-BOUNDARY-SHAPE-001,ROADMAP_LANES,Persistence / Boundary,Resolved lane proof,Persistence / Boundary lane may state boundary raw-shape gap RESOLVED; future schema changes require re-proof.
+RCA-BOUNDARY-SHAPE-001,EXECUTION_BLOCK,PARALLEL_VALIDATION_TRACK,Closed parallel proof track,No longer blocks cockpit honesty; U2 execution may proceed with boundary risk closed.
+PV115-GOLDEN-FIXTURE,VERIFICATION_ARTIFACTS,PV115-GOLDEN-FIXTURE,"Verification artifact, not RCA",Requires U2 RCAs closed before it can mark U2 proof-ready.
+PV115-GOLDEN-FIXTURE,EXECUTION_BLOCK,STEP 7,Proof step,Keep as verification artifact and do not count as RCA-U2-007.
+,,,,
+,,,,
+,,,,
+RCA-U2-003,Complete-Partially-Pending,RCA-U2-003 derived confidence,Partial/local proof view,Keep PARTIAL until committed remote branch and live server/API artifact proof exist.
+RCA-U2-006,Complete-Partially-Pending,RCA-U2-006 evidence anchor enforcement,Partial/local proof view,Keep PARTIAL until NO_TEXTUAL_ANCHOR changes are pushed and live proof exists.
+RCA-U2-003,SOURCE_INDEX,Local-vs-remote U2 verification,Evidence source,Do not use Phase 2E/RLS logs to close U2.
+RCA-U2-006,SOURCE_INDEX,Local-vs-remote U2 verification,Evidence source,Do not use Phase 2E/RLS logs to close U2.
