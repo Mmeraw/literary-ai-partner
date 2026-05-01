@@ -1,61 +1,44 @@
 import { buildScoreLedger } from "../buildScoreLedger";
+import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 
-describe("buildScoreLedger", () => {
-  it("computes raw, max, and normalized equal-weight score", () => {
-    const output = {
-      criteria: [
-        { final_score_0_10: 6 },
-        { final_score_0_10: 5 },
-        { final_score_0_10: 7 },
-        { final_score_0_10: 8 },
-        { final_score_0_10: 6 },
-        { final_score_0_10: 6 },
-        { final_score_0_10: 6 },
-        { final_score_0_10: 8 },
-        { final_score_0_10: 5 },
-        { final_score_0_10: 7 },
-        { final_score_0_10: 7 },
-        { final_score_0_10: 6 },
-        { final_score_0_10: 6 },
-      ],
-    };
+describe("buildScoreLedger (weighted)", () => {
+  const fullCriteria = CRITERIA_KEYS.map((key) => ({
+    key,
+    final_score_0_10: 8,
+  }));
 
-    expect(buildScoreLedger(output)).toEqual({
-      rawTotal: 83,
-      maxTotal: 130,
-      normalized: 64,
-      weighting: "equal",
-      authorityComposite: {
-        score_0_10: 0,
-        threshold: 6,
-        capApplied: true,
-        capReasonCodes: ["AUTHORITY_COMPOSITE_BELOW_THRESHOLD"],
-        originalCompositeInputs: {
-          voice: 0,
-          proseControl: 0,
-          tone: 0,
-        },
-      },
-    });
+  it("returns the same score when all criteria have identical scores", () => {
+    const ledger = buildScoreLedger({ criteria: fullCriteria });
+    expect(ledger.normalized).toBeCloseTo(8, 10);
+    expect(ledger.weighting).toBe("weighted");
   });
 
-  it("returns zero ledger for empty criteria", () => {
-    expect(buildScoreLedger({ criteria: [] })).toEqual({
-      rawTotal: 0,
-      maxTotal: 0,
-      normalized: 0,
-      weighting: "equal",
-      authorityComposite: {
-        score_0_10: 0,
-        threshold: 6,
-        capApplied: true,
-        capReasonCodes: ["AUTHORITY_COMPOSITE_BELOW_THRESHOLD"],
-        originalCompositeInputs: {
-          voice: 0,
-          proseControl: 0,
-          tone: 0,
-        },
-      },
-    });
+  it("weights structural criteria more than market criteria", () => {
+    const baseline = CRITERIA_KEYS.map((key) => ({ key, final_score_0_10: 8 }));
+
+    const dropConcept = baseline.map((c) =>
+      c.key === "concept" ? { ...c, final_score_0_10: 1 } : c,
+    );
+
+    const dropMarket = baseline.map((c) =>
+      c.key === "marketability" ? { ...c, final_score_0_10: 1 } : c,
+    );
+
+    const conceptWcs = buildScoreLedger({ criteria: dropConcept }).normalized;
+    const marketWcs = buildScoreLedger({ criteria: dropMarket }).normalized;
+
+    expect(conceptWcs).toBeLessThan(marketWcs);
+  });
+
+  it("throws on unknown criterion key", () => {
+    expect(() =>
+      buildScoreLedger({
+        criteria: [{ key: "invalid_key", final_score_0_10: 5 }],
+      }),
+    ).toThrow(/INVALID/);
+  });
+
+  it("throws on empty criteria set", () => {
+    expect(() => buildScoreLedger({ criteria: [] })).toThrow(/INVALID/);
   });
 });
