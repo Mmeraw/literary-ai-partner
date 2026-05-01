@@ -19,7 +19,7 @@ describe("resolveEvaluationRuntimeConfig", () => {
     expect(config.pass.inputCharBudget).toBe(40000);
     expect(config.pass.synthesisRefCharBudget).toBe(8000);
     expect(config.worker.batchSize).toBe(5);
-    expect(config.worker.leaseMs).toBe(180000);
+    expect(config.worker.leaseMs).toBe(300000);
     expect(config.worker.maxExecutionMs).toBe(55000);
     expect(config.worker.disabled).toBe(false);
     expect(config.timeouts.passTimeout.valueMs).toBe(180000);
@@ -71,9 +71,19 @@ describe("resolveEvaluationRuntimeConfig", () => {
   it("throws when worker max execution exceeds the lease policy ceiling", () => {
     expect(() =>
       resolveEvaluationRuntimeConfig({
-        EVAL_WORKER_MAX_EXECUTION_MS: "280000",
+        EVAL_WORKER_MAX_EXECUTION_MS: "310000",
       }, {}),
-    ).toThrow(/EVAL_WORKER_MAX_EXECUTION_MS must be between 10000 and 180000/);
+    ).toThrow(/EVAL_WORKER_MAX_EXECUTION_MS must be between 10000 and 300000/);
+  });
+
+  it("accepts explicit 300000ms worker max execution when lease is aligned", () => {
+    const config = resolveWithoutBaseline({
+      EVAL_WORKER_LEASE_MS: "300000",
+      EVAL_WORKER_MAX_EXECUTION_MS: "300000",
+    });
+
+    expect(config.worker.leaseMs).toBe(300000);
+    expect(config.worker.maxExecutionMs).toBe(300000);
   });
 
   it("throws when adjudication mode requires Perplexity key and key is missing", () => {
