@@ -25,11 +25,11 @@ import { writeFileSync } from "node:fs";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const OWNER_ID = process.env.PROOF_RUN_USER_ID || "37d4bebd-9b90-4b5d-bf94-d5504cc43743";
+const OWNER_ID = process.env.PROOF_RUN_USER_ID;
 
-if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !OWNER_ID) {
   console.error(
-    "FATAL: SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in .env.local",
+    "FATAL: SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and PROOF_RUN_USER_ID must be set",
   );
   process.exit(2);
 }
@@ -93,7 +93,6 @@ async function main() {
     .from("evaluation_jobs")
     .insert({
       manuscript_id: manuscriptId,
-      user_id: OWNER_ID,
       job_type: "quick_evaluation",
       status: "queued",
       phase: "phase_1",
@@ -168,7 +167,7 @@ async function main() {
 
   const artifactsResult = await sb
     .from("evaluation_artifacts")
-    .select("id,artifact_type,content,created_at")
+    .select("id,artifact_type,created_at")
     .eq("job_id", jobId)
     .order("created_at", { ascending: false });
 
@@ -184,16 +183,34 @@ async function main() {
   }
   console.log(`GATE_2_PASS  ARTIFACT_ROW_COUNT=${rows.length}`);
 
-  const v2 = rows.find((row) => row.artifact_type === "evaluation_result_v2");
-  if (!v2 || !v2.content) {
+  const v2Meta = rows.find((row) => row.artifact_type === "evaluation_result_v2");
+  if (!v2Meta) {
     fail("gate_3_result_v2_missing", "no evaluation_result_v2 artifact found", {
       jobId,
       artifact_types: rows.map((row) => row.artifact_type),
     });
   }
-  console.log(`GATE_3_PASS  evaluation_result_v2 artifact_id=${v2.id}`);
 
-  const content = v2.content;
+  const v2ContentResult = await sb
+    .from("evaluation_artifacts")
+    .select("content")
+    .eq("id", v2Meta.id)
+    .single();
+
+  if (v2ContentResult.error) {
+    fail("gate_3_result_v2_fetch", v2ContentResult.error.message, {
+      artifact_id: v2Meta.id,
+    });
+  }
+
+  const content = v2ContentResult.data?.content;
+  if (!content) {
+    fail("gate_3_result_v2_missing_content", "evaluation_result_v2 artifact has no content", {
+      jobId,
+      artifact_id: v2Meta.id,
+    });
+  }
+  console.log(`GATE_3_PASS  evaluation_result_v2 artifact_id=${v2Meta.id}`);
   const adjustments = Array.isArray(content?.score_adjustments) ? content.score_adjustments : [];
   const capAdjustment = adjustments.find((entry) => entry && entry.reason === "AUTHORITY_CAP_APPLIED");
 
@@ -205,8 +222,8 @@ async function main() {
       content?.overall?.overall_score_0_100 ?? content?.overview?.overall_score_0_100 ?? null,
     score_adjustments: adjustments,
     has_authority_cap_applied: Boolean(capAdjustment),
-    artifact_id: v2.id,
-    artifact_created_at: v2.created_at,
+    artifact_id: v2Meta.id,
+    artifact_created_at: v2Meta.created_at,
   };
 
   writeFileSync("/tmp/post265-authority-cap-proof.json", JSON.stringify(projection, null, 2));
