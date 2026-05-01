@@ -70,7 +70,10 @@ import {
   synthesisToEvaluationResultV2,
 } from '@/lib/evaluation/pipeline/runPipeline';
 import { runQualityGateV2 } from '@/lib/evaluation/pipeline/qualityGate';
-import { buildScoreLedger } from '@/lib/evaluation/pipeline/buildScoreLedger';
+import {
+  buildScoreLedger,
+  computeAuthorityComposite,
+} from '@/lib/evaluation/pipeline/buildScoreLedger';
 import { buildExcellenceFilter } from '@/lib/evaluation/pipeline/buildExcellenceFilter';
 import { mapEvaluationResultV2ToGovernanceEnvelope } from '@/lib/governance/evaluationBridge';
 import {
@@ -1871,30 +1874,28 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
     );
 
-    const artifactCriteria = pipelineResult.synthesis.criteria.map((criterion) => ({
+    const artifactCriteria = evaluationResult.criteria.map((criterion) => ({
       key: criterion.key,
-      final_score_0_10: criterion.final_score_0_10,
-      reasoning: criterion.final_rationale,
+      final_score_0_10: criterion.score_0_10,
+      reasoning: criterion.rationale,
       evidence: criterion.evidence.map((item) => item.snippet).filter(Boolean).join(' | '),
-      interpretation:
-        criterion.consequence_status === 'deferred'
-          ? firstNonEmpty(
-              criterion.deferred_consequence_risk,
-              criterion.decision_points?.length ? criterion.decision_points.join(' ') : null,
-              criterion.pressure_points?.length ? criterion.pressure_points.join(' ') : null,
-            ) ?? ''
-          : firstNonEmpty(
-              criterion.consequence_status
-                ? `${criterion.consequence_status}: ${criterion.decision_points.join(' ')}`.trim()
-                : null,
-              criterion.decision_points?.length ? criterion.decision_points.join(' ') : null,
-            ) ?? '',
+      interpretation: '',
     }));
-    const scoreLedger = buildScoreLedger({
-      criteria: artifactCriteria.map((criterion) => ({
-        final_score_0_10: criterion.final_score_0_10,
-      })),
-    });
+    const scoreLedger =
+      artifactCriteria.length > 0
+        ? buildScoreLedger({
+            criteria: artifactCriteria.map((criterion) => ({
+              key: criterion.key,
+              final_score_0_10: criterion.final_score_0_10,
+            })),
+          })
+        : {
+            rawTotal: 0,
+            maxTotal: 0,
+            normalized: 0,
+            weighting: 'weighted' as const,
+            authorityComposite: computeAuthorityComposite([]),
+          };
     const excellenceFilter = buildExcellenceFilter({
       criteria: artifactCriteria.map((criterion) => ({
         key: criterion.key,

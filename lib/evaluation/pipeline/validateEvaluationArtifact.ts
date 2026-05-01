@@ -121,18 +121,27 @@ export function validateEvaluationArtifact(
     reasonCodes.push("INTERP-MISSING-1");
   }
 
-  const expectedLedger = buildScoreLedger({
-    criteria: criteria.map((criterion) => ({
-      final_score_0_10: criterion.final_score_0_10,
-    })),
-  });
+  if (!hasWrongCount && !hasUnknownKey && !hasNonIntegerScore && !hasOutOfRangeScore) {
+    try {
+      const expectedLedger = buildScoreLedger({
+        criteria: criteria.map((criterion) => ({
+          key: criterion.key,
+          final_score_0_10: criterion.final_score_0_10,
+        })),
+      });
 
-  if (
-    artifact.ledger.rawTotal !== expectedLedger.rawTotal ||
-    artifact.ledger.maxTotal !== expectedLedger.maxTotal ||
-    artifact.ledger.normalized !== expectedLedger.normalized ||
-    artifact.ledger.weighting !== "equal"
-  ) {
+      if (
+        artifact.ledger.rawTotal !== expectedLedger.rawTotal ||
+        artifact.ledger.maxTotal !== expectedLedger.maxTotal ||
+        artifact.ledger.normalized !== expectedLedger.normalized ||
+        artifact.ledger.weighting !== "weighted"
+      ) {
+        reasonCodes.push("SCORE-NORM-1");
+      }
+    } catch {
+      reasonCodes.push("SCORE-NORM-1");
+    }
+  } else if (criteria.length > 0) {
     reasonCodes.push("SCORE-NORM-1");
   }
 

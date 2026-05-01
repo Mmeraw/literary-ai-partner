@@ -347,7 +347,7 @@ export interface ArtifactScoreLedger {
   rawTotal: number;
   maxTotal: number;
   normalized: number;
-  weighting: "equal";
+  weighting: "equal" | "weighted";
 }
 
 export type SubmissionReadiness =

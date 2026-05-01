@@ -201,7 +201,7 @@ export type EvaluationResultV2 = {
         raw_total: number;
         max_total: number;
         normalized_total: number;
-        weighting: "equal";
+        weighting: "equal" | "weighted";
       };
       excellence_filter?: {
         verdict: "submission-ready" | "close-but-not-ready" | "not-yet-ready";

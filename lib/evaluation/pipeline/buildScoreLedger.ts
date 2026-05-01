@@ -1,7 +1,32 @@
+import { CRITERIA_KEYS, type CriterionKey as EvaluationCriterionKey } from "@/schemas/criteria-keys";
+import {
+  CRITERION_WEIGHT_MAP,
+  type CriterionKey as GovernanceCriterionKey,
+} from "@/lib/governance/canonicalCriteria";
 import type { ArtifactScoreLedger } from "./types";
 
 const MAX_SCORE_PER_CRITERION = 10;
 const AUTHORITY_THRESHOLD = 6 as const;
+const LEDGER_GATE_PARITY_EPSILON = 1e-9;
+
+const EVALUATION_TO_GOVERNANCE_CRITERION_KEY: Record<
+  EvaluationCriterionKey,
+  GovernanceCriterionKey
+> = {
+  concept: "CONCEPT",
+  narrativeDrive: "MOMENTUM",
+  character: "CHARACTER",
+  voice: "POVVOICE",
+  sceneConstruction: "SCENE",
+  dialogue: "DIALOGUE",
+  theme: "THEME",
+  worldbuilding: "WORLD",
+  pacing: "PACING",
+  proseControl: "PROSE",
+  tone: "TONE",
+  narrativeClosure: "CLOSURE",
+  marketability: "MARKET",
+};
 
 export type AuthorityCompositeReasonCode =
   | "AUTHORITY_COMPOSITE_BELOW_THRESHOLD"
@@ -28,13 +53,61 @@ export type ScoreLedgerWithAuthority = ArtifactScoreLedger & {
   authorityComposite: AuthorityComposite;
 };
 
+type LedgerCriterion = { key: EvaluationCriterionKey; final_score_0_10: number };
+
 function round2(value: number): number {
   return Number(value.toFixed(2));
 }
 
+function isEvaluationCriterionKey(key: unknown): key is EvaluationCriterionKey {
+  return typeof key === "string" && CRITERIA_KEYS.includes(key as EvaluationCriterionKey);
+}
+
+function resolveGovernanceCriterionKey(key: unknown): GovernanceCriterionKey {
+  if (!isEvaluationCriterionKey(key)) {
+    throw new Error(`INVALID: unknown criterion key ${String(key)}`);
+  }
+
+  return EVALUATION_TO_GOVERNANCE_CRITERION_KEY[key];
+}
+
+function getWeightForEvaluationCriterion(key: EvaluationCriterionKey): number {
+  const governanceKey = resolveGovernanceCriterionKey(key);
+  const weight = CRITERION_WEIGHT_MAP[governanceKey];
+
+  if (typeof weight !== "number" || !Number.isFinite(weight) || weight <= 0) {
+    throw new Error(`INVALID: missing or invalid weight for criterion key ${key}`);
+  }
+
+  return weight;
+}
+
+function computeWeightedCompositeScoreForLedger(criteria: LedgerCriterion[]): number {
+  const weightedSum = criteria.reduce((sum, criterion) => {
+    return sum + criterion.final_score_0_10 * getWeightForEvaluationCriterion(criterion.key);
+  }, 0);
+  const weightTotal = criteria.reduce((sum, criterion) => {
+    return sum + getWeightForEvaluationCriterion(criterion.key);
+  }, 0);
+
+  if (weightTotal <= 0) {
+    throw new Error("INVALID: buildScoreLedger weight total must be greater than zero");
+  }
+
+  return weightedSum / weightTotal;
+}
+
+export function assertLedgerGateParity(ledgerWcs: number, gateWcs: number): void {
+  if (Math.abs(ledgerWcs - gateWcs) > LEDGER_GATE_PARITY_EPSILON) {
+    throw new Error(
+      `INVALID: buildScoreLedger WCS (${ledgerWcs}) !== eligibility gate WCS (${gateWcs}); canonical scoring drift detected`,
+    );
+  }
+}
+
 function readCriterionScore(
   criteria: Array<{ key?: string; final_score_0_10: number }>,
-  key: string,
+  key: EvaluationCriterionKey,
 ): number {
   // Fail-closed: missing canonical criteria are treated as 0 to prevent a
   // false-high Authority Composite. Doctrinally required — never coerce up.
@@ -75,31 +148,42 @@ export function computeAuthorityComposite(
 
 export function buildScoreLedger(
   input: {
-    criteria: { key?: string; final_score_0_10: number }[];
+    criteria: LedgerCriterion[];
   },
   options?: { mechanismMissing?: boolean },
 ): ScoreLedgerWithAuthority {
-  // POLICY (current canonical behavior): denominator uses the full criteria
-  // set provided to the ledger builder. In this PR slice, non_scorable status
-  // affects confidence/scorability metadata and gating signals, but does not
-  // alter ledger denominator math.
-  //
-  // Follow-up track: evaluate a scorable-only denominator policy in a
-  // dedicated PR to avoid expanding this slice scope.
+  // POLICY (#231-B): Ledger A uses canonical weighted 13-criteria scoring.
+  // normalized remains the weighted composite score on the 0-10 criterion scale.
+  // non_scorable denominator behavior remains explicitly out of scope for #231-C.
   const criteria = input.criteria ?? [];
 
+  if (criteria.length === 0) {
+    throw new Error("INVALID: buildScoreLedger requires at least one criterion");
+  }
+
   const rawTotal = criteria.reduce((sum, criterion) => {
-    return sum + criterion.final_score_0_10;
+    return sum + criterion.final_score_0_10 * getWeightForEvaluationCriterion(criterion.key);
   }, 0);
 
-  const maxTotal = criteria.length * MAX_SCORE_PER_CRITERION;
-  const normalized = maxTotal > 0 ? Math.round((rawTotal / maxTotal) * 100) : 0;
+  const weightTotal = criteria.reduce((sum, criterion) => {
+    return sum + getWeightForEvaluationCriterion(criterion.key);
+  }, 0);
+
+  if (weightTotal <= 0) {
+    throw new Error("INVALID: buildScoreLedger weight total must be greater than zero");
+  }
+
+  const maxTotal = weightTotal * MAX_SCORE_PER_CRITERION;
+  const ledgerWcs = rawTotal / weightTotal;
+  const normalized = round2(ledgerWcs);
+  const parityWcs = computeWeightedCompositeScoreForLedger(criteria);
+  assertLedgerGateParity(ledgerWcs, parityWcs);
 
   return {
-    rawTotal,
-    maxTotal,
+    rawTotal: round2(rawTotal),
+    maxTotal: round2(maxTotal),
     normalized,
-    weighting: "equal",
+    weighting: "weighted",
     authorityComposite: computeAuthorityComposite(criteria, options),
   };
 }
