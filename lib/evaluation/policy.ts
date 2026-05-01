@@ -51,5 +51,3 @@ export function getCanonicalPipelineModel(overrideModel?: string): string {
 export function getExternalAdjudicationMode(): ExternalAdjudicationMode {
   return getEvaluationRuntimeConfig().adjudicationMode;
 }
-
-export const OPENAI_SDK_MAX_RETRIES = 1;
