@@ -376,7 +376,20 @@ export default async function EvaluationReportPage({
         />
       </section>
 
-      {!isComplete ? (
+      {job.status === "failed" && job.last_error ? (
+        <section className="mt-6 rounded-lg border border-red-200 bg-red-50 p-5">
+          <h2 className="text-lg font-semibold text-red-900">Evaluation failed</h2>
+          <p className="mt-2 text-sm text-red-800">{job.last_error}</p>
+          <div className="mt-4">
+            <Link
+              href="/evaluate"
+              className="inline-flex rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-900"
+            >
+              Return to job list
+            </Link>
+          </div>
+        </section>
+      ) : !isComplete ? (
         <section className="mt-6 rounded-lg border p-5">
           <h2 className="text-lg font-semibold">Report not ready yet</h2>
           <p className="mt-2 text-sm text-gray-600">

@@ -9,6 +9,8 @@ const {
   getCalibrationProfile,
   assessEvaluationQuality,
   getValidatedWorkerBatchSize,
+  resolveJobHardDeadlineMs,
+  renewEvaluationJobLease,
 } = require("../../../lib/evaluation/processor");
 const { CRITERIA_KEYS } = require("../../../schemas/criteria-keys");
 
@@ -344,5 +346,56 @@ describe("getValidatedWorkerBatchSize", () => {
     expect(getValidatedWorkerBatchSize(1, 3)).toBe(1);
     expect(getValidatedWorkerBatchSize("5", 1)).toBe(5);
     expect(getValidatedWorkerBatchSize(3.9, 1)).toBe(3);
+  });
+});
+
+describe("SLA helpers", () => {
+  test("anchors hard deadline to started_at when started_at is valid", () => {
+    const startedAt = "2026-04-24T19:07:55.650Z";
+    const maxExecutionMs = 180000;
+
+    const hardDeadlineMs = resolveJobHardDeadlineMs({
+      startedAt,
+      maxExecutionMs,
+      fallbackNowMs: Date.parse("2026-04-24T20:00:00.000Z"),
+    });
+
+    expect(hardDeadlineMs).toBe(Date.parse(startedAt) + maxExecutionMs);
+  });
+
+  test("does not renew lease past hardDeadlineMs", async () => {
+    const fixedNow = Date.parse("2026-04-24T19:07:55.650Z");
+    const hardDeadlineMs = fixedNow + 1000;
+    const dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(fixedNow);
+
+    const updateSpy = jest.fn();
+    const eqStatusSpy = jest.fn().mockResolvedValue({ error: null });
+    const eqIdSpy = jest.fn().mockReturnValue({
+      eq: eqStatusSpy,
+    });
+    updateSpy.mockReturnValue({
+      eq: eqIdSpy,
+    });
+    const supabase = {
+      from: jest.fn().mockReturnValue({
+        update: updateSpy,
+      }),
+    };
+
+    await renewEvaluationJobLease({
+      supabase,
+      jobId: "job-lease-cap",
+      leaseMs: 180000,
+      stage: "test-stage",
+      hardDeadlineMs,
+    });
+
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+    const payload = updateSpy.mock.calls[0][0];
+    expect(payload).not.toHaveProperty('lease_expires_at');
+    expect(payload.lease_until).toBeTruthy();
+    expect(Date.parse(payload.lease_until)).toBeLessThanOrEqual(hardDeadlineMs);
+
+    dateNowSpy.mockRestore();
   });
 });

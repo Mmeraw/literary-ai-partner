@@ -10,7 +10,7 @@
 import { writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -51,22 +51,42 @@ function canonicalKey(name) {
   return name.replace(/[^A-Z0-9_]/gi, '_').toUpperCase().replace(/_+/g,'_').replace(/^_|_$/g,'');
 }
 
+function escapeCsvCell(value) {
+  const normalized = value == null ? '' : String(value);
+  if (/[",\n]/.test(normalized)) {
+    return `"${normalized.replace(/"/g, '""')}"`;
+  }
+  return normalized;
+}
+
+function worksheetToCsv(worksheet) {
+  const rows = [];
+  worksheet.eachRow({ includeEmpty: true }, (row) => {
+    const values = Array.from({ length: row.cellCount }, (_, index) => row.getCell(index + 1).text ?? '');
+    rows.push(values.map(escapeCsvCell).join(','));
+  });
+  return rows.join('\n');
+}
+
 if (!existsSync(src)) {
   console.error('FATAL: workbook not found at', src);
   console.error('       Drop the .xlsx into docs/roadmap/ and rename to CURRENT.xlsx, then re-run.');
   process.exit(1);
 }
 
-const wb = XLSX.readFile(src);
+const wb = new ExcelJS.Workbook();
+await wb.xlsx.readFile(src);
+
 let exported = 0, skipped = 0;
-for (const sheetName of wb.SheetNames) {
+for (const worksheet of wb.worksheets) {
+  const sheetName = worksheet.name;
   const key = canonicalKey(sheetName);
   const csvName = CANONICAL[key] || `sheet-${slugify(sheetName)}.csv`;
   if (PROTECTED.has(csvName)) {
     console.log(`⚠  ${sheetName} -> ${csvName} (PROTECTED, skipping)`);
     skipped++; continue;
   }
-  const csv = XLSX.utils.sheet_to_csv(wb.Sheets[sheetName]);
+  const csv = worksheetToCsv(worksheet);
   const target = join(out, csvName);
   if (dryRun) {
     console.log(`(dry) ${sheetName} -> ${csvName} (${csv.split('\n').length} rows)`);

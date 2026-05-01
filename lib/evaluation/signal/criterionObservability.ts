@@ -44,6 +44,7 @@ export type RawCriterionInput = {
 };
 
 const PATTERN_CRITERIA = new Set<CriterionKey>(["voice", "tone", "pacing", "theme"]);
+const SOFT_FAIL_DIALOGUE_ENABLED = process.env.RG_SOFT_FAIL_DIALOGUE !== "false";
 
 const MIN_ANCHORS: Record<CriterionKey, number> = {
   concept: 2,
@@ -67,6 +68,10 @@ export function isPatternCriterion(key: CriterionKey): boolean {
 
 export function minAnchorsFor(key: CriterionKey): number {
   return MIN_ANCHORS[key];
+}
+
+export function isDialogueUnderAnchorSoftFailEnabled(): boolean {
+  return SOFT_FAIL_DIALOGUE_ENABLED;
 }
 
 function lexicalTokens(s: string): string[] {
@@ -349,12 +354,19 @@ export function isCriterionComplete(c: EvaluationCriterionV2): boolean {
   }
 
   if (c.status === "SCORABLE") {
+    const requiredAnchors = minAnchorsFor(c.key);
+    const hasRequiredAnchors = c.evidence.length >= requiredAnchors;
+    const dialogueUnderAnchorSoftFail =
+      c.key === "dialogue" &&
+      SOFT_FAIL_DIALOGUE_ENABLED &&
+      c.evidence.length < requiredAnchors;
+
     return (
       c.scorable === true &&
       typeof c.score_0_10 === "number" &&
       c.score_0_10 >= 0 &&
       c.score_0_10 <= 10 &&
-      c.evidence.length >= minAnchorsFor(c.key)
+      (hasRequiredAnchors || dialogueUnderAnchorSoftFail)
     );
   }
 

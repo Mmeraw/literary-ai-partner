@@ -14,12 +14,17 @@
 
 import { CRITERIA_KEYS, CriterionKey } from './criteria-keys';
 
+export type ScoreDenominatorPolicy = "full_canonical" | "scorable_only";
+
 /**
  * Main evaluation result envelope
  */
 export type EvaluationResultV1 = {
   /** Schema version for forward compatibility */
   schema_version: "evaluation_result_v1";
+
+  /** Score ledger denominator contract for artifact interpretation/versioning. */
+  score_denominator_policy?: ScoreDenominatorPolicy;
 
   /** Traceability identifiers */
   ids: {
@@ -278,6 +283,9 @@ export function isEvaluationResultV1(obj: unknown): obj is EvaluationResultV1 {
   
   return (
     result.schema_version === "evaluation_result_v1" &&
+    (result.score_denominator_policy === undefined ||
+      result.score_denominator_policy === "full_canonical" ||
+      result.score_denominator_policy === "scorable_only") &&
     typeof result.ids === "object" &&
     typeof result.overview === "object" &&
     Array.isArray(result.criteria) &&
@@ -306,6 +314,14 @@ export function validateEvaluationResult(
   // Check schema version
   if (result.schema_version !== "evaluation_result_v1") {
     errors.push(`Invalid schema_version: ${result.schema_version}`);
+  }
+
+  if (
+    result.score_denominator_policy !== undefined &&
+    result.score_denominator_policy !== "full_canonical" &&
+    result.score_denominator_policy !== "scorable_only"
+  ) {
+    errors.push(`Invalid score_denominator_policy: ${String(result.score_denominator_policy)}`);
   }
 
   // Check required IDs

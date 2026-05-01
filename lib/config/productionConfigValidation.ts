@@ -95,6 +95,9 @@ export function validateProductionConfig(
   }
 
   const workerMaxExecutionMs = parseIntEnv(env, "EVAL_WORKER_MAX_EXECUTION_MS", 55_000);
+  const hasExplicitWorkerMaxExecution =
+    typeof env.EVAL_WORKER_MAX_EXECUTION_MS === "string" &&
+    env.EVAL_WORKER_MAX_EXECUTION_MS.trim().length > 0;
   if (
     workerMaxExecutionMs < WORKER_MAX_EXECUTION_MS_MIN ||
     workerMaxExecutionMs > WORKER_MAX_EXECUTION_MS_MAX
@@ -107,6 +110,33 @@ export function validateProductionConfig(
   if (workerLeaseMs < workerMaxExecutionMs) {
     errors.push(
       `Invalid worker timing: EVAL_WORKER_LEASE_MS (${workerLeaseMs}) must be >= EVAL_WORKER_MAX_EXECUTION_MS (${workerMaxExecutionMs}).`,
+    );
+  }
+
+  // Hard-SLA guardrail: when worker max execution is explicitly configured,
+  // require headroom above pass timeout to reduce PIPELINE_SLA_EXCEEDED risk.
+  // Do not fail baseline CI defaults that intentionally omit this override.
+  const requiredSlaHeadroomMs = 30_000;
+  const recommendedPassHeadroomMs = passTimeoutMs + requiredSlaHeadroomMs;
+  const cappedPassHeadroomMs = Math.min(
+    recommendedPassHeadroomMs,
+    WORKER_MAX_EXECUTION_MS_MAX,
+  );
+  const minimumWorkerExecutionMs = Math.max(cappedPassHeadroomMs, openAiTimeoutMs);
+  if (recommendedPassHeadroomMs > WORKER_MAX_EXECUTION_MS_MAX) {
+    warnings.push(
+      `EVAL_PASS_TIMEOUT_MS (${passTimeoutMs}) + headroom (${requiredSlaHeadroomMs}) exceeds policy cap (${WORKER_MAX_EXECUTION_MS_MAX}) for EVAL_WORKER_MAX_EXECUTION_MS; consider lowering pass timeout to preserve full headroom.`,
+    );
+  }
+  if (hasExplicitWorkerMaxExecution) {
+    if (workerMaxExecutionMs < minimumWorkerExecutionMs) {
+      errors.push(
+        `EVAL_WORKER_MAX_EXECUTION_MS (${workerMaxExecutionMs}) must be >= max(min(EVAL_PASS_TIMEOUT_MS+${requiredSlaHeadroomMs}=${recommendedPassHeadroomMs}, policy_cap=${WORKER_MAX_EXECUTION_MS_MAX})=${cappedPassHeadroomMs}, EVAL_OPENAI_TIMEOUT_MS=${openAiTimeoutMs}) (minimum ${minimumWorkerExecutionMs}).`,
+      );
+    }
+  } else if (workerMaxExecutionMs < minimumWorkerExecutionMs) {
+    warnings.push(
+      `EVAL_WORKER_MAX_EXECUTION_MS resolved to default (${workerMaxExecutionMs}) below recommended minimum (${minimumWorkerExecutionMs}) for max(min(EVAL_PASS_TIMEOUT_MS+${requiredSlaHeadroomMs}=${recommendedPassHeadroomMs}, policy_cap=${WORKER_MAX_EXECUTION_MS_MAX})=${cappedPassHeadroomMs}, EVAL_OPENAI_TIMEOUT_MS=${openAiTimeoutMs}); set explicit worker max execution in deployment env to avoid SLA abort risk.`,
     );
   }
 

@@ -76,6 +76,7 @@ export interface RunPipelineOptions {
   workType: string;
   title: string;
   jobId?: string;
+  onHeartbeat?: (stage: string) => Promise<void> | void;
   model?: string;
   openaiApiKey?: string;
   /** Optional: Perplexity API key. When provided, enables Pass 4 cross-check via sonar-reasoning-pro. */
@@ -575,7 +576,11 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       throw error;
     });
 
+  await opts.onHeartbeat?.("parallel_passes_started");
+
   const [pass1Settled, pass2Settled] = await Promise.allSettled([pass1Promise, pass2Promise]);
+
+  await opts.onHeartbeat?.("parallel_passes_settled");
 
   const normalizePassFailure = (pass: "pass1" | "pass2" | "pass3", reason: unknown) => {
     const message = String(reason instanceof Error ? reason.message : reason);
@@ -723,6 +728,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       model: opts.model ?? null,
     },
   });
+  await opts.onHeartbeat?.("pass3_started");
   try {
     pass3Output = await withTimeout(
       _runPass3({
@@ -834,7 +840,9 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     jobId: latencyJobId,
     stage: 'quality_gate',
   });
+  await opts.onHeartbeat?.("quality_gate_started");
   const qualityGate = _runQualityGate(pass3Output, pass1Output, pass2Output, opts.manuscriptText);
+  await opts.onHeartbeat?.("quality_gate_completed");
   timings.pass4_ms = nowMs() - pass4StartMs;
   if (!qualityGate.pass) {
     finishLatencyStage({
@@ -1212,6 +1220,7 @@ export function synthesisToEvaluationResult(
 
   return {
     schema_version: "evaluation_result_v1",
+    score_denominator_policy: "full_canonical",
     ids,
     generated_at: synthesis.metadata.generated_at,
     engine: {
@@ -1362,6 +1371,7 @@ export function synthesisToEvaluationResultV2(
 
   return {
     schema_version: "evaluation_result_v2",
+    score_denominator_policy: "full_canonical",
     ids,
     generated_at: synthesis.metadata.generated_at,
     engine: {

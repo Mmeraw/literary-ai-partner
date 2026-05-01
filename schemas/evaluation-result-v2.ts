@@ -12,6 +12,8 @@
 
 import { CRITERIA_KEYS, CriterionKey } from './criteria-keys';
 
+export type ScoreDenominatorPolicy = "full_canonical" | "scorable_only";
+
 export type SignalStrength = "NONE" | "WEAK" | "SUFFICIENT" | "STRONG";
 
 /**
@@ -33,6 +35,19 @@ export type InsufficientSignalReason = {
     char_start?: number;
     char_end?: number;
   } | null;
+};
+
+export type ScoreAdjustmentV2 = {
+  reason: "AUTHORITY_CAP_APPLIED";
+  composite_0_10: number;
+  threshold_0_10: number;
+  original_overall_0_100: number;
+  capped_overall_0_100: number;
+  inputs: {
+    voice: number;
+    proseControl: number;
+    tone: number;
+  };
 };
 
 type CriterionBase = {
@@ -91,6 +106,7 @@ export type EvaluationCriterionV2 =
 
 export type EvaluationResultV2 = {
   schema_version: "evaluation_result_v2";
+  score_denominator_policy?: ScoreDenominatorPolicy;
   ids: {
     evaluation_run_id: string;
     job_id?: string;
@@ -116,6 +132,8 @@ export type EvaluationResultV2 = {
     top_3_risks: string[];
   };
   criteria: EvaluationCriterionV2[];
+  /** Deterministic score adjustments applied at artifact finalization boundaries. */
+  score_adjustments?: ScoreAdjustmentV2[];
   recommendations: {
     quick_wins: Array<{
       action: string;
@@ -210,6 +228,9 @@ export function isEvaluationResultV2(obj: unknown): obj is EvaluationResultV2 {
 
   return (
     result.schema_version === "evaluation_result_v2" &&
+    (result.score_denominator_policy === undefined ||
+      result.score_denominator_policy === "full_canonical" ||
+      result.score_denominator_policy === "scorable_only") &&
     typeof result.ids === "object" &&
     typeof result.overview === "object" &&
     Array.isArray(result.criteria) &&
@@ -224,6 +245,14 @@ export function validateEvaluationResultV2(
 
   if (result.schema_version !== "evaluation_result_v2") {
     errors.push(`Invalid schema_version: ${result.schema_version}`);
+  }
+
+  if (
+    result.score_denominator_policy !== undefined &&
+    result.score_denominator_policy !== "full_canonical" &&
+    result.score_denominator_policy !== "scorable_only"
+  ) {
+    errors.push(`Invalid score_denominator_policy: ${String(result.score_denominator_policy)}`);
   }
 
   if (!result.ids.evaluation_run_id) errors.push("Missing ids.evaluation_run_id");

@@ -106,6 +106,7 @@ function makeSupabaseStub() {
           select: () => ({
             eq: () => ({
               single: async () => ({ data: queuedJob, error: null }),
+              maybeSingle: async () => ({ data: { status: queuedJob.status }, error: null }),
             }),
           }),
           update: (payload: Record<string, unknown>) => {
@@ -283,6 +284,11 @@ describe("processEvaluationJob canonical pipeline integration", () => {
 
     expect(result.success).toBe(true);
     expect(runPipelineMock).toHaveBeenCalledTimes(1);
+    expect(runPipelineMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        onHeartbeat: expect.any(Function),
+      }),
+    );
     expect(runQualityGateV2Mock).toHaveBeenCalledTimes(1);
     expect(OpenAIMock).not.toHaveBeenCalled();
     expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
@@ -443,6 +449,61 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     ).toBe(false);
   });
 
+  test("uncaught processor fallback persists failure metadata when atomic finalization fails", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    supabaseStub.rpc = async (fn: string) => {
+      if (fn === "finalize_job_failure_atomic") {
+        return {
+          data: null,
+          error: { message: "rpc unavailable" },
+        };
+      }
+
+      if (fn === "persist_evaluation_v2_atomic") {
+        return {
+          data: [{ artifact_id: "artifact-canonical-pass" }],
+          error: null,
+        };
+      }
+
+      return { data: null, error: null };
+    };
+
+    runPipelineMock.mockRejectedValue(new Error("boom during pipeline"));
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("boom during pipeline");
+
+    const fallbackWrite = supabaseStub.evaluationJobUpdates.find(
+      (payload: Record<string, any>) => payload?.failure_code === "PROCESSOR_UNCAUGHT_ERROR",
+    ) as Record<string, any> | undefined;
+
+    expect(fallbackWrite).toBeDefined();
+    expect(fallbackWrite).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        phase: "phase_1",
+        phase_status: "failed",
+        failure_code: "PROCESSOR_UNCAUGHT_ERROR",
+        claimed_by: null,
+        claimed_at: null,
+        lease_token: null,
+      }),
+    );
+    expect(fallbackWrite?.progress).toEqual(
+      expect.objectContaining({
+        phase_status: "failed",
+        error_code: "PROCESSOR_UNCAUGHT_ERROR",
+        failed_at: expect.any(String),
+      }),
+    );
+  });
+
   test("fails closed before persistence when v2 quality gate fails", async () => {
     const supabaseStub = makeSupabaseStub();
     createClientMock.mockReturnValue(supabaseStub);
@@ -525,6 +586,162 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       supabaseStub.evaluationJobUpdates.some(
         (payload: Record<string, unknown>) => payload.status === "complete",
       ),
+    ).toBe(false);
+  });
+
+  test("fails closed with PIPELINE_SLA_EXCEEDED before runPipeline when hard SLA is already exceeded", async () => {
+    const supabaseStub = makeSupabaseStub();
+    const expiredStartedAt = "2026-01-01T00:00:00.000Z";
+
+    createClientMock.mockReturnValue({
+      ...supabaseStub,
+      from(table: string) {
+        if (table === "evaluation_jobs") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: "job-canonical-pipeline",
+                    manuscript_id: 456,
+                    job_type: "evaluate_full",
+                    status: "running",
+                    phase: "phase_1",
+                    phase_status: "running",
+                    claimed_by: "test-worker",
+                    lease_token: "test-lease-token",
+                    lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+                    created_at: expiredStartedAt,
+                    started_at: expiredStartedAt,
+                    progress: { phase: "phase_1", phase_status: "running" },
+                  },
+                  error: null,
+                }),
+                maybeSingle: async () => ({ data: { status: "running" }, error: null }),
+              }),
+            }),
+            update: (payload: Record<string, unknown>) => {
+              supabaseStub.evaluationJobUpdates.push(payload);
+              const query = {
+                eq: () => query,
+                then: (resolve: (value: { error: null }) => void) =>
+                  resolve({ error: null }),
+              };
+              return {
+                eq: () => query,
+              };
+            },
+          };
+        }
+
+        if (table === "manuscripts") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: 456,
+                    title: "Canonical Manuscript",
+                    content: "This manuscript is long enough to pass threshold validation. ".repeat(220),
+                    work_type: "novel",
+                    user_id: "00000000-0000-0000-0000-000000000001",
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table in SLA exceeded test stub: ${table}`);
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(runPipelineMock).not.toHaveBeenCalled();
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "finalize_job_failure_atomic"),
+    ).toBe(true);
+  });
+
+  test("does not re-finalize when SLA guard sees an already-terminal job", async () => {
+    const supabaseStub = makeSupabaseStub();
+    const expiredStartedAt = "2026-01-01T00:00:00.000Z";
+
+    createClientMock.mockReturnValue({
+      ...supabaseStub,
+      from(table: string) {
+        if (table === "evaluation_jobs") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: "job-canonical-pipeline",
+                    manuscript_id: 456,
+                    job_type: "evaluate_full",
+                    status: "running",
+                    phase: "phase_1",
+                    phase_status: "running",
+                    claimed_by: "test-worker",
+                    lease_token: "test-lease-token",
+                    lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+                    created_at: expiredStartedAt,
+                    started_at: expiredStartedAt,
+                    progress: { phase: "phase_1", phase_status: "running" },
+                  },
+                  error: null,
+                }),
+                maybeSingle: async () => ({ data: { status: "failed" }, error: null }),
+              }),
+            }),
+            update: (payload: Record<string, unknown>) => {
+              supabaseStub.evaluationJobUpdates.push(payload);
+              const query = {
+                eq: () => query,
+                then: (resolve: (value: { error: null }) => void) =>
+                  resolve({ error: null }),
+              };
+              return {
+                eq: () => query,
+              };
+            },
+          };
+        }
+
+        if (table === "manuscripts") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: 456,
+                    title: "Canonical Manuscript",
+                    content: "This manuscript is long enough to pass threshold validation. ".repeat(220),
+                    work_type: "novel",
+                    user_id: "00000000-0000-0000-0000-000000000001",
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table in SLA terminal-state test stub: ${table}`);
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(runPipelineMock).not.toHaveBeenCalled();
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "finalize_job_failure_atomic"),
     ).toBe(false);
   });
 
@@ -624,6 +841,43 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         json_boundary: expect.objectContaining({
           code: "NO_JSON_BLOCK",
         }),
+      }),
+    );
+  });
+
+  test("stamps pass3_completed_at when persisting failure envelope progress", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    runPipelineMock.mockResolvedValue({
+      ok: false,
+      failed_at: "pass3",
+      error_code: "PASS3_FAILED",
+      error: "Pass 3 arbitration failed",
+      failure_details: {
+        arbitration: {
+          reason: "insufficient consensus",
+        },
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+
+    const envelopePatch = supabaseStub.evaluationJobUpdates.find(
+      (payload: Record<string, any>) =>
+        payload?.progress?.pipeline_failure_envelope?.error_code === "PASS3_FAILED",
+    ) as Record<string, any> | undefined;
+
+    expect(envelopePatch).toBeDefined();
+    expect(envelopePatch?.progress).toEqual(
+      expect.objectContaining({
+        pass3_started_at: expect.any(String),
+        pass3_completed_at: expect.any(String),
+        phase_status: "failed",
+        error_code: "PASS3_FAILED",
       }),
     );
   });

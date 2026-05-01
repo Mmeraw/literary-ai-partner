@@ -329,6 +329,134 @@ function hasLiveLeaseExpiration(value: unknown, nowMs = Date.now()): boolean {
   return leaseExpiryMs > nowMs;
 }
 
+class PipelineSlaExceededError extends Error {
+  constructor(message = 'Evaluation exceeded hard SLA; worker aborted before stale sweeper') {
+    super(message);
+    this.name = 'PipelineSlaExceededError';
+  }
+}
+
+export function resolveJobHardDeadlineMs(args: {
+  startedAt: string | null | undefined;
+  maxExecutionMs: number;
+  fallbackNowMs?: number;
+}): number {
+  const fallbackNowMs = args.fallbackNowMs ?? Date.now();
+  const startedAtMs = typeof args.startedAt === 'string' ? Date.parse(args.startedAt) : Number.NaN;
+
+  if (Number.isFinite(startedAtMs)) {
+    return startedAtMs + args.maxExecutionMs;
+  }
+
+  return fallbackNowMs + args.maxExecutionMs;
+}
+
+async function assertJobWithinSla(args: {
+  supabase: any;
+  jobId: string;
+  hardDeadlineMs: number;
+  stage: string;
+}): Promise<void> {
+  if (Date.now() < args.hardDeadlineMs) {
+    return;
+  }
+
+  const { data: current, error: readError } = await args.supabase
+    .from('evaluation_jobs')
+    .select('status')
+    .eq('id', args.jobId)
+    .maybeSingle();
+
+  if (readError) {
+    console.warn('[Processor] SLA guard status read failed', {
+      job_id: args.jobId,
+      stage: args.stage,
+      error: readError.message,
+    });
+  }
+
+  const status = typeof current?.status === 'string' ? current.status : null;
+  if (status === JOB_STATUS.COMPLETE || status === JOB_STATUS.FAILED) {
+    throw new PipelineSlaExceededError(
+      `Job already terminal at SLA guard stage=${args.stage}; aborting worker continuation`,
+    );
+  }
+
+  await finalizeJobFailure({
+    jobId: args.jobId,
+    errorEnvelope: {
+      code: 'PIPELINE_SLA_EXCEEDED',
+      message: 'Evaluation exceeded hard SLA; worker aborted before stale sweeper',
+      retryable: false,
+    },
+  });
+
+  throw new PipelineSlaExceededError();
+}
+
+export async function renewEvaluationJobLease(args: {
+  supabase: any;
+  jobId: string;
+  leaseMs: number;
+  stage: string;
+  hardDeadlineMs: number;
+}): Promise<void> {
+  const now = Date.now();
+  if (now >= args.hardDeadlineMs) {
+    return;
+  }
+
+  const nowIso = new Date(now).toISOString();
+  const leaseUntilIso = new Date(Math.min(now + args.leaseMs, args.hardDeadlineMs)).toISOString();
+
+  const canonicalHeartbeatPayload = {
+    // Canonical heartbeat fields used by stale sweeper and job forensics
+    last_heartbeat_at: nowIso,
+    last_heartbeat: nowIso,
+    // Legacy heartbeat field retained for mixed-schema compatibility
+    heartbeat_at: nowIso,
+    // Canonical writable lease source column (lease_expires_at may be generated)
+    lease_until: leaseUntilIso,
+    updated_at: nowIso,
+  };
+
+  let { error } = await args.supabase
+    .from('evaluation_jobs')
+    .update(canonicalHeartbeatPayload)
+    .eq('id', args.jobId)
+    .eq('status', JOB_STATUS.RUNNING);
+
+  if (error && isMissingColumnError(error, 'heartbeat_at')) {
+    const { heartbeat_at: _omit, ...withoutLegacyHeartbeat } = canonicalHeartbeatPayload;
+    ({ error } = await args.supabase
+      .from('evaluation_jobs')
+      .update(withoutLegacyHeartbeat)
+      .eq('id', args.jobId)
+      .eq('status', JOB_STATUS.RUNNING));
+  }
+
+  if (error && isMissingColumnError(error, 'lease_until')) {
+    ({ error } = await args.supabase
+      .from('evaluation_jobs')
+      .update({
+        last_heartbeat_at: nowIso,
+        last_heartbeat: nowIso,
+        heartbeat_at: nowIso,
+        updated_at: nowIso,
+      })
+      .eq('id', args.jobId)
+      .eq('status', JOB_STATUS.RUNNING));
+  }
+
+  if (error) {
+    console.warn('[Processor] Failed to renew evaluation job lease', {
+      job_id: args.jobId,
+      stage: args.stage,
+      error: error.message,
+    });
+  }
+}
+
 function resolveSafeStartedAt(args: {
   candidate: unknown;
   createdAt: unknown;
@@ -1063,6 +1191,7 @@ export async function failStaleRunningJobs(): Promise<{
  */
 export async function processEvaluationJob(jobId: string): Promise<{ success: boolean; error?: string }> {
   const {
+    runtimeConfig,
     openaiApiKey,
     perplexityApiKey,
     evalDebugEnabled,
@@ -1074,6 +1203,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
   } = getProcessorRuntimeDeps();
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   let lifecycleStatus: JobStatus | null = null;
+  // Hoisted so outer-catch can persist partial progress metadata (#223)
+  let progressState: Record<string, unknown> = {};
 
   emitLatencyTrace({
     job_id: jobId,
@@ -1190,13 +1321,20 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       };
     }
 
-    const progressState =
+    progressState =
       job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
 
     const canonicalStartedAt = resolveSafeStartedAt({
       candidate: (job as Record<string, unknown>).started_at,
       createdAt: (job as Record<string, unknown>).created_at,
       fallbackIso: new Date().toISOString(),
+    });
+    const hardDeadlineMs = resolveJobHardDeadlineMs({
+      startedAt:
+        typeof (job as Record<string, unknown>).started_at === 'string'
+          ? ((job as Record<string, unknown>).started_at as string)
+          : canonicalStartedAt,
+      maxExecutionMs: runtimeConfig.worker.maxExecutionMs,
     });
 
     const markRunning = async (
@@ -1329,8 +1467,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           : {}),
       };
 
-      if (!nextProgress.pass3_completed_at && nextProgress.pass3_started_at) {
-        (nextProgress as Record<string, unknown>).pass3_completed_at = now;
+      const nextProgressRecord = nextProgress as Record<string, unknown>;
+      if (!nextProgressRecord.pass3_completed_at && nextProgressRecord.pass3_started_at) {
+        nextProgressRecord.pass3_completed_at = now;
       }
 
       Object.assign(progressState, nextProgress);
@@ -1537,6 +1676,13 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       },
     });
 
+    await assertJobWithinSla({
+      supabase,
+      jobId,
+      hardDeadlineMs,
+      stage: 'before_runPipeline',
+    });
+
     const pipelineResult = await runPipeline({
       manuscriptText: manuscriptWithContent.content || '',
       workType: manuscriptWithContent.work_type || 'novel',
@@ -1548,6 +1694,22 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       manuscriptId: String(manuscriptWithContent.id),
       executionMode: 'TRUSTED_PATH',
       _passTimeoutMs: evalPassTimeoutMs,
+      onHeartbeat: async (stage) => {
+        await assertJobWithinSla({
+          supabase,
+          jobId,
+          hardDeadlineMs,
+          stage,
+        });
+
+        await renewEvaluationJobLease({
+          supabase,
+          jobId,
+          leaseMs: runtimeConfig.worker.leaseMs,
+          stage,
+          hardDeadlineMs,
+        });
+      },
     });
 
     finishLatencyStage({
@@ -1642,6 +1804,13 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
       return { success: false, error: pipelineError };
     }
+
+    await assertJobWithinSla({
+      supabase,
+      jobId,
+      hardDeadlineMs,
+      stage: 'after_runPipeline',
+    });
 
     const pass3CompletedAt = new Date().toISOString();
     progressState.pass3_completed_at = pass3CompletedAt;
@@ -1812,6 +1981,13 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     console.log(`[Processor] Canonical pipeline evaluation generated for job ${jobId}`);
 
+    await assertJobWithinSla({
+      supabase,
+      jobId,
+      hardDeadlineMs,
+      stage: 'before_persistence',
+    });
+
     await markRunning('Persisting evaluation artifacts', 2, 'phase_2');
 
     const existingProgress = { ...progressState };
@@ -1948,6 +2124,13 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     return { success: true };
 
   } catch (error) {
+    if (error instanceof PipelineSlaExceededError) {
+      console.warn('[Processor] Job aborted at SLA boundary', {
+        job_id: jobId,
+      });
+      return { success: false, error: error.message };
+    }
+
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[Processor] Error processing job ${jobId}:`, errorMessage);
 
@@ -1974,15 +2157,29 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       );
 
       // Fail-closed fallback persistence for uncaught failures.
+      // Aligned with markFailed fallback: persist phase, progress, failure_code,
+      // and clear lease metadata so the job is never left in a running-like state (#223).
       const { error: fallbackError } = await supabase
         .from('evaluation_jobs')
         .update({
           status: failedStatus,
+          phase: progressState.phase ?? 'phase_1',
           phase_status: 'failed',
           total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-          completed_units: 0,
+          completed_units: typeof progressState.completed_units === 'number' ? progressState.completed_units : 0,
+          progress: {
+            ...progressState,
+            phase_status: 'failed',
+            message: 'Evaluation failed (uncaught error)',
+            failed_at: now,
+            error_code: 'PROCESSOR_UNCAUGHT_ERROR',
+          },
           last_error: errorMessage,
+          failure_code: 'PROCESSOR_UNCAUGHT_ERROR',
           failed_at: now,
+          claimed_by: null,
+          claimed_at: null,
+          lease_token: null,
           updated_at: now,
         })
         .eq('id', jobId);

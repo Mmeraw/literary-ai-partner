@@ -14,7 +14,7 @@
  *   - Protected spans are inviolable
  */
 
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import {
   GovernanceContext,
   GovernanceResult,
@@ -56,7 +56,7 @@ export interface PipelineOutput {
 }
 
 export async function runRevisionPipeline(input: PipelineInput): Promise<PipelineOutput> {
-  const runId = uuidv4();
+  const runId = randomUUID();
   const governanceLogs: PipelineOutput['governanceLogs'] = [];
   const patches: PipelineOutput['patches'] = [];
   const wavesExecuted: WaveId[] = [];

@@ -170,6 +170,35 @@ describe("runPipeline (e2e with injected runners)", () => {
     }
   });
 
+  it("emits onHeartbeat at expected stage boundaries in order", async () => {
+    const observedStages: string[] = [];
+
+    const result = await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      openaiApiKey: "sk-test",
+      onHeartbeat: async (stage) => {
+        observedStages.push(stage);
+      },
+      _lessonsLearned: permissiveLessonsLearned,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(observedStages).toEqual([
+      "parallel_passes_started",
+      "parallel_passes_settled",
+      "pass3_started",
+      "quality_gate_started",
+      "quality_gate_completed",
+    ]);
+  });
+
   it("does not block on post-convergence lessons-learned warnings when the stage is recoverable", async () => {
     const llrReport: LessonsLearnedReport = {
       overall_pass: false,
@@ -818,6 +847,7 @@ describe("synthesisToEvaluationResult adapter", () => {
     });
 
     expect(result.schema_version).toBe("evaluation_result_v1");
+    expect(result.score_denominator_policy).toBe("full_canonical");
     expect(result.overview.overall_score_0_100).toBe(70);
     expect(result.criteria).toHaveLength(13);
     expect(result.recommendations.quick_wins.length).toBeGreaterThan(0);
@@ -898,6 +928,7 @@ describe("synthesisToEvaluationResult adapter", () => {
     });
 
     expect(result.schema_version).toBe("evaluation_result_v1");
+    expect(result.score_denominator_policy).toBe("full_canonical");
     expect(result.overview).toEqual(
       expect.objectContaining({
         verdict: expect.any(String),

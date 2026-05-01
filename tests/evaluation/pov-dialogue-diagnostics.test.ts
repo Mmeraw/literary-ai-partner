@@ -159,4 +159,29 @@ describe("POV + dialogue diagnostics", () => {
     expect(validated.requiredEvidencePresent).toBe(false);
     expect(validated.invalidReason).toBe("MISSING_POV_EVIDENCE");
   });
+
+  // Regression: rationale using Pass3-extended markers (e.g. turn-taking) must pass the QG
+  // gate now that both layers share DIALOGUE_MECHANISM_MARKERS.
+  test(
+    "quality gate passes when dialogue rationale uses extended contract markers (turn-taking)",
+    () => {
+                  const manuscriptText = `I looked at Cliff.\n\n"The Yucatán," I said.\n"Sounds familiar," he said.`;
+const synthesis = makeSynthesis(
+        CRITERIA_KEYS.map((key) =>
+          key === "dialogue"
+            ? {
+                final_rationale:
+                  "The exchange is legible through turn-taking clarity and rendering-level control.",
+              }
+            : {}
+        )
+      );
+                  const result = runQualityGate(synthesis, undefined, undefined, manuscriptText);
+      const dialogueCheck = result.checks.find(
+        (c) => c.check_id === "dialogue_attribution_specificity"
+      );
+      expect(dialogueCheck?.passed).toBe(true);
+      expect(dialogueCheck?.error_code).toBeUndefined();
+    }
+  );
 });
