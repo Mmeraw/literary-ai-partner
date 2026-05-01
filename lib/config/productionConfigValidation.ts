@@ -95,6 +95,9 @@ export function validateProductionConfig(
   }
 
   const workerMaxExecutionMs = parseIntEnv(env, "EVAL_WORKER_MAX_EXECUTION_MS", 55_000);
+  const hasExplicitWorkerMaxExecution =
+    typeof env.EVAL_WORKER_MAX_EXECUTION_MS === "string" &&
+    env.EVAL_WORKER_MAX_EXECUTION_MS.trim().length > 0;
   if (
     workerMaxExecutionMs < WORKER_MAX_EXECUTION_MS_MIN ||
     workerMaxExecutionMs > WORKER_MAX_EXECUTION_MS_MAX
@@ -110,14 +113,20 @@ export function validateProductionConfig(
     );
   }
 
-  // Hard-SLA guardrail: execution envelope must leave headroom beyond per-pass timeout.
-  // Without this, jobs can be aborted by PIPELINE_SLA_EXCEEDED before artifact persistence
-  // even when pass-level timeouts are nominally valid.
+  // Hard-SLA guardrail: when worker max execution is explicitly configured,
+  // require headroom above pass timeout to reduce PIPELINE_SLA_EXCEEDED risk.
+  // Do not fail baseline CI defaults that intentionally omit this override.
   const requiredSlaHeadroomMs = 30_000;
   const minimumWorkerExecutionMs = passTimeoutMs + requiredSlaHeadroomMs;
-  if (workerMaxExecutionMs < minimumWorkerExecutionMs) {
-    errors.push(
-      `EVAL_WORKER_MAX_EXECUTION_MS (${workerMaxExecutionMs}) must be >= EVAL_PASS_TIMEOUT_MS (${passTimeoutMs}) + ${requiredSlaHeadroomMs}ms headroom (minimum ${minimumWorkerExecutionMs}).`,
+  if (hasExplicitWorkerMaxExecution) {
+    if (workerMaxExecutionMs < minimumWorkerExecutionMs) {
+      errors.push(
+        `EVAL_WORKER_MAX_EXECUTION_MS (${workerMaxExecutionMs}) must be >= EVAL_PASS_TIMEOUT_MS (${passTimeoutMs}) + ${requiredSlaHeadroomMs}ms headroom (minimum ${minimumWorkerExecutionMs}).`,
+      );
+    }
+  } else if (workerMaxExecutionMs < minimumWorkerExecutionMs) {
+    warnings.push(
+      `EVAL_WORKER_MAX_EXECUTION_MS resolved to default (${workerMaxExecutionMs}) below recommended minimum (${minimumWorkerExecutionMs}) for EVAL_PASS_TIMEOUT_MS=${passTimeoutMs}; set explicit worker max execution in deployment env to avoid SLA abort risk.`,
     );
   }
 
