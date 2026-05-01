@@ -58,9 +58,9 @@ export function summarizePromptCoverage(text: string, maxChars?: number): Prompt
     sourceWords: estimateWordCount(source),
     analyzedChars: window.length,
     analyzedWords: estimateWordCount(normalizedWindow),
-    truncated: source.length > maxChars,
-    strategy: source.length > maxChars ? "sampled_beginning_middle_end" : "full_text",
-    budgetChars: maxChars,
+    truncated: source.length > effectiveMaxChars,
+    strategy: source.length > effectiveMaxChars ? "sampled_beginning_middle_end" : "full_text",
+    budgetChars: effectiveMaxChars,
   };
 }
 

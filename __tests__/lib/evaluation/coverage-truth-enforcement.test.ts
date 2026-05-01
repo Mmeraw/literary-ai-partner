@@ -19,8 +19,69 @@
 import { describe, test, expect } from "@jest/globals";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { summarizePromptCoverage } from "@/lib/evaluation/pipeline/promptInput";
+import { resetEvaluationRuntimeConfigCacheForTests } from "@/lib/config/evaluationRuntimeConfig";
+
+beforeEach(() => {
+  resetEvaluationRuntimeConfigCacheForTests();
+  delete process.env.EVAL_PIPELINE_INPUT_CHAR_BUDGET;
+});
 
 describe("Coverage-Truth Enforcement — No Silent Truncation", () => {
+  test("summarizePromptCoverage uses runtime default budget when maxChars is omitted", () => {
+    const text = "a".repeat(40_001);
+
+    const coverage = summarizePromptCoverage(text);
+
+    expect(coverage.budgetChars).toBe(40_000);
+    expect(coverage.truncated).toBe(true);
+    expect(coverage.strategy).toBe("sampled_beginning_middle_end");
+  });
+
+  test("truncated is false for text under the default budget", () => {
+    const text = "a".repeat(39_999);
+
+    const coverage = summarizePromptCoverage(text);
+
+    expect(coverage.budgetChars).toBe(40_000);
+    expect(coverage.truncated).toBe(false);
+    expect(coverage.strategy).toBe("full_text");
+  });
+
+  test("truncated is true for text over the default budget", () => {
+    const text = "a".repeat(40_001);
+
+    const coverage = summarizePromptCoverage(text);
+
+    expect(coverage.truncated).toBe(true);
+    expect(coverage.strategy).toBe("sampled_beginning_middle_end");
+  });
+
+  test("explicit maxChars overrides runtime default", () => {
+    process.env.EVAL_PIPELINE_INPUT_CHAR_BUDGET = "40000";
+    resetEvaluationRuntimeConfigCacheForTests();
+    const text = "a".repeat(2_500);
+
+    const coverage = summarizePromptCoverage(text, 2_000);
+
+    expect(coverage.budgetChars).toBe(2_000);
+    expect(coverage.truncated).toBe(true);
+    expect(coverage.strategy).toBe("sampled_beginning_middle_end");
+  });
+
+  test("budgetChars always reports the actual budget used", () => {
+    process.env.EVAL_PIPELINE_INPUT_CHAR_BUDGET = "50000";
+    resetEvaluationRuntimeConfigCacheForTests();
+
+    const defaultBudgetCoverage = summarizePromptCoverage("a".repeat(49_000));
+    const explicitBudgetCoverage = summarizePromptCoverage("a".repeat(49_000), 12_345);
+
+    expect(defaultBudgetCoverage.budgetChars).toBe(50_000);
+    expect(defaultBudgetCoverage.truncated).toBe(false);
+    expect(explicitBudgetCoverage.budgetChars).toBe(12_345);
+    expect(explicitBudgetCoverage.truncated).toBe(true);
+  });
+
   test("SynthesisOutput type includes coverage-truth fields or equivalent", async () => {
     // Read the type definition
     const typesFile = path.join(
