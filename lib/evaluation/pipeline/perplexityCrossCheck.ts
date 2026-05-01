@@ -104,6 +104,7 @@ type PerplexityResponseShape = {
 const PERPLEXITY_BASE_URL = "https://api.perplexity.ai";
 const PERPLEXITY_MODEL = "sonar-reasoning-pro";
 const PERPLEXITY_MAX_TOKENS = 3000;
+const PERPLEXITY_REQUEST_TIMEOUT_MS = 60000;
 const DISPUTE_THRESHOLD = 1.0;
 
 const CRITERION_KEYS: CriterionKey[] = [
@@ -409,23 +410,38 @@ ${openaiSynthesis?.slice(0, 900) ?? "(none)"}
 Now return the independent adjudication as JSON.`;
 
   const requestCompletion = async (maxTokens: number) => {
-    const response = await fetch(`${PERPLEXITY_BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${perplexityApiKey}`,
-      },
-      body: JSON.stringify({
-        model: PERPLEXITY_MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.1,
-        max_tokens: maxTokens,
-        return_citations: false,
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PERPLEXITY_REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`${PERPLEXITY_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${perplexityApiKey}`,
+        },
+        body: JSON.stringify({
+          model: PERPLEXITY_MODEL,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.1,
+          max_tokens: maxTokens,
+          return_citations: false,
+        }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error(
+          `[Pass4] Perplexity request timed out after ${PERPLEXITY_REQUEST_TIMEOUT_MS}ms`
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       const errText = await response.text();
