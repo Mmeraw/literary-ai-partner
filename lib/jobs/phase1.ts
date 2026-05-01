@@ -179,6 +179,11 @@ export async function runPhase1(jobId: string): Promise<void> {
   let failedCount = allChunks.filter((c) => c.status === "failed").length;
   let skippedCount = 0; // Track chunks skipped due to claim failure
 
+  // Issue #263: Track consecutive heartbeat failures to detect worker degradation
+  // Fail fast if heartbeat renewal mechanism breaks rather than waiting for stale sweeper
+  let consecutiveHeartbeatFailures = 0;
+  const MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3;
+
   console.log(
     `[Phase1] Resume state: ${doneChunks} done, ${eligibleChunks.length} eligible, ${allChunks.length} total`,
   );
@@ -233,11 +238,49 @@ export async function runPhase1(jobId: string): Promise<void> {
       }
 
       // Start heartbeat timer for this chunk
-      const heartbeatInterval = setInterval(async () => {
-        await updateJob(jobId, {
-          last_heartbeat: new Date().toISOString(),
-        });
-      }, 10000); // 10 seconds
+      // Issue #263: Hardened heartbeat renewal with failure detection
+      // If heartbeat mechanism breaks, fail fast instead of waiting for stale sweeper
+      const heartbeatInterval = setInterval(() => {
+        // Fire heartbeat update WITHOUT blocking chunk processing
+        // Use Promise.race to enforce 8-second timeout + error handling
+        Promise.race([
+          updateJob(jobId, {
+            last_heartbeat: new Date().toISOString(),
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error('Heartbeat update timeout (>8s)')),
+              8000  // 8 seconds - more generous than 2s but still guards against hangs
+            )
+          ),
+        ])
+          .then(() => {
+            // Heartbeat succeeded; reset consecutive failure counter
+            if (consecutiveHeartbeatFailures > 0) {
+              console.log(
+                `[Phase1Heartbeat] Success after ${consecutiveHeartbeatFailures} failures; resetting counter for job ${jobId}`
+              );
+              consecutiveHeartbeatFailures = 0;
+            }
+          })
+          .catch((err) => {
+            consecutiveHeartbeatFailures += 1;
+            const errMsg = err instanceof Error ? err.message : String(err);
+            console.warn(
+              `[Phase1Heartbeat] Failure #${consecutiveHeartbeatFailures}/${MAX_CONSECUTIVE_HEARTBEAT_FAILURES} for job ${jobId}: ${errMsg}`
+            );
+
+            // If heartbeat fails repeatedly, fail the job immediately
+            // This is faster and clearer than waiting for stale sweeper timeout
+            if (consecutiveHeartbeatFailures >= MAX_CONSECUTIVE_HEARTBEAT_FAILURES) {
+              console.error(
+                `[Phase1Heartbeat] Max consecutive failures reached for job ${jobId}; triggering explicit job failure`
+              );
+              // Trigger explicit failure outside this callback
+              // We'll check this flag after clearInterval and take action
+            }
+          });
+      }, 10000); // 10 seconds between heartbeat attempts
 
       try {
         // Phase 1 LLM evaluation (stub with realistic latency, or real LLM if configured)
@@ -293,6 +336,17 @@ export async function runPhase1(jobId: string): Promise<void> {
       } finally {
         // Stop heartbeat timer
         clearInterval(heartbeatInterval);
+
+        // Check for heartbeat failure threshold
+        if (consecutiveHeartbeatFailures >= MAX_CONSECUTIVE_HEARTBEAT_FAILURES) {
+          const errorMsg = `Heartbeat renewal failed ${consecutiveHeartbeatFailures} times; worker subprocess/network appears degraded`;
+          console.error("[Phase1HeartbeatFatalFailure]", {
+            job_id: jobId,
+            consecutive_failures: consecutiveHeartbeatFailures,
+            error: errorMsg,
+          });
+          throw new Error(errorMsg);
+        }
       }
 
       // Update job progress after each chunk
