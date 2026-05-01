@@ -117,16 +117,19 @@ export function validateProductionConfig(
   // require headroom above pass timeout to reduce PIPELINE_SLA_EXCEEDED risk.
   // Do not fail baseline CI defaults that intentionally omit this override.
   const requiredSlaHeadroomMs = 30_000;
-  const minimumWorkerExecutionMs = Math.max(passTimeoutMs, openAiTimeoutMs) + requiredSlaHeadroomMs;
+  const minimumWorkerExecutionMs = Math.max(
+    passTimeoutMs + requiredSlaHeadroomMs,
+    openAiTimeoutMs,
+  );
   if (hasExplicitWorkerMaxExecution) {
     if (workerMaxExecutionMs < minimumWorkerExecutionMs) {
       errors.push(
-        `EVAL_WORKER_MAX_EXECUTION_MS (${workerMaxExecutionMs}) must be >= max(EVAL_PASS_TIMEOUT_MS=${passTimeoutMs}, EVAL_OPENAI_TIMEOUT_MS=${openAiTimeoutMs}) + ${requiredSlaHeadroomMs}ms headroom (minimum ${minimumWorkerExecutionMs}).`,
+        `EVAL_WORKER_MAX_EXECUTION_MS (${workerMaxExecutionMs}) must be >= max(EVAL_PASS_TIMEOUT_MS+${requiredSlaHeadroomMs}=${passTimeoutMs + requiredSlaHeadroomMs}, EVAL_OPENAI_TIMEOUT_MS=${openAiTimeoutMs}) (minimum ${minimumWorkerExecutionMs}).`,
       );
     }
   } else if (workerMaxExecutionMs < minimumWorkerExecutionMs) {
     warnings.push(
-      `EVAL_WORKER_MAX_EXECUTION_MS resolved to default (${workerMaxExecutionMs}) below recommended minimum (${minimumWorkerExecutionMs}) for max(EVAL_PASS_TIMEOUT_MS=${passTimeoutMs}, EVAL_OPENAI_TIMEOUT_MS=${openAiTimeoutMs}); set explicit worker max execution in deployment env to avoid SLA abort risk.`,
+      `EVAL_WORKER_MAX_EXECUTION_MS resolved to default (${workerMaxExecutionMs}) below recommended minimum (${minimumWorkerExecutionMs}) for max(EVAL_PASS_TIMEOUT_MS+${requiredSlaHeadroomMs}=${passTimeoutMs + requiredSlaHeadroomMs}, EVAL_OPENAI_TIMEOUT_MS=${openAiTimeoutMs}); set explicit worker max execution in deployment env to avoid SLA abort risk.`,
     );
   }
 
