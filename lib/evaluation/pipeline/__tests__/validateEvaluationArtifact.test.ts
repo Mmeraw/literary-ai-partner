@@ -84,6 +84,7 @@ describe("validateEvaluationArtifact", () => {
       criteria,
       ledger: buildScoreLedger({
         criteria: criteria.map((criterion) => ({
+          key: criterion.key as CriterionKey,
           final_score_0_10: Math.round(criterion.final_score_0_10),
         })),
       }),
