@@ -62,9 +62,11 @@ export function getCanonicalPipelineModel(overrideModel?: string): string {
       ? overrideModel.trim()
       : getEvaluationRuntimeConfig().model;
 
+  const normalizedCandidate = candidate.trim().toLowerCase();
+
   if (
     process.env.NODE_ENV === "production" &&
-    /^o[0-9]/.test(candidate) &&
+    /^o[0-9]/.test(normalizedCandidate) &&
     process.env.EVAL_ALLOW_REASONING_MODELS !== "true"
   ) {
     throw new Error(
