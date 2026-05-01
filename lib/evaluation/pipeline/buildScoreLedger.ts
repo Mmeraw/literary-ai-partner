@@ -3,10 +3,9 @@ import {
   CRITERION_WEIGHT_MAP,
   type CriterionKey as GovernanceCriterionKey,
 } from "@/lib/governance/canonicalCriteria";
-import { computeWeightedCompositeScore } from "@/lib/governance/criteriaEnvelope";
-import type { EvaluationEnvelope } from "@/lib/governance/types";
 import type { ArtifactScoreLedger } from "./types";
 
+const MAX_SCORE_PER_CRITERION = 10;
 const AUTHORITY_THRESHOLD = 6 as const;
 const LEDGER_GATE_PARITY_EPSILON = 1e-9;
 
@@ -54,7 +53,7 @@ export type ScoreLedgerWithAuthority = ArtifactScoreLedger & {
   authorityComposite: AuthorityComposite;
 };
 
-type LedgerCriterion = { key?: string; final_score_0_10: number };
+type LedgerCriterion = { key: EvaluationCriterionKey; final_score_0_10: number };
 
 function round2(value: number): number {
   return Number(value.toFixed(2));
@@ -72,24 +71,30 @@ function resolveGovernanceCriterionKey(key: unknown): GovernanceCriterionKey {
   return EVALUATION_TO_GOVERNANCE_CRITERION_KEY[key];
 }
 
-function getWeightForEvaluationCriterion(key: unknown): number {
+function getWeightForEvaluationCriterion(key: EvaluationCriterionKey): number {
   const governanceKey = resolveGovernanceCriterionKey(key);
   const weight = CRITERION_WEIGHT_MAP[governanceKey];
 
   if (typeof weight !== "number" || !Number.isFinite(weight) || weight <= 0) {
-    throw new Error(`INVALID: missing or invalid weight for criterion key ${String(key)}`);
+    throw new Error(`INVALID: missing or invalid weight for criterion key ${key}`);
   }
 
   return weight;
 }
 
-function toGovernanceEnvelope(criteria: LedgerCriterion[]): EvaluationEnvelope {
-  return {
-    criteria: criteria.map((criterion) => ({
-      key: resolveGovernanceCriterionKey(criterion.key),
-      score: criterion.final_score_0_10,
-    })),
-  };
+function computeWeightedCompositeScoreForLedger(criteria: LedgerCriterion[]): number {
+  const weightedSum = criteria.reduce((sum, criterion) => {
+    return sum + criterion.final_score_0_10 * getWeightForEvaluationCriterion(criterion.key);
+  }, 0);
+  const weightTotal = criteria.reduce((sum, criterion) => {
+    return sum + getWeightForEvaluationCriterion(criterion.key);
+  }, 0);
+
+  if (weightTotal <= 0) {
+    throw new Error("INVALID: buildScoreLedger weight total must be greater than zero");
+  }
+
+  return weightedSum / weightTotal;
 }
 
 export function assertLedgerGateParity(ledgerWcs: number, gateWcs: number): void {
@@ -104,8 +109,8 @@ function readCriterionScore(
   criteria: Array<{ key?: string; final_score_0_10: number }>,
   key: EvaluationCriterionKey,
 ): number {
-  // Fail-closed for authority composite by treating missing canonical criteria as 0.
-  // Main ledger scoring itself validates canonical keys and fails on unknown/missing inputs.
+  // Fail-closed: missing canonical criteria are treated as 0 to prevent a
+  // false-high Authority Composite. Doctrinally required — never coerce up.
   return criteria.find((criterion) => criterion.key === key)?.final_score_0_10 ?? 0;
 }
 
@@ -147,16 +152,17 @@ export function buildScoreLedger(
   },
   options?: { mechanismMissing?: boolean },
 ): ScoreLedgerWithAuthority {
-  // POLICY (#231-B): Ledger A uses the canonical weighted 13-criteria scoring
-  // model. non_scorable denominator behavior remains explicitly out of scope
-  // for this PR and is tracked separately in #231-C.
+  // POLICY (#231-B): Ledger A uses canonical weighted 13-criteria scoring.
+  // This preserves the existing artifact contract: rawTotal/maxTotal are points,
+  // normalized remains a 0-100 percentage, and weighting records the weighted model.
+  // non_scorable denominator behavior remains explicitly out of scope for #231-C.
   const criteria = input.criteria ?? [];
 
   if (criteria.length === 0) {
     throw new Error("INVALID: buildScoreLedger requires at least one criterion");
   }
 
-  const weightedSum = criteria.reduce((sum, criterion) => {
+  const rawTotal = criteria.reduce((sum, criterion) => {
     return sum + criterion.final_score_0_10 * getWeightForEvaluationCriterion(criterion.key);
   }, 0);
 
@@ -168,14 +174,16 @@ export function buildScoreLedger(
     throw new Error("INVALID: buildScoreLedger weight total must be greater than zero");
   }
 
-  const wcs = weightedSum / weightTotal;
-  const gateWcs = computeWeightedCompositeScore(toGovernanceEnvelope(criteria));
-  assertLedgerGateParity(wcs, gateWcs);
+  const maxTotal = weightTotal * MAX_SCORE_PER_CRITERION;
+  const normalized = Math.round((rawTotal / maxTotal) * 100);
+  const ledgerWcs = rawTotal / weightTotal;
+  const parityWcs = computeWeightedCompositeScoreForLedger(criteria);
+  assertLedgerGateParity(ledgerWcs, parityWcs);
 
   return {
-    rawTotal: round2(weightedSum),
-    maxTotal: round2(weightTotal),
-    normalized: round2(wcs),
+    rawTotal: round2(rawTotal),
+    maxTotal: round2(maxTotal),
+    normalized,
     weighting: "weighted",
     authorityComposite: computeAuthorityComposite(criteria, options),
   };
