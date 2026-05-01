@@ -30,9 +30,6 @@ function hasDirectQuoteAnchor(evidence: string): boolean {
 }
 
 function hasAnchoredParaphrase(evidence: string): boolean {
-  // Heuristic for anchored paraphrase labels such as:
-  // "river-bank conversation after camp setup" or
-  // "At the runway scene: ..."
   return (
     evidence.length >= 24 &&
     /\b(after|before|during|at|in|on|near|within|opening|closing|scene|chapter|paragraph|passage)\b/i.test(
@@ -47,7 +44,7 @@ function evidenceIsAnchored(evidence: string): boolean {
 
 function sortedUnique(codes: ArtifactReasonCode[]): ArtifactReasonCode[] {
   const deduped = Array.from(new Set(codes));
-  return deduped.sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'variant' }));
+  return deduped.sort((a, b) => a.localeCompare(b, "en", { sensitivity: "variant" }));
 }
 
 export function hasBlockingArtifactReasonCodes(reasonCodes: ArtifactReasonCode[]): boolean {
@@ -123,6 +120,7 @@ export function validateEvaluationArtifact(
 
   const expectedLedger = buildScoreLedger({
     criteria: criteria.map((criterion) => ({
+      key: criterion.key,
       final_score_0_10: criterion.final_score_0_10,
     })),
   });
@@ -131,7 +129,7 @@ export function validateEvaluationArtifact(
     artifact.ledger.rawTotal !== expectedLedger.rawTotal ||
     artifact.ledger.maxTotal !== expectedLedger.maxTotal ||
     artifact.ledger.normalized !== expectedLedger.normalized ||
-    artifact.ledger.weighting !== "equal"
+    artifact.ledger.weighting !== "weighted"
   ) {
     reasonCodes.push("SCORE-NORM-1");
   }
