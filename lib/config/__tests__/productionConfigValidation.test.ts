@@ -24,6 +24,8 @@ describe("validateProductionConfig", () => {
     const result = validateProductionConfig(
       {
         NODE_ENV: "test",
+        EVAL_OPENAI_TIMEOUT_MS: "180000",
+        EVAL_PASS_TIMEOUT_MS: "90000",
         EVAL_WORKER_LEASE_MS: "180000",
         EVAL_WORKER_MAX_EXECUTION_MS: "180000",
       },
