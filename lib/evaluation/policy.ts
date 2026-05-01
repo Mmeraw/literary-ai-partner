@@ -43,9 +43,36 @@ export function buildOpenAITemperatureParam(
   return isReasoningStyleModel(model) ? {} : { temperature };
 }
 
+/**
+ * Resolves the model used by every evaluation pipeline pass.
+ *
+ * Resolution order:
+ *   1. Caller-supplied non-empty `overrideModel` (after trim).
+ *   2. `getEvaluationRuntimeConfig().model` (driven by EVAL_OPENAI_MODEL).
+ *
+ * Production invariant:
+ *   Reasoning-style models (o1/o3/o4/...) are forbidden in production
+ *   unless explicitly allowed via EVAL_ALLOW_REASONING_MODELS=true.
+ *   Single point of enforcement for the policy:
+ *     "No reasoning models in deterministic production pipelines."
+ */
 export function getCanonicalPipelineModel(overrideModel?: string): string {
-  const candidate = (overrideModel || "").trim();
-  return candidate.length > 0 ? candidate : getEvaluationRuntimeConfig().model;
+  const candidate =
+    typeof overrideModel === "string" && overrideModel.trim().length > 0
+      ? overrideModel.trim()
+      : getEvaluationRuntimeConfig().model;
+
+  if (
+    process.env.NODE_ENV === "production" &&
+    /^o[0-9]/.test(candidate) &&
+    process.env.EVAL_ALLOW_REASONING_MODELS !== "true"
+  ) {
+    throw new Error(
+      `[Config] reasoning model '${candidate}' not permitted in production`,
+    );
+  }
+
+  return candidate;
 }
 
 export function getExternalAdjudicationMode(): ExternalAdjudicationMode {
