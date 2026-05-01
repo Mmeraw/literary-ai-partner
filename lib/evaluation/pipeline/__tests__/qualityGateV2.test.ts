@@ -82,6 +82,7 @@ function makeArtifactFixtureFromV2(result: EvaluationResultV2): EvaluationArtifa
 
   const scoreLedger = buildScoreLedger({
     criteria: criteria.map((criterion) => ({
+      key: criterion.key,
       final_score_0_10: criterion.final_score_0_10,
     })),
   });
