@@ -18,6 +18,7 @@ import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
   getCanonicalPipelineModel,
+  OPENAI_SDK_MAX_RETRIES,
 } from "@/lib/evaluation/policy";
 import { buildComparisonPacket } from "./comparisonPacket";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
@@ -385,7 +386,7 @@ function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
     throw new Error("[Pass3] OPENAI_API_KEY is not configured");
   }
   const timeoutMs = getEvalOpenAiTimeoutMs();
-  const openai = new OpenAI({ apiKey, maxRetries: 2, timeout: timeoutMs });
+  const openai = new OpenAI({ apiKey, maxRetries: OPENAI_SDK_MAX_RETRIES, timeout: timeoutMs });
   return (params) =>
     openai.chat.completions.create(
       params as Parameters<typeof openai.chat.completions.create>[0],
