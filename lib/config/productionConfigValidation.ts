@@ -110,6 +110,17 @@ export function validateProductionConfig(
     );
   }
 
+  // Hard-SLA guardrail: execution envelope must leave headroom beyond per-pass timeout.
+  // Without this, jobs can be aborted by PIPELINE_SLA_EXCEEDED before artifact persistence
+  // even when pass-level timeouts are nominally valid.
+  const requiredSlaHeadroomMs = 30_000;
+  const minimumWorkerExecutionMs = passTimeoutMs + requiredSlaHeadroomMs;
+  if (workerMaxExecutionMs < minimumWorkerExecutionMs) {
+    errors.push(
+      `EVAL_WORKER_MAX_EXECUTION_MS (${workerMaxExecutionMs}) must be >= EVAL_PASS_TIMEOUT_MS (${passTimeoutMs}) + ${requiredSlaHeadroomMs}ms headroom (minimum ${minimumWorkerExecutionMs}).`,
+    );
+  }
+
   const vercelConfigPath = path.join(cwd, "vercel.json");
   if (fs.existsSync(vercelConfigPath)) {
     try {

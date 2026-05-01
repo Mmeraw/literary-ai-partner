@@ -409,25 +409,44 @@ export async function renewEvaluationJobLease(args: {
   const nowIso = new Date(now).toISOString();
   const leaseUntilIso = new Date(Math.min(now + args.leaseMs, args.hardDeadlineMs)).toISOString();
 
-  const updatePayloadBase = {
+  const canonicalHeartbeatPayload = {
+    // Canonical heartbeat fields used by stale sweeper and job forensics
+    last_heartbeat_at: nowIso,
+    last_heartbeat: nowIso,
+    // Legacy heartbeat field retained for mixed-schema compatibility
     heartbeat_at: nowIso,
     lease_expires_at: leaseUntilIso,
     updated_at: nowIso,
   };
 
+  const leaseFallbackHeartbeatPayload = {
+    ...canonicalHeartbeatPayload,
+    lease_until: leaseUntilIso,
+  };
+
   let { error } = await args.supabase
     .from('evaluation_jobs')
-    .update({
-      ...updatePayloadBase,
-      lease_until: leaseUntilIso,
-    })
+    .update(leaseFallbackHeartbeatPayload)
     .eq('id', args.jobId)
     .eq('status', JOB_STATUS.RUNNING);
 
   if (error && isMissingColumnError(error, 'lease_until')) {
     ({ error } = await args.supabase
       .from('evaluation_jobs')
-      .update(updatePayloadBase)
+      .update(canonicalHeartbeatPayload)
+      .eq('id', args.jobId)
+      .eq('status', JOB_STATUS.RUNNING));
+  }
+
+  if (error && isMissingColumnError(error, 'heartbeat_at')) {
+    ({ error } = await args.supabase
+      .from('evaluation_jobs')
+      .update({
+        last_heartbeat_at: nowIso,
+        last_heartbeat: nowIso,
+        lease_expires_at: leaseUntilIso,
+        updated_at: nowIso,
+      })
       .eq('id', args.jobId)
       .eq('status', JOB_STATUS.RUNNING));
   }
@@ -436,6 +455,8 @@ export async function renewEvaluationJobLease(args: {
     ({ error } = await args.supabase
       .from('evaluation_jobs')
       .update({
+        last_heartbeat_at: nowIso,
+        last_heartbeat: nowIso,
         heartbeat_at: nowIso,
         lease_until: leaseUntilIso,
         updated_at: nowIso,
