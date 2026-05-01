@@ -26,7 +26,7 @@ import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseB
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS2_TEMPERATURE = 0.3;
-const PASS2_MODEL = "o3";
+// Pass 2 model is resolved exclusively via getCanonicalPipelineModel(opts.model). The central resolver in policy.ts enforces the production reasoning-model invariant (forbids o-series unless EVAL_ALLOW_REASONING_MODELS=true).
 
 function getRetryPass2MaxTokens(currentMaxTokens: number): number {
   return Math.min(8000, Math.max(4000, currentMaxTokens + 1500));
@@ -158,7 +158,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   }
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
-  const selectedModel = getCanonicalPipelineModel(opts.model ?? PASS2_MODEL);
+  const selectedModel = getCanonicalPipelineModel(opts.model);
 
   const promptAssemblyStartMs = nowMs();
 
@@ -395,7 +395,11 @@ function hasTextualAnchor(reasoning: string, evidence: EvidenceAnchor[]): boolea
  * @returns Validated SinglePassOutput with axis="editorial_literary"
  * @throws on invalid structure, empty criteria, or parse errors
  */
-export function parsePass2Response(raw: string, fallbackModel = PASS2_MODEL): SinglePassOutput {
+export function parsePass2Response(raw: string, fallbackModel?: string): SinglePassOutput {
+  const resolvedFallback =
+    typeof fallbackModel === "string" && fallbackModel.length > 0
+      ? fallbackModel
+      : getCanonicalPipelineModel(undefined);
   // P0: Log raw response preview before parse
   console.log(`[Pass2] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
 
@@ -481,7 +485,7 @@ export function parsePass2Response(raw: string, fallbackModel = PASS2_MODEL): Si
     pass: 2,
     axis: "editorial_literary",
     criteria,
-    model: String(obj["model"] ?? fallbackModel),
+    model: String(obj["model"] ?? resolvedFallback),
     prompt_version: PASS2_PROMPT_VERSION,
     temperature: PASS2_TEMPERATURE,
     generated_at: new Date().toISOString(),
