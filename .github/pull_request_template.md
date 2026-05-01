@@ -1,197 +1,58 @@
-# Latency PR — Evaluation Pipeline
+<!-- Comet template-unification: enforcement-compliant default body. -->
+<!-- DO NOT delete required ## headings unless your PR is migration/docs-only (auto-skipped by latency-pr-enforcement.yml). -->
 
 ## Summary
 
-Describe the latency change in one sentence:
+<!-- One-paragraph what + why. -->
 
-> Example: Reduce Pass 2 latency by removing non-value output obligations and tightening token ceiling.
+## Scope
 
----
+Pass selection (CHECK EXACTLY ONE — Pass 2 pre-checked as default):
 
-## Scope (Strict)
-
-- [ ] This PR affects **only one pass** (Pass 1 / Pass 2 / Pass 3)
-- [ ] No unrelated refactors included
-- [ ] No hidden scoring or schema changes
-
-**Pass targeted:**
 - [ ] Pass 1
-- [ ] Pass 2
+- [x] Pass 2
 - [ ] Pass 3
 
----
-
-## What Changed (Concrete)
-
-List exactly what was removed or modified:
+Changed files:
 
 -
--
--
 
-**Why these changes are non-value work:**
+Out of scope:
 
 -
+
+## Contract Integrity
+
 -
--
 
----
+## Behavioral Quality
 
-## Contract Integrity (Must Hold)
+This PR is not reducing intelligence.
 
-- [ ] Schema unchanged (or explicitly documented)
-- [ ] All required fields present in outputs
-- [ ] No new parse / JSON boundary failures
-- [ ] No increase in fallback/repair behavior
-- [ ] Full test suite passes (incl. targeted suites)
+<!-- Describe quality preservation. The phrase above is REQUIRED verbatim by enforcement. -->
 
----
-
-## Behavioral Quality Validation
-
-### Spot Checks (Required)
-
-- [ ] Reviewed ≥2 full outputs manually
-
-**Observed quality:**
-
-- [ ] Rationales remain specific (not generic)
-- [ ] Evidence remains grounded and relevant
-- [ ] Recommendations remain actionable
-- [ ] No templated or repetitive phrasing
-
----
-
-## Pass-Specific Quality Guards
-
-### If Pass 1
-
-- [ ] No loss of nuance in craft evaluation
-- [ ] No reduction in meaningful evidence
-- [ ] No increase in independence violations **beyond baseline variance**
-
-> **Rule:** You are allowed to remove verbosity — you are not allowed to remove judgment.
-
----
-
-### If Pass 2
-
-- [ ] Independence preserved
-- [ ] No drift toward Pass 1 phrasing
-- [ ] Output remains differentiated and useful
-
----
-
-### If Pass 3
-
-- [ ] No “Confirmed.” collapse pattern
-- [ ] Disagreements are resolved (not flattened)
-- [ ] Final rationales contain reasoning (not just verdicts)
-
-#### Divergence Distribution (Required)
-
-Capture from `[Pass3][ReducerTelemetry]`:
-
-`criteria_count_by_state:`
-`agree: X`
-`soft_divergence: X`
-`hard_divergence: X`
-
-**Comparison vs baseline:**
-
-- [ ] Distribution stable
-- [ ] No disappearance of hard divergences
-
-> **Rule:** You can compress language — you cannot compress judgment.
-
----
-
-## Latency Evidence (Measured)
+## Latency Evidence
 
 ### Baseline (Pre-change)
 
-| Metric | Value |
-|------|------|
-| passX_ms | |
-| model_call_ms | |
-| completion_tokens | |
-| total_ms | |
+| Run | pass2_ms | total_ms | Notes |
+|---|---:|---:|---|
+| Run 1 | N/A | N/A | |
+| Run 2 | N/A | N/A | |
 
----
+### Post-change Runs
 
-### Post-change Runs (≥2 required)
+| Run | pass2_ms | total_ms | Notes |
+|---|---:|---:|---|
+| Run 1 | N/A | N/A | |
+| Run 2 | N/A | N/A | |
 
-| Run | passX_ms | total_ms | completion_tokens | Notes |
-|-----|--------|---------|------------------|------|
-| Run 1 | | | | |
-| Run 2 | | | | |
-| Run 3 (optional) | | | | |
+<!-- For Pass 3 PRs: also include criteria_count_by_state. -->
 
----
+## Quality Gate / Anomalies
 
-### Result
+QG_<gate-id>: <description or "no QG_ behavior changes">
 
-- [ ] Latency reduced vs baseline
-- [ ] Improvement consistent (not single-run noise)
-- [ ] Variance acknowledged
-
----
-
-## Behavioral Stability
-
-- [ ] No increase in Quality Gate failure rate
-- [ ] No increase in independence violations beyond baseline variance
-- [ ] No downstream degradation (Pass 3 / final output)
-
----
-
-## Risks & Anomalies (Required Disclosure)
-
-List anything unusual observed:
+## Risks & Anomalies
 
 -
--
--
-
-Example:
-
-- QG_INDEPENDENCE_VIOLATION observed in 1/3 runs (within expected variance)
-
----
-
-## Definition of Done
-
-This PR is valid only if:
-
-- [ ] Contract integrity preserved
-- [ ] Evaluation quality maintained
-- [ ] Latency measurably improved across runs
-
----
-
-## Final Check
-
-> **We are removing non-value work — not reducing intelligence.**
-
-- [ ] This change removes unnecessary work (not reasoning)
-- [ ] Output quality remains intact
-- [ ] Latency gain is real and reproducible
-
----
-
-## Optional: Evidence Artifacts
-
-Link to logs / runs:
-
--
--
-
----
-
-## Reviewer Notes
-
-Focus review on:
-
-- Whether removed elements truly had zero value
-- Whether reasoning quality is preserved
-- Whether latency gains are real (not noise)
