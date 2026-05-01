@@ -415,50 +415,33 @@ export async function renewEvaluationJobLease(args: {
     last_heartbeat: nowIso,
     // Legacy heartbeat field retained for mixed-schema compatibility
     heartbeat_at: nowIso,
-    lease_expires_at: leaseUntilIso,
-    updated_at: nowIso,
-  };
-
-  const leaseFallbackHeartbeatPayload = {
-    ...canonicalHeartbeatPayload,
+    // Canonical writable lease source column (lease_expires_at may be generated)
     lease_until: leaseUntilIso,
+    updated_at: nowIso,
   };
 
   let { error } = await args.supabase
     .from('evaluation_jobs')
-    .update(leaseFallbackHeartbeatPayload)
+    .update(canonicalHeartbeatPayload)
     .eq('id', args.jobId)
     .eq('status', JOB_STATUS.RUNNING);
 
-  if (error && isMissingColumnError(error, 'lease_until')) {
-    ({ error } = await args.supabase
-      .from('evaluation_jobs')
-      .update(canonicalHeartbeatPayload)
-      .eq('id', args.jobId)
-      .eq('status', JOB_STATUS.RUNNING));
-  }
-
   if (error && isMissingColumnError(error, 'heartbeat_at')) {
+    const { heartbeat_at: _omit, ...withoutLegacyHeartbeat } = canonicalHeartbeatPayload;
     ({ error } = await args.supabase
       .from('evaluation_jobs')
-      .update({
-        last_heartbeat_at: nowIso,
-        last_heartbeat: nowIso,
-        lease_expires_at: leaseUntilIso,
-        updated_at: nowIso,
-      })
+      .update(withoutLegacyHeartbeat)
       .eq('id', args.jobId)
       .eq('status', JOB_STATUS.RUNNING));
   }
 
-  if (error && isMissingColumnError(error, 'lease_expires_at')) {
+  if (error && isMissingColumnError(error, 'lease_until')) {
     ({ error } = await args.supabase
       .from('evaluation_jobs')
       .update({
         last_heartbeat_at: nowIso,
         last_heartbeat: nowIso,
         heartbeat_at: nowIso,
-        lease_until: leaseUntilIso,
         updated_at: nowIso,
       })
       .eq('id', args.jobId)

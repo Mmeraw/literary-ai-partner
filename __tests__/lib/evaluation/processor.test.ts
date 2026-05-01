@@ -392,10 +392,9 @@ describe("SLA helpers", () => {
 
     expect(updateSpy).toHaveBeenCalledTimes(1);
     const payload = updateSpy.mock.calls[0][0];
-    expect(Date.parse(payload.lease_expires_at)).toBeLessThanOrEqual(hardDeadlineMs);
-    if (payload.lease_until) {
-      expect(Date.parse(payload.lease_until)).toBeLessThanOrEqual(hardDeadlineMs);
-    }
+    expect(payload).not.toHaveProperty('lease_expires_at');
+    expect(payload.lease_until).toBeTruthy();
+    expect(Date.parse(payload.lease_until)).toBeLessThanOrEqual(hardDeadlineMs);
 
     dateNowSpy.mockRestore();
   });

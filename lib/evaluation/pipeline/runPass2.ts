@@ -141,6 +141,15 @@ export interface RunPass2Options {
  * Throws on OpenAI error or unparseable response.
  */
 export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput> {
+  // Fail fast if no OpenAI API key is available (even when completion is injected)
+  const effectiveApiKey =
+    opts.openaiApiKey ||
+    process.env.OPENAI_API_KEY;
+
+  if (!effectiveApiKey) {
+    throw new Error("[Pass2] OPENAI_API_KEY is not configured");
+  }
+
   const passStartMs = nowMs();
 
   if (!opts.registry || opts.registry.size === 0) {

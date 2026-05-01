@@ -17,6 +17,7 @@ import { formatRelativeTime, formatDuration } from "@/lib/ui/time-helpers";
 import { getPhaseSpecificCopy, isTerminalStatus } from "@/lib/ui/phase-helpers";
 
 const describeOrSkip = process.env.TEST_MODE === 'true' ? describe.skip : describe;
+const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 describeOrSkip("Day-1 Evaluation UI Flow", () => {
   describe("Track A: Evaluation Entry", () => {
@@ -28,7 +29,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: manuscriptId,
         job_type: jobType,
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       expect(job).toBeDefined();
@@ -43,7 +44,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job1 = await createJob({
         manuscript_id: "ms_1",
         job_type: "evaluate_full",
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -51,7 +52,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job2 = await createJob({
         manuscript_id: "ms_2",
         job_type: "evaluate_full",
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       const jobs = await getAllJobs();
@@ -72,7 +73,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_display",
         job_type: "evaluate_full",
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       const displayInfo = getJobDisplayInfo(job);
@@ -89,7 +90,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_complete",
         job_type: "evaluate_full",
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       // Simulate job completion (would normally happen via worker)
@@ -135,7 +136,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_queued",
         job_type: "evaluate_full",
-              user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       const displayInfo = getJobDisplayInfo(job);
@@ -192,7 +193,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_queued_trust",
         job_type: "evaluate_full",
-              user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       expect(job.status).toBe("queued");
@@ -208,7 +209,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_running_trust",
         job_type: "evaluate_full",
-              user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       // Simulate running state with progress
@@ -298,7 +299,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_completion",
         job_type: "evaluate_full",
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       // Simulate completed job
@@ -326,7 +327,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
     it("should show completion banner for completed jobs", async () => {
       const job = await createJob({
         manuscript_id: "test_banner",
-              user_id: "test-user",
+        user_id: TEST_USER_ID,
         job_type: "evaluate_full",
       });
 
@@ -347,13 +348,13 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job1 = await createJob({
         manuscript_id: "test_terminal_1",
         job_type: "evaluate_full",
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       const job2 = await createJob({
         manuscript_id: "test_terminal_2",
         job_type: "evaluate_full",
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       // Simulate both jobs being terminal
@@ -372,7 +373,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_failed",
         job_type: "evaluate_full",
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       const failedJob = {
@@ -398,7 +399,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_report_route",
         job_type: "evaluate_full",
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       // Track D: The route /evaluate/[jobId] should be accessible
@@ -413,7 +414,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_not_ready",
         job_type: "evaluate_full",
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       // Track D: If status !== "complete", report page should show:
@@ -427,7 +428,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_completed_report",
         job_type: "evaluate_full",
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       const completedJob = {
@@ -446,7 +447,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_cta_navigation",
         job_type: "evaluate_full",
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
 
       const completedJob = {
@@ -478,7 +479,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const job = await createJob({
         manuscript_id: "test_e2e",
         job_type: "evaluate_full",
-        user_id: "test-user",
+        user_id: TEST_USER_ID,
       });
       
       // 2. Job completes → status = "complete" ✓
