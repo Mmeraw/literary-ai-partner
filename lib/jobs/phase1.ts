@@ -55,7 +55,7 @@ export function canRetryPhase1(options: {
   return scheduled.getTime() <= now.getTime();
 }
 
-import { getJob, updateJob } from "./store";
+import { getJob, setJobFailed, updateJob } from "./store";
 import {
   ensureChunks,
   getManuscriptChunks,
@@ -179,6 +179,12 @@ export async function runPhase1(jobId: string): Promise<void> {
   let failedCount = allChunks.filter((c) => c.status === "failed").length;
   let skippedCount = 0; // Track chunks skipped due to claim failure
 
+  // Issue #263: Track consecutive heartbeat failures to detect worker degradation
+  // Fail fast if heartbeat renewal mechanism breaks rather than waiting for stale sweeper
+  let consecutiveHeartbeatFailures = 0;
+  const MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3;
+  let heartbeatFatalError: string | null = null;
+
   console.log(
     `[Phase1] Resume state: ${doneChunks} done, ${eligibleChunks.length} eligible, ${allChunks.length} total`,
   );
@@ -233,11 +239,48 @@ export async function runPhase1(jobId: string): Promise<void> {
       }
 
       // Start heartbeat timer for this chunk
-      const heartbeatInterval = setInterval(async () => {
-        await updateJob(jobId, {
-          last_heartbeat: new Date().toISOString(),
-        });
-      }, 10000); // 10 seconds
+      // Issue #263: Hardened heartbeat renewal with failure detection
+      // If heartbeat mechanism breaks, fail fast instead of waiting for stale sweeper
+      const heartbeatInterval = setInterval(() => {
+        // Fire heartbeat update WITHOUT blocking chunk processing
+        // Use Promise.race to enforce 8-second timeout + error handling
+        Promise.race([
+          updateJob(jobId, {
+            last_heartbeat: new Date().toISOString(),
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error('Heartbeat update timeout (>8s)')),
+              8000  // 8 seconds - more generous than 2s but still guards against hangs
+            )
+          ),
+        ])
+          .then(() => {
+            // Heartbeat succeeded; reset consecutive failure counter
+            if (consecutiveHeartbeatFailures > 0) {
+              console.log(
+                `[Phase1Heartbeat] Success after ${consecutiveHeartbeatFailures} failures; resetting counter for job ${jobId}`
+              );
+              consecutiveHeartbeatFailures = 0;
+            }
+          })
+          .catch((err) => {
+            consecutiveHeartbeatFailures += 1;
+            const errMsg = err instanceof Error ? err.message : String(err);
+            console.warn(
+              `[Phase1Heartbeat] Failure #${consecutiveHeartbeatFailures}/${MAX_CONSECUTIVE_HEARTBEAT_FAILURES} for job ${jobId}: ${errMsg}`
+            );
+
+            // If heartbeat fails repeatedly, fail the job immediately
+            // This is faster and clearer than waiting for stale sweeper timeout
+            if (consecutiveHeartbeatFailures >= MAX_CONSECUTIVE_HEARTBEAT_FAILURES) {
+              heartbeatFatalError = `Heartbeat renewal failed ${consecutiveHeartbeatFailures} times; worker subprocess/network appears degraded`;
+              console.error(
+                `[Phase1Heartbeat] Max consecutive failures reached for job ${jobId}; triggering explicit job failure`
+              );
+            }
+          });
+      }, 10000); // 10 seconds between heartbeat attempts
 
       try {
         // Phase 1 LLM evaluation (stub with realistic latency, or real LLM if configured)
@@ -293,6 +336,16 @@ export async function runPhase1(jobId: string): Promise<void> {
       } finally {
         // Stop heartbeat timer
         clearInterval(heartbeatInterval);
+
+        // Check for heartbeat failure threshold
+        if (heartbeatFatalError) {
+          console.error("[Phase1HeartbeatFatalFailure]", {
+            job_id: jobId,
+            consecutive_failures: consecutiveHeartbeatFailures,
+            error: heartbeatFatalError,
+          });
+          throw new Error(heartbeatFatalError);
+        }
       }
 
       // Update job progress after each chunk
@@ -315,6 +368,12 @@ export async function runPhase1(jobId: string): Promise<void> {
       });
     }
   } catch (e) {
+    if (!heartbeatFatalError) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      if (errMsg.includes("Heartbeat renewal failed")) {
+        heartbeatFatalError = errMsg;
+      }
+    }
     console.error("Phase1Error", {
       job_id: jobId,
       phase: PHASES.PHASE_1,
@@ -324,6 +383,47 @@ export async function runPhase1(jobId: string): Promise<void> {
       total_units: allChunks.length,
     });
     // Don’t set processed = 0; let the deterministic outcome logic handle it
+  }
+
+  // Terminal heartbeat failure path: fail the job explicitly with clear last_error/progress.
+  // This prevents falling through to RUNNING outcome and waiting for stale sweeper.
+  if (heartbeatFatalError) {
+    const finished_at = new Date().toISOString();
+    await setJobFailed(jobId, {
+      code: "HEARTBEAT_RENEWAL_FAILED",
+      message: heartbeatFatalError,
+      retryable: false,
+      phase: PHASES.PHASE_1,
+      provider: null,
+      context: {
+        consecutive_heartbeat_failures: consecutiveHeartbeatFailures,
+        max_consecutive_heartbeat_failures: MAX_CONSECUTIVE_HEARTBEAT_FAILURES,
+      },
+      occurred_at: finished_at,
+    });
+
+    await updateJob(jobId, {
+      progress: {
+        ...job.progress,
+        message: heartbeatFatalError,
+        finished_at,
+        phase: PHASES.PHASE_1,
+        phase_status: PHASE_1_STATES.FAILED,
+        error_code: "HEARTBEAT_RENEWAL_FAILED",
+        lease_id: null,
+        lease_expires_at: null,
+      },
+    });
+
+    console.error("Phase1Outcome", {
+      job_id: jobId,
+      final_phase_status: PHASE_1_STATES.FAILED,
+      reason: "heartbeat_renewal_failure",
+      error: heartbeatFatalError,
+    });
+
+    metrics.onJobFailed(jobId, PHASES.PHASE_1, heartbeatFatalError);
+    return;
   }
 
   // Deterministic job outcome based on actual chunk states
