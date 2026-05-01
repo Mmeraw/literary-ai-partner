@@ -1,0 +1,77 @@
+name: Scoring PR Scope Guard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  enforce-scoring-scope:
+    name: enforce-scoring-scope
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Enforce scoring PR file boundaries
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const title = pr?.title ?? "";
+            const headRef = pr?.head?.ref ?? "";
+
+            const isScoringPr = /\bscoring\b|score\s*ledger|weighted\s*criteria/i.test(title) ||
+              /scoring|weighted-criteria-ledger/i.test(headRef);
+
+            core.info(`PR title: ${title}`);
+            core.info(`PR head: ${headRef}`);
+            core.info(`isScoringPr=${isScoringPr}`);
+
+            if (!isScoringPr) {
+              core.info("Not a scoring PR. Scope guard is informational only for this PR.");
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            const pull_number = pr.number;
+            const files = await github.paginate(
+              github.rest.pulls.listFiles,
+              { owner, repo, pull_number, per_page: 100 }
+            );
+
+            const changed = files.map(f => f.filename);
+
+            const forbiddenExact = new Set([
+              "lib/evaluation/pipeline/runPass1.ts",
+              "lib/evaluation/pipeline/runPass2.ts",
+              "lib/evaluation/pipeline/runPass3Synthesis.ts",
+              "lib/evaluation/policy.ts",
+              "lib/config/evaluationRuntimeConfig.ts",
+              "lib/config/productionConfigValidation.ts",
+              "lib/evaluation/config.ts",
+              "scripts/validate-production-config.ts",
+            ]);
+
+            const forbiddenPrefixes = [
+              "app/api/workers/",
+              "lib/jobs/",
+            ];
+
+            const blocked = changed.filter((file) => {
+              if (forbiddenExact.has(file)) return true;
+              return forbiddenPrefixes.some((prefix) => file.startsWith(prefix));
+            });
+
+            if (blocked.length > 0) {
+              core.setFailed(
+                [
+                  "Scoring PR scope violation: scoring PRs must not modify worker/pass/runtime files.",
+                  "Blocked files:",
+                  ...blocked.map((f) => `- ${f}`),
+                ].join("\n")
+              );
+              return;
+            }
+
+            core.info("Scoring PR scope guard passed.");
