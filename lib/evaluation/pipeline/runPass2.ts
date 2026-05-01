@@ -396,7 +396,7 @@ function hasTextualAnchor(reasoning: string, evidence: EvidenceAnchor[]): boolea
  * @throws on invalid structure, empty criteria, or parse errors
  */
 export function parsePass2Response(raw: string, fallbackModel?: string): SinglePassOutput {
-    const resolvedFallback =
+  const resolvedFallback =
     typeof fallbackModel === "string" && fallbackModel.length > 0
       ? fallbackModel
       : getCanonicalPipelineModel(undefined);
