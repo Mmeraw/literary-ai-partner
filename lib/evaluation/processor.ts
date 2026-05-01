@@ -1683,34 +1683,56 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       stage: 'before_runPipeline',
     });
 
-    const pipelineResult = await runPipeline({
-      manuscriptText: manuscriptWithContent.content || '',
-      workType: manuscriptWithContent.work_type || 'novel',
-      title: manuscriptWithContent.title,
-      jobId: String(job.id),
-      model: getCanonicalPipelineModel(openAiModel),
-      openaiApiKey,
-      perplexityApiKey: perplexityApiKey || undefined,
-      manuscriptId: String(manuscriptWithContent.id),
-      executionMode: 'TRUSTED_PATH',
-      _passTimeoutMs: evalPassTimeoutMs,
-      onHeartbeat: async (stage) => {
-        await assertJobWithinSla({
-          supabase,
-          jobId,
-          hardDeadlineMs,
-          stage,
+    const leaseRenewalIntervalMs = 30_000;
+    const leaseRenewalLoop = setInterval(() => {
+      void renewEvaluationJobLease({
+        supabase,
+        jobId,
+        leaseMs: runtimeConfig.worker.leaseMs,
+        stage: 'runPipeline.interval',
+        hardDeadlineMs,
+      }).catch((error) => {
+        console.warn('[Processor] In-flight lease renewal failed', {
+          job_id: jobId,
+          stage: 'runPipeline.interval',
+          error: error instanceof Error ? error.message : String(error),
         });
+      });
+    }, leaseRenewalIntervalMs);
 
-        await renewEvaluationJobLease({
-          supabase,
-          jobId,
-          leaseMs: runtimeConfig.worker.leaseMs,
-          stage,
-          hardDeadlineMs,
-        });
-      },
-    });
+    let pipelineResult;
+    try {
+      pipelineResult = await runPipeline({
+        manuscriptText: manuscriptWithContent.content || '',
+        workType: manuscriptWithContent.work_type || 'novel',
+        title: manuscriptWithContent.title,
+        jobId: String(job.id),
+        model: getCanonicalPipelineModel(openAiModel),
+        openaiApiKey,
+        perplexityApiKey: perplexityApiKey || undefined,
+        manuscriptId: String(manuscriptWithContent.id),
+        executionMode: 'TRUSTED_PATH',
+        _passTimeoutMs: evalPassTimeoutMs,
+        onHeartbeat: async (stage) => {
+          await assertJobWithinSla({
+            supabase,
+            jobId,
+            hardDeadlineMs,
+            stage,
+          });
+
+          await renewEvaluationJobLease({
+            supabase,
+            jobId,
+            leaseMs: runtimeConfig.worker.leaseMs,
+            stage,
+            hardDeadlineMs,
+          });
+        },
+      });
+    } finally {
+      clearInterval(leaseRenewalLoop);
+    }
 
     finishLatencyStage({
       jobId,
