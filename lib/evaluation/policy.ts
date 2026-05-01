@@ -3,6 +3,12 @@ export type OpenAIOutputTokenParam = {
   max_completion_tokens?: number;
 };
 
+/**
+ * Centralized OpenAI SDK transport retry ceiling.
+ * Keep low and explicit to avoid hidden multi-retry latency amplification.
+ */
+export const OPENAI_SDK_MAX_RETRIES = 1;
+
 export type OpenAITemperatureParam = {
   temperature?: number;
 };
