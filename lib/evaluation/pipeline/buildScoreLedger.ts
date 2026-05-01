@@ -153,8 +153,7 @@ export function buildScoreLedger(
   options?: { mechanismMissing?: boolean },
 ): ScoreLedgerWithAuthority {
   // POLICY (#231-B): Ledger A uses canonical weighted 13-criteria scoring.
-  // This preserves the existing artifact contract: rawTotal/maxTotal are points,
-  // normalized remains a 0-100 percentage, and weighting records the weighted model.
+  // normalized remains the weighted composite score on the 0-10 criterion scale.
   // non_scorable denominator behavior remains explicitly out of scope for #231-C.
   const criteria = input.criteria ?? [];
 
@@ -175,8 +174,8 @@ export function buildScoreLedger(
   }
 
   const maxTotal = weightTotal * MAX_SCORE_PER_CRITERION;
-  const normalized = Math.round((rawTotal / maxTotal) * 100);
   const ledgerWcs = rawTotal / weightTotal;
+  const normalized = round2(ledgerWcs);
   const parityWcs = computeWeightedCompositeScoreForLedger(criteria);
   assertLedgerGateParity(ledgerWcs, parityWcs);
 
