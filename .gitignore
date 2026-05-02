@@ -78,3 +78,6 @@ scripts/verify-secrets-alignment.sh
 .dev-server.pid
 .vercel
 .env*.local
+
+# Canon raw source files (originals live in Drive)
+docs/canon/_raw/
