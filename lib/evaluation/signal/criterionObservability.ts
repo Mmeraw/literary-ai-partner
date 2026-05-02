@@ -204,36 +204,37 @@ export function deriveCriterionStatus(signalStrength: SignalStrength): Exclude<C
   return "SCORABLE";
 }
 
-function toConfidenceBand(signalStrength: SignalStrength): "LOW" | "MODERATE" | "HIGH" {
+function toConfidenceBand(signalStrength: SignalStrength): "LOW" | "MEDIUM" | "HIGH" {
   if (signalStrength === "STRONG") return "HIGH";
-  if (signalStrength === "SUFFICIENT") return "MODERATE";
+  if (signalStrength === "SUFFICIENT") return "MEDIUM";
   return "LOW";
 }
 
-function confidenceLevelToBand(level?: "high" | "moderate" | "low"): "LOW" | "MODERATE" | "HIGH" {
+function confidenceLevelToBand(level?: "high" | "moderate" | "low"): "LOW" | "MEDIUM" | "HIGH" {
   if (level === "high") return "HIGH";
-  if (level === "moderate") return "MODERATE";
+  if (level === "moderate") return "MEDIUM";
   return "LOW";
 }
 
-function confidenceBandToLevel(band: "LOW" | "MODERATE" | "HIGH"): "high" | "moderate" | "low" {
+function confidenceBandToLevel(band: "LOW" | "MEDIUM" | "HIGH"): "high" | "moderate" | "low" {
   if (band === "HIGH") return "high";
-  if (band === "MODERATE") return "moderate";
+  if (band === "MEDIUM") return "moderate";
   return "low";
 }
 
-function confidenceBandRank(band: "LOW" | "MODERATE" | "HIGH"): number {
+function confidenceBandRank(band: "LOW" | "MEDIUM" | "HIGH"): number {
   if (band === "HIGH") return 3;
-  if (band === "MODERATE") return 2;
+  if (band === "MEDIUM") return 2;
   return 1;
 }
 
 export function applyConfidenceCap(
   model: "high" | "moderate" | "low",
-  evidence: "LOW" | "MODERATE" | "HIGH",
+  evidence: "LOW" | "MEDIUM" | "HIGH",
   cap: ConfidenceCap,
 ): "high" | "moderate" | "low" {
-  const boundedBand = [confidenceLevelToBand(model), evidence, cap].sort(
+  const capBand = (cap === "MODERATE" ? "MEDIUM" : cap) as "LOW" | "MEDIUM" | "HIGH";
+  const boundedBand = [confidenceLevelToBand(model), evidence, capBand].sort(
     (a, b) => confidenceBandRank(a) - confidenceBandRank(b),
   )[0];
 
@@ -310,11 +311,11 @@ export function normalizeCriterion(
     evidenceBand,
     scopeCap,
   );
-  const confidenceBandFromLevel: "LOW" | "MODERATE" | "HIGH" = confidenceLevelToBand(cappedConfidenceLevel);
+  const confidenceBandFromLevel: "LOW" | "MEDIUM" | "HIGH" = confidenceLevelToBand(cappedConfidenceLevel);
   const cappedConfidenceScore = Math.min(
     confidence.confidence_score_0_100,
     confidenceCapToMaxScore(scopeCap),
-    confidenceBandFromLevel === "HIGH" ? 100 : confidenceBandFromLevel === "MODERATE" ? 84 : 59,
+    confidenceBandFromLevel === "HIGH" ? 100 : confidenceBandFromLevel === "MEDIUM" ? 84 : 59,
   );
   const confidenceReasons = Array.from(
     new Set([

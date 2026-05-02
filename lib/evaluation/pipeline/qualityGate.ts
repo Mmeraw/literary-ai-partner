@@ -158,6 +158,7 @@ export function runQualityGate(
   pass1?: SinglePassOutput,
   pass2?: SinglePassOutput,
   manuscriptText?: string,
+  scopeProfile?: import("./submissionScope").SubmissionScopeProfile,
 ): QualityGateResult {
   const checks: QualityGateCheck[] = [];
   const warnings: string[] = [];
@@ -717,7 +718,54 @@ export function runQualityGate(
   }
 
 
-    const failedHardChecks = checks.filter((c) => !c.passed);
+  
+  // — Scope gate: confidence without evidence ——————————————————
+  if (scopeProfile) {
+    const highConfNoEvidence: string[] = [];
+    for (const c of synthesis.criteria) {
+      if (
+        c.confidence_level === "high" &&
+        c.recommendations?.length > 0 &&
+        !hasSubstantiveEvidence(c.recommendations.map((r) => ({ snippet: r.anchor_snippet ?? "" })))
+      ) {
+        highConfNoEvidence.push(c.key);
+      }
+    }
+    checks.push({
+      check_id: "confidence_without_evidence",
+      passed: highConfNoEvidence.length === 0,
+      error_code: highConfNoEvidence.length > 0 ? "QG_HIGH_CONFIDENCE_NO_EVIDENCE" : undefined,
+      details: highConfNoEvidence.length > 0
+        ? `${highConfNoEvidence.length} criteria claim HIGH confidence without substantive evidence: ${highConfNoEvidence.join(", ")}`
+        : "All high-confidence criteria have substantive evidence",
+    });
+  }
+
+  // — Scope gate: recommendation contract completeness ————————————
+  if (scopeProfile) {
+    const incomplete: string[] = [];
+    for (const c of synthesis.criteria) {
+      for (const r of c.recommendations ?? []) {
+        const missing: string[] = [];
+        if (!r.anchor_snippet?.trim()) missing.push("anchor");
+        if (!r.action?.trim()) missing.push("action");
+        if (!r.expected_impact?.trim()) missing.push("expected_impact");
+        if (missing.length > 0) {
+          incomplete.push(`${c.key}[${missing.join(",")}]`);
+        }
+      }
+    }
+    checks.push({
+      check_id: "recommendation_contract_completeness",
+      passed: incomplete.length === 0,
+      error_code: incomplete.length > 0 ? "QG_RECOMMENDATION_INCOMPLETE" : undefined,
+      details: incomplete.length > 0
+        ? `${incomplete.length} recommendation(s) missing contract fields: ${incomplete.slice(0, 5).join("; ")}`
+        : "All recommendations satisfy the contract",
+    });
+  }
+
+  const failedHardChecks = checks.filter((c) => !c.passed);
   return {
     pass: failedHardChecks.length === 0,
     checks,

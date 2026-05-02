@@ -113,7 +113,10 @@ export type CreateCompletionFn = (params: {
   response_format: { type: string };
 }) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage; id?: string; request_id?: string }>;
 
+import type { SubmissionScopeProfile } from "./submissionScope";
+
 export interface RunPass2Options {
+  scopeProfile?: SubmissionScopeProfile;
   /**
    * The original manuscript text — the ONLY thing Pass 2 receives.
    * Pass 1 output must NEVER appear here.

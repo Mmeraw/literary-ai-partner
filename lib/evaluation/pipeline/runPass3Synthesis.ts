@@ -199,7 +199,10 @@ export type CreateCompletionFn = (params: {
   response_format: { type: string };
 }) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage }>;
 
+import type { SubmissionScopeProfile } from "./submissionScope";
+
 export interface RunPass3Options {
+  scopeProfile?: SubmissionScopeProfile;
   pass1: SinglePassOutput;
   pass2: SinglePassOutput;
   manuscriptText: string;

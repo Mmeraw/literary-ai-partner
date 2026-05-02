@@ -138,7 +138,10 @@ export type CreateCompletionFn = (params: {
   response_format: { type: string };
 }) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage; id?: string; request_id?: string }>;
 
+import type { SubmissionScopeProfile } from "./submissionScope";
+
 export interface RunPass1Options {
+  scopeProfile?: SubmissionScopeProfile;
   manuscriptText: string;
   workType: string;
   title: string;

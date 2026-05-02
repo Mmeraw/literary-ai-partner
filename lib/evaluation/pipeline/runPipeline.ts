@@ -547,6 +547,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       openaiApiKey: opts.openaiApiKey,
       jobId: opts.jobId,
       registry,
+            scopeProfile,
     }),
     passTimeoutMs,
     "Pass 1",
@@ -586,6 +587,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       manuscriptId: opts.manuscriptId,
       jobId: opts.jobId,
       registry,
+            scopeProfile,
     }),
     passTimeoutMs,
     "Pass 2",
@@ -778,6 +780,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         model: opts.model,
         openaiApiKey: opts.openaiApiKey,
         registry,
+              scopeProfile,
       }),
       passTimeoutMs,
       "Pass 3",
@@ -879,7 +882,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     stage: 'quality_gate',
   });
   await opts.onHeartbeat?.("quality_gate_started");
-  const qualityGate = _runQualityGate(pass3Output, pass1Output, pass2Output, opts.manuscriptText);
+  const qualityGate = _runQualityGate(pass3Output, pass1Output, pass2Output, opts.manuscriptText, scopeProfile);
   await opts.onHeartbeat?.("quality_gate_completed");
   timings.pass4_ms = nowMs() - pass4StartMs;
   if (!qualityGate.pass) {

@@ -33,7 +33,7 @@ describe("buildScoreLedger (weighted)", () => {
   it("throws on unknown criterion key", () => {
     expect(() =>
       buildScoreLedger({
-        criteria: [{ key: "invalid_key", final_score_0_10: 5 }],
+        criteria: [{ key: "invalid_key" as any, final_score_0_10: 5 }],
       }),
     ).toThrow(/INVALID/);
   });
