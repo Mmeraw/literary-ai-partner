@@ -10,7 +10,7 @@ describe("resolveEvaluationRuntimeConfig", () => {
   it("resolves deterministic defaults", () => {
     const config = resolveWithoutBaseline({});
 
-    expect(config.model).toBe("o3");
+    expect(config.model).toBe("gpt-4o");
     expect(config.adjudicationMode).toBe("optional");
     expect(config.pass.pass1MaxTokens).toBe(3500);
     expect(config.pass.pass2MaxTokens).toBe(3500);

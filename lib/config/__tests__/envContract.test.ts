@@ -20,7 +20,7 @@ describe('resolveEvalEnvContract', () => {
       const contract = resolveEvalEnvContract(BASE_ENV);
       expect(contract.inputCharBudget).toBe(40_000);
       expect(contract.synthesisRefCharBudget).toBe(8_000);
-      expect(contract.openAiModel).toBe('o3');
+      expect(contract.openAiModel).toBe('gpt-4o');
       expect(contract.adjudicationMode).toBe('optional');
       expect(contract.latencyTraceEnabled).toBe(false);
       expect(contract.nodeEnv).toBe('test');
@@ -32,12 +32,12 @@ describe('resolveEvalEnvContract', () => {
         ...BASE_ENV,
         EVAL_PIPELINE_INPUT_CHAR_BUDGET: '40000',
         EVAL_PIPELINE_SYNTHESIS_REF_CHAR_BUDGET: '8000',
-        EVAL_OPENAI_MODEL: 'o3',
+        EVAL_OPENAI_MODEL: 'gpt-4o',
         EVAL_EXTERNAL_ADJUDICATION_MODE: 'optional',
       };
       const contract = resolveEvalEnvContract(env);
       expect(contract.inputCharBudget).toBe(40_000);
-      expect(contract.openAiModel).toBe('o3');
+      expect(contract.openAiModel).toBe('gpt-4o');
       expect(contract.adjudicationMode).toBe('optional');
     });
   });
@@ -83,7 +83,7 @@ describe('resolveEvalEnvContract', () => {
       // Blank string falls back to default; non-empty but whitespace-only treated as empty
       // This tests that an explicitly set but empty model uses the default (no throw)
       const contract = resolveEvalEnvContract(env);
-      expect(contract.openAiModel).toBe('o3');
+      expect(contract.openAiModel).toBe('gpt-4o');
     });
 
     it('throws on invalid NODE_ENV value', () => {
@@ -105,8 +105,30 @@ describe('resolveEvalEnvContract', () => {
       expect(contract.synthesisRefCharBudget).toBe(8_000);
     });
 
-    it('falls back to o3 when EVAL_OPENAI_MODEL is undefined', () => {
+    it('falls back to gpt-4o when EVAL_OPENAI_MODEL is undefined', () => {
       const contract = resolveEvalEnvContract(BASE_ENV);
+      expect(contract.openAiModel).toBe('gpt-4o');
+    });
+  });
+
+  describe('production o-series guard', () => {
+    it('throws in production when EVAL_OPENAI_MODEL is o3 and override is absent', () => {
+      const env = asProcessEnv({
+        NODE_ENV: 'production',
+        EVAL_OPENAI_MODEL: 'o3',
+      });
+
+      expect(() => resolveEvalEnvContract(env)).toThrow('reasoning model');
+    });
+
+    it('allows production o-series only when EVAL_ALLOW_REASONING_MODELS=true', () => {
+      const env = asProcessEnv({
+        NODE_ENV: 'production',
+        EVAL_OPENAI_MODEL: 'o3',
+        EVAL_ALLOW_REASONING_MODELS: 'true',
+      });
+
+      const contract = resolveEvalEnvContract(env);
       expect(contract.openAiModel).toBe('o3');
     });
   });

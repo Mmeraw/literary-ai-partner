@@ -56,7 +56,7 @@ const SYNTHESIS_REF_CHAR_BUDGET_MIN = 1_000;
 const SYNTHESIS_REF_CHAR_BUDGET_MAX = 50_000;
 const SYNTHESIS_REF_CHAR_BUDGET_DEFAULT = 8_000;
 
-const OPENAI_MODEL_DEFAULT = 'o3';
+const OPENAI_MODEL_DEFAULT = 'gpt-4o';
 
 /**
  * Parse a strict positive integer from an env string.
@@ -168,6 +168,17 @@ export function resolveEvalEnvContract(
     );
   }
   const nodeEnv = rawNodeEnv as NodeEnv;
+
+  const normalizedResolvedModel = resolvedModel.trim().toLowerCase();
+  if (
+    nodeEnv === 'production' &&
+    /^o[0-9]/.test(normalizedResolvedModel) &&
+    env.EVAL_ALLOW_REASONING_MODELS !== 'true'
+  ) {
+    throw new Error(
+      `[envContract] reasoning model '${resolvedModel}' is not permitted in production; set EVAL_ALLOW_REASONING_MODELS=true only for explicit overrides.`,
+    );
+  }
 
   const latencyTraceEnabled = env.ENABLE_LATENCY_TRACE_LOGS === '1';
 

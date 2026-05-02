@@ -32,7 +32,9 @@ import { analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeD
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS3_TEMPERATURE = 0.2;
-const PASS3_MODEL = "o3";
+// Pass 3 model is resolved exclusively via getCanonicalPipelineModel(opts.model). The central
+// resolver in policy.ts enforces the production reasoning-model invariant (forbids o-series
+// unless EVAL_ALLOW_REASONING_MODELS=true).
 const PASS3_MIN_RATIONALE_LENGTH = 40;
 const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
 const PASS3_VOICE_MECHANISM_MARKERS = [
@@ -222,7 +224,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   }
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
-  const selectedModel = getCanonicalPipelineModel(opts.model ?? PASS3_MODEL);
+  const selectedModel = getCanonicalPipelineModel(opts.model);
 
   const comparisonPacket = buildComparisonPacket(opts.pass1, opts.pass2, {
     manuscriptText: opts.manuscriptText,
@@ -401,9 +403,14 @@ export function parsePass3Response(
   raw: string,
   pass1: SinglePassOutput,
   pass2: SinglePassOutput,
-  fallbackModel = PASS3_MODEL,
+  fallbackModel?: string,
   manuscriptText?: string,
 ): SynthesisOutput {
+  const resolvedFallback =
+    typeof fallbackModel === "string" && fallbackModel.length > 0
+      ? fallbackModel
+      : getCanonicalPipelineModel(undefined);
+
   // P0: Log raw response preview before parse
   console.log(`[Pass3] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
 
@@ -552,7 +559,7 @@ export function parsePass3Response(
     metadata: {
       pass1_model: String(rawMeta["pass1_model"] ?? pass1.model),
       pass2_model: String(rawMeta["pass2_model"] ?? pass2.model),
-      pass3_model: String(rawMeta["pass3_model"] ?? fallbackModel),
+      pass3_model: String(rawMeta["pass3_model"] ?? resolvedFallback),
       generated_at: new Date().toISOString(),
     },
     partial_evaluation: false, // will be overridden by runPass3Synthesis with real value
