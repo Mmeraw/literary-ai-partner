@@ -38,6 +38,14 @@ import {
   computeWeightedScore,
   type CriteriaPlanMap,
 } from "@/lib/evaluation/signal/criterionObservability";
+import {
+  classifySubmissionScope,
+  type SubmissionScopeProfile,
+} from "./submissionScope";
+import {
+  buildCriteriaPlanForScale,
+  scopePolicy,
+} from "@/lib/evaluation/signal/scopePolicy";
 import type { RunPass1Options } from "./runPass1";
 import type { RunPass2Options } from "./runPass2";
 import type { RunPass3Options } from "./runPass3Synthesis";
@@ -70,6 +78,9 @@ import type { GovernanceDecision } from "@/lib/evaluation/governance/evaluatePas
 
 // Pass 4 governance result type — derived from evaluatePass4Governance return
 type Pass4GovernanceResult = GovernanceDecision;
+
+// Feature flag: enable submission scope governance (default: false)
+const ENABLE_SCOPE = process.env.EVAL_SCOPE_PROFILE_ENABLED === "true";
 
 export interface RunPipelineOptions {
   manuscriptText: string;
@@ -111,6 +122,8 @@ export interface RunPipelineOptions {
     evaluateRules?: (input: RuleEvaluationInput, stage?: RuleStage) => LessonsLearnedReport;
     deriveDecision?: (report: LessonsLearnedReport, stage?: RuleStage) => EnforcementDecision;
   };
+  /** Computed submission scope profile (optionally injected for testing). */
+  _scopeProfile?: SubmissionScopeProfile;
 }
 
 const DEFAULT_PASS_TIMEOUT_MS = 60_000;
@@ -344,6 +357,31 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   const _evaluateLessonsLearned = opts._lessonsLearned?.evaluateRules ?? defaultEvaluateLessonsLearnedRules;
   const _deriveLessonsLearnedDecision =
     opts._lessonsLearned?.deriveDecision ?? defaultDeriveLessonsLearnedEnforcementDecision;
+
+  // ── Submission Scope Classification (Feature Flagged) ──────────────────
+  // If ENABLE_SCOPE is true, compute scope profile once and thread through all passes.
+  // This is the single source of truth for input scale, confidence caps, and criterion applicability.
+  let scopeProfile: SubmissionScopeProfile | null = null;
+  if (ENABLE_SCOPE) {
+    try {
+      scopeProfile = opts._scopeProfile ?? classifySubmissionScope(
+        opts.manuscriptText,
+        1, // chunkCount = 1 for now; can be refined later
+      );
+
+      if (!scopeProfile) {
+        throw new Error("SCOPE_PROFILE_MISSING");
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        error: `Scope classification failed: ${errorMsg}`,
+        error_code: "SCOPE_CLASSIFICATION_FAILED",
+        failed_at: "pass1",
+      };
+    }
+  }
 
   let governanceInjectionMap: GovernanceInjectionMap;
   try {

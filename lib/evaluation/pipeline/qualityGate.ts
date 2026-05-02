@@ -102,6 +102,10 @@ export const QG_POV_MECHANISM_MARKERS = Object.freeze([
   "somatic",
 ]);
 
+// --- PR-1: Scope governance quality gates ---
+export const QG_INTERNAL_LEAKAGE_PATTERNS = /direct_speech|reported_speech|tagged_speech|tagless_exchange/i;
+export const QG_FILLER_VERBS = /^(enhance|deepen|refine|maintain|continue|strengthen|improve)\b/i;
+
 export type QualityGateFailureTelemetry = {
   total_failed_checks: number;
   failures_by_error_code: Record<string, number>;
@@ -667,7 +671,53 @@ export function runQualityGate(
   // (Not available in SynthesisOutput directly — carries over from A6 layer)
   // Reserved for future integration.
 
-  const failedHardChecks = checks.filter((c) => !c.passed);
+
+  // --- PR-1: Scope governance gates ---
+
+  // Check: Internal leakage (speech taxonomy must never reach user output)
+  {
+    const allText = synthesis.criteria
+      .map((c) => [...(c.recommendations?.map((r) => [r.action, r.expected_impact].join(" ")) ?? [])].join(" "))
+      .join(" ");
+    const leakageMatch = QG_INTERNAL_LEAKAGE_PATTERNS.test(allText);
+    checks.push({
+      check_id: "internal_leakage",
+      passed: !leakageMatch,
+      error_code: leakageMatch ? "QG_INTERNAL_LEAKAGE" : undefined,
+      details: leakageMatch
+        ? "Internal analysis labels (direct_speech/reported_speech/tagged_speech/tagless_exchange) leaked into user output"
+        : "No internal leakage detected",
+    });
+  }
+
+  // Check: Filler-verb recommendations (enhance/deepen/refine without mechanism)
+  {
+    const fillerRecs: string[] = [];
+    for (const c of synthesis.criteria) {
+      for (const r of c.recommendations ?? []) {
+        const action = (r.action ?? "").trim();
+        if (QG_FILLER_VERBS.test(action)) {
+          // Allow if action contains a mechanism indicator (location + specific noun)
+          const hasLocation = !!r.anchor_snippet;
+          const hasSpecifics = action.length > 80 && /\b(scene|line|paragraph|chapter|beat|moment|exchange)\b/i.test(action);
+          if (!hasLocation && !hasSpecifics) {
+            fillerRecs.push(action.slice(0, 80));
+          }
+        }
+      }
+    }
+    checks.push({
+      check_id: "filler_recommendation",
+      passed: fillerRecs.length === 0,
+      error_code: fillerRecs.length > 0 ? "QG_FILLER_REC" : undefined,
+      details: fillerRecs.length > 0
+        ? `${fillerRecs.length} filler-verb recommendation(s) without mechanism: ${fillerRecs[0]}...`
+        : "No filler-verb recommendations detected",
+    });
+  }
+
+
+    const failedHardChecks = checks.filter((c) => !c.passed);
   return {
     pass: failedHardChecks.length === 0,
     checks,

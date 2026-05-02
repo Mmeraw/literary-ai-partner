@@ -7,6 +7,7 @@
  */
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import type { SubmissionScopeProfile } from "../submissionScope";
 import {
   buildCoverageDisclosure,
   buildPromptInputWindow,
@@ -75,6 +76,7 @@ export function buildPass1UserPrompt(params: {
   workType: string;
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
+  scopeProfile?: SubmissionScopeProfile;
 }): string {
   const wordCount = params.manuscriptText.trim().split(/\s+/).length;
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
@@ -85,6 +87,7 @@ export function buildPass1UserPrompt(params: {
 Execution mode: ${executionMode}
 Word count: ${wordCount}
 ${buildCoverageDisclosure(coverage)}
+${params.scopeProfile ? `Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope).` : ""}
 
 Manuscript text:
 ${promptWindow}

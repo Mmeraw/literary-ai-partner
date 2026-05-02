@@ -64,6 +64,10 @@ export function summarizePromptCoverage(text: string, maxChars?: number): Prompt
   };
 }
 
+export function derivePromptChunkCount(coverage: PromptCoverage): number {
+  return coverage.truncated ? 3 : 1;
+}
+
 export function buildCoverageDisclosure(coverage: PromptCoverage, label = "Evaluator input coverage"): string {
   if (!coverage.truncated) {
     return `${label}: full submission included (${coverage.sourceWords} words / ${coverage.sourceChars} chars).`;

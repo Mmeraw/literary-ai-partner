@@ -7,6 +7,7 @@
  */
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import type { SubmissionScopeProfile } from "../submissionScope";
 import {
   buildCoverageDisclosure,
   buildPromptInputWindow,
@@ -14,7 +15,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v6";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v7-rec-length-guard";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -52,6 +53,13 @@ Recommendation deduplication rule:
 - When multiple upstream recommendations reduce to the same lever, collapse them into ONE sharper recommendation.
 - Prefer decisive single-lever recommendations over three mild paraphrases of the same fix.
 
+RECOMMENDATION CONTRACT:
+- Every recommendation MUST include: anchor/location, issue, mechanism, specific revision move, and reader effect.
+- Do NOT use generic filler verbs as standalone advice: enhance, refine, improve, maintain, continue, strengthen, deepen.
+- Do NOT emit internal analysis labels such as direct_speech, reported_speech, tagged_speech, or tagless_exchange.
+- For chapter-scale input, narrativeClosure means chapter handoff / local promise handling, not full-story resolution.
+- For small-scope input, marketability must be framed as provisional.
+
 CONFIDENCE AND EVIDENCE HANDLING:
 - Do NOT convert a scorable criterion into N/A due to thin evidence or hygiene artifacts.
 - If evidence is thin: preserve score and summary, lower confidence, and do not invent evidence.
@@ -81,6 +89,7 @@ export function buildPass3UserPrompt(params: {
   manuscriptText?: string;
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
+  scopeProfile?: SubmissionScopeProfile;
 }): string {
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
   const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
@@ -115,6 +124,7 @@ Target total visible output under 1500 tokens.
 Coverage truth signal:
 - ${coverageDisclosure}
 - Reference snippet (context anchor only): ${referenceSnippet}
+${params.scopeProfile ? `- Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope; confidence cap ${params.scopeProfile.confidenceCapSummary})` : ""}
 
 ## PASS 1 / PASS 2 COMPARISON PACKET (Deterministic)
 ${params.comparisonPacketJson.substring(0, 3500)}
