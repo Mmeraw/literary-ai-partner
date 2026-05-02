@@ -174,7 +174,7 @@ describe("runPass2", () => {
 
     expect(result.pass).toBe(2);
     expect(result.axis).toBe("editorial_literary");
-    expect(result.model).toBe(getCanonicalPipelineModel("o3"));
+    expect(result.model).toBe(getCanonicalPipelineModel(undefined));
     expect(result.temperature).toBe(0.3);
     expect(result.criteria).toHaveLength(13);
     expect(result.criteria.map((c) => c.key)).toEqual(

@@ -14,7 +14,8 @@ This module imports `'server-only'`. It must never be imported from client compo
 | :--- | :---: | :---: | :--- |
 | `EVAL_PIPELINE_INPUT_CHAR_BUDGET` | No | `40000` | Max characters of manuscript fed to Pass 1. Must be 12 000–100 000. |
 | `EVAL_PIPELINE_SYNTHESIS_REF_CHAR_BUDGET` | No | `8000` | Max characters of synthesis reference material. Must be 1 000–50 000. |
-| `EVAL_OPENAI_MODEL` | No | `o3` | OpenAI model identifier for evaluation runs. |
+| `EVAL_OPENAI_MODEL` | No | `gpt-4o` | OpenAI model identifier for evaluation runs. o-series reasoning models (o3, o1, etc.) are rejected in production unless `EVAL_ALLOW_REASONING_MODELS=true`. |
+| `EVAL_ALLOW_REASONING_MODELS` | No | `false` | Operator override that permits o-series models (`/^o[0-9]/`) in `NODE_ENV=production`. When unset/`false`, the contract throws during resolution before any API call if the resolved model is o-series. Set to `true` only for explicit, time-boxed evaluations (not steady-state production). |
 | `EVAL_EXTERNAL_ADJUDICATION_MODE` | No | `optional` | One of `optional` \| `required` \| `veto`. |
 | `ENABLE_LATENCY_TRACE_LOGS` | No | _(absent)_ | Set to `1` to enable per-step latency trace output. |
 | `NODE_ENV` | No | `development` | Must be `development`, `test`, or `production`. |
