@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import fs from 'fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'path';
 import crypto from 'crypto';
 import OpenAI from 'openai';
@@ -10,9 +11,26 @@ const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !OPENAI_API_KEY) {
-  console.error('Missing required env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY');
-  process.exit(1);
+// PR-0: env-var hard exit moved into main() for test importability.
+
+// --- PR-0: canon ingest gate (md-only under docs/canon/_md) ---
+export const CANON_ROOT = path.resolve(process.cwd(), 'docs/canon/_md');
+const ALLOWED_EXT = new Set(['.md']);
+
+/**
+ * Canon ingest gate. Returns ok=true only if absPath sits under CANON_ROOT
+ * and has an allowed extension. Used at walk-time and exported for tests.
+ */
+export function isIngestable(absPath: string): { ok: boolean; reason?: string } {
+  const rel = path.relative(CANON_ROOT, absPath);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    return { ok: false, reason: 'outside_canon_md_root' };
+  }
+  const ext = path.extname(absPath).toLowerCase();
+  if (!ALLOWED_EXT.has(ext)) {
+    return { ok: false, reason: 'disallowed_extension:' + (ext || 'none') };
+  }
+  return { ok: true };
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -119,7 +137,7 @@ async function walk(dir: string): Promise<string[]> {
     if (entry.isDirectory()) {
       files.push(...(await walk(fullPath)));
     } else if (entry.isFile()) {
-      if (/\.(md|txt|docx)$/i.test(entry.name)) {
+      if (isIngestable(fullPath).ok) {
         files.push(fullPath);
       }
     }
@@ -129,11 +147,19 @@ async function walk(dir: string): Promise<string[]> {
 }
 
 async function main() {
-  const targetDir = process.argv[2];
-  if (!targetDir) {
-    console.error('Usage: tsx scripts/load-canon.ts <dir>');
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !OPENAI_API_KEY) {
+    console.error('Missing required env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY');
     process.exit(1);
   }
+  // PR-0: ignore argv; canon root is hard-pinned to docs/canon/_md.
+  if (process.argv[2]) {
+    console.warn('[canon-loader] ignoring argv path "' + process.argv[2] + '"; canon root is pinned to ' + CANON_ROOT);
+  }
+  if (!existsSync(CANON_ROOT)) {
+    console.error('Canon root missing: ' + CANON_ROOT);
+    process.exit(1);
+  }
+  const targetDir = CANON_ROOT;
 
   const files = await walk(targetDir);
   console.log(`Found ${files.length} canon files`);
@@ -153,7 +179,12 @@ async function main() {
   console.log('\nCanon load complete');
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// PR-0: only auto-run when invoked directly (allows isIngestable to be imported by tests).
+const _isEntrypoint =
+  typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module;
+if (_isEntrypoint) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
