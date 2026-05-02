@@ -81,3 +81,8 @@ scripts/verify-secrets-alignment.sh
 
 # Canon raw source files (originals live in Drive)
 docs/canon/_raw/
+
+# Canon ingestion safety: raw originals must never be committed.
+# RAG loader reads only docs/canon/_md/**/*.md. Source-of-truth
+# .docx originals are backed up 3-2-1 (OneDrive + external disk + laptop).
+docs/canon/_raw/
