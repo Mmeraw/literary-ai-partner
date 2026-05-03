@@ -53,12 +53,11 @@ Recommendation deduplication rule:
 - When multiple upstream recommendations reduce to the same lever, collapse them into ONE sharper recommendation.
 - Prefer decisive single-lever recommendations over three mild paraphrases of the same fix.
 
-RECOMMENDATION CONTRACT:
-- Every recommendation MUST include: anchor/location, issue, mechanism, specific revision move, and reader effect.
-- Do NOT use generic filler verbs as standalone advice: enhance, refine, improve, maintain, continue, strengthen, deepen.
-- Do NOT emit internal analysis labels such as direct_speech, reported_speech, tagged_speech, or tagless_exchange.
-- For chapter-scale input, narrativeClosure means chapter handoff / local promise handling, not full-story resolution.
-- For small-scope input, marketability must be framed as provisional.
+REC CONTRACT:
+- Each rec: anchor, issue, mechanism, revision move, reader effect (all required).
+- No filler: enhance/refine/improve/maintain/continue/strengthen/deepen.
+- No labels: direct_speech/reported_speech/tagged_speech/tagless_exchange.
+- Scope: narrativeClosure=chapter handoff only; marketability=provisional if small-scope.
 
 CONFIDENCE AND EVIDENCE HANDLING:
 - Do NOT convert a scorable criterion into N/A due to thin evidence or hygiene artifacts.
