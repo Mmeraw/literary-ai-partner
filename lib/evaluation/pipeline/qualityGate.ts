@@ -109,9 +109,10 @@ export const QG_POV_MECHANISM_MARKERS = Object.freeze([
 export const QG_INTERNAL_LEAKAGE_PATTERNS = /direct_speech|reported_speech|tagged_speech|tagless_exchange/i;
 export const QG_FILLER_VERBS = /^(enhance|deepen|refine|maintain|continue|strengthen|improve)\b/i;
 const QG_EDITORIAL_SYMPTOM_MARKERS = /\b(lacks?|missing|unclear|confus(?:ed|ing)?|flat|generic|drag(?:s|ging)?|repetit(?:ion|ive)|abrupt|weak|underdeveloped|overwritten|diffuse|stalled|not\s+yet|fails?|without|problem|issue|stakes?|tension|motivation|cause|effect|consequence)\b/i;
-const QG_EDITORIAL_FIX_MARKERS = /\b(rewrite|replace|cut|trim|split|merge|move|reorder|expand|compress|clarify|specify|anchor|insert|delete|foreshadow|escalate|tighten|seed|stage|show|name|shift|ground(?:ing)?|contextualize)\b/i;
-const QG_EDITORIAL_CONTEXT_MARKERS = /\b(scene|line|sentence|paragraph|chapter|beat|moment|exchange|opening|ending|turn|pivot|section|passage)\b/i;
-const QG_EDITORIAL_MECHANISM_MARKERS = /\b(because|since|so\s+that|thereby|to\s+avoid|prevent(?:s|ing)?|caus(?:e|es|ing)|effect|by\s+\w+ing|to\s+(prime|clarify|signal|restore|heighten|increase|reduce|anchor|focus|separate|differentiate|escalate|tighten))\b/i;
+const QG_EDITORIAL_FIX_MARKERS = /\b(rewrite|replace|cut|trim|split|merge|move|reorder|expand|compress|clarify|specify|anchor|insert|delete|foreshadow|escalate|tighten|seed|stage|show|name|shift|ground(?:ing)?|contextualize|reframe|focus|connect|link|develop|resolve|surface|thread|motivate|concretize|externalize|recast|frontload|backload|echo|contrast)\b/i;
+const QG_EDITORIAL_CONTEXT_MARKERS = /\b(scene|line|sentence|paragraph|chapter|beat|moment|exchange|opening|ending|turn|pivot|section|passage|hook|callback|setup|payoff|clause|image|gesture|motif)\b/i;
+const QG_EDITORIAL_ANCHOR_HINT_MARKERS = /\b(opening|midpoint|climax|first|last|second|third|next|previous|following)\s+(scene|paragraph|line|beat|chapter|section|sentence)\b|\b(paragraph|line|scene|chapter|section|sentence)\s+\d+\b/i;
+const QG_EDITORIAL_MECHANISM_MARKERS = /\b(because|since|so\s+that|thereby|to\s+avoid|prevent(?:s|ing)?|caus(?:e|es|ing)|effect|by\s+\w+ing|which\s+(?:helps|lets|allows)|to\s+(prime|clarify|signal|restore|heighten|increase|reduce|anchor|focus|separate|differentiate|escalate|tighten))\b/i;
 const QG_EDITORIAL_READER_EFFECT_MARKERS = /\b(reader|readers|clarity|comprehension|urgency|momentum|immersion|engagement|stakes|tension|payoff|coherence|trust)\b/i;
 
 function normalizeEditorialReasoningKey(text: string): string {
@@ -793,10 +794,13 @@ export function runQualityGate(
         const expectedImpact = (r.expected_impact ?? "").trim();
         const anchorSnippet = (r.anchor_snippet ?? "").trim();
 
-        const hasAnchorContext = anchorSnippet.length > 0;
+        const hasAnchorContext =
+          anchorSnippet.length > 0 ||
+          QG_EDITORIAL_CONTEXT_MARKERS.test(action) ||
+          QG_EDITORIAL_ANCHOR_HINT_MARKERS.test(action);
         const hasSymptomSignal = QG_EDITORIAL_SYMPTOM_MARKERS.test(action) || QG_EDITORIAL_SYMPTOM_MARKERS.test(expectedImpact);
-        const hasMechanismCause = QG_EDITORIAL_MECHANISM_MARKERS.test(action);
-        const hasSpecificFixMove = QG_EDITORIAL_FIX_MARKERS.test(action) && (QG_EDITORIAL_CONTEXT_MARKERS.test(action) || hasAnchorContext);
+        const hasMechanismCause = QG_EDITORIAL_MECHANISM_MARKERS.test(action) || QG_EDITORIAL_MECHANISM_MARKERS.test(expectedImpact);
+        const hasSpecificFixMove = QG_EDITORIAL_FIX_MARKERS.test(action) && hasAnchorContext;
         const hasReaderEffect = QG_EDITORIAL_READER_EFFECT_MARKERS.test(expectedImpact);
 
         const missing: string[] = [];
