@@ -56,7 +56,12 @@ out
 /tmp/
 *.tsbuildinfo
 dist-workers/
-docs/operations/evidence/runs/
+docs/operations/evidence/runs/*
+!docs/operations/evidence/runs/*_README.md
+!docs/operations/evidence/runs/*/
+docs/operations/evidence/runs/*/*
+!docs/operations/evidence/runs/*/metadata.json
+!docs/operations/evidence/runs/*/quality_gate.json
 
 # Local/accidental
 your-repo.git/

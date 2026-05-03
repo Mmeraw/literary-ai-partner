@@ -1,0 +1,13 @@
+{
+  "phase": "2.7",
+  "run_type": "real_manuscript",
+  "source_path": "/tmp/froggin-noggin-chapter1.txt",
+  "source_title": "Chapter 1 - Froggin Noggin",
+  "work_type": "novel_chapter",
+  "model": "gpt-4o-mini",
+  "pass_timeout_ms": 180000,
+  "word_count": 4204,
+  "generated_at": "2026-05-03T23:03:55.645Z",
+  "output_dir": "docs/operations/evidence/runs/2026-05-03_froggin-noggin_canary_main",
+  "quality_gate_pass": true
+}

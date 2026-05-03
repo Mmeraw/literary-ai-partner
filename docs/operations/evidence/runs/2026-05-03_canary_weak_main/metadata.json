@@ -1,0 +1,13 @@
+{
+  "phase": "2.7",
+  "run_type": "real_manuscript",
+  "source_path": "/tmp/canary-weak-chapter.txt",
+  "source_title": "Canary Weak Chapter",
+  "work_type": "novel_chapter",
+  "model": "gpt-4o-mini",
+  "pass_timeout_ms": 180000,
+  "word_count": 676,
+  "generated_at": "2026-05-03T23:12:59.472Z",
+  "output_dir": "docs/operations/evidence/runs/2026-05-03_canary_weak_main",
+  "quality_gate_pass": false
+}
