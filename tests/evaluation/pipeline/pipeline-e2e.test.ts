@@ -78,8 +78,10 @@ function makeSynthesisOutput(): SynthesisOutput {
       recommendations: [
         {
           priority: "medium",
-          action: `Refine the ${key} dimension to bring craft and editorial perspectives into alignment.`,
-          expected_impact: "Elevates overall evaluation quality.",
+          action:
+            `In the opening scene for ${key}, replace the abstract transition beat with a concrete cause-and-effect move because the current phrasing blunts tension before the decision point.`,
+          expected_impact:
+            "Gives the reader a clearer escalation chain, improving urgency and comprehension at the turn.",
           anchor_snippet: '"slowly"',
           source_pass: 3 as const,
           issue_family: "scene_structure",
@@ -473,13 +475,14 @@ describe("runPipeline (e2e with injected runners)", () => {
   it("dedupes duplicate recommendation actions pre-gate so quality gate can pass", async () => {
     const synthesisWithDupes = makeSynthesisOutput();
     const duplicateAction =
-      'Refine the concept dimension to bring craft and editorial perspectives into alignment.';
+      'In the opening scene for concept, replace the abstract transition beat with a concrete cause-and-effect move because the current phrasing blunts tension before the decision point.';
 
     synthesisWithDupes.criteria[0].recommendations = [
       {
         priority: "medium",
         action: duplicateAction,
-        expected_impact: "Elevates overall evaluation quality.",
+        expected_impact:
+          "Gives the reader a clearer escalation chain, improving urgency and comprehension at the turn.",
         anchor_snippet: '"slowly"',
         source_pass: 3,
         issue_family: "scene_structure",
@@ -492,7 +495,8 @@ describe("runPipeline (e2e with injected runners)", () => {
       {
         priority: "medium",
         action: duplicateAction,
-        expected_impact: "Elevates overall evaluation quality.",
+        expected_impact:
+          "Gives the reader a clearer escalation chain, improving urgency and comprehension at the turn.",
         anchor_snippet: '"slowly"',
         source_pass: 3,
         issue_family: "scene_structure",
