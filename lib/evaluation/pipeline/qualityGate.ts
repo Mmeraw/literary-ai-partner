@@ -27,7 +27,14 @@
 import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
 import { buildRedundancyKey, fullyRedundant, sameStrategicLever, normalizeIssueFamily, normalizeStrategicLever, normalizeRevisionGranularity } from "./recommendationSemantics";
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
-import type { SynthesisOutput, QualityGateResult, QualityGateCheck, SinglePassOutput } from "./types";
+import type {
+  SynthesisOutput,
+  QualityGateResult,
+  QualityGateCheck,
+  SinglePassOutput,
+  EditorialDiagnostic,
+  EditorialDiagnosticClassification,
+} from "./types";
 import { analyzePovRendering } from "@/lib/evaluation/pov/analyzePovRendering";
 import { analyzeDialogueAttribution, analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { validatePovCriterionEvidence } from "@/lib/evaluation/pov/validatePovCriterionEvidence";
@@ -46,6 +53,7 @@ import {
   summarizePropagationIntegrity,
   summaryMentionsBottomWeakness,
 } from "./propagationIntegrity";
+import { buildEditorialDiagnosticsSummary } from "@/lib/evaluation/harness/report";
 
 export const QG_MIN_REC_LENGTH = 50;
 export const QG_MAX_REC_LENGTH = 300;
@@ -166,6 +174,29 @@ function previewRationale(text: string): string {
   return text.replace(/\s+/g, " ").trim().slice(0, QG_INDEPENDENCE_RATIONALE_PREVIEW_CHARS);
 }
 
+function buildEditorialSignalId(
+  criterionKey: string,
+  action: string,
+  expectedImpact: string,
+  index: number,
+): string {
+  const seed = `${criterionKey}|${normalizeEditorialReasoningKey(action)}|${normalizeEditorialReasoningKey(expectedImpact)}|${index}`;
+  return `editorial:${seed.slice(0, 160)}`;
+}
+
+function classifyEditorialDiagnostic(
+  missingFields: string[],
+  duplicateReasoning: boolean,
+): EditorialDiagnosticClassification {
+  if (duplicateReasoning) return "duplicate_reasoning";
+  if (missingFields.includes("anchor/context")) return "missing_anchor";
+  if (missingFields.includes("symptom")) return "missing_symptom";
+  if (missingFields.includes("mechanism/cause")) return "missing_mechanism";
+  if (missingFields.includes("specific_fix/move")) return "missing_fix";
+  if (missingFields.includes("reader_effect")) return "missing_reader_effect";
+  return "generic_feedback";
+}
+
 /**
  * Run all quality gate checks against a SynthesisOutput.
  * Returns a QualityGateResult (pass=true iff all non-warn checks pass).
@@ -179,6 +210,7 @@ export function runQualityGate(
 ): QualityGateResult {
   const checks: QualityGateCheck[] = [];
   const warnings: string[] = [];
+  const editorialDiagnostics: EditorialDiagnostic[] = [];
 
   // ── Check 1: All 13 criteria present ────────────────────────────────────
   const outputKeys = new Set(synthesis.criteria.map((c) => c.key));
@@ -788,8 +820,10 @@ export function runQualityGate(
 
     for (const c of synthesis.criteria) {
       const reasoningSeen = new Set<string>();
+      let recommendationIndex = 0;
 
       for (const r of c.recommendations ?? []) {
+        recommendationIndex += 1;
         const action = (r.action ?? "").trim();
         const expectedImpact = (r.expected_impact ?? "").trim();
         const anchorSnippet = (r.anchor_snippet ?? "").trim();
@@ -810,16 +844,43 @@ export function runQualityGate(
         if (!hasSpecificFixMove) missing.push("specific_fix/move");
         if (!hasReaderEffect) missing.push("reader_effect");
 
+        const reasoningKey = `${normalizeEditorialReasoningKey(action)}|${normalizeEditorialReasoningKey(expectedImpact)}`;
+        const duplicateReasoning = reasoningSeen.has(reasoningKey);
+
         if (missing.length > 0) {
           genericFeedbackFindings.push(`${c.key}: missing ${missing.join(",")} in recommendation \"${action.slice(0, 80)}\"`);
         }
 
-        const reasoningKey = `${normalizeEditorialReasoningKey(action)}|${normalizeEditorialReasoningKey(expectedImpact)}`;
-        if (reasoningSeen.has(reasoningKey)) {
+        if (duplicateReasoning) {
           genericFeedbackFindings.push(`${c.key}: duplicate editorial reasoning detected in recommendations`);
         } else {
           reasoningSeen.add(reasoningKey);
         }
+
+        const classification = classifyEditorialDiagnostic(missing, duplicateReasoning);
+        const shouldBlock = missing.length > 0 || duplicateReasoning;
+        const failureReason = shouldBlock
+          ? `Missing fields: ${missing.join(",") || "none"}; duplicate_reasoning=${duplicateReasoning}`
+          : "Recommendation satisfies editorial quality contract";
+        const recommendedFixPath = shouldBlock
+          ? "Provide Symptom → Cause → Fix → Reader Effect with concrete anchor context"
+          : "none";
+
+        editorialDiagnostics.push({
+          signal_id: buildEditorialSignalId(c.key, action, expectedImpact, recommendationIndex),
+          criterion: c.key,
+          action,
+          expected_impact: expectedImpact,
+          anchor_snippet: anchorSnippet,
+          evaluation_route: "recommendation_editorial_quality",
+          missing_fields: missing,
+          classification,
+          action_applied: shouldBlock ? "block" : "none",
+          gate_check_id: "recommendation_editorial_quality",
+          error_code: shouldBlock ? "QG_EDITORIAL_GENERIC_FEEDBACK" : undefined,
+          failure_reason: failureReason,
+          recommended_fix_path: recommendedFixPath,
+        });
       }
     }
 
@@ -842,6 +903,8 @@ export function runQualityGate(
     pass: failedHardChecks.length === 0,
     checks,
     warnings,
+    editorial_diagnostics: editorialDiagnostics,
+    editorial_diagnostics_summary: buildEditorialDiagnosticsSummary(editorialDiagnostics),
   };
 }
 

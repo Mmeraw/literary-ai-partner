@@ -254,10 +254,46 @@ export type QualityGateCheck = {
   diagnostics?: unknown;
 };
 
+export type EditorialDiagnosticClassification =
+  | "generic_feedback"
+  | "missing_symptom"
+  | "missing_mechanism"
+  | "missing_fix"
+  | "missing_reader_effect"
+  | "missing_anchor"
+  | "duplicate_reasoning";
+
+export type EditorialActionApplied = "block" | "warn" | "none";
+
+export type EditorialDiagnostic = {
+  signal_id: string;
+  criterion: CriterionKey;
+  action: string;
+  expected_impact: string;
+  anchor_snippet: string;
+  evaluation_route: "recommendation_editorial_quality";
+  missing_fields: string[];
+  classification: EditorialDiagnosticClassification;
+  action_applied: EditorialActionApplied;
+  gate_check_id: "recommendation_editorial_quality";
+  error_code?: "QG_EDITORIAL_GENERIC_FEEDBACK";
+  failure_reason: string;
+  recommended_fix_path: string;
+};
+
+export type EditorialDiagnosticsSummary = {
+  reportVersion: 4;
+  total_diagnostics: number;
+  rule_fire_counts: Record<string, number>;
+  block_reason_histogram: Record<string, number>;
+};
+
 export type QualityGateResult = {
   pass: boolean;
   checks: QualityGateCheck[];
   warnings: string[];
+  editorial_diagnostics?: EditorialDiagnostic[];
+  editorial_diagnostics_summary?: EditorialDiagnosticsSummary;
 };
 
 // ── Completion capture / usage telemetry ───────────────────────────────────
