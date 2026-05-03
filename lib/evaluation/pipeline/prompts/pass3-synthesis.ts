@@ -15,7 +15,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v7-rec-length-guard";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v8-rec-contract-hardening";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -31,53 +31,54 @@ Rules:
 Scoring:
 - Integer scores only (0-10).
 - If delta <= 2, final_score_0_10 should be rounded average.
-- If delta > 2, final score must favor the more diagnostic axis and justify why.
+- If delta > 2, favor the more diagnostic axis and justify.
 
 Mechanism constraints:
-- voice rationale must name at least one POV/voice mechanism (e.g., psychic distance, diction, syntax, focalization).
-- dialogue rationale must name at least one attribution/rendering mechanism (e.g., tags, beats, subtext).
+- voice rationale must name a POV/voice mechanism.
+- dialogue rationale must name an attribution/rendering mechanism.
 
 Agree-state rationale rule:
-- Do NOT emit "Confirmed." alone.
-- For agree-state criteria (score_delta <= 1), final_rationale MUST briefly state:
-  (1) what was confirmed, (2) the evidence basis, (3) why it matters.
-  Keep it 1-3 sentences.
+- Never emit "Confirmed." alone.
+- For agree-state criteria (score_delta <= 1), final_rationale states: what was confirmed, evidence basis, why it matters (1-3 sentences).
 
-Recommendation semantic fields (REQUIRED for every recommendation):
-- issue_family: pacing | dialogue | closure | characterization | exposition | tension | prose_control | scene_structure | voice | market_positioning | concept | theme | worldbuilding
-- strategic_lever: momentum_visibility | dialogue_exposition_density | scene_goal_clarity | closure_state_lock | character_voice_differentiation | tension_escalation | exposition_load_reduction | prose_compression | market_signal_clarity | pov_rendering_precision | structural_commitment | thematic_grounding | sensory_specificity
-- revision_granularity: one of: line | beat | scene | chapter | manuscript
+Recommendation semantic fields (REQUIRED):
+- issue_family, strategic_lever, revision_granularity must be canonical enums.
 
-Recommendation deduplication rule:
-- Do NOT emit two or more recommendations that share the same strategic_lever unless they have genuinely different evidence bases AND different revision_granularity values.
-- When multiple upstream recommendations reduce to the same lever, collapse them into ONE sharper recommendation.
-- Prefer decisive single-lever recommendations over three mild paraphrases of the same fix.
+Recommendation deduplication:
+- Collapse same strategic_lever duplicates into one sharper recommendation unless evidence basis and granularity are truly different.
 
-REC CONTRACT:
-- Each rec: anchor, issue, mechanism, revision move, reader effect (all required).
-- No filler: enhance/refine/improve/maintain/continue/strengthen/deepen.
-- No labels: direct_speech/reported_speech/tagged_speech/tagless_exchange.
-- Scope: narrativeClosure=chapter handoff only; marketability=provisional if small-scope.
+REC CONTRACT — FIVE PARTS (required for every recommendation):
+- ANCHOR: action must name location (scene/paragraph/line/beat/chapter) and anchor_snippet must be non-empty.
+- SYMPTOM: name observable deficiency (lacks/missing/unclear/flat/generic/weak/diffuse etc.).
+- MECHANISM: include explicit causality (because/since/so that/thereby/which prevents/which causes).
+- CONCRETE MOVE: action must use an active revision verb (replace/rewrite/cut/trim/insert/delete/move/reorder/split/merge/escalate/tighten/anchor/clarify/name/show/ground/seed/stage/contrast/foreground/compress).
+- READER EFFECT: expected_impact must include reader-facing outcome (reader/urgency/clarity/momentum/immersion/engagement/stakes/tension/payoff/coherence/trust/comprehension).
+
+Template:
+- action: "In [LOCATION], [MOVE-VERB] [WHAT] because [SYMPTOM] [MECHANISM]."
+- expected_impact: "[READER-EFFECT] [reader-facing outcome]."
+- anchor_snippet: exact target span.
+
+Reject patterns: no location, no symptom, no mechanism connector, filler-only verb, no reader effect, generic whole-manuscript advice.
+
+No filler-only verbs: enhance/refine/improve/maintain/continue/strengthen/deepen.
+No labels: direct_speech/reported_speech/tagged_speech/tagless_exchange.
+Scope: narrativeClosure=chapter handoff only; marketability=provisional if small-scope.
 
 CONFIDENCE AND EVIDENCE HANDLING:
-- Do NOT convert a scorable criterion into N/A due to thin evidence or hygiene artifacts.
+- Do NOT convert a scorable criterion into N/A due to thin evidence/hygiene artifacts.
 - If evidence is thin: preserve score and summary, lower confidence, and do not invent evidence.
-- N/A is allowed only when the criterion is genuinely impossible to evaluate from the submitted text.
+- N/A only when truly impossible to evaluate.
 
 Return ONLY JSON with keys:
-- criteria MUST be a flat array of criterion objects (one per key), not grouped/nested by state.
-- criteria[] by state:
-  - agree: key, final_score_0_10, final_rationale (1-3 substantive sentences, not "Confirmed.")
-  - soft_divergence: key, final_score_0_10, final_rationale
-  - hard_divergence: key, final_score_0_10, final_rationale, disputed=true
-  - missing_or_invalid: key, final_score_0_10, final_rationale
-- Each criterion MUST include recommendations[], each with: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity
+- criteria MUST be a flat array (not grouped by state).
+- Per-criterion fields: key, final_score_0_10, final_rationale, recommendations[]; hard_divergence adds disputed=true.
+- Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity.
 - agreement_map[]
 - divergence_map[] with arbitration_rationale
-- overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, top_3_strengths[3], top_3_risks[3], submission_readiness }
-  - submission_readiness: queryable_now | close | not_yet
-  - RULE: top_3_strengths and top_3_risks must cover distinct aspects (no mirrored topic).
-  - RULE: submission_readiness must align with verdict, top_3_risks, and score distribution; never emit queryable_now when verdict=fail or when 3+ criteria are below 5.
+- overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, top_3_strengths[3], top_3_risks[3], submission_readiness(queryable_now|close|not_yet) }
+  - top_3_strengths and top_3_risks must be non-mirrored aspects.
+  - never emit queryable_now when verdict=fail or when 3+ criteria are below 5.
 - metadata { pass1_model, pass2_model, pass3_model, generated_at }
 
 Criteria keys:
@@ -117,6 +118,7 @@ OUTPUT BUDGET BY STATE (STRICT):
 Do NOT emit "Confirmed." as complete rationale for agree criteria. State what was confirmed, the evidence basis, and why it matters.
 Do NOT return criteria as { agree:[], soft_divergence:[] ... }; return a single criteria[] array.
 Every recommendation MUST include: issue_family, strategic_lever, revision_granularity.
+Every recommendation MUST satisfy the five-part contract: ANCHOR (location in text) + SYMPTOM (observable problem) + MECHANISM (causal connector: because/since/so that) + CONCRETE MOVE (replace/cut/insert/rewrite/escalate etc.) + READER EFFECT (urgency/clarity/engagement etc. in expected_impact).
 Do NOT emit two recommendations with the same strategic_lever — collapse them first.
 Target total visible output under 1500 tokens.
 
