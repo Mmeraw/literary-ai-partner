@@ -108,6 +108,19 @@ export const QG_POV_MECHANISM_MARKERS = Object.freeze([
 // --- PR-1: Scope governance quality gates ---
 export const QG_INTERNAL_LEAKAGE_PATTERNS = /direct_speech|reported_speech|tagged_speech|tagless_exchange/i;
 export const QG_FILLER_VERBS = /^(enhance|deepen|refine|maintain|continue|strengthen|improve)\b/i;
+const QG_EDITORIAL_SYMPTOM_MARKERS = /\b(lacks?|missing|unclear|confus(?:ed|ing)?|flat|generic|drag(?:s|ging)?|repetit(?:ion|ive)|abrupt|weak|underdeveloped|overwritten|diffuse|stalled|not\s+yet|fails?|without|problem|issue|stakes?|tension|motivation|cause|effect|consequence)\b/i;
+const QG_EDITORIAL_FIX_MARKERS = /\b(rewrite|replace|cut|trim|split|merge|move|reorder|expand|compress|clarify|specify|anchor|insert|delete|foreshadow|escalate|tighten|seed|stage|show|name|shift|ground(?:ing)?|contextualize)\b/i;
+const QG_EDITORIAL_CONTEXT_MARKERS = /\b(scene|line|sentence|paragraph|chapter|beat|moment|exchange|opening|ending|turn|pivot|section|passage)\b/i;
+const QG_EDITORIAL_MECHANISM_MARKERS = /\b(because|since|so\s+that|thereby|to\s+avoid|prevent(?:s|ing)?|caus(?:e|es|ing)|effect|by\s+\w+ing|to\s+(prime|clarify|signal|restore|heighten|increase|reduce|anchor|focus|separate|differentiate|escalate|tighten))\b/i;
+const QG_EDITORIAL_READER_EFFECT_MARKERS = /\b(reader|readers|clarity|comprehension|urgency|momentum|immersion|engagement|stakes|tension|payoff|coherence|trust)\b/i;
+
+function normalizeEditorialReasoningKey(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 export type QualityGateFailureTelemetry = {
   total_failed_checks: number;
@@ -765,6 +778,58 @@ export function runQualityGate(
       details: incomplete.length > 0
         ? `${incomplete.length} recommendation(s) missing contract fields: ${incomplete.slice(0, 5).join("; ")}`
         : "All recommendations satisfy the contract",
+    });
+  }
+
+  // — Editorial recommendation quality gate (deterministic) ———————————
+  {
+    const genericFeedbackFindings: string[] = [];
+
+    for (const c of synthesis.criteria) {
+      const reasoningSeen = new Set<string>();
+
+      for (const r of c.recommendations ?? []) {
+        const action = (r.action ?? "").trim();
+        const expectedImpact = (r.expected_impact ?? "").trim();
+        const anchorSnippet = (r.anchor_snippet ?? "").trim();
+
+        const hasAnchorContext = anchorSnippet.length > 0;
+        const hasSymptomSignal = QG_EDITORIAL_SYMPTOM_MARKERS.test(action) || QG_EDITORIAL_SYMPTOM_MARKERS.test(expectedImpact);
+        const hasMechanismCause = QG_EDITORIAL_MECHANISM_MARKERS.test(action);
+        const hasSpecificFixMove = QG_EDITORIAL_FIX_MARKERS.test(action) && (QG_EDITORIAL_CONTEXT_MARKERS.test(action) || hasAnchorContext);
+        const hasReaderEffect = QG_EDITORIAL_READER_EFFECT_MARKERS.test(expectedImpact);
+
+        const missing: string[] = [];
+        if (!hasAnchorContext) missing.push("anchor/context");
+        if (!(hasSymptomSignal || hasAnchorContext)) missing.push("symptom");
+        if (!hasMechanismCause) missing.push("mechanism/cause");
+        if (!hasSpecificFixMove) missing.push("specific_fix/move");
+        if (!hasReaderEffect) missing.push("reader_effect");
+
+        if (missing.length > 0) {
+          genericFeedbackFindings.push(`${c.key}: missing ${missing.join(",")} in recommendation \"${action.slice(0, 80)}\"`);
+        }
+
+        const reasoningKey = `${normalizeEditorialReasoningKey(action)}|${normalizeEditorialReasoningKey(expectedImpact)}`;
+        if (reasoningSeen.has(reasoningKey)) {
+          genericFeedbackFindings.push(`${c.key}: duplicate editorial reasoning detected in recommendations`);
+        } else {
+          reasoningSeen.add(reasoningKey);
+        }
+      }
+    }
+
+    checks.push({
+      check_id: "recommendation_editorial_quality",
+      passed: genericFeedbackFindings.length === 0,
+      error_code:
+        genericFeedbackFindings.length > 0
+          ? "QG_EDITORIAL_GENERIC_FEEDBACK"
+          : undefined,
+      details:
+        genericFeedbackFindings.length > 0
+          ? `${genericFeedbackFindings.length} editorial recommendation quality issue(s): ${genericFeedbackFindings.slice(0, 4).join("; ")}`
+          : "All recommendations meet editorial quality contract",
     });
   }
 
