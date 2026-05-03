@@ -104,6 +104,8 @@ describe("qualityGate recommendation_editorial_quality", () => {
             ...makeRecommendation("dialogue"),
             action:
               "In the opening exchange, replace the abstract line with a concrete action beat at the same moment for dialogue.",
+            expected_impact:
+              "Gives the reader stronger urgency and engagement at the turn.",
           },
         ],
       },
@@ -153,6 +155,53 @@ describe("qualityGate recommendation_editorial_quality", () => {
 
     expect(check?.passed).toBe(false);
     expect(check?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
+  });
+
+  it("passes borderline recommendation when mechanism is expressed in expected impact", () => {
+    const synthesis = makeSynthesis({
+      sceneConstruction: {
+        recommendations: [
+          {
+            ...makeRecommendation("sceneConstruction"),
+            action:
+              "In the midpoint scene for sceneConstruction, reframe the reaction beat to foreground the decision trigger before the pivot moment.",
+            expected_impact:
+              "Gives readers clearer causal flow, which helps preserve momentum and coherence through the turn.",
+          },
+        ],
+      },
+    });
+
+    const result = runQualityGate(synthesis);
+    const check = result.checks.find((c) => c.check_id === "recommendation_editorial_quality");
+
+    expect(check?.passed).toBe(true);
+    expect(check?.error_code).toBeUndefined();
+  });
+
+  it("accepts context-anchored editorial quality signals even when anchor_snippet is absent", () => {
+    const synthesis = makeSynthesis({
+      concept: {
+        recommendations: [
+          {
+            ...makeRecommendation("concept"),
+            action:
+              "In the second paragraph of the opening scene for concept, replace the abstract reveal line with a concrete image because the current ordering diffuses stakes before the turn.",
+            expected_impact:
+              "Gives the reader a clearer escalation path and stronger comprehension of consequence at the pivot.",
+            anchor_snippet: "",
+          },
+        ],
+      },
+    });
+
+    const result = runQualityGate(synthesis);
+    const editorialCheck = result.checks.find((c) => c.check_id === "recommendation_editorial_quality");
+    const genericRecCheck = result.checks.find((c) => c.check_id === "no_generic_recs");
+
+    expect(editorialCheck?.passed).toBe(true);
+    expect(genericRecCheck?.passed).toBe(false);
+    expect(genericRecCheck?.error_code).toBe("QG_GENERIC_REC");
   });
 
   it("fails duplicate editorial reasoning inside a criterion", () => {
