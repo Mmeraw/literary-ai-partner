@@ -1,0 +1,194 @@
+{
+  "pass": false,
+  "checks": [
+    {
+      "check_id": "criteria_complete",
+      "passed": true,
+      "details": "All 13 criteria present"
+    },
+    {
+      "check_id": "score_range",
+      "passed": true,
+      "details": "All scores in valid range"
+    },
+    {
+      "check_id": "consequence_contract",
+      "passed": true,
+      "details": "All criteria include pressure_points, decision_points, consequence_status, and deferred risk when required"
+    },
+    {
+      "check_id": "no_generic_recs",
+      "passed": true,
+      "details": "All recommendations have anchor_snippet"
+    },
+    {
+      "check_id": "rec_min_length",
+      "passed": true,
+      "details": "All recommendations ≥ 50 chars"
+    },
+    {
+      "check_id": "rec_max_length",
+      "passed": true,
+      "details": "All recommendations ≤ 300 chars"
+    },
+    {
+      "check_id": "evidence_length",
+      "passed": true,
+      "details": "All evidence excerpts ≤ 200 chars"
+    },
+    {
+      "check_id": "overview_length",
+      "passed": true,
+      "details": "Overview: 317 chars (max 500)"
+    },
+    {
+      "check_id": "no_duplicate_recs",
+      "passed": true,
+      "details": "No duplicated recommendations"
+    },
+    {
+      "check_id": "no_duplicate_strategic_lever",
+      "passed": true,
+      "details": "No semantic lever duplication detected"
+    },
+    {
+      "check_id": "no_confirmed_stub_rationale",
+      "passed": true,
+      "details": "No \"Confirmed.\" stub rationale detected"
+    },
+    {
+      "check_id": "rationale_coverage",
+      "passed": true,
+      "details": "All criteria have substantive rationale (≥ 40 chars)"
+    },
+    {
+      "check_id": "placeholder_rationale",
+      "passed": true,
+      "details": "No known placeholder rationale patterns detected"
+    },
+    {
+      "check_id": "evidence_coverage",
+      "passed": true,
+      "details": "All criteria have substantive evidence"
+    },
+    {
+      "check_id": "required_evidence_spine",
+      "passed": true,
+      "details": "All required spine criteria include substantive evidence"
+    },
+    {
+      "check_id": "pass_independence",
+      "passed": true,
+      "details": "Pass 1 / Pass 2 independence confirmed (n=8)"
+    },
+    {
+      "check_id": "internal_leakage",
+      "passed": true,
+      "details": "No internal leakage detected"
+    },
+    {
+      "check_id": "filler_recommendation",
+      "passed": true,
+      "details": "No filler-verb recommendations detected"
+    },
+    {
+      "check_id": "recommendation_editorial_quality",
+      "passed": false,
+      "error_code": "QG_EDITORIAL_GENERIC_FEEDBACK",
+      "details": "4 editorial recommendation quality issue(s): character: missing specific_fix/move in recommendation \"In Chapter 2, deepen Mara and Jon's character development by adding distinct mot\"; voice: missing specific_fix/move in recommendation \"In Chapter 2, enhance the narrative voice by incorporating more nuanced language\"; dialogue: missing specific_fix/move in recommendation \"In Chapter 2, revise dialogue to make it more dynamic and revealing of character\"; theme: missing specific_fix/move in recommendation \"In Chapter 2, deepen the exploration of themes related to uncertainty and intros\""
+    }
+  ],
+  "warnings": [],
+  "editorial_diagnostics": [
+    {
+      "signal_id": "editorial:character:eb2977d651154d2a:1",
+      "criterion": "character",
+      "action": "In Chapter 2, deepen Mara and Jon's character development by adding distinct motivations and backstories because their current interactions feel flat. This will",
+      "expected_impact": "Greater reader empathy and engagement with the characters.",
+      "anchor_snippet": "Mara and Jon are relatable but lack distinct personalities.",
+      "evaluation_route": "recommendation_editorial_quality",
+      "missing_fields": [
+        "specific_fix/move"
+      ],
+      "classification": "missing_fix",
+      "action_applied": "block",
+      "gate_check_id": "recommendation_editorial_quality",
+      "error_code": "QG_EDITORIAL_GENERIC_FEEDBACK",
+      "failure_reason": "Missing fields: specific_fix/move; duplicate_reasoning=false",
+      "recommended_fix_path": "Provide Symptom → Cause → Fix → Reader Effect with concrete anchor context"
+    },
+    {
+      "signal_id": "editorial:voice:c2a3de5b31d701ec:1",
+      "criterion": "voice",
+      "action": "In Chapter 2, enhance the narrative voice by incorporating more nuanced language and stylistic elements because the current voice lacks engagement. This will im",
+      "expected_impact": "Increased reader immersion and enjoyment.",
+      "anchor_snippet": "The narrative voice is flat and lacks distinctive style.",
+      "evaluation_route": "recommendation_editorial_quality",
+      "missing_fields": [
+        "specific_fix/move"
+      ],
+      "classification": "missing_fix",
+      "action_applied": "block",
+      "gate_check_id": "recommendation_editorial_quality",
+      "error_code": "QG_EDITORIAL_GENERIC_FEEDBACK",
+      "failure_reason": "Missing fields: specific_fix/move; duplicate_reasoning=false",
+      "recommended_fix_path": "Provide Symptom → Cause → Fix → Reader Effect with concrete anchor context"
+    },
+    {
+      "signal_id": "editorial:dialogue:1a6c69d7fed52908:1",
+      "criterion": "dialogue",
+      "action": "In Chapter 2, revise dialogue to make it more dynamic and revealing of character motivations because the current dialogue is flat and repetitive. This will enha",
+      "expected_impact": "Increased character depth and plot engagement.",
+      "anchor_snippet": "Dialogue is present but lacks depth.",
+      "evaluation_route": "recommendation_editorial_quality",
+      "missing_fields": [
+        "specific_fix/move"
+      ],
+      "classification": "missing_fix",
+      "action_applied": "block",
+      "gate_check_id": "recommendation_editorial_quality",
+      "error_code": "QG_EDITORIAL_GENERIC_FEEDBACK",
+      "failure_reason": "Missing fields: specific_fix/move; duplicate_reasoning=false",
+      "recommended_fix_path": "Provide Symptom → Cause → Fix → Reader Effect with concrete anchor context"
+    },
+    {
+      "signal_id": "editorial:theme:87506ccbcebdac54:1",
+      "criterion": "theme",
+      "action": "In Chapter 2, deepen the exploration of themes related to uncertainty and introspection because the current treatment is superficial. This will enhance thematic",
+      "expected_impact": "Greater thematic depth and reader engagement.",
+      "anchor_snippet": "Themes of uncertainty and introspection are present but not deeply explored.",
+      "evaluation_route": "recommendation_editorial_quality",
+      "missing_fields": [
+        "specific_fix/move"
+      ],
+      "classification": "missing_fix",
+      "action_applied": "block",
+      "gate_check_id": "recommendation_editorial_quality",
+      "error_code": "QG_EDITORIAL_GENERIC_FEEDBACK",
+      "failure_reason": "Missing fields: specific_fix/move; duplicate_reasoning=false",
+      "recommended_fix_path": "Provide Symptom → Cause → Fix → Reader Effect with concrete anchor context"
+    }
+  ],
+  "editorial_diagnostics_summary": {
+    "reportVersion": 4,
+    "total_diagnostics": 4,
+    "rule_fire_counts": {
+      "generic_feedback": 0,
+      "missing_symptom": 0,
+      "missing_mechanism": 0,
+      "missing_fix": 4,
+      "missing_reader_effect": 0,
+      "missing_anchor": 0,
+      "duplicate_reasoning": 0
+    },
+    "block_reason_histogram": {
+      "generic_feedback": 0,
+      "missing_symptom": 0,
+      "missing_mechanism": 0,
+      "missing_fix": 4,
+      "missing_reader_effect": 0,
+      "missing_anchor": 0,
+      "duplicate_reasoning": 0
+    }
+  }
+}
