@@ -220,6 +220,7 @@ describe("pre-v8 failure patterns remain blocked (gate unchanged)", () => {
 
     const diag = result.editorial_diagnostics?.find((d) => d.criterion === "theme");
     expect(result.pass).toBe(false);
+    expect(diag?.classification).toBe("missing_fix");
     expect(diag?.action_applied).toBe("block");
   });
 });
@@ -245,7 +246,7 @@ describe("diagnostics summary shape on mixed pass/fail synthesis", () => {
         recommendations: [{
           priority: "medium",
           action: "In the midpoint scene, insert a concrete stakes beat because the current phrasing stalls narrative tension before the chapter decision.",
-          expected_impact: "No reader effect stated here.",
+          expected_impact: "Improves the section overall.",
           anchor_snippet: "He paused at the threshold.",
           source_pass: 3,
           issue_family: "pacing",
@@ -257,18 +258,19 @@ describe("diagnostics summary shape on mixed pass/fail synthesis", () => {
 
     const result = runQualityGate(synthesis);
     // dialogue passes; pacing should fail (no reader-facing word in expected_impact)
-    if (result.editorial_diagnostics_summary) {
-      const histogram = result.editorial_diagnostics_summary.block_reason_histogram;
-      const totalBlocked = Object.values(histogram).reduce((a, b) => a + b, 0);
-      expect(totalBlocked).toBe(result.editorial_diagnostics?.length ?? 0);
-      // All histogram keys must be canonical EditorialDiagnosticClassification values
-      const validKeys = new Set([
-        "generic_feedback", "missing_symptom", "missing_mechanism",
-        "missing_fix", "missing_reader_effect", "missing_anchor", "duplicate_reasoning",
-      ]);
-      for (const key of Object.keys(histogram)) {
-        expect(validKeys.has(key)).toBe(true);
-      }
+    expect(result.pass).toBe(false);
+    expect(result.editorial_diagnostics_summary).toBeDefined();
+
+    const histogram = result.editorial_diagnostics_summary?.block_reason_histogram ?? {};
+    const totalBlocked = Object.values(histogram).reduce((a, b) => a + b, 0);
+    expect(totalBlocked).toBe(result.editorial_diagnostics?.length ?? 0);
+    // All histogram keys must be canonical EditorialDiagnosticClassification values
+    const validKeys = new Set([
+      "generic_feedback", "missing_symptom", "missing_mechanism",
+      "missing_fix", "missing_reader_effect", "missing_anchor", "duplicate_reasoning",
+    ]);
+    for (const key of Object.keys(histogram)) {
+      expect(validKeys.has(key)).toBe(true);
     }
   });
 });
