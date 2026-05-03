@@ -67,19 +67,12 @@ function makeSynthesis(overridesByKey: Partial<Record<CriterionKey, Partial<Synt
 }
 
 describe("editorial diagnostics (observer-only)", () => {
-  it("keeps pass decision unchanged and emits non-blocking diagnostics for valid recommendations", () => {
+  it("keeps pass decision unchanged and omits diagnostics for valid recommendations", () => {
     const result = runQualityGate(makeSynthesis());
 
     expect(result.pass).toBe(true);
-    expect(result.editorial_diagnostics).toBeDefined();
-    expect(result.editorial_diagnostics?.length).toBe(CRITERIA_KEYS.length);
-
-    const blocked = (result.editorial_diagnostics ?? []).filter((d) => d.action_applied === "block");
-    expect(blocked).toHaveLength(0);
-
-    expect(result.editorial_diagnostics_summary).toBeDefined();
-    expect(result.editorial_diagnostics_summary?.reportVersion).toBe(4);
-    expect(result.editorial_diagnostics_summary?.total_diagnostics).toBe(CRITERIA_KEYS.length);
+    expect(result.editorial_diagnostics).toBeUndefined();
+    expect(result.editorial_diagnostics_summary).toBeUndefined();
   });
 
   it("keeps fail decision unchanged and emits missing_mechanism diagnostics when mechanism is absent", () => {
@@ -109,6 +102,10 @@ describe("editorial diagnostics (observer-only)", () => {
     expect(dialogueDiagnostic?.action_applied).toBe("block");
     expect(dialogueDiagnostic?.missing_fields).toContain("mechanism/cause");
     expect(dialogueDiagnostic?.gate_check_id).toBe("recommendation_editorial_quality");
+
+    expect(result.editorial_diagnostics_summary).toBeDefined();
+    expect(result.editorial_diagnostics_summary?.reportVersion).toBe(4);
+    expect(result.editorial_diagnostics_summary?.total_diagnostics).toBeGreaterThan(0);
   });
 
   it("emits duplicate_reasoning classification when reasoning repeats within a criterion", () => {

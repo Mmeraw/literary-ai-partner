@@ -866,21 +866,23 @@ export function runQualityGate(
           ? "Provide Symptom → Cause → Fix → Reader Effect with concrete anchor context"
           : "none";
 
-        editorialDiagnostics.push({
-          signal_id: buildEditorialSignalId(c.key, action, expectedImpact, recommendationIndex),
-          criterion: c.key,
-          action,
-          expected_impact: expectedImpact,
-          anchor_snippet: anchorSnippet,
-          evaluation_route: "recommendation_editorial_quality",
-          missing_fields: missing,
-          classification,
-          action_applied: shouldBlock ? "block" : "none",
-          gate_check_id: "recommendation_editorial_quality",
-          error_code: shouldBlock ? "QG_EDITORIAL_GENERIC_FEEDBACK" : undefined,
-          failure_reason: failureReason,
-          recommended_fix_path: recommendedFixPath,
-        });
+        if (shouldBlock) {
+          editorialDiagnostics.push({
+            signal_id: buildEditorialSignalId(c.key, action, expectedImpact, recommendationIndex),
+            criterion: c.key,
+            action,
+            expected_impact: expectedImpact,
+            anchor_snippet: anchorSnippet,
+            evaluation_route: "recommendation_editorial_quality",
+            missing_fields: missing,
+            classification,
+            action_applied: "block",
+            gate_check_id: "recommendation_editorial_quality",
+            error_code: "QG_EDITORIAL_GENERIC_FEEDBACK",
+            failure_reason: failureReason,
+            recommended_fix_path: recommendedFixPath,
+          });
+        }
       }
     }
 
@@ -903,8 +905,12 @@ export function runQualityGate(
     pass: failedHardChecks.length === 0,
     checks,
     warnings,
-    editorial_diagnostics: editorialDiagnostics,
-    editorial_diagnostics_summary: buildEditorialDiagnosticsSummary(editorialDiagnostics),
+    ...(editorialDiagnostics.length > 0
+      ? {
+          editorial_diagnostics: editorialDiagnostics,
+          editorial_diagnostics_summary: buildEditorialDiagnosticsSummary(editorialDiagnostics),
+        }
+      : {}),
   };
 }
 
