@@ -69,6 +69,7 @@ import {
   runPipeline,
   synthesisToEvaluationResultV2,
 } from '@/lib/evaluation/pipeline/runPipeline';
+import { classifySubmissionScope } from '@/lib/evaluation/pipeline/submissionScope';
 import { runQualityGateV2 } from '@/lib/evaluation/pipeline/qualityGate';
 import {
   buildScoreLedger,
@@ -1903,11 +1904,16 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       })),
     });
 
+    const scopeProfileForV2Gate =
+      process.env.EVAL_SCOPE_PROFILE_ENABLED === 'true'
+        ? classifySubmissionScope(manuscriptWithContent.content || '', 1)
+        : undefined;
+
     const qualityGateV2 = runQualityGateV2(evaluationResult, {
       criteria: artifactCriteria,
       ledger: scoreLedger,
       efg: excellenceFilter,
-    });
+    }, scopeProfileForV2Gate);
 
     if (!qualityGateV2.pass) {
       const failedChecks = qualityGateV2.checks

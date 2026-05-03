@@ -21,6 +21,7 @@
  *   QG_INDEPENDENCE_VIOLATION — Pass 2 reuses non-manuscript rationale phrasing from Pass 1
  *   QG_DUPLICATE_STRATEGIC_LEVER — two or more recs share same lever without distinct granularity/evidence
  *   QG_CONFIRMED_RATIONALE — agree-state criterion still contains "Confirmed." stub rationale
+ *   QG_CRITERIA_SCOPE_SHAPE_MISMATCH — criterion status/score/scorability mismatches scope policy plan
  */
 
 import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
@@ -39,6 +40,8 @@ import {
   minAnchorsFor,
 } from "@/lib/evaluation/signal/criterionObservability";
 import { DIALOGUE_MECHANISM_MARKERS } from "./mechanismMarkers";
+import { scopePolicy } from "@/lib/evaluation/signal/scopePolicy";
+import type { SubmissionScopeProfile } from "./submissionScope";
 import {
   summarizePropagationIntegrity,
   summaryMentionsBottomWeakness,
@@ -799,6 +802,7 @@ export function summarizeQualityGateFailures(checks: QualityGateCheck[]): Qualit
 export function runQualityGateV2(
   result: EvaluationResultV2,
   artifact?: EvaluationArtifact,
+  scopeProfile?: SubmissionScopeProfile,
 ): QualityGateV2Result {
   const checks: QualityGateCheck[] = [];
   const warnings: string[] = [];
@@ -851,6 +855,45 @@ export function runQualityGateV2(
         ? `duplicates=${duplicateKeys.join(",") || "none"}; missing=${missingKeys.join(",") || "none"}`
         : "No duplicates and full canonical key coverage",
   });
+
+  const scopeGateEnabled = process.env.EVAL_SCOPE_PROFILE_ENABLED === "true";
+  if (scopeGateEnabled && scopeProfile) {
+    const shapeMismatches: string[] = [];
+
+    for (const criterion of criteria) {
+      const policy = scopePolicy(scopeProfile.inputScale, criterion.key);
+
+      if (policy.plan === "NA") {
+        const validNaShape =
+          criterion.status === "NOT_APPLICABLE" &&
+          criterion.score_0_10 === null &&
+          criterion.scorable === false;
+
+        if (!validNaShape) {
+          shapeMismatches.push(
+            `${criterion.key}: expected NOT_APPLICABLE + score_0_10=null + scorable=false when policy=NA; got status=${criterion.status}, score=${criterion.score_0_10}, scorable=${criterion.scorable}`,
+          );
+        }
+      } else if (criterion.status === "NOT_APPLICABLE") {
+        shapeMismatches.push(
+          `${criterion.key}: status NOT_APPLICABLE is invalid when policy=${policy.plan}`,
+        );
+      }
+    }
+
+    checks.push({
+      check_id: "criteria_scope_aligned",
+      passed: shapeMismatches.length === 0,
+      error_code:
+        shapeMismatches.length > 0
+          ? "QG_CRITERIA_SCOPE_SHAPE_MISMATCH"
+          : undefined,
+      details:
+        shapeMismatches.length > 0
+          ? `Scope-policy shape mismatches: ${shapeMismatches.join("; ")}`
+          : "All criterion shapes align with scope policy",
+    });
+  }
 
   // SLICE SPEC LOCK (per-criterion confidence + evidence-density):
   // Low confidence lowers trust; it does not erase a defensible score.
