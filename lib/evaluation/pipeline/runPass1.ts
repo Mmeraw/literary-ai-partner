@@ -138,7 +138,10 @@ export type CreateCompletionFn = (params: {
   response_format: { type: string };
 }) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage; id?: string; request_id?: string }>;
 
+import type { SubmissionScopeProfile } from "./submissionScope";
+
 export interface RunPass1Options {
+  scopeProfile?: SubmissionScopeProfile;
   manuscriptText: string;
   workType: string;
   title: string;
@@ -180,6 +183,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     workType: opts.workType,
     title: opts.title,
     executionMode: opts.executionMode,
+    scopeProfile: opts.scopeProfile,
   });
   const promptAssemblyMs = nowMs() - promptAssemblyStartMs;
   const inputChars = opts.manuscriptText.length;

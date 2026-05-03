@@ -21,6 +21,7 @@
  *   QG_INDEPENDENCE_VIOLATION — Pass 2 reuses non-manuscript rationale phrasing from Pass 1
  *   QG_DUPLICATE_STRATEGIC_LEVER — two or more recs share same lever without distinct granularity/evidence
  *   QG_CONFIRMED_RATIONALE — agree-state criterion still contains "Confirmed." stub rationale
+ *   QG_CRITERIA_SCOPE_SHAPE_MISMATCH — criterion status/score/scorability mismatches scope policy plan
  */
 
 import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
@@ -39,6 +40,8 @@ import {
   minAnchorsFor,
 } from "@/lib/evaluation/signal/criterionObservability";
 import { DIALOGUE_MECHANISM_MARKERS } from "./mechanismMarkers";
+import { scopePolicy } from "@/lib/evaluation/signal/scopePolicy";
+import type { SubmissionScopeProfile } from "./submissionScope";
 import {
   summarizePropagationIntegrity,
   summaryMentionsBottomWeakness,
@@ -102,6 +105,10 @@ export const QG_POV_MECHANISM_MARKERS = Object.freeze([
   "somatic",
 ]);
 
+// --- PR-1: Scope governance quality gates ---
+export const QG_INTERNAL_LEAKAGE_PATTERNS = /direct_speech|reported_speech|tagged_speech|tagless_exchange/i;
+export const QG_FILLER_VERBS = /^(enhance|deepen|refine|maintain|continue|strengthen|improve)\b/i;
+
 export type QualityGateFailureTelemetry = {
   total_failed_checks: number;
   failures_by_error_code: Record<string, number>;
@@ -154,6 +161,7 @@ export function runQualityGate(
   pass1?: SinglePassOutput,
   pass2?: SinglePassOutput,
   manuscriptText?: string,
+  scopeProfile?: import("./submissionScope").SubmissionScopeProfile,
 ): QualityGateResult {
   const checks: QualityGateCheck[] = [];
   const warnings: string[] = [];
@@ -667,6 +675,99 @@ export function runQualityGate(
   // (Not available in SynthesisOutput directly — carries over from A6 layer)
   // Reserved for future integration.
 
+
+  // --- PR-1: Scope governance gates ---
+
+  // Check: Internal leakage (speech taxonomy must never reach user output)
+  {
+    const allText = synthesis.criteria
+      .map((c) => [...(c.recommendations?.map((r) => [r.action, r.expected_impact].join(" ")) ?? [])].join(" "))
+      .join(" ");
+    const leakageMatch = QG_INTERNAL_LEAKAGE_PATTERNS.test(allText);
+    checks.push({
+      check_id: "internal_leakage",
+      passed: !leakageMatch,
+      error_code: leakageMatch ? "QG_INTERNAL_LEAKAGE" : undefined,
+      details: leakageMatch
+        ? "Internal analysis labels (direct_speech/reported_speech/tagged_speech/tagless_exchange) leaked into user output"
+        : "No internal leakage detected",
+    });
+  }
+
+  // Check: Filler-verb recommendations (enhance/deepen/refine without mechanism)
+  {
+    const fillerRecs: string[] = [];
+    for (const c of synthesis.criteria) {
+      for (const r of c.recommendations ?? []) {
+        const action = (r.action ?? "").trim();
+        if (QG_FILLER_VERBS.test(action)) {
+          // Allow if action contains a mechanism indicator (location + specific noun)
+          const hasLocation = !!r.anchor_snippet;
+          const hasSpecifics = action.length > 80 && /\b(scene|line|paragraph|chapter|beat|moment|exchange)\b/i.test(action);
+          if (!hasLocation && !hasSpecifics) {
+            fillerRecs.push(action.slice(0, 80));
+          }
+        }
+      }
+    }
+    checks.push({
+      check_id: "filler_recommendation",
+      passed: fillerRecs.length === 0,
+      error_code: fillerRecs.length > 0 ? "QG_FILLER_REC" : undefined,
+      details: fillerRecs.length > 0
+        ? `${fillerRecs.length} filler-verb recommendation(s) without mechanism: ${fillerRecs[0]}...`
+        : "No filler-verb recommendations detected",
+    });
+  }
+
+
+  
+  // — Scope gate: confidence without evidence ——————————————————
+  if (scopeProfile) {
+    const highConfNoEvidence: string[] = [];
+    for (const c of synthesis.criteria) {
+      if (
+        c.confidence_level === "high" &&
+        c.recommendations?.length > 0 &&
+        !hasSubstantiveEvidence(c.recommendations.map((r) => ({ snippet: r.anchor_snippet ?? "" })))
+      ) {
+        highConfNoEvidence.push(c.key);
+      }
+    }
+    checks.push({
+      check_id: "confidence_without_evidence",
+      passed: highConfNoEvidence.length === 0,
+      error_code: highConfNoEvidence.length > 0 ? "QG_HIGH_CONFIDENCE_NO_EVIDENCE" : undefined,
+      details: highConfNoEvidence.length > 0
+        ? `${highConfNoEvidence.length} criteria claim HIGH confidence without substantive evidence: ${highConfNoEvidence.join(", ")}`
+        : "All high-confidence criteria have substantive evidence",
+    });
+  }
+
+  // — Scope gate: recommendation contract completeness ————————————
+  if (scopeProfile) {
+    const incomplete: string[] = [];
+    for (const c of synthesis.criteria) {
+      for (const r of c.recommendations ?? []) {
+        const missing: string[] = [];
+        if (!r.anchor_snippet?.trim()) missing.push("anchor");
+        if (!r.action?.trim()) missing.push("action");
+        if (!r.expected_impact?.trim()) missing.push("expected_impact");
+        if (missing.length > 0) {
+          incomplete.push(`${c.key}[${missing.join(",")}]`);
+        }
+      }
+    }
+    checks.push({
+      check_id: "recommendation_contract_completeness",
+      passed: incomplete.length === 0,
+      error_code: incomplete.length > 0 ? "QG_RECOMMENDATION_INCOMPLETE" : undefined,
+      details: incomplete.length > 0
+        ? `${incomplete.length} recommendation(s) missing contract fields: ${incomplete.slice(0, 5).join("; ")}`
+        : "All recommendations satisfy the contract",
+    });
+  }
+
   const failedHardChecks = checks.filter((c) => !c.passed);
   return {
     pass: failedHardChecks.length === 0,
@@ -701,6 +802,7 @@ export function summarizeQualityGateFailures(checks: QualityGateCheck[]): Qualit
 export function runQualityGateV2(
   result: EvaluationResultV2,
   artifact?: EvaluationArtifact,
+  scopeProfile?: SubmissionScopeProfile,
 ): QualityGateV2Result {
   const checks: QualityGateCheck[] = [];
   const warnings: string[] = [];
@@ -753,6 +855,45 @@ export function runQualityGateV2(
         ? `duplicates=${duplicateKeys.join(",") || "none"}; missing=${missingKeys.join(",") || "none"}`
         : "No duplicates and full canonical key coverage",
   });
+
+  const scopeGateEnabled = process.env.EVAL_SCOPE_PROFILE_ENABLED === "true";
+  if (scopeGateEnabled && scopeProfile) {
+    const shapeMismatches: string[] = [];
+
+    for (const criterion of criteria) {
+      const policy = scopePolicy(scopeProfile.inputScale, criterion.key);
+
+      if (policy.plan === "NA") {
+        const validNaShape =
+          criterion.status === "NOT_APPLICABLE" &&
+          criterion.score_0_10 === null &&
+          criterion.scorable === false;
+
+        if (!validNaShape) {
+          shapeMismatches.push(
+            `${criterion.key}: expected NOT_APPLICABLE + score_0_10=null + scorable=false when policy=NA; got status=${criterion.status}, score=${criterion.score_0_10}, scorable=${criterion.scorable}`,
+          );
+        }
+      } else if (criterion.status === "NOT_APPLICABLE") {
+        shapeMismatches.push(
+          `${criterion.key}: status NOT_APPLICABLE is invalid when policy=${policy.plan}`,
+        );
+      }
+    }
+
+    checks.push({
+      check_id: "criteria_scope_aligned",
+      passed: shapeMismatches.length === 0,
+      error_code:
+        shapeMismatches.length > 0
+          ? "QG_CRITERIA_SCOPE_SHAPE_MISMATCH"
+          : undefined,
+      details:
+        shapeMismatches.length > 0
+          ? `Scope-policy shape mismatches: ${shapeMismatches.join("; ")}`
+          : "All criterion shapes align with scope policy",
+    });
+  }
 
   // SLICE SPEC LOCK (per-criterion confidence + evidence-density):
   // Low confidence lowers trust; it does not erase a defensible score.

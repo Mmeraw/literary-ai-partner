@@ -72,24 +72,57 @@ jest.mock("@supabase/supabase-js", () => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+const CRITERION_TERMS: Record<(typeof CRITERIA_KEYS)[number], string> = {
+  concept: "premise",
+  narrativeDrive: "propulsion",
+  character: "motivation",
+  voice: "voice",
+  sceneConstruction: "scene",
+  dialogue: "dialogue",
+  theme: "theme",
+  worldbuilding: "world",
+  pacing: "pacing",
+  proseControl: "prose",
+  tone: "tone",
+  narrativeClosure: "closure",
+  marketability: "market",
+};
+
+function criterionAnchorSet(key: (typeof CRITERIA_KEYS)[number]) {
+  const term = CRITERION_TERMS[key];
+  return {
+    a: `In chapter two, the ${term} signal around ${key} escalates through concrete beat-level evidence.`,
+    b: `Later in chapter two, the ${term} pattern for ${key} shifts with explicit consequence and reader-facing pressure.`,
+    c: `By chapter three, the ${term} execution for ${key} resolves into a clear causal outcome on the page.`,
+  };
+}
+
+function buildFixtureManuscriptContent(): string {
+  return CRITERIA_KEYS.flatMap((key) => {
+    const anchors = criterionAnchorSet(key);
+    return [anchors.a, anchors.b, anchors.c];
+  }).join(" ");
+}
+
 /** Build a minimal valid SynthesisOutput that the real synthesisToEvaluationResultV2 can map. */
 function makeRealSynthesisOutput() {
   return {
     criteria: CRITERIA_KEYS.map((key) => ({
       key,
-      final_score_0_10: 7,
+      final_score_0_10: key === "pacing" || key === "theme" ? 4 : 5,
       final_rationale:
-        `The manuscript presents observable evidence for ${key} with coherent synthesis across both evaluation passes.`,
+        `The ${CRITERION_TERMS[key]} handling for ${key} is observable because the manuscript shows causal movement between setup, pressure, and consequence in distinct scene anchors.`,
       evidence: [
-        { snippet: `Primary textual evidence for ${key} drawn from scene-level observation.` },
-        { snippet: `Secondary evidence confirming ${key} pattern across chapter structure.` },
-        { snippet: `Tertiary anchor establishing ${key} claim with sufficient signal.` },
+        { snippet: criterionAnchorSet(key).a },
+        { snippet: criterionAnchorSet(key).b },
+        { snippet: criterionAnchorSet(key).c },
       ],
       recommendations: [
         {
           priority: "medium" as const,
-          action: `Strengthen ${key} through targeted revision at structural pivot points.`,
-          expected_impact: `Improves ${key} consistency and reader engagement.`,
+          action: `Because the ${CRITERION_TERMS[key]} beat for ${key} currently resolves too quickly, stage one additional line-level turn at the second anchor to preserve causal pressure for the reader.`,
+          expected_impact: `Improves ${key} specificity while sustaining momentum, clarity, and reader trust through the revision beat.`,
+          anchor_snippet: criterionAnchorSet(key).b,
         },
       ],
     })),
@@ -97,7 +130,7 @@ function makeRealSynthesisOutput() {
       overall_score_0_100: 74,
       verdict: "revise" as const,
       one_paragraph_summary:
-        "The manuscript demonstrates measurable craft with targeted revision opportunities across several core criteria.",
+        "The manuscript demonstrates measurable craft with targeted revision opportunities, with pacing and theme as the weakest criteria requiring focused revision.",
       top_3_strengths: ["voice", "character", "dialogue"],
       top_3_risks: ["pacing", "theme", "narrativeClosure"],
     },
@@ -138,7 +171,7 @@ function makeSupabaseStub() {
   const manuscript = {
     id: 789,
     title: "Real Gate Test Manuscript",
-    content: "This manuscript provides sufficient textual content for evaluation. ".repeat(220),
+    content: buildFixtureManuscriptContent(),
     work_type: "novel",
     user_id: "00000000-0000-0000-0000-000000000002",
   };

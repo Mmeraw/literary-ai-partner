@@ -14,6 +14,10 @@ import type {
 } from "@/schemas/evaluation-result-v2";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import { computeCriterionConfidence } from "@/lib/evaluation/pipeline/criterionConfidence";
+import {
+  confidenceCapToMaxScore,
+  type ConfidenceCap,
+} from "@/lib/evaluation/signal/scopePolicy";
 
 export type CriteriaPlanCode = "R" | "O" | "NA" | "C";
 export type CriteriaPlanMap = Partial<Record<CriterionKey, CriteriaPlanCode>>;
@@ -206,6 +210,37 @@ function toConfidenceBand(signalStrength: SignalStrength): "LOW" | "MEDIUM" | "H
   return "LOW";
 }
 
+function confidenceLevelToBand(level?: "high" | "moderate" | "low"): "LOW" | "MEDIUM" | "HIGH" {
+  if (level === "high") return "HIGH";
+  if (level === "moderate") return "MEDIUM";
+  return "LOW";
+}
+
+function confidenceBandToLevel(band: "LOW" | "MEDIUM" | "HIGH"): "high" | "moderate" | "low" {
+  if (band === "HIGH") return "high";
+  if (band === "MEDIUM") return "moderate";
+  return "low";
+}
+
+function confidenceBandRank(band: "LOW" | "MEDIUM" | "HIGH"): number {
+  if (band === "HIGH") return 3;
+  if (band === "MEDIUM") return 2;
+  return 1;
+}
+
+export function applyConfidenceCap(
+  model: "high" | "moderate" | "low",
+  evidence: "LOW" | "MEDIUM" | "HIGH",
+  cap: ConfidenceCap,
+): "high" | "moderate" | "low" {
+  const capBand = (cap === "MODERATE" ? "MEDIUM" : cap) as "LOW" | "MEDIUM" | "HIGH";
+  const boundedBand = [confidenceLevelToBand(model), evidence, capBand].sort(
+    (a, b) => confidenceBandRank(a) - confidenceBandRank(b),
+  )[0];
+
+  return confidenceBandToLevel(boundedBand);
+}
+
 function buildStructuredReason(
   status: "NO_SIGNAL" | "INSUFFICIENT_SIGNAL",
   raw?: InsufficientSignalReason,
@@ -232,6 +267,7 @@ export function normalizeCriterion(
   raw: RawCriterionInput,
   opts?: {
     criteriaPlan?: CriteriaPlanMap;
+    confidenceCaps?: Partial<Record<CriterionKey, ConfidenceCap>>;
     passageCoverageRatio?: number;
     sentenceCount?: number;
     sourceText?: string;
@@ -253,6 +289,11 @@ export function normalizeCriterion(
     }));
 
   const rationale = (raw.rationale ?? "").trim() || `Criterion ${raw.key} evaluation status was derived by governed observability checks.`;
+  const signalStrength = classifySignalStrength(raw, {
+    passageCoverageRatio: opts?.passageCoverageRatio,
+    sentenceCount: opts?.sentenceCount,
+  });
+  const evidenceBand = toConfidenceBand(signalStrength);
   const confidence = computeCriterionConfidence(
     {
       key: raw.key,
@@ -264,12 +305,25 @@ export function normalizeCriterion(
     opts?.sourceText,
   );
 
-  const confidenceBandFromLevel: "LOW" | "MEDIUM" | "HIGH" =
-    confidence.confidence_level === "high"
-      ? "HIGH"
-      : confidence.confidence_level === "moderate"
-        ? "MEDIUM"
-        : "LOW";
+  const scopeCap = opts?.confidenceCaps?.[raw.key] ?? "HIGH";
+  const cappedConfidenceLevel = applyConfidenceCap(
+    confidence.confidence_level,
+    evidenceBand,
+    scopeCap,
+  );
+  const confidenceBandFromLevel: "LOW" | "MEDIUM" | "HIGH" = confidenceLevelToBand(cappedConfidenceLevel);
+  const cappedConfidenceScore = Math.min(
+    confidence.confidence_score_0_100,
+    confidenceCapToMaxScore(scopeCap),
+    confidenceBandFromLevel === "HIGH" ? 100 : confidenceBandFromLevel === "MEDIUM" ? 84 : 59,
+  );
+  const confidenceReasons = Array.from(
+    new Set([
+      ...(confidence.confidence_reasons ?? []),
+      `EVIDENCE_CONFIDENCE_${evidenceBand}`,
+      `SCOPE_CAP_${scopeCap}`,
+    ]),
+  );
 
   // GOVERNED NOT_APPLICABLE path (model must not invent this)
   if (opts?.criteriaPlan?.[raw.key] === "NA") {
@@ -281,20 +335,15 @@ export function normalizeCriterion(
       signal_strength: "NONE",
       score_0_10: null,
       confidence_band: confidenceBandFromLevel,
-      confidence_score_0_100: confidence.confidence_score_0_100,
-      confidence_level: confidence.confidence_level,
-      confidence_reasons: confidence.confidence_reasons,
+      confidence_score_0_100: cappedConfidenceScore,
+      confidence_level: cappedConfidenceLevel,
+      confidence_reasons: confidenceReasons,
       scorability_status: "non_scorable",
       rationale,
       evidence,
       recommendations,
     };
   }
-
-  const signalStrength = classifySignalStrength(raw, {
-    passageCoverageRatio: opts?.passageCoverageRatio,
-    sentenceCount: opts?.sentenceCount,
-  });
   const hasNumericScore = typeof raw.score_0_10 === "number" && Number.isFinite(raw.score_0_10);
 
   // Scorability semantics: thin support lowers confidence, it does not erase a scorable score.
@@ -311,9 +360,9 @@ export function normalizeCriterion(
       signal_strength: normalizedSignal,
       score_0_10: rounded,
       confidence_band: confidenceBandFromLevel,
-      confidence_score_0_100: confidence.confidence_score_0_100,
-      confidence_level: confidence.confidence_level,
-      confidence_reasons: confidence.confidence_reasons,
+      confidence_score_0_100: cappedConfidenceScore,
+      confidence_level: cappedConfidenceLevel,
+      confidence_reasons: confidenceReasons,
       scorability_status:
         confidence.scorability_status === "non_scorable"
           ? "scorable_low_confidence"
@@ -335,9 +384,9 @@ export function normalizeCriterion(
     signal_strength: signalStrength as "NONE" | "WEAK",
     score_0_10: null,
     confidence_band: confidenceBandFromLevel,
-    confidence_score_0_100: confidence.confidence_score_0_100,
-    confidence_level: confidence.confidence_level,
-    confidence_reasons: confidence.confidence_reasons,
+    confidence_score_0_100: cappedConfidenceScore,
+    confidence_level: cappedConfidenceLevel,
+    confidence_reasons: confidenceReasons,
     scorability_status: "non_scorable",
     rationale,
     evidence,

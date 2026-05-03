@@ -25,6 +25,7 @@ const customJestConfig = {
     "<rootDir>/tests/approveAgentVerification\\.test\\.ts$",
     "<rootDir>/integrity_gate_v1_huhu_micro_golden\\.test\\.ts$",
     "<rootDir>/tests/flow1-proof-pack\\.test\\.ts$", // Requires Next.js server; runs in Flow 1 Proof Pack workflow only
+    "<rootDir>/__tests__/lib/evaluation/hedgingLanguageGuard\\.test\\.ts$", // PR #283 Vitest suite; exclude from Jest in PR #282
   ],
   // forceExit: true, // Removed to ensure proper async cleanup - tests should clean up after themselves
 };

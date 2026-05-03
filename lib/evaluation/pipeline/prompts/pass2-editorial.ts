@@ -11,13 +11,14 @@
  */
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import type { SubmissionScopeProfile } from "../submissionScope";
 import {
   buildCoverageDisclosure,
   buildPromptInputWindow,
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS2_PROMPT_VERSION = "pass2-editorial-v6-compressed";
+export const PASS2_PROMPT_VERSION = "pass2-editorial-v7-guards";
 
 export const PASS2_SYSTEM_PROMPT = `You are Pass 2 (editorial_literary), independent from Pass 1.
 
@@ -42,6 +43,17 @@ Rules:
 5) Return valid JSON only.
 6) Canonical v2 vocabulary lock: signal_strength uses ONLY NONE|WEAK|SUFFICIENT|STRONG (never MODERATE);
   criterion status uses ONLY SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL when status is emitted.
+
+RECOMMENDATION CONTRACT
+- If recommendations are emitted, each recommendation must include:
+  - anchor/location
+  - issue
+  - mechanism
+  - specific revision move
+  - reader effect
+- Do NOT use generic filler verbs as standalone advice: enhance, refine, improve, maintain, continue, strengthen, deepen.
+- Do NOT emit duplicate recommendations or near-paraphrases.
+- Do NOT reference internal analysis labels such as direct_speech, reported_speech, tagged_speech, or tagless_exchange.
 
 EVIDENCE REQUIREMENT
 - For every criterion, provide at least 2 concrete evidence anchors from the submitted text whenever possible.
@@ -85,6 +97,7 @@ export function buildPass2UserPrompt(params: {
   workType: string;
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
+  scopeProfile?: SubmissionScopeProfile;
 }): string {
   const wordCount = params.manuscriptText.trim().split(/\s+/).length;
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
@@ -95,6 +108,7 @@ export function buildPass2UserPrompt(params: {
 Execution mode: ${executionMode}
 Word count: ${wordCount}
 ${buildCoverageDisclosure(coverage)}
+${params.scopeProfile ? `Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope). Treat scope-limited criteria accordingly.` : ""}
 
 Manuscript text:
 ${promptWindow}
@@ -106,5 +120,6 @@ Mandatory behavior:
 - Rationale must be exactly 1 sentence per criterion.
 - Evidence array max 2 entries per criterion and target 2 anchors whenever source support is available.
 - Recommendations array max 1 entry per criterion.
+- For chapter-mode or smaller inputs, do not judge narrativeClosure as full-arc resolution and treat marketability as provisional.
 - Do not add sections beyond the specified schema.`;
 }
