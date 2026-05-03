@@ -24,6 +24,7 @@
  *   QG_CRITERIA_SCOPE_SHAPE_MISMATCH — criterion status/score/scorability mismatches scope policy plan
  */
 
+import { createHash } from "node:crypto";
 import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
 import { buildRedundancyKey, fullyRedundant, sameStrategicLever, normalizeIssueFamily, normalizeStrategicLever, normalizeRevisionGranularity } from "./recommendationSemantics";
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
@@ -122,6 +123,11 @@ const QG_EDITORIAL_CONTEXT_MARKERS = /\b(scene|line|sentence|paragraph|chapter|b
 const QG_EDITORIAL_ANCHOR_HINT_MARKERS = /\b(opening|midpoint|climax|first|last|second|third|next|previous|following)\s+(scene|paragraph|line|beat|chapter|section|sentence)\b|\b(paragraph|line|scene|chapter|section|sentence)\s+\d+\b/i;
 const QG_EDITORIAL_MECHANISM_MARKERS = /\b(because|since|so\s+that|thereby|to\s+avoid|prevent(?:s|ing)?|caus(?:e|es|ing)|effect|by\s+\w+ing|which\s+(?:helps|lets|allows)|to\s+(prime|clarify|signal|restore|heighten|increase|reduce|anchor|focus|separate|differentiate|escalate|tighten))\b/i;
 const QG_EDITORIAL_READER_EFFECT_MARKERS = /\b(reader|readers|clarity|comprehension|urgency|momentum|immersion|engagement|stakes|tension|payoff|coherence|trust)\b/i;
+const QG_EDITORIAL_SIGNAL_HASH_LEN = 16;
+const QG_EDITORIAL_DIAGNOSTIC_MAX_ACTION_CHARS = 160;
+const QG_EDITORIAL_DIAGNOSTIC_MAX_EXPECTED_IMPACT_CHARS = 160;
+const QG_EDITORIAL_DIAGNOSTIC_MAX_ANCHOR_CHARS = 120;
+const QG_EDITORIAL_DIAGNOSTIC_MAX_FAILURE_REASON_CHARS = 220;
 
 function normalizeEditorialReasoningKey(text: string): string {
   return text
@@ -129,6 +135,10 @@ function normalizeEditorialReasoningKey(text: string): string {
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function compactAndCap(text: string, maxChars: number): string {
+  return text.replace(/\s+/g, " ").trim().slice(0, maxChars);
 }
 
 export type QualityGateFailureTelemetry = {
@@ -181,7 +191,8 @@ function buildEditorialSignalId(
   index: number,
 ): string {
   const seed = `${criterionKey}|${normalizeEditorialReasoningKey(action)}|${normalizeEditorialReasoningKey(expectedImpact)}|${index}`;
-  return `editorial:${seed.slice(0, 160)}`;
+  const digest = createHash("sha256").update(seed).digest("hex").slice(0, QG_EDITORIAL_SIGNAL_HASH_LEN);
+  return `editorial:${criterionKey}:${digest}:${index}`;
 }
 
 function classifyEditorialDiagnostic(
@@ -870,16 +881,16 @@ export function runQualityGate(
           editorialDiagnostics.push({
             signal_id: buildEditorialSignalId(c.key, action, expectedImpact, recommendationIndex),
             criterion: c.key,
-            action,
-            expected_impact: expectedImpact,
-            anchor_snippet: anchorSnippet,
+            action: compactAndCap(action, QG_EDITORIAL_DIAGNOSTIC_MAX_ACTION_CHARS),
+            expected_impact: compactAndCap(expectedImpact, QG_EDITORIAL_DIAGNOSTIC_MAX_EXPECTED_IMPACT_CHARS),
+            anchor_snippet: compactAndCap(anchorSnippet, QG_EDITORIAL_DIAGNOSTIC_MAX_ANCHOR_CHARS),
             evaluation_route: "recommendation_editorial_quality",
             missing_fields: missing,
             classification,
             action_applied: "block",
             gate_check_id: "recommendation_editorial_quality",
             error_code: "QG_EDITORIAL_GENERIC_FEEDBACK",
-            failure_reason: failureReason,
+            failure_reason: compactAndCap(failureReason, QG_EDITORIAL_DIAGNOSTIC_MAX_FAILURE_REASON_CHARS),
             recommended_fix_path: recommendedFixPath,
           });
         }

@@ -279,13 +279,14 @@ export type EditorialDiagnostic = {
   error_code?: "QG_EDITORIAL_GENERIC_FEEDBACK";
   failure_reason: string;
   recommended_fix_path: string;
+  recommendation_index?: number;
 };
 
 export type EditorialDiagnosticsSummary = {
   reportVersion: 4;
   total_diagnostics: number;
-  rule_fire_counts: Record<string, number>;
-  block_reason_histogram: Record<string, number>;
+  rule_fire_counts: Record<EditorialDiagnosticClassification, number>;
+  block_reason_histogram: Record<EditorialDiagnosticClassification, number>;
 };
 
 export type QualityGateResult = {

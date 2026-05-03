@@ -85,6 +85,7 @@ describe("editorial diagnostics (observer-only)", () => {
               "In the opening exchange, replace the abstract line with a concrete action beat at the same moment for dialogue.",
             expected_impact:
               "Gives the reader stronger urgency and engagement at the turn.",
+            anchor_snippet: "A".repeat(300),
           },
         ],
       },
@@ -102,6 +103,8 @@ describe("editorial diagnostics (observer-only)", () => {
     expect(dialogueDiagnostic?.action_applied).toBe("block");
     expect(dialogueDiagnostic?.missing_fields).toContain("mechanism/cause");
     expect(dialogueDiagnostic?.gate_check_id).toBe("recommendation_editorial_quality");
+    expect(dialogueDiagnostic?.signal_id).toMatch(/^editorial:dialogue:[a-f0-9]{16}:1$/);
+    expect(dialogueDiagnostic?.anchor_snippet.length).toBeLessThanOrEqual(120);
 
     expect(result.editorial_diagnostics_summary).toBeDefined();
     expect(result.editorial_diagnostics_summary?.reportVersion).toBe(4);
