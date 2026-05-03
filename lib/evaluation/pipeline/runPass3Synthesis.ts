@@ -243,6 +243,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     manuscriptText: opts.manuscriptText,
     title: opts.title,
     executionMode: opts.executionMode,
+    scopeProfile: opts.scopeProfile,
   });
   assertPass3PromptTripwires(userPrompt);
 

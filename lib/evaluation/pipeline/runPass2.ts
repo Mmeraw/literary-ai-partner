@@ -170,6 +170,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     workType: opts.workType,
     title: opts.title,
     executionMode: opts.executionMode,
+    scopeProfile: opts.scopeProfile,
   });
   const promptAssemblyMs = nowMs() - promptAssemblyStartMs;
   const inputChars = opts.manuscriptText.length;
