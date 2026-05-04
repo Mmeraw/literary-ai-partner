@@ -755,9 +755,9 @@ describe("runPipeline (e2e with injected runners)", () => {
     expect(mockRunPass3).toHaveBeenCalledTimes(1);
   });
 
-  it("accepts a manuscript at exactly 2,000,000 characters (new ceiling)", async () => {
+  it("accepts a manuscript at exactly 3,000,000 characters (new ceiling)", async () => {
     const result = await runPipeline({
-      manuscriptText: "a".repeat(2_000_000),
+      manuscriptText: "a".repeat(3_000_000),
       workType: "literary_fiction",
       title: "Long Form Test",
       openaiApiKey: "sk-test",
@@ -776,9 +776,9 @@ describe("runPipeline (e2e with injected runners)", () => {
     expect(mockRunPass1).toHaveBeenCalled();
   });
 
-  it("accepts a 1,500,000-character manuscript (within new ceiling)", async () => {
+  it("accepts a 2,000,000-character manuscript (within 3M ceiling)", async () => {
     const result = await runPipeline({
-      manuscriptText: "a".repeat(1_500_000),
+      manuscriptText: "a".repeat(2_000_000),
       workType: "literary_fiction",
       title: "Mid Long Form Test",
       openaiApiKey: "sk-test",
@@ -796,9 +796,9 @@ describe("runPipeline (e2e with injected runners)", () => {
     expect(mockRunPass1).toHaveBeenCalled();
   });
 
-  it("rejects a manuscript over 2,000,000 characters (exceeds new ceiling)", async () => {
+  it("rejects a manuscript over 3,000,000 characters (exceeds new ceiling)", async () => {
     const result = await runPipeline({
-      manuscriptText: "a".repeat(2_000_001),
+      manuscriptText: "a".repeat(3_000_001),
       workType: "literary_fiction",
       title: "Over Ceiling Test",
       openaiApiKey: "sk-test",

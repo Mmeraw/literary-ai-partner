@@ -134,7 +134,7 @@ export interface RunPipelineOptions {
 }
 
 const DEFAULT_PASS_TIMEOUT_MS = 60_000;
-const DEFAULT_MAX_MANUSCRIPT_CHARS = 2_000_000;
+const DEFAULT_MAX_MANUSCRIPT_CHARS = 3_000_000;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
