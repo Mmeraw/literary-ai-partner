@@ -312,10 +312,16 @@ export type Pass3CriteriaCountByState = {
   missing_or_invalid: number;
 };
 
+export type ManuscriptChunkEvidence = {
+  chunk_index: number;
+  content: string;
+};
+
 export type Pass3ReducerTelemetry = {
   schema_version: "1";
   prompt_version: string;
   criteria_count_by_state: Pass3CriteriaCountByState;
+  chunk_count: number;
   comparison_packet_chars: number;
   system_prompt_chars: number;
   user_prompt_chars: number;

@@ -12,7 +12,15 @@
 import OpenAI from "openai";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS3_SYSTEM_PROMPT, PASS3_PROMPT_VERSION, buildPass3UserPrompt } from "./prompts/pass3-synthesis";
-import type { SinglePassOutput, SynthesisOutput, SynthesizedCriterion, EvidenceAnchor, CompletionUsage, PassCompletionCapture } from "./types";
+import type {
+  SinglePassOutput,
+  SynthesisOutput,
+  SynthesizedCriterion,
+  EvidenceAnchor,
+  CompletionUsage,
+  PassCompletionCapture,
+  ManuscriptChunkEvidence,
+} from "./types";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
   buildOpenAIOutputTokenParam,
@@ -206,6 +214,7 @@ export interface RunPass3Options {
   pass1: SinglePassOutput;
   pass2: SinglePassOutput;
   manuscriptText: string;
+  manuscriptChunks?: ManuscriptChunkEvidence[];
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   registry: CanonRegistry;
@@ -231,6 +240,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
 
   const comparisonPacket = buildComparisonPacket(opts.pass1, opts.pass2, {
     manuscriptText: opts.manuscriptText,
+    chunks: opts.manuscriptChunks,
   });
   const promptPacket = buildPromptPacketFromComparison(comparisonPacket);
   const comparisonPacketJson = JSON.stringify(promptPacket);
@@ -251,6 +261,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     schema_version: "1" as const,
     prompt_version: PASS3_PROMPT_VERSION,
     criteria_count_by_state: reducerTelemetry.criteria_count_by_state,
+    chunk_count: Array.isArray(opts.manuscriptChunks) ? opts.manuscriptChunks.length : 0,
     comparison_packet_chars: comparisonPacketJson.length,
     system_prompt_chars: PASS3_SYSTEM_PROMPT.length,
     user_prompt_chars: userPrompt.length,

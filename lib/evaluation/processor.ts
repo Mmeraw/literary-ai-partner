@@ -183,6 +183,11 @@ interface Manuscript {
   user_id: string;
 }
 
+type ManuscriptChunkEvidence = {
+  chunk_index: number;
+  content: string;
+};
+
 type CriterionEntry = EvaluationResultV1['criteria'][number];
 
 type NormalizationDiagnostics = {
@@ -1695,6 +1700,51 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     });
     progressState.chunk_routing = chunkRouting;
 
+    let manuscriptChunksForPipeline: ManuscriptChunkEvidence[] | undefined;
+    if (chunkRouting.route === 'long_form') {
+      const canonicalPostChunkText = await resolveManuscriptText(supabase, {
+        ...(manuscript as Manuscript),
+        content: null,
+      });
+
+      if (canonicalPostChunkText.trim().length > 0) {
+        manuscriptWithContent.content = canonicalPostChunkText;
+      }
+
+      const { data: chunkRows, error: chunkRowsError } = await supabase
+        .from('manuscript_chunks')
+        .select('chunk_index, content')
+        .eq('manuscript_id', manuscriptWithContent.id)
+        .order('chunk_index', { ascending: true });
+
+      if (chunkRowsError) {
+        const chunkLoadError =
+          `Failed to load chunk evidence for manuscript ${manuscriptWithContent.id}: ${chunkRowsError.message}`;
+        await markFailed(chunkLoadError, 'CHUNK_EVIDENCE_LOAD_FAILED', {
+          pipelineStage: 'phase_1',
+          reasonCodes: ['CHUNK_EVIDENCE_LOAD_FAILED'],
+        });
+        return { success: false, error: chunkLoadError };
+      }
+
+      manuscriptChunksForPipeline = (chunkRows ?? [])
+        .filter(
+          (row: { chunk_index?: unknown; content?: unknown }): row is ManuscriptChunkEvidence =>
+            typeof row.chunk_index === 'number' &&
+            typeof row.content === 'string' &&
+            row.content.trim().length > 0,
+        )
+        .map((row) => ({
+          chunk_index: row.chunk_index,
+          content: row.content,
+        }));
+
+      progressState.chunk_evidence = {
+        source: 'manuscript_chunks',
+        chunk_count: manuscriptChunksForPipeline.length,
+      };
+    }
+
     console.log('[Processor] chunk routing decision', {
       job_id: jobId,
       manuscript_id: manuscriptWithContent.id,
@@ -1762,6 +1812,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     try {
       pipelineResult = await runPipeline({
         manuscriptText: manuscriptWithContent.content || '',
+        manuscriptChunks: manuscriptChunksForPipeline,
         workType: manuscriptWithContent.work_type || 'novel',
         title: manuscriptWithContent.title,
         jobId: String(job.id),

@@ -26,7 +26,13 @@ import { buildScoreLedger } from "./buildScoreLedger";
 import { buildExcellenceFilter } from "./buildExcellenceFilter";
 import { buildAdvisoryPlan } from "./buildAdvisoryPlan";
 import { computeCriterionConfidence } from "./criterionConfidence";
-import type { PipelineResult, SinglePassOutput, SynthesisOutput, QualityGateResult } from "./types";
+import type {
+  PipelineResult,
+  SinglePassOutput,
+  SynthesisOutput,
+  QualityGateResult,
+  ManuscriptChunkEvidence,
+} from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
@@ -84,6 +90,7 @@ const ENABLE_SCOPE = process.env.EVAL_SCOPE_PROFILE_ENABLED === "true";
 
 export interface RunPipelineOptions {
   manuscriptText: string;
+  manuscriptChunks?: ManuscriptChunkEvidence[];
   workType: string;
   title: string;
   jobId?: string;
@@ -775,6 +782,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         pass1: pass1Output,
         pass2: pass2Output,
         manuscriptText: opts.manuscriptText,
+        manuscriptChunks: opts.manuscriptChunks,
         title: opts.title,
         executionMode: opts.executionMode,
         model: opts.model,

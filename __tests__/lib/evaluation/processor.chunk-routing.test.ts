@@ -96,9 +96,15 @@ function buildEvaluationResult() {
   };
 }
 
-function makeSupabaseStub(manuscriptContent: string) {
+function makeSupabaseStub(
+  manuscriptContent: string,
+  options?: {
+    manuscriptChunks?: Array<{ chunk_index: number; content: string }>;
+  },
+) {
   const evaluationJobUpdates: Array<Record<string, unknown>> = [];
   const rpcCalls: Array<{ fn: string; args?: Record<string, unknown> }> = [];
+  const manuscriptChunks = options?.manuscriptChunks ?? [];
 
   const now = new Date();
   const leaseUntil = new Date(now.getTime() + 5 * 60_000).toISOString();
@@ -195,6 +201,18 @@ function makeSupabaseStub(manuscriptContent: string) {
         };
       }
 
+      if (table === "manuscript_chunks") {
+        const query = {
+          order: async () => ({ data: manuscriptChunks, error: null }),
+        };
+
+        return {
+          select: () => ({
+            eq: () => query,
+          }),
+        };
+      }
+
       throw new Error(`Unexpected table in chunk routing test stub: ${table}`);
     },
   };
@@ -215,7 +233,14 @@ describe("processEvaluationJob long-form chunk routing", () => {
 
   test("ensures chunks before pipeline for long-form manuscripts and persists chunk routing telemetry", async () => {
     const manuscriptContent = "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(2600);
-    const supabaseStub = makeSupabaseStub(manuscriptContent);
+    const supabaseStub = makeSupabaseStub(manuscriptContent, {
+      manuscriptChunks: [
+        { chunk_index: 0, content: "Chunk 0 text" },
+        { chunk_index: 1, content: "Chunk 1 text" },
+        { chunk_index: 2, content: "Chunk 2 text" },
+        { chunk_index: 3, content: "Chunk 3 text" },
+      ],
+    });
     createClientMock.mockReturnValue(supabaseStub);
 
     ensureChunksMock.mockResolvedValue(4);
@@ -267,6 +292,18 @@ describe("processEvaluationJob long-form chunk routing", () => {
     const ensureChunksCallOrder = ensureChunksMock.mock.invocationCallOrder[0];
     const runPipelineCallOrder = runPipelineMock.mock.invocationCallOrder[0];
     expect(ensureChunksCallOrder).toBeLessThan(runPipelineCallOrder);
+
+    const runPipelineArgs = runPipelineMock.mock.calls[0]?.[0];
+    expect(runPipelineArgs).toEqual(
+      expect.objectContaining({
+        manuscriptChunks: [
+          { chunk_index: 0, content: "Chunk 0 text" },
+          { chunk_index: 1, content: "Chunk 1 text" },
+          { chunk_index: 2, content: "Chunk 2 text" },
+          { chunk_index: 3, content: "Chunk 3 text" },
+        ],
+      }),
+    );
 
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
