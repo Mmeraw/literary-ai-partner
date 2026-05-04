@@ -101,7 +101,7 @@ import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
 import { finalizeJobFailure } from '@/lib/jobs/jobStore.supabase';
-import { ensureChunks, ensureChunksFromText } from '@/lib/manuscripts/chunks';
+import { ensureChunksFromText } from '@/lib/manuscripts/chunks';
 import type { ManuscriptChunkEvidence } from '@/lib/evaluation/pipeline/types';
 
 // DB bootstrap — intentionally reads process.env directly (not evaluation config).
@@ -1716,15 +1716,23 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     progressState.chunk_routing = chunkRouting;
 
     // Fail-closed guard: long_form must prove chunk materialization before pipeline.
-    // If persisted_chunk_count is 0, the pipeline cannot produce valid comparison packet
-    // evidence — proceeding would silently corrupt scoring. Fail explicitly here.
+    // If persisted_chunk_count is 0 OR does not match ensured chunk count, the pipeline
+    // cannot produce trustworthy comparison-packet evidence. Fail explicitly here.
     if (
       chunkRouting.route === 'long_form' &&
-      (chunkRouting.persisted_chunk_count === undefined || chunkRouting.persisted_chunk_count === 0)
+      (
+        chunkRouting.persisted_chunk_count === undefined ||
+        chunkRouting.ensure_chunks_returned_count === undefined ||
+        chunkRouting.persisted_chunk_count === 0 ||
+        chunkRouting.ensure_chunks_returned_count === 0 ||
+        chunkRouting.persisted_chunk_count !== chunkRouting.ensure_chunks_returned_count
+      )
     ) {
       const chunkMaterializationError =
-        `Long-form job requires persisted chunks before pipeline, but persisted_chunk_count=` +
-        `${chunkRouting.persisted_chunk_count ?? 0} for manuscript ${manuscriptWithContent.id}. ` +
+        `Long-form job requires verified chunk materialization before pipeline, but ` +
+        `ensure_chunks_returned_count=${chunkRouting.ensure_chunks_returned_count ?? 0}, ` +
+        `persisted_chunk_count=${chunkRouting.persisted_chunk_count ?? 0} ` +
+        `for manuscript ${manuscriptWithContent.id}. ` +
         `Chunk materialization failed. Do not proceed.`;
       await markFailed(chunkMaterializationError, 'LONG_FORM_CHUNK_MATERIALIZATION_FAILED', {
         pipelineStage: 'phase_1',

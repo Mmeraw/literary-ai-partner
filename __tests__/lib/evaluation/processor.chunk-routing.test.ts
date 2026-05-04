@@ -450,4 +450,26 @@ describe("processEvaluationJob long-form chunk routing", () => {
     });
     expect(failureUpdate).toBeDefined();
   });
+
+  test("long_form fails closed when ensured count and persisted count mismatch", async () => {
+    const manuscriptContent = "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(2600);
+    const supabaseStub = makeSupabaseStub(manuscriptContent);
+    createClientMock.mockReturnValue(supabaseStub);
+
+    ensureChunksFromTextMock.mockResolvedValueOnce({
+      ensured_count: 4,
+      persisted_count: 3,
+      chunk_source: "processor_resolved_text",
+      verified_at: new Date().toISOString(),
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-long-form-routing");
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("ensure_chunks_returned_count=4");
+    expect(result.error).toContain("persisted_chunk_count=3");
+    expect(ensureChunksFromTextMock).toHaveBeenCalledTimes(1);
+    expect(runPipelineMock).not.toHaveBeenCalled();
+  });
 });

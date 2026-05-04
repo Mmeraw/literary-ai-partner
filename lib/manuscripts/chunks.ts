@@ -821,18 +821,6 @@ export async function ensureChunksFromText(
     );
   }
 
-  // Check for pre-existing chunks first (idempotent).
-  const existing = await getManuscriptChunks(manuscriptId);
-  if (existing.length > 0) {
-    const verified_at = new Date().toISOString();
-    return {
-      ensured_count: existing.length,
-      persisted_count: existing.length,
-      chunk_source: 'processor_resolved_text',
-      verified_at,
-    };
-  }
-
   // Chunk the processor-resolved text directly — no re-resolution.
   const chunks = await chunkManuscript(manuscriptText);
   const ensured_count = chunks.length;
@@ -846,7 +834,7 @@ export async function ensureChunksFromText(
   await upsertChunks(manuscriptId, chunks, jobId);
 
   // Verify persistence — query actual DB count, do not trust ensured_count alone.
-  const { data: persistedRows, error: verifyError } = await supabase
+  const { count: persistedCountFromHead, error: verifyError } = await supabase
     .from('manuscript_chunks')
     .select('chunk_index', { count: 'exact', head: true })
     .eq('manuscript_id', manuscriptId);
@@ -857,8 +845,10 @@ export async function ensureChunksFromText(
     );
   }
 
-  const persisted_count = (persistedRows as unknown as { count?: number } | null)?.count
-    ?? (await getManuscriptChunks(manuscriptId)).length;
+  const persisted_count =
+    typeof persistedCountFromHead === 'number'
+      ? persistedCountFromHead
+      : (await getManuscriptChunks(manuscriptId)).length;
 
   const verified_at = new Date().toISOString();
 
