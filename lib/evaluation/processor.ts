@@ -101,7 +101,7 @@ import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
 import { finalizeJobFailure } from '@/lib/jobs/jobStore.supabase';
-import { ensureChunks, getManuscriptChunks } from '@/lib/manuscripts/chunks';
+import { ensureChunks } from '@/lib/manuscripts/chunks';
 
 // DB bootstrap — intentionally reads process.env directly (not evaluation config).
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -133,7 +133,6 @@ type ChunkRoutingTelemetry = {
   route: 'long_form' | 'short_form';
   threshold_words: number;
   manuscript_words: number;
-  existing_chunk_count: number;
   chunk_count: number;
 }
 
@@ -865,12 +864,13 @@ async function maybeEnsureLongFormChunks(args: {
       route: 'short_form',
       threshold_words: LONG_FORM_CHUNKING_THRESHOLD_WORDS,
       manuscript_words: manuscriptWords,
-      existing_chunk_count: 0,
       chunk_count: 0,
     };
   }
 
-  const existingChunks = await getManuscriptChunks(args.manuscriptId);
+  // TODO(#292): ensureChunks currently resolves manuscript text via getManuscriptText(),
+  // while evaluation uses resolveManuscriptText() in this worker path. Unify sources
+  // before chunk content is consumed by buildComparisonPacket().
   const chunkCount = await ensureChunks(args.manuscriptId, args.jobId);
 
   return {
@@ -878,7 +878,6 @@ async function maybeEnsureLongFormChunks(args: {
     route: 'long_form',
     threshold_words: LONG_FORM_CHUNKING_THRESHOLD_WORDS,
     manuscript_words: manuscriptWords,
-    existing_chunk_count: existingChunks.length,
     chunk_count: chunkCount,
   };
 }

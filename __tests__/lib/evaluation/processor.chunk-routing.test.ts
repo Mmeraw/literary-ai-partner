@@ -5,7 +5,6 @@ const synthesisToEvaluationResultV2Mock = jest.fn();
 const runQualityGateV2Mock = jest.fn();
 const mapEvaluationResultV2ToGovernanceEnvelopeMock = jest.fn();
 const ensureChunksMock = jest.fn();
-const getManuscriptChunksMock = jest.fn();
 
 jest.mock("@/lib/evaluation/pipeline/runPipeline", () => ({
   runPipeline: (...args: any[]) => runPipelineMock(...args),
@@ -23,7 +22,6 @@ jest.mock("@/lib/governance/evaluationBridge", () => ({
 
 jest.mock("@/lib/manuscripts/chunks", () => ({
   ensureChunks: (...args: any[]) => ensureChunksMock(...args),
-  getManuscriptChunks: (...args: any[]) => getManuscriptChunksMock(...args),
 }));
 
 const createClientMock = jest.fn();
@@ -221,7 +219,6 @@ describe("processEvaluationJob long-form chunk routing", () => {
     createClientMock.mockReturnValue(supabaseStub);
 
     ensureChunksMock.mockResolvedValue(4);
-    getManuscriptChunksMock.mockResolvedValueOnce([]);
 
     runPipelineMock.mockResolvedValue({
       ok: true,
@@ -265,8 +262,11 @@ describe("processEvaluationJob long-form chunk routing", () => {
 
     expect(result.success).toBe(true);
     expect(ensureChunksMock).toHaveBeenCalledWith(456, "job-long-form-routing");
-    expect(getManuscriptChunksMock).toHaveBeenCalledTimes(1);
     expect(runPipelineMock).toHaveBeenCalledTimes(1);
+
+    const ensureChunksCallOrder = ensureChunksMock.mock.invocationCallOrder[0];
+    const runPipelineCallOrder = runPipelineMock.mock.invocationCallOrder[0];
+    expect(ensureChunksCallOrder).toBeLessThan(runPipelineCallOrder);
 
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
@@ -279,7 +279,6 @@ describe("processEvaluationJob long-form chunk routing", () => {
           route: "long_form",
           threshold_words: 25000,
           manuscript_words: 26000,
-          existing_chunk_count: 0,
           chunk_count: 4,
         }),
       }),
@@ -333,7 +332,6 @@ describe("processEvaluationJob long-form chunk routing", () => {
 
     expect(result.success).toBe(true);
     expect(ensureChunksMock).not.toHaveBeenCalled();
-    expect(getManuscriptChunksMock).not.toHaveBeenCalled();
     expect(runPipelineMock).toHaveBeenCalledTimes(1);
 
     const persistCall = supabaseStub.rpcCalls.find(
@@ -347,10 +345,24 @@ describe("processEvaluationJob long-form chunk routing", () => {
           route: "short_form",
           threshold_words: 25000,
           manuscript_words: 3000,
-          existing_chunk_count: 0,
           chunk_count: 0,
         }),
       }),
     );
+  });
+
+  test("does not run pipeline when ensureChunks throws for long-form manuscripts", async () => {
+    const manuscriptContent = "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(2600);
+    const supabaseStub = makeSupabaseStub(manuscriptContent);
+    createClientMock.mockReturnValue(supabaseStub);
+
+    ensureChunksMock.mockRejectedValueOnce(new Error("chunking failed"));
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-long-form-routing");
+
+    expect(result.success).toBe(false);
+    expect(ensureChunksMock).toHaveBeenCalledTimes(1);
+    expect(runPipelineMock).not.toHaveBeenCalled();
   });
 });
