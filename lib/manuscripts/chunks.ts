@@ -788,3 +788,84 @@ export async function ensureChunks(
 
   return chunks.length;
 }
+
+export type EnsureChunksFromTextResult = {
+  /** Number of chunks returned by chunkManuscript() */
+  ensured_count: number;
+  /** Number of chunks verified as persisted in manuscript_chunks after upsert */
+  persisted_count: number;
+  /** Source label for telemetry */
+  chunk_source: 'processor_resolved_text';
+  /** ISO timestamp of the persistence verification */
+  verified_at: string;
+};
+
+/**
+ * Materialize chunks from an already-resolved manuscript text.
+ *
+ * Use this on the long_form path so chunking always operates on the same
+ * text that drove the routing decision. Never re-resolves text through
+ * getManuscriptText() — that is the bug this function replaces.
+ *
+ * After upserting, queries the DB to verify persisted_count > 0.
+ * Callers MUST check persisted_count before invoking runPipeline.
+ */
+export async function ensureChunksFromText(
+  manuscriptId: number,
+  jobId: string,
+  manuscriptText: string,
+): Promise<EnsureChunksFromTextResult> {
+  if (!manuscriptText || manuscriptText.trim().length === 0) {
+    throw new Error(
+      `[ensureChunksFromText] manuscriptText is empty for manuscript ${manuscriptId} — cannot materialize chunks`,
+    );
+  }
+
+  // Check for pre-existing chunks first (idempotent).
+  const existing = await getManuscriptChunks(manuscriptId);
+  if (existing.length > 0) {
+    const verified_at = new Date().toISOString();
+    return {
+      ensured_count: existing.length,
+      persisted_count: existing.length,
+      chunk_source: 'processor_resolved_text',
+      verified_at,
+    };
+  }
+
+  // Chunk the processor-resolved text directly — no re-resolution.
+  const chunks = await chunkManuscript(manuscriptText);
+  const ensured_count = chunks.length;
+
+  if (ensured_count === 0) {
+    throw new Error(
+      `[ensureChunksFromText] chunkManuscript returned 0 chunks for manuscript ${manuscriptId} (text length=${manuscriptText.length})`,
+    );
+  }
+
+  await upsertChunks(manuscriptId, chunks, jobId);
+
+  // Verify persistence — query actual DB count, do not trust ensured_count alone.
+  const { data: persistedRows, error: verifyError } = await supabase
+    .from('manuscript_chunks')
+    .select('chunk_index', { count: 'exact', head: true })
+    .eq('manuscript_id', manuscriptId);
+
+  if (verifyError) {
+    throw new Error(
+      `[ensureChunksFromText] chunk persistence verification failed for manuscript ${manuscriptId}: ${verifyError.message}`,
+    );
+  }
+
+  const persisted_count = (persistedRows as unknown as { count?: number } | null)?.count
+    ?? (await getManuscriptChunks(manuscriptId)).length;
+
+  const verified_at = new Date().toISOString();
+
+  return {
+    ensured_count,
+    persisted_count,
+    chunk_source: 'processor_resolved_text',
+    verified_at,
+  };
+}

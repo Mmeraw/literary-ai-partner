@@ -5,6 +5,7 @@ const synthesisToEvaluationResultV2Mock = jest.fn();
 const runQualityGateV2Mock = jest.fn();
 const mapEvaluationResultV2ToGovernanceEnvelopeMock = jest.fn();
 const ensureChunksMock = jest.fn();
+const ensureChunksFromTextMock = jest.fn();
 
 jest.mock("@/lib/evaluation/pipeline/runPipeline", () => ({
   runPipeline: (...args: any[]) => runPipelineMock(...args),
@@ -22,6 +23,7 @@ jest.mock("@/lib/governance/evaluationBridge", () => ({
 
 jest.mock("@/lib/manuscripts/chunks", () => ({
   ensureChunks: (...args: any[]) => ensureChunksMock(...args),
+  ensureChunksFromText: (...args: any[]) => ensureChunksFromTextMock(...args),
 }));
 
 const createClientMock = jest.fn();
@@ -231,7 +233,7 @@ describe("processEvaluationJob long-form chunk routing", () => {
     process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = "optional";
   });
 
-  test("ensures chunks before pipeline for long-form manuscripts and persists chunk routing telemetry", async () => {
+  test("long_form uses ensureChunksFromText (not ensureChunks), runs before pipeline, and persists proof telemetry", async () => {
     const manuscriptContent = "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(2600);
     const supabaseStub = makeSupabaseStub(manuscriptContent, {
       manuscriptChunks: [
@@ -243,7 +245,12 @@ describe("processEvaluationJob long-form chunk routing", () => {
     });
     createClientMock.mockReturnValue(supabaseStub);
 
-    ensureChunksMock.mockResolvedValue(4);
+    ensureChunksFromTextMock.mockResolvedValue({
+      ensured_count: 4,
+      persisted_count: 4,
+      chunk_source: "processor_resolved_text",
+      verified_at: new Date().toISOString(),
+    });
 
     runPipelineMock.mockResolvedValue({
       ok: true,
@@ -286,10 +293,15 @@ describe("processEvaluationJob long-form chunk routing", () => {
     const result = await processEvaluationJob("job-long-form-routing");
 
     expect(result.success).toBe(true);
-    expect(ensureChunksMock).toHaveBeenCalledWith(456, "job-long-form-routing");
+    expect(ensureChunksFromTextMock).toHaveBeenCalledTimes(1);
+    expect(ensureChunksFromTextMock.mock.calls[0]?.[0]).toBe(456);
+    expect(ensureChunksFromTextMock.mock.calls[0]?.[1]).toBe("job-long-form-routing");
+    expect(typeof ensureChunksFromTextMock.mock.calls[0]?.[2]).toBe("string");
+    expect(ensureChunksFromTextMock.mock.calls[0]?.[2]).toContain("alpha beta gamma delta epsilon");
+    expect(ensureChunksMock).not.toHaveBeenCalled();
     expect(runPipelineMock).toHaveBeenCalledTimes(1);
 
-    const ensureChunksCallOrder = ensureChunksMock.mock.invocationCallOrder[0];
+    const ensureChunksCallOrder = ensureChunksFromTextMock.mock.invocationCallOrder[0];
     const runPipelineCallOrder = runPipelineMock.mock.invocationCallOrder[0];
     expect(ensureChunksCallOrder).toBeLessThan(runPipelineCallOrder);
 
@@ -320,12 +332,16 @@ describe("processEvaluationJob long-form chunk routing", () => {
           threshold_words: 25000,
           manuscript_words: 26000,
           chunk_count: 4,
+          ensure_chunks_returned_count: 4,
+          persisted_chunk_count: 4,
+          chunk_source: "processor_resolved_text",
+          verified_at: expect.any(String),
         }),
       }),
     );
   });
 
-  test("does not call ensureChunks for short-form manuscripts and persists short_form telemetry", async () => {
+  test("short_form behavior is unchanged (no ensureChunksFromText, no fail-closed)", async () => {
     const manuscriptContent = "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(300);
     const supabaseStub = makeSupabaseStub(manuscriptContent);
     createClientMock.mockReturnValue(supabaseStub);
@@ -371,6 +387,7 @@ describe("processEvaluationJob long-form chunk routing", () => {
     const result = await processEvaluationJob("job-long-form-routing");
 
     expect(result.success).toBe(true);
+    expect(ensureChunksFromTextMock).not.toHaveBeenCalled();
     expect(ensureChunksMock).not.toHaveBeenCalled();
     expect(runPipelineMock).toHaveBeenCalledTimes(1);
 
@@ -378,31 +395,59 @@ describe("processEvaluationJob long-form chunk routing", () => {
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
     );
     expect(persistCall).toBeDefined();
-    expect(persistCall?.args?.p_progress).toEqual(
-      expect.objectContaining({
-        chunk_routing: expect.objectContaining({
-          enabled: true,
-          route: "short_form",
-          threshold_words: 25000,
-          manuscript_words: 3000,
-          chunk_count: 0,
-        }),
-      }),
+    expect(persistCall?.args?.p_progress).toMatchObject({
+      chunk_routing: {
+        enabled: true,
+        route: "short_form",
+        threshold_words: 25000,
+        manuscript_words: 3000,
+        chunk_count: 0,
+      },
+    });
+    expect(persistCall?.args?.p_progress?.chunk_routing).not.toHaveProperty(
+      "ensure_chunks_returned_count",
     );
+    expect(persistCall?.args?.p_progress?.chunk_routing).not.toHaveProperty(
+      "persisted_chunk_count",
+    );
+    expect(persistCall?.args?.p_progress?.chunk_routing).not.toHaveProperty("chunk_source");
+    expect(persistCall?.args?.p_progress?.chunk_routing).not.toHaveProperty("verified_at");
   });
 
-  test("does not run pipeline when ensureChunks throws for long-form manuscripts", async () => {
+  test("long_form + persisted_chunk_count = 0 fails with LONG_FORM_CHUNK_MATERIALIZATION_FAILED and does not run pipeline", async () => {
     const manuscriptContent = "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(2600);
     const supabaseStub = makeSupabaseStub(manuscriptContent);
     createClientMock.mockReturnValue(supabaseStub);
 
-    ensureChunksMock.mockRejectedValueOnce(new Error("chunking failed"));
+    ensureChunksFromTextMock.mockResolvedValueOnce({
+      ensured_count: 0,
+      persisted_count: 0,
+      chunk_source: "processor_resolved_text",
+      verified_at: new Date().toISOString(),
+    });
 
     const { processEvaluationJob } = require("../../../lib/evaluation/processor");
     const result = await processEvaluationJob("job-long-form-routing");
 
     expect(result.success).toBe(false);
-    expect(ensureChunksMock).toHaveBeenCalledTimes(1);
+    expect(result.error).toContain("persisted_chunk_count=0");
+    expect(ensureChunksFromTextMock).toHaveBeenCalledTimes(1);
+    expect(ensureChunksMock).not.toHaveBeenCalled();
     expect(runPipelineMock).not.toHaveBeenCalled();
+
+    const failureUpdate = supabaseStub.evaluationJobUpdates.find((payload) => {
+      const progress = payload.progress as
+        | {
+            error_code?: string;
+            pipeline_failure_envelope?: { error_code?: string };
+          }
+        | undefined;
+      return (
+        progress?.error_code === "LONG_FORM_CHUNK_MATERIALIZATION_FAILED" ||
+        progress?.pipeline_failure_envelope?.error_code ===
+          "LONG_FORM_CHUNK_MATERIALIZATION_FAILED"
+      );
+    });
+    expect(failureUpdate).toBeDefined();
   });
 });
