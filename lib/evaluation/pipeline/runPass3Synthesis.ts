@@ -36,6 +36,12 @@ import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseB
 import { enforcePass3QualityGuards } from "@/lib/evaluation/governance/runtimeQualityGuards";
 import { normalizeIssueFamily, normalizeStrategicLever, normalizeRevisionGranularity } from "./recommendationSemantics";
 import { DIALOGUE_MECHANISM_MARKERS } from "./mechanismMarkers";
+import {
+  EDITORIAL_CONTEXT_MARKERS,
+  EDITORIAL_FIX_MARKERS,
+  EDITORIAL_MECHANISM_MARKERS,
+  EDITORIAL_READER_EFFECT_MARKERS,
+} from "./editorialRecommendationContract";
 import { analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
@@ -479,7 +485,7 @@ export function parsePass3Response(
     const delta = Math.abs(craftScore - editorialScore);
 
     let evidence: EvidenceAnchor[] = parseEvidenceArray(rawEntry?.["evidence"]);
-    let recommendations = parseRecommendations(rawEntry?.["recommendations"]);
+    let recommendations = parseRecommendations(rawEntry?.["recommendations"], key);
     const pressurePoints = parseStringArray(rawEntry?.["pressure_points"], 3);
     const decisionPoints = parseStringArray(rawEntry?.["decision_points"], 3);
     const consequenceStatus = parseConsequenceStatus(rawEntry?.["consequence_status"], delta, finalScore);
@@ -596,14 +602,17 @@ function parseEvidenceArray(raw: unknown): EvidenceAnchor[] {
     }));
 }
 
-function parseRecommendations(raw: unknown): SynthesizedCriterion["recommendations"] {
+function parseRecommendations(
+  raw: unknown,
+  criterionKey: SynthesizedCriterion["key"],
+): SynthesizedCriterion["recommendations"] {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
     .map((r) => {
       const priority = String(r["priority"] ?? "medium");
       const sourcePass = Number(r["source_pass"] ?? 3);
-      return {
+      const parsed = {
         priority: (priority === "high" || priority === "low" ? priority : "medium") as "high" | "medium" | "low",
         action: String(r["action"] ?? ""),
         expected_impact: String(r["expected_impact"] ?? ""),
@@ -620,7 +629,94 @@ function parseRecommendations(raw: unknown): SynthesizedCriterion["recommendatio
         revision_granularity:
           (normalizeRevisionGranularity(r["revision_granularity"]) ?? r["revision_granularity"] ?? "scene") as SynthesizedCriterion["recommendations"][number]["revision_granularity"],
       };
+
+      return normalizeRecommendationContract(parsed, criterionKey);
     });
+}
+
+function normalizeRecommendationContract(
+  recommendation: SynthesizedCriterion["recommendations"][number],
+  criterionKey: SynthesizedCriterion["key"],
+): SynthesizedCriterion["recommendations"][number] {
+  const action = recommendation.action.trim();
+  const expectedImpact = recommendation.expected_impact.trim();
+  const anchorSnippet = recommendation.anchor_snippet.trim();
+
+  const hasAnchorContext = anchorSnippet.length > 0 || EDITORIAL_CONTEXT_MARKERS.test(action);
+  const hasSpecificFixMove = EDITORIAL_FIX_MARKERS.test(action) && hasAnchorContext;
+  const hasMechanismCause = EDITORIAL_MECHANISM_MARKERS.test(action) || EDITORIAL_MECHANISM_MARKERS.test(expectedImpact);
+  const hasReaderEffect = EDITORIAL_READER_EFFECT_MARKERS.test(expectedImpact);
+
+  if (hasSpecificFixMove && hasMechanismCause && hasReaderEffect) {
+    return recommendation;
+  }
+
+  // Intentionally fail-closed for anchorless generic recs: do NOT auto-repair
+  // recommendations that lack explicit anchor_snippet.
+  if (anchorSnippet.length === 0) {
+    return recommendation;
+  }
+
+  const intentFragment = extractIntentFragment(action);
+  const repairedAction = buildCriterionAwareActionRepair(criterionKey, anchorSnippet, intentFragment);
+  const repairedImpact = hasReaderEffect
+    ? expectedImpact
+    : buildCriterionAwareImpactRepair(criterionKey);
+
+  return {
+    ...recommendation,
+    action: repairedAction,
+    expected_impact: repairedImpact,
+  };
+}
+
+function extractIntentFragment(action: string): string {
+  const normalized = action.replace(/\s+/g, " ").trim();
+  if (!normalized) return "the original revision intent";
+
+  const withoutLeadIn = normalized
+    .replace(/^in\s+[^,]+,\s*/i, "")
+    .replace(/^for\s+[^,]+,\s*/i, "");
+
+  return withoutLeadIn.slice(0, 120);
+}
+
+function buildCriterionAwareActionRepair(
+  criterionKey: SynthesizedCriterion["key"],
+  anchorSnippet: string,
+  intentFragment: string,
+): string {
+  const anchor = anchorSnippet.slice(0, 72);
+
+  switch (criterionKey) {
+    case "character":
+      return `In the anchored moment "${anchor}", replace one abstract reaction line with a concrete decision beat and one desire-vs-fear contradiction because this preserves ${intentFragment} while making motivation legible.`;
+    case "sceneConstruction":
+      return `In the anchored moment "${anchor}", split one long descriptive passage and move one image after the causal action beat because this preserves ${intentFragment} while restoring scene-turn sequencing.`;
+    case "dialogue":
+      return `In the anchored moment "${anchor}", replace one expository exchange with two short turns plus an interruption beat because this preserves ${intentFragment} while making speaker intent and pressure explicit.`;
+    case "pacing":
+      return `In the anchored moment "${anchor}", cut one reflective sentence and insert one immediate external action trigger because this preserves ${intentFragment} while tightening momentum at the turn.`;
+    default:
+      return `In the anchored moment "${anchor}", replace one abstract sentence with a concrete criterion-specific move and insert one causal beat because this preserves ${intentFragment} while clarifying consequence.`;
+  }
+}
+
+function buildCriterionAwareImpactRepair(
+  criterionKey: SynthesizedCriterion["key"],
+): string {
+  switch (criterionKey) {
+    case "character":
+      return "Gives the reader clearer motivation and emotional stakes, improving trust in character decisions.";
+    case "sceneConstruction":
+      return "Gives the reader clearer scene cause-and-effect and stronger transition coherence.";
+    case "dialogue":
+      return "Gives the reader clearer speaker intent and tension progression, increasing engagement.";
+    case "pacing":
+      return "Gives the reader stronger forward momentum and cleaner urgency through the section turn.";
+    default:
+      return "Gives the reader clearer cause-and-effect, stronger immersion, and higher engagement at the turn.";
+  }
 }
 
 function normalizeForPhraseMatch(text: string): string {
