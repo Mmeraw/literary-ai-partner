@@ -755,6 +755,70 @@ describe("runPipeline (e2e with injected runners)", () => {
     expect(mockRunPass3).toHaveBeenCalledTimes(1);
   });
 
+  it("accepts a manuscript at exactly 3,000,000 characters (new ceiling)", async () => {
+    const result = await runPipeline({
+      manuscriptText: "a".repeat(3_000_000),
+      workType: "literary_fiction",
+      title: "Long Form Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    // Must NOT fail with PIPELINE_INPUT_INVALID due to length
+    if (!result.ok) {
+      const r = result as Extract<typeof result, { ok: false }>;
+      expect(r.error_code).not.toBe("PIPELINE_INPUT_INVALID");
+    }
+    expect(mockRunPass1).toHaveBeenCalled();
+  });
+
+  it("accepts a 2,000,000-character manuscript (within 3M ceiling)", async () => {
+    const result = await runPipeline({
+      manuscriptText: "a".repeat(2_000_000),
+      workType: "literary_fiction",
+      title: "Mid Long Form Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    if (!result.ok) {
+      const r = result as Extract<typeof result, { ok: false }>;
+      expect(r.error_code).not.toBe("PIPELINE_INPUT_INVALID");
+    }
+    expect(mockRunPass1).toHaveBeenCalled();
+  });
+
+  it("rejects a manuscript over 3,000,000 characters (exceeds new ceiling)", async () => {
+    const result = await runPipeline({
+      manuscriptText: "a".repeat(3_000_001),
+      workType: "literary_fiction",
+      title: "Over Ceiling Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PIPELINE_INPUT_INVALID");
+      expect(result.failed_at).toBe("pass1");
+    }
+    expect(mockRunPass1).not.toHaveBeenCalled();
+    expect(mockRunPass2).not.toHaveBeenCalled();
+    expect(mockRunPass3).not.toHaveBeenCalled();
+  });
+
   it("fails closed when governance injection map validation fails", async () => {
     const result = await runPipeline({
       manuscriptText: "test",

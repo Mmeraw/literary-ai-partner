@@ -1,6 +1,6 @@
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { CriterionKey } from "@/schemas/criteria-keys";
-import type { EvidenceAnchor, SinglePassOutput } from "./types";
+import type { EvidenceAnchor, ManuscriptChunkEvidence, SinglePassOutput } from "./types";
 
 export type ComparisonState = "agree" | "soft_divergence" | "hard_divergence" | "missing_or_invalid";
 
@@ -29,6 +29,7 @@ export type ComparisonPacket = {
 
 export type BuildComparisonPacketOptions = {
   manuscriptText?: string;
+  chunks?: ManuscriptChunkEvidence[];
   excerptRadiusChars?: number;
   maxEvidencePerCriterion?: number;
 };
@@ -135,6 +136,24 @@ export function buildComparisonPacket(
   const pass1ByKey = toCriterionMap(pass1);
   const pass2ByKey = toCriterionMap(pass2);
 
+  const getChunkText = (): string => {
+    if (!Array.isArray(options.chunks) || options.chunks.length === 0) return "";
+    return options.chunks
+      .filter(
+        (chunk): chunk is ManuscriptChunkEvidence =>
+          typeof chunk?.chunk_index === "number" && typeof chunk?.content === "string",
+      )
+      .sort((a, b) => a.chunk_index - b.chunk_index)
+      .map((chunk) => chunk.content.trim())
+      .filter((content) => content.length > 0)
+      .join("\n");
+  };
+
+  const manuscriptTextForExcerptWindow =
+    typeof options.manuscriptText === "string" && options.manuscriptText.length > 0
+      ? options.manuscriptText
+      : (() => { const t = getChunkText(); return t.length > 0 ? t : undefined; })();
+
   const excerptRadiusChars = options.excerptRadiusChars ?? DEFAULT_EXCERPT_RADIUS_CHARS;
   const maxEvidencePerCriterion =
     options.maxEvidencePerCriterion ?? DEFAULT_MAX_EVIDENCE_PER_CRITERION;
@@ -159,7 +178,7 @@ export function buildComparisonPacket(
 
     const disputedExcerptWindow = extractDisputedExcerptWindow({
       state,
-      manuscriptText: options.manuscriptText,
+      manuscriptText: manuscriptTextForExcerptWindow,
       evidence: rawPass1Evidence,
       excerptRadiusChars,
     });

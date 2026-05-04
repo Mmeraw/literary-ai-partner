@@ -161,6 +161,33 @@ describe("buildComparisonPacket", () => {
     expect(concept.disputed_excerpt_window?.char_end).toBe(2009);
   });
 
+  it("uses chunk evidence text for disputed excerpts when manuscriptText is absent", () => {
+    const pass1 = makePass(1, "craft_execution");
+    const pass2 = makePass(2, "editorial_literary");
+
+    const concept1 = pass1.criteria.find((c) => c.key === "concept")!;
+    const concept2 = pass2.criteria.find((c) => c.key === "concept")!;
+    concept1.score_0_10 = 9;
+    concept2.score_0_10 = 5;
+    concept1.evidence = [{ snippet: "Chunk anchor", char_start: 2, char_end: 8 }];
+
+    const packet = buildComparisonPacket(pass1, pass2, {
+      chunks: [
+        { chunk_index: 2, content: "CDEFGH" },
+        { chunk_index: 0, content: "AB" },
+      ],
+      excerptRadiusChars: 1,
+    });
+
+    const concept = packet.criteria.find((c) => c.key === "concept")!;
+    expect(concept.disputed_excerpt_window).toBeDefined();
+    expect(concept.disputed_excerpt_window?.char_start).toBeGreaterThanOrEqual(0);
+    expect(concept.disputed_excerpt_window?.char_end).toBeGreaterThan(
+      concept.disputed_excerpt_window?.char_start ?? 0,
+    );
+    expect(concept.disputed_excerpt_window?.snippet).toContain("CDEFGH");
+  });
+
   it("preserves verbatim snippet spacing while still deduping by normalized text", () => {
     const pass1 = makePass(1, "craft_execution");
     const pass2 = makePass(2, "editorial_literary");
