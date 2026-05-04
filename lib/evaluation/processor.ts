@@ -101,7 +101,7 @@ import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
 import { finalizeJobFailure } from '@/lib/jobs/jobStore.supabase';
-import { ensureChunks } from '@/lib/manuscripts/chunks';
+import { ensureChunksFromText } from '@/lib/manuscripts/chunks';
 import type { ManuscriptChunkEvidence } from '@/lib/evaluation/pipeline/types';
 
 // DB bootstrap — intentionally reads process.env directly (not evaluation config).
@@ -135,6 +135,11 @@ type ChunkRoutingTelemetry = {
   threshold_words: number;
   manuscript_words: number;
   chunk_count: number;
+  // Long-form chunk materialization proof fields (populated only on long_form route)
+  ensure_chunks_returned_count?: number;
+  persisted_chunk_count?: number;
+  chunk_source?: 'processor_resolved_text';
+  verified_at?: string;
 }
 
 export function getValidatedWorkerBatchSize(raw: unknown, fallback = 5): number {
@@ -874,17 +879,26 @@ async function maybeEnsureLongFormChunks(args: {
     };
   }
 
-  // TODO(#292): ensureChunks currently resolves manuscript text via getManuscriptText(),
-  // while evaluation uses resolveManuscriptText() in this worker path. Unify sources
-  // before chunk content is consumed by buildComparisonPacket().
-  const chunkCount = await ensureChunks(args.manuscriptId, args.jobId);
+  // Fix(#290): use processor-resolved text directly — never re-resolve through
+  // getManuscriptText() which uses a divergent source path and can silently
+  // return empty/placeholder text, causing chunk materialization to fail while
+  // route telemetry still reports long_form.
+  const chunkResult = await ensureChunksFromText(
+    args.manuscriptId,
+    args.jobId,
+    args.manuscriptText,
+  );
 
   return {
     enabled: true,
     route: 'long_form',
     threshold_words: LONG_FORM_CHUNKING_THRESHOLD_WORDS,
     manuscript_words: manuscriptWords,
-    chunk_count: chunkCount,
+    chunk_count: chunkResult.ensured_count,
+    ensure_chunks_returned_count: chunkResult.ensured_count,
+    persisted_chunk_count: chunkResult.persisted_count,
+    chunk_source: chunkResult.chunk_source,
+    verified_at: chunkResult.verified_at,
   };
 }
 
@@ -1700,6 +1714,33 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       manuscriptText: manuscriptWithContent.content || '',
     });
     progressState.chunk_routing = chunkRouting;
+
+    // Fail-closed guard: long_form must prove chunk materialization before pipeline.
+    // If persisted_chunk_count is 0 OR does not match ensured chunk count, the pipeline
+    // cannot produce trustworthy comparison-packet evidence. Fail explicitly here.
+    if (
+      chunkRouting.route === 'long_form' &&
+      (
+        chunkRouting.persisted_chunk_count === undefined ||
+        chunkRouting.ensure_chunks_returned_count === undefined ||
+        chunkRouting.persisted_chunk_count === 0 ||
+        chunkRouting.ensure_chunks_returned_count === 0 ||
+        chunkRouting.persisted_chunk_count !== chunkRouting.ensure_chunks_returned_count
+      )
+    ) {
+      const chunkMaterializationError =
+        `Long-form job requires verified chunk materialization before pipeline, but ` +
+        `ensure_chunks_returned_count=${chunkRouting.ensure_chunks_returned_count ?? 0}, ` +
+        `persisted_chunk_count=${chunkRouting.persisted_chunk_count ?? 0} ` +
+        `for manuscript ${manuscriptWithContent.id}. ` +
+        `Chunk materialization failed. Do not proceed.`;
+      await markFailed(chunkMaterializationError, 'LONG_FORM_CHUNK_MATERIALIZATION_FAILED', {
+        pipelineStage: 'phase_1',
+        reasonCodes: ['LONG_FORM_CHUNK_MATERIALIZATION_FAILED'],
+        diagnostics: { chunk_routing: chunkRouting },
+      });
+      return { success: false, error: chunkMaterializationError };
+    }
 
     let manuscriptChunksForPipeline: ManuscriptChunkEvidence[] | undefined;
     if (chunkRouting.route === 'long_form') {
