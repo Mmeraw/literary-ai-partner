@@ -257,14 +257,23 @@ describe("runPass3Synthesis", () => {
 
     expect(capture?.pass).toBe(3);
     expect(capture?.pass3_reducer_telemetry).toBeDefined();
-    expect(capture?.pass3_reducer_telemetry?.prompt_version).toBe(PASS3_PROMPT_VERSION);
-    expect(capture?.pass3_reducer_telemetry?.criteria_count_by_state).toBeDefined();
+    const telemetry = capture?.pass3_reducer_telemetry!;
+    // Contract shape
+    expect(telemetry.schema_version).toBe("1");
+    expect(telemetry.prompt_version).toBe(PASS3_PROMPT_VERSION);
+    expect(telemetry.criteria_count_by_state).toBeDefined();
+    // Criteria-state invariant: all canonical criteria must be accounted for
     expect(
-      Object.values(capture?.pass3_reducer_telemetry?.criteria_count_by_state ?? {}).reduce(
+      Object.values(telemetry.criteria_count_by_state).reduce(
         (sum, count) => sum + Number(count),
         0,
       ),
     ).toBe(CRITERIA_KEYS.length);
+    // Numeric sanity: no payload field may silently zero out
+    expect(telemetry.comparison_packet_chars).toBeGreaterThan(0);
+    expect(telemetry.system_prompt_chars).toBeGreaterThan(0);
+    expect(telemetry.user_prompt_chars).toBeGreaterThan(0);
+    expect(telemetry.max_output_tokens).toBeGreaterThan(0);
   });
 
   it("throws when OPENAI_API_KEY is not configured", async () => {

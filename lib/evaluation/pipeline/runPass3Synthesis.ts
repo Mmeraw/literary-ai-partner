@@ -248,6 +248,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   assertPass3PromptTripwires(userPrompt);
 
   const pass3ReducerTelemetry = {
+    schema_version: "1" as const,
     prompt_version: PASS3_PROMPT_VERSION,
     criteria_count_by_state: reducerTelemetry.criteria_count_by_state,
     comparison_packet_chars: comparisonPacketJson.length,

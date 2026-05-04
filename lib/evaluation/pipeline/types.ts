@@ -306,6 +306,7 @@ export type CompletionUsage = {
 };
 
 export type Pass3ReducerTelemetry = {
+  schema_version: "1";
   prompt_version: string;
   criteria_count_by_state: Record<string, number>;
   comparison_packet_chars: number;
