@@ -255,6 +255,13 @@ async function main(): Promise<void> {
   if (qualityGate) {
     writeFileSync(join(outputDir, "quality_gate.json"), JSON.stringify(qualityGate, null, 2), "utf8");
   }
+  if (capturedPasses.pass3?.pass3_reducer_telemetry) {
+    writeFileSync(
+      join(outputDir, "pass3_telemetry.json"),
+      JSON.stringify(capturedPasses.pass3.pass3_reducer_telemetry, null, 2),
+      "utf8",
+    );
+  }
   writeFileSync(join(outputDir, "pipeline_result.json"), JSON.stringify(pipelineResult, null, 2), "utf8");
   if (evaluationResult) {
     writeFileSync(
@@ -300,6 +307,9 @@ async function main(): Promise<void> {
     generated_at: new Date().toISOString(),
     output_dir: outputDir,
     quality_gate_pass: qualityGate?.pass ?? false,
+    pass3_telemetry_artifact: capturedPasses.pass3?.pass3_reducer_telemetry
+      ? join(outputDir, "pass3_telemetry.json")
+      : null,
   };
   writeFileSync(join(outputDir, "metadata.json"), JSON.stringify(metadata, null, 2), "utf8");
 

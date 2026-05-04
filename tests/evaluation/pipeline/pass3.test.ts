@@ -8,6 +8,7 @@
 import { describe, it, expect } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass3Response, runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+import { PASS3_PROMPT_VERSION } from "@/lib/evaluation/pipeline/prompts/pass3-synthesis";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
@@ -234,6 +235,36 @@ describe("runPass3Synthesis", () => {
     expect(result.criteria).toHaveLength(13);
     expect(result.overall.overall_score_0_100).toBe(70);
     expect(result.overall.verdict).toBe("revise");
+  });
+
+  it("emits pass3 reducer telemetry in completion capture", async () => {
+    const pass1 = makePassOutput(1, "craft_execution");
+    const pass2 = makePassOutput(2, "editorial_literary");
+    let capture: Parameters<NonNullable<Parameters<typeof runPass3Synthesis>[0]["_onCompletion"]>>[0] | undefined;
+
+    await runPass3Synthesis({
+      pass1,
+      pass2,
+      manuscriptText: "The river moved slowly through the valley.",
+      title: "Test Manuscript",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: mockCompletion(JSON.stringify(makePass3Fixture())),
+      _onCompletion: (payload) => {
+        capture = payload;
+      },
+    });
+
+    expect(capture?.pass).toBe(3);
+    expect(capture?.pass3_reducer_telemetry).toBeDefined();
+    expect(capture?.pass3_reducer_telemetry?.prompt_version).toBe(PASS3_PROMPT_VERSION);
+    expect(capture?.pass3_reducer_telemetry?.criteria_count_by_state).toBeDefined();
+    expect(
+      Object.values(capture?.pass3_reducer_telemetry?.criteria_count_by_state ?? {}).reduce(
+        (sum, count) => sum + Number(count),
+        0,
+      ),
+    ).toBe(CRITERIA_KEYS.length);
   });
 
   it("throws when OPENAI_API_KEY is not configured", async () => {

@@ -247,14 +247,16 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   });
   assertPass3PromptTripwires(userPrompt);
 
-  console.log("[Pass3][ReducerTelemetry]", {
+  const pass3ReducerTelemetry = {
     prompt_version: PASS3_PROMPT_VERSION,
     criteria_count_by_state: reducerTelemetry.criteria_count_by_state,
     comparison_packet_chars: comparisonPacketJson.length,
     system_prompt_chars: PASS3_SYSTEM_PROMPT.length,
     user_prompt_chars: userPrompt.length,
     max_output_tokens: getEvaluationRuntimeConfig().pass.pass3MaxTokens,
-  });
+  };
+
+  console.log("[Pass3][ReducerTelemetry]", pass3ReducerTelemetry);
   
   // Compute coverage metadata (for truth enforcement)
   const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
@@ -336,6 +338,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined,
     request_id: requestId,
     generated_at: new Date().toISOString(),
+    pass3_reducer_telemetry: pass3ReducerTelemetry,
   });
 
   const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
