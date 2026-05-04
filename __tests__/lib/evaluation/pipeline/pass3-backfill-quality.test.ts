@@ -1,5 +1,6 @@
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass3Response } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
 import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
 
 export {};
@@ -348,6 +349,192 @@ describe("Pass 3 backfill quality", () => {
     expect(rec.action.toLowerCase()).toMatch(/replace|insert/);
     expect(rec.action.toLowerCase()).toContain("because");
     expect(rec.expected_impact.toLowerCase()).toMatch(/reader|clarity|engagement|immersion|momentum/);
+  });
+
+  test("repairs live failed patterns with criterion-aware concrete moves while preserving intent", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "character",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Character rationale placeholder.",
+          evidence: [{ snippet: "He folded the letter into his pocket." }],
+          recommendations: [
+            {
+              priority: "medium",
+              action: "In character-driven scenes, deepen character development by adding more personal stakes.",
+              expected_impact: "Improves character quality.",
+              anchor_snippet: "He folded the letter into his pocket.",
+              source_pass: 3,
+              issue_family: "characterization",
+              strategic_lever: "character_voice_differentiation",
+              revision_granularity: "scene",
+            },
+          ],
+        },
+        {
+          key: "sceneConstruction",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Scene construction rationale placeholder.",
+          evidence: [{ snippet: "Rain crossed the window while she stayed silent." }],
+          recommendations: [
+            {
+              priority: "medium",
+              action: "In slower scenes, streamline descriptive passages to improve pacing.",
+              expected_impact: "Improves pacing.",
+              anchor_snippet: "Rain crossed the window while she stayed silent.",
+              source_pass: 3,
+              issue_family: "scene_structure",
+              strategic_lever: "scene_goal_clarity",
+              revision_granularity: "scene",
+            },
+          ],
+        },
+        {
+          key: "dialogue",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Dialogue rationale placeholder.",
+          evidence: [{ snippet: '"I know," she said, then looked away.' }],
+          recommendations: [
+            {
+              priority: "medium",
+              action: "In dialogue-heavy scenes, inject more dynamic exchanges to drive the narrative.",
+              expected_impact: "Improves dialogue quality.",
+              anchor_snippet: '"I know," she said, then looked away.',
+              source_pass: 3,
+              issue_family: "dialogue",
+              strategic_lever: "dialogue_exposition_density",
+              revision_granularity: "beat",
+            },
+          ],
+        },
+        {
+          key: "pacing",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Pacing rationale placeholder.",
+          evidence: [{ snippet: "She sat still while the clock ticked louder." }],
+          recommendations: [
+            {
+              priority: "medium",
+              action: "In slower sections, balance reflective passages with more active scenes.",
+              expected_impact: "Improves pacing flow.",
+              anchor_snippet: "She sat still while the clock ticked louder.",
+              source_pass: 3,
+              issue_family: "pacing",
+              strategic_lever: "momentum_visibility",
+              revision_granularity: "scene",
+            },
+          ],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsed = parsePass3Response(raw, pass1, pass2, "o3");
+
+    const characterRec = parsed.criteria.find((c) => c.key === "character")?.recommendations?.[0];
+    const sceneRec = parsed.criteria.find((c) => c.key === "sceneConstruction")?.recommendations?.[0];
+    const dialogueRec = parsed.criteria.find((c) => c.key === "dialogue")?.recommendations?.[0];
+    const pacingRec = parsed.criteria.find((c) => c.key === "pacing")?.recommendations?.[0];
+
+    expect(characterRec?.action.toLowerCase()).toContain("deepen character development");
+    expect(characterRec?.action.toLowerCase()).toMatch(/decision beat|desire-vs-fear contradiction/);
+
+    expect(sceneRec?.action.toLowerCase()).toContain("streamline descriptive passages");
+    expect(sceneRec?.action.toLowerCase()).toMatch(/split|move/);
+
+    expect(dialogueRec?.action.toLowerCase()).toContain("inject more dynamic exchanges");
+    expect(dialogueRec?.action.toLowerCase()).toMatch(/two short turns|interruption beat/);
+
+    expect(pacingRec?.action.toLowerCase()).toContain("balance reflective passages");
+    expect(pacingRec?.action.toLowerCase()).toMatch(/cut|insert/);
+  });
+
+  test("does not auto-repair anchorless generic recommendation and QG still fails", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "dialogue",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Dialogue rationale placeholder.",
+          evidence: [{ snippet: '"I know," she said.' }],
+          recommendations: [
+            {
+              priority: "medium",
+              action: "In dialogue-heavy scenes, inject more dynamic exchanges to drive the narrative.",
+              expected_impact: "Improves dialogue quality.",
+              anchor_snippet: "",
+              source_pass: 3,
+              issue_family: "dialogue",
+              strategic_lever: "dialogue_exposition_density",
+              revision_granularity: "beat",
+            },
+          ],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsed = parsePass3Response(raw, pass1, pass2, "o3");
+    const rec = parsed.criteria.find((c) => c.key === "dialogue")?.recommendations?.[0];
+    expect(rec?.action).toBe("In dialogue-heavy scenes, inject more dynamic exchanges to drive the narrative.");
+
+    const minimalSynthesis = {
+      criteria: [
+        {
+          ...parsed.criteria.find((c) => c.key === "dialogue"),
+          key: "dialogue",
+        },
+      ],
+      overall: parsed.overall,
+      metadata: parsed.metadata,
+      partial_evaluation: false,
+    };
+
+    const gate = runQualityGate(minimalSynthesis as any);
+    const editorialCheck = gate.checks.find((c) => c.check_id === "recommendation_editorial_quality");
+    expect(editorialCheck?.passed).toBe(false);
+    expect(editorialCheck?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
   });
 
   // ─────────────────────────────────────────────────────────────────────
