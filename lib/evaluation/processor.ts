@@ -69,7 +69,7 @@ import {
   runPipeline,
   synthesisToEvaluationResultV2,
 } from '@/lib/evaluation/pipeline/runPipeline';
-import { classifySubmissionScope } from '@/lib/evaluation/pipeline/submissionScope';
+import { classifySubmissionScope, countWords } from '@/lib/evaluation/pipeline/submissionScope';
 import { runQualityGateV2 } from '@/lib/evaluation/pipeline/qualityGate';
 import {
   buildScoreLedger,
@@ -101,6 +101,7 @@ import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
 import { finalizeJobFailure } from '@/lib/jobs/jobStore.supabase';
+import { ensureChunks, getManuscriptChunks } from '@/lib/manuscripts/chunks';
 
 // DB bootstrap — intentionally reads process.env directly (not evaluation config).
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -125,6 +126,16 @@ function getProcessorRuntimeDeps() {
 }
 
 const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
+const LONG_FORM_CHUNKING_THRESHOLD_WORDS = 25_000;
+
+type ChunkRoutingTelemetry = {
+  enabled: boolean;
+  route: 'long_form' | 'short_form';
+  threshold_words: number;
+  manuscript_words: number;
+  existing_chunk_count: number;
+  chunk_count: number;
+}
 
 export function getValidatedWorkerBatchSize(raw: unknown, fallback = 5): number {
   const parsed =
@@ -839,6 +850,37 @@ async function resolveManuscriptText(
   }
 
   return '';
+}
+
+async function maybeEnsureLongFormChunks(args: {
+  manuscriptId: number;
+  jobId: string;
+  manuscriptText: string;
+}): Promise<ChunkRoutingTelemetry> {
+  const manuscriptWords = countWords(args.manuscriptText);
+
+  if (manuscriptWords < LONG_FORM_CHUNKING_THRESHOLD_WORDS) {
+    return {
+      enabled: true,
+      route: 'short_form',
+      threshold_words: LONG_FORM_CHUNKING_THRESHOLD_WORDS,
+      manuscript_words: manuscriptWords,
+      existing_chunk_count: 0,
+      chunk_count: 0,
+    };
+  }
+
+  const existingChunks = await getManuscriptChunks(args.manuscriptId);
+  const chunkCount = await ensureChunks(args.manuscriptId, args.jobId);
+
+  return {
+    enabled: true,
+    route: 'long_form',
+    threshold_words: LONG_FORM_CHUNKING_THRESHOLD_WORDS,
+    manuscript_words: manuscriptWords,
+    existing_chunk_count: existingChunks.length,
+    chunk_count: chunkCount,
+  };
 }
 
 export function isManuscriptTextLongEnough(
@@ -1646,6 +1688,19 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       ...(manuscript as Manuscript),
       content: resolvedManuscriptText,
     };
+
+    const chunkRouting = await maybeEnsureLongFormChunks({
+      manuscriptId: manuscriptWithContent.id,
+      jobId: String(job.id),
+      manuscriptText: manuscriptWithContent.content || '',
+    });
+    progressState.chunk_routing = chunkRouting;
+
+    console.log('[Processor] chunk routing decision', {
+      job_id: jobId,
+      manuscript_id: manuscriptWithContent.id,
+      ...chunkRouting,
+    });
 
     // 4. Canonical evaluation via governed multi-pass pipeline (fail-closed)
     await markRunning('Running canonical evaluation pipeline', 1, executionPhase);
