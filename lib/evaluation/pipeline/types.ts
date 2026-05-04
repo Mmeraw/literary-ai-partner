@@ -305,6 +305,23 @@ export type CompletionUsage = {
   total_tokens?: number;
 };
 
+export type Pass3CriteriaCountByState = {
+  agree: number;
+  soft_divergence: number;
+  hard_divergence: number;
+  missing_or_invalid: number;
+};
+
+export type Pass3ReducerTelemetry = {
+  schema_version: "1";
+  prompt_version: string;
+  criteria_count_by_state: Pass3CriteriaCountByState;
+  comparison_packet_chars: number;
+  system_prompt_chars: number;
+  user_prompt_chars: number;
+  max_output_tokens: number;
+};
+
 export type PassCompletionCapture = {
   pass: 1 | 2 | 3;
   raw_text: string;
@@ -313,6 +330,7 @@ export type PassCompletionCapture = {
   finish_reason?: string;
   request_id?: string;
   generated_at: string;
+  pass3_reducer_telemetry?: Pass3ReducerTelemetry;
 };
 
 // ── Pipeline result ──────────────────────────────────────────────────────────

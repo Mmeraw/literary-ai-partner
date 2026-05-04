@@ -336,9 +336,17 @@ async function main(): Promise<void> {
       model: pass3Parsed?.metadata.pass3_model ?? null,
       usage: capturedPasses.pass3?.usage ?? null,
       generated_at: capturedPasses.pass3?.generated_at ?? null,
+      pass3_reducer_telemetry: capturedPasses.pass3?.pass3_reducer_telemetry ?? null,
       quality_gate: qualityGate ?? null,
     },
   });
+
+  if (capturedPasses.pass3?.pass3_reducer_telemetry) {
+    writeJson(
+      join(outDir, "pass3_telemetry.json"),
+      capturedPasses.pass3.pass3_reducer_telemetry,
+    );
+  }
 
   const governanceCheckpoints = buildGovernanceCheckpointArtifacts(pipelineResult);
   writeJson(join(outDir, "governance-checkpoints.json"), governanceCheckpoints);

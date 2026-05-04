@@ -8,6 +8,7 @@
 import { describe, it, expect } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass3Response, runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+import { PASS3_PROMPT_VERSION } from "@/lib/evaluation/pipeline/prompts/pass3-synthesis";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
@@ -234,6 +235,47 @@ describe("runPass3Synthesis", () => {
     expect(result.criteria).toHaveLength(13);
     expect(result.overall.overall_score_0_100).toBe(70);
     expect(result.overall.verdict).toBe("revise");
+  });
+
+  it("emits pass3 reducer telemetry in completion capture", async () => {
+    const pass1 = makePassOutput(1, "craft_execution");
+    const pass2 = makePassOutput(2, "editorial_literary");
+    let capture: Parameters<NonNullable<Parameters<typeof runPass3Synthesis>[0]["_onCompletion"]>>[0] | undefined;
+
+    await runPass3Synthesis({
+      pass1,
+      pass2,
+      manuscriptText: "The river moved slowly through the valley.",
+      title: "Test Manuscript",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: mockCompletion(JSON.stringify(makePass3Fixture())),
+      _onCompletion: (payload) => {
+        capture = payload;
+      },
+    });
+
+    expect(capture?.pass).toBe(3);
+    expect(capture?.pass3_reducer_telemetry).toBeDefined();
+    const telemetry = capture?.pass3_reducer_telemetry!;
+    // Contract shape
+    expect(telemetry.schema_version).toBe("1");
+    expect(telemetry.prompt_version).toBe(PASS3_PROMPT_VERSION);
+    expect(telemetry.criteria_count_by_state).toBeDefined();
+    // Criteria-state invariant: canonical keys must all be present and sum to 13
+    const counts = telemetry.criteria_count_by_state;
+    expect(typeof counts.agree).toBe("number");
+    expect(typeof counts.soft_divergence).toBe("number");
+    expect(typeof counts.hard_divergence).toBe("number");
+    expect(typeof counts.missing_or_invalid).toBe("number");
+    expect(
+      counts.agree + counts.soft_divergence + counts.hard_divergence + counts.missing_or_invalid,
+    ).toBe(CRITERIA_KEYS.length);
+    // Numeric sanity: no payload field may silently zero out
+    expect(telemetry.comparison_packet_chars).toBeGreaterThan(0);
+    expect(telemetry.system_prompt_chars).toBeGreaterThan(0);
+    expect(telemetry.user_prompt_chars).toBeGreaterThan(0);
+    expect(telemetry.max_output_tokens).toBeGreaterThan(0);
   });
 
   it("throws when OPENAI_API_KEY is not configured", async () => {
