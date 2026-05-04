@@ -293,6 +293,63 @@ describe("Pass 3 backfill quality", () => {
     expect(dialogueA!.final_rationale).toBe(dialogueB!.final_rationale);
   });
 
+  test("deterministically repairs generic recommendation actions to concrete fix/move contract", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "character",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Character signal is present but can be sharpened in scene execution.",
+          evidence: [
+            {
+              snippet: "She closed the letter and swallowed her answer.",
+            },
+          ],
+          recommendations: [
+            {
+              priority: "medium",
+              action: "In character-driven scenes, deepen character development by adding more personal stakes.",
+              expected_impact: "Improves character quality.",
+              anchor_snippet: "She closed the letter and swallowed her answer.",
+              source_pass: 3,
+              issue_family: "characterization",
+              strategic_lever: "character_voice_differentiation",
+              revision_granularity: "scene",
+            },
+          ],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsed = parsePass3Response(raw, pass1, pass2, "o3");
+    const character = parsed.criteria.find((c) => c.key === "character");
+    expect(character).toBeDefined();
+
+    const rec = character!.recommendations[0];
+    expect(rec).toBeDefined();
+    expect(rec.action.toLowerCase()).toMatch(/replace|insert/);
+    expect(rec.action.toLowerCase()).toContain("because");
+    expect(rec.expected_impact.toLowerCase()).toMatch(/reader|clarity|engagement|immersion|momentum/);
+  });
+
   // ─────────────────────────────────────────────────────────────────────
   // Dialogue Attribution v2 Gate: Diagnostic-grounded enforcement tests
   // (FR-2: Real production regression fixture, AC-1 through AC-5)
