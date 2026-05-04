@@ -136,24 +136,23 @@ export function buildComparisonPacket(
   const pass1ByKey = toCriterionMap(pass1);
   const pass2ByKey = toCriterionMap(pass2);
 
-  const normalizedChunkText = Array.isArray(options.chunks)
-    ? options.chunks
-        .filter(
-          (chunk): chunk is ManuscriptChunkEvidence =>
-            typeof chunk?.chunk_index === "number" && typeof chunk?.content === "string",
-        )
-        .sort((a, b) => a.chunk_index - b.chunk_index)
-        .map((chunk) => chunk.content.trim())
-        .filter((content) => content.length > 0)
-        .join("\n")
-    : "";
+  const getChunkText = (): string => {
+    if (!Array.isArray(options.chunks) || options.chunks.length === 0) return "";
+    return options.chunks
+      .filter(
+        (chunk): chunk is ManuscriptChunkEvidence =>
+          typeof chunk?.chunk_index === "number" && typeof chunk?.content === "string",
+      )
+      .sort((a, b) => a.chunk_index - b.chunk_index)
+      .map((chunk) => chunk.content.trim())
+      .filter((content) => content.length > 0)
+      .join("\n");
+  };
 
   const manuscriptTextForExcerptWindow =
     typeof options.manuscriptText === "string" && options.manuscriptText.length > 0
       ? options.manuscriptText
-      : normalizedChunkText.length > 0
-      ? normalizedChunkText
-      : undefined;
+      : (() => { const t = getChunkText(); return t.length > 0 ? t : undefined; })();
 
   const excerptRadiusChars = options.excerptRadiusChars ?? DEFAULT_EXCERPT_RADIUS_CHARS;
   const maxEvidencePerCriterion =

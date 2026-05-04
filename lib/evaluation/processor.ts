@@ -102,6 +102,7 @@ import { detectContextContamination } from '@/lib/evaluation/governance/contextC
 import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
 import { finalizeJobFailure } from '@/lib/jobs/jobStore.supabase';
 import { ensureChunks } from '@/lib/manuscripts/chunks';
+import type { ManuscriptChunkEvidence } from '@/lib/evaluation/pipeline/types';
 
 // DB bootstrap — intentionally reads process.env directly (not evaluation config).
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -182,11 +183,6 @@ interface Manuscript {
   work_type: string | null;
   user_id: string;
 }
-
-type ManuscriptChunkEvidence = {
-  chunk_index: number;
-  content: string;
-};
 
 type CriterionEntry = EvaluationResultV1['criteria'][number];
 
@@ -796,11 +792,11 @@ export function normalizeRecommendationsFromAIResult(
 async function resolveManuscriptText(
   supabase: any,
   manuscript: Manuscript,
-): Promise<string> {
+): Promise<{ text: string; loadedChunks?: ManuscriptChunkEvidence[] }> {
   // Priority 1: Direct content column
   const directContent = typeof manuscript.content === 'string' ? manuscript.content.trim() : '';
   if (directContent.length > 0) {
-    return directContent;
+    return { text: directContent };
   }
 
   // Priority 2: Reconstruct from manuscript_chunks
@@ -817,8 +813,13 @@ async function resolveManuscriptText(
   }
 
   if (chunks && chunks.length > 0) {
-    const reconstructed = (chunks as Array<{ content?: unknown }>)
-      .map((chunk) => (typeof chunk.content === 'string' ? chunk.content.trim() : ''))
+    const validChunks = (chunks as Array<{ chunk_index?: unknown; content?: unknown }>)
+      .filter(
+        (c): c is ManuscriptChunkEvidence =>
+          typeof c.chunk_index === 'number' && typeof c.content === 'string',
+      );
+    const reconstructed = validChunks
+      .map((chunk) => chunk.content.trim())
       .filter((part) => part.length > 0)
       .join('\n');
 
@@ -826,7 +827,7 @@ async function resolveManuscriptText(
       evalDebugWarn(
         `[Processor] manuscript ${manuscript.id} missing manuscripts.content; reconstructed text from ${chunks.length} chunk(s)`,
       );
-      return reconstructed;
+      return { text: reconstructed, loadedChunks: validChunks };
     }
   }
 
@@ -842,7 +843,7 @@ async function resolveManuscriptText(
           console.log(
             `[Processor] manuscript ${manuscript.id} resolved text from file_url data URI (${decoded.length} chars)`,
           );
-          return decoded;
+          return { text: decoded };
         }
       }
     } catch (decodeError) {
@@ -853,7 +854,7 @@ async function resolveManuscriptText(
     }
   }
 
-  return '';
+  return { text: '' };
 }
 
 async function maybeEnsureLongFormChunks(args: {
@@ -1653,7 +1654,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     console.log(`[Processor] Manuscript ${manuscript.id} fetched: "${manuscript.title}"`);
 
-    const resolvedManuscriptText = await resolveManuscriptText(supabase, manuscript as Manuscript);
+    const { text: resolvedManuscriptText } = await resolveManuscriptText(supabase, manuscript as Manuscript);
     if (!resolvedManuscriptText || resolvedManuscriptText.trim().length === 0) {
       const contentError = 'Manuscript text unavailable: neither manuscripts.content nor manuscript_chunks.content found';
       await markFailed(contentError);
@@ -1702,7 +1703,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     let manuscriptChunksForPipeline: ManuscriptChunkEvidence[] | undefined;
     if (chunkRouting.route === 'long_form') {
-      const canonicalPostChunkText = await resolveManuscriptText(supabase, {
+      const { text: canonicalPostChunkText, loadedChunks } = await resolveManuscriptText(supabase, {
         ...(manuscript as Manuscript),
         content: null,
       });
@@ -1711,33 +1712,41 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         manuscriptWithContent.content = canonicalPostChunkText;
       }
 
-      const { data: chunkRows, error: chunkRowsError } = await supabase
-        .from('manuscript_chunks')
-        .select('chunk_index, content')
-        .eq('manuscript_id', manuscriptWithContent.id)
-        .order('chunk_index', { ascending: true });
+      if (loadedChunks && loadedChunks.length > 0) {
+        // Reuse chunks already loaded by resolveManuscriptText — no second DB read needed.
+        manuscriptChunksForPipeline = loadedChunks.filter(
+          (row) => row.content.trim().length > 0,
+        );
+      } else {
+        // Fallback: explicit query when resolveManuscriptText did not take chunk-reconstruction path.
+        const { data: chunkRows, error: chunkRowsError } = await supabase
+          .from('manuscript_chunks')
+          .select('chunk_index, content')
+          .eq('manuscript_id', manuscriptWithContent.id)
+          .order('chunk_index', { ascending: true });
 
-      if (chunkRowsError) {
-        const chunkLoadError =
-          `Failed to load chunk evidence for manuscript ${manuscriptWithContent.id}: ${chunkRowsError.message}`;
-        await markFailed(chunkLoadError, 'CHUNK_EVIDENCE_LOAD_FAILED', {
-          pipelineStage: 'phase_1',
-          reasonCodes: ['CHUNK_EVIDENCE_LOAD_FAILED'],
-        });
-        return { success: false, error: chunkLoadError };
+        if (chunkRowsError) {
+          const chunkLoadError =
+            `Failed to load chunk evidence for manuscript ${manuscriptWithContent.id}: ${chunkRowsError.message}`;
+          await markFailed(chunkLoadError, 'CHUNK_EVIDENCE_LOAD_FAILED', {
+            pipelineStage: 'phase_1',
+            reasonCodes: ['CHUNK_EVIDENCE_LOAD_FAILED'],
+          });
+          return { success: false, error: chunkLoadError };
+        }
+
+        manuscriptChunksForPipeline = (chunkRows ?? [])
+          .filter(
+            (row: { chunk_index?: unknown; content?: unknown }): row is ManuscriptChunkEvidence =>
+              typeof row.chunk_index === 'number' &&
+              typeof row.content === 'string' &&
+              row.content.trim().length > 0,
+          )
+          .map((row) => ({
+            chunk_index: row.chunk_index,
+            content: row.content,
+          }));
       }
-
-      manuscriptChunksForPipeline = (chunkRows ?? [])
-        .filter(
-          (row: { chunk_index?: unknown; content?: unknown }): row is ManuscriptChunkEvidence =>
-            typeof row.chunk_index === 'number' &&
-            typeof row.content === 'string' &&
-            row.content.trim().length > 0,
-        )
-        .map((row) => ({
-          chunk_index: row.chunk_index,
-          content: row.content,
-        }));
 
       progressState.chunk_evidence = {
         source: 'manuscript_chunks',
