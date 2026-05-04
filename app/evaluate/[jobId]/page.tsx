@@ -353,18 +353,44 @@ export default async function EvaluationReportPage({
   const integrityBanner = artifact ? classifyEvaluationIntegrityBanner(artifact) : null;
 
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <div className="flex items-start justify-between gap-4">
+    <div className="min-h-screen bg-gray-50">
+      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Evaluation Report</h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <h1 className="text-3xl font-bold text-gray-900">Evaluation Report</h1>
+          <p className="mt-1 text-sm text-gray-500">
             Job ID: <span className="font-mono">{job.id}</span>
           </p>
         </div>
-
-        <Link href="/evaluate" className="text-sm underline">
+        <Link href="/evaluate" className="text-sm text-blue-600 hover:text-blue-700 underline shrink-0">
           Back to Evaluate
         </Link>
+      </div>
+
+      {/* Job status header card */}
+      <div className="rounded-lg border bg-white p-4 mb-6">
+        <div className="flex flex-wrap items-center gap-4">
+          <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
+            job.status === "complete" ? "bg-green-100 text-green-800" :
+            job.status === "failed" ? "bg-red-100 text-red-800" :
+            job.status === "running" ? "bg-blue-100 text-blue-800" :
+            "bg-gray-100 text-gray-700"
+          }`}>
+            {job.status === "complete" ? "✓ Complete" : job.status === "failed" ? "✗ Failed" : job.status === "running" ? "⟳ Running" : "Queued"}
+          </span>
+          {job.created_at && (
+            <span className="text-sm text-gray-600">
+              <span className="font-medium">Created:</span>{" "}
+              {new Date(job.created_at).toLocaleString()}
+            </span>
+          )}
+          {job.updated_at && (
+            <span className="text-sm text-gray-600">
+              <span className="font-medium">Updated:</span>{" "}
+              {new Date(job.updated_at).toLocaleString()}
+            </span>
+          )}
+        </div>
       </div>
 
       <section className="mt-6">
@@ -377,7 +403,7 @@ export default async function EvaluationReportPage({
       </section>
 
       {job.status === "failed" && job.last_error ? (
-        <section className="mt-6 rounded-lg border border-red-200 bg-red-50 p-5">
+        <section className="rounded-lg border border-red-200 bg-red-50 p-5">
           <h2 className="text-lg font-semibold text-red-900">Evaluation failed</h2>
           <p className="mt-2 text-sm text-red-800">{job.last_error}</p>
           <div className="mt-4">
@@ -390,7 +416,7 @@ export default async function EvaluationReportPage({
           </div>
         </section>
       ) : !isComplete ? (
-        <section className="mt-6 rounded-lg border p-5">
+        <section className="rounded-lg border bg-white p-5">
           <h2 className="text-lg font-semibold">Report not ready yet</h2>
           <p className="mt-2 text-sm text-gray-600">
             This evaluation hasn't completed. Once the status is "complete," your
@@ -406,7 +432,7 @@ export default async function EvaluationReportPage({
           </div>
         </section>
       ) : !artifact ? (
-        <section className="mt-6 rounded-lg border p-5">
+        <section className="rounded-lg border bg-white p-5">
           <h2 className="text-lg font-semibold">
             {isProduction ? "Report integrity check failed" : "Report not available yet"}
           </h2>
@@ -427,7 +453,7 @@ export default async function EvaluationReportPage({
       ) : (
         <>
           {!isProduction && artifactSource === "inline_job_result" && (
-            <div className="mt-4 rounded-md bg-amber-50 border border-amber-300 p-4">
+            <div className="mb-4 rounded-md bg-amber-50 border border-amber-300 p-4">
               <p className="text-sm font-medium text-amber-800">
                 ⚠️ Showing Phase 1 inline output. Phase 2 artifact not yet persisted.
               </p>
@@ -439,33 +465,36 @@ export default async function EvaluationReportPage({
 
           {/* ── Governance Warnings (Classified: provenance vs quality vs structural) ── */}
           {integrityBanner && (
-            <div className={integrityBanner.containerClassName}>
+            <div className={`mb-4 ${integrityBanner.containerClassName}`}>
               <p className={integrityBanner.titleClassName}>{integrityBanner.title}</p>
               <p className={integrityBanner.detailClassName}>{integrityBanner.message}</p>
             </div>
           )}
 
-          <section className="mt-6 rounded-lg border p-5">
-            <h2 className="text-lg font-semibold">Overall Summary</h2>
-            <pre className="mt-2 whitespace-pre-wrap text-sm text-gray-600">
+          <section className="rounded-lg border bg-white p-6 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Overall Summary</h2>
+            <p className="mt-3 text-sm leading-relaxed text-gray-700">
               {artifact.summary || artifact.overview?.one_paragraph_summary || "No summary available"}
-            </pre>
+            </p>
           </section>
 
-          <section className="mt-6 rounded-lg border p-5">
-            <h2 className="text-lg font-semibold">Top Recommendations</h2>
-            <ul className="mt-2 list-disc pl-5 text-sm text-gray-600">
+          <section className="rounded-lg border bg-white p-6 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Top Recommendations</h2>
+            <ul className="mt-3 space-y-2 text-sm text-gray-700">
               {buildTopRecommendations(artifact).map((r, i) => (
-                <li key={i}>{r}</li>
+                <li key={i} className="flex gap-2">
+                  <span className="mt-0.5 shrink-0 text-gray-400">•</span>
+                  <span>{r}</span>
+                </li>
               ))}
             </ul>
           </section>
 
               {/* ── 13 Story Criteria Scores ── */}
               {orderedCriteria.length > 0 && (
-                <section className="mt-6 rounded-lg border p-5">
-                  <h2 className="text-lg font-semibold">Story Criteria Scores</h2>
-                  <div className="mt-3 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
+                <section className="rounded-lg border bg-white p-6 mb-4">
+                  <h2 className="text-xl font-semibold text-gray-900">Story Criteria Scores</h2>
+                  <div className="mt-4 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
                     <p className="font-medium">Confidence Guide</p>
                     <p className="mt-1">
                       Confidence shows how strongly each score and summary is supported by clear examples from your submitted text.
@@ -476,9 +505,9 @@ export default async function EvaluationReportPage({
                       <li>Low (&lt;60): limited support from the text</li>
                     </ul>
                   </div>
-                  <div className="mt-3 space-y-4">
+                  <div className="mt-4 space-y-4">
                     {orderedCriteria.map((c) => (
-                      <div key={c.key} className="rounded-md border p-4">
+                      <div key={c.key} className="rounded-md border bg-white p-5">
                         {(() => {
                           const scorable = isScorableCriterion(c);
                           const scoreValue = scorable ? c.score_0_10 : null;
@@ -492,12 +521,12 @@ export default async function EvaluationReportPage({
                                 : "bg-red-100 text-red-800";
 
                           return (
-                        <div className="flex items-center justify-between gap-3">
-                          <h3 className="font-medium">
+                        <div className="flex items-start justify-between gap-3">
+                          <h3 className="text-base font-semibold text-gray-900">
                             {isCriterionKey(c.key) ? getCriterionDisplayLabel(c.key, evaluationScope) : c.key}
                           </h3>
-                          <div className="flex items-center gap-2">
-                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClasses}`}>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ${badgeClasses}`}>
                               {scorable ? `${scoreValue ?? "—"} / 10` : "N/A"}
                             </span>
                             {confidence && (
@@ -526,17 +555,21 @@ export default async function EvaluationReportPage({
                           </div>
                         )}
                         {c.recommendations && c.recommendations.length > 0 && (
-                          <div className="mt-2">
-                            <p className="text-xs font-medium text-gray-500">Recommendations:</p>
-                            <ul className="mt-1 list-disc pl-5 text-xs text-gray-600">
+                          <div className="mt-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Recommendations:</p>
+                            <ul className="mt-2 space-y-2">
                               {c.recommendations.map((r, ri) => (
-                                <li key={ri}>
-                                  <span className="font-medium">{r.action}</span>
-                                  {r.priority && <span className={`ml-1 text-xs ${
-                                    r.priority === "high" ? "text-red-600" :
-                                    r.priority === "medium" ? "text-amber-600" : "text-gray-500"
-                                  }`}>({r.priority})</span>}
-                                  {r.expected_impact && <span className="ml-1 text-gray-400">— {r.expected_impact}</span>}
+                                <li key={ri} className="text-sm text-gray-700">
+                                  {r.action}
+                                  {r.priority && (
+                                    <span className={`ml-1 font-medium ${
+                                      r.priority === "high" ? "text-red-600" :
+                                      r.priority === "medium" ? "text-amber-600" : "text-gray-500"
+                                    }`}>({r.priority})</span>
+                                  )}
+                                  {r.expected_impact && (
+                                    <span className="ml-1 text-xs text-gray-400">— {r.expected_impact}</span>
+                                  )}
                                 </li>
                               ))}
                             </ul>
@@ -548,9 +581,9 @@ export default async function EvaluationReportPage({
                 </section>
               )}
 
-          <section className="mt-6 rounded-lg border p-5">
-            <h2 className="text-lg font-semibold">Key Metrics</h2>
-            <div className="mt-2 grid gap-3 sm:grid-cols-3">
+          <section className="rounded-lg border bg-white p-6 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Key Metrics</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <Metric label="Overall Score" value={formatScore(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0)} />
               <Metric label="Chunks Analyzed" value={artifact.chunk_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"} />
               <Metric label="Successfully Processed" value={artifact.processed_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"} />
@@ -582,8 +615,8 @@ export default async function EvaluationReportPage({
           </section>
 
           {/* ── Evaluation Provenance ── */}
-          <section className="mt-6 rounded-lg border p-5 bg-gray-50">
-            <h2 className="text-lg font-semibold">Evaluation Provenance</h2>
+          <section className="rounded-lg border bg-white p-6 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Evaluation Provenance</h2>
             <div className="mt-3 space-y-2 text-sm">
               <div>
                 <span className="text-gray-600">Engine:</span>{" "}
@@ -617,6 +650,7 @@ export default async function EvaluationReportPage({
           </section>
         </>
       )}
-    </main>
+      </main>
+    </div>
   );
 }
