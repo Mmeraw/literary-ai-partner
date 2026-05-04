@@ -262,12 +262,14 @@ describe("runPass3Synthesis", () => {
     expect(telemetry.schema_version).toBe("1");
     expect(telemetry.prompt_version).toBe(PASS3_PROMPT_VERSION);
     expect(telemetry.criteria_count_by_state).toBeDefined();
-    // Criteria-state invariant: all canonical criteria must be accounted for
+    // Criteria-state invariant: canonical keys must all be present and sum to 13
+    const counts = telemetry.criteria_count_by_state;
+    expect(typeof counts.agree).toBe("number");
+    expect(typeof counts.soft_divergence).toBe("number");
+    expect(typeof counts.hard_divergence).toBe("number");
+    expect(typeof counts.missing_or_invalid).toBe("number");
     expect(
-      Object.values(telemetry.criteria_count_by_state).reduce(
-        (sum, count) => sum + Number(count),
-        0,
-      ),
+      counts.agree + counts.soft_divergence + counts.hard_divergence + counts.missing_or_invalid,
     ).toBe(CRITERIA_KEYS.length);
     // Numeric sanity: no payload field may silently zero out
     expect(telemetry.comparison_packet_chars).toBeGreaterThan(0);

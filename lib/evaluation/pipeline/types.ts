@@ -305,10 +305,17 @@ export type CompletionUsage = {
   total_tokens?: number;
 };
 
+export type Pass3CriteriaCountByState = {
+  agree: number;
+  soft_divergence: number;
+  hard_divergence: number;
+  missing_or_invalid: number;
+};
+
 export type Pass3ReducerTelemetry = {
   schema_version: "1";
   prompt_version: string;
-  criteria_count_by_state: Record<string, number>;
+  criteria_count_by_state: Pass3CriteriaCountByState;
   comparison_packet_chars: number;
   system_prompt_chars: number;
   user_prompt_chars: number;
