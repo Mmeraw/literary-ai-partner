@@ -304,6 +304,9 @@ describe("processEvaluationJob long-form chunk routing", () => {
         ],
       }),
     );
+    expect(runPipelineArgs.manuscriptText).toContain("Chunk 0 text");
+    expect(runPipelineArgs.manuscriptText).toContain("Chunk 1 text");
+    expect(runPipelineArgs.manuscriptText).not.toBe(manuscriptContent);
 
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
