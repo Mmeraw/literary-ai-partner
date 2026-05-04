@@ -346,9 +346,155 @@ describe("Pass 3 backfill quality", () => {
 
     const rec = character!.recommendations[0];
     expect(rec).toBeDefined();
+    expect(rec.action).not.toBe(
+      "In character-driven scenes, deepen character development by adding more personal stakes.",
+    );
     expect(rec.action.toLowerCase()).toMatch(/replace|insert/);
     expect(rec.action.toLowerCase()).toContain("because");
     expect(rec.expected_impact.toLowerCase()).toMatch(/reader|clarity|engagement|immersion|momentum/);
+  });
+
+  test("recommendation repair is deterministic for identical payload across parses", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "sceneConstruction",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Scene construction rationale placeholder.",
+          evidence: [{ snippet: "Rain crossed the window while she stayed silent." }],
+          recommendations: [
+            {
+              priority: "medium",
+              action: "In slower scenes, streamline descriptive passages to improve pacing.",
+              expected_impact: "Improves pacing.",
+              anchor_snippet: "Rain crossed the window while she stayed silent.",
+              source_pass: 3,
+              issue_family: "scene_structure",
+              strategic_lever: "scene_goal_clarity",
+              revision_granularity: "scene",
+            },
+          ],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsedA = parsePass3Response(raw, pass1, pass2, "o3");
+    const parsedB = parsePass3Response(raw, pass1, pass2, "o3");
+
+    const repairedA = parsedA.criteria.find((c) => c.key === "sceneConstruction")?.recommendations?.[0]?.action;
+    const repairedB = parsedB.criteria.find((c) => c.key === "sceneConstruction")?.recommendations?.[0]?.action;
+
+    expect(repairedA).toBeDefined();
+    expect(repairedB).toBeDefined();
+    expect(repairedA).toBe(repairedB);
+  });
+
+  test("two repaired recommendations with different original actions remain distinct", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const rawA = JSON.stringify({
+      criteria: [
+        {
+          key: "character",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Character rationale placeholder.",
+          evidence: [{ snippet: "He folded the letter into his pocket." }],
+          recommendations: [
+            {
+              priority: "medium",
+              action: "In character-driven scenes, deepen character development by adding more personal stakes.",
+              expected_impact: "Improves character quality.",
+              anchor_snippet: "He folded the letter into his pocket.",
+              source_pass: 3,
+              issue_family: "characterization",
+              strategic_lever: "character_voice_differentiation",
+              revision_granularity: "scene",
+            },
+          ],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const rawB = JSON.stringify({
+      criteria: [
+        {
+          key: "character",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Character rationale placeholder.",
+          evidence: [{ snippet: "He folded the letter into his pocket." }],
+          recommendations: [
+            {
+              priority: "medium",
+              action: "In character-driven scenes, deepen character development by adding clearer emotional contradiction.",
+              expected_impact: "Improves character quality.",
+              anchor_snippet: "He folded the letter into his pocket.",
+              source_pass: 3,
+              issue_family: "characterization",
+              strategic_lever: "character_voice_differentiation",
+              revision_granularity: "scene",
+            },
+          ],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const repairedA = parsePass3Response(rawA, pass1, pass2, "o3")
+      .criteria.find((c) => c.key === "character")?.recommendations?.[0]?.action;
+    const repairedB = parsePass3Response(rawB, pass1, pass2, "o3")
+      .criteria.find((c) => c.key === "character")?.recommendations?.[0]?.action;
+
+    expect(repairedA).toBeDefined();
+    expect(repairedB).toBeDefined();
+    expect(repairedA).not.toBe(repairedB);
   });
 
   test("repairs live failed patterns with criterion-aware concrete moves while preserving intent", () => {

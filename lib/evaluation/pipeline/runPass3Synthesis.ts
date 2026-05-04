@@ -36,6 +36,12 @@ import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseB
 import { enforcePass3QualityGuards } from "@/lib/evaluation/governance/runtimeQualityGuards";
 import { normalizeIssueFamily, normalizeStrategicLever, normalizeRevisionGranularity } from "./recommendationSemantics";
 import { DIALOGUE_MECHANISM_MARKERS } from "./mechanismMarkers";
+import {
+  EDITORIAL_CONTEXT_MARKERS,
+  EDITORIAL_FIX_MARKERS,
+  EDITORIAL_MECHANISM_MARKERS,
+  EDITORIAL_READER_EFFECT_MARKERS,
+} from "./editorialRecommendationContract";
 import { analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
@@ -68,11 +74,6 @@ const PASS3_VOICE_MECHANISM_MARKERS = [
   "tone",
   "rhythm",
 ] as const;
-
-const PASS3_REC_FIX_MARKERS = /\b(rewrite|replace|cut|trim|split|merge|move|reorder|expand|compress|clarify|specify|anchor|insert|delete|foreshadow|escalate|tighten|seed|stage|show|name|shift|ground(?:ing)?|contextualize|reframe|focus|connect|link|develop|resolve|surface|thread|motivate|concretize|externalize|recast|frontload|backload|echo|contrast)\b/i;
-const PASS3_REC_MECHANISM_MARKERS = /\b(because|since|so\s+that|thereby|to\s+avoid|prevent(?:s|ing)?|caus(?:e|es|ing)|effect|by\s+\w+ing|which\s+(?:helps|lets|allows)|to\s+(prime|clarify|signal|restore|heighten|increase|reduce|anchor|focus|separate|differentiate|escalate|tighten))\b/i;
-const PASS3_REC_READER_EFFECT_MARKERS = /\b(reader|readers|clarity|comprehension|urgency|momentum|immersion|engagement|stakes|tension|payoff|coherence|trust)\b/i;
-const PASS3_REC_CONTEXT_MARKERS = /\b(scene|line|sentence|paragraph|chapter|beat|moment|exchange|opening|ending|turn|pivot|section|passage|hook|callback|setup|payoff|clause|image|gesture|motif)\b/i;
 
 type CompletionChoice = {
   message?: {
@@ -641,10 +642,10 @@ function normalizeRecommendationContract(
   const expectedImpact = recommendation.expected_impact.trim();
   const anchorSnippet = recommendation.anchor_snippet.trim();
 
-  const hasAnchorContext = anchorSnippet.length > 0 || PASS3_REC_CONTEXT_MARKERS.test(action);
-  const hasSpecificFixMove = PASS3_REC_FIX_MARKERS.test(action) && hasAnchorContext;
-  const hasMechanismCause = PASS3_REC_MECHANISM_MARKERS.test(action) || PASS3_REC_MECHANISM_MARKERS.test(expectedImpact);
-  const hasReaderEffect = PASS3_REC_READER_EFFECT_MARKERS.test(expectedImpact);
+  const hasAnchorContext = anchorSnippet.length > 0 || EDITORIAL_CONTEXT_MARKERS.test(action);
+  const hasSpecificFixMove = EDITORIAL_FIX_MARKERS.test(action) && hasAnchorContext;
+  const hasMechanismCause = EDITORIAL_MECHANISM_MARKERS.test(action) || EDITORIAL_MECHANISM_MARKERS.test(expectedImpact);
+  const hasReaderEffect = EDITORIAL_READER_EFFECT_MARKERS.test(expectedImpact);
 
   if (hasSpecificFixMove && hasMechanismCause && hasReaderEffect) {
     return recommendation;
