@@ -162,6 +162,40 @@ describe("POST /api/jobs input contract", () => {
     );
   });
 
+  test("accepts manuscript_id-only payload and does not create a new manuscript row", async () => {
+    mockCreateJob.mockResolvedValue({
+      id: "job-1002",
+      manuscript_id: 1002,
+      job_type: "evaluate_full",
+      status: "queued",
+    } as never);
+    mockFetch.mockResolvedValue({ ok: true } as Response);
+
+    const req = new Request("https://example.test/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_id: 1002,
+        job_type: "evaluate_full",
+      }),
+    });
+
+    const response = await POST(req);
+    const json = (await response.json()) as { ok: boolean; job_id: string };
+
+    expect(response.status).toBe(201);
+    expect(json.ok).toBe(true);
+    expect(json.job_id).toBe("job-1002");
+    expect(mockCreateJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        manuscript_id: 1002,
+        user_id: "user-1",
+        job_type: "evaluate_full",
+      }),
+    );
+    expect(mockCreateAdminClient).not.toHaveBeenCalled();
+  });
+
   test("returns 201 and logs a warning when worker kickoff fetch rejects", async () => {
     mockCreateJob.mockResolvedValue({
       id: "job-1000",
