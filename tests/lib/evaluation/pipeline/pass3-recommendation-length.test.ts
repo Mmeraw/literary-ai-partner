@@ -1,0 +1,122 @@
+import { parsePass3Response } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
+
+describe("Pass3 recommendation length contract", () => {
+  const basePass = {
+    criteria: [],
+    model: "test",
+  };
+
+  const makeLongAction = () =>
+    "In the opening scene, rewrite the dialogue exchange to clarify character intent and emotional stakes because the current phrasing is vague and does not establish clear motivation, which reduces reader engagement and weakens narrative momentum across the entire interaction.";
+
+  function characterAction(result: ReturnType<typeof parsePass3Response>): string {
+    const criterion = result.criteria.find((c) => c.key === "character");
+    if (!criterion?.recommendations[0]) {
+      throw new Error("Expected character recommendation");
+    }
+    return criterion.recommendations[0].action;
+  }
+
+  function buildRaw(action: string) {
+    return JSON.stringify({
+      criteria: [
+        {
+          key: "character",
+          final_score_0_10: 7,
+          final_rationale: "Valid rationale with mechanism.",
+          recommendations: [
+            {
+              action,
+              expected_impact: "Improves clarity and engagement for the reader.",
+              anchor_snippet: "opening scene",
+              priority: "high",
+              source_pass: 3,
+              issue_family: "character",
+              strategic_lever: "motivation",
+              revision_granularity: "scene",
+            },
+          ],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 70,
+        verdict: "revise",
+        one_paragraph_summary: "Summary.",
+        top_3_strengths: [],
+        top_3_risks: [],
+        submission_readiness: "close",
+      },
+    });
+  }
+
+  test("1. raw overlong recommendation is clamped", () => {
+    const result = parsePass3Response(
+      buildRaw(makeLongAction().repeat(3)),
+      basePass as any,
+      basePass as any
+    );
+
+    const action = characterAction(result);
+    expect(action.length).toBeLessThanOrEqual(300);
+  });
+
+  test("2. normalized/repaired recommendation is also clamped", () => {
+    const result = parsePass3Response(
+      buildRaw("Rewrite dialogue"),
+      basePass as any,
+      basePass as any
+    );
+
+    const action = characterAction(result);
+    expect(action.length).toBeLessThanOrEqual(300);
+  });
+
+  test("3. preserves anchor/location phrase", () => {
+    const result = parsePass3Response(
+      buildRaw("In the opening scene, " + makeLongAction().repeat(2)),
+      basePass as any,
+      basePass as any
+    );
+
+    const action = characterAction(result).toLowerCase();
+    expect(action).toMatch(/opening scene|in the/);
+  });
+
+  test("4. preserves mechanism connector", () => {
+    const result = parsePass3Response(
+      buildRaw(makeLongAction().repeat(2)),
+      basePass as any,
+      basePass as any
+    );
+
+    const action = characterAction(result);
+    expect(action).toMatch(/\b(because|since|so that)\b/i);
+  });
+
+  test("5. preserves concrete revision move", () => {
+    const result = parsePass3Response(
+      buildRaw("Rewrite the dialogue exchange " + makeLongAction().repeat(2)),
+      basePass as any,
+      basePass as any
+    );
+
+    const action = characterAction(result).toLowerCase();
+    expect(action).toMatch(/rewrite|cut|insert|replace|move|clarify/);
+  });
+
+  test("6. does not trigger QG_LONG_REC", () => {
+    const result = parsePass3Response(
+      buildRaw(makeLongAction().repeat(3)),
+      basePass as any,
+      basePass as any
+    );
+
+    const gate = runQualityGate(result);
+    const longRecFailure = gate.checks.find(
+      (c) => c.error_code === "QG_LONG_REC" && !c.passed
+    );
+
+    expect(longRecFailure).toBeUndefined();
+  });
+});
