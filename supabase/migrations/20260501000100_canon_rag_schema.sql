@@ -58,8 +58,8 @@ CREATE TABLE IF NOT EXISTS public.canon_governance_rules (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS canon_documents_scope_idx
-  ON public.canon_documents USING GIN (scope);
+CREATE INDEX IF NOT EXISTS canon_documents_pass_scope_idx
+  ON public.canon_documents USING GIN (pass_scope);
 
 CREATE INDEX IF NOT EXISTS canon_documents_canon_id_idx
   ON public.canon_documents (canon_id);
