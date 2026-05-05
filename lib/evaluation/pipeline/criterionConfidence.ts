@@ -58,49 +58,33 @@ const MEANINGFUL_ANCHOR_MIN_CHARS = 20;
 const MEANINGFUL_ANCHOR_MAX_CHARS = 220;
 
 const VAGUE_REASONING_TERMS = [
-  'overall',
-  'generally',
-  'somewhat',
-  'kind of',
-  'sort of',
-  'works well',
-  'could be stronger',
-  'could be improved',
-  'needs work',
+  'overall','generally','somewhat','kind of','sort of','works well','could be stronger','could be improved','needs work'
 ];
 
 const GENERIC_EVIDENCE_TERMS = [
-  'the chapter is',
-  'the scene is',
-  'the story is',
-  'the manuscript is',
-  'strong writing',
-  'good writing',
-  'effective writing',
-  'shows promise',
-  'could be improved',
+  'the chapter is','the scene is','the story is','the manuscript is','strong writing','good writing','effective writing','shows promise','could be improved'
 ];
 
-const META_ARTIFACT_TERMS = ['<chatgpt', '[todo', '[note', '[fixme', '[author', '[editor', '(todo', '(note', '(fixme', '(author', '(editor'];
+const META_ARTIFACT_TERMS = ['<chatgpt','[todo','[note','[fixme','[author','[editor','(todo','(note','(fixme','(author','(editor'];
 
 const CRITERION_TERMS: Record<string, readonly string[]> = {
-  concept: ['premise', 'hook', 'concept', 'dilemma', 'engine', 'risk', 'promise'],
-  narrativeDrive: ['propulsion', 'drive', 'goal', 'pressure', 'tension', 'escalation', 'turn'],
-  character: ['character', 'motivation', 'choice', 'arc', 'interiority', 'conflict', 'change', 'agency'],
-  voice: ['voice', 'pov', 'point of view', 'diction', 'syntax', 'register', 'focalization', 'cadence'],
-  sceneConstruction: ['scene', 'beat', 'turn', 'goal', 'reversal', 'entry', 'exit', 'conflict', 'outcome'],
-  dialogue: ['dialogue', 'speech', 'subtext', 'attribution', 'tag', 'beat', 'exchange', 'speaker'],
-  theme: ['theme', 'motif', 'symbol', 'moral', 'idea', 'meaning', 'pattern'],
-  worldbuilding: ['world', 'setting', 'environment', 'logic', 'system', 'rules', 'place', 'ritual'],
-  pacing: ['pacing', 'pace', 'tempo', 'compression', 'drag', 'acceleration', 'rhythm', 'movement'],
-  proseControl: ['prose', 'sentence', 'syntax', 'diction', 'imagery', 'metaphor', 'cadence', 'line', 'paragraph'],
-  tone: ['tone', 'affect', 'register', 'atmosphere', 'consistency', 'control'],
-  narrativeClosure: ['closure', 'closeout', 'aftermath', 'consequence', 'promise', 'climax', 'thread'],
-  marketability: ['market', 'audience', 'positioning', 'pitch', 'genre', 'queryability', 'readiness'],
+  concept: ['premise','hook','concept','dilemma','engine','risk','promise'],
+  narrativeDrive: ['propulsion','drive','goal','pressure','tension','escalation','turn'],
+  character: ['character','motivation','choice','arc','interiority','conflict','change','agency'],
+  voice: ['voice','pov','point of view','diction','syntax','register','focalization','cadence'],
+  sceneConstruction: ['scene','beat','turn','goal','reversal','entry','exit','conflict','outcome'],
+  dialogue: ['dialogue','speech','subtext','attribution','tag','beat','exchange','speaker'],
+  theme: ['theme','motif','symbol','moral','idea','meaning','pattern'],
+  worldbuilding: ['world','setting','environment','logic','system','rules','place','ritual'],
+  pacing: ['pacing','pace','tempo','compression','drag','acceleration','rhythm','movement'],
+  proseControl: ['prose','sentence','syntax','diction','imagery','metaphor','cadence','line','paragraph'],
+  tone: ['tone','affect','register','atmosphere','consistency','control'],
+  narrativeClosure: ['closure','closeout','aftermath','consequence','promise','climax','thread'],
+  marketability: ['market','audience','positioning','pitch','genre','queryability','readiness'],
 };
 
 const CRAFT_MECHANISM_TERMS = Array.from(new Set(Object.values(CRITERION_TERMS).flat()));
-const READER_EFFECT_TERMS = ['reader', 'specificity', 'immersion', 'empathy', 'suspense', 'tension', 'propulsion', 'consequence', 'engagement', 'readability', 'impact', 'risk'];
+const READER_EFFECT_TERMS = ['reader','specificity','immersion','empathy','suspense','tension','propulsion','consequence','engagement','readability','impact','risk'];
 
 function clamp(value: number, min = 0, max = 100): number {
   return Math.max(min, Math.min(max, value));
@@ -129,12 +113,7 @@ function getScore(criterion: CriterionConfidenceInput): number | null {
 
 function getReasoningText(criterion: CriterionConfidenceInput): string {
   return normalizeText(
-    criterion.final_rationale ??
-      criterion.rationale ??
-      criterion.reasoning ??
-      criterion.summary ??
-      criterion.interpretation ??
-      '',
+    criterion.final_rationale ?? criterion.rationale ?? criterion.reasoning ?? criterion.summary ?? criterion.interpretation ?? ''
   );
 }
 
