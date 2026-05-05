@@ -80,9 +80,16 @@ function extractErrorCode(job: Record<string, unknown>): string | null {
   return (
     (typeof envelope.error_code === "string" ? envelope.error_code : null) ??
     (firstCheck && typeof firstCheck.error_code === "string" ? firstCheck.error_code : null) ??
-    (typeof job.error_code === "string" ? job.error_code : null) ??
     null
   );
+}
+
+/**
+ * Extracts a display-only failure text from the canonical `last_error` field.
+ * This is NOT a structured error code — use extractErrorCode() for code-based logic.
+ */
+function extractLastError(job: Record<string, unknown>): string | null {
+  return typeof job.last_error === "string" ? job.last_error : null;
 }
 
 type DiagnosticStatus = "available" | "missing" | "blocked_by_307" | "not_applicable";
@@ -199,6 +206,7 @@ function buildPipelineHealth(jobs: Record<string, unknown>[], windowParam: strin
       chunkCount:
         typeof routing.chunk_count === "number" ? routing.chunk_count : null,
       errorCode: extractErrorCode(job),
+      lastError: extractLastError(job),
       pipelineStage: inferStage(job),
       durationMs:
         createdAt && updatedAt
@@ -265,7 +273,7 @@ export async function GET(req: NextRequest) {
     const { data: jobs, error } = await supabase
       .from("evaluation_jobs")
       .select(
-        "id, manuscript_id, status, phase, phase_status, progress, error_code, created_at, updated_at"
+        "id, manuscript_id, status, phase, phase_status, progress, last_error, created_at, updated_at"
       )
       .gte("created_at", new Date(Date.now() - intervalToMs(interval)).toISOString())
       .order("updated_at", { ascending: false })

@@ -38,6 +38,7 @@ interface RecentJob {
   route: string | null;
   chunkCount: number | null;
   errorCode: string | null;
+  lastError: string | null;
   pipelineStage: string;
   durationMs: number | null;
   diagnosticStatus: "available" | "missing" | "blocked_by_307" | "not_applicable";
