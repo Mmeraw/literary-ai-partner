@@ -53,7 +53,7 @@ interface Summary {
 }
 
 interface Diagnostics {
-  phase27FailuresAuditable: boolean;
+  allFailedJobsDiagnosticsAuditable: boolean;
   missingDiagnosticArtifactCount: number;
   missingProviderTraceCount: number | null;
   missingIntermediateOutputCount: number | null;
@@ -515,13 +515,13 @@ export default function PipelineHealthPage() {
         <h2 className="text-lg font-semibold mb-3">Diagnostics Status</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <p className="text-sm text-gray-600 font-medium">Phase-27 failures auditable?</p>
+            <p className="text-sm text-gray-600 font-medium">All failed jobs diagnostics auditable?</p>
             <p
               className={`text-sm font-semibold mt-0.5 ${
-                diagnostics.phase27FailuresAuditable ? "text-green-700" : "text-red-700"
+                diagnostics.allFailedJobsDiagnosticsAuditable ? "text-green-700" : "text-red-700"
               }`}
             >
-              {diagnostics.phase27FailuresAuditable ? "✓ Yes — all structured" : "✗ No — missing artifacts"}
+              {diagnostics.allFailedJobsDiagnosticsAuditable ? "✓ Yes — all structured" : "✗ No — missing artifacts"}
             </p>
           </div>
           <div>

@@ -225,7 +225,7 @@ function buildPipelineHealth(jobs: Record<string, unknown>[], windowParam: strin
     failureHeatmap,
     recentJobs,
     diagnostics: {
-      phase27FailuresAuditable: blockedCount === 0,
+      allFailedJobsDiagnosticsAuditable: blockedCount === 0,
       missingDiagnosticArtifactCount: blockedCount,
       missingProviderTraceCount: null,
       missingIntermediateOutputCount: null,
