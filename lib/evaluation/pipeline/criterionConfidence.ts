@@ -1,12 +1,13 @@
-import type { CriterionKey } from "@/schemas/criteria-keys";
-import { normalizeAnchorText } from "@/lib/revision/anchorContract";
+import type { CriterionKey } from '@/schemas/criteria-keys';
+import { normalizeAnchorText } from '@/lib/revision/anchorContract';
+import { reconcileScoreConfidence } from './scoreConfidenceReconciliation';
 
-export type CriterionConfidenceLevel = "high" | "moderate" | "low";
+export type CriterionConfidenceLevel = 'high' | 'moderate' | 'low';
 
 export type CriterionScorabilityStatus =
-  | "scorable"
-  | "scorable_low_confidence"
-  | "non_scorable";
+  | 'scorable'
+  | 'scorable_low_confidence'
+  | 'non_scorable';
 
 export interface CriterionConfidenceResult {
   confidence_score_0_100: number;
@@ -51,85 +52,69 @@ export interface CriterionConfidenceInput {
 
 const HIGH_MIN = 85;
 const MODERATE_MIN = 60;
-
-const SUPPORT_FAMILY_MAX = 65; // coverage(40) + quality(25)
-const EXPLANATION_FAMILY_MAX = 35; // reasoning(20) + recommendation(15)
-
+const SUPPORT_FAMILY_MAX = 65;
+const EXPLANATION_FAMILY_MAX = 35;
 const MEANINGFUL_ANCHOR_MIN_CHARS = 20;
 const MEANINGFUL_ANCHOR_MAX_CHARS = 220;
 
-const VAGUE_REASONING_PATTERNS: ReadonlyArray<RegExp> = [
-  /\boverall\b/i,
-  /\bgenerally\b/i,
-  /\bsomewhat\b/i,
-  /\bkind of\b/i,
-  /\bsort of\b/i,
-  /\bworks well\b/i,
-  /\bcould be (stronger|improved)\b/i,
-  /\bneeds work\b/i,
+const VAGUE_REASONING_TERMS = [
+  'overall',
+  'generally',
+  'somewhat',
+  'kind of',
+  'sort of',
+  'works well',
+  'could be stronger',
+  'could be improved',
+  'needs work',
 ];
 
-const GENERIC_EVIDENCE_PATTERNS: ReadonlyArray<RegExp> = [
-  /\bthe (chapter|scene|story|manuscript|submission) (is|has|shows|uses)\b/i,
-  /\bstrong writing\b/i,
-  /\bgood writing\b/i,
-  /\beffective writing\b/i,
-  /\bshows promise\b/i,
-  /\bcould be improved\b/i,
+const GENERIC_EVIDENCE_TERMS = [
+  'the chapter is',
+  'the scene is',
+  'the story is',
+  'the manuscript is',
+  'strong writing',
+  'good writing',
+  'effective writing',
+  'shows promise',
+  'could be improved',
 ];
 
-const META_ARTIFACT_PATTERNS: ReadonlyArray<RegExp> = [
-  /<\s*ChatGPT\b[^>]*>/i,
-  /\[\s*(TODO|NOTE|FIXME|AUTHOR|EDITOR|CHATGPT)\b[^\]]*\]/i,
-  /\(\s*(TODO|NOTE|FIXME|AUTHOR|EDITOR|CHATGPT)\b[^)]*\)/i,
-];
+const META_ARTIFACT_TERMS = ['<chatgpt', '[todo', '[note', '[fixme', '[author', '[editor', '(todo', '(note', '(fixme', '(author', '(editor'];
 
 const CRITERION_TERMS: Record<string, readonly string[]> = {
-  concept: ["premise", "hook", "concept", "dilemma", "engine", "risk", "promise"],
-  narrativeDrive: ["propulsion", "drive", "goal", "pressure", "tension", "escalation", "turn"],
-  character: ["character", "motivation", "choice", "arc", "interiority", "conflict", "change", "agency"],
-  voice: ["voice", "pov", "point of view", "diction", "syntax", "register", "focalization", "cadence"],
-  sceneConstruction: ["scene", "beat", "turn", "goal", "reversal", "entry", "exit", "conflict", "outcome"],
-  dialogue: ["dialogue", "speech", "subtext", "attribution", "tag", "beat", "exchange", "speaker"],
-  theme: ["theme", "motif", "symbol", "moral", "idea", "meaning", "pattern"],
-  worldbuilding: ["world", "setting", "environment", "logic", "system", "rules", "place", "ritual"],
-  pacing: ["pacing", "pace", "tempo", "compression", "drag", "acceleration", "rhythm", "movement"],
-  proseControl: ["prose", "sentence", "syntax", "diction", "imagery", "metaphor", "cadence", "line", "paragraph"],
-  tone: ["tone", "affect", "register", "atmosphere", "consistency", "control"],
-  narrativeClosure: ["closure", "closeout", "aftermath", "consequence", "promise", "climax", "thread"],
-  marketability: ["market", "audience", "positioning", "pitch", "genre", "queryability", "readiness"],
+  concept: ['premise', 'hook', 'concept', 'dilemma', 'engine', 'risk', 'promise'],
+  narrativeDrive: ['propulsion', 'drive', 'goal', 'pressure', 'tension', 'escalation', 'turn'],
+  character: ['character', 'motivation', 'choice', 'arc', 'interiority', 'conflict', 'change', 'agency'],
+  voice: ['voice', 'pov', 'point of view', 'diction', 'syntax', 'register', 'focalization', 'cadence'],
+  sceneConstruction: ['scene', 'beat', 'turn', 'goal', 'reversal', 'entry', 'exit', 'conflict', 'outcome'],
+  dialogue: ['dialogue', 'speech', 'subtext', 'attribution', 'tag', 'beat', 'exchange', 'speaker'],
+  theme: ['theme', 'motif', 'symbol', 'moral', 'idea', 'meaning', 'pattern'],
+  worldbuilding: ['world', 'setting', 'environment', 'logic', 'system', 'rules', 'place', 'ritual'],
+  pacing: ['pacing', 'pace', 'tempo', 'compression', 'drag', 'acceleration', 'rhythm', 'movement'],
+  proseControl: ['prose', 'sentence', 'syntax', 'diction', 'imagery', 'metaphor', 'cadence', 'line', 'paragraph'],
+  tone: ['tone', 'affect', 'register', 'atmosphere', 'consistency', 'control'],
+  narrativeClosure: ['closure', 'closeout', 'aftermath', 'consequence', 'promise', 'climax', 'thread'],
+  marketability: ['market', 'audience', 'positioning', 'pitch', 'genre', 'queryability', 'readiness'],
 };
 
 const CRAFT_MECHANISM_TERMS = Array.from(new Set(Object.values(CRITERION_TERMS).flat()));
-
-const READER_EFFECT_TERMS = [
-  "reader",
-  "specificity",
-  "immersion",
-  "empathy",
-  "suspense",
-  "tension",
-  "propulsion",
-  "consequence",
-  "engagement",
-  "readability",
-  "impact",
-  "risk",
-];
+const READER_EFFECT_TERMS = ['reader', 'specificity', 'immersion', 'empathy', 'suspense', 'tension', 'propulsion', 'consequence', 'engagement', 'readability', 'impact', 'risk'];
 
 function clamp(value: number, min = 0, max = 100): number {
   return Math.max(min, Math.min(max, value));
 }
 
 function normalizeText(value: string | null | undefined): string {
-  return (value ?? "").replace(/\s+/g, " ").trim();
+  return (value ?? '').replace(/\s+/g, ' ').trim();
 }
 
 function normalizeComparable(value: string): string {
   return normalizeAnchorText(value)
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, "")
-    .replace(/\s+/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -139,7 +124,7 @@ function unique(values: string[]): string[] {
 
 function getScore(criterion: CriterionConfidenceInput): number | null {
   const score = criterion.final_score_0_10 ?? criterion.score_0_10 ?? criterion.score ?? null;
-  return typeof score === "number" && Number.isFinite(score) ? score : null;
+  return typeof score === 'number' && Number.isFinite(score) ? score : null;
 }
 
 function getReasoningText(criterion: CriterionConfidenceInput): string {
@@ -149,13 +134,13 @@ function getReasoningText(criterion: CriterionConfidenceInput): string {
       criterion.reasoning ??
       criterion.summary ??
       criterion.interpretation ??
-      "",
+      '',
   );
 }
 
 function getEvidenceAnchors(criterion: CriterionConfidenceInput): EvidenceAnchorLike[] {
   if (Array.isArray(criterion.evidence)) return criterion.evidence;
-  if (typeof criterion.evidence === "string") {
+  if (typeof criterion.evidence === 'string') {
     const value = normalizeText(criterion.evidence);
     if (!value || /^n\/?a$/i.test(value)) return [];
     return [{ snippet: value }];
@@ -164,7 +149,7 @@ function getEvidenceAnchors(criterion: CriterionConfidenceInput): EvidenceAnchor
 }
 
 function getAnchorText(anchor: EvidenceAnchorLike): string {
-  return normalizeText(anchor.snippet ?? "");
+  return normalizeText(anchor.snippet ?? '');
 }
 
 function getRecommendations(criterion: CriterionConfidenceInput): RecommendationLike[] {
@@ -174,23 +159,22 @@ function getRecommendations(criterion: CriterionConfidenceInput): Recommendation
 }
 
 function getRecommendationText(rec: RecommendationLike): string {
-  return normalizeText(rec.action ?? rec.expected_impact ?? "");
+  return normalizeText(rec.action ?? rec.expected_impact ?? '');
 }
 
 function getRecommendationAnchor(rec: RecommendationLike): string {
-  return normalizeText(rec.anchor_snippet ?? "");
+  return normalizeText(rec.anchor_snippet ?? '');
 }
 
 function sourceContains(sourceText: string | undefined, snippet: string): boolean {
   if (!sourceText || !snippet || snippet.trim().length < 12) return false;
   const normalizedSource = normalizeComparable(sourceText);
   const normalizedSnippet = normalizeComparable(snippet);
-
   if (!normalizedSnippet) return false;
   if (normalizedSource.includes(normalizedSnippet)) return true;
 
-  const sourceWords = normalizedSource.split(" ").filter(Boolean);
-  const snippetWords = normalizedSnippet.split(" ").filter(Boolean);
+  const sourceWords = normalizedSource.split(' ').filter(Boolean);
+  const snippetWords = normalizedSnippet.split(' ').filter(Boolean);
   if (snippetWords.length < 4 || sourceWords.length === 0) return false;
 
   const sourceWordSet = new Set(sourceWords);
@@ -203,36 +187,35 @@ function isMeaningfulAnchorLength(text: string): boolean {
   return len >= MEANINGFUL_ANCHOR_MIN_CHARS && len <= MEANINGFUL_ANCHOR_MAX_CHARS;
 }
 
-function looksGeneric(text: string): boolean {
-  const normalized = normalizeText(text);
-  if (!normalized) return true;
-  return GENERIC_EVIDENCE_PATTERNS.some((pattern) => pattern.test(normalized));
-}
-
-function containsAny(text: string, terms: readonly string[]): boolean {
+function lowerIncludesAny(text: string, terms: readonly string[]): boolean {
   const normalized = normalizeText(text).toLowerCase();
   return terms.some((term) => normalized.includes(term.toLowerCase()));
 }
 
+function looksGeneric(text: string): boolean {
+  const normalized = normalizeText(text);
+  if (!normalized) return true;
+  return lowerIncludesAny(normalized, GENERIC_EVIDENCE_TERMS);
+}
+
 function criterionTerms(key: unknown): readonly string[] {
-  if (typeof key !== "string") return CRAFT_MECHANISM_TERMS;
+  if (typeof key !== 'string') return CRAFT_MECHANISM_TERMS;
   return CRITERION_TERMS[key] ?? CRAFT_MECHANISM_TERMS;
 }
 
 function isCriterionSpecific(criterion: CriterionConfidenceInput, text: string): boolean {
   if (!text.trim()) return false;
-  return containsAny(text, criterionTerms(criterion.key));
+  return lowerIncludesAny(text, criterionTerms(criterion.key));
 }
 
 function hasMetaArtifact(text: string): boolean {
-  return META_ARTIFACT_PATTERNS.some((pattern) => pattern.test(text));
+  return lowerIncludesAny(text, META_ARTIFACT_TERMS);
 }
 
 function hasArtifactHygieneIssue(criterion: CriterionConfidenceInput): boolean {
   const notes = normalizeText(criterion.notes);
   const meta = criterion.meta_artifacts ?? [];
   const hygiene = criterion.artifact_hygiene_issues ?? [];
-
   return (
     meta.length > 0 ||
     hygiene.length > 0 ||
@@ -242,16 +225,10 @@ function hasArtifactHygieneIssue(criterion: CriterionConfidenceInput): boolean {
 }
 
 function computeEvidenceCoverage(anchorCount: number): { score: number; reasons: string[] } {
-  if (anchorCount <= 0) {
-    return { score: 0, reasons: ["No evidence anchors were provided"] };
-  }
-  if (anchorCount === 1) {
-    return { score: 20, reasons: ["Only one evidence anchor was provided"] };
-  }
-  if (anchorCount === 2) {
-    return { score: 35, reasons: ["Two evidence anchors were provided"] };
-  }
-  return { score: 40, reasons: ["Three or more evidence anchors were provided"] };
+  if (anchorCount <= 0) return { score: 0, reasons: ['No evidence anchors were provided'] };
+  if (anchorCount === 1) return { score: 20, reasons: ['Only one evidence anchor was provided'] };
+  if (anchorCount === 2) return { score: 35, reasons: ['Two evidence anchors were provided'] };
+  return { score: 40, reasons: ['Three or more evidence anchors were provided'] };
 }
 
 function computeEvidenceQuality(
@@ -270,41 +247,41 @@ function computeEvidenceQuality(
 
   if (sourceMatched.length > 0) {
     score += 10;
-    reasons.push("Anchor includes verbatim text from the submission");
+    reasons.push('Anchor includes verbatim text from the submission');
   } else if (sourceText && anchorTexts.length > 0) {
-    reasons.push("Evidence anchors were not verified against the submitted text");
+    reasons.push('Evidence anchors were not verified against the submitted text');
   }
 
   if (criterionSpecific.length > 0) {
     score += 5;
-    reasons.push("Evidence is specific to this story area");
+    reasons.push('Evidence is specific to this story area');
   } else if (anchorTexts.length > 0) {
-    reasons.push("Evidence is weakly matched to this story area");
+    reasons.push('Evidence is weakly matched to this story area');
   }
 
   if (nonGeneric.length > 0) {
     score += 5;
-    reasons.push("Evidence avoids generic summary language");
+    reasons.push('Evidence avoids generic summary language');
   } else if (anchorTexts.length > 0) {
-    reasons.push("Evidence appears generic rather than criterion-specific");
+    reasons.push('Evidence appears generic rather than criterion-specific');
   }
 
   if (meaningfulLength.length > 0) {
     score += 5;
-    reasons.push("Evidence example length is meaningful and readable");
+    reasons.push('Evidence example length is meaningful and readable');
   }
 
   const genericCount = anchorTexts.length - nonGeneric.length;
   if (genericCount >= 2) {
     score -= 5;
-    reasons.push("Multiple evidence anchors appear generic");
+    reasons.push('Multiple evidence anchors appear generic');
   }
 
   const uniqueSnippets = new Set(anchorTexts.map(normalizeComparable));
   const duplicateCount = anchorTexts.length - uniqueSnippets.size;
   if (duplicateCount > 0) {
     score -= Math.min(duplicateCount * 5, 15);
-    reasons.push("Some evidence anchors are duplicates");
+    reasons.push('Some evidence anchors are duplicates');
   }
 
   return { score: clamp(score, 0, 25), reasons };
@@ -318,28 +295,28 @@ function computeReasoningSpecificity(
   let score = 0;
 
   if (!reasoning || /^n\/?a$/i.test(reasoning)) {
-    return { score: 0, reasons: ["No reasoning summary was provided"] };
+    return { score: 0, reasons: ['No reasoning summary was provided'] };
   }
 
-  if (containsAny(reasoning, criterionTerms(criterion.key))) {
+  if (lowerIncludesAny(reasoning, criterionTerms(criterion.key))) {
     score += 10;
-    reasons.push("Reasoning names a concrete craft mechanism");
+    reasons.push('Reasoning names a concrete craft mechanism');
   } else {
-    reasons.push("Reasoning does not name a concrete craft mechanism");
+    reasons.push('Reasoning does not name a concrete craft mechanism');
   }
 
-  if (containsAny(reasoning, READER_EFFECT_TERMS)) {
+  if (lowerIncludesAny(reasoning, READER_EFFECT_TERMS)) {
     score += 5;
-    reasons.push("Reasoning explains effect on reader or story");
+    reasons.push('Reasoning explains effect on reader or story');
   } else {
-    reasons.push("Reasoning does not explain effect on reader or story");
+    reasons.push('Reasoning does not explain effect on reader or story');
   }
 
-  if (!VAGUE_REASONING_PATTERNS.some((pattern) => pattern.test(reasoning))) {
+  if (!lowerIncludesAny(reasoning, VAGUE_REASONING_TERMS)) {
     score += 5;
-    reasons.push("Reasoning avoids vague language");
+    reasons.push('Reasoning avoids vague language');
   } else {
-    reasons.push("Reasoning uses vague evaluative language");
+    reasons.push('Reasoning uses vague evaluative language');
   }
 
   return { score: clamp(score, 0, 20), reasons };
@@ -350,58 +327,35 @@ function computeRecommendationAnchoring(
   sourceText?: string,
 ): { score: number; reasons: string[] } {
   const recommendations = getRecommendations(criterion);
-  const reasons: string[] = [];
-
-  if (recommendations.length === 0) {
-    return { score: 0, reasons: ["No recommendation was provided"] };
-  }
+  if (recommendations.length === 0) return { score: 0, reasons: ['No recommendation was provided'] };
 
   const anchorSnippets = recommendations.map(getRecommendationAnchor).filter(Boolean);
   const hasVerifiedAnchor = anchorSnippets.some((snippet) => sourceContains(sourceText, snippet));
   const hasAnchor = anchorSnippets.length > 0;
-  const combinedText = recommendations.map(getRecommendationText).join(" ");
+  const combinedText = recommendations.map(getRecommendationText).join(' ');
   const hasSpecificIssue =
     isCriterionSpecific(criterion, combinedText) ||
     anchorSnippets.some((snippet) => isCriterionSpecific(criterion, snippet));
 
   if (hasVerifiedAnchor && hasSpecificIssue) {
-    return {
-      score: 15,
-      reasons: ["Recommendation references a specific verified text issue"],
-    };
+    return { score: 15, reasons: ['Recommendation references a specific verified text issue'] };
   }
-
   if (hasAnchor && hasSpecificIssue) {
-    return {
-      score: 12,
-      reasons: ["Recommendation references a specific text issue"],
-    };
+    return { score: 12, reasons: ['Recommendation references a specific text issue'] };
   }
-
   if (hasAnchor) {
-    return {
-      score: 8,
-      reasons: ["Recommendation includes a text anchor but remains broad"],
-    };
+    return { score: 8, reasons: ['Recommendation includes a text anchor but remains broad'] };
   }
-
   if (hasSpecificIssue) {
-    return {
-      score: 6,
-      reasons: ["Recommendation is useful but general"],
-    };
+    return { score: 6, reasons: ['Recommendation is useful but general'] };
   }
-
-  return {
-    score: 0,
-    reasons: ["Recommendation is generic rather than anchored to the text"],
-  };
+  return { score: 0, reasons: ['Recommendation is generic rather than anchored to the text'] };
 }
 
 function computeConfidenceLevel(score: number): CriterionConfidenceLevel {
-  if (score >= HIGH_MIN) return "high";
-  if (score >= MODERATE_MIN) return "moderate";
-  return "low";
+  if (score >= HIGH_MIN) return 'high';
+  if (score >= MODERATE_MIN) return 'moderate';
+  return 'low';
 }
 
 function computeScorabilityStatus(
@@ -412,16 +366,15 @@ function computeScorabilityStatus(
   const reasoning = getReasoningText(criterion);
   const anchors = getEvidenceAnchors(criterion);
   const recommendations = getRecommendations(criterion);
-
   const hasAnySignal =
     score !== null ||
     Boolean(reasoning && !/^n\/?a$/i.test(reasoning)) ||
     anchors.some((anchor) => Boolean(getAnchorText(anchor))) ||
     recommendations.length > 0;
 
-  if (!hasAnySignal) return "non_scorable";
-  if (confidenceLevel === "low") return "scorable_low_confidence";
-  return "scorable";
+  if (!hasAnySignal) return 'non_scorable';
+  if (confidenceLevel === 'low') return 'scorable_low_confidence';
+  return 'scorable';
 }
 
 export function computeCriterionConfidence(
@@ -429,7 +382,6 @@ export function computeCriterionConfidence(
   sourceText?: string,
 ): CriterionConfidenceResult {
   const anchors = getEvidenceAnchors(criterion);
-
   const coverage = computeEvidenceCoverage(anchors.length);
   const quality = computeEvidenceQuality(criterion, anchors, sourceText);
   const reasoning = computeReasoningSpecificity(criterion);
@@ -437,7 +389,6 @@ export function computeCriterionConfidence(
 
   const supportFamilyScore = coverage.score + quality.score;
   const explanationFamilyScore = reasoning.score + recommendation.score;
-
   let confidenceScore = clamp(supportFamilyScore + explanationFamilyScore);
 
   const supportRatio = supportFamilyScore / SUPPORT_FAMILY_MAX;
@@ -446,8 +397,21 @@ export function computeCriterionConfidence(
     confidenceScore = Math.min(confidenceScore, 84);
   }
 
-  const confidence_level = computeConfidenceLevel(confidenceScore);
-  const scorability_status = computeScorabilityStatus(criterion, confidence_level);
+  const rawConfidenceLevel = computeConfidenceLevel(confidenceScore);
+  const hasMeaningfulAnchor = anchors.map(getAnchorText).some(isMeaningfulAnchorLength);
+  const hasMechanismReasoning = reasoning.score >= 10;
+  const hasAnchoredRecommendation = recommendation.score >= 8;
+
+  const reconciliation = reconcileScoreConfidence({
+    score_0_10: getScore(criterion),
+    confidence_score_0_100: confidenceScore,
+    confidence_level: rawConfidenceLevel,
+    support_family_score: supportFamilyScore,
+    explanation_family_score: explanationFamilyScore,
+    has_meaningful_anchor: hasMeaningfulAnchor,
+    has_mechanism_reasoning: hasMechanismReasoning,
+    has_anchored_recommendation: hasAnchoredRecommendation,
+  });
 
   const confidence_reasons = unique([
     ...coverage.reasons,
@@ -455,21 +419,18 @@ export function computeCriterionConfidence(
     ...reasoning.reasons,
     ...recommendation.reasons,
     ...(supportRatio < 0.4 && explanationRatio > 0.7
-      ? [
-          "Confidence capped at moderate because explanation quality exceeded evidence support",
-        ]
+      ? ['Confidence capped at moderate because explanation quality exceeded evidence support']
       : []),
+    ...reconciliation.reasons,
     ...(hasArtifactHygieneIssue(criterion)
-      ? [
-          "Artifact hygiene issues were detected separately and did not erase the craft score",
-        ]
+      ? ['Artifact hygiene issues were detected separately and did not erase the craft score']
       : []),
   ]);
 
   return {
-    confidence_score_0_100: confidenceScore,
-    confidence_level,
+    confidence_score_0_100: reconciliation.confidence_score_0_100,
+    confidence_level: reconciliation.confidence_level,
     confidence_reasons,
-    scorability_status,
+    scorability_status: computeScorabilityStatus(criterion, reconciliation.confidence_level),
   };
 }
