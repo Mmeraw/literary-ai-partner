@@ -151,21 +151,19 @@ function reconstructFromDiagnostic(
     }
   }
 
-  // Recompute overlap from stored pass2_rationale
+  // Recompute overlap from stored pass2_rationale using Set for O(n) unique tracking
   let recomputedCount = 0;
-  const recomputedOverlapNgrams: string[] = [];
+  const recomputedOverlapNgramsSet = new Set<string>();
   for (const gram of collectNgrams(diagnostic.pass2_rationale, ngramSize)) {
     if (evidenceNgrams.has(gram)) continue;
     if (pass1Ngrams.has(gram)) {
       recomputedCount += 1;
-      if (!recomputedOverlapNgrams.includes(gram)) {
-        recomputedOverlapNgrams.push(gram);
-      }
+      recomputedOverlapNgramsSet.add(gram);
     }
   }
 
   return {
-    recomputed_overlap_4grams: recomputedOverlapNgrams,
+    recomputed_overlap_4grams: Array.from(recomputedOverlapNgramsSet),
     recomputed_observed_overlap_count: recomputedCount,
     recomputed_exceeds_threshold: recomputedCount >= diagnostic.threshold_min,
   };
@@ -344,31 +342,34 @@ describe("Gate diagnostics — bit-exact offline reconstruction", () => {
     const voiceDiag = perCriterion.find((d) => d.criterion_key === "voice");
     expect(voiceDiag).toBeDefined();
 
+    // Extract into a properly typed variable to avoid repeated non-null assertions
+    const voiceDiagData = voiceDiag as QualityGateCriterionDiagnostic;
+
     // This should exceed the threshold
-    expect(voiceDiag!.observed_overlap_count).toBeGreaterThanOrEqual(
+    expect(voiceDiagData.observed_overlap_count).toBeGreaterThanOrEqual(
       QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION
     );
 
     // Gate should have failed
     const gateFailedForVoice =
-      voiceDiag!.observed_overlap_count >= voiceDiag!.threshold_min;
+      voiceDiagData.observed_overlap_count >= voiceDiagData.threshold_min;
     expect(gateFailedForVoice).toBe(true);
 
     // Offline reconstruction must reproduce the same outcome
     const reconstructed = reconstructFromDiagnostic(
-      voiceDiag!,
+      voiceDiagData,
       [],
       QG_INDEPENDENCE_NGRAM_SIZE
     );
 
     // Bit-exact overlap ngrams
     expect(reconstructed.recomputed_overlap_4grams.sort()).toEqual(
-      voiceDiag!.overlap_4grams.sort()
+      voiceDiagData.overlap_4grams.sort()
     );
 
     // Bit-exact count
     expect(reconstructed.recomputed_observed_overlap_count).toBe(
-      voiceDiag!.observed_overlap_count
+      voiceDiagData.observed_overlap_count
     );
 
     // Bit-exact threshold outcome

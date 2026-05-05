@@ -161,6 +161,26 @@ function nowMs(): number {
   return Date.now();
 }
 
+/**
+ * Type guard / extractor for the per_criterion_diagnostic payload in a quality gate check's
+ * diagnostics field. Returns the typed array when present, otherwise undefined.
+ */
+function extractPerCriterionDiagnostic(
+  diagnostics: unknown
+): QualityGateCriterionDiagnostic[] | undefined {
+  if (
+    diagnostics === null ||
+    typeof diagnostics !== "object"
+  ) {
+    return undefined;
+  }
+  const d = diagnostics as Record<string, unknown>;
+  if (Array.isArray(d.per_criterion_diagnostic)) {
+    return d.per_criterion_diagnostic as QualityGateCriterionDiagnostic[];
+  }
+  return undefined;
+}
+
 type PipelineTimings = {
   total_ms?: number;
   pass1_ms?: number;
@@ -945,16 +965,14 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         // Compact per-criterion diagnostics for job progress (fits within 4KB markFailed limit).
         // Full diagnostic data is in gate_diagnostics below — processor persists it as artifacts.
         quality_gate_checks: failedChecks.map((c) => {
-          const diagPayload = c.diagnostics as { per_criterion_diagnostic?: QualityGateCriterionDiagnostic[] } | undefined;
-          const compactCriterionDiagnostic = Array.isArray(diagPayload?.per_criterion_diagnostic)
-            ? diagPayload.per_criterion_diagnostic.map((d) => ({
-                criterion_key: d.criterion_key,
-                observed_overlap_count: d.observed_overlap_count,
-                threshold_n: d.threshold_n,
-                threshold_min: d.threshold_min,
-                classification: d.classification,
-              }))
-            : undefined;
+          const perCriterionFull = extractPerCriterionDiagnostic(c.diagnostics);
+          const compactCriterionDiagnostic = perCriterionFull?.map((d) => ({
+            criterion_key: d.criterion_key,
+            observed_overlap_count: d.observed_overlap_count,
+            threshold_n: d.threshold_n,
+            threshold_min: d.threshold_min,
+            classification: d.classification,
+          }));
           return {
             check_id: c.check_id,
             error_code: c.error_code,
@@ -984,9 +1002,9 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
                 // Collect from all checks that have per_criterion_diagnostic
                 const allDiag: QualityGateCriterionDiagnostic[] = [];
                 for (const c of qualityGate.checks) {
-                  const d = c.diagnostics as { per_criterion_diagnostic?: QualityGateCriterionDiagnostic[] } | undefined;
-                  if (Array.isArray(d?.per_criterion_diagnostic)) {
-                    allDiag.push(...d.per_criterion_diagnostic);
+                  const d = extractPerCriterionDiagnostic(c.diagnostics);
+                  if (d !== undefined) {
+                    allDiag.push(...d);
                   }
                 }
                 return allDiag;

@@ -699,20 +699,20 @@ export function runQualityGate(
 
     for (const c of pass2.criteria) {
       let overlapCount = 0;
+      const overlapSamplesSet = new Set<string>();
       const overlapSamples: string[] = [];
-      // Collect ALL unique overlapping non-evidence ngrams for reconstruction
-      const overlapNgrams: string[] = [];
+      // Collect ALL unique overlapping non-evidence ngrams for reconstruction (Set avoids O(n²) includes)
+      const overlapNgramsSet = new Set<string>();
       for (const gram of collectNgrams(c.rationale, ngramSize)) {
         if (evidenceNgrams.has(gram)) {
           continue;
         }
         if (pass1Ngrams.has(gram)) {
           overlapCount += 1;
-          if (!overlapNgrams.includes(gram)) {
-            overlapNgrams.push(gram);
-          }
-          if (overlapSamples.length < 5 && !overlapSamples.includes(gram)) {
+          overlapNgramsSet.add(gram);
+          if (overlapSamples.length < 5 && !overlapSamplesSet.has(gram)) {
             overlapSamples.push(gram);
+            overlapSamplesSet.add(gram);
           }
         }
       }
@@ -724,7 +724,7 @@ export function runQualityGate(
         criterion_key: c.key,
         pass1_rationale: pass1Rationale,
         pass2_rationale: c.rationale,
-        overlap_4grams: overlapNgrams,
+        overlap_4grams: Array.from(overlapNgramsSet),
         observed_overlap_count: overlapCount,
         threshold_n: ngramSize,
         threshold_min: QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION,
