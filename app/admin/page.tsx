@@ -63,6 +63,15 @@ export default function AdminDashboard() {
             Review failed jobs and retry or discard them.
           </p>
         </Link>
+        <Link
+          href="/admin/pipeline-health"
+          className="block rounded-lg border border-gray-200 p-6 hover:border-blue-500 hover:shadow-md transition-all"
+        >
+          <h2 className="text-lg font-medium mb-2">Pipeline Health</h2>
+          <p className="text-sm text-gray-600">
+            SIPOC strip, failure heatmap, and recent job diagnostics (v1).
+          </p>
+        </Link>
       </div>
     </main>
   );
