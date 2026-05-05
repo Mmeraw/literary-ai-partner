@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS public.canon_documents (
   volume TEXT,
   authority TEXT NOT NULL DEFAULT 'reference'
     CHECK (authority IN ('binding', 'enforced', 'advisory', 'reference')),
-  scope TEXT[] NOT NULL DEFAULT '{}',
+  pass_scope TEXT[] DEFAULT '{}'::text[],
+  scope TEXT[] GENERATED ALWAYS AS (pass_scope) STORED,
   precedence_rank INTEGER NOT NULL DEFAULT 100,
   is_active BOOLEAN NOT NULL DEFAULT true,
   source_sha TEXT,
@@ -28,6 +29,23 @@ CREATE TABLE IF NOT EXISTS public.canon_documents (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.canon_documents
+  ADD COLUMN IF NOT EXISTS pass_scope TEXT[] DEFAULT '{}'::text[];
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'canon_documents'
+      AND column_name = 'scope'
+  ) THEN
+    EXECUTE 'ALTER TABLE public.canon_documents
+             ADD COLUMN scope TEXT[] GENERATED ALWAYS AS (pass_scope) STORED';
+  END IF;
+END$$;
 
 CREATE TABLE IF NOT EXISTS public.canon_chunks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -57,6 +75,9 @@ CREATE TABLE IF NOT EXISTS public.canon_governance_rules (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS canon_documents_pass_scope_idx
+  ON public.canon_documents USING GIN (pass_scope);
 
 CREATE INDEX IF NOT EXISTS canon_documents_scope_idx
   ON public.canon_documents USING GIN (scope);
