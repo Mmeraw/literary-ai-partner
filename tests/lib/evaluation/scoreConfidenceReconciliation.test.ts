@@ -7,11 +7,11 @@ describe("score-confidence reconciliation", () => {
       key: "proseControl",
       score_0_10: 8,
       final_rationale:
-        "Prose sentence cadence controls syntax.",
+        "Prose syntax generally controls sentence cadence.",
       evidence: [
         {
           snippet:
-            "The sentence cadence narrows into a controlled line of river imagery and pressure.",
+            "The chapter is effective prose with sentence cadence and a controlled line of pressure.",
         },
       ],
       recommendations: [
@@ -19,7 +19,7 @@ describe("score-confidence reconciliation", () => {
           action:
             "Revise the paragraph-level syntax so the strongest cadence carries through the full scene turn.",
           anchor_snippet:
-            "The sentence cadence narrows into a controlled line of river imagery and pressure.",
+            "The chapter is effective prose with sentence cadence and a controlled line of pressure.",
         },
       ],
     });
