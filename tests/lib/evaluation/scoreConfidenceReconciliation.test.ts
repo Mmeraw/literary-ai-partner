@@ -7,7 +7,7 @@ describe("score-confidence reconciliation", () => {
       key: "proseControl",
       score_0_10: 8,
       final_rationale:
-        "Prose syntax and cadence control reader immersion through concrete sentence-level rhythm.",
+        "Prose sentence cadence controls reader immersion.",
       evidence: [
         {
           snippet:
