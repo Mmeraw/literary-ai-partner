@@ -32,6 +32,8 @@ import type {
   SynthesisOutput,
   QualityGateResult,
   ManuscriptChunkEvidence,
+  QualityGateCriterionDiagnostic,
+  GateDiagnostics,
 } from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
@@ -940,13 +942,77 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       error_code: errorCode,
       failed_at: "pass4",
       failure_details: {
-        quality_gate_checks: failedChecks.map((c) => ({
-          check_id: c.check_id,
-          error_code: c.error_code,
-          details: c.details,
-          ...(c.diagnostics !== undefined ? { diagnostics: c.diagnostics } : {}),
-        })),
+        // Compact per-criterion diagnostics for job progress (fits within 4KB markFailed limit).
+        // Full diagnostic data is in gate_diagnostics below — processor persists it as artifacts.
+        quality_gate_checks: failedChecks.map((c) => {
+          const diagPayload = c.diagnostics as { per_criterion_diagnostic?: QualityGateCriterionDiagnostic[] } | undefined;
+          const compactCriterionDiagnostic = Array.isArray(diagPayload?.per_criterion_diagnostic)
+            ? diagPayload.per_criterion_diagnostic.map((d) => ({
+                criterion_key: d.criterion_key,
+                observed_overlap_count: d.observed_overlap_count,
+                threshold_n: d.threshold_n,
+                threshold_min: d.threshold_min,
+                classification: d.classification,
+              }))
+            : undefined;
+          return {
+            check_id: c.check_id,
+            error_code: c.error_code,
+            details: c.details,
+            ...(compactCriterionDiagnostic !== undefined
+              ? { per_criterion_diagnostic: compactCriterionDiagnostic }
+              : {}),
+          };
+        }),
+        // Signal that structured gate diagnostic artifacts will be persisted for this failure.
+        // Enables /admin/pipeline-health to return diagnosticStatus="available" for any
+        // Phase 2.7 gate failure type (not only QG_INDEPENDENCE_VIOLATION).
+        ...(pass1Output && pass2Output && pass3Output
+          ? { gate_diagnostics_version: "gate_diagnostics_v1" as const }
+          : {}),
       },
+      // Full diagnostic payload for artifact persistence.
+      // Processor reads this directly — do NOT forward to markFailed (too large for 4KB limit).
+      ...(pass1Output && pass2Output && pass3Output
+        ? {
+            gate_diagnostics: {
+              schema_version: "gate_diagnostics_v1" as const,
+              failed_at: "pass4" as const,
+              error_code: errorCode,
+              generated_at: new Date().toISOString(),
+              per_criterion: (() => {
+                // Collect from all checks that have per_criterion_diagnostic
+                const allDiag: QualityGateCriterionDiagnostic[] = [];
+                for (const c of qualityGate.checks) {
+                  const d = c.diagnostics as { per_criterion_diagnostic?: QualityGateCriterionDiagnostic[] } | undefined;
+                  if (Array.isArray(d?.per_criterion_diagnostic)) {
+                    allDiag.push(...d.per_criterion_diagnostic);
+                  }
+                }
+                return allDiag;
+              })(),
+              pass1_output: pass1Output,
+              pass2_output: pass2Output,
+              pass3_output: pass3Output,
+              provider_call_trace: [
+                {
+                  pass: 1 as const,
+                  model: pass1Output.model,
+                  prompt_version: pass1Output.prompt_version,
+                  temperature: pass1Output.temperature,
+                  generated_at: pass1Output.generated_at,
+                },
+                {
+                  pass: 2 as const,
+                  model: pass2Output.model,
+                  prompt_version: pass2Output.prompt_version,
+                  temperature: pass2Output.temperature,
+                  generated_at: pass2Output.generated_at,
+                },
+              ],
+            } satisfies GateDiagnostics,
+          }
+        : {}),
     };
   }
 

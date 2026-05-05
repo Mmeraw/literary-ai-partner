@@ -1976,6 +1976,86 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         }
       }
 
+      // ── Phase 2.7 gate diagnostic persistence (any gate failure) ──────────
+      // Persists audit-only artifacts so failed jobs are reconstructable offline.
+      // This is DISTINCT from the final user artifact (which is never persisted on failure).
+      // Fail-soft: diagnostic persistence failure does not alter the job's error code.
+      const gateDiagnostics = pipelineResult.gate_diagnostics;
+      if (gateDiagnostics) {
+        try {
+          const gateHashBase = `gate_diagnostics_v1:${gateDiagnostics.error_code}:${gateDiagnostics.generated_at}`;
+          const passOutputsHash = stableSourceHash({
+            manuscriptId: manuscript.id,
+            jobId: job.id,
+            userId: manuscriptWithContent.user_id,
+            manuscriptText: manuscriptWithContent.content || '(No content provided)',
+            promptVersion: `pass_outputs_diagnostic_v1:${pipelineResult.error_code}`,
+            model: getCanonicalPipelineModel(openAiModel),
+          });
+
+          // Artifact 1: Raw pass outputs (non-user-visible, audit-only)
+          await upsertEvaluationArtifact({
+            supabase,
+            jobId: job.id,
+            manuscriptId: job.manuscript_id,
+            artifactType: 'pass_outputs_diagnostic_v1',
+            artifactVersion: 'pass_outputs_diagnostic_v1',
+            sourceHash: passOutputsHash,
+            content: {
+              schema_version: 'pass_outputs_diagnostic_v1',
+              created_at: gateDiagnostics.generated_at,
+              job_id: job.id,
+              manuscript_id: manuscript.id,
+              failed_at: gateDiagnostics.failed_at,
+              error_code: gateDiagnostics.error_code,
+              pass1_output: gateDiagnostics.pass1_output,
+              pass2_output: gateDiagnostics.pass2_output,
+              pass3_output: gateDiagnostics.pass3_output,
+              provider_call_trace: gateDiagnostics.provider_call_trace,
+            },
+          });
+
+          console.log(`[Processor] ${jobId}: persisted pass_outputs_diagnostic_v1 artifact`);
+
+          const gateQualityHash = stableSourceHash({
+            manuscriptId: manuscript.id,
+            jobId: job.id,
+            userId: manuscriptWithContent.user_id,
+            manuscriptText: manuscriptWithContent.content || '(No content provided)',
+            promptVersion: `quality_gate_diagnostics_v1:${gateHashBase}`,
+            model: getCanonicalPipelineModel(openAiModel),
+          });
+
+          // Artifact 2: Per-criterion gate diagnostics (non-user-visible, audit-only)
+          await upsertEvaluationArtifact({
+            supabase,
+            jobId: job.id,
+            manuscriptId: job.manuscript_id,
+            artifactType: 'quality_gate_diagnostics_v1',
+            artifactVersion: 'quality_gate_diagnostics_v1',
+            sourceHash: gateQualityHash,
+            content: {
+              schema_version: 'quality_gate_diagnostics_v1',
+              created_at: gateDiagnostics.generated_at,
+              job_id: job.id,
+              manuscript_id: manuscript.id,
+              failed_at: gateDiagnostics.failed_at,
+              error_code: gateDiagnostics.error_code,
+              per_criterion: gateDiagnostics.per_criterion,
+            },
+          });
+
+          console.log(`[Processor] ${jobId}: persisted quality_gate_diagnostics_v1 artifact`);
+        } catch (gateDiagnosticPersistError) {
+          console.warn(
+            `[Processor] ${jobId}: failed to persist gate diagnostic artifacts`,
+            gateDiagnosticPersistError instanceof Error
+              ? gateDiagnosticPersistError.message
+              : String(gateDiagnosticPersistError),
+          );
+        }
+      }
+
       console.error(`[Processor] Pipeline failed for job ${jobId}: ${pipelineError}`);
       await markFailed(pipelineError, pipelineResult.error_code || 'PIPELINE_ERROR', {
         pipelineStage: pipelineResult.failed_at,

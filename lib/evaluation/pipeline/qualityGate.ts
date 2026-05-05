@@ -35,6 +35,7 @@ import type {
   SinglePassOutput,
   EditorialDiagnostic,
   EditorialDiagnosticClassification,
+  QualityGateCriterionDiagnostic,
 } from "./types";
 import { analyzePovRendering } from "@/lib/evaluation/pov/analyzePovRendering";
 import { analyzeDialogueAttribution, analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
@@ -161,7 +162,11 @@ function hasSubstantiveEvidence(evidence: Array<{ snippet: string }>): boolean {
   return evidence.some((e) => e.snippet.trim().length >= QG_MIN_EVIDENCE_SNIPPET_LENGTH);
 }
 
-function tokenizeForOverlap(text: string): string[] {
+/**
+ * Tokenize text for n-gram overlap computation.
+ * Exported for use in offline reconstruction tests.
+ */
+export function tokenizeForOverlap(text: string): string[] {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
@@ -169,7 +174,11 @@ function tokenizeForOverlap(text: string): string[] {
     .filter((w) => w.length > 0);
 }
 
-function collectNgrams(text: string, n: number): string[] {
+/**
+ * Collect all n-grams from text using the canonical tokenizer.
+ * Exported for use in offline reconstruction tests.
+ */
+export function collectNgrams(text: string, n: number): string[] {
   const words = tokenizeForOverlap(text);
   if (words.length < n) {
     return [];
@@ -686,26 +695,46 @@ export function runQualityGate(
     }
 
     const violations: string[] = [];
+    const perCriterionDiagnostics: QualityGateCriterionDiagnostic[] = [];
+
     for (const c of pass2.criteria) {
       let overlapCount = 0;
       const overlapSamples: string[] = [];
+      // Collect ALL unique overlapping non-evidence ngrams for reconstruction
+      const overlapNgrams: string[] = [];
       for (const gram of collectNgrams(c.rationale, ngramSize)) {
         if (evidenceNgrams.has(gram)) {
           continue;
         }
         if (pass1Ngrams.has(gram)) {
           overlapCount += 1;
+          if (!overlapNgrams.includes(gram)) {
+            overlapNgrams.push(gram);
+          }
           if (overlapSamples.length < 5 && !overlapSamples.includes(gram)) {
             overlapSamples.push(gram);
           }
         }
       }
 
+      const pass1Rationale = pass1ByKey.get(c.key)?.rationale ?? "";
+
+      // Audit-grade per-criterion diagnostic (stored in quality_gate_diagnostics_v1 artifact)
+      perCriterionDiagnostics.push({
+        criterion_key: c.key,
+        pass1_rationale: pass1Rationale,
+        pass2_rationale: c.rationale,
+        overlap_4grams: overlapNgrams,
+        observed_overlap_count: overlapCount,
+        threshold_n: ngramSize,
+        threshold_min: QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION,
+        classification: null,
+      });
+
       if (overlapCount >= QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION) {
         const sampleText = overlapSamples.length > 0
           ? ` [samples: ${overlapSamples.map((s) => `"${s}"`).join(" | ")}]`
           : "";
-        const pass1Rationale = pass1ByKey.get(c.key)?.rationale ?? "";
         const rationaleText =
           ` [pass1_rationale="${previewRationale(pass1Rationale)}"]` +
           ` [pass2_rationale="${previewRationale(c.rationale)}"]`;
@@ -723,6 +752,8 @@ export function runQualityGate(
         violations.length > 0
           ? `${violations.length} Pass 2 criterion/criteria exceed calibrated rationale-overlap threshold (n=${ngramSize}, min=${QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION})`
           : `Pass 1 / Pass 2 independence confirmed (n=${ngramSize})`,
+      // Structured diagnostics for artifact persistence — enables offline reconstruction
+      diagnostics: { per_criterion_diagnostic: perCriterionDiagnostics },
     });
 
     if (violations.length > 0) {

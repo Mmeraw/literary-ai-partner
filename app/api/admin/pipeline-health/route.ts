@@ -101,14 +101,18 @@ function diagnosticStatus(job: Record<string, unknown>): DiagnosticStatus {
   const diagnostics = (progress.pipeline_failure_diagnostics ?? {}) as Record<string, unknown>;
   const checks = diagnostics.quality_gate_checks;
 
-  const hasStructured =
+  // Check 1: per-criterion independence diagnostics present in at least one check
+  const hasPerCriterionDiagnostic =
     Array.isArray(checks) &&
     checks.some(
       (c: unknown) =>
         Array.isArray((c as Record<string, unknown>).per_criterion_diagnostic)
     );
 
-  if (hasStructured) return "available";
+  if (hasPerCriterionDiagnostic) return "available";
+
+  // Check 2: gate_diagnostics_version signal present (any Phase 2.7 gate failure type)
+  if (typeof diagnostics.gate_diagnostics_version === "string") return "available";
 
   const errorCode = extractErrorCode(job);
   if (typeof errorCode === "string" && errorCode.startsWith("QG_")) return "blocked_by_307";
@@ -237,7 +241,9 @@ function buildPipelineHealth(jobs: Record<string, unknown>[], windowParam: strin
       missingDiagnosticArtifactCount: blockedCount,
       missingProviderTraceCount: null,
       missingIntermediateOutputCount: null,
-      note: "Full criterion-level reconstruction depends on Mmeraw/literary-ai-partner#307 diagnostic persistence.",
+      note: blockedCount === 0
+        ? "All failed jobs have structured diagnostics (pass_outputs_diagnostic_v1 + quality_gate_diagnostics_v1 artifacts)."
+        : `${blockedCount} failed job(s) lack structured diagnostics. Jobs failing after diagnostic persistence is deployed will have quality_gate_diagnostics_v1 artifacts.`,
     },
   };
 }

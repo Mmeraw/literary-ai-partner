@@ -16,7 +16,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type ArtifactType =
   | "evaluation_result_v1"
   | "evaluation_result_v2"
-  | "diagnostic_pass3_snapshot_v1";
+  | "diagnostic_pass3_snapshot_v1"
+  /** Audit-grade: raw Pass 1 / Pass 2 / Pass 3 outputs as emitted on gate failure. Not user-visible. */
+  | "pass_outputs_diagnostic_v1"
+  /** Audit-grade: per-criterion gate diagnostics (independence overlap data) on gate failure. Not user-visible. */
+  | "quality_gate_diagnostics_v1";
 
 /**
  * Compute SHA256 hex digest of input string
