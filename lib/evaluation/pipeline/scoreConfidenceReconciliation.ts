@@ -35,7 +35,10 @@ function clamp(value: number, min = 0, max = 100): number {
 function hasEvidenceBackedHighScore(input: ScoreConfidenceReconciliationInput): boolean {
   if (input.score_0_10 === null || input.score_0_10 <= 5) return false;
 
-  const balancedSupport = input.support_family_score >= 25 && input.explanation_family_score >= 20;
+  // Do not upgrade a high score from explanation alone. A moderate confidence
+  // upgrade requires either strong support-family evidence or a complete
+  // anchor→mechanism→recommendation chain.
+  const balancedSupport = input.support_family_score >= 35 && input.explanation_family_score >= 20;
   const explicitEvidenceChain =
     input.has_meaningful_anchor &&
     input.has_mechanism_reasoning &&
