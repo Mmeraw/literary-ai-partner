@@ -74,6 +74,7 @@ Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
 - Per-criterion fields: key, final_score_0_10, final_rationale, recommendations[]; hard_divergence adds disputed=true.
 - Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity.
+- Each recommendation.action MUST be one sentence and <= 300 characters.
 - agreement_map[]
 - divergence_map[] with arbitration_rationale
 - overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, top_3_strengths[3], top_3_risks[3], submission_readiness(queryable_now|close|not_yet) }

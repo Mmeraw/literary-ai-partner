@@ -591,6 +591,38 @@ export function parsePass3Response(
   };
 }
 
+function clampRecommendationAction(action: string): string {
+  const normalized = action.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 300) return normalized;
+
+  const mechanismMatch = normalized.match(/\b(because|since|so that)\b/i);
+  if (!mechanismMatch || mechanismMatch.index === undefined) {
+    return normalized.slice(0, 300).replace(/\s+\S*$/, "").trim();
+  }
+
+  const mechanismIndex = mechanismMatch.index;
+  const prefix = normalized.slice(0, mechanismIndex).trim();
+  const suffix = normalized.slice(mechanismIndex).trim();
+
+  const prefixBudget = 180;
+  const suffixBudget = 119;
+
+  const safePrefix =
+    prefix.length > prefixBudget
+      ? prefix.slice(0, prefixBudget).replace(/\s+\S*$/, "").trim()
+      : prefix;
+
+  const safeSuffix =
+    suffix.length > suffixBudget
+      ? suffix.slice(0, suffixBudget).replace(/\s+\S*$/, "").trim()
+      : suffix;
+
+  const clamped = `${safePrefix} ${safeSuffix}`.trim();
+  return clamped.length <= 300
+    ? clamped
+    : clamped.slice(0, 300).replace(/\s+\S*$/, "").trim();
+}
+
 function parseEvidenceArray(raw: unknown): EvidenceAnchor[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -630,7 +662,12 @@ function parseRecommendations(
           (normalizeRevisionGranularity(r["revision_granularity"]) ?? r["revision_granularity"] ?? "scene") as SynthesizedCriterion["recommendations"][number]["revision_granularity"],
       };
 
-      return normalizeRecommendationContract(parsed, criterionKey);
+      const normalized = normalizeRecommendationContract(parsed, criterionKey);
+
+      return {
+        ...normalized,
+        action: clampRecommendationAction(normalized.action),
+      };
     });
 }
 
