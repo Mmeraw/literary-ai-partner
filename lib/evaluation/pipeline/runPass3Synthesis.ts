@@ -748,10 +748,9 @@ function resolveSpecificFix(
   criterionKey: SynthesizedCriterion["key"],
 ): string {
   if (explicit.length > 0) return explicit;
-  // Try to extract the fix verb phrase from the action
-  const fixMatch = action.match(
-    /\b(rewrite|replace|cut|trim|split|merge|move|reorder|expand|compress|clarify|specify|anchor|insert|delete|foreshadow|escalate|tighten|seed|stage|show|name|shift|ground(?:ing)?|contextualize|reframe|focus|connect|link|develop|resolve|surface|thread|motivate|concretize|externalize|recast|frontload|backload|echo|contrast)\b.{0,120}/i,
-  );
+  // Build extraction regex from the canonical EDITORIAL_FIX_MARKERS source to avoid duplication
+  const fixExtractor = new RegExp(EDITORIAL_FIX_MARKERS.source + ".{0,120}", "i");
+  const fixMatch = action.match(fixExtractor);
   if (fixMatch) return fixMatch[0].replace(/\s+because.*$/i, "").replace(/\s+since.*$/i, "").trim().slice(0, 120);
   return buildCriterionAwareSpecificFixDefault(criterionKey);
 }
