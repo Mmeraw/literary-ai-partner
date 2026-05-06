@@ -217,7 +217,7 @@ describe("Pass 2 independence guard — fail-closed when rewrite still exceeds t
         rationale:
           key === "worldbuilding"
             ? worldbuildingTemplate
-            : `Pass 1 craft analysis for ${key} using specific structural evidence.`,
+            : `Pass 1 structural analysis for ${key} using specific evidence.`,
         evidence: [],
         recommendations: [],
       })),
