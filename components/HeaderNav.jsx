@@ -1,10 +1,46 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAccess";
 
 export default function HeaderNav() {
   const pathname = usePathname() || "/";
+  const [showPipelineHealth, setShowPipelineHealth] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAdminState() {
+      try {
+        const response = await fetch("/api/auth/user", {
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          if (active) setShowPipelineHealth(false);
+          return;
+        }
+
+        const payload = await response.json();
+        const email = payload?.user?.email ?? null;
+
+        if (active) {
+          setShowPipelineHealth(isPipelineHealthAdminEmail(email));
+        }
+      } catch {
+        if (active) setShowPipelineHealth(false);
+      }
+    }
+
+    loadAdminState();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const isAppRoute =
     pathname.startsWith("/dashboard") ||
@@ -12,7 +48,8 @@ export default function HeaderNav() {
     pathname.startsWith("/revise") ||
     pathname.startsWith("/convert") ||
     pathname.startsWith("/output") ||
-    pathname.startsWith("/storygate");
+    pathname.startsWith("/storygate") ||
+    pathname.startsWith("/admin");
 
   return (
     <header className="w-full bg-white border-b">
@@ -38,6 +75,15 @@ export default function HeaderNav() {
 
             <Link href="/resources" className="hover:text-slate-900">Resources</Link>
             <Link href="/pricing" className="hover:text-slate-900">Pricing</Link>
+
+            {showPipelineHealth && (
+              <Link
+                href="/admin/pipeline-health"
+                className="font-medium text-slate-700 hover:text-slate-900"
+              >
+                Pipeline Health
+              </Link>
+            )}
           </nav>
         ) : (
           <nav className="flex items-center gap-6 text-sm text-slate-700">
