@@ -12,6 +12,7 @@ jest.mock("@/lib/evaluation/pipeline/runPipeline", () => ({
 
 jest.mock("@/lib/evaluation/pipeline/qualityGate", () => ({
   runQualityGateV2: (...args: any[]) => runQualityGateV2Mock(...args),
+  QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE: 5,
 }));
 
 jest.mock("@/lib/governance/evaluationBridge", () => ({
@@ -581,7 +582,17 @@ describe("processEvaluationJob canonical pipeline integration", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("[QualityGateV2]");
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+
+    // Diagnostic artifacts ARE persisted on V2 gate failure (for reconstructability).
+    // No evaluation_result_v2 user-facing artifact must be written.
+    const artifactTypes = (upsertEvaluationArtifactMock.mock.calls as any[]).map(
+      (call: any[]) => call[0]?.artifactType,
+    );
+    expect(artifactTypes.includes("evaluation_result_v2")).toBe(false);
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(false);
+
     expect(
       supabaseStub.evaluationJobUpdates.some(
         (payload: Record<string, unknown>) => payload.status === "complete",
