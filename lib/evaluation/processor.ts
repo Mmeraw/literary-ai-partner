@@ -2289,6 +2289,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           v2DiagnosticPersistError instanceof Error
             ? v2DiagnosticPersistError.message
             : String(v2DiagnosticPersistError),
+          v2DiagnosticPersistError,
         );
       }
 
