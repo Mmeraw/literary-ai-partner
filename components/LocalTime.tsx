@@ -32,10 +32,14 @@ function formatInTimezone(
       timeZone: timezone,
     }).format(date);
   } catch {
-    return new Intl.DateTimeFormat(undefined, {
-      ...options,
-      timeZone: 'UTC',
-    }).format(date);
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        ...options,
+        timeZone: 'UTC',
+      }).format(date);
+    } catch {
+      return date.toISOString();
+    }
   }
 }
 
