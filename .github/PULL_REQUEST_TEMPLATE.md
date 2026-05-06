@@ -47,7 +47,20 @@ This PR is not reducing intelligence.
 | Run 1 | N/A | N/A | |
 | Run 2 | N/A | N/A | |
 
-<!-- For Pass 3 PRs: also include criteria_count_by_state. -->
+<!-- Required for Pass 3 PRs (validated by .github/workflows/latency-pr-enforcement.yml).
+     Delete this entire block ONLY if your PR does not touch Pass 3. -->
+
+## Divergence distribution (criteria_count_by_state)
+
+```yaml
+criteria_count_by_state:
+  total_criteria: 13
+  contract_compliant: 0
+  agree: 0
+  soft_divergence: 0
+  hard_divergence: 0
+  missing_or_invalid: 0
+```
 
 ## Quality Gate / Anomalies
 
