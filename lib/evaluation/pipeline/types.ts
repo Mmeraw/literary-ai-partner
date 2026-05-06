@@ -195,6 +195,24 @@ export type SynthesizedCriterion = {
     redundancy_key?: string;
     /** Number of distinct evidence spans supporting this recommendation */
     evidence_span_count?: number;
+    /**
+     * Causal explanation of why this problem exists (non-empty when anchor_snippet is
+     * present; derived from action/expected_impact text or criterion-aware default).
+     * For anchorless recommendations this may be "" — gate fires on the genuine generic content.
+     */
+    mechanism: string;
+    /**
+     * Concrete revision action (non-empty when anchor_snippet is present; derived from
+     * action text or criterion-aware default). Not generic advice — a specific move.
+     * For anchorless recommendations this may be "" — gate fires on the genuine generic content.
+     */
+    specific_fix: string;
+    /**
+     * Post-revision reader experience (non-empty when anchor_snippet is present; derived
+     * from expected_impact text or criterion-aware default).
+     * For anchorless recommendations this may be "" — gate fires on the genuine generic content.
+     */
+    reader_effect: string;
   }[];
   /** Deterministic confidence score derived from evidence support + explanation quality (0-100). */
   confidence_score_0_100?: number;

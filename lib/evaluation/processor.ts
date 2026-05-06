@@ -70,7 +70,7 @@ import {
   synthesisToEvaluationResultV2,
 } from '@/lib/evaluation/pipeline/runPipeline';
 import { classifySubmissionScope, countWords } from '@/lib/evaluation/pipeline/submissionScope';
-import { runQualityGateV2 } from '@/lib/evaluation/pipeline/qualityGate';
+import { runQualityGateV2, QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE } from '@/lib/evaluation/pipeline/qualityGate';
 import {
   buildScoreLedger,
   computeAuthorityComposite,
@@ -2155,6 +2155,144 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         .filter((check) => !check.passed)
         .map((check) => `${check.check_id}: ${check.details ?? check.error_code ?? 'failed'}`);
       const gateError = `[QualityGateV2] ${failedChecks.join('; ')}`;
+
+      // ── V2 gate diagnostic persistence (fail-soft) ──────────────────────────
+      // Persist forensic artifacts BEFORE marking job failed so any V2 gate trip
+      // is reconstructable from evaluation_artifacts without flying blind.
+      // Mirrors the Phase 2.7 gate diagnostic pattern for pass4 failures.
+      const v2GateFailedAt = new Date().toISOString();
+      progressState.v2_gate_status = 'failed';
+      progressState.v2_gate_failed_at = v2GateFailedAt;
+
+      try {
+        // Build per-criterion gate view for the diagnostics artifact.
+        const v2PerCriterion = evaluationResult.criteria.map((c) => {
+          const score = typeof c.score_0_10 === 'number' ? c.score_0_10 : null;
+          const confidence = c.confidence_score_0_100 ?? null;
+          const confidenceLabel = c.confidence_level ?? null;
+          const scoreCapApplies = c.status === 'SCORABLE' && confidenceLabel === 'low';
+          const violated =
+            scoreCapApplies &&
+            typeof score === 'number' &&
+            score > QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE;
+          const reasons: string[] = [];
+          if (violated) {
+            reasons.push(
+              `score=${score} exceeds cap=${QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE} for low-confidence criterion`,
+            );
+          }
+          return {
+            criterion_key: c.key,
+            score,
+            confidence,
+            confidence_label: confidenceLabel,
+            score_cap_applies: scoreCapApplies,
+            violated,
+            reasons,
+          };
+        });
+
+        const v2FailedCriteria = v2PerCriterion
+          .filter((pc) => pc.violated)
+          .map((pc) => ({
+            criterion_key: pc.criterion_key,
+            score: pc.score,
+            confidence: pc.confidence,
+            reasons: pc.reasons,
+          }));
+
+        const evidenceAnchorsByCriterion: Record<string, string[]> = {};
+        for (const c of evaluationResult.criteria) {
+          evidenceAnchorsByCriterion[c.key] = c.evidence
+            .map((e) => e.snippet)
+            .filter((s) => typeof s === 'string' && s.trim().length > 0);
+        }
+
+        // Artifact 1: Pass 2 outputs the V2 gate consumed (per-criterion).
+        const v2PassOutputsHash = stableSourceHash({
+          manuscriptId: manuscript.id,
+          jobId: job.id,
+          userId: manuscriptWithContent.user_id,
+          manuscriptText: manuscriptWithContent.content || '(No content provided)',
+          promptVersion: `pass_outputs_diagnostic_v1:QG_FAILED:v2_gate:${v2GateFailedAt}`,
+          model: getCanonicalPipelineModel(openAiModel),
+        });
+
+        await upsertEvaluationArtifact({
+          supabase,
+          jobId: job.id,
+          manuscriptId: job.manuscript_id,
+          artifactType: 'pass_outputs_diagnostic_v1',
+          artifactVersion: 'pass_outputs_diagnostic_v1',
+          sourceHash: v2PassOutputsHash,
+          content: {
+            schema_version: 'pass_outputs_diagnostic_v1',
+            created_at: v2GateFailedAt,
+            job_id: job.id,
+            manuscript_id: manuscript.id,
+            failed_at: 'v2_gate',
+            error_code: 'QG_FAILED',
+            per_criterion: evaluationResult.criteria.map((c) => ({
+              criterion_key: c.key,
+              status: c.status,
+              score: typeof c.score_0_10 === 'number' ? c.score_0_10 : null,
+              confidence: c.confidence_score_0_100 ?? null,
+              confidence_label: c.confidence_level ?? null,
+              scorability_status: c.scorability_status ?? null,
+              rationale: c.rationale,
+              evidence_anchors: c.evidence
+                .map((e) => e.snippet)
+                .filter((s) => typeof s === 'string' && s.trim().length > 0),
+            })),
+          },
+        });
+
+        console.log(`[Processor] ${jobId}: persisted pass_outputs_diagnostic_v1 for V2 gate failure`);
+
+        // Artifact 2: V2 gate's own view — per-criterion gate state + failed criteria.
+        const v2GateDiagnosticsHash = stableSourceHash({
+          manuscriptId: manuscript.id,
+          jobId: job.id,
+          userId: manuscriptWithContent.user_id,
+          manuscriptText: manuscriptWithContent.content || '(No content provided)',
+          promptVersion: `quality_gate_diagnostics_v1:QG_FAILED:v2_gate:${v2GateFailedAt}`,
+          model: getCanonicalPipelineModel(openAiModel),
+        });
+
+        await upsertEvaluationArtifact({
+          supabase,
+          jobId: job.id,
+          manuscriptId: job.manuscript_id,
+          artifactType: 'quality_gate_diagnostics_v1',
+          artifactVersion: 'quality_gate_diagnostics_v1',
+          sourceHash: v2GateDiagnosticsHash,
+          content: {
+            schema_version: 'quality_gate_diagnostics_v1',
+            created_at: v2GateFailedAt,
+            job_id: job.id,
+            manuscript_id: manuscript.id,
+            failed_at: 'v2_gate',
+            gate_id: 'v2_fidelity_score_confidence_alignment',
+            gate_version: 'v2',
+            score_cap_for_low_confidence: QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE,
+            failed_checks: failedChecks,
+            per_criterion: v2PerCriterion,
+            failed_criteria: v2FailedCriteria,
+            evidence_anchors_by_criterion: evidenceAnchorsByCriterion,
+          },
+        });
+
+        console.log(`[Processor] ${jobId}: persisted quality_gate_diagnostics_v1 for V2 gate failure`);
+      } catch (v2DiagnosticPersistError) {
+        console.warn(
+          `[Processor] ${jobId}: failed to persist V2 gate diagnostic artifacts (non-fatal)`,
+          v2DiagnosticPersistError instanceof Error
+            ? v2DiagnosticPersistError.message
+            : String(v2DiagnosticPersistError),
+          v2DiagnosticPersistError,
+        );
+      }
+
       await markFailed(gateError, 'QG_FAILED');
 
       return { success: false, error: gateError };

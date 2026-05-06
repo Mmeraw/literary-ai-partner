@@ -61,8 +61,8 @@ function makeSynthesis(overrides: Partial<Record<CriterionKey, Partial<Synthesiz
 
 // ── Prompt version ────────────────────────────────────────────────────────────
 
-it("PASS3_PROMPT_VERSION reflects v8 contract hardening", () => {
-  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v8-rec-contract-hardening");
+it("PASS3_PROMPT_VERSION reflects v9 editorial specificity triple contract", () => {
+  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v9-editorial-specificity-triple");
 });
 
 // ── Five-part contract: passing fixtures ─────────────────────────────────────
@@ -81,6 +81,9 @@ describe("v8 five-part contract — compliant recommendations pass the gate", ()
           issue_family: "scene_structure",
           strategic_lever: "scene_goal_clarity",
           revision_granularity: "scene",
+          mechanism: "the current phrasing diffuses tension before the pivotal decision",
+          specific_fix: "replace the abstract reaction line with a concrete sensory beat",
+          reader_effect: "clearer cause-and-effect chain, increasing urgency and emotional clarity at the turn",
         }],
       },
     }));
@@ -102,6 +105,9 @@ describe("v8 five-part contract — compliant recommendations pass the gate", ()
           issue_family: "voice",
           strategic_lever: "pov_rendering_precision",
           revision_granularity: "beat",
+          mechanism: "it interrupts the focalization and weakens psychic distance at the emotional peak",
+          specific_fix: "cut the three-line interior monologue",
+          reader_effect: "stronger immersion by preserving close-third rendering without collapsing into summary",
         }],
       },
     }));
@@ -123,6 +129,9 @@ describe("v8 five-part contract — compliant recommendations pass the gate", ()
           issue_family: "pacing",
           strategic_lever: "momentum_visibility",
           revision_granularity: "beat",
+          mechanism: "the stalled decision dissipates narrative momentum without a visible landing consequence",
+          specific_fix: "insert a concrete consequence that lands the stalled decision",
+          reader_effect: "reader momentum by anchoring the chapter turn to a visible consequence",
         }],
       },
     }));
@@ -148,6 +157,9 @@ describe("pre-v8 failure patterns remain blocked (gate unchanged)", () => {
           issue_family: "pacing",
           strategic_lever: "momentum_visibility",
           revision_granularity: "scene",
+          mechanism: "the flat reaction line stalls narrative momentum at the chapter turn",
+          specific_fix: "replace the flat reaction line with a concrete sensory beat",
+          reader_effect: "stronger engagement at the turn",
         }],
       },
     }));
@@ -170,6 +182,9 @@ describe("pre-v8 failure patterns remain blocked (gate unchanged)", () => {
           issue_family: "characterization",
           strategic_lever: "character_voice_differentiation",
           revision_granularity: "beat",
+          mechanism: "the current phrasing lacks stakes and weakens character agency",
+          specific_fix: "replace the abstract motivation statement",
+          reader_effect: "clearer stakes and engagement",
         }],
       },
     }));
@@ -192,6 +207,9 @@ describe("pre-v8 failure patterns remain blocked (gate unchanged)", () => {
           issue_family: "scene_structure",
           strategic_lever: "scene_goal_clarity",
           revision_granularity: "scene",
+          mechanism: "the scene currently dissipates tension before the pivotal moment",
+          specific_fix: "insert a concrete consequence beat",
+          reader_effect: "tighter structure and improved narrative arc flow",
         }],
       },
     }));
@@ -214,6 +232,9 @@ describe("pre-v8 failure patterns remain blocked (gate unchanged)", () => {
           issue_family: "theme",
           strategic_lever: "thematic_grounding",
           revision_granularity: "scene",
+          mechanism: "the current framing lacks clarity for the reader at the chapter turn",
+          specific_fix: "enhance the thematic resonance",
+          reader_effect: "stronger thematic coherence and payoff",
         }],
       },
     }));
@@ -240,6 +261,9 @@ describe("diagnostics summary shape on mixed pass/fail synthesis", () => {
           issue_family: "dialogue",
           strategic_lever: "dialogue_exposition_density",
           revision_granularity: "beat",
+          mechanism: "the abstract dialogue tag lacks attribution mechanism and weakens speaker clarity",
+          specific_fix: "replace the abstract dialogue tag at the scene turn",
+          reader_effect: "stronger immersion and engagement through clear speaker grounding",
         }],
       },
       pacing: {
@@ -252,6 +276,9 @@ describe("diagnostics summary shape on mixed pass/fail synthesis", () => {
           issue_family: "pacing",
           strategic_lever: "momentum_visibility",
           revision_granularity: "scene",
+          mechanism: "the current phrasing stalls narrative tension before the chapter decision",
+          specific_fix: "insert a concrete stakes beat",
+          reader_effect: "improved section quality",
         }],
       },
     });

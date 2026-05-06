@@ -15,6 +15,9 @@ function makeRecommendation(key: CriterionKey) {
     issue_family: "scene_structure" as const,
     strategic_lever: "scene_goal_clarity" as const,
     revision_granularity: "scene" as const,
+    mechanism: "the current phrasing diffuses tension before the decision point",
+    specific_fix: "replace the abstract reaction line with a concrete bodily beat",
+    reader_effect: "clearer cause-and-effect chain, increasing urgency and emotional clarity at the turn",
   };
 }
 
