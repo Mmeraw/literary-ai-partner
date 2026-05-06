@@ -47,7 +47,20 @@ This PR is not reducing intelligence.
 | Run 1 | N/A | N/A | |
 | Run 2 | N/A | N/A | |
 
-<!-- For Pass 3 PRs: also include criteria_count_by_state. -->
+<!-- Required for Pass 3 PRs.
+     Leave this block in place by default.
+     For non-Pass-3 PRs, values may remain zero/N/A. -->
+
+## Divergence distribution (criteria_count_by_state)
+
+```yaml
+criteria_count_by_state:
+  agree: 0
+  soft_divergence: 0
+  hard_divergence: 0
+  missing_or_invalid: 0
+# agree + soft_divergence + hard_divergence + missing_or_invalid should sum to 13
+```
 
 ## Quality Gate / Anomalies
 
