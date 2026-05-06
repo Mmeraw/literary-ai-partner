@@ -3,7 +3,6 @@
  */
 
 import { render, screen } from '@testing-library/react';
-import '@testing-library/jest-dom';
 import { LocalTime } from '@/components/LocalTime';
 
 jest.mock('@/lib/hooks/useUserTimezone', () => ({
@@ -32,14 +31,14 @@ describe('LocalTime', () => {
     render(<LocalTime dateTime="2026-05-06T20:00:00.000Z" />);
 
     const time = screen.getByRole('time');
-    expect(time).toBeInTheDocument();
+    expect(time).toBeTruthy();
     expect(time.getAttribute('datetime')).toBe('2026-05-06T20:00:00.000Z');
   });
 
   it('renders fallback for invalid dates', () => {
     render(<LocalTime dateTime="invalid-date" fallback="Unknown" />);
 
-    expect(screen.getByText('Unknown')).toBeInTheDocument();
+    expect(screen.getByText('Unknown')).toBeTruthy();
   });
 
   it('uses the timezone from the hook', () => {
@@ -66,7 +65,7 @@ describe('LocalTime', () => {
     render(<LocalTime dateTime="2026-05-06T20:00:00.000Z" />);
 
     const time = screen.getByRole('time');
-    expect(time).toBeInTheDocument();
+    expect(time).toBeTruthy();
 
     Intl.DateTimeFormat = original;
   });
