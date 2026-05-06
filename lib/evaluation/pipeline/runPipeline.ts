@@ -15,6 +15,7 @@
 
 import { runPass1 as defaultRunPass1 } from "./runPass1";
 import { runPass2 as defaultRunPass2 } from "./runPass2";
+import { enforcePass2LexicalIndependence } from "./pass2IndependenceGuard";
 import { runPass3Synthesis as defaultRunPass3 } from "./runPass3Synthesis";
 import { runPerplexityCrossCheck, CrossCheckOutput } from "./perplexityCrossCheck";
 import { evaluatePass4Governance } from "@/lib/evaluation/governance/evaluatePass4Governance";
@@ -770,6 +771,40 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
   pass1Output = pass1Settled.value;
   pass2Output = pass2Settled.value;
+
+  // ── Pass 2 Lexical Independence Guard ──────────────────────────────────
+  // Detects and rewrites true_overlap between Pass 2 and Pass 1 rationale.
+  // Rewrite trigger: observed_overlap_count >= 5.
+  // Fail-closed threshold: observed_overlap_count >= 6 after one rewrite.
+  // This guard fires AFTER both passes complete (no LLM call; deterministic).
+  {
+    const independenceResult = enforcePass2LexicalIndependence(pass1Output, pass2Output);
+    if (independenceResult.rewriteApplied) {
+      console.log("[Pipeline][Pass2IndependenceGuard] Independence rewrite applied", {
+        manuscript_id: opts.manuscriptId ?? null,
+        rewritten_keys: independenceResult.rewrittenKeys,
+        failed_keys: independenceResult.failedKeys,
+      });
+    }
+    if (!independenceResult.ok) {
+      timings.total_ms = nowMs() - pipelineStartMs;
+      logPipelineTimings("failure", {
+        manuscriptId: opts.manuscriptId,
+        title: opts.title,
+        workType: opts.workType,
+        failedAt: "pass2",
+        errorCode: "PASS2_INDEPENDENCE_REWRITE_FAILED",
+        timings,
+      });
+      return {
+        ok: false,
+        error: `Pass 2 lexical independence guard failed after rewrite: criteria still exceed overlap threshold after one rewrite attempt (keys: ${independenceResult.failedKeys.join(", ")})`,
+        error_code: "PASS2_INDEPENDENCE_REWRITE_FAILED",
+        failed_at: "pass2",
+      };
+    }
+    pass2Output = independenceResult.output;
+  }
 
   {
     const llrResult = enforceLessonsLearnedStage("post_structural", "pass1", {
