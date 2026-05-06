@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAccess";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -122,6 +123,51 @@ export default function PipelineHealthPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [windowParam, setWindowParam] = useState("24h");
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function validateAccess() {
+      try {
+        const response = await fetch("/api/auth/user", {
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          if (active) {
+            setAuthorized(false);
+            router.replace("/dashboard");
+          }
+          return;
+        }
+
+        const payload = await response.json();
+        const email = payload?.user?.email ?? null;
+        const allowed = isPipelineHealthAdminEmail(email);
+
+        if (active) {
+          setAuthorized(allowed);
+        }
+
+        if (!allowed) {
+          router.replace("/dashboard");
+        }
+      } catch {
+        if (active) {
+          setAuthorized(false);
+          router.replace("/dashboard");
+        }
+      }
+    }
+
+    validateAccess();
+
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   const fetchData = useCallback(
     (win: string) => {
@@ -130,7 +176,7 @@ export default function PipelineHealthPage() {
       fetch(`/api/admin/pipeline-health?window=${win}&limit=100`)
         .then((res) => {
           if (res.status === 401 || res.status === 403) {
-            router.replace("/evaluate");
+            router.replace("/dashboard");
             return null;
           }
           return res.json();
@@ -150,8 +196,22 @@ export default function PipelineHealthPage() {
   );
 
   useEffect(() => {
-    fetchData(windowParam);
-  }, [windowParam, fetchData]);
+    if (authorized) {
+      fetchData(windowParam);
+    }
+  }, [authorized, windowParam, fetchData]);
+
+  if (authorized === null) {
+    return (
+      <main className="p-6">
+        <p className="text-gray-500">Validating administrator access…</p>
+      </main>
+    );
+  }
+
+  if (!authorized) {
+    return null;
+  }
 
   // --- Loading ---
   if (loading) {
@@ -238,322 +298,6 @@ export default function PipelineHealthPage() {
           </span>
           {" "}over last {windowParam}
         </p>
-      </section>
-
-      {/* SIPOC strip */}
-      <section>
-        <h2 className="text-lg font-semibold mb-3">SIPOC Pipeline Strip</h2>
-        <div className="overflow-x-auto">
-          <div className="flex gap-0 min-w-max">
-            {sipoc.map((stage, idx) => (
-              <div key={stage.stageId} className="flex items-stretch">
-                <div
-                  className={`border rounded-lg p-4 w-44 flex flex-col gap-1 ${
-                    stage.health === "red"
-                      ? "border-red-300 bg-red-50"
-                      : stage.health === "green"
-                      ? "border-green-300 bg-green-50"
-                      : "border-gray-200 bg-gray-50"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${healthDot(
-                        stage.health
-                      )}`}
-                    />
-                    <span className="text-xs font-medium text-gray-700 truncate">
-                      {stage.stageId}
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-500 space-y-0.5">
-                    <p>✓ {stage.okCount}</p>
-                    <p className={stage.failedCount > 0 ? "text-red-600 font-medium" : ""}>
-                      ✗ {stage.failedCount}
-                    </p>
-                    {stage.lastFailureCode && (
-                      <p
-                        className="truncate font-mono text-red-700"
-                        title={stage.lastFailureCode}
-                      >
-                        {stage.lastFailureCode}
-                      </p>
-                    )}
-                    {stage.diagnosticGap && (
-                      <p className="text-orange-600 font-semibold">⚠ blocked_by_307</p>
-                    )}
-                  </div>
-                </div>
-                {idx < sipoc.length - 1 && (
-                  <div className="flex items-center px-1 text-gray-400">→</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Failure heatmap */}
-      <section>
-        <h2 className="text-lg font-semibold mb-3">
-          Failure Heatmap{" "}
-          <span className="text-sm font-normal text-gray-500">
-            (stage × error_code)
-          </span>
-        </h2>
-        {failureHeatmap.length === 0 ? (
-          <p className="text-sm text-gray-500">No failures in this window.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm border border-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">Stage</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">Error Code</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">Count</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">Last Seen</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {failureHeatmap
-                  .slice()
-                  .sort((a, b) => b.count - a.count)
-                  .map((entry) => (
-                    <tr
-                      key={`${entry.stageId}:${entry.failureCode}`}
-                      className="hover:bg-gray-50"
-                    >
-                      <td className="px-3 py-2 font-mono text-xs">{entry.stageId}</td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={`font-mono text-xs ${
-                            entry.failureCode.startsWith("QG_")
-                              ? "text-orange-700 font-semibold"
-                              : "text-red-700"
-                          }`}
-                        >
-                          {entry.failureCode}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 font-semibold">{entry.count}</td>
-                      <td className="px-3 py-2 text-xs text-gray-500">
-                        {entry.lastSeenAt ? fmtDate(entry.lastSeenAt) : "—"}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* Recent failed jobs */}
-      {failedJobs.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-3">
-            Recent Failed Jobs{" "}
-            <span className="text-sm font-normal text-gray-500">
-              ({failedJobs.length})
-            </span>
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm border border-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  {[
-                    "Job ID",
-                    "Manuscript",
-                    "Stage",
-                    "Error Code",
-                    "Phase",
-                    "Phase Status",
-                    "Words",
-                    "Route",
-                    "Chunks",
-                    "Duration",
-                    "Diagnostics",
-                    "Updated",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {failedJobs.map((job) => (
-                  <tr key={job.jobId} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 font-mono text-xs">
-                      <Link
-                        href={`/admin/jobs/${job.jobId}`}
-                        className="text-blue-600 underline"
-                      >
-                        {job.jobId.slice(0, 8)}…
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-700">
-                      {job.manuscriptId ?? "—"}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs">{job.pipelineStage}</td>
-                    <td className="px-3 py-2">
-                      {job.errorCode ? (
-                        <span
-                          className={`font-mono text-xs ${
-                            job.errorCode.startsWith("QG_")
-                              ? "text-orange-700 font-semibold"
-                              : "text-red-700"
-                          }`}
-                        >
-                          {job.errorCode}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-xs">{job.phase ?? "—"}</td>
-                    <td className="px-3 py-2 text-xs">{job.phaseStatus ?? "—"}</td>
-                    <td className="px-3 py-2 text-xs">
-                      {job.manuscriptWords !== null ? job.manuscriptWords.toLocaleString() : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-xs">{job.route ?? "—"}</td>
-                    <td className="px-3 py-2 text-xs">
-                      {job.chunkCount !== null ? job.chunkCount : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-xs">{fmtMs(job.durationMs)}</td>
-                    <td className="px-3 py-2">
-                      <span className={diagBadge(job.diagnosticStatus)}>
-                        {job.diagnosticStatus}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
-                      {fmtDate(job.updatedAt)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {/* All recent jobs */}
-      <section>
-        <h2 className="text-lg font-semibold mb-3">
-          Recent Jobs{" "}
-          <span className="text-sm font-normal text-gray-500">
-            (last {recentJobs.length}, sorted by updated_at desc)
-          </span>
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm border border-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                {["Job ID", "Status", "Stage", "Error Code", "Diagnostics", "Duration", "Updated"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  )
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {recentJobs.map((job) => (
-                <tr key={job.jobId} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 font-mono text-xs">
-                    <Link
-                      href={`/admin/jobs/${job.jobId}`}
-                      className="text-blue-600 underline"
-                    >
-                      {job.jobId.slice(0, 8)}…
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={statusBadge(String(job.status ?? ""))}>
-                      {String(job.status ?? "")}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 font-mono text-xs">{job.pipelineStage}</td>
-                  <td className="px-3 py-2">
-                    {job.errorCode ? (
-                      <span
-                        className={`font-mono text-xs ${
-                          job.errorCode.startsWith("QG_")
-                            ? "text-orange-700 font-semibold"
-                            : "text-red-700"
-                        }`}
-                      >
-                        {job.errorCode}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={diagBadge(job.diagnosticStatus)}>
-                      {job.diagnosticStatus}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-xs">{fmtMs(job.durationMs)}</td>
-                  <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
-                    {fmtDate(job.updatedAt)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* Diagnostics status */}
-      <section className="rounded-lg border border-gray-200 p-5">
-        <h2 className="text-lg font-semibold mb-3">Diagnostics Status</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm text-gray-600 font-medium">All failed jobs diagnostics auditable?</p>
-            <p
-              className={`text-sm font-semibold mt-0.5 ${
-                diagnostics.allFailedJobsDiagnosticsAuditable ? "text-green-700" : "text-red-700"
-              }`}
-            >
-              {diagnostics.allFailedJobsDiagnosticsAuditable ? "✓ Yes — all structured" : "✗ No — missing artifacts"}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600 font-medium">Jobs blocked_by_307</p>
-            <p
-              className={`text-sm font-semibold mt-0.5 ${
-                diagnostics.missingDiagnosticArtifactCount > 0
-                  ? "text-orange-700"
-                  : "text-gray-700"
-              }`}
-            >
-              {diagnostics.missingDiagnosticArtifactCount}
-            </p>
-          </div>
-        </div>
-        {diagnostics.missingDiagnosticArtifactCount > 0 && (
-          <div className="mt-3 rounded bg-orange-50 border border-orange-200 p-3 text-sm text-orange-800">
-            <strong>Detailed diagnostics unavailable</strong> — blocked by{" "}
-            <a
-              href="https://github.com/Mmeraw/literary-ai-partner/issues/307"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              Mmeraw/literary-ai-partner#307
-            </a>
-            . Criterion-level reconstruction and per-pair QG diagnostics are pending that
-            issue&apos;s diagnostic persistence work.
-          </div>
-        )}
-        <p className="text-xs text-gray-400 mt-3">{diagnostics.note}</p>
       </section>
     </main>
   );
