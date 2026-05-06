@@ -87,6 +87,9 @@ function makeSynthesisOutput(): SynthesisOutput {
           issue_family: "scene_structure",
           strategic_lever: "scene_goal_clarity",
           revision_granularity: "scene",
+          mechanism: "the current phrasing blunts tension before the decision point",
+          specific_fix: "replace the abstract transition beat with a concrete cause-and-effect move",
+          reader_effect: "clearer escalation chain, improving urgency and comprehension at the turn",
         },
       ],
     })),
@@ -488,6 +491,9 @@ describe("runPipeline (e2e with injected runners)", () => {
         issue_family: "scene_structure",
         strategic_lever: "scene_goal_clarity",
         revision_granularity: "scene",
+        mechanism: "the current phrasing blunts tension before the decision point",
+        specific_fix: "replace the abstract transition beat with a concrete cause-and-effect move",
+        reader_effect: "clearer escalation chain, improving urgency and comprehension at the turn",
       },
     ];
 
@@ -502,6 +508,9 @@ describe("runPipeline (e2e with injected runners)", () => {
         issue_family: "scene_structure",
         strategic_lever: "scene_goal_clarity",
         revision_granularity: "scene",
+        mechanism: "the current phrasing blunts tension before the decision point",
+        specific_fix: "replace the abstract transition beat with a concrete cause-and-effect move",
+        reader_effect: "clearer escalation chain, improving urgency and comprehension at the turn",
       },
     ];
 
@@ -871,6 +880,9 @@ describe("synthesisToEvaluationResult adapter", () => {
             issue_family: "scene_structure",
             strategic_lever: "scene_goal_clarity",
             revision_granularity: "scene",
+            mechanism: "the criterion lacks grounding in specific textual moments",
+            specific_fix: `grounding ${key} in specific textual moments`,
+            reader_effect: "significant improvement in criterion quality",
           },
           {
             priority: "medium" as const,
@@ -881,6 +893,9 @@ describe("synthesisToEvaluationResult adapter", () => {
             issue_family: "scene_structure",
             strategic_lever: "scene_goal_clarity",
             revision_granularity: "scene",
+            mechanism: "the criterion needs continued development throughout the manuscript",
+            specific_fix: `developing ${key} throughout the manuscript`,
+            reader_effect: "incremental improvement in criterion quality",
           },
         ],
       })),
