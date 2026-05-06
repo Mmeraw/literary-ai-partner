@@ -576,4 +576,62 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
       ),
     ).toBe(false);
   });
+
+  test("SCORE-CONFIDENCE RECONCILIATION: low-confidence criterion with score ≤ cap passes through unchanged (no-op path)", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+    upsertEvaluationArtifactMock.mockResolvedValue(undefined);
+
+    // ── Fixture design ─────────────────────────────────────────────────────────
+    // proseControl: score=4, single snippet "x" (1 char — no textual signal).
+    //   enforceTextualAnchorConfidence forces confidence_level="low" (snippet too short).
+    //   reconcileLowConfidenceScore checks: score_0_10=4 > cap=5? → FALSE → no-op.
+    //   The score stays at 4; rationale contains no reconciliation note.
+    //   V2 gate: score=4 ≤ cap=5 → no violation → gate passes.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    const noOpSynthesis = makeRealSynthesisOutput();
+    noOpSynthesis.criteria = noOpSynthesis.criteria.map((c) =>
+      c.key === "proseControl"
+        ? {
+            ...c,
+            // score=4 ≤ cap=5 → reconciliation is a no-op.
+            final_score_0_10: 4,
+            evidence: [{ snippet: "x" }],
+            final_rationale:
+              "Overall prose is generally fine and works most of the time with some variety.",
+          }
+        : c,
+    );
+    noOpSynthesis.overall.one_paragraph_summary =
+      "The manuscript demonstrates measurable craft; pacing and theme are the weakest criteria requiring focused revision.";
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: noOpSynthesis,
+      quality_gate: { pass: true, checks: [], warnings: [] },
+      pass4_governance: { ok: true },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-real-gate-test");
+
+    // Gate must pass — score=4 ≤ cap=5, so reconciliation was a no-op.
+    expect(result.success).toBe(true);
+
+    const persistCall = supabaseStub.rpcCalls.find(
+      (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
+    ) as { fn: string; args?: Record<string, unknown> } | undefined;
+    expect(persistCall).toBeDefined();
+
+    const persistedCriteria = ((persistCall?.args?.p_artifact_content as any)
+      ?.criteria) as Array<Record<string, unknown>> | undefined;
+    expect(Array.isArray(persistedCriteria)).toBe(true);
+    const proseEntry = persistedCriteria!.find((c) => c.key === "proseControl");
+    expect(proseEntry).toBeDefined();
+    // Score stays at 4 (reconciliation did not fire).
+    expect(proseEntry!.score_0_10).toBe(4);
+    // Rationale must NOT contain a reconciliation note (no-op path).
+    expect((proseEntry!.rationale as string).toLowerCase()).not.toContain("reconciled");
+  });
 });

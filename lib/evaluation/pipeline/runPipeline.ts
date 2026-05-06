@@ -301,7 +301,7 @@ function reconcileLowConfidenceScore(
     confidence_reasons: Array.from(
       new Set([
         ...existingReasons,
-        `SCORE_RECONCILED_FROM_${originalScore}_TO_${cap}`,
+        "SCORE_RECONCILED_LOW_CONFIDENCE",
       ]),
     ),
   };
