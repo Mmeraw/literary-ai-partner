@@ -3,6 +3,7 @@
  */
 
 import { render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import { LocalTime } from '@/components/LocalTime';
 
 jest.mock('@/lib/hooks/useUserTimezone', () => ({
