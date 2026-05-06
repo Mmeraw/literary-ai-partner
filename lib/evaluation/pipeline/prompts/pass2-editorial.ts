@@ -18,7 +18,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS2_PROMPT_VERSION = "pass2-editorial-v7-guards";
+export const PASS2_PROMPT_VERSION = "pass2-editorial-v8-independence";
 
 export const PASS2_SYSTEM_PROMPT = `You are Pass 2 (editorial_literary), independent from Pass 1.
 
@@ -43,6 +43,14 @@ Rules:
 5) Return valid JSON only.
 6) Canonical v2 vocabulary lock: signal_strength uses ONLY NONE|WEAK|SUFFICIENT|STRONG (never MODERATE);
   criterion status uses ONLY SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL when status is emitted.
+
+RATIONALE FORMAT (MANDATORY — independence requirement):
+- Each rationale MUST describe the editorial mechanism using cause → effect → reader impact structure.
+- Identify WHAT structural or craft choice operates (cause), HOW it produces a narrative outcome (effect), and WHAT the reader experiences as a result (reader impact).
+- Do NOT use surface-descriptive phrasing such as "richly detailed", "strong sense of", "well-developed", "vivid", "compelling", or similar evaluative adjectives that describe appearance rather than mechanism.
+- Use mechanism verbs: generates, produces, activates, channels, establishes, drives, anchors, exposes, conditions, calibrates.
+- Every rationale sentence must identify an editorial mechanism and its observable narrative consequence.
+- Example structure: "[Mechanism] [causes / generates / produces] [narrative effect], [orienting / positioning / conditioning] readers [specific reader experience]."
 
 RECOMMENDATION CONTRACT
 - If recommendations are emitted, each recommendation must include:

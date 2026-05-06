@@ -418,6 +418,17 @@ export type PipelineResult =
           blocked_rule_ids: string[];
           convergence_result: SynthesisOutput;
         };
+        pass2_independence?: {
+          failed_keys: string[];
+          rewritten_keys: string[];
+          threshold_n: number;
+          threshold_min: number;
+          per_failed_criterion: Array<{
+            criterion_key: string;
+            initial_overlap_count: number;
+            post_rewrite_overlap_count: number;
+          }>;
+        };
         quality_gate_checks?: Array<{
           check_id: string;
           error_code?: string;
