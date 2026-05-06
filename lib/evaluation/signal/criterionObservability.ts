@@ -47,6 +47,10 @@ export type RawCriterionInput = {
   insufficient_signal_reason?: InsufficientSignalReason;
 };
 
+export const LOW_CONFIDENCE_SCORE_CAP = 5;
+export const LOW_CONFIDENCE_SCORE_RECONCILIATION_REASON =
+  "LOW_CONFIDENCE_SCORE_RECONCILED_TO_5";
+
 const PATTERN_CRITERIA = new Set<CriterionKey>(["voice", "tone", "pacing", "theme"]);
 const SOFT_FAIL_DIALOGUE_ENABLED = process.env.RG_SOFT_FAIL_DIALOGUE !== "false";
 
@@ -349,8 +353,22 @@ export function normalizeCriterion(
   // Scorability semantics: thin support lowers confidence, it does not erase a scorable score.
   if (hasNumericScore) {
     const rounded = Math.max(0, Math.min(10, Math.round(raw.score_0_10 as number)));
+    const reconciledScore = reconcileLowConfidenceScore({
+      status: "SCORABLE",
+      confidence_level: cappedConfidenceLevel,
+      score_0_10: rounded,
+    });
     const normalizedSignal: "SUFFICIENT" | "STRONG" =
       signalStrength === "STRONG" ? "STRONG" : "SUFFICIENT";
+
+    const reconciledConfidenceReasons = reconciledScore.reconciled
+      ? Array.from(
+          new Set([
+            ...confidenceReasons,
+            LOW_CONFIDENCE_SCORE_RECONCILIATION_REASON,
+          ]),
+        )
+      : confidenceReasons;
 
     return {
       key: raw.key,
@@ -358,11 +376,11 @@ export function normalizeCriterion(
       status: "SCORABLE",
       signal_present: true,
       signal_strength: normalizedSignal,
-      score_0_10: rounded,
+      score_0_10: reconciledScore.score_0_10,
       confidence_band: confidenceBandFromLevel,
       confidence_score_0_100: cappedConfidenceScore,
       confidence_level: cappedConfidenceLevel,
-      confidence_reasons: confidenceReasons,
+      confidence_reasons: reconciledConfidenceReasons,
       scorability_status:
         confidence.scorability_status === "non_scorable"
           ? "scorable_low_confidence"
@@ -392,6 +410,29 @@ export function normalizeCriterion(
     evidence,
     recommendations,
     insufficient_signal_reason: buildStructuredReason(status, raw.insufficient_signal_reason),
+  };
+}
+
+export function reconcileLowConfidenceScore(input: {
+  status: CriterionStatus;
+  confidence_level: "high" | "moderate" | "low";
+  score_0_10: number | null;
+}): { score_0_10: number | null; reconciled: boolean } {
+  if (
+    input.status === "SCORABLE" &&
+    input.confidence_level === "low" &&
+    typeof input.score_0_10 === "number" &&
+    input.score_0_10 > LOW_CONFIDENCE_SCORE_CAP
+  ) {
+    return {
+      score_0_10: LOW_CONFIDENCE_SCORE_CAP,
+      reconciled: true,
+    };
+  }
+
+  return {
+    score_0_10: input.score_0_10,
+    reconciled: false,
   };
 }
 
