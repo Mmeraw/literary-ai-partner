@@ -48,13 +48,16 @@ function makeCriterion(
     recommendations: [
       {
         priority: "medium",
-        action: `Address the ${key} dimension by grounding specific textual evidence.`,
+        action: `Address the ${key} dimension by grounding specific textual evidence — the current draft does not yet demonstrate clear mastery of this criterion.`,
         expected_impact: `Increases specificity and reader connection for ${key}.`,
         anchor_snippet: '"she whispered"',
         source_pass: 1,
         issue_family: "scene_structure",
         strategic_lever: "scene_goal_clarity",
         revision_granularity: "scene",
+        mechanism: "the current draft does not yet demonstrate clear mastery of this criterion",
+        specific_fix: "grounding specific textual evidence",
+        reader_effect: `reader connection for ${key}`,
       },
     ],
     ...overrides,

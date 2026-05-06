@@ -195,6 +195,21 @@ export type SynthesizedCriterion = {
     redundancy_key?: string;
     /** Number of distinct evidence spans supporting this recommendation */
     evidence_span_count?: number;
+    /**
+     * Causal connector explaining why this problem exists (non-empty, manuscript-anchored).
+     * Enforced by Pass 3 structural validator before QG_EDITORIAL_GENERIC_FEEDBACK gate.
+     */
+    mechanism: string;
+    /**
+     * Concrete revision action (non-empty, specific move, not generic advice).
+     * Enforced by Pass 3 structural validator before QG_EDITORIAL_GENERIC_FEEDBACK gate.
+     */
+    specific_fix: string;
+    /**
+     * Post-revision reader experience (non-empty).
+     * Enforced by Pass 3 structural validator before QG_EDITORIAL_GENERIC_FEEDBACK gate.
+     */
+    reader_effect: string;
   }[];
   /** Deterministic confidence score derived from evidence support + explanation quality (0-100). */
   confidence_score_0_100?: number;

@@ -660,6 +660,10 @@ function parseRecommendations(
           (normalizeStrategicLever(r["strategic_lever"]) ?? r["strategic_lever"] ?? "scene_goal_clarity") as SynthesizedCriterion["recommendations"][number]["strategic_lever"],
         revision_granularity:
           (normalizeRevisionGranularity(r["revision_granularity"]) ?? r["revision_granularity"] ?? "scene") as SynthesizedCriterion["recommendations"][number]["revision_granularity"],
+        // Structured editorial specificity triple — parsed from LLM output; normalized/repaired below
+        mechanism: String(r["mechanism"] ?? "").trim(),
+        specific_fix: String(r["specific_fix"] ?? "").trim(),
+        reader_effect: String(r["reader_effect"] ?? "").trim(),
       };
 
       const normalized = normalizeRecommendationContract(parsed, criterionKey);
@@ -684,14 +688,19 @@ function normalizeRecommendationContract(
   const hasMechanismCause = EDITORIAL_MECHANISM_MARKERS.test(action) || EDITORIAL_MECHANISM_MARKERS.test(expectedImpact);
   const hasReaderEffect = EDITORIAL_READER_EFFECT_MARKERS.test(expectedImpact);
 
+  // Resolve the structured editorial specificity triple (from explicit LLM fields or derived fallbacks)
+  const mechanism = resolveMechanism(recommendation.mechanism, action, expectedImpact, criterionKey);
+  const specificFix = resolveSpecificFix(recommendation.specific_fix, action, criterionKey);
+  const readerEffect = resolveReaderEffect(recommendation.reader_effect, expectedImpact, criterionKey);
+
   if (hasSpecificFixMove && hasMechanismCause && hasReaderEffect) {
-    return recommendation;
+    return { ...recommendation, mechanism, specific_fix: specificFix, reader_effect: readerEffect };
   }
 
   // Intentionally fail-closed for anchorless generic recs: do NOT auto-repair
   // recommendations that lack explicit anchor_snippet.
   if (anchorSnippet.length === 0) {
-    return recommendation;
+    return { ...recommendation, mechanism, specific_fix: specificFix, reader_effect: readerEffect };
   }
 
   const intentFragment = extractIntentFragment(action);
@@ -704,7 +713,144 @@ function normalizeRecommendationContract(
     ...recommendation,
     action: repairedAction,
     expected_impact: repairedImpact,
+    mechanism,
+    specific_fix: specificFix,
+    reader_effect: readerEffect,
   };
+}
+
+/**
+ * Resolve the mechanism field: use explicit LLM value if non-empty, otherwise
+ * extract from action text or fall back to a criterion-aware default.
+ */
+function resolveMechanism(
+  explicit: string,
+  action: string,
+  expectedImpact: string,
+  criterionKey: SynthesizedCriterion["key"],
+): string {
+  if (explicit.length > 0) return explicit;
+  // Try to extract after a causal connector in action or expected_impact
+  const mechanismMatch =
+    action.match(/\b(?:because|since|so\s+that)\b(.{10,150})/i) ??
+    expectedImpact.match(/\b(?:because|since|so\s+that)\b(.{10,150})/i);
+  if (mechanismMatch) return mechanismMatch[1].replace(/\.$/, "").trim();
+  return buildCriterionAwareMechanismDefault(criterionKey);
+}
+
+/**
+ * Resolve the specific_fix field: use explicit LLM value if non-empty, otherwise
+ * extract from action text or fall back to a criterion-aware default.
+ */
+function resolveSpecificFix(
+  explicit: string,
+  action: string,
+  criterionKey: SynthesizedCriterion["key"],
+): string {
+  if (explicit.length > 0) return explicit;
+  // Try to extract the fix verb phrase from the action
+  const fixMatch = action.match(
+    /\b(rewrite|replace|cut|trim|split|merge|move|reorder|expand|compress|clarify|specify|anchor|insert|delete|foreshadow|escalate|tighten|seed|stage|show|name|shift|ground(?:ing)?|contextualize|reframe|focus|connect|link|develop|resolve|surface|thread|motivate|concretize|externalize|recast|frontload|backload|echo|contrast)\b.{0,120}/i,
+  );
+  if (fixMatch) return fixMatch[0].replace(/\s+because.*$/i, "").replace(/\s+since.*$/i, "").trim().slice(0, 120);
+  return buildCriterionAwareSpecificFixDefault(criterionKey);
+}
+
+/**
+ * Resolve the reader_effect field: use explicit LLM value if non-empty, otherwise
+ * extract from expected_impact text or fall back to a criterion-aware default.
+ */
+function resolveReaderEffect(
+  explicit: string,
+  expectedImpact: string,
+  criterionKey: SynthesizedCriterion["key"],
+): string {
+  if (explicit.length > 0) return explicit;
+  if (EDITORIAL_READER_EFFECT_MARKERS.test(expectedImpact)) {
+    return expectedImpact.slice(0, 150);
+  }
+  return buildCriterionAwareReaderEffectDefault(criterionKey);
+}
+
+function buildCriterionAwareMechanismDefault(criterionKey: SynthesizedCriterion["key"]): string {
+  switch (criterionKey) {
+    case "character":
+      return "the abstract phrasing diffuses motivation before the decision point, weakening character agency";
+    case "sceneConstruction":
+      return "the causal sequencing is inverted, so the consequence lands before the trigger, losing scene-turn coherence";
+    case "dialogue":
+      return "the attribution gap causes speaker intent to blur, reducing tension in the exchange";
+    case "pacing":
+      return "the reflective passage stalls forward momentum before the narrative urgency peaks";
+    case "voice":
+      return "the psychic distance collapses inconsistently, breaking the established POV rendering contract";
+    case "theme":
+      return "the thematic signal is stated abstractly rather than embodied in concrete action, reducing resonance";
+    case "narrativeDrive":
+      return "the stakes signal arrives too late in the passage, diffusing narrative urgency at the turn";
+    case "worldbuilding":
+      return "the sensory grounding is absent, preventing the reader from anchoring in the setting";
+    case "tone":
+      return "the tonal register shifts mid-passage without a clear trigger, disrupting emotional continuity";
+    case "marketability":
+      return "the hook does not establish genre expectations early enough, reducing submission alignment";
+    default:
+      return "the current phrasing diffuses the criterion signal before the decision point";
+  }
+}
+
+function buildCriterionAwareSpecificFixDefault(criterionKey: SynthesizedCriterion["key"]): string {
+  switch (criterionKey) {
+    case "character":
+      return "replace one abstract reaction line with a concrete decision beat and one desire-vs-fear contradiction";
+    case "sceneConstruction":
+      return "split one long descriptive passage and move one image after the causal action beat";
+    case "dialogue":
+      return "replace one expository exchange with two short turns plus an interruption beat";
+    case "pacing":
+      return "cut one reflective sentence and insert one immediate external action trigger";
+    case "voice":
+      return "recast one summary sentence as close-third free indirect discourse to restore psychic distance";
+    case "theme":
+      return "replace one abstract thematic statement with a concrete image or action that embodies the theme";
+    case "narrativeDrive":
+      return "insert one concrete stakes beat that lands the deferred decision at the current scene turn";
+    case "worldbuilding":
+      return "anchor one passage with two specific sensory details that ground the setting without exposition";
+    case "tone":
+      return "rewrite one tonal outlier sentence to match the established register of the surrounding passage";
+    case "marketability":
+      return "move one genre-signaling detail to the first paragraph to establish category expectations earlier";
+    default:
+      return "replace one abstract sentence with a concrete criterion-specific move and insert one causal beat";
+  }
+}
+
+function buildCriterionAwareReaderEffectDefault(criterionKey: SynthesizedCriterion["key"]): string {
+  switch (criterionKey) {
+    case "character":
+      return "clearer motivation and emotional stakes, improving trust in character decisions";
+    case "sceneConstruction":
+      return "clearer scene cause-and-effect and stronger transition coherence";
+    case "dialogue":
+      return "clearer speaker intent and tension progression, increasing engagement";
+    case "pacing":
+      return "stronger forward momentum and cleaner urgency through the section turn";
+    case "voice":
+      return "consistent narrative immersion with stable psychic distance throughout the passage";
+    case "theme":
+      return "stronger thematic resonance and payoff at the scene turn";
+    case "narrativeDrive":
+      return "increased momentum as the stalled decision converts to visible consequence";
+    case "worldbuilding":
+      return "immediate sensory grounding, reducing cognitive load and increasing immersion";
+    case "tone":
+      return "consistent emotional register that sustains reader trust through the passage";
+    case "marketability":
+      return "clearer genre alignment and stronger first-impression hook for submission readers";
+    default:
+      return "clearer cause-and-effect, stronger immersion, and higher engagement at the turn";
+  }
 }
 
 function extractIntentFragment(action: string): string {
@@ -895,20 +1041,28 @@ function backfillRecommendationsFromAxis(
   pass2: SinglePassOutput,
   key: string,
 ): SynthesizedCriterion["recommendations"] {
+  const criterionKey = key as SynthesizedCriterion["key"];
   const fromPass = (pass: SinglePassOutput, sourcePass: 1 | 2): SynthesizedCriterion["recommendations"] => {
     const passCriterion = pass.criteria.find((c) => c.key === key);
     if (!passCriterion) return [];
     return passCriterion.recommendations
-      .map((r) => ({
-        priority: r.priority,
-        action: String(r.action ?? "").trim(),
-        expected_impact: String(r.expected_impact ?? "").trim(),
-        anchor_snippet: String(r.anchor_snippet ?? "").trim(),
-        source_pass: sourcePass,
-        issue_family: r.issue_family,
-        strategic_lever: r.strategic_lever,
-        revision_granularity: r.revision_granularity,
-      }))
+      .map((r) => {
+        const base = {
+          priority: r.priority,
+          action: String(r.action ?? "").trim(),
+          expected_impact: String(r.expected_impact ?? "").trim(),
+          anchor_snippet: String(r.anchor_snippet ?? "").trim(),
+          source_pass: sourcePass,
+          issue_family: r.issue_family,
+          strategic_lever: r.strategic_lever,
+          revision_granularity: r.revision_granularity,
+          mechanism: "",
+          specific_fix: "",
+          reader_effect: "",
+        };
+        // Run through normalizer so the specificity triple is populated/repaired
+        return normalizeRecommendationContract(base, criterionKey);
+      })
       .filter((r) => r.action.length > 0 && r.expected_impact.length > 0 && r.anchor_snippet.length > 0);
   };
 

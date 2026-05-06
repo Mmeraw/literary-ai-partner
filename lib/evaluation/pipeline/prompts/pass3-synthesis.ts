@@ -15,7 +15,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v8-rec-contract-hardening";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v9-editorial-specificity-triple";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -73,7 +73,10 @@ CONFIDENCE AND EVIDENCE HANDLING:
 Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
 - Per-criterion fields: key, final_score_0_10, final_rationale, recommendations[]; hard_divergence adds disputed=true.
-- Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity.
+- Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect.
+- mechanism (REQUIRED): causal explanation why the problem exists; non-empty.
+- specific_fix (REQUIRED): concrete revision action verb phrase; non-empty.
+- reader_effect (REQUIRED): post-revision reader experience; non-empty.
 - Each recommendation.action MUST be one sentence and <= 300 characters.
 - agreement_map[]
 - divergence_map[] with arbitration_rationale
@@ -119,6 +122,10 @@ OUTPUT BUDGET BY STATE (STRICT):
 Do NOT emit "Confirmed." as complete rationale for agree criteria. State what was confirmed, the evidence basis, and why it matters.
 Do NOT return criteria as { agree:[], soft_divergence:[] ... }; return a single criteria[] array.
 Every recommendation MUST include: issue_family, strategic_lever, revision_granularity.
+Every recommendation MUST include the editorial specificity triple as SEPARATE JSON FIELDS (not only embedded in action/expected_impact):
+  - "mechanism": the causal explanation (non-empty, e.g. "the abstract phrasing diffuses tension before the decision point").
+  - "specific_fix": the concrete revision action (non-empty, e.g. "replace the abstract reaction line with a concrete sensory beat").
+  - "reader_effect": the post-revision reader experience (non-empty, e.g. "clearer cause-and-effect, increasing urgency at the turn").
 Every recommendation MUST satisfy the five-part contract: ANCHOR (location in text) + SYMPTOM (observable problem) + MECHANISM (causal connector: because/since/so that) + CONCRETE MOVE (replace/cut/insert/rewrite/escalate etc.) + READER EFFECT (urgency/clarity/engagement etc. in expected_impact).
 Do NOT emit two recommendations with the same strategic_lever — collapse them first.
 Target total visible output under 1500 tokens.
