@@ -34,7 +34,7 @@ function makePass(pass: 1 | 2, worldbuildingRationale: string): SinglePassOutput
       rationale:
         key === "worldbuilding"
           ? worldbuildingRationale
-          : `Independent ${pass === 1 ? "craft" : "editorial"} analysis for ${key} criterion.`,
+          : `Independent editorial analysis for ${key} criterion at pass ${pass}.`,
       evidence: [],
       recommendations: [],
     })),
