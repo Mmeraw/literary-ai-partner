@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAllowlist";
 
 export default function HeaderNav() {
   const pathname = usePathname() || "/";
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const isAppRoute =
     pathname.startsWith("/dashboard") ||
@@ -14,6 +17,23 @@ export default function HeaderNav() {
     pathname.startsWith("/output") ||
     pathname.startsWith("/storygate");
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/user", { credentials: "include", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const email = data && data.user && data.user.email;
+        setIsAdmin(isPipelineHealthAdminEmail(email));
+      })
+      .catch(() => {
+        if (!cancelled) setIsAdmin(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <header className="w-full bg-white border-b">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -21,7 +41,7 @@ export default function HeaderNav() {
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white">
             <span className="text-sm">RG</span>
           </span>
-          <span>RevisionGrade™</span>
+          <span>RevisionGrade&#8482;</span>
         </Link>
 
         {isAppRoute ? (
@@ -33,11 +53,21 @@ export default function HeaderNav() {
             <Link href="/output" className="hover:text-slate-900">Output</Link>
 
             <Link href="/storygate" className="font-semibold text-red-600 hover:text-red-700">
-              Storygate Studio™
+              Storygate Studio&#8482;
             </Link>
 
             <Link href="/resources" className="hover:text-slate-900">Resources</Link>
             <Link href="/pricing" className="hover:text-slate-900">Pricing</Link>
+
+            {isAdmin && (
+              <Link
+                href="/admin/pipeline-health"
+                className="font-semibold text-indigo-600 hover:text-indigo-700"
+                data-testid="nav-pipeline-health"
+              >
+                Pipeline Health
+              </Link>
+            )}
           </nav>
         ) : (
           <nav className="flex items-center gap-6 text-sm text-slate-700">
@@ -47,11 +77,21 @@ export default function HeaderNav() {
             <Link href="/resources" className="hover:text-slate-900">Resources</Link>
             <Link href="/pricing" className="hover:text-slate-900">Pricing</Link>
 
+            {isAdmin && (
+              <Link
+                href="/admin/pipeline-health"
+                className="font-semibold text-indigo-600 hover:text-indigo-700"
+                data-testid="nav-pipeline-health"
+              >
+                Pipeline Health
+              </Link>
+            )}
+
             <Link
               href="/evaluate"
               className="ml-2 inline-flex items-center rounded-xl bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700"
             >
-              Get Started →
+              Get Started &rarr;
             </Link>
           </nav>
         )}
