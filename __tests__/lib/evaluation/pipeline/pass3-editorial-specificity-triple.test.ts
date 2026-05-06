@@ -33,10 +33,13 @@ function makePassOutput(pass: 1 | 2): SinglePassOutput {
       evidence: [{ snippet: `Pass ${pass} evidence for ${key}: The river moved slowly.` }],
       recommendations: [
         {
-          priority: "medium",
+          priority: "medium" as const,
           action: `In the opening scene, replace the abstract ${key} signal because the current phrasing diffuses stakes.`,
           expected_impact: `Gives the reader clearer ${key} stakes and stronger engagement.`,
           anchor_snippet: `Anchor for ${key}.`,
+          issue_family: "scene_structure" as const,
+          strategic_lever: "scene_goal_clarity" as const,
+          revision_granularity: "scene" as const,
         },
       ],
     })),
@@ -161,8 +164,9 @@ describe("Pass 3 editorial specificity triple — schema enforcement", () => {
     }
   });
 
-  it("backfilled recommendations (from pass1/pass2) also have non-empty mechanism, specific_fix, reader_effect", () => {
-    // Empty recommendations from LLM → backfill from pass1/pass2
+  it("backfilled recommendations (from pass1/pass2 anchored recs) have non-empty mechanism, specific_fix, reader_effect", () => {
+    // Empty recommendations from LLM → backfill from pass1/pass2.
+    // Pass1/pass2 fixtures have anchor_snippet, so static defaults ARE permitted.
     const rawEmptyRecs = JSON.stringify({
       criteria: CRITERIA_KEYS.map((key) => ({
         key,
@@ -192,10 +196,68 @@ describe("Pass 3 editorial specificity triple — schema enforcement", () => {
 
     for (const criterion of result.criteria) {
       for (const rec of criterion.recommendations) {
+        // Backfilled recs have anchor_snippet from pass1/pass2 fixture → non-empty triple
         expect(rec.mechanism.trim().length).toBeGreaterThan(0);
         expect(rec.specific_fix.trim().length).toBeGreaterThan(0);
         expect(rec.reader_effect.trim().length).toBeGreaterThan(0);
       }
     }
+  });
+
+  it("anchorless generic recommendation with omitted triple stays generic — NOT bypassed by static defaults", () => {
+    // Simulate an LLM that emits an anchorless, generic recommendation (no anchor_snippet,
+    // no mechanism/specific_fix/reader_effect fields, no causal connectors, no fix verbs,
+    // no reader-effect words in expected_impact). This is exactly the pattern that should
+    // trigger QG_EDITORIAL_GENERIC_FEEDBACK. Verify that the normalizer does NOT fill in
+    // static criterion-aware defaults — leaving the triple empty so the gate can fire.
+    const rawAnchorlessGeneric = JSON.stringify({
+      criteria: [{
+        key: "tone",
+        craft_score: 6,
+        editorial_score: 5,
+        final_score_0_10: 5,
+        final_rationale: "Tone needs work.",
+        evidence: [],
+        recommendations: [
+          {
+            priority: "medium",
+            // No location, no fix verb, no mechanism connector, no reader-effect word
+            action: "Improve the tone throughout the manuscript.",
+            expected_impact: "This will make the text better overall.",
+            anchor_snippet: "", // anchorless
+            source_pass: 3,
+            issue_family: "scene_structure",
+            strategic_lever: "scene_goal_clarity",
+            revision_granularity: "scene",
+            // mechanism / specific_fix / reader_effect intentionally absent
+          },
+        ],
+      }],
+      overall: {
+        overall_score_0_100: 55,
+        verdict: "revise",
+        one_paragraph_summary: "The manuscript needs significant revision.",
+        top_3_strengths: ["voice", "premise", "character"],
+        top_3_risks: ["tone", "pacing", "marketability"],
+        submission_readiness: "not_yet",
+      },
+      metadata: {
+        pass1_model: "gpt-4o",
+        pass2_model: "gpt-4o",
+        pass3_model: "gpt-4o",
+      },
+    });
+
+    const result = parsePass3Response(rawAnchorlessGeneric, pass1, pass2);
+    const toneRec = result.criteria.find((c) => c.key === "tone")?.recommendations?.[0];
+
+    expect(toneRec).toBeDefined();
+    // Static defaults must NOT have been applied: all three fields stay empty
+    // because anchor_snippet is empty and no evidence can be extracted from the action/expected_impact text
+    expect(toneRec?.mechanism).toBe("");
+    expect(toneRec?.specific_fix).toBe("");
+    expect(toneRec?.reader_effect).toBe("");
+    // The action must NOT have been repaired to a passing form (no anchor to repair from)
+    expect(toneRec?.action).toBe("Improve the tone throughout the manuscript.");
   });
 });

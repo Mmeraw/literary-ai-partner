@@ -646,9 +646,9 @@ function parseRecommendations(
       const sourcePass = Number(r["source_pass"] ?? 3);
       const parsed = {
         priority: (priority === "high" || priority === "low" ? priority : "medium") as "high" | "medium" | "low",
-        action: String(r["action"] ?? ""),
-        expected_impact: String(r["expected_impact"] ?? ""),
-        anchor_snippet: String(r["anchor_snippet"] ?? ""),
+        action: String(r["action"] ?? "").trim(),
+        expected_impact: String(r["expected_impact"] ?? "").trim(),
+        anchor_snippet: String(r["anchor_snippet"] ?? "").trim(),
         source_pass: (sourcePass === 1 || sourcePass === 2 ? sourcePass : 3) as 1 | 2 | 3,
         issue_family: (() => {
           if (!("issue_family" in r) || r["issue_family"] === undefined || r["issue_family"] === null) {
@@ -688,19 +688,26 @@ function normalizeRecommendationContract(
   const hasMechanismCause = EDITORIAL_MECHANISM_MARKERS.test(action) || EDITORIAL_MECHANISM_MARKERS.test(expectedImpact);
   const hasReaderEffect = EDITORIAL_READER_EFFECT_MARKERS.test(expectedImpact);
 
-  // Resolve the structured editorial specificity triple (from explicit LLM fields or derived fallbacks)
-  const mechanism = resolveMechanism(recommendation.mechanism, action, expectedImpact, criterionKey);
-  const specificFix = resolveSpecificFix(recommendation.specific_fix, action, criterionKey);
-  const readerEffect = resolveReaderEffect(recommendation.reader_effect, expectedImpact, criterionKey);
+  // hasAnchor controls whether static criterion-aware defaults are permitted as
+  // last-resort fallbacks. For anchorless recs, the triple is resolved from local
+  // evidence only (extraction from action/expected_impact). If extraction also
+  // fails, the fields remain "": the recommendation stays generic and
+  // QG_EDITORIAL_GENERIC_FEEDBACK can fire on true generic content — not bypassed
+  // by static defaults.
+  const hasAnchor = anchorSnippet.length > 0;
+  const mechanism = resolveMechanism(recommendation.mechanism, action, expectedImpact, hasAnchor, criterionKey);
+  const specificFix = resolveSpecificFix(recommendation.specific_fix, action, hasAnchor, criterionKey);
+  const readerEffect = resolveReaderEffect(recommendation.reader_effect, expectedImpact, hasAnchor, criterionKey);
 
   if (hasSpecificFixMove && hasMechanismCause && hasReaderEffect) {
-    return { ...recommendation, mechanism, specific_fix: specificFix, reader_effect: readerEffect };
+    return { ...recommendation, action, expected_impact: expectedImpact, anchor_snippet: anchorSnippet, mechanism, specific_fix: specificFix, reader_effect: readerEffect };
   }
 
-  // Intentionally fail-closed for anchorless generic recs: do NOT auto-repair
-  // recommendations that lack explicit anchor_snippet.
+  // For anchorless recs: do NOT repair action/expected_impact — no manuscript context
+  // to anchor a repair. The triple fields are also not backfilled with static defaults
+  // (handled above by hasAnchor=false). Gate sees the genuine generic content.
   if (anchorSnippet.length === 0) {
-    return { ...recommendation, mechanism, specific_fix: specificFix, reader_effect: readerEffect };
+    return { ...recommendation, action, expected_impact: expectedImpact, anchor_snippet: anchorSnippet, mechanism, specific_fix: specificFix, reader_effect: readerEffect };
   }
 
   const intentFragment = extractIntentFragment(action);
@@ -713,6 +720,7 @@ function normalizeRecommendationContract(
     ...recommendation,
     action: repairedAction,
     expected_impact: repairedImpact,
+    anchor_snippet: anchorSnippet,
     mechanism,
     specific_fix: specificFix,
     reader_effect: readerEffect,
@@ -720,31 +728,39 @@ function normalizeRecommendationContract(
 }
 
 /**
- * Resolve the mechanism field: use explicit LLM value if non-empty, otherwise
- * extract from action text or fall back to a criterion-aware default.
+ * Resolve the mechanism field: use explicit LLM value if non-empty; otherwise
+ * extract from action/expected_impact text (evidence-derived); otherwise return ""
+ * if the recommendation is anchorless so the gate can fire on true generic content.
+ * Static criterion-aware defaults are intentionally NOT applied for anchorless recs.
  */
 function resolveMechanism(
   explicit: string,
   action: string,
   expectedImpact: string,
+  hasAnchor: boolean,
   criterionKey: SynthesizedCriterion["key"],
 ): string {
   if (explicit.length > 0) return explicit;
-  // Try to extract after a causal connector in action or expected_impact
+  // Try to extract after a causal connector in action or expected_impact (evidence-derived)
   const mechanismMatch =
     action.match(/\b(?:because|since|so\s+that)\b(.{10,150})/i) ??
     expectedImpact.match(/\b(?:because|since|so\s+that)\b(.{10,150})/i);
   if (mechanismMatch) return mechanismMatch[1].replace(/\.$/, "").trim();
+  // Only apply static criterion-aware default when anchor exists; for anchorless recs
+  // leave empty so QG_EDITORIAL_GENERIC_FEEDBACK can fire on true generic content.
+  if (!hasAnchor) return "";
   return buildCriterionAwareMechanismDefault(criterionKey);
 }
 
 /**
- * Resolve the specific_fix field: use explicit LLM value if non-empty, otherwise
- * extract from action text or fall back to a criterion-aware default.
+ * Resolve the specific_fix field: use explicit LLM value if non-empty; otherwise
+ * extract from action text (evidence-derived); otherwise return "" if anchorless.
+ * Static criterion-aware defaults are intentionally NOT applied for anchorless recs.
  */
 function resolveSpecificFix(
   explicit: string,
   action: string,
+  hasAnchor: boolean,
   criterionKey: SynthesizedCriterion["key"],
 ): string {
   if (explicit.length > 0) return explicit;
@@ -752,22 +768,30 @@ function resolveSpecificFix(
   const fixExtractor = new RegExp(EDITORIAL_FIX_MARKERS.source + ".{0,120}", "i");
   const fixMatch = action.match(fixExtractor);
   if (fixMatch) return fixMatch[0].replace(/\s+because.*$/i, "").replace(/\s+since.*$/i, "").trim().slice(0, 120);
+  // Only apply static criterion-aware default when anchor exists; for anchorless recs
+  // leave empty so QG_EDITORIAL_GENERIC_FEEDBACK can fire on true generic content.
+  if (!hasAnchor) return "";
   return buildCriterionAwareSpecificFixDefault(criterionKey);
 }
 
 /**
- * Resolve the reader_effect field: use explicit LLM value if non-empty, otherwise
- * extract from expected_impact text or fall back to a criterion-aware default.
+ * Resolve the reader_effect field: use explicit LLM value if non-empty; otherwise
+ * extract from expected_impact text (evidence-derived); otherwise return "" if anchorless.
+ * Static criterion-aware defaults are intentionally NOT applied for anchorless recs.
  */
 function resolveReaderEffect(
   explicit: string,
   expectedImpact: string,
+  hasAnchor: boolean,
   criterionKey: SynthesizedCriterion["key"],
 ): string {
   if (explicit.length > 0) return explicit;
   if (EDITORIAL_READER_EFFECT_MARKERS.test(expectedImpact)) {
     return expectedImpact.slice(0, 150);
   }
+  // Only apply static criterion-aware default when anchor exists; for anchorless recs
+  // leave empty so QG_EDITORIAL_GENERIC_FEEDBACK can fire on true generic content.
+  if (!hasAnchor) return "";
   return buildCriterionAwareReaderEffectDefault(criterionKey);
 }
 

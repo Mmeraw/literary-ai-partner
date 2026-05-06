@@ -196,18 +196,21 @@ export type SynthesizedCriterion = {
     /** Number of distinct evidence spans supporting this recommendation */
     evidence_span_count?: number;
     /**
-     * Causal connector explaining why this problem exists (non-empty, manuscript-anchored).
-     * Enforced by Pass 3 structural validator before QG_EDITORIAL_GENERIC_FEEDBACK gate.
+     * Causal explanation of why this problem exists (non-empty when anchor_snippet is
+     * present; derived from action/expected_impact text or criterion-aware default).
+     * For anchorless recommendations this may be "" — gate fires on the genuine generic content.
      */
     mechanism: string;
     /**
-     * Concrete revision action (non-empty, specific move, not generic advice).
-     * Enforced by Pass 3 structural validator before QG_EDITORIAL_GENERIC_FEEDBACK gate.
+     * Concrete revision action (non-empty when anchor_snippet is present; derived from
+     * action text or criterion-aware default). Not generic advice — a specific move.
+     * For anchorless recommendations this may be "" — gate fires on the genuine generic content.
      */
     specific_fix: string;
     /**
-     * Post-revision reader experience (non-empty).
-     * Enforced by Pass 3 structural validator before QG_EDITORIAL_GENERIC_FEEDBACK gate.
+     * Post-revision reader experience (non-empty when anchor_snippet is present; derived
+     * from expected_impact text or criterion-aware default).
+     * For anchorless recommendations this may be "" — gate fires on the genuine generic content.
      */
     reader_effect: string;
   }[];
