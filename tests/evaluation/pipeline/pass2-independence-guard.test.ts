@@ -333,4 +333,95 @@ describe("Pass 2 independence guard — pipeline integration", () => {
       expect(result.failed_at).toBe("pass2");
     }
   });
+
+  it("PASS2_INDEPENDENCE_REWRITE_FAILED includes structured failure_details for auditability", async () => {
+    const { runPipeline } = await import("@/lib/evaluation/pipeline/runPipeline");
+    const { CRITERIA_KEYS: keys } = await import("@/schemas/criteria-keys");
+
+    const worldbuildingTemplate =
+      "Environmental scaffolding channels reader orientation through locational and cultural reference points, establishing spatial legibility across scene boundaries.";
+
+    const makePass1 = (): SinglePassOutput => ({
+      pass: 1,
+      axis: "craft_execution",
+      criteria: keys.map((key) => ({
+        key,
+        score_0_10: 7,
+        rationale:
+          key === "worldbuilding"
+            ? worldbuildingTemplate
+            : `Craft analysis for ${key} with structural grounding.`,
+        evidence: [],
+        recommendations: [],
+      })),
+      model: "gpt-4o-mini",
+      prompt_version: "pass1-v1",
+      temperature: 0.3,
+      generated_at: new Date().toISOString(),
+    });
+
+    const makePass2 = (): SinglePassOutput => ({
+      pass: 2,
+      axis: "editorial_literary",
+      criteria: keys.map((key) => ({
+        key,
+        score_0_10: 7,
+        rationale:
+          key === "worldbuilding"
+            ? worldbuildingTemplate
+            : `Editorial analysis for ${key} with independent judgment.`,
+        evidence: [],
+        recommendations: [],
+      })),
+      model: "gpt-4o-mini",
+      prompt_version: "pass2-v1",
+      temperature: 0.3,
+      generated_at: new Date().toISOString(),
+    });
+
+    const result = await runPipeline({
+      manuscriptText: "The river moved through the valley.",
+      workType: "literary_fiction",
+      title: "Independence Guard Audit Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: async () => makePass1(),
+        runPass2: async () => makePass2(),
+        runPass3Synthesis: async () => {
+          throw new Error("Pass 3 should not be called");
+        },
+        runQualityGate: () => {
+          throw new Error("Quality gate should not be called");
+        },
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.error_code).toBe("PASS2_INDEPENDENCE_REWRITE_FAILED");
+    expect(result.failed_at).toBe("pass2");
+
+    // Structured failure details must be present and auditable
+    const details = result.failure_details?.pass2_independence;
+    expect(details).toBeDefined();
+    expect(details!.failed_keys).toContain("worldbuilding");
+    expect(details!.rewritten_keys).toContain("worldbuilding");
+    expect(typeof details!.threshold_n).toBe("number");
+    expect(typeof details!.threshold_min).toBe("number");
+    expect(details!.threshold_n).toBeGreaterThan(0);
+    expect(details!.threshold_min).toBeGreaterThan(0);
+
+    // Per-criterion audit record
+    expect(Array.isArray(details!.per_failed_criterion)).toBe(true);
+    expect(details!.per_failed_criterion.length).toBeGreaterThan(0);
+    const wbCriterion = details!.per_failed_criterion.find(
+      (c) => c.criterion_key === "worldbuilding",
+    );
+    expect(wbCriterion).toBeDefined();
+    expect(typeof wbCriterion!.initial_overlap_count).toBe("number");
+    expect(typeof wbCriterion!.post_rewrite_overlap_count).toBe("number");
+    expect(wbCriterion!.initial_overlap_count).toBeGreaterThanOrEqual(details!.threshold_min);
+    expect(wbCriterion!.post_rewrite_overlap_count).toBeGreaterThanOrEqual(details!.threshold_min);
+  });
 });

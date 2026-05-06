@@ -103,6 +103,16 @@ export type Pass2IndependenceGuardResult = {
   rewrittenKeys: string[];
   /** Criterion keys that still exceeded FAIL_THRESHOLD after rewrite. */
   failedKeys: string[];
+  /** Per-criterion audit record for fail-closed cases. Only populated when ok=false. */
+  perFailedCriterion: Array<{
+    criterion_key: string;
+    initial_overlap_count: number;
+    post_rewrite_overlap_count: number;
+  }>;
+  /** n-gram size used for overlap computation (mirrors QG_INDEPENDENCE_NGRAM_SIZE). */
+  threshold_n: number;
+  /** Minimum overlap count that triggers fail-closed (mirrors QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION). */
+  threshold_min: number;
 };
 
 /**
@@ -150,6 +160,11 @@ export function enforcePass2LexicalIndependence(
 
   const rewrittenKeys: string[] = [];
   const failedKeys: string[] = [];
+  const perFailedCriterion: Array<{
+    criterion_key: string;
+    initial_overlap_count: number;
+    post_rewrite_overlap_count: number;
+  }> = [];
 
   const rewrittenCriteria = pass2.criteria.map((criterion) => {
     const initialOverlap = computeOverlapCount(
@@ -194,6 +209,11 @@ export function enforcePass2LexicalIndependence(
         },
       );
       failedKeys.push(criterion.key);
+      perFailedCriterion.push({
+        criterion_key: criterion.key,
+        initial_overlap_count: initialOverlap,
+        post_rewrite_overlap_count: postRewriteOverlap,
+      });
       // Return the rewritten criterion (for auditability) even though the job fails
       rewrittenKeys.push(criterion.key);
       return { ...criterion, rationale: rewrittenRationale };
@@ -215,6 +235,9 @@ export function enforcePass2LexicalIndependence(
     rewriteApplied,
     rewrittenKeys,
     failedKeys,
+    perFailedCriterion,
+    threshold_n: ngramSize,
+    threshold_min: FAIL_THRESHOLD,
   };
 }
 

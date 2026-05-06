@@ -801,6 +801,15 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         error: `Pass 2 lexical independence guard failed after rewrite: criteria still have overlap counts >= ${PASS2_INDEPENDENCE_FAIL_THRESHOLD} after one rewrite attempt (keys: ${independenceResult.failedKeys.join(", ")})`,
         error_code: "PASS2_INDEPENDENCE_REWRITE_FAILED",
         failed_at: "pass2",
+        failure_details: {
+          pass2_independence: {
+            failed_keys: independenceResult.failedKeys,
+            rewritten_keys: independenceResult.rewrittenKeys,
+            threshold_n: independenceResult.threshold_n,
+            threshold_min: independenceResult.threshold_min,
+            per_failed_criterion: independenceResult.perFailedCriterion,
+          },
+        },
       };
     }
     pass2Output = independenceResult.output;
