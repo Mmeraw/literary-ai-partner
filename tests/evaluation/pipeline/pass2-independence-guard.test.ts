@@ -20,7 +20,14 @@ import {
   collectNgrams,
   QG_INDEPENDENCE_NGRAM_SIZE,
 } from "@/lib/evaluation/pipeline/qualityGate";
-import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
+import type { SinglePassOutput, PipelineResult } from "@/lib/evaluation/pipeline/types";
+
+/** Assertion helper: narrows PipelineResult to the ok: false branch. */
+function assertPipelineFailed(
+  result: PipelineResult,
+): asserts result is Extract<PipelineResult, { ok: false }> {
+  if (result.ok) throw new Error("Expected pipeline failure but result was ok");
+}
 
 // ── Fixture builders ──────────────────────────────────────────────────────────
 
@@ -328,10 +335,9 @@ describe("Pass 2 independence guard — pipeline integration", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error_code).toBe("PASS2_INDEPENDENCE_REWRITE_FAILED");
-      expect(result.failed_at).toBe("pass2");
-    }
+    assertPipelineFailed(result);
+    expect(result.error_code).toBe("PASS2_INDEPENDENCE_REWRITE_FAILED");
+    expect(result.failed_at).toBe("pass2");
   });
 
   it("PASS2_INDEPENDENCE_REWRITE_FAILED includes structured failure_details for auditability", async () => {
@@ -397,7 +403,7 @@ describe("Pass 2 independence guard — pipeline integration", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (result.ok) return;
+    assertPipelineFailed(result);
 
     expect(result.error_code).toBe("PASS2_INDEPENDENCE_REWRITE_FAILED");
     expect(result.failed_at).toBe("pass2");
