@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAccess";
+import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAllowlist";
 
 export default function HeaderNav() {
   const pathname = usePathname() || "/";
