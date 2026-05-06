@@ -458,11 +458,191 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     const result = await processEvaluationJob("job-real-gate-test");
 
     expect(result.success).toBe(false);
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+
+    // Diagnostic artifacts ARE persisted on V2 gate failure (for reconstructability).
+    // Verify only diagnostic artifact types are written — no evaluation_result_v2.
+    const diagnosticCalls = (upsertEvaluationArtifactMock.mock.calls as any[]).map(
+      (call: any[]) => call[0]?.artifactType,
+    );
+    expect(diagnosticCalls.every((t: string) =>
+      t === "pass_outputs_diagnostic_v1" || t === "quality_gate_diagnostics_v1",
+    )).toBe(true);
+
+    // No user-facing V2 artifact persisted (atomic RPC must not have fired).
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(false);
+
+    // No "complete" status written to DB.
     expect(
       supabaseStub.evaluationJobUpdates.some(
         (u: Record<string, unknown>) => u.status === "complete",
       ),
     ).toBe(false);
+
+    // Progress includes v2_gate_status=failed for reconstructability.
+    const finalProgressUpdate = supabaseStub.evaluationJobUpdates.find(
+      (u: Record<string, unknown>) =>
+        u.progress !== undefined &&
+        typeof u.progress === "object" &&
+        (u.progress as Record<string, unknown>).v2_gate_status === "failed",
+    );
+    expect(finalProgressUpdate).toBeDefined();
+  });
+
+  test("V2 GATE DIAGNOSTICS: pass_outputs_diagnostic_v1 and quality_gate_diagnostics_v1 persisted on score-confidence mismatch failure", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+    // Allow fail-soft diagnostic upserts to resolve cleanly.
+    upsertEvaluationArtifactMock.mockResolvedValue(undefined);
+
+    // ── Fixture design ─────────────────────────────────────────────────────────
+    // proseControl: score=7, single snippet "x" (1 char — no textual signal).
+    //   enforceTextualAnchorConfidence (runPipeline.ts) requires a snippet ≥20 chars
+    //   or curly-quoted text in the rationale. "x" provides neither, so the
+    //   criterion is DETERMINISTICALLY forced to confidence_level="low".
+    //   score=7 > QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE(5) → the real
+    //   v2_fidelity_score_confidence_alignment check ALWAYS fails.
+    //
+    // All other criteria retain the standard 3-anchor fixture (77+ chars each)
+    //   with full rationale → hasTextualAnchorSignal=true → confidence stays
+    //   high/medium → those criteria are unaffected by the cap check.
+    //
+    // Summary mentions "pacing" and "theme" (the lowest-scoring criteria at
+    //   score=4; bottomScoreCriteria threshold = min(5, 4+1)=5, so all
+    //   criteria with score ≤5 are bottom). This satisfies v2_summary_weakness_
+    //   presence so that check PASSES, isolating v2_fidelity_score_confidence_
+    //   alignment as the sole failure.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    const scoreConfidenceSynthesis = makeRealSynthesisOutput();
+    scoreConfidenceSynthesis.criteria = scoreConfidenceSynthesis.criteria.map((c) =>
+      c.key === "proseControl"
+        ? {
+            ...c,
+            // score=7 with single snippet "x" (1 char) deterministically forces
+            // confidence_level="low" via enforceTextualAnchorConfidence.
+            // score=7 > cap=5 → v2_fidelity_score_confidence_alignment always fails.
+            final_score_0_10: 7,
+            evidence: [{ snippet: "x" }],
+            final_rationale:
+              "Overall prose is generally fine and works most of the time with some variety.",
+          }
+        : c,
+    );
+    // Mention "pacing" and "theme" so v2_summary_weakness_presence passes.
+    // This isolates the v2_fidelity_score_confidence_alignment check as the sole trip.
+    // Note: "prose control" is the keyToReadableToken() representation of "proseControl".
+    scoreConfidenceSynthesis.overall.one_paragraph_summary =
+      "The manuscript demonstrates measurable craft; pacing and theme are the weakest criteria requiring focused revision, while proseControl exhibits a score-confidence tension that warrants investigation.";
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: scoreConfidenceSynthesis,
+      quality_gate: { pass: true, checks: [], warnings: [] },
+      pass4_governance: { ok: true },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-real-gate-test");
+
+    // ── Gate must ALWAYS fail ─────────────────────────────────────────────────
+    // proseControl is deterministically low-confidence (snippet "x", 1 char →
+    // enforceTextualAnchorConfidence forces confidence_level="low") and score=7 > cap=5.
+    // No conditional branch — the v2_fidelity_score_confidence_alignment check
+    // MUST fire and the job MUST fail.
+    expect(result.success).toBe(false);
+
+    // ── Acceptance criterion 1: pass_outputs_diagnostic_v1 persisted ──────────
+    const passOutputsCall = (upsertEvaluationArtifactMock.mock.calls as any[]).find(
+      (call: any[]) => call[0]?.artifactType === "pass_outputs_diagnostic_v1",
+    );
+    expect(passOutputsCall).toBeDefined();
+
+    const passOutputsContent = passOutputsCall[0]?.content as Record<string, unknown>;
+    expect(passOutputsContent.failed_at).toBe("v2_gate");
+    expect(passOutputsContent.error_code).toBe("QG_FAILED");
+    expect(Array.isArray(passOutputsContent.per_criterion)).toBe(true);
+
+    const perCriterionArr = passOutputsContent.per_criterion as Array<Record<string, unknown>>;
+    const proseControlEntry = perCriterionArr.find((e) => e.criterion_key === "proseControl");
+    expect(proseControlEntry).toBeDefined();
+    // score, confidence, and confidence_label must be populated (reconstructable forensics).
+    expect(proseControlEntry!.score).toBe(7);
+    expect(typeof proseControlEntry!.confidence).toBe("number");
+    expect(proseControlEntry!.confidence_label).toBe("low");
+
+    // ── Acceptance criterion 2: quality_gate_diagnostics_v1 persisted ─────────
+    const gateDiagCall = (upsertEvaluationArtifactMock.mock.calls as any[]).find(
+      (call: any[]) => call[0]?.artifactType === "quality_gate_diagnostics_v1",
+    );
+    expect(gateDiagCall).toBeDefined();
+
+    const gateDiagContent = gateDiagCall[0]?.content as Record<string, unknown>;
+    // gate_id is the semantic label for this failure path (score-confidence alignment).
+    // It is correctly hardcoded for this specific failure scenario.
+    expect(gateDiagContent.gate_id).toBe("v2_fidelity_score_confidence_alignment");
+    expect(gateDiagContent.gate_version).toBe("v2");
+    // score_cap_for_low_confidence echoes QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE = 5.
+    expect(gateDiagContent.score_cap_for_low_confidence).toBe(5);
+
+    // per_criterion must include proseControl with violated=true and reasons populated.
+    const gateDiagPerCriterion = gateDiagContent.per_criterion as Array<Record<string, unknown>>;
+    expect(Array.isArray(gateDiagPerCriterion)).toBe(true);
+    const proseGateEntry = gateDiagPerCriterion.find((e) => e.criterion_key === "proseControl");
+    expect(proseGateEntry).toBeDefined();
+    expect(proseGateEntry!.score).toBe(7);
+    expect(typeof proseGateEntry!.confidence).toBe("number");
+    expect(proseGateEntry!.violated).toBe(true);
+    expect(Array.isArray(proseGateEntry!.reasons)).toBe(true);
+    expect((proseGateEntry!.reasons as string[]).length).toBeGreaterThan(0);
+
+    // failed_criteria must include proseControl with score, confidence, reasons.
+    const gateDiagFailedCriteria = gateDiagContent.failed_criteria as Array<Record<string, unknown>>;
+    expect(Array.isArray(gateDiagFailedCriteria)).toBe(true);
+    expect(gateDiagFailedCriteria.length).toBeGreaterThan(0);
+    const proseInFailed = gateDiagFailedCriteria.find((e) => e.criterion_key === "proseControl");
+    expect(proseInFailed).toBeDefined();
+    expect(proseInFailed!.score).toBe(7);
+    expect(Array.isArray(proseInFailed!.reasons)).toBe(true);
+    expect((proseInFailed!.reasons as string[]).length).toBeGreaterThan(0);
+
+    // failed_checks must preserve the actual QualityGateV2 check IDs from
+    // qualityGateV2.checks so the diagnostics artifact is fully reconstructable.
+    // gate_id is the semantic label; failed_checks contains the real check_id(s).
+    // Each entry is formatted as "check_id: details", so use startsWith for precision.
+    const failedChecks = gateDiagContent.failed_checks as string[];
+    expect(Array.isArray(failedChecks)).toBe(true);
+    expect(failedChecks.length).toBeGreaterThan(0);
+    expect(
+      failedChecks.some((fc: string) => fc.startsWith("v2_fidelity_score_confidence_alignment")),
+    ).toBe(true);
+
+    // ── No user-facing artifact persisted ─────────────────────────────────────
+    // Only diagnostic artifact types must be written — no evaluation_result_v2.
+    expect(
+      (upsertEvaluationArtifactMock.mock.calls as any[]).some(
+        (call: any[]) => call[0]?.artifactType === "evaluation_result_v2",
+      ),
+    ).toBe(false);
+    // No atomic V2 persistence RPC.
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(false);
+    // No "complete" status written to DB.
+    expect(
+      supabaseStub.evaluationJobUpdates.some(
+        (u: Record<string, unknown>) => u.status === "complete",
+      ),
+    ).toBe(false);
+
+    // ── v2_gate_status=failed in progress ─────────────────────────────────────
+    const progressUpdate = supabaseStub.evaluationJobUpdates.find(
+      (u: Record<string, unknown>) =>
+        u.progress !== undefined &&
+        typeof u.progress === "object" &&
+        (u.progress as Record<string, unknown>).v2_gate_status === "failed",
+    );
+    expect(progressUpdate).toBeDefined();
   });
 });
