@@ -19,7 +19,6 @@
 
 import type { SinglePassOutput } from "./types";
 import {
-  tokenizeForOverlap,
   collectNgrams,
   QG_INDEPENDENCE_NGRAM_SIZE,
   QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION,
@@ -219,7 +218,8 @@ export function enforcePass2LexicalIndependence(
   };
 }
 
-// Re-export overlap computation helpers for testing
-export { tokenizeForOverlap, collectNgrams };
-export { REWRITE_TRIGGER as PASS2_INDEPENDENCE_REWRITE_TRIGGER };
-export { FAIL_THRESHOLD as PASS2_INDEPENDENCE_FAIL_THRESHOLD };
+
+/** Exported constant: rewrite trigger threshold (overlap count that triggers rewrite). */
+export const PASS2_INDEPENDENCE_REWRITE_TRIGGER: number = REWRITE_TRIGGER;
+/** Exported constant: fail-closed threshold (overlap count that fails the job after rewrite). */
+export const PASS2_INDEPENDENCE_FAIL_THRESHOLD: number = FAIL_THRESHOLD;

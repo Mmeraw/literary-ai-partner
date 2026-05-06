@@ -147,7 +147,7 @@ describe("Pass 2 independence guard — true_overlap rewrite (worldbuilding)", (
     expect(rewrittenWorldbuilding!.rationale).not.toContain("strong sense of place");
     // Must use mechanism vocabulary
     const text = rewrittenWorldbuilding!.rationale.toLowerCase();
-    const hasMechanismVerb = /channels|generates|produces|activates|establishes|drives|anchors|conditions|scaffolding/.test(text);
+    const hasMechanismVerb = /channels|generates|produces|activates|establishes|drives|anchors|conditions|calibrates/.test(text);
     expect(hasMechanismVerb).toBe(true);
   });
 

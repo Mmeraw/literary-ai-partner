@@ -15,7 +15,7 @@
 
 import { runPass1 as defaultRunPass1 } from "./runPass1";
 import { runPass2 as defaultRunPass2 } from "./runPass2";
-import { enforcePass2LexicalIndependence } from "./pass2IndependenceGuard";
+import { enforcePass2LexicalIndependence, PASS2_INDEPENDENCE_FAIL_THRESHOLD } from "./pass2IndependenceGuard";
 import { runPass3Synthesis as defaultRunPass3 } from "./runPass3Synthesis";
 import { runPerplexityCrossCheck, CrossCheckOutput } from "./perplexityCrossCheck";
 import { evaluatePass4Governance } from "@/lib/evaluation/governance/evaluatePass4Governance";
@@ -798,7 +798,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       });
       return {
         ok: false,
-        error: `Pass 2 lexical independence guard failed after rewrite: criteria still exceed overlap threshold after one rewrite attempt (keys: ${independenceResult.failedKeys.join(", ")})`,
+        error: `Pass 2 lexical independence guard failed after rewrite: criteria still have overlap counts >= ${PASS2_INDEPENDENCE_FAIL_THRESHOLD} after one rewrite attempt (keys: ${independenceResult.failedKeys.join(", ")})`,
         error_code: "PASS2_INDEPENDENCE_REWRITE_FAILED",
         failed_at: "pass2",
       };
