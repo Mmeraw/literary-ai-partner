@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-
-export const PIPELINE_HEALTH_ADMIN_EMAIL = "tsavobc@hotmail.com";
-
-export function isPipelineHealthAdminEmail(email: string | null | undefined): boolean {
-  return email?.trim().toLowerCase() === PIPELINE_HEALTH_ADMIN_EMAIL;
-}
+import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAllowlist";
 
 export function isPipelineHealthAdminUser(user: User | null | undefined): boolean {
   return isPipelineHealthAdminEmail(user?.email);
