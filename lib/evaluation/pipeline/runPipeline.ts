@@ -22,7 +22,6 @@ import { evaluatePass4Governance } from "@/lib/evaluation/governance/evaluatePas
 import {
   runQualityGate as defaultRunQualityGate,
   summarizeQualityGateFailures,
-  QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE,
 } from "./qualityGate";
 import { buildScoreLedger } from "./buildScoreLedger";
 import { buildExcellenceFilter } from "./buildExcellenceFilter";
@@ -255,55 +254,6 @@ function enforceTextualAnchorConfidence(
       criterion.scorability_status === "non_scorable"
         ? "non_scorable"
         : "scorable_low_confidence",
-  };
-}
-
-/**
- * Score-confidence reconciliation: enforce the V2 contract that a
- * low-confidence criterion's score must not exceed QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE.
- *
- * When a criterion has confidence_level = "low" AND score_0_10 > cap, this
- * function caps score_0_10 to the cap and appends a truthful reconciliation
- * note to the rationale so the persisted diagnostics remain auditable.
- *
- * Runs AFTER enforceTextualAnchorConfidence in synthesisToEvaluationResultV2,
- * BEFORE runQualityGateV2 evaluates, so the gate never sees a mismatch.
- */
-function reconcileLowConfidenceScore(
-  criterion: EvaluationResultV2["criteria"][number],
-): EvaluationResultV2["criteria"][number] {
-  const cap = QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE;
-  if (
-    criterion.confidence_level !== "low" ||
-    typeof criterion.score_0_10 !== "number" ||
-    criterion.score_0_10 <= cap
-  ) {
-    return criterion;
-  }
-
-  const originalScore = criterion.score_0_10;
-  const existingRationale = criterion.rationale ?? "";
-  const reconciliationNote =
-    `[Score reconciled from ${originalScore} to ${cap}: confidence is low ` +
-    `(${criterion.confidence_score_0_100 ?? "n/a"}/100) due to insufficient textual evidence anchors. ` +
-    `Score capped at ${cap} per V2 low-confidence contract before gate evaluation.]`;
-
-  const existingReasons = Array.isArray(criterion.confidence_reasons)
-    ? criterion.confidence_reasons
-    : [];
-
-  return {
-    ...criterion,
-    score_0_10: cap,
-    rationale: existingRationale
-      ? `${existingRationale} ${reconciliationNote}`
-      : reconciliationNote,
-    confidence_reasons: Array.from(
-      new Set([
-        ...existingReasons,
-        "SCORE_RECONCILED_LOW_CONFIDENCE",
-      ]),
-    ),
   };
 }
 
@@ -1534,8 +1484,7 @@ export function synthesisToEvaluationResultV2(
         },
       ),
     )
-    .map(enforceTextualAnchorConfidence)
-    .map(reconcileLowConfidenceScore);
+    .map(enforceTextualAnchorConfidence);
 
   const weighted = computeWeightedScore(criteria);
   const propagation = summarizePropagationIntegrity(criteria);
