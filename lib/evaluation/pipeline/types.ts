@@ -339,6 +339,54 @@ export type PassCompletionCapture = {
   pass3_reducer_telemetry?: Pass3ReducerTelemetry;
 };
 
+// ── Phase 2.7 Gate Diagnostics (audit-only, not user-visible) ───────────────
+
+/**
+ * Per-criterion diagnostic record for the independence check.
+ * Stored in quality_gate_diagnostics_v1 evaluation artifact.
+ * classification is a placeholder for post-rerun triage (A/B/C).
+ */
+export type QualityGateCriterionDiagnostic = {
+  criterion_key: string;
+  pass1_rationale: string;
+  pass2_rationale: string;
+  /** All unique non-evidence n-grams from Pass 2 rationale that appear in Pass 1 rationale */
+  overlap_4grams: string[];
+  observed_overlap_count: number;
+  threshold_n: number;
+  threshold_min: number;
+  /** Placeholder for post-rerun classification: true_overlap | generic_overlap | false_positive */
+  classification: null;
+};
+
+/**
+ * Full gate diagnostic payload attached to PipelineResult (ok: false) at pass4.
+ * Consumed by the processor to persist audit artifacts.
+ * Must NOT be passed to markFailed (too large) — processor reads directly from PipelineResult.
+ */
+export type GateDiagnostics = {
+  schema_version: "gate_diagnostics_v1";
+  failed_at: "pass4";
+  error_code: string;
+  generated_at: string;
+  /** Per-criterion independence diagnostics (empty when failure is not QG_INDEPENDENCE_VIOLATION) */
+  per_criterion: QualityGateCriterionDiagnostic[];
+  /** Raw Pass 1 output as emitted — audit-only, not normalized for report UI */
+  pass1_output: SinglePassOutput;
+  /** Raw Pass 2 output as emitted — audit-only, not normalized for report UI */
+  pass2_output: SinglePassOutput;
+  /** Pass 3 synthesis output — audit-only, not normalized for report UI */
+  pass3_output: SynthesisOutput;
+  /** Sanitized provider trace (model IDs, prompt versions, temperatures — no raw LLM text) */
+  provider_call_trace: Array<{
+    pass: 1 | 2;
+    model: string;
+    prompt_version: string;
+    temperature: number;
+    generated_at: string;
+  }>;
+};
+
 // ── Pipeline result ──────────────────────────────────────────────────────────
 
 export type PipelineResult =
@@ -375,8 +423,36 @@ export type PipelineResult =
           error_code?: string;
           details?: string;
           diagnostics?: unknown;
+          /**
+           * Compact per-criterion diagnostic array — signals that structured diagnostics
+           * are available. Written to pipeline_failure_diagnostics in job progress so
+           * /admin/pipeline-health can return diagnosticStatus="available".
+           * Full data lives in quality_gate_diagnostics_v1 evaluation artifact.
+           * Only present for independence check failures (QG_INDEPENDENCE_VIOLATION).
+           */
+          per_criterion_diagnostic?: Array<{
+            criterion_key: string;
+            observed_overlap_count: number;
+            threshold_n: number;
+            threshold_min: number;
+            classification: null;
+          }>;
         }>;
+        /**
+         * Signal that audit-grade gate diagnostic artifacts were initiated for this job.
+         * Present for any Phase 2.7 gate failure where pass outputs are available.
+         * Allows /admin/pipeline-health diagnosticStatus to return "available" for all
+         * gate failure types (not only QG_INDEPENDENCE_VIOLATION).
+         */
+        gate_diagnostics_version?: "gate_diagnostics_v1";
       };
+      /**
+       * Full gate diagnostic payload for artifact persistence (Phase 2.7 audit).
+       * Present only when failed_at="pass4" and pass1/pass2/pass3 outputs are available.
+       * Processor MUST NOT pass this to markFailed — too large for the 4KB progress limit.
+       * Processor reads this directly from PipelineResult to persist audit artifacts.
+       */
+      gate_diagnostics?: GateDiagnostics;
     };
 
 // ── Artifact Validation Layer ─────────────────────────────────────────────────

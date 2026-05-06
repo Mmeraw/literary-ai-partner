@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * GET /api/admin/pipeline-health
  *
  * Admin-only pipeline health dashboard API (v1).
- * Reads from evaluation_jobs only — no new tables, no pipeline behavior changes.
+ * Reads from evaluation_jobs + evaluation_artifacts — no new tables, no pipeline behavior changes.
  *
  * Query parameters:
  *   window  = 1h | 24h | 7d   (default: 24h)
@@ -18,7 +18,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Governance:
  *   - Read-only. No writes to any table.
  *   - Uses existing admin auth (requireAdmin).
- *   - Diagnostics blockedBy307 flag surfaces when structured diagnostics are absent.
+ *   - diagnosticStatus="available" ONLY when both audit artifacts are confirmed present
+ *     in evaluation_artifacts. Version flags / in-progress markers are NOT sufficient.
  */
 
 export const dynamic = "force-dynamic";
@@ -94,22 +95,68 @@ function extractLastError(job: Record<string, unknown>): string | null {
 
 type DiagnosticStatus = "available" | "missing" | "blocked_by_307" | "not_applicable";
 
-function diagnosticStatus(job: Record<string, unknown>): DiagnosticStatus {
+/**
+ * Batch-load audit artifact kinds for a set of job IDs from evaluation_artifacts.
+ *
+ * Returns a Map<jobId, Set<artifactType>>. Audit artifact types are:
+ *   - "pass_outputs_diagnostic_v1"
+ *   - "quality_gate_diagnostics_v1"
+ *
+ * Any DB error returns an empty Map (fail-soft — diagnosticStatus falls back to "missing").
+ */
+async function loadPersistedArtifactKinds(
+  supabase: ReturnType<typeof createAdminClient>,
+  jobIds: string[]
+): Promise<Map<string, Set<string>>> {
+  if (jobIds.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from("evaluation_artifacts")
+    .select("job_id, artifact_type")
+    .in("job_id", jobIds)
+    .in("artifact_type", ["pass_outputs_diagnostic_v1", "quality_gate_diagnostics_v1"]);
+
+  if (error || !data) {
+    console.warn("[pipeline-health] evaluation_artifacts lookup failed:", error?.message);
+    return new Map();
+  }
+
+  const result = new Map<string, Set<string>>();
+  for (const row of data as Array<{ job_id: string; artifact_type: string }>) {
+    if (!result.has(row.job_id)) {
+      result.set(row.job_id, new Set());
+    }
+    result.get(row.job_id)!.add(row.artifact_type);
+  }
+  return result;
+}
+
+/**
+ * Truthful diagnosticStatus:
+ *   "available" ONLY when the quality_gate_diagnostics_v1 audit artifact is
+ *   confirmed present in evaluation_artifacts for this job (source of truth).
+ *   Version flags / in-progress markers in job progress are NOT sufficient.
+ *
+ * @param job              - The evaluation_jobs row.
+ * @param persistedKinds   - Set of artifact_types confirmed present for this job
+ *                           (from loadPersistedArtifactKinds). Undefined = not loaded.
+ */
+function diagnosticStatus(
+  job: Record<string, unknown>,
+  persistedKinds?: Set<string>
+): DiagnosticStatus {
   if (job.status !== "failed") return "not_applicable";
 
-  const progress = (job.progress ?? {}) as Record<string, unknown>;
-  const diagnostics = (progress.pipeline_failure_diagnostics ?? {}) as Record<string, unknown>;
-  const checks = diagnostics.quality_gate_checks;
+  // Truthful path: use confirmed artifact presence from evaluation_artifacts.
+  if (persistedKinds !== undefined) {
+    if (persistedKinds.has("quality_gate_diagnostics_v1")) return "available";
+    // Artifact absent for this job — fall through to legacy signal check.
+  }
 
-  const hasStructured =
-    Array.isArray(checks) &&
-    checks.some(
-      (c: unknown) =>
-        Array.isArray((c as Record<string, unknown>).per_criterion_diagnostic)
-    );
-
-  if (hasStructured) return "available";
-
+  // Legacy fallback: jobs that failed before #307 diagnostic persistence was deployed.
+  // Version flags in progress are NOT sufficient for "available" — they only tell us
+  // the persistence was attempted (may have failed). Use them only to distinguish
+  // "blocked_by_307" (pre-deployment QG_ failures) from plain "missing".
   const errorCode = extractErrorCode(job);
   if (typeof errorCode === "string" && errorCode.startsWith("QG_")) return "blocked_by_307";
 
@@ -120,13 +167,20 @@ function diagnosticStatus(job: Record<string, unknown>): DiagnosticStatus {
 // Response builder
 // ---------------------------------------------------------------------------
 
-function buildPipelineHealth(jobs: Record<string, unknown>[], windowParam: string) {
+function buildPipelineHealth(
+  jobs: Record<string, unknown>[],
+  windowParam: string,
+  artifactKindsByJob: Map<string, Set<string>>
+) {
   const totalJobs = jobs.length;
   const failedJobs = jobs.filter((j) => j.status === "failed").length;
   const completedJobs = jobs.filter((j) => j.status === "complete").length;
   const runningJobs = jobs.filter(
     (j) => j.status === "running" || j.status === "queued"
   ).length;
+
+  const jobDiagStatus = (job: Record<string, unknown>): DiagnosticStatus =>
+    diagnosticStatus(job, artifactKindsByJob.get(String(job.id ?? "")));
 
   // Failure heatmap: stage × error_code
   const heatmapAcc: Record<
@@ -181,7 +235,7 @@ function buildPipelineHealth(jobs: Record<string, unknown>[], windowParam: strin
       qualityDelta: null,
       fakeZeroDelta: null,
       traceabilityCompletenessDelta: null,
-      diagnosticGap: stageJobs.some((j) => diagnosticStatus(j) === "blocked_by_307"),
+      diagnosticGap: stageJobs.some((j) => jobDiagStatus(j) === "blocked_by_307"),
     };
   });
 
@@ -212,11 +266,11 @@ function buildPipelineHealth(jobs: Record<string, unknown>[], windowParam: strin
         createdAt && updatedAt
           ? new Date(updatedAt).getTime() - new Date(createdAt).getTime()
           : null,
-      diagnosticStatus: diagnosticStatus(job),
+      diagnosticStatus: jobDiagStatus(job),
     };
   });
 
-  const blockedCount = jobs.filter((j) => diagnosticStatus(j) === "blocked_by_307").length;
+  const blockedCount = jobs.filter((j) => jobDiagStatus(j) === "blocked_by_307").length;
 
   return {
     generatedAt: new Date().toISOString(),
@@ -237,7 +291,9 @@ function buildPipelineHealth(jobs: Record<string, unknown>[], windowParam: strin
       missingDiagnosticArtifactCount: blockedCount,
       missingProviderTraceCount: null,
       missingIntermediateOutputCount: null,
-      note: "Full criterion-level reconstruction depends on Mmeraw/literary-ai-partner#307 diagnostic persistence.",
+      note: blockedCount === 0
+        ? "All failed jobs have structured diagnostics (pass_outputs_diagnostic_v1 + quality_gate_diagnostics_v1 artifacts)."
+        : `${blockedCount} failed job(s) lack structured diagnostics. Jobs failing after diagnostic persistence is deployed will have quality_gate_diagnostics_v1 artifacts.`,
     },
   };
 }
@@ -287,10 +343,18 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const payload = buildPipelineHealth(
-      (jobs ?? []) as Record<string, unknown>[],
-      windowParam
-    );
+    const allJobs = (jobs ?? []) as Record<string, unknown>[];
+
+    // Batch-load audit artifact presence for failed jobs (single DB round-trip).
+    // diagnosticStatus="available" requires confirmed artifact presence in evaluation_artifacts.
+    const failedJobIds = allJobs
+      .filter((j) => j.status === "failed")
+      .map((j) => String(j.id ?? ""))
+      .filter((id) => id.length > 0);
+
+    const artifactKindsByJob = await loadPersistedArtifactKinds(supabase, failedJobIds);
+
+    const payload = buildPipelineHealth(allJobs, windowParam, artifactKindsByJob);
 
     return NextResponse.json({ ok: true, ...payload });
   } catch (err) {
