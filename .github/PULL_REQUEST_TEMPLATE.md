@@ -54,12 +54,11 @@ This PR is not reducing intelligence.
 
 ```yaml
 criteria_count_by_state:
-  total_criteria: 13
-  contract_compliant: 0
   agree: 0
   soft_divergence: 0
   hard_divergence: 0
   missing_or_invalid: 0
+# agree + soft_divergence + hard_divergence + missing_or_invalid should sum to 13
 ```
 
 ## Quality Gate / Anomalies
