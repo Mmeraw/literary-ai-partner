@@ -15,7 +15,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v9-editorial-specificity-triple";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v10-internal-coherence-hardening";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -69,6 +69,39 @@ CONFIDENCE AND EVIDENCE HANDLING:
 - Do NOT convert a scorable criterion into N/A due to thin evidence/hygiene artifacts.
 - If evidence is thin: preserve score and summary, lower confidence, and do not invent evidence.
 - N/A only when truly impossible to evaluate.
+
+INTERNAL COHERENCE MANDATE (NO SCORE/CONFIDENCE CONTRADICTION):
+- A score above 5 asserts evaluator confidence in that judgment. Do NOT emit a score above 5
+  unless your evidence anchors and rationale satisfy the criteria for at least MEDIUM confidence.
+- If you cannot produce ≥3 verbatim anchors of ≥20 consecutive characters from the submitted
+  text that directly support the score, you MUST lower the score to a band where your evidence
+  is sufficient. It is a contract violation to emit score_0_10 > 5 alongside confidence_level "low".
+- Every verbatim anchor MUST be a direct, consecutive character span from the submitted manuscript
+  text (not a paraphrase, not a summary). Anchors must be enclosed in "straight double quotes".
+- Every anchor MUST include char_start and char_end offsets that reproduce the exact span when
+  applied to the source text (anchor = sourceText.slice(char_start, char_end)).
+- Rationale for criteria scoring above 5 MUST use criterion-specific mechanism vocabulary:
+    proseControl → "sentence rhythm", "prose register", "syntactic variety", "lyrical density"
+    voice → POV/voice mechanism name (e.g. "close-third interiority", "free indirect discourse")
+    dialogue → attribution/rendering mechanism name
+  Generic rationale ("the prose is strong", "well-written") is forbidden for high-scoring criteria.
+- If you believe the score is correct but cannot produce sufficient verbatim anchors, lower the
+  score until your evidence supports it. An honest lower score is doctrine-compliant; a high score
+  with low confidence is a contract violation.
+
+LYRICAL/ATMOSPHERIC PROSE ANCHOR EXAMPLES:
+  STRONG (correct — verbatim ≥20 chars, mechanism-specific rationale):
+    score: 7, confidence: medium
+    anchor: "the light thinned to grey gauze across the water"
+    rationale: "Sentence rhythm slows through the monosyllabic chain 'grey gauze across the
+    water,' creating a dampening effect that matches the scene's emotional withdrawal."
+
+  WEAK (forbidden — no verbatim anchor, generic rationale):
+    score: 7, confidence: low
+    anchor: (empty or paraphrase only)
+    rationale: "The prose demonstrates strong lyrical control throughout."
+  → This pair is a contract violation. If you cannot reproduce the strong example pattern,
+    lower the score to the band your evidence actually supports.
 
 Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
