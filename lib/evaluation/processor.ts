@@ -2305,8 +2305,40 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       enforcementMode: 'enforce' as const,
     };
 
-    evaluationResult.governance.warnings = [
-      ...(evaluationResult.governance.warnings ?? []),
+    const effectiveEvaluationResult =
+      qualityGateV2.downgradedResult ?? evaluationResult;
+
+    const effectiveArtifactCriteria = effectiveEvaluationResult.criteria.map((criterion) => ({
+      key: criterion.key,
+      final_score_0_10: criterion.score_0_10,
+      reasoning: criterion.rationale,
+      evidence: criterion.evidence.map((item) => item.snippet).filter(Boolean).join(' | '),
+      interpretation: '',
+    }));
+    const effectiveScoreLedger =
+      effectiveArtifactCriteria.length > 0
+        ? buildScoreLedger({
+            criteria: effectiveArtifactCriteria.map((criterion) => ({
+              key: criterion.key,
+              final_score_0_10: criterion.final_score_0_10,
+            })),
+          })
+        : {
+            rawTotal: 0,
+            maxTotal: 0,
+            normalized: 0,
+            weighting: 'weighted' as const,
+            authorityComposite: computeAuthorityComposite([]),
+          };
+    const effectiveExcellenceFilter = buildExcellenceFilter({
+      criteria: effectiveArtifactCriteria.map((criterion) => ({
+        key: criterion.key,
+        final_score_0_10: criterion.final_score_0_10,
+      })),
+    });
+
+    effectiveEvaluationResult.governance.warnings = [
+      ...(effectiveEvaluationResult.governance.warnings ?? []),
       ...(qualityGateV2.warnings ?? []),
       ...(artifactGateDecision.reasonCodes.length > 0
         ? [
@@ -2314,24 +2346,26 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           ]
         : []),
     ];
-    evaluationResult.governance.transparency = {
-      ...(evaluationResult.governance.transparency ?? {}),
+    effectiveEvaluationResult.governance.transparency = {
+      ...(effectiveEvaluationResult.governance.transparency ?? {}),
       artifact_validation_result: artifactGateDecision.verdict,
       artifact_reason_codes: artifactGateDecision.reasonCodes,
       artifact_validated_at: artifactGateDecision.validatedAt,
       score_ledger: {
-        raw_total: scoreLedger.rawTotal,
-        max_total: scoreLedger.maxTotal,
-        normalized_total: scoreLedger.normalized,
-        weighting: scoreLedger.weighting,
+        raw_total: effectiveScoreLedger.rawTotal,
+        max_total: effectiveScoreLedger.maxTotal,
+        normalized_total: effectiveScoreLedger.normalized,
+        weighting: effectiveScoreLedger.weighting,
       },
       excellence_filter: {
-        verdict: excellenceFilter.verdict,
-        blocking_criteria: excellenceFilter.blockingCriteria,
+        verdict: effectiveExcellenceFilter.verdict,
+        blocking_criteria: effectiveExcellenceFilter.blockingCriteria,
       },
     };
 
-    const governanceBridgeProjection = mapEvaluationResultV2ToGovernanceEnvelope(evaluationResult);
+    const governanceBridgeProjection = mapEvaluationResultV2ToGovernanceEnvelope(
+      effectiveEvaluationResult,
+    );
     console.log(
       `[Processor] ${jobId}: governance bridge projected ${governanceBridgeProjection.criteria.length} scorable criterion/criteria`,
     );
@@ -2339,7 +2373,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     if (evalContextContaminationGuardEnabled) {
       const contaminationCheck = detectContextContamination({
         sourceText: manuscriptWithContent.content || '',
-        evaluationResult,
+        evaluationResult: effectiveEvaluationResult,
       });
 
       if (contaminationCheck.contaminated) {
@@ -2359,22 +2393,22 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     }
 
     const promptCoverage = summarizePromptCoverage(manuscriptWithContent.content || '');
-    evaluationResult.metrics.manuscript = {
-      ...evaluationResult.metrics.manuscript,
+    effectiveEvaluationResult.metrics.manuscript = {
+      ...effectiveEvaluationResult.metrics.manuscript,
       word_count: promptCoverage.sourceWords,
       char_count: promptCoverage.sourceChars,
       genre: manuscriptWithContent.work_type || 'Unknown',
     };
-    evaluationResult.metrics.processing = {
-      ...evaluationResult.metrics.processing,
+    effectiveEvaluationResult.metrics.processing = {
+      ...effectiveEvaluationResult.metrics.processing,
       segment_count: promptCoverage.truncated ? 3 : 1,
     };
-    evaluationResult.governance.limitations = [
+    effectiveEvaluationResult.governance.limitations = [
       promptCoverage.truncated
         ? `Pass 1 and Pass 2 analyzed a sampled prompt window (~${promptCoverage.analyzedWords} of ${promptCoverage.sourceWords} words; ${promptCoverage.budgetChars}-char budget).`
         : `Pass 1 and Pass 2 analyzed the full submission (${promptCoverage.sourceWords} words).`,
       'Pass 3 synthesis uses a compressed manuscript reference window for arbitration context.',
-      ...evaluationResult.governance.limitations.filter(
+      ...effectiveEvaluationResult.governance.limitations.filter(
         (item) =>
           item !== 'Single-chunk evaluation; multi-chunk synthesis in Phase 2.8' &&
           item !== 'Full manuscript context may not be captured if truncated',
@@ -2396,8 +2430,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     // 5. Persist canonical artifact with idempotent upsert (fail-closed)
     const manuscriptText = manuscriptWithContent.content || '(No content provided)';
-    const model = evaluationResult.engine?.model || 'unknown-model';
-    const promptVersion = evaluationResult.engine?.prompt_version || 'unknown-prompt';
+    const model = effectiveEvaluationResult.engine?.model || 'unknown-model';
+    const promptVersion = effectiveEvaluationResult.engine?.prompt_version || 'unknown-prompt';
 
     const sourceHash = stableSourceHash({
       manuscriptId: manuscript.id,
@@ -2440,7 +2474,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         supabase,
         jobId: job.id,
         manuscriptId: job.manuscript_id,
-        evaluationResult,
+        evaluationResult: effectiveEvaluationResult,
         sourceHash,
         progressSnapshot: existingProgress,
         totalUnits: EVALUATION_PROGRESS_TOTAL_UNITS,
