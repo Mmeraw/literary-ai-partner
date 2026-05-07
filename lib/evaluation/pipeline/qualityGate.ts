@@ -1361,6 +1361,12 @@ export function runQualityGateV2(
     scoreConfidenceMismatchDetails.length > 0
       ? {
           ...result,
+          overview: {
+            ...result.overview,
+            scored_criteria_count: scoredCount,
+            overall_score_0_100:
+              scoredCount === 0 ? null : result.overview.overall_score_0_100,
+          },
           criteria: downgradedCriteria,
         }
       : undefined;
