@@ -619,6 +619,56 @@ describe("Pass 3 backfill quality", () => {
     expect(pacingRec?.action.toLowerCase()).toMatch(/cut|insert/);
   });
 
+  test("repair action keeps preservation clause grammatical for imperative intent fragments", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "dialogue",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Dialogue rationale placeholder.",
+          evidence: [{ snippet: '"It\'s okay," I whispered. But even as I said it, I knew it wasn\'t okay.' }],
+          recommendations: [
+            {
+              priority: "medium",
+              action: "Revise dialogue in Chapter 11 to reduce expository elements and increase dynamic interaction.",
+              expected_impact: "Improves dialogue quality.",
+              anchor_snippet: '"It\'s okay," I whispered. But even as I said it, I knew it wasn\'t okay.',
+              source_pass: 3,
+              issue_family: "dialogue",
+              strategic_lever: "dialogue_exposition_density",
+              revision_granularity: "beat",
+            },
+          ],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsed = parsePass3Response(raw, pass1, pass2, "o3");
+    const repaired = parsed.criteria.find((c) => c.key === "dialogue")?.recommendations?.[0]?.action ?? "";
+
+    expect(repaired).toContain("because this preserves the original revision intent (");
+    expect(repaired).not.toContain("because this preserves Revise dialogue");
+    expect(repaired.toLowerCase()).not.toContain("criterion-specific move");
+  });
+
   test("does not auto-repair anchorless generic recommendation and QG still fails", () => {
     const pass1 = makePass(1);
     const pass2 = makePass(2);
