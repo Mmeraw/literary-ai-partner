@@ -28,33 +28,22 @@ Rules:
 - If |craft_score-editorial_score| > 2, include delta_explanation and arbitration logic.
 - Preserve narrative-mode distinctions.
 
-Scoring:
-- Integer scores only (0-10).
-- If delta <= 2, final_score_0_10 should be rounded average.
-- If delta > 2, favor the more diagnostic axis and justify.
+Scoring: Integer 0-10. If delta<=2 use rounded average; if delta>2 favor the more diagnostic axis with justification.
 
-Mechanism constraints:
-- voice rationale must name a POV/voice mechanism.
-- dialogue rationale must name an attribution/rendering mechanism.
+Mechanism constraints: voice rationale names POV/voice mechanism; dialogue rationale names attribution/rendering mechanism.
 
-Agree-state rationale rule:
-- Never emit "Confirmed." alone.
-- For agree-state criteria (score_delta <= 1), final_rationale states: what was confirmed, evidence basis, why it matters (1-3 sentences).
+Agree-state rule: Never emit "Confirmed." alone; for score_delta<=1 state confirmation + evidence basis + why it matters (1-3 sentences).
 
 Recommendation semantic fields (REQUIRED):
 - issue_family, strategic_lever, revision_granularity must be canonical enums.
 
 Recommendation deduplication:
-- Collapse same strategic_lever duplicates into one sharper recommendation unless evidence basis and granularity are truly different.
+- Collapse same strategic_lever duplicates unless evidence is genuinely distinct.
 - Recommendations must vary opening syntax across the same evaluation; do not reuse the same leading phrase across multiple recommendations.
-- Each recommendation must be criterion-native (not sibling advice in different wording):
-  - proseControl => sentence-level craft (syntax, diction, rhythm, image density)
-  - sceneConstruction => scene mechanics (stakes, turn, exit)
-  - dialogue => speaker intent/attribution/rendering choices
-  - voice => POV/psychic-distance/rendering precision
+- Each recommendation must be criterion-native (not sibling advice in different wording).
 - If two recommendations reduce to the same advice, drop one and re-derive a distinct mechanism-level recommendation.
 - When manuscript characters are named, use those names (or "the narrator" when first-person) rather than abstract role labels like "the protagonist".
-- Prefer "narrative momentum", "forward propulsion", or "reading pull" over bare "the drive" unless unambiguous craft context is explicitly stated.
+- Prefer "narrative momentum" over ambiguous "the drive".
 
 REC CONTRACT — FIVE PARTS (required for every recommendation):
 - ANCHOR: action must name location (scene/paragraph/line/beat/chapter) and anchor_snippet must be non-empty.
@@ -63,36 +52,18 @@ REC CONTRACT — FIVE PARTS (required for every recommendation):
 - CONCRETE MOVE: action must use an active revision verb (replace/rewrite/cut/trim/insert/delete/move/reorder/split/merge/escalate/tighten/anchor/clarify/name/show/ground/seed/stage/contrast/foreground/compress).
 - READER EFFECT: expected_impact must include reader-facing outcome (reader/urgency/clarity/momentum/immersion/engagement/stakes/tension/payoff/coherence/trust/comprehension).
 
-Template:
-- action: "In [LOCATION], [MOVE-VERB] [WHAT] because [SYMPTOM] [MECHANISM]."
-- expected_impact: "[READER-EFFECT] [reader-facing outcome]."
-- anchor_snippet: exact target span.
+Reject patterns: no location/symptom/mechanism/concrete move/reader effect, or generic whole-manuscript advice.
 
-Reject patterns: no location, no symptom, no mechanism connector, filler-only verb, no reader effect, generic whole-manuscript advice.
-
-No filler-only verbs: enhance/refine/improve/maintain/continue/strengthen/deepen.
-No labels: direct_speech/reported_speech/tagged_speech/tagless_exchange.
-Scope: narrativeClosure=chapter handoff only; marketability=provisional if small-scope.
-
-CONFIDENCE AND EVIDENCE HANDLING:
-- Do NOT convert a scorable criterion into N/A due to thin evidence/hygiene artifacts.
-- If evidence is thin: preserve score and summary, lower confidence, and do not invent evidence.
-- N/A only when truly impossible to evaluate.
+Confidence/evidence: do not convert scorable criteria to N/A due to thin evidence; lower confidence instead; do not invent evidence.
 
 NON-CERTIFIED CRITERIA (required):
-- For criticism-style criteria (proseControl, dialogue, voice) with non-certified output, you must still provide concrete evidence and concrete revision direction.
-- Include at least 3 verbatim manuscript evidence lines/snippets in criterion.evidence.
-- Include at least 3 concrete, mechanism-level revision directions in criterion.recommendations.
-- For abstraction critiques, explicitly identify the three most problematic lines/snippets and provide three targeted revision directions (rule of three).
-- Avoid vague guidance (e.g., "replace one abstract sentence") unless the sentence is explicitly identified in evidence.
+- For proseControl/dialogue/voice when non-certified: include at least 3 verbatim evidence snippets and at least 3 concrete mechanism-level revision directions.
+- For abstraction critiques: identify the three most problematic lines/snippets and provide three targeted revision directions (rule of three).
 
 Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
 - Per-criterion fields: key, final_score_0_10, final_rationale, recommendations[]; hard_divergence adds disputed=true.
 - Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect.
-- mechanism (REQUIRED): causal explanation why the problem exists; non-empty.
-- specific_fix (REQUIRED): concrete revision action verb phrase; non-empty.
-- reader_effect (REQUIRED): post-revision reader experience; non-empty.
 - Each recommendation.action MUST be one sentence and <= 300 characters.
 - agreement_map[]
 - divergence_map[] with arbitration_rationale
