@@ -450,6 +450,167 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     ).toBe(false);
   });
 
+  test("persists downgradedResult when quality gate provides explicit non-mutating downgrade", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: {
+        criteria: [],
+        overall: {
+          overall_score_0_100: 82,
+          verdict: "pass",
+          one_paragraph_summary: "Summary",
+          top_3_strengths: [],
+          top_3_risks: [],
+        },
+        metadata: {
+          pass1_model: "gpt-4o",
+          pass2_model: "o3",
+          pass3_model: "o3",
+          generated_at: new Date().toISOString(),
+        },
+      },
+      quality_gate: {
+        pass: true,
+        checks: [],
+        warnings: [],
+      },
+      pass4_governance: { ok: true },
+    });
+
+    const baseEvaluationResult = {
+      schema_version: "evaluation_result_v2",
+      ids: {
+        evaluation_run_id: "run-1",
+        manuscript_id: 456,
+        user_id: "00000000-0000-0000-0000-000000000001",
+      },
+      generated_at: new Date().toISOString(),
+      engine: {
+        model: "o3",
+        provider: "openai",
+        prompt_version: "test",
+      },
+      overview: {
+        verdict: "pass",
+        overall_score_0_100: 82,
+        one_paragraph_summary: "Summary",
+        top_3_strengths: [],
+        top_3_risks: [],
+      },
+      criteria: new Array(13).fill(null).map((_, idx) => ({
+        key: [
+          "concept",
+          "narrativeDrive",
+          "character",
+          "voice",
+          "sceneConstruction",
+          "dialogue",
+          "theme",
+          "worldbuilding",
+          "pacing",
+          "proseControl",
+          "tone",
+          "narrativeClosure",
+          "marketability",
+        ][idx],
+        scorable: true,
+        status: "SCORABLE",
+        signal_present: true,
+        signal_strength: "SUFFICIENT",
+        confidence_band: "MEDIUM",
+        score_0_10: 7,
+        rationale: "Criterion is supported by manuscript evidence and synthesis.",
+        evidence: [{ snippet: "Evidence snippet with sufficient detail for quality gate checks." }],
+        recommendations: [],
+      })),
+      recommendations: {
+        quick_wins: [],
+        strategic_revisions: [],
+      },
+      metrics: {
+        manuscript: {},
+        processing: {},
+      },
+      artifacts: [],
+      governance: {
+        confidence: 0.9,
+        warnings: [],
+        limitations: [],
+        policy_family: "multi-pass-dual-axis",
+      },
+    };
+
+    synthesisToEvaluationResultV2Mock.mockReturnValue(baseEvaluationResult);
+
+    const downgradedResult = {
+      ...baseEvaluationResult,
+      criteria: baseEvaluationResult.criteria.map((criterion: any) =>
+        criterion.key !== "concept"
+          ? criterion
+          : {
+              ...criterion,
+              scorable: false,
+              status: "INSUFFICIENT_SIGNAL",
+              signal_strength: "WEAK",
+              score_0_10: null,
+              scorability_status: "non_scorable",
+              model_emitted_score_unverified: 7,
+              insufficient_signal_reason: {
+                looked_for: ["CERTIFIED_ANCHORS_FOR_HIGH_CONFIDENCE_SCORING"],
+                not_found: ["LOW_CONFIDENCE_HIGH_SCORE_WITHOUT_CERTIFIED_ANCHORS"],
+              },
+            },
+      ),
+    };
+
+    runQualityGateV2Mock.mockReturnValue({
+      pass: true,
+      checks: [],
+      warnings: [],
+      downgradedResult,
+    });
+
+    mapEvaluationResultV2ToGovernanceEnvelopeMock.mockReturnValue({
+      evaluation_run_id: "run-1",
+      criteria: [],
+    });
+
+    upsertEvaluationArtifactMock.mockResolvedValue("artifact-1");
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+
+    const result = await processEvaluationJob("job-canonical-pipeline");
+    expect(result.success).toBe(true);
+
+    const persistCall = supabaseStub.rpcCalls.find(
+      (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
+    ) as { fn: string; args?: Record<string, unknown> } | undefined;
+    expect(persistCall).toBeDefined();
+
+    const persistedEvaluationResult = persistCall?.args?.p_evaluation_result as
+      | Record<string, unknown>
+      | undefined;
+    expect(persistedEvaluationResult).toBeDefined();
+
+    const persistedCriteria = persistedEvaluationResult?.criteria as
+      | Array<Record<string, unknown>>
+      | undefined;
+    const persistedConcept = persistedCriteria?.find((criterion) => criterion.key === "concept");
+    expect(persistedConcept).toEqual(
+      expect.objectContaining({
+        status: "INSUFFICIENT_SIGNAL",
+        score_0_10: null,
+        model_emitted_score_unverified: 7,
+      }),
+    );
+
+    expect((baseEvaluationResult.criteria[0] as Record<string, unknown>).status).toBe("SCORABLE");
+    expect((baseEvaluationResult.criteria[0] as Record<string, unknown>).score_0_10).toBe(7);
+  });
+
   test("uncaught processor fallback persists failure metadata when atomic finalization fails", async () => {
     const supabaseStub = makeSupabaseStub();
     createClientMock.mockReturnValue(supabaseStub);

@@ -74,17 +74,26 @@ export function validateEvaluationArtifact(artifact: unknown): ArtifactValidatio
       continue;
     }
 
-    if (typeof criterion.score_0_10 !== "number" || !Number.isInteger(criterion.score_0_10)) {
-      issues.push({
-        code: "CRITERION_SCORE_NOT_INTEGER",
-        path: `$.criteria.${key}.score_0_10`,
-        message: `Criterion ${key} must have an integer score.`,
-      });
-    } else if (criterion.score_0_10 < 0 || criterion.score_0_10 > 10) {
+    const isScorable = criterion.status === "SCORABLE";
+    if (isScorable) {
+      if (typeof criterion.score_0_10 !== "number" || !Number.isInteger(criterion.score_0_10)) {
+        issues.push({
+          code: "CRITERION_SCORE_NOT_INTEGER",
+          path: `$.criteria.${key}.score_0_10`,
+          message: `Criterion ${key} must have an integer score when status=SCORABLE.`,
+        });
+      } else if (criterion.score_0_10 < 0 || criterion.score_0_10 > 10) {
+        issues.push({
+          code: "CRITERION_SCORE_OUT_OF_RANGE",
+          path: `$.criteria.${key}.score_0_10`,
+          message: `Criterion ${key} score must be between 0 and 10 when status=SCORABLE.`,
+        });
+      }
+    } else if (criterion.score_0_10 !== null) {
       issues.push({
         code: "CRITERION_SCORE_OUT_OF_RANGE",
         path: `$.criteria.${key}.score_0_10`,
-        message: `Criterion ${key} score must be between 0 and 10.`,
+        message: `Criterion ${key} must have score_0_10=null when status=${criterion.status}.`,
       });
     }
 

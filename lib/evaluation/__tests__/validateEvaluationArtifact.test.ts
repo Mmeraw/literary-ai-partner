@@ -57,6 +57,43 @@ function makeValidArtifact(): EvaluationResultV2 {
 }
 
 describe("validateEvaluationArtifact (boundary structural validator)", () => {
+  test("accepts non-scorable V2 criteria with null scores", () => {
+    const artifact = makeValidArtifact();
+    artifact.criteria[0] = {
+      ...artifact.criteria[0],
+      scorable: false,
+      status: "INSUFFICIENT_SIGNAL",
+      signal_strength: "WEAK",
+      score_0_10: null,
+      model_emitted_score_unverified: 7,
+      insufficient_signal_reason: {
+        looked_for: ["CERTIFIED_ANCHORS_FOR_HIGH_CONFIDENCE_SCORING"],
+        not_found: ["LOW_CONFIDENCE_HIGH_SCORE_WITHOUT_CERTIFIED_ANCHORS"],
+      },
+    } as EvaluationResultV2["criteria"][number];
+    artifact.overview.scored_criteria_count = CRITERIA_KEYS.length - 1;
+
+    const result = validateEvaluationArtifact(artifact);
+    expect(result.ok).toBe(true);
+  });
+
+  test("rejects legacy-like criteria missing status at the V2 boundary", () => {
+    const artifact = makeValidArtifact();
+    artifact.criteria[0] = {
+      ...artifact.criteria[0],
+      status: undefined as never,
+      score_0_10: 7,
+    } as unknown as EvaluationResultV2["criteria"][number];
+
+    const result = validateEvaluationArtifact(artifact);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({ code: "CRITERION_SCORE_OUT_OF_RANGE" }),
+      );
+    }
+  });
+
   test("rejects a missing canonical criterion", () => {
     const artifact = makeValidArtifact();
     artifact.criteria = artifact.criteria.filter((criterion) => criterion.key !== "narrativeDrive");
