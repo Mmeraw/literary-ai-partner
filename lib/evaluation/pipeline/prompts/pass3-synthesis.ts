@@ -15,7 +15,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v9-editorial-specificity-triple";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v10-non-certified-three-and-three";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -46,6 +46,15 @@ Recommendation semantic fields (REQUIRED):
 
 Recommendation deduplication:
 - Collapse same strategic_lever duplicates into one sharper recommendation unless evidence basis and granularity are truly different.
+- Recommendations must vary opening syntax across the same evaluation; do not reuse the same leading phrase across multiple recommendations.
+- Each recommendation must be criterion-native (not sibling advice in different wording):
+  - proseControl => sentence-level craft (syntax, diction, rhythm, image density)
+  - sceneConstruction => scene mechanics (stakes, turn, exit)
+  - dialogue => speaker intent/attribution/rendering choices
+  - voice => POV/psychic-distance/rendering precision
+- If two recommendations reduce to the same advice, drop one and re-derive a distinct mechanism-level recommendation.
+- When manuscript characters are named, use those names (or "the narrator" when first-person) rather than abstract role labels like "the protagonist".
+- Prefer "narrative momentum", "forward propulsion", or "reading pull" over bare "the drive" unless unambiguous craft context is explicitly stated.
 
 REC CONTRACT — FIVE PARTS (required for every recommendation):
 - ANCHOR: action must name location (scene/paragraph/line/beat/chapter) and anchor_snippet must be non-empty.
@@ -69,6 +78,13 @@ CONFIDENCE AND EVIDENCE HANDLING:
 - Do NOT convert a scorable criterion into N/A due to thin evidence/hygiene artifacts.
 - If evidence is thin: preserve score and summary, lower confidence, and do not invent evidence.
 - N/A only when truly impossible to evaluate.
+
+NON-CERTIFIED CRITERIA (required):
+- For criticism-style criteria (proseControl, dialogue, voice) with non-certified output, you must still provide concrete evidence and concrete revision direction.
+- Include at least 3 verbatim manuscript evidence lines/snippets in criterion.evidence.
+- Include at least 3 concrete, mechanism-level revision directions in criterion.recommendations.
+- For abstraction critiques, explicitly identify the three most problematic lines/snippets and provide three targeted revision directions (rule of three).
+- Avoid vague guidance (e.g., "replace one abstract sentence") unless the sentence is explicitly identified in evidence.
 
 Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
@@ -128,6 +144,10 @@ Every recommendation MUST include the editorial specificity triple as SEPARATE J
   - "reader_effect": the post-revision reader experience (non-empty, e.g. "clearer cause-and-effect, increasing urgency at the turn").
 Every recommendation MUST satisfy the five-part contract: ANCHOR (location in text) + SYMPTOM (observable problem) + MECHANISM (causal connector: because/since/so that) + CONCRETE MOVE (replace/cut/insert/rewrite/escalate etc.) + READER EFFECT (urgency/clarity/engagement etc. in expected_impact).
 Do NOT emit two recommendations with the same strategic_lever — collapse them first.
+For criticism-style criteria (proseControl, dialogue, voice) that are non-certified, emit at least three evidence snippets and three concrete revision directions.
+Recommendation openings must be varied across criteria: no repeated first-8-token lead-ins.
+When characters are named in the manuscript, use those names (or "the narrator") in rationale/recommendations; avoid generic role labels such as "the protagonist".
+Use "narrative momentum" (or equivalent) instead of ambiguous "the drive" phrasing.
 Target total visible output under 1500 tokens.
 
 Coverage truth signal:
