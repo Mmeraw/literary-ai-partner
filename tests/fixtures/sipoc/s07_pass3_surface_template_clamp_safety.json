@@ -1,0 +1,41 @@
+{
+  "fixture_id": "s07.pass3.fail-on-surface-template-splice-or-clamp-malformation",
+  "fixture_version": "v1",
+  "stage_id": "S07_PASS3",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "critical",
+  "invariant_id": "PASS3_SURFACE_TEMPLATE_CLAMP_SAFETY",
+  "description": "Pass 3 recommendation surface repair must fail closed when template splice artifacts, unmatched parenthesis seams, or clamp-truncated malformed text are detected.",
+  "input_stub": {
+    "anchor_snippet": "\"It's okay,\" I whispered. But even as I said it, I knew it wasn't okay.",
+    "intent_fragment": "Revise dialogue in Chapter 11 to reduce expository elements and increase dynamic interaction.",
+    "repair_mode": "deterministic_template_repair",
+    "clamp_pressure": "long_anchor_plus_long_fix_direction"
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": [
+      "PASS3_SURFACE_TEMPLATE_SPLICE_DETECTED",
+      "PASS3_SURFACE_CLAMP_MALFORMED_TEXT"
+    ],
+    "forbidden_failure_codes": [
+      "PASS3_ACCEPTED_WITH_SURFACE_TEMPLATE_SPLICE",
+      "PASS3_ACCEPTED_WITH_UNMATCHED_PARENTHESIS",
+      "PASS3_ACCEPTED_WITH_INTERNAL_TEMPLATE_FRAGMENT"
+    ],
+    "notes": "Covers prior live Chapter 11 splice signature, unmatched-parenthesis risk under clamp pressure, and internal fragment leakage such as 'criterion-specific move'."
+  },
+  "evidence_artifacts": [
+    "pipeline_failure_envelope",
+    "pass_outputs_diagnostic_v1",
+    "quality_gate_diagnostics_v1"
+  ],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "runtime": [
+      "lib/evaluation/pipeline/runPass3Synthesis.ts",
+      "lib/evaluation/pipeline/qualityGate.ts"
+    ]
+  }
+}
