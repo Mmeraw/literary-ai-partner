@@ -896,6 +896,12 @@ export function runQualityGate(
           genericFeedbackFindings.push(`${c.key}: missing ${missing.join(",")} in recommendation \"${action.slice(0, 80)}\"`);
         }
 
+        if (/\bthe\s+drive\b/i.test(action) || /\bthe\s+drive\b/i.test(expectedImpact)) {
+          genericFeedbackFindings.push(
+            `${c.key}: ambiguous craft term "the drive" detected; prefer "narrative momentum" wording`,
+          );
+        }
+
         if (duplicateReasoning) {
           genericFeedbackFindings.push(`${c.key}: duplicate editorial reasoning detected in recommendations`);
         } else {

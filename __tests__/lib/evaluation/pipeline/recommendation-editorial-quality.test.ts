@@ -237,4 +237,27 @@ describe("qualityGate recommendation_editorial_quality", () => {
     expect(check?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
     expect(check?.details).toContain("duplicate editorial reasoning");
   });
+
+  it("fails when recommendation uses ambiguous craft phrase 'the drive'", () => {
+    const synthesis = makeSynthesis({
+      narrativeDrive: {
+        recommendations: [
+          {
+            ...makeRecommendation("narrativeDrive"),
+            action:
+              "In the chapter turn for narrativeDrive, replace the abstract reaction line because the drive fades before consequence becomes visible.",
+            expected_impact:
+              "Gives the reader stronger urgency and continuity once the drive is clarified at the pivot.",
+          },
+        ],
+      },
+    });
+
+    const result = runQualityGate(synthesis);
+    const check = result.checks.find((c) => c.check_id === "recommendation_editorial_quality");
+
+    expect(check?.passed).toBe(false);
+    expect(check?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
+    expect(check?.details).toContain("ambiguous craft term");
+  });
 });
