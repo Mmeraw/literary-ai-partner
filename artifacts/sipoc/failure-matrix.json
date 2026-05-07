@@ -73,15 +73,17 @@
     },
     "S07_PASS3": {
       "stage_id": "S07_PASS3",
-      "fixtures_evaluated": 1,
+      "fixtures_evaluated": 2,
       "required_failure_codes": [
         "QG_GENERIC_REC",
-        "PASS3_JSON_PARSE_FAILED_MALFORMED"
+        "PASS3_JSON_PARSE_FAILED_MALFORMED",
+        "v2_fidelity_score_confidence_alignment"
       ],
       "forbidden_failure_codes": [
-        "PASS3_ACCEPTED_WITH_GENERIC_OR_INCOHERENT_SYNTHESIS"
+        "PASS3_ACCEPTED_WITH_GENERIC_OR_INCOHERENT_SYNTHESIS",
+        "PASS3_EMITTED_HIGH_SCORE_WITH_LOW_CONFIDENCE_ACCEPTED"
       ],
-      "must_fail_closed_count": 1
+      "must_fail_closed_count": 2
     },
     "S08_ER2_NORMALIZATION": {
       "stage_id": "S08_ER2_NORMALIZATION",

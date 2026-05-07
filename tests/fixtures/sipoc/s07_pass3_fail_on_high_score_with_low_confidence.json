@@ -1,0 +1,29 @@
+{
+  "fixture_id": "s07.pass3.fail-on-high-score-with-low-confidence",
+  "fixture_version": "v1",
+  "stage_id": "S07_PASS3",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "critical",
+  "invariant_id": "PASS3_INTERNAL_COHERENCE_SCORE_CONFIDENCE_ALIGNMENT",
+  "description": "Pass 3 must not emit score_0_10 > 5 with confidence_level 'low'. That pair is incoherent: a score above 5 asserts confidence; low confidence asserts the opposite. The gate v2_fidelity_score_confidence_alignment must detect and refuse to ship this contradiction.",
+  "input_stub": {
+    "criterion_key": "proseControl",
+    "score_0_10": 7,
+    "confidence_level": "low",
+    "confidence_reasons": ["NO_TEXTUAL_ANCHOR"],
+    "evidence": [],
+    "rationale": "The prose demonstrates strong lyrical control throughout."
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": ["v2_fidelity_score_confidence_alignment"],
+    "forbidden_failure_codes": ["PASS3_EMITTED_HIGH_SCORE_WITH_LOW_CONFIDENCE_ACCEPTED"],
+    "notes": "Evidence jobs: 15a655ae-6658-4e1e-b39b-b10542cd5f87 and bae4c87b-87f9-4000-ab86-d20124ce251c. Root cause: PASS3_EMITTED_HIGH_SCORE_WITH_LOW_CONFIDENCE. Fix: PR I prompt hardening (pass3-synthesis v10)."
+  },
+  "evidence_artifacts": ["pipeline_failure_envelope", "pass_outputs_diagnostic_v1", "quality_gate_diagnostics_v1"],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "runtime": ["lib/evaluation/pipeline/qualityGate.ts", "lib/evaluation/pipeline/runPipeline.ts", "lib/evaluation/pipeline/criterionConfidence.ts", "lib/evaluation/pipeline/prompts/pass3-synthesis.ts"]
+  }
+}
