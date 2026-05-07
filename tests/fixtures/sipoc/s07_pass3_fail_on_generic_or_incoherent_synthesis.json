@@ -1,0 +1,26 @@
+{
+  "fixture_id": "s07.pass3.fail-on-generic-or-incoherent-synthesis",
+  "fixture_version": "v1",
+  "stage_id": "S07_PASS3",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "critical",
+  "invariant_id": "PASS3_SYNTHESIS_SPECIFICITY_AND_COHERENCE",
+  "description": "Pass 3 synthesis must reject generic recommendations and incoherent confidence reconciliation.",
+  "input_stub": {
+    "recommendation_anchor_snippet": "",
+    "confidence_reconciliation": "contradictory",
+    "merge_strategy": "invalid_cross_pass_merge"
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": ["QG_GENERIC_REC", "PASS3_JSON_PARSE_FAILED_MALFORMED"],
+    "forbidden_failure_codes": ["PASS3_ACCEPTED_WITH_GENERIC_OR_INCOHERENT_SYNTHESIS"],
+    "notes": "Pass 3 must preserve specificity and confidence coherence before downstream normalization/gating."
+  },
+  "evidence_artifacts": ["pipeline_failure_envelope", "pass_outputs_diagnostic_v1", "quality_gate_diagnostics_v1"],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "runtime": ["lib/evaluation/pipeline/pass3.ts", "lib/evaluation/pipeline/qualityGate.ts"]
+  }
+}

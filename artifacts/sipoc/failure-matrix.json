@@ -1,5 +1,5 @@
 {
-  "run_at": "2026-05-07T02:28:24.459Z",
+  "run_at": "2026-05-07T02:37:41.983Z",
   "authority": "docs/SIPOC_EVALUATION_PROCESS.md",
   "by_stage": {
     "S01_INTAKE": {
@@ -35,6 +35,30 @@
       ],
       "must_fail_closed_count": 1
     },
+    "S04_ROUTING_CHUNKING": {
+      "stage_id": "S04_ROUTING_CHUNKING",
+      "fixtures_evaluated": 1,
+      "required_failure_codes": [
+        "VALIDATION_ERROR",
+        "EVALUATION_GATE_REJECTED"
+      ],
+      "forbidden_failure_codes": [
+        "CANONICAL_ARTIFACT_WRITE_FAILED"
+      ],
+      "must_fail_closed_count": 1
+    },
+    "S05_PASS1": {
+      "stage_id": "S05_PASS1",
+      "fixtures_evaluated": 1,
+      "required_failure_codes": [
+        "PASS1_TIMEOUT",
+        "PASS1_TRUNCATED_EMPTY_RESPONSE"
+      ],
+      "forbidden_failure_codes": [
+        "PASS1_ACCEPTED_WITH_INCOMPLETE_EVIDENCE"
+      ],
+      "must_fail_closed_count": 1
+    },
     "S06_PASS2": {
       "stage_id": "S06_PASS2",
       "fixtures_evaluated": 1,
@@ -44,6 +68,18 @@
       ],
       "forbidden_failure_codes": [
         "PASS2_ACCEPTED_WITH_INDEPENDENCE_BREACH"
+      ],
+      "must_fail_closed_count": 1
+    },
+    "S07_PASS3": {
+      "stage_id": "S07_PASS3",
+      "fixtures_evaluated": 1,
+      "required_failure_codes": [
+        "QG_GENERIC_REC",
+        "PASS3_JSON_PARSE_FAILED_MALFORMED"
+      ],
+      "forbidden_failure_codes": [
+        "PASS3_ACCEPTED_WITH_GENERIC_OR_INCOHERENT_SYNTHESIS"
       ],
       "must_fail_closed_count": 1
     },
