@@ -218,14 +218,25 @@ function logPipelineTimings(
   });
 }
 
+/**
+ * Normalize curly/smart double-quotes (U+201C, U+201D) to straight double-quotes
+ * before the textual-anchor signal check, so the runtime accepts anchors regardless
+ * of whether the model emits curly or straight quotes.  This resolves the
+ * prompt/runtime quote-style mismatch described in PR 2.
+ */
+function normalizeSmartQuotes(text: string): string {
+  return text.replace(/[“”]/g, '"');
+}
+
 function hasTextualAnchorSignal(criterion: EvaluationResultV2["criteria"][number]): boolean {
-  if (/["“”][^"“”]{8,}["“”]/.test(criterion.rationale ?? "")) {
+  const normalizedRationale = normalizeSmartQuotes(criterion.rationale ?? "");
+  if (/"[^"]{8,}"/.test(normalizedRationale)) {
     return true;
   }
 
   return criterion.evidence.some((anchor) => {
-    const snippet = (anchor.snippet ?? "").trim();
-    if (/["“”][^"“”]{8,}["“”]/.test(snippet)) {
+    const snippet = normalizeSmartQuotes((anchor.snippet ?? "").trim());
+    if (/"[^"]{8,}"/.test(snippet)) {
       return true;
     }
 
