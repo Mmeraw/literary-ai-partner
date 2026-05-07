@@ -1,0 +1,27 @@
+{
+  "fixture_id": "s05.pass1.fail-closed-on-timeout-truncation",
+  "fixture_version": "v1",
+  "stage_id": "S05_PASS1",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "critical",
+  "invariant_id": "PASS1_TIMEOUT_TRUNCATION_FAIL_CLOSED",
+  "description": "Pass 1 must fail closed on timeout/truncation and prevent score emission with incomplete evidence.",
+  "input_stub": {
+    "pass1_finish_reason": "length",
+    "completion_tokens": 1800,
+    "max_output_tokens": 1800,
+    "evidence_density": "insufficient"
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": ["PASS1_TIMEOUT", "PASS1_TRUNCATED_EMPTY_RESPONSE"],
+    "forbidden_failure_codes": ["PASS1_ACCEPTED_WITH_INCOMPLETE_EVIDENCE"],
+    "notes": "Partial/incomplete pass output must not be treated as valid scoring input."
+  },
+  "evidence_artifacts": ["pipeline_failure_envelope", "pass_outputs_diagnostic_v1"],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "runtime": ["lib/evaluation/pipeline/runPipeline.ts", "lib/evaluation/pipeline/prompts/pass1-craft.ts"]
+  }
+}

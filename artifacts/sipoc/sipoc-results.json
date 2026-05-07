@@ -1,10 +1,10 @@
 {
-  "run_at": "2026-05-07T02:28:24.459Z",
+  "run_at": "2026-05-07T02:37:41.983Z",
   "authority": "docs/SIPOC_EVALUATION_PROCESS.md",
   "fixture_dir": "/workspaces/literary-ai-partner/tests/fixtures/sipoc",
   "summary": {
-    "total": 8,
-    "passed": 8,
+    "total": 11,
+    "passed": 11,
     "failed": 0,
     "by_stage": {
       "S01_INTAKE": {
@@ -22,7 +22,22 @@
         "passed": 1,
         "failed": 0
       },
+      "S04_ROUTING_CHUNKING": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0
+      },
+      "S05_PASS1": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0
+      },
       "S06_PASS2": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0
+      },
+      "S07_PASS3": {
         "total": 1,
         "passed": 1,
         "failed": 0
@@ -102,6 +117,40 @@
       ]
     },
     {
+      "fixture_id": "s04.routing-chunking.fail-closed-on-coverage-mismatch",
+      "fixture_version": "v1",
+      "stage_id": "S04_ROUTING_CHUNKING",
+      "invariant_id": "ROUTING_CHUNKING_COVERAGE_FAIL_CLOSED",
+      "severity": "critical",
+      "pass": true,
+      "violations": [],
+      "contract_assertions": [
+        "fail-closed coherence: OK (must_fail_closed=true, result_type=\"fail\")",
+        "failure codes declared: VALIDATION_ERROR, EVALUATION_GATE_REJECTED",
+        "required/forbidden code sets are disjoint: OK",
+        "S04_ROUTING_CHUNKING: no additional stage-specific invariant rules (pass through)",
+        "evidence artifact coverage for fail-result: OK",
+        "authority pin: docs/SIPOC_EVALUATION_PROCESS.md (correct)"
+      ]
+    },
+    {
+      "fixture_id": "s05.pass1.fail-closed-on-timeout-truncation",
+      "fixture_version": "v1",
+      "stage_id": "S05_PASS1",
+      "invariant_id": "PASS1_TIMEOUT_TRUNCATION_FAIL_CLOSED",
+      "severity": "critical",
+      "pass": true,
+      "violations": [],
+      "contract_assertions": [
+        "fail-closed coherence: OK (must_fail_closed=true, result_type=\"fail\")",
+        "failure codes declared: PASS1_TIMEOUT, PASS1_TRUNCATED_EMPTY_RESPONSE",
+        "required/forbidden code sets are disjoint: OK",
+        "S05_PASS1: no additional stage-specific invariant rules (pass through)",
+        "evidence artifact coverage for fail-result: OK",
+        "authority pin: docs/SIPOC_EVALUATION_PROCESS.md (correct)"
+      ]
+    },
+    {
       "fixture_id": "s06.pass2.independence-violation",
       "fixture_version": "v1",
       "stage_id": "S06_PASS2",
@@ -114,6 +163,23 @@
         "failure codes declared: PASS2_INDEPENDENCE_REWRITE_FAILED, QG_INDEPENDENCE_VIOLATION",
         "required/forbidden code sets are disjoint: OK",
         "S06_PASS2: failure codes include QG_ or PASS2_ prefix (correct)",
+        "evidence artifact coverage for fail-result: OK",
+        "authority pin: docs/SIPOC_EVALUATION_PROCESS.md (correct)"
+      ]
+    },
+    {
+      "fixture_id": "s07.pass3.fail-on-generic-or-incoherent-synthesis",
+      "fixture_version": "v1",
+      "stage_id": "S07_PASS3",
+      "invariant_id": "PASS3_SYNTHESIS_SPECIFICITY_AND_COHERENCE",
+      "severity": "critical",
+      "pass": true,
+      "violations": [],
+      "contract_assertions": [
+        "fail-closed coherence: OK (must_fail_closed=true, result_type=\"fail\")",
+        "failure codes declared: QG_GENERIC_REC, PASS3_JSON_PARSE_FAILED_MALFORMED",
+        "required/forbidden code sets are disjoint: OK",
+        "S07_PASS3: no additional stage-specific invariant rules (pass through)",
         "evidence artifact coverage for fail-result: OK",
         "authority pin: docs/SIPOC_EVALUATION_PROCESS.md (correct)"
       ]

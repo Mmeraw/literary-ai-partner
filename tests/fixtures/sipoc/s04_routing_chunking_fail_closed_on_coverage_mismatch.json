@@ -1,0 +1,28 @@
+{
+  "fixture_id": "s04.routing-chunking.fail-closed-on-coverage-mismatch",
+  "fixture_version": "v1",
+  "stage_id": "S04_ROUTING_CHUNKING",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "critical",
+  "invariant_id": "ROUTING_CHUNKING_COVERAGE_FAIL_CLOSED",
+  "description": "Routing/chunking must fail closed when declared chunk coverage and routed chunk coverage diverge.",
+  "input_stub": {
+    "routing_mode": "chunked",
+    "declared_chunk_count": 12,
+    "routed_chunk_count": 11,
+    "telemetry_shape": "malformed_partial"
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": ["VALIDATION_ERROR", "EVALUATION_GATE_REJECTED"],
+    "forbidden_failure_codes": ["CANONICAL_ARTIFACT_WRITE_FAILED"],
+    "notes": "Coverage mismatch must block progression to downstream passes and persistence."
+  },
+  "evidence_artifacts": ["pipeline_failure_envelope", "evaluation_result_v2"],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "spec": ["docs/JOB_CONTRACT_v1.md"],
+    "runtime": ["lib/manuscripts/chunks.ts", "lib/evaluation/pipeline/runPipeline.ts"]
+  }
+}
