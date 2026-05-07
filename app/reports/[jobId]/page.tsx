@@ -8,6 +8,11 @@ import { EvaluationResultV1, isEvaluationResultV1, hasD2TransparencyFields } fro
 import AgentTrustHeader from '@/components/reports/AgentTrustHeader';
 import { scanObjectForForbiddenMarketClaims } from '@/lib/release/forbiddenMarketClaims';
 import { classifyEvaluationIntegrityBanner } from '@/lib/evaluation/warningClassification';
+import {
+  getCertifiedCriteriaSummary,
+  getCriterionPrimaryBadge,
+  getCriterionSupportLabel,
+} from '@/lib/evaluation/reportCriterionDisplay';
 
 // D1 Boundary: server-only. Service key must not leak to client.
 // Hybrid owner-gate: SSR client for auth identity, admin client for
@@ -247,6 +252,9 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               <li>Low (&lt;60): limited support from the text</li>
             </ul>
           </div>
+          <p className="mb-4 text-sm font-medium text-gray-700">
+            {getCertifiedCriteriaSummary(criteria as Parameters<typeof getCertifiedCriteriaSummary>[0])}
+          </p>
           <div className="grid md:grid-cols-2 gap-4">
             {criteria.map((criterion) => (
               <div key={criterion.key} className="border border-gray-200 rounded-lg p-4">
@@ -255,13 +263,14 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                     {criterion.key}
                   </h3>
                   <div className="flex items-center gap-2">
-                    <span className={`text-lg font-bold ${
-                      criterion.score_0_10 >= 8 ? 'text-green-600' :
-                      criterion.score_0_10 >= 6 ? 'text-yellow-600' :
-                      'text-red-600'
-                    }`}>
-                      {criterion.score_0_10}/10
-                    </span>
+                    {(() => {
+                      const badge = getCriterionPrimaryBadge(criterion as Parameters<typeof getCriterionPrimaryBadge>[0]);
+                      return (
+                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ${badge.classes}`}>
+                          {badge.label}
+                        </span>
+                      );
+                    })()}
                     {(() => {
                       const confidence = getConfidenceBadge(criterion);
                       if (!confidence) return null;
@@ -273,6 +282,11 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                     })()}
                   </div>
                 </div>
+                {getCriterionSupportLabel(criterion as Parameters<typeof getCriterionSupportLabel>[0]) && (
+                  <p className="mb-2 text-xs font-medium text-gray-500">
+                    {getCriterionSupportLabel(criterion as Parameters<typeof getCriterionSupportLabel>[0])}
+                  </p>
+                )}
                 <p className="text-sm text-gray-600">
                   {criterion.rationale}
                 </p>

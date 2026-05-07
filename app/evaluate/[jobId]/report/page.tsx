@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { sanitizeRenderData } from "@/lib/evaluation/reportCriterionDisplay";
 
 /**
  * Canonical artifact type for Flow 1 one-page summary.
@@ -128,7 +129,7 @@ export default function ReportPage({ params }: { params: { jobId: string } }) {
             <div style={{ marginTop: 16 }}>
               <strong>Raw Result (debug)</strong>
               <pre style={{ whiteSpace: "pre-wrap" }}>
-                {JSON.stringify(data.evaluation_result, null, 2)}
+                {JSON.stringify(sanitizeRenderData(data.evaluation_result), null, 2)}
               </pre>
             </div>
           )}

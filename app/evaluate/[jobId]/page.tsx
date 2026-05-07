@@ -13,6 +13,12 @@ import {
 import { EvaluationPoller } from "@/components/EvaluationPoller";
 import { buildTopRecommendations } from "@/lib/evaluation/reportRecommendations";
 import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
+import {
+  getCertifiedCriteriaSummary,
+  getCriterionPrimaryBadge,
+  getCriterionSupportLabel,
+  isCertifiedCriterion,
+} from "@/lib/evaluation/reportCriterionDisplay";
 
 type Job = {
   id: string;
@@ -202,22 +208,13 @@ function isCriterionKey(key: string): key is CriterionKey {
 function isScorableCriterion(
   c: NonNullable<ArtifactContentV1["criteria"]>[number],
 ): boolean {
-  if (typeof c.scorable === "boolean") {
-    return c.scorable;
-  }
-  if (c.status) {
-    return c.status === "SCORABLE";
-  }
-  return typeof c.score_0_10 === "number";
+  return isCertifiedCriterion(c);
 }
 
 function criterionStatusLabel(
   c: NonNullable<ArtifactContentV1["criteria"]>[number],
 ): string | null {
-  if (isScorableCriterion(c)) return null;
-  if (c.status === "NOT_APPLICABLE") return "N/A — Not applicable for this evaluation context";
-  if (c.status === "NO_SIGNAL") return "N/A — No observable evidence";
-  return "N/A — Insufficient manuscript evidence";
+  return getCriterionSupportLabel(c);
 }
 
 function getConfidencePresentation(
@@ -505,20 +502,16 @@ export default async function EvaluationReportPage({
                       <li>Low (&lt;60): limited support from the text</li>
                     </ul>
                   </div>
+                  <p className="mt-3 text-sm font-medium text-gray-700">
+                    {getCertifiedCriteriaSummary(orderedCriteria)}
+                  </p>
                   <div className="mt-4 space-y-4">
                     {orderedCriteria.map((c) => (
                       <div key={c.key} className="rounded-md border bg-white p-5">
                         {(() => {
                           const scorable = isScorableCriterion(c);
-                          const scoreValue = scorable ? c.score_0_10 : null;
                           const confidence = getConfidencePresentation(c);
-                          const badgeClasses = !scorable
-                            ? "bg-slate-100 text-slate-700"
-                            : (typeof scoreValue === "number" && scoreValue >= 8)
-                              ? "bg-green-100 text-green-800"
-                              : (typeof scoreValue === "number" && scoreValue >= 6)
-                                ? "bg-yellow-100 text-yellow-800"
-                                : "bg-red-100 text-red-800";
+                          const primaryBadge = getCriterionPrimaryBadge(c);
 
                           return (
                         <div className="flex items-start justify-between gap-3">
@@ -526,8 +519,8 @@ export default async function EvaluationReportPage({
                             {isCriterionKey(c.key) ? getCriterionDisplayLabel(c.key, evaluationScope) : c.key}
                           </h3>
                           <div className="flex shrink-0 items-center gap-2">
-                            <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ${badgeClasses}`}>
-                              {scorable ? `${scoreValue ?? "—"} / 10` : "N/A"}
+                            <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ${primaryBadge.classes}`}>
+                              {primaryBadge.label}
                             </span>
                             {confidence && (
                               <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${confidence.classes}`}>
