@@ -61,8 +61,8 @@ function makeSynthesis(overrides: Partial<Record<CriterionKey, Partial<Synthesiz
 
 // ── Prompt version ────────────────────────────────────────────────────────────
 
-it("PASS3_PROMPT_VERSION reflects v9 editorial specificity triple contract", () => {
-  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v9-editorial-specificity-triple");
+it("PASS3_PROMPT_VERSION reflects v10 non-certified three-and-three contract", () => {
+  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v10-non-certified-three-and-three");
 });
 
 // ── Five-part contract: passing fixtures ─────────────────────────────────────
