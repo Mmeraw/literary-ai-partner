@@ -591,13 +591,21 @@ export function parsePass3Response(
   };
 }
 
+function ensureTerminalPunctuation(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return trimmed;
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
 function clampRecommendationAction(action: string): string {
   const normalized = action.replace(/\s+/g, " ").trim();
-  if (normalized.length <= 300) return normalized;
+  if (normalized.length <= 300) return ensureTerminalPunctuation(normalized);
 
   const mechanismMatch = normalized.match(/\b(because|since|so that)\b/i);
   if (!mechanismMatch || mechanismMatch.index === undefined) {
-    return normalized.slice(0, 300).replace(/\s+\S*$/, "").trim();
+    return ensureTerminalPunctuation(
+      normalized.slice(0, 300).replace(/\s+\S*$/, "").trim(),
+    );
   }
 
   const mechanismIndex = mechanismMatch.index;
@@ -618,9 +626,11 @@ function clampRecommendationAction(action: string): string {
       : suffix;
 
   const clamped = `${safePrefix} ${safeSuffix}`.trim();
-  return clamped.length <= 300
-    ? clamped
-    : clamped.slice(0, 300).replace(/\s+\S*$/, "").trim();
+  return ensureTerminalPunctuation(
+    clamped.length <= 300
+      ? clamped
+      : clamped.slice(0, 300).replace(/\s+\S*$/, "").trim(),
+  );
 }
 
 function parseEvidenceArray(raw: unknown): EvidenceAnchor[] {
@@ -878,35 +888,25 @@ function buildCriterionAwareReaderEffectDefault(criterionKey: SynthesizedCriteri
 
 function extractIntentFragment(action: string): string {
   const normalized = action.replace(/\s+/g, " ").trim();
-  if (!normalized) return "the original revision intent";
+  if (!normalized) return "";
 
   const withoutLeadIn = normalized
     .replace(/^in\s+[^,]+,\s*/i, "")
-    .replace(/^for\s+[^,]+,\s*/i, "");
+    .replace(/^for\s+[^,]+,\s*/i, "")
+    .replace(/[.;:!?]+$/g, "")
+    .trim();
 
   return withoutLeadIn.slice(0, 120);
 }
 
-function normalizeIntentFragmentForRepair(intentFragment: string): string {
+function normalizeIntentForActionTail(intentFragment: string): string {
   const compact = intentFragment.replace(/\s+/g, " ").trim().replace(/[.;:!?]+$/, "");
-  if (!compact) return "original revision intent";
+  if (!compact) return "";
 
-  const lowered = compact.length > 0
-    ? `${compact.charAt(0).toLowerCase()}${compact.slice(1)}`
-    : compact;
-
-  return lowered.length <= 100
+  const lowered = `${compact.charAt(0).toLowerCase()}${compact.slice(1)}`;
+  return lowered.length <= 65
     ? lowered
-    : lowered.slice(0, 100).replace(/\s+\S*$/, "").trim();
-}
-
-function buildPreservationClause(intentFragment: string): string {
-  const normalizedIntent = normalizeIntentFragmentForRepair(intentFragment);
-  if (normalizedIntent === "original revision intent") {
-    return "because this preserves the original revision intent";
-  }
-
-  return `because this preserves the original revision intent by continuing to ${normalizedIntent}`;
+    : lowered.slice(0, 65).replace(/\s+\S*$/, "").trim();
 }
 
 function buildCriterionAwareActionRepair(
@@ -915,19 +915,22 @@ function buildCriterionAwareActionRepair(
   intentFragment: string,
 ): string {
   const anchor = anchorSnippet.slice(0, 72);
-  const preservationClause = buildPreservationClause(intentFragment);
+  const normalizedIntent = normalizeIntentForActionTail(intentFragment);
+  const intentTail = normalizedIntent.length > 0
+    ? normalizedIntent
+    : "tighten scene-level clarity";
 
   switch (criterionKey) {
     case "character":
-      return `In the anchored moment "${anchor}", replace one abstract reaction line with a concrete decision beat and one desire-vs-fear contradiction ${preservationClause} while making motivation legible.`;
+      return `In the anchored moment "${anchor}", replace one abstract reaction line with a concrete decision beat and a desire-vs-fear contradiction because abstract phrasing blunts motivation; ${intentTail}.`;
     case "sceneConstruction":
-      return `In the anchored moment "${anchor}", split one long descriptive passage and move one image after the causal action beat ${preservationClause} while restoring scene-turn sequencing.`;
+      return `In the anchored moment "${anchor}", split one long descriptive passage and move one image after the causal action beat because sequencing obscures scene turns; ${intentTail}.`;
     case "dialogue":
-      return `In the anchored moment "${anchor}", replace one expository exchange with two short turns plus a brief interruption line ${preservationClause} while making speaker intent and pressure explicit.`;
+      return `In the anchored moment "${anchor}", replace one expository exchange with two short turns plus a brief interruption line because exposition flattens speaker pressure; ${intentTail}.`;
     case "pacing":
-      return `In the anchored moment "${anchor}", cut one reflective sentence and insert one immediate external action trigger ${preservationClause} while tightening momentum at the turn.`;
+      return `In the anchored moment "${anchor}", cut one reflective sentence and insert one immediate external action trigger because reflection stalls momentum; ${intentTail}.`;
     default:
-      return `In the anchored moment "${anchor}", replace one abstract sentence with a concrete line-level revision and insert one causal beat ${preservationClause} while clarifying consequence.`;
+      return `In the anchored moment "${anchor}", replace one abstract sentence with a concrete line-level revision and insert one causal beat because abstraction diffuses consequence; ${intentTail}.`;
   }
 }
 

@@ -619,7 +619,7 @@ describe("Pass 3 backfill quality", () => {
     expect(pacingRec?.action.toLowerCase()).toMatch(/cut|insert/);
   });
 
-  test("repair action keeps preservation clause grammatical for imperative intent fragments", () => {
+  test("repair action excludes internal preservation scaffolding for imperative intent fragments", () => {
     const pass1 = makePass(1);
     const pass2 = makePass(2);
 
@@ -665,11 +665,13 @@ describe("Pass 3 backfill quality", () => {
     const parsed = parsePass3Response(raw, pass1, pass2, "o3");
     const repaired = parsed.criteria.find((c) => c.key === "dialogue")?.recommendations?.[0]?.action ?? "";
 
-    expect(repaired).toContain("because this preserves the original revision intent by continuing to revise dialogue");
-    expect(repaired).not.toContain("because this preserves Revise dialogue");
+    expect(repaired).not.toContain("because this preserves");
+    expect(repaired).not.toContain("original revision intent");
+    expect(repaired).not.toContain("continuing to");
     expect(repaired).not.toMatch(/\([^)]*$/);
     expect(repaired).not.toContain("(");
     expect(repaired.toLowerCase()).not.toContain("criterion-specific move");
+    expect(repaired).toMatch(/[.!?]$/);
     expect(repaired.length).toBeLessThanOrEqual(300);
   });
 
