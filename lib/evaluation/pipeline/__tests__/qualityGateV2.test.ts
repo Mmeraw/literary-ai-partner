@@ -349,7 +349,12 @@ describe("runQualityGateV2 integration", () => {
     const conceptIndex = CRITERIA_KEYS.indexOf("concept");
     const dialogueIndex = CRITERIA_KEYS.indexOf("dialogue");
     const originalConceptScore = 8;
-    const originalDialogueCriterion = fixture.criteria[dialogueIndex];
+    // DEFENSIVE: Deep-clone to detect any future regression to in-place mutation.
+    // If this were a direct reference, the test would pass silently even if
+    // runQualityGateV2 mutates the criterion object in place.
+    const originalDialogueCriterion = structuredClone(
+      fixture.criteria[dialogueIndex],
+    );
 
     fixture.criteria[conceptIndex] = {
       ...fixture.criteria[conceptIndex],
