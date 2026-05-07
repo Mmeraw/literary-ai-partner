@@ -1,0 +1,25 @@
+{
+  "fixture_id": "s02.queue.canonical-status-only",
+  "fixture_version": "v1",
+  "stage_id": "S02_QUEUE",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "critical",
+  "invariant_id": "QUEUE_CANONICAL_STATUS_ONLY",
+  "description": "Queue stage must persist only canonical job status values.",
+  "input_stub": {
+    "attempted_status": "completed"
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": ["CANONICAL_STATUS_VIOLATION"],
+    "forbidden_failure_codes": ["QUEUED_ACCEPTED_WITH_NONCANON_STATUS"],
+    "notes": "Non-canonical status aliases must not be written."
+  },
+  "evidence_artifacts": ["pipeline_failure_envelope"],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "spec": ["docs/JOB_CONTRACT_v1.md", "docs/NOMENCLATURE_CANON_v1.md"],
+    "runtime": ["lib/jobs/store.ts", "lib/jobs/jobStore.supabase.ts"]
+  }
+}

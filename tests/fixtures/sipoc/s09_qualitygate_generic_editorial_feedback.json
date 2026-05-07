@@ -1,0 +1,23 @@
+{
+  "fixture_id": "s09.qualitygate.generic-editorial-feedback",
+  "fixture_version": "v1",
+  "stage_id": "S09_QUALITYGATEV2",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "high",
+  "invariant_id": "QG_NO_GENERIC_EDITORIAL_FEEDBACK",
+  "description": "Quality gate must fail generic editorial recommendations lacking mechanism specificity.",
+  "input_stub": {
+    "recommendation_profile": "generic"
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": ["QG_EDITORIAL_GENERIC_FEEDBACK"],
+    "forbidden_failure_codes": ["QG_BYPASS_ON_GENERIC_EDITORIAL"]
+  },
+  "evidence_artifacts": ["quality_gate_diagnostics_v1", "pipeline_failure_envelope"],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "runtime": ["lib/evaluation/pipeline/qualityGate.ts", "app/api/admin/pipeline-health/route.ts"]
+  }
+}

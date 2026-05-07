@@ -1,0 +1,24 @@
+{
+  "fixture_id": "s11.renderer.releasability-gate",
+  "fixture_version": "v1",
+  "stage_id": "S11_RENDERER",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "high",
+  "invariant_id": "RENDERER_RELEASE_GATE_ENFORCED",
+  "description": "Renderer/read API must not release non-releasable evaluations.",
+  "input_stub": {
+    "job_status": "failed",
+    "request_path": "/api/evaluations/{jobId}"
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": ["409"],
+    "forbidden_failure_codes": ["200"]
+  },
+  "evidence_artifacts": ["release_decision_trace", "pipeline_failure_envelope"],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "runtime": ["app/api/evaluations/[jobId]/route.ts"]
+  }
+}

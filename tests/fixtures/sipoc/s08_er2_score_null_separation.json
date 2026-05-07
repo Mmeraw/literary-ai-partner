@@ -1,0 +1,24 @@
+{
+  "fixture_id": "s08.er2.score-null-separation",
+  "fixture_version": "v1",
+  "stage_id": "S08_ER2_NORMALIZATION",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "critical",
+  "invariant_id": "SCORE_NULL_NEVER_COLLAPSE",
+  "description": "Normalization must preserve score/null semantics; non-scorable states cannot be collapsed into numeric scores.",
+  "input_stub": {
+    "criterion_state": "non_scorable_with_numeric_score"
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": ["QG_SCORE_RANGE", "QG_CONSEQUENCE_CONTRACT"],
+    "forbidden_failure_codes": ["ER2_ACCEPTED_WITH_SCORE_NULL_COLLAPSE"]
+  },
+  "evidence_artifacts": ["evaluation_result_v2", "pipeline_failure_envelope"],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "spec": ["docs/NOMENCLATURE_CANON_v1.md"],
+    "runtime": ["lib/evaluation/pipeline/runPipeline.ts", "schemas/evaluation-result-v2.ts"]
+  }
+}

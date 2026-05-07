@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tests/fixtures/sipoc/schema.json",
+  "title": "SIPOC Certification Fixture Schema",
+  "description": "Governed fixture contract keyed to canonical SIPOC stage identifiers from docs/SIPOC_EVALUATION_PROCESS.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "fixture_id",
+    "fixture_version",
+    "stage_id",
+    "track",
+    "invariant_id",
+    "description",
+    "expected",
+    "evidence_artifacts"
+  ],
+  "properties": {
+    "fixture_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{2,80}$"
+    },
+    "fixture_version": {
+      "type": "string",
+      "pattern": "^v[0-9]+$"
+    },
+    "stage_id": {
+      "type": "string",
+      "enum": [
+        "S01_INTAKE",
+        "S02_QUEUE",
+        "S03_CLAIM",
+        "S04_ROUTING_CHUNKING",
+        "S05_PASS1",
+        "S06_PASS2",
+        "S07_PASS3",
+        "S08_ER2_NORMALIZATION",
+        "S09_QUALITYGATEV2",
+        "S10_PERSISTENCE",
+        "S11_RENDERER"
+      ]
+    },
+    "track": {
+      "type": "string",
+      "enum": ["evaluation_runtime_sipoc"]
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["critical", "high", "medium", "low"],
+      "default": "high"
+    },
+    "invariant_id": {
+      "type": "string",
+      "pattern": "^[A-Z0-9_]{3,100}$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 500
+    },
+    "input_stub": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Minimal deterministic input stub. No production payload requirements in PR B."
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result_type", "must_fail_closed", "required_failure_codes"],
+      "properties": {
+        "result_type": {
+          "type": "string",
+          "enum": ["pass", "fail", "warn"]
+        },
+        "must_fail_closed": {
+          "type": "boolean"
+        },
+        "required_failure_codes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "forbidden_failure_codes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "evidence_artifacts": {
+      "type": "array",
+      "description": "Artifact kinds expected for certification evidence.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "pipeline_failure_envelope",
+          "quality_gate_diagnostics_v1",
+          "pass_outputs_diagnostic_v1",
+          "evaluation_result_v2",
+          "evaluation_artifact_row",
+          "release_decision_trace"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "authority_refs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sipoc_contract"],
+      "properties": {
+        "sipoc_contract": {
+          "type": "string",
+          "const": "docs/SIPOC_EVALUATION_PROCESS.md"
+        },
+        "canon": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "spec": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "runtime": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 0,
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}
