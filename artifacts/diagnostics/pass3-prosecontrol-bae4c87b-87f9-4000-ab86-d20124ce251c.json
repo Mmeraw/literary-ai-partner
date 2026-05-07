@@ -1,0 +1,47 @@
+{
+  "generated_at": "2026-05-07T06:33:34.750Z",
+  "diagnostic_version": "pass3-anchoring-v1",
+  "job_id": "bae4c87b-87f9-4000-ab86-d20124ce251c",
+  "status": "failed",
+  "progress_keys": [
+    "phase",
+    "message",
+    "failed_at",
+    "error_code",
+    "total_units",
+    "phase_status",
+    "chunk_routing",
+    "v2_gate_status",
+    "completed_units",
+    "pass3_started_at",
+    "last_heartbeat_at",
+    "phase1_started_at",
+    "v2_gate_failed_at",
+    "pass3_completed_at",
+    "pipeline_failure_envelope"
+  ],
+  "pipeline_failure_envelope": {
+    "error_code": "QG_FAILED",
+    "reason_codes": [
+      "QG_FAILED"
+    ],
+    "error_message": "[QualityGateV2] v2_fidelity_score_confidence_alignment: Low-confidence criteria exceed score cap (5): proseControl:7",
+    "failure_origin": "processor",
+    "pipeline_stage": "processor"
+  },
+  "pass3_output_persisted": false,
+  "note": "pass3_output_not_persisted_on_qg_failure; diagnostic falls back to failure envelope",
+  "envelope_contradiction": {
+    "key": "proseControl",
+    "score_0_10": 7,
+    "confidence_level": "low",
+    "forbidden_behavior": "PASS3_EMITTED_HIGH_SCORE_WITH_LOW_CONFIDENCE",
+    "source": "progress.pipeline_failure_envelope.error_message"
+  },
+  "total_criteria": 0,
+  "contradictions_count": 1,
+  "contradictions": [
+    "proseControl"
+  ],
+  "criteria": []
+}

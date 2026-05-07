@@ -55,9 +55,7 @@ type CriterionRow = {
 type JobRow = {
   id: string;
   status?: string;
-  pass3_result?: { criteria?: CriterionRow[]; [key: string]: unknown } | null;
-  convergence_result?: { criteria?: CriterionRow[]; [key: string]: unknown } | null;
-  quality_gate_result?: { checks?: { check_id: string; passed: boolean; details?: string }[] } | null;
+  progress?: Record<string, unknown>;
   [key: string]: unknown;
 };
 
@@ -190,7 +188,7 @@ async function diagnoseJob(
 ): Promise<JobDiagnostic> {
   const { data, error } = await supabase
     .from("evaluation_jobs")
-    .select("id, status, pass3_result, convergence_result, quality_gate_result")
+    .select("id, status, progress")
     .eq("id", jobId)
     .single();
 
@@ -209,31 +207,66 @@ async function diagnoseJob(
   }
 
   const row = data as JobRow;
-  const pass3 = row.pass3_result ?? row.convergence_result;
+  const progress = (row.progress ?? {}) as Record<string, unknown>;
+
+  const pass3 =
+    (progress.pass3_result as { criteria?: CriterionRow[] } | undefined) ??
+    (progress.convergence_result as { criteria?: CriterionRow[] } | undefined) ??
+    (progress.convergence as { criteria?: CriterionRow[] } | undefined);
+
   const criteria: CriterionRow[] = pass3?.criteria ?? [];
-  const qgChecks = row.quality_gate_result?.checks ?? [];
-  const alignmentCheck = qgChecks.find((c) => c.check_id === "v2_fidelity_score_confidence_alignment");
   const criterionDiagnostics = criteria.map(analyzeCriterion);
   const contradictions = criterionDiagnostics
     .filter((c) => c.contradiction_detected)
     .map((c) => c.key);
+
+  const envelope = (progress.pipeline_failure_envelope ?? {}) as Record<string, unknown>;
+  const errorMessage =
+    typeof envelope.error_message === "string" ? envelope.error_message : "";
+
+  const parsedAlignment = errorMessage.match(
+    /v2_fidelity_score_confidence_alignment:.*?:\s*([A-Za-z0-9_]+):(\d+)/,
+  );
+
+  const envelopeContradiction = parsedAlignment
+    ? {
+        key: parsedAlignment[1],
+        score_0_10: Number(parsedAlignment[2]),
+        confidence_level: "low",
+        forbidden_behavior: "PASS3_EMITTED_HIGH_SCORE_WITH_LOW_CONFIDENCE",
+        source: "progress.pipeline_failure_envelope.error_message",
+      }
+    : null;
+
+  const effectiveContradictions =
+    contradictions.length > 0
+      ? contradictions
+      : envelopeContradiction
+        ? [envelopeContradiction.key]
+        : [];
 
   return {
     generated_at: new Date().toISOString(),
     diagnostic_version: "pass3-anchoring-v1",
     job_id: jobId,
     status: row.status ?? "(missing)",
-    ...(alignmentCheck
-      ? {
-          quality_gate_alignment_check: {
-            passed: alignmentCheck.passed,
-            details: alignmentCheck.details,
-          },
-        }
-      : {}),
+    progress_keys: Object.keys(progress),
+    pipeline_failure_envelope: {
+      error_code: envelope.error_code ?? null,
+      reason_codes: envelope.reason_codes ?? [],
+      error_message: errorMessage || null,
+      failure_origin: envelope.failure_origin ?? null,
+      pipeline_stage: envelope.pipeline_stage ?? null,
+    },
+    pass3_output_persisted: criteria.length > 0,
+    note:
+      criteria.length > 0
+        ? "pass3_output_found"
+        : "pass3_output_not_persisted_on_qg_failure; diagnostic falls back to failure envelope",
+    envelope_contradiction: envelopeContradiction,
     total_criteria: criterionDiagnostics.length,
-    contradictions_count: contradictions.length,
-    contradictions,
+    contradictions_count: effectiveContradictions.length,
+    contradictions: effectiveContradictions,
     criteria: criterionDiagnostics,
   };
 }
