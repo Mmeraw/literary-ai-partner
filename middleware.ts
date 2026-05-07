@@ -70,8 +70,6 @@ export async function middleware(request: NextRequest) {
     '/api/cron',
     '/api/workers',
     '/api/admin/proof/jobs',
-    '/api/admin/proof/jobs',
-    '/api/admin/proof/jobs',
         '/api/health',
         '/api/evaluate',
         '/api/jobs',
