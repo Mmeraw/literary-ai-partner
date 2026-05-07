@@ -21,8 +21,8 @@ describe("buildTopRecommendations", () => {
     });
 
     expect(output).toEqual([
-      "Quick win: Condense the council-profile sequence by combining repeated motive beats. — This preserves the strongest revelations while reducing pattern fatigue.",
-      "Strategic revision: Insert one irreversible discovery before the river meditation closes the chapter. — This converts accumulated pressure into immediate narrative consequence.",
+      "Quick win: Condense the council-profile sequence by combining repeated motive beats.—This preserves the strongest revelations while reducing pattern fatigue.",
+      "Strategic revision: Insert one irreversible discovery before the river meditation closes the chapter.—This converts accumulated pressure into immediate narrative consequence.",
     ]);
   });
 
@@ -42,7 +42,7 @@ describe("buildTopRecommendations", () => {
     });
 
     expect(output).toEqual([
-      "Differentiate Malcolm and Frankie through distinct consequence paths. — This reduces repetitive profile rhythm.",
+      "Differentiate Malcolm and Frankie through distinct consequence paths.—This reduces repetitive profile rhythm.",
     ]);
   });
 });

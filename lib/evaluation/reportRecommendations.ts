@@ -1,3 +1,5 @@
+import { normalizeChicagoSurfaceText } from "@/lib/evaluation/style/chicagoSurface";
+
 type ArtifactRecommendation = {
   action?: string;
   why?: string;
@@ -31,11 +33,17 @@ function formatCrossCuttingRecommendation(
   recommendation: ArtifactRecommendation,
   label?: string,
 ): string | null {
-  const action = typeof recommendation.action === "string" ? recommendation.action.trim() : "";
+  const action =
+    typeof recommendation.action === "string"
+      ? normalizeChicagoSurfaceText(recommendation.action)
+      : "";
   if (!action) return null;
 
-  const why = typeof recommendation.why === "string" ? recommendation.why.trim() : "";
-  return `${label ? `${label}: ` : ""}${action}${why ? ` — ${why}` : ""}`;
+  const why =
+    typeof recommendation.why === "string"
+      ? normalizeChicagoSurfaceText(recommendation.why)
+      : "";
+  return normalizeChicagoSurfaceText(`${label ? `${label}: ` : ""}${action}${why ? ` — ${why}` : ""}`);
 }
 
 function extractSummaryFallback(summary: string, maxItems: number): string[] {
@@ -46,7 +54,7 @@ function extractSummaryFallback(summary: string, maxItems: number): string[] {
 
   const bullets = lines
     .filter((line) => /^[-•*]\s+/.test(line))
-    .map((line) => line.replace(/^[-•*]\s+/, ""));
+    .map((line) => normalizeChicagoSurfaceText(line.replace(/^[-•*]\s+/, "")));
 
   if (bullets.length > 0) {
     return bullets.slice(0, maxItems);
@@ -54,7 +62,7 @@ function extractSummaryFallback(summary: string, maxItems: number): string[] {
 
   return summary
     .split(/(?<=[.!?])\s+/)
-    .map((line) => line.trim())
+    .map((line) => normalizeChicagoSurfaceText(line))
     .filter(Boolean)
     .slice(0, maxItems);
 }
@@ -78,13 +86,16 @@ export function buildTopRecommendations(artifact: ArtifactLike | null | undefine
   const criteriaDerived = uniq(
     (artifact.criteria ?? []).flatMap((criterion) =>
       (criterion.recommendations ?? []).map((recommendation) => {
-        const action = typeof recommendation.action === "string" ? recommendation.action.trim() : "";
+        const action =
+          typeof recommendation.action === "string"
+            ? normalizeChicagoSurfaceText(recommendation.action)
+            : "";
         if (!action) return "";
         const impact =
           typeof recommendation.expected_impact === "string"
-            ? recommendation.expected_impact.trim()
+            ? normalizeChicagoSurfaceText(recommendation.expected_impact)
             : "";
-        return `${action}${impact ? ` — ${impact}` : ""}`;
+        return normalizeChicagoSurfaceText(`${action}${impact ? ` — ${impact}` : ""}`);
       }),
     ),
   );
