@@ -1,0 +1,191 @@
+{
+  "run_at": "2026-05-07T02:28:24.459Z",
+  "authority": "docs/SIPOC_EVALUATION_PROCESS.md",
+  "fixture_dir": "/workspaces/literary-ai-partner/tests/fixtures/sipoc",
+  "summary": {
+    "total": 8,
+    "passed": 8,
+    "failed": 0,
+    "by_stage": {
+      "S01_INTAKE": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0
+      },
+      "S02_QUEUE": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0
+      },
+      "S03_CLAIM": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0
+      },
+      "S06_PASS2": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0
+      },
+      "S08_ER2_NORMALIZATION": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0
+      },
+      "S09_QUALITYGATEV2": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0
+      },
+      "S10_PERSISTENCE": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0
+      },
+      "S11_RENDERER": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0
+      }
+    }
+  },
+  "results": [
+    {
+      "fixture_id": "s01.intake.missing-required-input",
+      "fixture_version": "v1",
+      "stage_id": "S01_INTAKE",
+      "invariant_id": "INTAKE_REQUIRED_INPUT",
+      "severity": "high",
+      "pass": true,
+      "violations": [],
+      "contract_assertions": [
+        "fail-closed coherence: OK (must_fail_closed=true, result_type=\"fail\")",
+        "failure codes declared: 400",
+        "required/forbidden code sets are disjoint: OK",
+        "S01_INTAKE: no queue progression codes in forbidden list (correct)",
+        "evidence artifact coverage for fail-result: OK",
+        "authority pin: docs/SIPOC_EVALUATION_PROCESS.md (correct)"
+      ]
+    },
+    {
+      "fixture_id": "s02.queue.canonical-status-only",
+      "fixture_version": "v1",
+      "stage_id": "S02_QUEUE",
+      "invariant_id": "QUEUE_CANONICAL_STATUS_ONLY",
+      "severity": "critical",
+      "pass": true,
+      "violations": [],
+      "contract_assertions": [
+        "fail-closed coherence: OK (must_fail_closed=true, result_type=\"fail\")",
+        "failure codes declared: CANONICAL_STATUS_VIOLATION",
+        "required/forbidden code sets are disjoint: OK",
+        "S02_QUEUE: must_fail_closed=true (correct)",
+        "evidence artifact coverage for fail-result: OK",
+        "authority pin: docs/SIPOC_EVALUATION_PROCESS.md (correct)"
+      ]
+    },
+    {
+      "fixture_id": "s03.claim.atomic-single-claimer",
+      "fixture_version": "v1",
+      "stage_id": "S03_CLAIM",
+      "invariant_id": "CLAIM_ATOMIC_SINGLE_CLAIMER",
+      "severity": "critical",
+      "pass": true,
+      "violations": [],
+      "contract_assertions": [
+        "fail-closed coherence: OK (must_fail_closed=true, result_type=\"fail\")",
+        "failure codes declared: CLAIM_CONFLICT",
+        "required/forbidden code sets are disjoint: OK",
+        "S03_CLAIM: must_fail_closed=true (atomicity preserved)",
+        "evidence artifact coverage for fail-result: OK",
+        "authority pin: docs/SIPOC_EVALUATION_PROCESS.md (correct)"
+      ]
+    },
+    {
+      "fixture_id": "s06.pass2.independence-violation",
+      "fixture_version": "v1",
+      "stage_id": "S06_PASS2",
+      "invariant_id": "PASS2_INDEPENDENCE_MANDATORY",
+      "severity": "critical",
+      "pass": true,
+      "violations": [],
+      "contract_assertions": [
+        "fail-closed coherence: OK (must_fail_closed=true, result_type=\"fail\")",
+        "failure codes declared: PASS2_INDEPENDENCE_REWRITE_FAILED, QG_INDEPENDENCE_VIOLATION",
+        "required/forbidden code sets are disjoint: OK",
+        "S06_PASS2: failure codes include QG_ or PASS2_ prefix (correct)",
+        "evidence artifact coverage for fail-result: OK",
+        "authority pin: docs/SIPOC_EVALUATION_PROCESS.md (correct)"
+      ]
+    },
+    {
+      "fixture_id": "s08.er2.score-null-separation",
+      "fixture_version": "v1",
+      "stage_id": "S08_ER2_NORMALIZATION",
+      "invariant_id": "SCORE_NULL_NEVER_COLLAPSE",
+      "severity": "critical",
+      "pass": true,
+      "violations": [],
+      "contract_assertions": [
+        "fail-closed coherence: OK (must_fail_closed=true, result_type=\"fail\")",
+        "failure codes declared: QG_SCORE_RANGE, QG_CONSEQUENCE_CONTRACT",
+        "required/forbidden code sets are disjoint: OK",
+        "S08_ER2_NORMALIZATION: failure codes include QG_ or ER2_ prefix (correct)",
+        "evidence artifact coverage for fail-result: OK",
+        "authority pin: docs/SIPOC_EVALUATION_PROCESS.md (correct)"
+      ]
+    },
+    {
+      "fixture_id": "s09.qualitygate.generic-editorial-feedback",
+      "fixture_version": "v1",
+      "stage_id": "S09_QUALITYGATEV2",
+      "invariant_id": "QG_NO_GENERIC_EDITORIAL_FEEDBACK",
+      "severity": "high",
+      "pass": true,
+      "violations": [],
+      "contract_assertions": [
+        "fail-closed coherence: OK (must_fail_closed=true, result_type=\"fail\")",
+        "failure codes declared: QG_EDITORIAL_GENERIC_FEEDBACK",
+        "required/forbidden code sets are disjoint: OK",
+        "S09_QUALITYGATEV2: QG_ prefixed failure code(s) present (correct)",
+        "S09_QUALITYGATEV2: must_fail_closed=true (gating discipline correct)",
+        "evidence artifact coverage for fail-result: OK",
+        "authority pin: docs/SIPOC_EVALUATION_PROCESS.md (correct)"
+      ]
+    },
+    {
+      "fixture_id": "s10.persistence.fail-closed-on-gate-fail",
+      "fixture_version": "v1",
+      "stage_id": "S10_PERSISTENCE",
+      "invariant_id": "PERSISTENCE_FAIL_CLOSED",
+      "severity": "critical",
+      "pass": true,
+      "violations": [],
+      "contract_assertions": [
+        "fail-closed coherence: OK (must_fail_closed=true, result_type=\"fail\")",
+        "failure codes declared: EVALUATION_GATE_REJECTED",
+        "required/forbidden code sets are disjoint: OK",
+        "S10_PERSISTENCE: must_fail_closed=true (write atomicity correct)",
+        "evidence artifact coverage for fail-result: OK",
+        "authority pin: docs/SIPOC_EVALUATION_PROCESS.md (correct)"
+      ]
+    },
+    {
+      "fixture_id": "s11.renderer.releasability-gate",
+      "fixture_version": "v1",
+      "stage_id": "S11_RENDERER",
+      "invariant_id": "RENDERER_RELEASE_GATE_ENFORCED",
+      "severity": "high",
+      "pass": true,
+      "violations": [],
+      "contract_assertions": [
+        "fail-closed coherence: OK (must_fail_closed=true, result_type=\"fail\")",
+        "failure codes declared: 409",
+        "required/forbidden code sets are disjoint: OK",
+        "S11_RENDERER: must_fail_closed=true (release gate correct)",
+        "evidence artifact coverage for fail-result: OK",
+        "authority pin: docs/SIPOC_EVALUATION_PROCESS.md (correct)"
+      ]
+    }
+  ]
+}

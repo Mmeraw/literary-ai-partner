@@ -1,0 +1,96 @@
+{
+  "run_at": "2026-05-07T02:28:24.459Z",
+  "authority": "docs/SIPOC_EVALUATION_PROCESS.md",
+  "by_stage": {
+    "S01_INTAKE": {
+      "stage_id": "S01_INTAKE",
+      "fixtures_evaluated": 1,
+      "required_failure_codes": [
+        "400"
+      ],
+      "forbidden_failure_codes": [
+        "500"
+      ],
+      "must_fail_closed_count": 1
+    },
+    "S02_QUEUE": {
+      "stage_id": "S02_QUEUE",
+      "fixtures_evaluated": 1,
+      "required_failure_codes": [
+        "CANONICAL_STATUS_VIOLATION"
+      ],
+      "forbidden_failure_codes": [
+        "QUEUED_ACCEPTED_WITH_NONCANON_STATUS"
+      ],
+      "must_fail_closed_count": 1
+    },
+    "S03_CLAIM": {
+      "stage_id": "S03_CLAIM",
+      "fixtures_evaluated": 1,
+      "required_failure_codes": [
+        "CLAIM_CONFLICT"
+      ],
+      "forbidden_failure_codes": [
+        "DOUBLE_CLAIM_ACCEPTED"
+      ],
+      "must_fail_closed_count": 1
+    },
+    "S06_PASS2": {
+      "stage_id": "S06_PASS2",
+      "fixtures_evaluated": 1,
+      "required_failure_codes": [
+        "PASS2_INDEPENDENCE_REWRITE_FAILED",
+        "QG_INDEPENDENCE_VIOLATION"
+      ],
+      "forbidden_failure_codes": [
+        "PASS2_ACCEPTED_WITH_INDEPENDENCE_BREACH"
+      ],
+      "must_fail_closed_count": 1
+    },
+    "S08_ER2_NORMALIZATION": {
+      "stage_id": "S08_ER2_NORMALIZATION",
+      "fixtures_evaluated": 1,
+      "required_failure_codes": [
+        "QG_SCORE_RANGE",
+        "QG_CONSEQUENCE_CONTRACT"
+      ],
+      "forbidden_failure_codes": [
+        "ER2_ACCEPTED_WITH_SCORE_NULL_COLLAPSE"
+      ],
+      "must_fail_closed_count": 1
+    },
+    "S09_QUALITYGATEV2": {
+      "stage_id": "S09_QUALITYGATEV2",
+      "fixtures_evaluated": 1,
+      "required_failure_codes": [
+        "QG_EDITORIAL_GENERIC_FEEDBACK"
+      ],
+      "forbidden_failure_codes": [
+        "QG_BYPASS_ON_GENERIC_EDITORIAL"
+      ],
+      "must_fail_closed_count": 1
+    },
+    "S10_PERSISTENCE": {
+      "stage_id": "S10_PERSISTENCE",
+      "fixtures_evaluated": 1,
+      "required_failure_codes": [
+        "EVALUATION_GATE_REJECTED"
+      ],
+      "forbidden_failure_codes": [
+        "ARTIFACT_PERSISTED_AFTER_GATE_FAIL"
+      ],
+      "must_fail_closed_count": 1
+    },
+    "S11_RENDERER": {
+      "stage_id": "S11_RENDERER",
+      "fixtures_evaluated": 1,
+      "required_failure_codes": [
+        "409"
+      ],
+      "forbidden_failure_codes": [
+        "200"
+      ],
+      "must_fail_closed_count": 1
+    }
+  }
+}
