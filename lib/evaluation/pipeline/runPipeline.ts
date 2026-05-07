@@ -224,11 +224,11 @@ function logPipelineTimings(
  * of whether the model emits curly or straight quotes.  This resolves the
  * prompt/runtime quote-style mismatch described in PR 2.
  */
-function normalizeSmartQuotes(text: string): string {
+export function normalizeSmartQuotes(text: string): string {
   return text.replace(/[“”]/g, '"');
 }
 
-function hasTextualAnchorSignal(criterion: EvaluationResultV2["criteria"][number]): boolean {
+export function hasTextualAnchorSignal(criterion: EvaluationResultV2["criteria"][number]): boolean {
   const normalizedRationale = normalizeSmartQuotes(criterion.rationale ?? "");
   if (/"[^"]{8,}"/.test(normalizedRationale)) {
     return true;
