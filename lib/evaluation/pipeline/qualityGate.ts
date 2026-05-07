@@ -1220,26 +1220,43 @@ export function runQualityGateV2(
     );
   }
 
-  const scoreConfidenceMismatches = criteria
-    .filter(
-      (c) =>
-        c.status === "SCORABLE" &&
-        c.confidence_level === "low" &&
-        typeof c.score_0_10 === "number" &&
-        c.score_0_10 > QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE,
-    )
-    .map((c) => `${c.key}:${c.score_0_10}`);
+  const scoreConfidenceMismatchDetails: string[] = [];
+  for (let idx = 0; idx < criteria.length; idx += 1) {
+    const criterion = criteria[idx];
+    if (
+      criterion.status === "SCORABLE" &&
+      criterion.confidence_level === "low" &&
+      typeof criterion.score_0_10 === "number" &&
+      criterion.score_0_10 > QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE
+    ) {
+      scoreConfidenceMismatchDetails.push(`${criterion.key}:${criterion.score_0_10}`);
+
+      criteria[idx] = {
+        ...criterion,
+        scorable: false,
+        status: "INSUFFICIENT_SIGNAL",
+        signal_strength: "WEAK",
+        score_0_10: null,
+        scorability_status: "non_scorable",
+        model_emitted_score_unverified: criterion.score_0_10,
+        insufficient_signal_reason: {
+          looked_for: ["CERTIFIED_ANCHORS_FOR_HIGH_CONFIDENCE_SCORING"],
+          not_found: ["LOW_CONFIDENCE_HIGH_SCORE_WITHOUT_CERTIFIED_ANCHORS"],
+        },
+      };
+    }
+  }
 
   checks.push({
     check_id: "v2_fidelity_score_confidence_alignment",
-    passed: scoreConfidenceMismatches.length === 0,
+    passed: scoreConfidenceMismatchDetails.length === 0,
     error_code:
-      scoreConfidenceMismatches.length > 0
+      scoreConfidenceMismatchDetails.length > 0
         ? "QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH"
         : undefined,
     details:
-      scoreConfidenceMismatches.length > 0
-        ? `Low-confidence criteria exceed score cap (${QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE}): ${scoreConfidenceMismatches.join(",")}`
+      scoreConfidenceMismatchDetails.length > 0
+        ? `Low-confidence criteria exceeded score cap (${QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE}) and were downgraded to INSUFFICIENT_SIGNAL: ${scoreConfidenceMismatchDetails.join(",")}`
         : "Score-confidence alignment holds",
   });
 
@@ -1330,7 +1347,9 @@ export function runQualityGateV2(
     }
   }
 
-  const failedHardChecks = checks.filter((c) => !c.passed);
+  const failedHardChecks = checks.filter(
+    (c) => !c.passed && c.check_id !== "v2_fidelity_score_confidence_alignment",
+  );
   return {
     pass: failedHardChecks.length === 0,
     checks,

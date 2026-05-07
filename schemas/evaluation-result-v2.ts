@@ -55,6 +55,7 @@ type CriterionBase = {
   signal_present: boolean;
   signal_strength: SignalStrength;
   confidence_band: ConfidenceBand;
+  model_emitted_score_unverified?: number;
   confidence_score_0_100?: number;
   confidence_level?: "high" | "moderate" | "low";
   confidence_reasons?: string[];
@@ -288,6 +289,18 @@ export function validateEvaluationResultV2(
         c.confidence_score_0_100 > 100
       ) {
         errors.push(`criteria[${idx}].confidence_score_0_100 must be 0-100 when present`);
+      }
+    }
+
+    if (c.model_emitted_score_unverified !== undefined) {
+      if (
+        typeof c.model_emitted_score_unverified !== "number" ||
+        !Number.isFinite(c.model_emitted_score_unverified) ||
+        !Number.isInteger(c.model_emitted_score_unverified) ||
+        c.model_emitted_score_unverified < 0 ||
+        c.model_emitted_score_unverified > 10
+      ) {
+        errors.push(`criteria[${idx}].model_emitted_score_unverified must be an integer 0-10 when present`);
       }
     }
 

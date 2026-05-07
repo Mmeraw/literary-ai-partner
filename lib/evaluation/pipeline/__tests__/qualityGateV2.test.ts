@@ -344,25 +344,57 @@ describe("runQualityGateV2 integration", () => {
     ).toBe(true);
   });
 
-  it("fails on low-confidence criteria exceeding score cap", () => {
+  it("downgrades low-confidence criteria exceeding score cap to non-certified without failing the whole job", () => {
     const fixture = makeBaseV2Fixture();
     const conceptIndex = CRITERIA_KEYS.indexOf("concept");
+    const originalConceptScore = 8;
+    const originalDialogueCriterion = fixture.criteria[CRITERIA_KEYS.indexOf("dialogue")];
 
     fixture.criteria[conceptIndex] = {
       ...fixture.criteria[conceptIndex],
-      score_0_10: 8,
+      score_0_10: originalConceptScore,
       confidence_level: "low",
       confidence_score_0_100: 22,
     } as EvaluationResultV2["criteria"][number];
 
     const result = runQualityGateV2(fixture);
-    expect(result.pass).toBe(false);
+    expect(result.pass).toBe(true);
+
+    const downgraded = fixture.criteria[conceptIndex];
+    expect(downgraded.status).toBe("INSUFFICIENT_SIGNAL");
+    expect(downgraded.scorable).toBe(false);
+    expect(downgraded.score_0_10).toBeNull();
+    expect(downgraded.model_emitted_score_unverified).toBe(originalConceptScore);
+    expect(downgraded.insufficient_signal_reason).toEqual({
+      looked_for: ["CERTIFIED_ANCHORS_FOR_HIGH_CONFIDENCE_SCORING"],
+      not_found: ["LOW_CONFIDENCE_HIGH_SCORE_WITHOUT_CERTIFIED_ANCHORS"],
+    });
+
+    const unchangedDialogue = fixture.criteria[CRITERIA_KEYS.indexOf("dialogue")];
+    expect(unchangedDialogue).toEqual(originalDialogueCriterion);
+    expect(unchangedDialogue.status).toBe("SCORABLE");
+    expect(unchangedDialogue.score_0_10).toBe(7);
+
     expect(
       result.checks.some(
         (check) =>
           check.check_id === "v2_fidelity_score_confidence_alignment" &&
           !check.passed &&
           check.error_code === "QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH",
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps structural fatal checks fail-closed for missing criteria", () => {
+    const fixture = makeBaseV2Fixture();
+    fixture.criteria = fixture.criteria.slice(0, CRITERIA_KEYS.length - 1);
+    fixture.overview.scored_criteria_count = fixture.criteria.length;
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(false);
+    expect(
+      result.checks.some(
+        (check) => check.check_id === "v2_criteria_count" && !check.passed,
       ),
     ).toBe(true);
   });
