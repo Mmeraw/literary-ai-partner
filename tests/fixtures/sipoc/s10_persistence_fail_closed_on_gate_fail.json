@@ -1,0 +1,24 @@
+{
+  "fixture_id": "s10.persistence.fail-closed-on-gate-fail",
+  "fixture_version": "v1",
+  "stage_id": "S10_PERSISTENCE",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "critical",
+  "invariant_id": "PERSISTENCE_FAIL_CLOSED",
+  "description": "No artifact may persist when deterministic gate decision is fail.",
+  "input_stub": {
+    "gate_decision": "FAIL",
+    "artifact_write_attempted": true
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": ["EVALUATION_GATE_REJECTED"],
+    "forbidden_failure_codes": ["ARTIFACT_PERSISTED_AFTER_GATE_FAIL"]
+  },
+  "evidence_artifacts": ["pipeline_failure_envelope", "evaluation_artifact_row"],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "runtime": ["lib/evaluation/persistEvaluationResultV2.ts"]
+  }
+}

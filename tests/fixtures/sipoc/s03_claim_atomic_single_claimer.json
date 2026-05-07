@@ -1,0 +1,25 @@
+{
+  "fixture_id": "s03.claim.atomic-single-claimer",
+  "fixture_version": "v1",
+  "stage_id": "S03_CLAIM",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "critical",
+  "invariant_id": "CLAIM_ATOMIC_SINGLE_CLAIMER",
+  "description": "Claim stage allows only one active claimer per lease window.",
+  "input_stub": {
+    "simulated_claimers": 2,
+    "same_job_id": true
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": ["CLAIM_CONFLICT"],
+    "forbidden_failure_codes": ["DOUBLE_CLAIM_ACCEPTED"]
+  },
+  "evidence_artifacts": ["pipeline_failure_envelope"],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "spec": ["docs/JOB_CONTRACT_v1.md"],
+    "runtime": ["lib/jobs/jobStore.supabase.ts", "app/api/workers/process-evaluations/route.ts"]
+  }
+}

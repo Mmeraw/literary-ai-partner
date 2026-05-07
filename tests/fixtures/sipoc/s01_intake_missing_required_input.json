@@ -1,0 +1,27 @@
+{
+  "fixture_id": "s01.intake.missing-required-input",
+  "fixture_version": "v1",
+  "stage_id": "S01_INTAKE",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "high",
+  "invariant_id": "INTAKE_REQUIRED_INPUT",
+  "description": "Intake must reject missing manuscript source with explicit client error and no queue progression.",
+  "input_stub": {
+    "request_body": {
+      "job_type": "evaluate_full"
+    }
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": ["400"],
+    "forbidden_failure_codes": ["500"],
+    "notes": "Reject missing required manuscript input without mutating queue state."
+  },
+  "evidence_artifacts": ["pipeline_failure_envelope"],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "spec": ["docs/JOB_CONTRACT_v1.md"],
+    "runtime": ["app/api/jobs/route.ts", "app/api/evaluate/route.ts"]
+  }
+}

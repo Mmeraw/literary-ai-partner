@@ -1,0 +1,25 @@
+{
+  "fixture_id": "s06.pass2.independence-violation",
+  "fixture_version": "v1",
+  "stage_id": "S06_PASS2",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "critical",
+  "invariant_id": "PASS2_INDEPENDENCE_MANDATORY",
+  "description": "Pass 2 must fail when lexical independence from Pass 1 is violated above threshold.",
+  "input_stub": {
+    "overlap_simulation": "high",
+    "n_gram_window": 8
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": ["PASS2_INDEPENDENCE_REWRITE_FAILED", "QG_INDEPENDENCE_VIOLATION"],
+    "forbidden_failure_codes": ["PASS2_ACCEPTED_WITH_INDEPENDENCE_BREACH"]
+  },
+  "evidence_artifacts": ["pipeline_failure_envelope", "quality_gate_diagnostics_v1", "pass_outputs_diagnostic_v1"],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "canon": ["docs/canon/_md/VOLUME III — EVALUATION PIPELINE ARCHITECTURE (PASS SYSTEM).md"],
+    "runtime": ["lib/evaluation/pipeline/runPipeline.ts", "lib/evaluation/pipeline/pass2IndependenceGuard.ts", "lib/evaluation/pipeline/qualityGate.ts"]
+  }
+}
