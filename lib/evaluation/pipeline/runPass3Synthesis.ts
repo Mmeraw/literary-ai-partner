@@ -902,7 +902,11 @@ function normalizeIntentFragmentForRepair(intentFragment: string): string {
 
 function buildPreservationClause(intentFragment: string): string {
   const normalizedIntent = normalizeIntentFragmentForRepair(intentFragment);
-  return `because this preserves the original revision intent (${normalizedIntent})`;
+  if (normalizedIntent === "original revision intent") {
+    return "because this preserves the original revision intent";
+  }
+
+  return `because this preserves the original revision intent by continuing to ${normalizedIntent}`;
 }
 
 function buildCriterionAwareActionRepair(

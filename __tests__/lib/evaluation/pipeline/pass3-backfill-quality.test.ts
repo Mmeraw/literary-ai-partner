@@ -635,7 +635,8 @@ describe("Pass 3 backfill quality", () => {
           recommendations: [
             {
               priority: "medium",
-              action: "Revise dialogue in Chapter 11 to reduce expository elements and increase dynamic interaction.",
+              action:
+                "Revise dialogue in Chapter 11 to reduce expository elements, increase dynamic interaction, sharpen speaker contrast, and ground the pressure shift in visible reaction beats.",
               expected_impact: "Improves dialogue quality.",
               anchor_snippet: '"It\'s okay," I whispered. But even as I said it, I knew it wasn\'t okay.',
               source_pass: 3,
@@ -664,9 +665,12 @@ describe("Pass 3 backfill quality", () => {
     const parsed = parsePass3Response(raw, pass1, pass2, "o3");
     const repaired = parsed.criteria.find((c) => c.key === "dialogue")?.recommendations?.[0]?.action ?? "";
 
-    expect(repaired).toContain("because this preserves the original revision intent (");
+    expect(repaired).toContain("because this preserves the original revision intent by continuing to revise dialogue");
     expect(repaired).not.toContain("because this preserves Revise dialogue");
+    expect(repaired).not.toMatch(/\([^)]*$/);
+    expect(repaired).not.toContain("(");
     expect(repaired.toLowerCase()).not.toContain("criterion-specific move");
+    expect(repaired.length).toBeLessThanOrEqual(300);
   });
 
   test("does not auto-repair anchorless generic recommendation and QG still fails", () => {
