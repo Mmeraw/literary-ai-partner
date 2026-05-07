@@ -1,0 +1,46 @@
+name: SIPOC Certification
+
+"on":
+  pull_request:
+    paths:
+      - "docs/SIPOC_EVALUATION_PROCESS.md"
+      - "tests/fixtures/sipoc/**"
+      - "scripts/validate-sipoc-fixtures.ts"
+      - "scripts/run-sipoc-harness.ts"
+      - "scripts/analyze-sipoc-results.ts"
+      - "package.json"
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/SIPOC_EVALUATION_PROCESS.md"
+      - "tests/fixtures/sipoc/**"
+      - "scripts/validate-sipoc-fixtures.ts"
+      - "scripts/run-sipoc-harness.ts"
+      - "scripts/analyze-sipoc-results.ts"
+      - "package.json"
+
+jobs:
+  sipoc-certification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate SIPOC fixtures
+        run: npm run sipoc:validate
+
+      - name: Run SIPOC deterministic harness
+        run: npm run sipoc:harness
+
+      - name: Analyze SIPOC harness results
+        run: npm run sipoc:analyze
