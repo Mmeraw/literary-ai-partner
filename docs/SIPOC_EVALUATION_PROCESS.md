@@ -86,6 +86,29 @@ Reason: this seam carries synthesis correctness, normalization semantics, determ
 | Persistence | `S10_PERSISTENCE` | Atomic persistence layer | `S11_RENDERER` | Partial |
 | Renderer | `S11_RENDERER` | API read path + UI | End user / admin | Emerging |
 
+## Canonical Stage Identifier Register (Immutable)
+
+The following stage IDs are canonical runtime certification identifiers and are **immutable** unless superseded by explicit canon-governed revision:
+
+- `S01_INTAKE`
+- `S02_QUEUE`
+- `S03_CLAIM`
+- `S04_ROUTING_CHUNKING`
+- `S05_PASS1`
+- `S06_PASS2`
+- `S07_PASS3`
+- `S08_ER2_NORMALIZATION`
+- `S09_QUALITYGATEV2`
+- `S10_PERSISTENCE`
+- `S11_RENDERER`
+
+Governance requirements for identifier changes:
+
+1. No silent rename, aliasing, or inferred mapping.
+2. Any stage-ID change requires explicit governance review and versioned contract update.
+3. Downstream assets (fixtures, harness, CI, telemetry, dashboards) must treat these IDs as stable keys.
+4. If evolution is required, introduce a versioned migration plan before runtime adoption.
+
 ### Stage Contract Details
 
 ### `S01_INTAKE` — Intake
@@ -444,3 +467,13 @@ Critical-path/checks release verification is treated as a **cross-cutting govern
 - Release certification answers: *is a code change safe to merge/deploy?*
 
 This separation is deliberate to avoid mixing PR ship-gate governance with runtime stage-contract semantics.
+
+## Contract Governance Control
+
+This document is constitutional infrastructure for evaluation certification.
+
+Operational governance implications:
+
+1. Changes to stage identifiers, authority order, doctrine laws, seam definitions, or evidence requirements require explicit governance review.
+2. Runtime behavior remains subordinate to canon/spec authority defined above.
+3. PR B–E implementation artifacts must be derived from this contract and must not redefine contract law ad hoc.
