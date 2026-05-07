@@ -4,14 +4,17 @@
  * Usage:
  *   tsx scripts/diagnose-pass3-anchoring.ts <job-id> [job-id2] ...
  *
- * Dumps per-criterion: score, confidence components, anchor count/lengths,
- * verbatim/paraphrase classification, and quote style.
- * Read-only — never writes to the database.
+ * Writes one JSON artifact per job to:
+ *   artifacts/diagnostics/pass3-prosecontrol-{job_id}.json
+ *
+ * Read-only with respect to the database — never writes production state.
  *
  * Failure code under diagnosis: v2_fidelity_score_confidence_alignment
  * Forbidden behavior: PASS3_EMITTED_HIGH_SCORE_WITH_LOW_CONFIDENCE
  */
 
+import fs from "fs";
+import path from "path";
 import { createClient } from "@supabase/supabase-js";
 
 const DEFAULT_JOB_IDS = [
@@ -19,6 +22,7 @@ const DEFAULT_JOB_IDS = [
   "bae4c87b-87f9-4000-ab86-d20124ce251c",
 ];
 
+const DIAGNOSTIC_DIR = path.resolve("artifacts/diagnostics");
 const MEANINGFUL_ANCHOR_MIN_CHARS = 20;
 const HIGH_SCORE_THRESHOLD = 5;
 
@@ -27,6 +31,9 @@ type EvidenceItem = {
   type?: string;
   verbatim?: boolean;
   source?: string;
+  char_start?: number;
+  char_end?: number;
+  location?: { char_start?: number; char_end?: number };
   [key: string]: unknown;
 };
 
@@ -54,6 +61,49 @@ type JobRow = {
   [key: string]: unknown;
 };
 
+type AnchorDiagnostic = {
+  index: number;
+  length: number;
+  meets_min_length: boolean;
+  quote_style: "straight" | "curly" | "mixed" | "none";
+  likely_verbatim: boolean;
+  has_offsets: boolean;
+  preview: string;
+};
+
+type CriterionDiagnostic = {
+  key: string;
+  score_0_10: number | null;
+  confidence_level: string;
+  confidence_score_0_100: number | null;
+  confidence_reasons: string[];
+  scorability_status: string;
+  anchor_count: number;
+  anchors_meeting_min_length: number;
+  likely_verbatim_anchors: number;
+  rationale_quote_style: "straight" | "curly" | "mixed" | "none";
+  has_textual_anchor_signal: boolean;
+  contradiction_detected: boolean;
+  forbidden_behavior?: "PASS3_EMITTED_HIGH_SCORE_WITH_LOW_CONFIDENCE";
+  anchors: AnchorDiagnostic[];
+};
+
+type JobDiagnostic = {
+  generated_at: string;
+  diagnostic_version: "pass3-anchoring-v1";
+  job_id: string;
+  status: string;
+  quality_gate_alignment_check?: {
+    passed: boolean;
+    details?: string;
+  };
+  total_criteria: number;
+  contradictions_count: number;
+  contradictions: string[];
+  criteria: CriterionDiagnostic[];
+  error?: string;
+};
+
 function detectQuoteStyle(text: string): "straight" | "curly" | "mixed" | "none" {
   const hasStraight = /\"[^\"]{1,}\"/.test(text);
   const hasCurly = /[\u201C][^\u201C\u201D]{1,}[\u201D]/.test(text);
@@ -63,29 +113,27 @@ function detectQuoteStyle(text: string): "straight" | "curly" | "mixed" | "none"
   return "none";
 }
 
-function classifyAnchor(snippet: string): {
-  length: number;
-  meetsMinLength: boolean;
-  quoteStyle: "straight" | "curly" | "mixed" | "none";
-  likelyVerbatim: boolean;
-} {
+function classifyAnchor(snippet: string, index: number, anchor: EvidenceItem): AnchorDiagnostic {
   const trimmed = snippet.trim();
   const quoteStyle = detectQuoteStyle(trimmed);
   const likelyVerbatim =
     quoteStyle !== "none" ||
-    // Heuristic: no hedge words, concrete phrasing
     !/\b(paraphrase|summarize|general|usually|often|tends to|typically)\b/i.test(trimmed);
+  const charStart = anchor.char_start ?? anchor.location?.char_start;
+  const charEnd = anchor.char_end ?? anchor.location?.char_end;
   return {
+    index,
     length: trimmed.length,
-    meetsMinLength: trimmed.length >= MEANINGFUL_ANCHOR_MIN_CHARS,
-    quoteStyle,
-    likelyVerbatim,
+    meets_min_length: trimmed.length >= MEANINGFUL_ANCHOR_MIN_CHARS,
+    quote_style: quoteStyle,
+    likely_verbatim: likelyVerbatim,
+    has_offsets: Number.isInteger(charStart) && Number.isInteger(charEnd),
+    preview: trimmed.length > 120 ? `${trimmed.slice(0, 120)}…` : trimmed,
   };
 }
 
 function hasTextualAnchorSignal(criterion: CriterionRow): boolean {
   const rationale = criterion.rationale ?? criterion.final_rationale ?? "";
-  // Check rationale for quoted snippet (straight or curly)
   if (/[\u201C\u0022][^\u201C\u201D\u0022]{8,}[\u201D\u0022]/.test(rationale)) {
     return true;
   }
@@ -98,7 +146,7 @@ function hasTextualAnchorSignal(criterion: CriterionRow): boolean {
   });
 }
 
-function analyzeCriterion(c: CriterionRow): void {
+function analyzeCriterion(c: CriterionRow): CriterionDiagnostic {
   const key = c.key ?? "(unknown)";
   const score = c.final_score_0_10 ?? c.score_0_10 ?? null;
   const confidenceLevel = c.confidence_level ?? "(missing)";
@@ -108,56 +156,38 @@ function analyzeCriterion(c: CriterionRow): void {
   const evidence = c.evidence ?? [];
   const rationale = c.rationale ?? c.final_rationale ?? "";
 
-  const isContradiction =
-    score !== null &&
-    score > HIGH_SCORE_THRESHOLD &&
-    confidenceLevel === "low";
+  const anchors = evidence.map((e, i) => classifyAnchor(e.snippet ?? "", i, e));
+  const contradictionDetected =
+    score !== null && score > HIGH_SCORE_THRESHOLD && confidenceLevel === "low";
 
-  const anchors = evidence.map((e) => classifyAnchor(e.snippet ?? ""));
-  const anchorCount = anchors.length;
-  const qualifyingAnchors = anchors.filter((a) => a.meetsMinLength).length;
-  const verbatimAnchors = anchors.filter((a) => a.likelyVerbatim && a.meetsMinLength).length;
-  const rationaleQuoteStyle = detectQuoteStyle(rationale);
-  const hasAnchorSignal = hasTextualAnchorSignal(c);
-
-  console.log(`\n  ── ${key} ──`);
-  console.log(`     score:              ${score ?? "null"}`);
-  console.log(`     confidence_level:   ${confidenceLevel}`);
-  console.log(`     confidence_score:   ${confidenceScore ?? "null"}`);
-  console.log(`     scorability_status: ${scorabilityStatus}`);
-  console.log(`     confidence_reasons: [${confidenceReasons.join(", ")}]`);
-  console.log(`     anchor_count:       ${anchorCount}`);
-  console.log(`     anchors_≥20chars:   ${qualifyingAnchors}`);
-  console.log(`     likely_verbatim:    ${verbatimAnchors}`);
-  console.log(`     rationale_quotes:   ${rationaleQuoteStyle}`);
-  console.log(`     hasTextualAnchor:   ${hasAnchorSignal}`);
-
-  if (isContradiction) {
-    console.log(`     ⚠️  CONTRADICTION DETECTED: score=${score} but confidence=low`);
-    console.log(`        Forbidden behavior: PASS3_EMITTED_HIGH_SCORE_WITH_LOW_CONFIDENCE`);
-
-    // Detailed anchor breakdown
-    if (anchorCount > 0) {
-      console.log(`     Anchor details:`);
-      evidence.forEach((e, i) => {
-        const cls = anchors[i];
-        const snippet = (e.snippet ?? "").trim();
-        const preview = snippet.length > 60 ? snippet.slice(0, 60) + "…" : snippet;
-        console.log(
-          `       [${i}] len=${cls.length} quotes=${cls.quoteStyle} verbatim=${cls.likelyVerbatim} | "${preview}"`,
-        );
-      });
-    } else {
-      console.log(`     Anchor details: NO EVIDENCE ITEMS`);
-    }
-  }
+  return {
+    key,
+    score_0_10: score,
+    confidence_level: confidenceLevel,
+    confidence_score_0_100: confidenceScore,
+    confidence_reasons: confidenceReasons,
+    scorability_status: scorabilityStatus,
+    anchor_count: anchors.length,
+    anchors_meeting_min_length: anchors.filter((a) => a.meets_min_length).length,
+    likely_verbatim_anchors: anchors.filter((a) => a.likely_verbatim && a.meets_min_length).length,
+    rationale_quote_style: detectQuoteStyle(rationale),
+    has_textual_anchor_signal: hasTextualAnchorSignal(c),
+    contradiction_detected: contradictionDetected,
+    ...(contradictionDetected
+      ? { forbidden_behavior: "PASS3_EMITTED_HIGH_SCORE_WITH_LOW_CONFIDENCE" as const }
+      : {}),
+    anchors,
+  };
 }
 
-async function diagnoseJob(supabase: ReturnType<typeof createClient>, jobId: string): Promise<void> {
-  console.log(`\n${"=".repeat(70)}`);
-  console.log(`JOB: ${jobId}`);
-  console.log("=".repeat(70));
+function diagnosticPath(jobId: string): string {
+  return path.join(DIAGNOSTIC_DIR, `pass3-prosecontrol-${jobId}.json`);
+}
 
+async function diagnoseJob(
+  supabase: ReturnType<typeof createClient>,
+  jobId: string,
+): Promise<JobDiagnostic> {
   const { data, error } = await supabase
     .from("evaluation_jobs")
     .select("id, status, pass3_result, convergence_result, quality_gate_result")
@@ -165,56 +195,73 @@ async function diagnoseJob(supabase: ReturnType<typeof createClient>, jobId: str
     .single();
 
   if (error || !data) {
-    if ((error as { code?: string } | null)?.code === "PGRST116") {
-      console.error(`  ERROR: No evaluation_jobs row found for ${jobId}`);
-    } else {
-      console.error(`  ERROR: ${error?.message ?? "unknown error"}`);
-    }
-    return;
+    return {
+      generated_at: new Date().toISOString(),
+      diagnostic_version: "pass3-anchoring-v1",
+      job_id: jobId,
+      status: "(missing)",
+      total_criteria: 0,
+      contradictions_count: 0,
+      contradictions: [],
+      criteria: [],
+      error: error?.message ?? `No evaluation_jobs row found for ${jobId}`,
+    };
   }
 
   const row = data as JobRow;
-  console.log(`  status: ${row.status ?? "(missing)"}`);
-
-  // Find pass3/convergence result
   const pass3 = row.pass3_result ?? row.convergence_result;
-  if (!pass3) {
-    console.log("  pass3_result / convergence_result: (null — job may not have reached Pass 3)");
-    return;
-  }
-
-  const criteria: CriterionRow[] = pass3.criteria ?? [];
-  if (criteria.length === 0) {
-    console.log("  criteria: (empty array)");
-    return;
-  }
-
-  // Quality gate check summary
+  const criteria: CriterionRow[] = pass3?.criteria ?? [];
   const qgChecks = row.quality_gate_result?.checks ?? [];
   const alignmentCheck = qgChecks.find((c) => c.check_id === "v2_fidelity_score_confidence_alignment");
-  if (alignmentCheck) {
-    console.log(`\n  QG v2_fidelity_score_confidence_alignment:`);
-    console.log(`    passed: ${alignmentCheck.passed}`);
-    console.log(`    details: ${alignmentCheck.details ?? "(none)"}`);
+  const criterionDiagnostics = criteria.map(analyzeCriterion);
+  const contradictions = criterionDiagnostics
+    .filter((c) => c.contradiction_detected)
+    .map((c) => c.key);
+
+  return {
+    generated_at: new Date().toISOString(),
+    diagnostic_version: "pass3-anchoring-v1",
+    job_id: jobId,
+    status: row.status ?? "(missing)",
+    ...(alignmentCheck
+      ? {
+          quality_gate_alignment_check: {
+            passed: alignmentCheck.passed,
+            details: alignmentCheck.details,
+          },
+        }
+      : {}),
+    total_criteria: criterionDiagnostics.length,
+    contradictions_count: contradictions.length,
+    contradictions,
+    criteria: criterionDiagnostics,
+  };
+}
+
+function printSummary(diagnostic: JobDiagnostic, outputPath: string): void {
+  console.log(`\n${"=".repeat(70)}`);
+  console.log(`JOB: ${diagnostic.job_id}`);
+  console.log("=".repeat(70));
+  console.log(`status: ${diagnostic.status}`);
+  if (diagnostic.error) {
+    console.log(`error: ${diagnostic.error}`);
   }
-
-  // Summary counts
-  const contradictions = criteria.filter(
-    (c) => (c.final_score_0_10 ?? c.score_0_10 ?? 0) > HIGH_SCORE_THRESHOLD && c.confidence_level === "low",
-  );
-
-  console.log(`\n  Total criteria:        ${criteria.length}`);
-  console.log(`  Contradictions (score>${HIGH_SCORE_THRESHOLD} + low confidence): ${contradictions.length}`);
-
-  console.log("\n  Per-criterion breakdown:");
-  for (const c of criteria) {
-    analyzeCriterion(c);
+  if (diagnostic.quality_gate_alignment_check) {
+    console.log(
+      `v2_fidelity_score_confidence_alignment passed: ${diagnostic.quality_gate_alignment_check.passed}`,
+    );
+    console.log(`details: ${diagnostic.quality_gate_alignment_check.details ?? "(none)"}`);
   }
+  console.log(`total criteria: ${diagnostic.total_criteria}`);
+  console.log(`contradictions: ${diagnostic.contradictions_count}`);
+  if (diagnostic.contradictions.length > 0) {
+    console.log(`contradicting criteria: ${diagnostic.contradictions.join(", ")}`);
+  }
+  console.log(`artifact: ${outputPath}`);
 }
 
 async function main(): Promise<void> {
   const jobIds = process.argv.slice(2).length > 0 ? process.argv.slice(2) : DEFAULT_JOB_IDS;
-
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -224,6 +271,7 @@ async function main(): Promise<void> {
     );
   }
 
+  fs.mkdirSync(DIAGNOSTIC_DIR, { recursive: true });
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   console.log("Pass 3 Anchor-Packaging Diagnostic");
@@ -231,7 +279,10 @@ async function main(): Promise<void> {
   console.log(`Analysing ${jobIds.length} job(s): ${jobIds.join(", ")}`);
 
   for (const id of jobIds) {
-    await diagnoseJob(supabase, id);
+    const diagnostic = await diagnoseJob(supabase, id);
+    const outPath = diagnosticPath(id);
+    fs.writeFileSync(outPath, `${JSON.stringify(diagnostic, null, 2)}\n`, "utf-8");
+    printSummary(diagnostic, outPath);
   }
 
   console.log("\nDone.");
