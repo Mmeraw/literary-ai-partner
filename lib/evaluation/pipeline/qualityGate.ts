@@ -152,6 +152,7 @@ export type QualityGateFailureTelemetry = {
 
 export interface QualityGateV2Result extends QualityGateResult {
   artifactGate: ArtifactGateDecision;
+  downgradedResult?: EvaluationResultV2;
 }
 
 function normalizeForPhraseMatch(text: string): string {
@@ -999,7 +1000,6 @@ export function runQualityGateV2(
       };
 
   const criteria = result.criteria;
-  const propagation = summarizePropagationIntegrity(criteria);
   const expectedCount = CRITERIA_KEYS.length;
 
   if (criteria.length !== expectedCount) {
@@ -1221,8 +1221,7 @@ export function runQualityGateV2(
   }
 
   const scoreConfidenceMismatchDetails: string[] = [];
-  for (let idx = 0; idx < criteria.length; idx += 1) {
-    const criterion = criteria[idx];
+  const downgradedCriteria: EvaluationResultV2["criteria"] = criteria.map((criterion): EvaluationResultV2["criteria"][number] => {
     if (
       criterion.status === "SCORABLE" &&
       criterion.confidence_level === "low" &&
@@ -1231,13 +1230,13 @@ export function runQualityGateV2(
     ) {
       scoreConfidenceMismatchDetails.push(`${criterion.key}:${criterion.score_0_10}`);
 
-      criteria[idx] = {
+      return {
         ...criterion,
-        scorable: false,
-        status: "INSUFFICIENT_SIGNAL",
-        signal_strength: "WEAK",
+        scorable: false as const,
+        status: "INSUFFICIENT_SIGNAL" as const,
+        signal_strength: "WEAK" as const,
         score_0_10: null,
-        scorability_status: "non_scorable",
+        scorability_status: "non_scorable" as const,
         model_emitted_score_unverified: criterion.score_0_10,
         insufficient_signal_reason: {
           looked_for: ["CERTIFIED_ANCHORS_FOR_HIGH_CONFIDENCE_SCORING"],
@@ -1245,7 +1244,12 @@ export function runQualityGateV2(
         },
       };
     }
-  }
+
+    return criterion;
+  });
+
+  const criteriaForPostAlignmentChecks =
+    scoreConfidenceMismatchDetails.length > 0 ? downgradedCriteria : criteria;
 
   checks.push({
     check_id: "v2_fidelity_score_confidence_alignment",
@@ -1259,6 +1263,8 @@ export function runQualityGateV2(
         ? `Low-confidence criteria exceeded score cap (${QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE}) and were downgraded to INSUFFICIENT_SIGNAL: ${scoreConfidenceMismatchDetails.join(",")}`
         : "Score-confidence alignment holds",
   });
+
+  const propagation = summarizePropagationIntegrity(criteriaForPostAlignmentChecks);
 
   const summaryMentionsWeakness = summaryMentionsBottomWeakness(
     result.overview.one_paragraph_summary,
@@ -1280,7 +1286,7 @@ export function runQualityGateV2(
         : "Overview summary references low-score weakness cluster or no weak cluster exists",
   });
 
-  const scoredCount = criteria.filter((c) => c.status === "SCORABLE").length;
+  const scoredCount = criteriaForPostAlignmentChecks.filter((c) => c.status === "SCORABLE").length;
 
   const aggregateScoreMismatch =
     (scoredCount === 0 && result.overview.overall_score_0_100 !== null) ||
@@ -1350,10 +1356,20 @@ export function runQualityGateV2(
   const failedHardChecks = checks.filter(
     (c) => !c.passed && c.check_id !== "v2_fidelity_score_confidence_alignment",
   );
+
+  const downgradedResult =
+    scoreConfidenceMismatchDetails.length > 0
+      ? {
+          ...result,
+          criteria: downgradedCriteria,
+        }
+      : undefined;
+
   return {
     pass: failedHardChecks.length === 0,
     checks,
     warnings,
     artifactGate,
+    downgradedResult,
   };
 }

@@ -347,8 +347,9 @@ describe("runQualityGateV2 integration", () => {
   it("downgrades low-confidence criteria exceeding score cap to non-certified without failing the whole job", () => {
     const fixture = makeBaseV2Fixture();
     const conceptIndex = CRITERIA_KEYS.indexOf("concept");
+    const dialogueIndex = CRITERIA_KEYS.indexOf("dialogue");
     const originalConceptScore = 8;
-    const originalDialogueCriterion = fixture.criteria[CRITERIA_KEYS.indexOf("dialogue")];
+    const originalDialogueCriterion = fixture.criteria[dialogueIndex];
 
     fixture.criteria[conceptIndex] = {
       ...fixture.criteria[conceptIndex],
@@ -357,10 +358,16 @@ describe("runQualityGateV2 integration", () => {
       confidence_score_0_100: 22,
     } as EvaluationResultV2["criteria"][number];
 
+    const originalFixtureSnapshot = structuredClone(fixture);
+
     const result = runQualityGateV2(fixture);
     expect(result.pass).toBe(true);
 
-    const downgraded = fixture.criteria[conceptIndex];
+    expect(fixture).toEqual(originalFixtureSnapshot);
+    expect(result.downgradedResult).toBeDefined();
+
+    const downgraded = result.downgradedResult?.criteria[conceptIndex];
+    expect(downgraded).toBeDefined();
     expect(downgraded.status).toBe("INSUFFICIENT_SIGNAL");
     expect(downgraded.scorable).toBe(false);
     expect(downgraded.score_0_10).toBeNull();
@@ -370,7 +377,7 @@ describe("runQualityGateV2 integration", () => {
       not_found: ["LOW_CONFIDENCE_HIGH_SCORE_WITHOUT_CERTIFIED_ANCHORS"],
     });
 
-    const unchangedDialogue = fixture.criteria[CRITERIA_KEYS.indexOf("dialogue")];
+    const unchangedDialogue = result.downgradedResult?.criteria[dialogueIndex];
     expect(unchangedDialogue).toEqual(originalDialogueCriterion);
     expect(unchangedDialogue.status).toBe("SCORABLE");
     expect(unchangedDialogue.score_0_10).toBe(7);
@@ -392,6 +399,7 @@ describe("runQualityGateV2 integration", () => {
 
     const result = runQualityGateV2(fixture);
     expect(result.pass).toBe(false);
+    expect(result.downgradedResult).toBeUndefined();
     expect(
       result.checks.some(
         (check) => check.check_id === "v2_criteria_count" && !check.passed,
