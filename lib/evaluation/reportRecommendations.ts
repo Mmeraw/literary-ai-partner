@@ -1,4 +1,4 @@
-import { normalizeChicagoSurfaceText } from "@/lib/evaluation/style/chicagoSurface";
+import { normalizeCriticText } from "@/lib/evaluation/style/chicagoSurface";
 
 type ArtifactRecommendation = {
   action?: string;
@@ -153,13 +153,13 @@ function formatCrossCuttingRecommendation(
 ): string | null {
   const action =
     typeof recommendation.action === "string"
-      ? normalizeChicagoSurfaceText(normalizeRecommendationActionForDisplay(recommendation.action))
+      ? normalizeCriticText(normalizeRecommendationActionForDisplay(recommendation.action))
       : "";
   if (!action) return null;
 
   const why =
     typeof recommendation.why === "string"
-      ? normalizeChicagoSurfaceText(recommendation.why)
+      ? normalizeCriticText(recommendation.why)
       : "";
   return `${label ? `${label}: ` : ""}${action}${why ? ` — ${why}` : ""}`;
 }
@@ -172,7 +172,7 @@ function extractSummaryFallback(summary: string, maxItems: number): string[] {
 
   const bullets = lines
     .filter((line) => /^[-•*]\s+/.test(line))
-    .map((line) => normalizeChicagoSurfaceText(line.replace(/^[-•*]\s+/, "")));
+    .map((line) => normalizeCriticText(line.replace(/^[-•*]\s+/, "")));
 
   if (bullets.length > 0) {
     return bullets.slice(0, maxItems);
@@ -180,7 +180,7 @@ function extractSummaryFallback(summary: string, maxItems: number): string[] {
 
   return summary
     .split(/(?<=[.!?])\s+/)
-    .map((line) => normalizeChicagoSurfaceText(line))
+    .map((line) => normalizeCriticText(line))
     .filter(Boolean)
     .slice(0, maxItems);
 }
@@ -209,12 +209,12 @@ export function buildTopRecommendations(artifact: ArtifactLike | null | undefine
       (criterion.recommendations ?? []).map((recommendation) => {
         const action =
           typeof recommendation.action === "string"
-            ? normalizeChicagoSurfaceText(normalizeRecommendationActionForDisplay(recommendation.action))
+            ? normalizeCriticText(normalizeRecommendationActionForDisplay(recommendation.action))
             : "";
         if (!action) return "";
         const impact =
           typeof recommendation.expected_impact === "string"
-            ? normalizeChicagoSurfaceText(recommendation.expected_impact)
+            ? normalizeCriticText(recommendation.expected_impact)
             : "";
         return `${action}${impact ? ` — ${impact}` : ""}`;
       }),

@@ -3,7 +3,12 @@ const DOUBLE_HYPHEN_PATTERN = /\s+--\s+/g;
 const CONTRACTION_APOSTROPHE_PATTERN = /([A-Za-z])'([A-Za-z])/g;
 const MULTISPACE_PATTERN = /[ \t]{2,}/g;
 
-function normalizeUnquotedSegment(text: string): string {
+export type RenderSegment = {
+  type: "critic" | "evidence";
+  text: string | null | undefined;
+};
+
+function normalizeCriticSegment(text: string): string {
   return text
     .replace(DOUBLE_HYPHEN_PATTERN, " — ")
     .replace(DASH_PATTERN, "—")
@@ -12,61 +17,41 @@ function normalizeUnquotedSegment(text: string): string {
     .replace(/\s+([,.;:!?])/g, "$1");
 }
 
-function splitQuotedAndUnquoted(text: string): Array<{ quoted: boolean; value: string }> {
-  const segments: Array<{ quoted: boolean; value: string }> = [];
-  let current = "";
-  let inQuote = false;
-  let quoteCloser = "";
-
-  const flush = (quoted: boolean) => {
-    if (!current) return;
-    segments.push({ quoted, value: current });
-    current = "";
-  };
-
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i];
-
-    if (!inQuote && (ch === '"' || ch === "“")) {
-      flush(false);
-      inQuote = true;
-      quoteCloser = ch === '"' ? '"' : "”";
-      current += ch;
-      continue;
-    }
-
-    if (inQuote) {
-      current += ch;
-      if (ch === quoteCloser) {
-        flush(true);
-        inQuote = false;
-        quoteCloser = "";
-      }
-      continue;
-    }
-
-    current += ch;
-  }
-
-  if (current) {
-    flush(inQuote);
-  }
-
-  return segments;
+export function preserveEvidenceText(input: string | null | undefined): string {
+  return typeof input === "string" ? input : "";
 }
 
 /**
- * Deterministic Chicago-style normalization for user-facing prose.
+ * Deterministic Chicago-style normalization for RevisionGrade-authored user-facing prose.
  * Scope: renderer/report text only (not diagnostics, telemetry, or JSON envelopes).
  */
-export function normalizeChicagoSurfaceText(input: string | null | undefined): string {
+export function normalizeCriticText(input: string | null | undefined): string {
   const raw = typeof input === "string" ? input : "";
   const trimmed = raw.trim();
   if (!trimmed) return "";
 
-  const segmented = splitQuotedAndUnquoted(trimmed)
-    .map((segment) => (segment.quoted ? segment.value : normalizeUnquotedSegment(segment.value)))
-    .join("");
+  return normalizeCriticSegment(trimmed).trim();
+}
 
-  return segmented.trim();
+/**
+ * Render mixed-provenance content by provenance type, not punctuation.
+ */
+export function renderMixedText(segments: RenderSegment[]): string {
+  return segments
+    .map((segment) => {
+      if (segment.type === "evidence") {
+        return preserveEvidenceText(segment.text);
+      }
+      const criticRaw = typeof segment.text === "string" ? segment.text : "";
+      return normalizeCriticSegment(criticRaw);
+    })
+    .join("")
+    .trim();
+}
+
+/**
+ * Backward-compatible alias for existing call sites.
+ */
+export function normalizeChicagoSurfaceText(input: string | null | undefined): string {
+  return normalizeCriticText(input);
 }

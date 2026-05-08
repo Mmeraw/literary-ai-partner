@@ -13,7 +13,7 @@ import {
   getCriterionPrimaryBadge,
   getCriterionSupportLabel,
 } from '@/lib/evaluation/reportCriterionDisplay';
-import { normalizeChicagoSurfaceText } from '@/lib/evaluation/style/chicagoSurface';
+import { normalizeCriticText } from '@/lib/evaluation/style/chicagoSurface';
 
 // D1 Boundary: server-only. Service key must not leak to client.
 // Hybrid owner-gate: SSR client for auth identity, admin client for
@@ -207,7 +207,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             </div>
           </div>
           <p className="text-gray-700 mb-6 leading-relaxed">
-            {normalizeChicagoSurfaceText(overview.one_paragraph_summary)}
+            {normalizeCriticText(overview.one_paragraph_summary)}
           </p>
           <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -218,7 +218,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               <ul className="space-y-2">
                 {overview.top_3_strengths.map((strength, idx) => (
                   <li key={idx} className="text-gray-700 pl-4 border-l-2 border-green-500">
-                    {normalizeChicagoSurfaceText(strength)}
+                    {normalizeCriticText(strength)}
                   </li>
                 ))}
               </ul>
@@ -231,7 +231,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               <ul className="space-y-2">
                 {overview.top_3_risks.map((risk, idx) => (
                   <li key={idx} className="text-gray-700 pl-4 border-l-2 border-amber-500">
-                    {normalizeChicagoSurfaceText(risk)}
+                    {normalizeCriticText(risk)}
                   </li>
                 ))}
               </ul>
@@ -289,7 +289,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                   </p>
                 )}
                 <p className="text-sm text-gray-600">
-                  {normalizeChicagoSurfaceText(criterion.rationale)}
+                  {normalizeCriticText(criterion.rationale)}
                 </p>
               </div>
             ))}
@@ -310,7 +310,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                 {recommendations.quick_wins.map((qw, idx) => (
                   <div key={idx} className="border-l-4 border-blue-500 pl-4 py-2">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-gray-900">{normalizeChicagoSurfaceText(qw.action)}</p>
+                      <p className="font-semibold text-gray-900">{normalizeCriticText(qw.action)}</p>
                       <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600">
                         {qw.effort} effort
                       </span>
@@ -318,7 +318,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                         {qw.impact} impact
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600">{normalizeChicagoSurfaceText(qw.why)}</p>
+                    <p className="text-sm text-gray-600">{normalizeCriticText(qw.why)}</p>
                   </div>
                 ))}
               </div>
@@ -335,7 +335,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                 {recommendations.strategic_revisions.map((sr, idx) => (
                   <div key={idx} className="border-l-4 border-purple-500 pl-4 py-2">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-gray-900">{normalizeChicagoSurfaceText(sr.action)}</p>
+                      <p className="font-semibold text-gray-900">{normalizeCriticText(sr.action)}</p>
                       <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600">
                         {sr.effort} effort
                       </span>
@@ -343,7 +343,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                         {sr.impact} impact
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600">{normalizeChicagoSurfaceText(sr.why)}</p>
+                    <p className="text-sm text-gray-600">{normalizeCriticText(sr.why)}</p>
                   </div>
                 ))}
               </div>
