@@ -681,30 +681,62 @@ function parseRecommendations(
         reader_effect: String(r["reader_effect"] ?? "").trim(),
       };
 
-      const normalized = normalizeRecommendationContract(parsed, criterionKey);
-      const initialIntegrity = checkSurfaceIntegrity(normalized.action);
-
-      let actionForOutput = normalized.action;
-      let integrity = initialIntegrity;
-
-      if (integrity.status === "REJECT") {
-        const repairedAction = repairSurfaceIntegrity(actionForOutput, integrity.reasons);
-        if (repairedAction) {
-          const repairedIntegrity = checkSurfaceIntegrity(repairedAction);
-          if (repairedIntegrity.status !== "REJECT") {
-            actionForOutput = repairedAction;
-            integrity = repairedIntegrity;
-          }
+      // Surface-integrity check on ORIGINAL action (before normalization/backfill)
+      // If the original action is REJECT, drop the recommendation entirely.
+      // If the original action is FLAG, preserve that status through normalization.
+      // Do NOT apply this gate to anchorless recommendations (they have a separate gate).
+      const hasAnchor = parsed.anchor_snippet.trim().length > 0;
+      let originalIntegrityStatus: "ACCEPT" | "FLAG" | "REJECT" = "ACCEPT";
+      
+      if (hasAnchor) {
+        const originalIntegrity = checkSurfaceIntegrity(parsed.action);
+        originalIntegrityStatus = originalIntegrity.status;
+        if (originalIntegrityStatus === "REJECT") {
+          return null;
         }
       }
 
-      if (integrity.status === "REJECT") {
-        return null;
+      const normalized = normalizeRecommendationContract(parsed, criterionKey);
+
+      if (normalized.anchor_snippet.trim().length === 0) {
+        return {
+          ...normalized,
+          action: clampRecommendationAction(normalized.action),
+        };
+      }
+
+      // For anchored recommendations that passed the original integrity check:
+      // preserve the original FLAG status if present, or apply bounded repair
+      let actionForOutput = normalized.action;
+      let integrityStatus = originalIntegrityStatus;
+
+      if (integrityStatus === "ACCEPT") {
+        // Only re-check integrity on the normalized action if the original was ACCEPT
+        const normalizedIntegrity = checkSurfaceIntegrity(normalized.action);
+        if (normalizedIntegrity.status === "REJECT") {
+          const repairedAction = repairSurfaceIntegrity(actionForOutput, normalizedIntegrity.reasons);
+          if (repairedAction) {
+            const repairedIntegrity = checkSurfaceIntegrity(repairedAction);
+            if (repairedIntegrity.status !== "REJECT") {
+              actionForOutput = repairedAction;
+              integrityStatus = repairedIntegrity.status;
+            }
+          }
+        } else if (normalizedIntegrity.status === "FLAG") {
+          integrityStatus = "FLAG";
+        }
+      }
+
+      // Annotate if original or normalized action is FLAG
+      const annotationReasons: string[] = [];
+      if (originalIntegrityStatus === "FLAG" && integrityStatus !== "FLAG") {
+        // Original was FLAG; preserve that signal
+        annotationReasons.push("borderline_comparative_needs_noun_anchor");
       }
 
       const flaggedExpectedImpact =
-        integrity.status === "FLAG"
-          ? annotateSurfaceIntegrityFlag(normalized.expected_impact, integrity.reasons)
+        integrityStatus === "FLAG" || annotationReasons.length > 0
+          ? annotateSurfaceIntegrityFlag(normalized.expected_impact, annotationReasons.length > 0 ? annotationReasons : ["flagged_in_original_action"])
           : normalized.expected_impact;
 
       return {
@@ -750,7 +782,7 @@ function normalizeRecommendationContract(
     normalizedAnchor: string,
   ): SynthesizedCriterion["recommendations"][number] => ({
     ...recommendation,
-    action: clampRecommendationAction(normalizedAction),
+    action: ensureTerminalPunctuation(normalizedAction.trim()),
     expected_impact: normalizedImpact,
     anchor_snippet: normalizedAnchor,
     mechanism,
@@ -1309,7 +1341,11 @@ function backfillRecommendationsFromAxis(
           reader_effect: "",
         };
         // Run through normalizer so the specificity triple is populated/repaired
-        return normalizeRecommendationContract(base, criterionKey);
+        const normalized = normalizeRecommendationContract(base, criterionKey);
+        return {
+          ...normalized,
+          action: clampRecommendationAction(normalized.action),
+        };
       })
       .filter((r) => r.action.length > 0 && r.expected_impact.length > 0 && r.anchor_snippet.length > 0);
   };
