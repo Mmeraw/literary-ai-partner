@@ -5,8 +5,56 @@ export type SurfaceIntegrityResult = {
   reasons: string[];
 };
 
+const ACTION_CLAMP_MAX_CHARS = 300;
+const ACTION_CLAMP_PREFIX_BUDGET = 180;
+const ACTION_CLAMP_SUFFIX_BUDGET = 119;
+
 function normalizeText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
+}
+
+function ensureTerminalPunctuation(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return trimmed;
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+/**
+ * Mirrors runPass3Synthesis.ts::clampRecommendationAction.
+ * This intentionally duplicates the clamp boundary so surface validation can
+ * prove the final rendered action will still be valid after downstream clamp.
+ */
+function simulateRecommendationClamp(action: string): string {
+  const normalized = normalizeText(action);
+  if (normalized.length <= ACTION_CLAMP_MAX_CHARS) return ensureTerminalPunctuation(normalized);
+
+  const mechanismMatch = normalized.match(/\b(because|since|so that)\b/i);
+  if (!mechanismMatch || mechanismMatch.index === undefined) {
+    return ensureTerminalPunctuation(
+      normalized.slice(0, ACTION_CLAMP_MAX_CHARS).replace(/\s+\S*$/, "").trim(),
+    );
+  }
+
+  const mechanismIndex = mechanismMatch.index;
+  const prefix = normalized.slice(0, mechanismIndex).trim();
+  const suffix = normalized.slice(mechanismIndex).trim();
+
+  const safePrefix =
+    prefix.length > ACTION_CLAMP_PREFIX_BUDGET
+      ? prefix.slice(0, ACTION_CLAMP_PREFIX_BUDGET).replace(/\s+\S*$/, "").trim()
+      : prefix;
+
+  const safeSuffix =
+    suffix.length > ACTION_CLAMP_SUFFIX_BUDGET
+      ? suffix.slice(0, ACTION_CLAMP_SUFFIX_BUDGET).replace(/\s+\S*$/, "").trim()
+      : suffix;
+
+  const clamped = `${safePrefix} ${safeSuffix}`.trim();
+  return ensureTerminalPunctuation(
+    clamped.length <= ACTION_CLAMP_MAX_CHARS
+      ? clamped
+      : clamped.slice(0, ACTION_CLAMP_MAX_CHARS).replace(/\s+\S*$/, "").trim(),
+  );
 }
 
 function buildResult(status: SurfaceIntegrityStatus, reasons: string[] = []): SurfaceIntegrityResult {
@@ -16,14 +64,15 @@ function buildResult(status: SurfaceIntegrityStatus, reasons: string[] = []): Su
   };
 }
 
-export function checkSurfaceIntegrity(text: string): SurfaceIntegrityResult {
+function collectSurfaceDefects(text: string): { rejectReasons: Set<string>; flagReasons: Set<string> } {
   const normalized = normalizeText(text);
-  if (!normalized) {
-    return buildResult("REJECT", ["empty_text"]);
-  }
-
   const rejectReasons = new Set<string>();
   const flagReasons = new Set<string>();
+
+  if (!normalized) {
+    rejectReasons.add("empty_text");
+    return { rejectReasons, flagReasons };
+  }
 
   // 1) Fragment-only infinitive lead with no main clause.
   // Example reject: "To make it more personal."
@@ -39,9 +88,12 @@ export function checkSurfaceIntegrity(text: string): SurfaceIntegrityResult {
     rejectReasons.add("connector_collision_so_that_because");
   }
 
-  // 3) Unresolved conjunction tails.
+  // 3) Unresolved conjunction / mechanism tails.
   if (/\b(and|or|by)\s*\.$/i.test(normalized)) {
     rejectReasons.add("unresolved_conjunction_tail");
+  }
+  if (/\b(because|since|so|so\s+that)\s*\.$/i.test(normalized)) {
+    rejectReasons.add("unresolved_mechanism_tail");
   }
 
   // 4) Incomplete tails / dangling comparatives and adjectives.
@@ -70,6 +122,27 @@ export function checkSurfaceIntegrity(text: string): SurfaceIntegrityResult {
   // 6) Dangling/orphaned modifier attachment (flag for bounded repair).
   if (/^By\s+[^,]+,\s*the\s+[^,]+\b(becomes|is|feels)\b/i.test(normalized)) {
     flagReasons.add("possible_dangling_modifier_attachment");
+  }
+
+  return { rejectReasons, flagReasons };
+}
+
+export function checkSurfaceIntegrity(text: string): SurfaceIntegrityResult {
+  const normalized = normalizeText(text);
+  const { rejectReasons, flagReasons } = collectSurfaceDefects(normalized);
+
+  // Mistake-proofing: downstream clamping is itself a text mutation. Validate the
+  // simulated post-clamp surface here so no later clamp can introduce dangling
+  // tails after the integrity decision has already been made.
+  if (normalized.length > ACTION_CLAMP_MAX_CHARS) {
+    const clamped = simulateRecommendationClamp(normalized);
+    const clampedDefects = collectSurfaceDefects(clamped);
+    for (const reason of clampedDefects.rejectReasons) {
+      rejectReasons.add(`post_clamp_${reason}`);
+    }
+    for (const reason of clampedDefects.flagReasons) {
+      flagReasons.add(`post_clamp_${reason}`);
+    }
   }
 
   if (rejectReasons.size > 0) {
@@ -125,6 +198,14 @@ export function repairSurfaceIntegrity(text: string, reasons: string[]): string 
 
   if (reasons.includes("unresolved_conjunction_tail")) {
     const trimmedTail = repaired.replace(/\s+(and|or|by)\s*\.$/i, ".");
+    if (trimmedTail !== repaired) {
+      repaired = trimmedTail;
+      changed = true;
+    }
+  }
+
+  if (reasons.includes("unresolved_mechanism_tail")) {
+    const trimmedTail = repaired.replace(/\s+(because|since|so|so\s+that)\s*\.$/i, ".");
     if (trimmedTail !== repaired) {
       repaired = trimmedTail;
       changed = true;
