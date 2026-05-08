@@ -1,3 +1,9 @@
+---
+canon_status: meta
+domain: canon-inventory-classification-baseline
+runtime_binding: false
+---
+
 # PR-1 Inventory/Classification Baseline (Issue #368)
 
 ## Scope lock (from #368)
@@ -20,6 +26,15 @@ PR-1 baseline uses the existing PR-0 inventory artifacts without rewriting them:
 
 - `docs/operations/audits/repo-file-inventory.csv`
 - `docs/operations/audits/repo-file-inventory.md`
+
+## Baseline universe and residual
+
+- Universe definition: all markdown files represented in `docs/operations/audits/repo-file-inventory.csv`.
+- CSV row count (`N`): 546
+- Sum of non-empty `proposed_status` labels (`M`): 546
+- Residual unlabeled rows (`N - M`): 0
+
+This confirms baseline classification coverage is complete for the current inventory substrate.
 
 ## Report structure contract (CSV columns)
 
@@ -50,6 +65,10 @@ Current observed `proposed_status` labels in the substrate (counts from CSV):
 - `runbook`: 9
 
 These labels are descriptive only in PR-1 and do **not** imply canonical ownership promotion.
+
+Known follow-up gap:
+
+- PR-1 intentionally does not introduce an authority-promotion label. Any authority-candidate transition remains deferred to later remediation work (PR-2 and follow-on policy decisions).
 
 ## Category distribution snapshot
 
