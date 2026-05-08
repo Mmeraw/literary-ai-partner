@@ -349,8 +349,9 @@ describe("Pass 3 backfill quality", () => {
     expect(rec.action).not.toBe(
       "In character-driven scenes, deepen character development by adding more personal stakes.",
     );
-    expect(rec.action.toLowerCase()).toMatch(/replace|insert/);
-    expect(rec.action.toLowerCase()).toContain("because");
+    expect(rec.action.toLowerCase()).not.toContain("in the anchored moment");
+    expect(rec.action.toLowerCase()).not.toContain("and a because");
+    expect(rec.action.toLowerCase()).toMatch(/rather than|instead of|pressure|readers|revise|scene momentum|opportunity|cadence/);
     expect(rec.expected_impact.toLowerCase()).toMatch(/reader|clarity|engagement|immersion|momentum/);
   });
 
@@ -607,16 +608,21 @@ describe("Pass 3 backfill quality", () => {
     const pacingRec = parsed.criteria.find((c) => c.key === "pacing")?.recommendations?.[0];
 
     expect(characterRec?.action.toLowerCase()).toContain("deepen character development");
-    expect(characterRec?.action.toLowerCase()).toMatch(/decision beat|desire-vs-fear contradiction/);
+    expect(characterRec?.action.toLowerCase()).toMatch(/several lines around|the current draft|rather than|instead of|pressure|readers|revise/);
 
     expect(sceneRec?.action.toLowerCase()).toContain("streamline descriptive passages");
-    expect(sceneRec?.action.toLowerCase()).toMatch(/split|move/);
+    expect(sceneRec?.action.toLowerCase()).toMatch(/scene momentum|structural|scene level|causal|rather than|pressure|decision/);
 
     expect(dialogueRec?.action.toLowerCase()).toContain("inject more dynamic exchanges");
-    expect(dialogueRec?.action.toLowerCase()).toMatch(/two short turns|interruption beat/);
+    expect(dialogueRec?.action.toLowerCase()).toMatch(/rather than|instead of|pressure|decision|interruption|turn/);
 
     expect(pacingRec?.action.toLowerCase()).toContain("balance reflective passages");
-    expect(pacingRec?.action.toLowerCase()).toMatch(/cut|insert/);
+    expect(pacingRec?.action.toLowerCase()).toMatch(/scene momentum|structural|trigger|consequence|pressure/);
+
+    const openings = [characterRec, sceneRec, dialogueRec, pacingRec]
+      .map((rec) => rec?.action?.trim().toLowerCase().split(/\s+/).slice(0, 2).join(" "))
+      .filter((value): value is string => Boolean(value));
+    expect(new Set(openings).size).toBeGreaterThanOrEqual(3);
   });
 
   test("repair action excludes internal preservation scaffolding for imperative intent fragments", () => {

@@ -904,10 +904,138 @@ function normalizeIntentForActionTail(intentFragment: string): string {
   if (!compact) return "";
 
   const lowered = `${compact.charAt(0).toLowerCase()}${compact.slice(1)}`;
-  return lowered.length <= 65
-    ? lowered
-    : lowered.slice(0, 65).replace(/\s+\S*$/, "").trim();
+  const withoutLeadingConjunction = lowered.replace(/^(and|or)\s+/i, "");
+  const withoutTrailingDanglers = withoutLeadingConjunction
+    .replace(/\s+(and|or|to|of|in|on|with|for|where|a|an|the)$/i, "")
+    .trim();
+
+  if (!withoutTrailingDanglers) return "";
+
+  return withoutTrailingDanglers.length <= 90
+    ? withoutTrailingDanglers
+    : withoutTrailingDanglers.slice(0, 90).replace(/\s+\S*$/, "").trim();
 }
+
+type RecommendationFamily =
+  | "observational"
+  | "surgical"
+  | "contrastive"
+  | "pressure"
+  | "reader_effect"
+  | "structural"
+  | "opportunity"
+  | "scene_level"
+  | "cadence";
+
+const CRITERION_PREFERRED_FAMILIES: Record<
+  SynthesizedCriterion["key"],
+  readonly RecommendationFamily[]
+> = {
+  concept: ["observational", "opportunity", "reader_effect"],
+  narrativeDrive: ["pressure", "structural", "scene_level"],
+  character: ["contrastive", "pressure", "observational"],
+  voice: ["cadence", "observational", "surgical"],
+  sceneConstruction: ["structural", "scene_level", "contrastive"],
+  dialogue: ["pressure", "contrastive", "scene_level"],
+  theme: ["observational", "opportunity", "reader_effect"],
+  worldbuilding: ["scene_level", "observational", "reader_effect"],
+  pacing: ["structural", "pressure", "scene_level"],
+  proseControl: ["cadence", "surgical", "observational"],
+  tone: ["cadence", "observational", "contrastive"],
+  narrativeClosure: ["reader_effect", "structural", "opportunity"],
+  marketability: ["opportunity", "reader_effect", "contrastive"],
+};
+
+function deterministicHash(text: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash >>> 0);
+}
+
+function summarizeAnchorContext(anchorSnippet: string): string {
+  const normalized = anchorSnippet
+    .replace(/\s+/g, " ")
+    .replace(/^["“”']+|["“”']+$/g, "")
+    .trim();
+  if (!normalized) return "the current passage";
+
+  const shortened = normalized.length > 64
+    ? normalized.slice(0, 64).replace(/\s+\S*$/, "").trim()
+    : normalized;
+  const lowered = `${shortened.charAt(0).toLowerCase()}${shortened.slice(1)}`;
+  return lowered || "the current passage";
+}
+
+function capitalizeSentence(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
+}
+
+type ActionTemplateParams = {
+  context: string;
+  intentTail: string;
+};
+
+const ACTION_TEMPLATES_BY_FAMILY: Record<RecommendationFamily, readonly ((params: ActionTemplateParams) => string)[]> = {
+  observational: [
+    ({ context, intentTail }) =>
+      `The current draft surfaces pressure in ${context}, but the consequence arrives abstractly. A concrete causal beat would ${intentTail}.`,
+    ({ context, intentTail }) =>
+      `Several lines around ${context} summarize effect before dramatizing cause. Re-ordering the beat sequence would ${intentTail}.`,
+  ],
+  surgical: [
+    ({ context, intentTail }) =>
+      `Revise one line in ${context} to replace abstraction with a concrete sensory-action choice, then keep the next beat causal so the passage can ${intentTail}.`,
+    ({ context, intentTail }) =>
+      `Tighten the sentence-level execution in ${context}: swap one vague phrase for a specific action image and trim the trailing summary to ${intentTail}.`,
+  ],
+  contrastive: [
+    ({ context, intentTail }) =>
+      `Rather than explaining the pressure in ${context}, let one interruption or decision beat carry it on the page so the scene can ${intentTail}.`,
+    ({ context, intentTail }) =>
+      `Instead of resolving the moment in exposition at ${context}, pivot to a visible reaction-then-consequence turn to ${intentTail}.`,
+  ],
+  pressure: [
+    ({ context, intentTail }) =>
+      `Tension softens around ${context} because the decision pressure diffuses too early. Keep the external trigger active for one more beat to ${intentTail}.`,
+    ({ context, intentTail }) =>
+      `The pressure line in ${context} resolves before the reader sees immediate consequence. Hold the conflict open through a short action beat to ${intentTail}.`,
+  ],
+  reader_effect: [
+    ({ context, intentTail }) =>
+      `Readers will track stakes more clearly if ${context} lands on a concrete consequence rather than thematic summary; this would ${intentTail}.`,
+    ({ context, intentTail }) =>
+      `To strengthen reader trust, let ${context} conclude with visible payoff instead of abstraction; the result should ${intentTail}.`,
+  ],
+  structural: [
+    ({ context, intentTail }) =>
+      `Scene momentum drops near ${context} when reflection resolves before action. Re-sequencing the turn as trigger → reaction → consequence would ${intentTail}.`,
+    ({ context, intentTail }) =>
+      `The structural turn at ${context} is close, but the causal order is inverted. Move the trigger ahead of reflection so the section can ${intentTail}.`,
+  ],
+  opportunity: [
+    ({ context, intentTail }) =>
+      `The material in ${context} has stronger upside than the current phrasing shows. Framing the beat as a specific reader-facing promise could ${intentTail}.`,
+    ({ context, intentTail }) =>
+      `There is a clear editorial opportunity in ${context}: convert the abstract claim into a concrete outcome cue to ${intentTail}.`,
+  ],
+  scene_level: [
+    ({ context, intentTail }) =>
+      `At the scene level, ${context} would benefit from one immediate external action cue before returning to reflection, helping the passage ${intentTail}.`,
+    ({ context, intentTail }) =>
+      `Within ${context}, add a short action-response beat pair so scene movement stays visible and can ${intentTail}.`,
+  ],
+  cadence: [
+    ({ context, intentTail }) =>
+      `Cadence flattens in ${context} when long abstract phrasing stacks without tactile detail. Varying sentence rhythm with one concrete beat would ${intentTail}.`,
+    ({ context, intentTail }) =>
+      `The prose rhythm around ${context} is close to landing; a shorter concrete sentence after the reflective line would ${intentTail}.`,
+  ],
+};
 
 function buildCriterionAwareActionRepair(
   criterionKey: SynthesizedCriterion["key"],
@@ -915,23 +1043,24 @@ function buildCriterionAwareActionRepair(
   intentFragment: string,
 ): string {
   const anchor = anchorSnippet.slice(0, 72);
+  const context = summarizeAnchorContext(anchor);
   const normalizedIntent = normalizeIntentForActionTail(intentFragment);
   const intentTail = normalizedIntent.length > 0
     ? normalizedIntent
-    : "tighten scene-level clarity";
+    : "increase scene-level clarity and consequence";
 
-  switch (criterionKey) {
-    case "character":
-      return `In the anchored moment "${anchor}", replace one abstract reaction line with a concrete decision beat and a desire-vs-fear contradiction because abstract phrasing blunts motivation; ${intentTail}.`;
-    case "sceneConstruction":
-      return `In the anchored moment "${anchor}", split one long descriptive passage and move one image after the causal action beat because sequencing obscures scene turns; ${intentTail}.`;
-    case "dialogue":
-      return `In the anchored moment "${anchor}", replace one expository exchange with two short turns plus a brief interruption line because exposition flattens speaker pressure; ${intentTail}.`;
-    case "pacing":
-      return `In the anchored moment "${anchor}", cut one reflective sentence and insert one immediate external action trigger because reflection stalls momentum; ${intentTail}.`;
-    default:
-      return `In the anchored moment "${anchor}", replace one abstract sentence with a concrete line-level revision and insert one causal beat because abstraction diffuses consequence; ${intentTail}.`;
-  }
+  const preferredFamilies = CRITERION_PREFERRED_FAMILIES[criterionKey] ?? ["observational"];
+  const familySeed = deterministicHash(`${criterionKey}|${anchor}|${intentTail}`);
+  const family = preferredFamilies[familySeed % preferredFamilies.length];
+  const familyTemplates = ACTION_TEMPLATES_BY_FAMILY[family] ?? ACTION_TEMPLATES_BY_FAMILY.observational;
+  const template = familyTemplates[familySeed % familyTemplates.length];
+
+  return ensureTerminalPunctuation(
+    capitalizeSentence(template({
+      context,
+      intentTail,
+    })),
+  );
 }
 
 function buildCriterionAwareImpactRepair(
