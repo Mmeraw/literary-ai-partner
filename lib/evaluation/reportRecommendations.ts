@@ -117,7 +117,7 @@ function selectDiverseByOpening(values: string[], maxItems: number): string[] {
   return selected;
 }
 
-function normalizeActionForTopRecommendations(action: string): string {
+export function normalizeRecommendationActionForDisplay(action: string): string {
   const trimmed = action.trim();
   if (!trimmed) return "";
 
@@ -142,7 +142,7 @@ function formatCrossCuttingRecommendation(
 ): string | null {
   const action =
     typeof recommendation.action === "string"
-      ? normalizeActionForTopRecommendations(recommendation.action)
+      ? normalizeRecommendationActionForDisplay(recommendation.action)
       : "";
   if (!action) return null;
 
@@ -195,7 +195,7 @@ export function buildTopRecommendations(artifact: ArtifactLike | null | undefine
       (criterion.recommendations ?? []).map((recommendation) => {
         const action =
           typeof recommendation.action === "string"
-            ? normalizeActionForTopRecommendations(recommendation.action)
+            ? normalizeRecommendationActionForDisplay(recommendation.action)
             : "";
         if (!action) return "";
         const impact =
