@@ -21,8 +21,8 @@ describe("buildTopRecommendations", () => {
     });
 
     expect(output).toEqual([
-      "Quick win: Condense the council-profile sequence by combining repeated motive beats. — This preserves the strongest revelations while reducing pattern fatigue.",
-      "Strategic revision: Insert one irreversible discovery before the river meditation closes the chapter. — This converts accumulated pressure into immediate narrative consequence.",
+      "Condense the council-profile sequence by combining repeated motive beats. — This preserves the strongest revelations while reducing pattern fatigue.",
+      "Insert one irreversible discovery before the river meditation closes the chapter. — This converts accumulated pressure into immediate narrative consequence.",
     ]);
   });
 
@@ -65,6 +65,28 @@ describe("buildTopRecommendations", () => {
     expect(output[0]).not.toContain("In the anchored moment");
     expect(output[0]).not.toContain("Strategic revision:");
     expect(output[0]).not.toContain("and a because");
+  });
+
+  test("removes strategic prefix and chapter-title anchored lead-in from top bullets", () => {
+    const output = buildTopRecommendations({
+      recommendations: {
+        strategic_revisions: [
+          {
+            action:
+              'Strategic revision: In the anchored moment "Chapter 11 – Witness Turns to Record", cut one reflective sentence and insert one immediate external action trigger because reflection stalls momentum; trim dense informational passages to maintain momentum.',
+            why: "Improved narrative momentum and reader engagement.",
+          },
+        ],
+      },
+    });
+
+    expect(output).toEqual([
+      "cut one reflective sentence and insert one immediate external action trigger because reflection stalls momentum; trim dense informational passages to maintain momentum. — Improved narrative momentum and reader engagement.",
+    ]);
+    expect(output[0]).toMatch(/^cut one reflective sentence/i);
+    expect(output[0]).not.toContain("Strategic revision:");
+    expect(output[0]).not.toContain("In the anchored moment");
+    expect(output[0]).not.toContain("Chapter 11");
   });
 
   test("limits repetitive openings in top recommendations", () => {

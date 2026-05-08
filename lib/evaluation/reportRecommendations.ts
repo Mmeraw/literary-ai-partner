@@ -121,12 +121,16 @@ function normalizeActionForTopRecommendations(action: string): string {
   const trimmed = action.trim();
   if (!trimmed) return "";
 
+  const withoutFamilyPrefix = trimmed.replace(/^(quick win|strategic revision):\s*/i, "");
+
   // Avoid quintuplet-looking list items in the Top Recommendations surface
   // by removing repeated anchored-moment preamble.
-  const withoutAnchorLeadIn = trimmed.replace(
-    /^in the anchored moment\s+"[^"]+",\s*/i,
-    "",
-  );
+  const withoutAnchorLeadIn = withoutFamilyPrefix
+    .replace(/^in the anchored moment\s+"[^"]+",\s*/i, "")
+    .replace(/^at the passage beginning\s+"[^"]+",\s*/i, "")
+    .replace(/^in the closing beat beginning\s+"[^"]+",\s*/i, "")
+    .replace(/^starting from\s+"[^"]+",\s*/i, "")
+    .replace(/^at the line\s+"[^"]+",\s*/i, "");
 
   // Repair soft seam artifact that can appear after clamp in summary surfaces.
   return withoutAnchorLeadIn.replace(/\band\s+a\s+because\b/gi, "because");
@@ -181,15 +185,7 @@ export function buildTopRecommendations(artifact: ArtifactLike | null | undefine
   const hasQuickWins = quickWinItems.length > 0;
   const hasStrategicRevisions = strategicRevisionItems.length > 0;
 
-  const quickWins = hasStrategicRevisions
-    ? quickWinItems.map((value) => `Quick win: ${value}`)
-    : quickWinItems;
-
-  const strategicRevisions = hasQuickWins
-    ? strategicRevisionItems.map((value) => `Strategic revision: ${value}`)
-    : strategicRevisionItems;
-
-  const explicit = uniq([...quickWins, ...strategicRevisions]);
+  const explicit = uniq([...quickWinItems, ...strategicRevisionItems]);
   if (explicit.length > 0) {
     return selectDiverseByOpening(explicit, maxItems);
   }
