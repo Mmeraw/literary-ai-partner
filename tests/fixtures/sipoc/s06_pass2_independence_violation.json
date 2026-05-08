@@ -19,7 +19,7 @@
   "evidence_artifacts": ["pipeline_failure_envelope", "quality_gate_diagnostics_v1", "pass_outputs_diagnostic_v1"],
   "authority_refs": {
     "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
-    "canon": ["docs/canon/_md/VOLUME III — EVALUATION PIPELINE ARCHITECTURE (PASS SYSTEM).md"],
+    "canon": ["docs/canon/intake/_md/VOLUME III — EVALUATION PIPELINE ARCHITECTURE (PASS SYSTEM).md"],
     "runtime": ["lib/evaluation/pipeline/runPipeline.ts", "lib/evaluation/pipeline/pass2IndependenceGuard.ts", "lib/evaluation/pipeline/qualityGate.ts"]
   }
 }

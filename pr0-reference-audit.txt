@@ -1,0 +1,18 @@
+./AI_GOVERNANCE.md
+./.gitignore
+./docs/canon/intake/_md/PHASE 0.1–0.3 — CANON INTEGRATION & GOVERNANCE ENFORCEMENT SPEC.md
+./docs/canon/intake/_md/REVISIONGRADE CANON ADDENDUM Criterion Observability & Signal Sufficiency Model.md
+./docs/canon/intake/_md/docs-canon-GENRE_INTENT_EVALUATION_CANON.md.md
+./docs/canon/intake/_md/GATE_15_1_PR1_CANON_AND_SCHEMA_SPEC.md.md
+./docs/canon/intake/_md/REVISIONGRADE_REPO_AUTHORITY_RULES.md.md
+./docs/canon/intake/_md/GATE_15_1_IMPLEMENTATION_PLAN.md.md
+./docs/canon/intake/_md/VOLUME III_PLATFORM_GOVERNANCE_CANON_MASTER.md
+./docs/canon/intake/_md/Gate 15.1 Overcorrection Firewall (do not break what matters).md
+./docs/canon/intake/_md/Gate 15 System Architecture.md.md
+./docs/canon/README.md
+./docs/canon/registered/volumes/VOLUME-III-PLATFORM-GOVERNANCE-CANON.md
+./docs/SIPOC_EVALUATION_PROCESS.md
+./docs/archive/RevisionGrade_Roadmap_UPDATED.md
+./scripts/check-nomenclature-canon.js
+./tests/fixtures/sipoc/s06_pass2_independence_violation.json
+./tests/fixtures/sipoc/README.md
