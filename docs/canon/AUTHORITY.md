@@ -199,6 +199,10 @@ Use anchored filesystem-path regexes for migration checks; avoid broad `canon/` 
 
 See [OLD_PATH_EXEMPTIONS.md](./OLD_PATH_EXEMPTIONS.md) for intentionally retained historical/namespace matches from migration sweeps.
 
+## PR-1 baseline artifact
+
+- `docs/canon/inventory/PR1_INVENTORY_CLASSIFICATION_BASELINE.md`
+
 ## Post-#372 baseline (PR-2 contract)
 
 Verified on `main` after squash merge of PR #372 (`a0b36e35aa82616a90be9901184880472fe9c234`).
