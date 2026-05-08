@@ -198,3 +198,18 @@ Use anchored filesystem-path regexes for migration checks; avoid broad `canon/` 
 ## Old-path exemptions
 
 See [OLD_PATH_EXEMPTIONS.md](./OLD_PATH_EXEMPTIONS.md) for intentionally retained historical/namespace matches from migration sweeps.
+
+## Post-#372 baseline (PR-2 contract)
+
+Verified on `main` after squash merge of PR #372 (`a0b36e35aa82616a90be9901184880472fe9c234`).
+First `canon-authority` workflow run on `main` after merge: run `25580293173`.
+
+Observed counters (must remain exact until PR-2 remediates frontmatter):
+
+- `warning_count.md_md_typos=15`
+- `warning_count.duplicate_basenames_inside_canon=0`
+- `warning_count.authoritative_out_of_zone=0`
+- `warning_count.missing_canon_status_registered=26`
+- `warning_count.non_authoritative_claims=14`
+
+PR-2 numerical target: drive `warning_count.missing_canon_status_registered` from `26` to `0` before WARN→FAIL conversion lands.
