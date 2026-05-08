@@ -12,12 +12,12 @@ This document is intentionally scoped to active evaluation runtime flow and excl
 
 ### Canon
 
-1. `docs/canon/_md/VOLUME II — STORY EVALUATION CRITERIA & ANALYTICAL FRAMEWORK (V2.0).md`
-2. `docs/canon/_md/REVISIONGRADE CANON ADDENDUM Criterion Observability & Signal Sufficiency Model.md`
-3. `docs/canon/_md/VOLUME III — EVALUATION PIPELINE ARCHITECTURE (PASS SYSTEM).md`
-4. `docs/canon/_md/VOLUME III — FINAL PIPELINE DIAGRAM + STATE MODEL.md`
-5. `docs/canon/_md/E2E Evaluation Flow Architecture.md`
-6. `docs/canon/_md/PHASE 0.1–0.3 — CANON INTEGRATION & GOVERNANCE ENFORCEMENT SPEC.md`
+1. `docs/canon/intake/_md/VOLUME II — STORY EVALUATION CRITERIA & ANALYTICAL FRAMEWORK (V2.0).md`
+2. `docs/canon/intake/_md/REVISIONGRADE CANON ADDENDUM Criterion Observability & Signal Sufficiency Model.md`
+3. `docs/canon/intake/_md/VOLUME III — EVALUATION PIPELINE ARCHITECTURE (PASS SYSTEM).md`
+4. `docs/canon/intake/_md/VOLUME III — FINAL PIPELINE DIAGRAM + STATE MODEL.md`
+5. `docs/canon/intake/_md/E2E Evaluation Flow Architecture.md`
+6. `docs/canon/intake/_md/PHASE 0.1–0.3 — CANON INTEGRATION & GOVERNANCE ENFORCEMENT SPEC.md`
 
 ### Spec
 

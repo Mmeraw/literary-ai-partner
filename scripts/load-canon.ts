@@ -129,11 +129,32 @@ async function walk(dir: string): Promise<string[]> {
 }
 
 async function main() {
-  const targetDir = process.argv[2];
-  if (!targetDir) {
-    console.error('Usage: tsx scripts/load-canon.ts <dir>');
+  const targetDir =
+    process.argv[2] || 'docs/canon/registered';
+
+  const normalized = targetDir.replace(/\\/g, '/');
+
+  const intakeMode = process.env.INTAKE_MODE === 'true';
+
+  if (
+    normalized.includes('docs/canon/intake') &&
+    !intakeMode
+  ) {
+    console.error(
+      'Refusing to load intake canon without INTAKE_MODE=true'
+    );
     process.exit(1);
   }
+
+  if (normalized.includes('docs/canon/archive')) {
+    console.error(
+      'Refusing to load archive canon into production index'
+    );
+    process.exit(1);
+  }
+
+  console.log(`Canon load target: ${targetDir}`);
+  console.log(`INTAKE_MODE=${intakeMode ? 'true' : 'false'}`);
 
   const files = await walk(targetDir);
   console.log(`Found ${files.length} canon files`);

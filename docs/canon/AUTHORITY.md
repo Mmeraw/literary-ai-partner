@@ -160,3 +160,41 @@ Warnings are tracked for follow-up PRs (PR-1..PR-6).
 - PR-2 tracking issue: https://github.com/Mmeraw/literary-ai-partner/issues/369
 - PR-3 tracking issue: https://github.com/Mmeraw/literary-ai-partner/issues/370
 - PR-5 tracking issue: https://github.com/Mmeraw/literary-ai-partner/issues/371
+
+## Baseline counters (two-state contract)
+
+Pre-migration (`main`, post-#367 containment merge):
+
+- `warning_count.md_md_typos=15`
+- `warning_count.duplicate_basenames_inside_canon=0`
+- `warning_count.authoritative_out_of_zone=0`
+- `warning_count.missing_canon_status_registered=0`
+- `warning_count.non_authoritative_claims=14`
+
+Post-migration (expected after #372 lands):
+
+- `warning_count.md_md_typos=15`
+- `warning_count.duplicate_basenames_inside_canon=0`
+- `warning_count.authoritative_out_of_zone=0`
+- `warning_count.missing_canon_status_registered=26`
+- `warning_count.non_authoritative_claims=14`
+
+Any other delta requires investigation before merge.
+
+## Baseline reconciliation
+
+The `missing_canon_status_registered` value of `0` on pre-migration `main` is expected because `docs/canon/registered/{control,volumes}` is not populated before #372. This is not guard drift and not a silent frontmatter migration.
+
+## Namespace separation note
+
+Migration sweeps must distinguish:
+
+1. Filesystem authority roots (`docs/canon/**`)
+2. Runtime/module namespaces (e.g., `lib/canon/*`)
+3. Conceptual prose references to canon
+
+Use anchored filesystem-path regexes for migration checks; avoid broad `canon/` matching in CI without explicit namespace handling.
+
+## Old-path exemptions
+
+See [OLD_PATH_EXEMPTIONS.md](./OLD_PATH_EXEMPTIONS.md) for intentionally retained historical/namespace matches from migration sweeps.
