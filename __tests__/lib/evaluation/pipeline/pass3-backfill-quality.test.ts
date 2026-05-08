@@ -349,8 +349,9 @@ describe("Pass 3 backfill quality", () => {
     expect(rec.action).not.toBe(
       "In character-driven scenes, deepen character development by adding more personal stakes.",
     );
-    expect(rec.action.toLowerCase()).toMatch(/replace|insert/);
-    expect(rec.action.toLowerCase()).toContain("because");
+    expect(rec.action.toLowerCase()).not.toContain("in the anchored moment");
+    expect(rec.action.toLowerCase()).not.toContain("and a because");
+    expect(rec.action.toLowerCase()).toMatch(/rather than|instead of|pressure|readers|revise|scene momentum|opportunity|cadence/);
     expect(rec.expected_impact.toLowerCase()).toMatch(/reader|clarity|engagement|immersion|momentum/);
   });
 
@@ -607,16 +608,77 @@ describe("Pass 3 backfill quality", () => {
     const pacingRec = parsed.criteria.find((c) => c.key === "pacing")?.recommendations?.[0];
 
     expect(characterRec?.action.toLowerCase()).toContain("deepen character development");
-    expect(characterRec?.action.toLowerCase()).toMatch(/decision beat|desire-vs-fear contradiction/);
+    expect(characterRec?.action.toLowerCase()).toMatch(/several lines around|the current draft|rather than|instead of|pressure|readers|revise/);
 
     expect(sceneRec?.action.toLowerCase()).toContain("streamline descriptive passages");
-    expect(sceneRec?.action.toLowerCase()).toMatch(/split|move/);
+    expect(sceneRec?.action.toLowerCase()).toMatch(/scene momentum|structural|scene level|causal|rather than|pressure|decision/);
 
     expect(dialogueRec?.action.toLowerCase()).toContain("inject more dynamic exchanges");
-    expect(dialogueRec?.action.toLowerCase()).toMatch(/two short turns|interruption beat/);
+    expect(dialogueRec?.action.toLowerCase()).toMatch(/rather than|instead of|pressure|decision|interruption|turn/);
 
     expect(pacingRec?.action.toLowerCase()).toContain("balance reflective passages");
-    expect(pacingRec?.action.toLowerCase()).toMatch(/cut|insert/);
+    expect(pacingRec?.action.toLowerCase()).toMatch(/scene momentum|structural|trigger|consequence|pressure/);
+
+    const openings = [characterRec, sceneRec, dialogueRec, pacingRec]
+      .map((rec) => rec?.action?.trim().toLowerCase().split(/\s+/).slice(0, 2).join(" "))
+      .filter((value): value is string => Boolean(value));
+    expect(new Set(openings).size).toBeGreaterThanOrEqual(3);
+  });
+
+  test("repair action excludes internal preservation scaffolding for imperative intent fragments", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "dialogue",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Dialogue rationale placeholder.",
+          evidence: [{ snippet: '"It\'s okay," I whispered. But even as I said it, I knew it wasn\'t okay.' }],
+          recommendations: [
+            {
+              priority: "medium",
+              action:
+                "Revise dialogue in Chapter 11 to reduce expository elements, increase dynamic interaction, sharpen speaker contrast, and ground the pressure shift in visible reaction beats.",
+              expected_impact: "Improves dialogue quality.",
+              anchor_snippet: '"It\'s okay," I whispered. But even as I said it, I knew it wasn\'t okay.',
+              source_pass: 3,
+              issue_family: "dialogue",
+              strategic_lever: "dialogue_exposition_density",
+              revision_granularity: "beat",
+            },
+          ],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsed = parsePass3Response(raw, pass1, pass2, "o3");
+    const repaired = parsed.criteria.find((c) => c.key === "dialogue")?.recommendations?.[0]?.action ?? "";
+
+    expect(repaired).not.toContain("because this preserves");
+    expect(repaired).not.toContain("original revision intent");
+    expect(repaired).not.toContain("continuing to");
+    expect(repaired).not.toMatch(/\([^)]*$/);
+    expect(repaired).not.toContain("(");
+    expect(repaired.toLowerCase()).not.toContain("criterion-specific move");
+    expect(repaired).toMatch(/[.!?]$/);
+    expect(repaired.length).toBeLessThanOrEqual(300);
   });
 
   test("does not auto-repair anchorless generic recommendation and QG still fails", () => {
