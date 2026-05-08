@@ -37,10 +37,75 @@ function openingFingerprint(text: string): string {
   return normalized.split(/\s+/).slice(0, 5).join(" ");
 }
 
+type RecommendationShape = "imperative" | "contrastive" | "observational" | "reader_effect" | "opportunity" | "structural";
+
+function classifyRecommendationShape(text: string): RecommendationShape {
+  const normalized = text.trim().toLowerCase();
+  if (/^(revise|rewrite|replace|cut|insert|split|move|add|tighten|sharpen)\b/.test(normalized)) {
+    return "imperative";
+  }
+  if (/\b(rather than|instead of|instead)\b/.test(normalized)) {
+    return "contrastive";
+  }
+  if (/^(readers?\b|to strengthen reader|to improve reader)/.test(normalized)) {
+    return "reader_effect";
+  }
+  if (/\b(opportunity|upside|market|promise)\b/.test(normalized)) {
+    return "opportunity";
+  }
+  if (/\b(scene momentum|structural turn|re-sequencing|causal order)\b/.test(normalized)) {
+    return "structural";
+  }
+  return "observational";
+}
+
+function openingVerb(text: string): string {
+  const normalized = text
+    .trim()
+    .toLowerCase()
+    .replace(/^(quick win|strategic revision):\s*/i, "");
+  return normalized.split(/\s+/)[0] || "";
+}
+
 function selectDiverseByOpening(values: string[], maxItems: number): string[] {
+  const maxSameShape = 1;
+  const maxImperativeOpenings = 2;
+  const maxSameOpeningVerb = 1;
+
   const selected: string[] = [];
   const seenOpenings = new Set<string>();
+  const shapeCounts = new Map<RecommendationShape, number>();
+  const openingVerbCounts = new Map<string, number>();
+  let imperativeCount = 0;
 
+  for (const value of values) {
+    if (selected.length >= maxItems) break;
+
+    const shape = classifyRecommendationShape(value);
+    const shapeCount = shapeCounts.get(shape) ?? 0;
+    if (shapeCount >= maxSameShape) continue;
+
+    const verb = openingVerb(value);
+    const verbCount = openingVerbCounts.get(verb) ?? 0;
+    if (verb && verbCount >= maxSameOpeningVerb) continue;
+
+    if (shape === "imperative" && imperativeCount >= maxImperativeOpenings) continue;
+
+    const fingerprint = openingFingerprint(value);
+    if (!fingerprint || seenOpenings.has(fingerprint)) continue;
+
+    seenOpenings.add(fingerprint);
+    selected.push(value);
+    shapeCounts.set(shape, shapeCount + 1);
+    if (verb) openingVerbCounts.set(verb, verbCount + 1);
+    if (shape === "imperative") imperativeCount += 1;
+  }
+
+  if (selected.length >= maxItems) {
+    return selected;
+  }
+
+  // Relaxed fill pass: keep opening uniqueness, but stop enforcing shape caps.
   for (const value of values) {
     if (selected.length >= maxItems) break;
     const fingerprint = openingFingerprint(value);
