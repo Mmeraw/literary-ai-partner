@@ -42,6 +42,11 @@ import {
   EDITORIAL_MECHANISM_MARKERS,
   EDITORIAL_READER_EFFECT_MARKERS,
 } from "./editorialRecommendationContract";
+import {
+  annotateSurfaceIntegrityFlag,
+  checkSurfaceIntegrity,
+  repairSurfaceIntegrity,
+} from "./surfaceIntegrity";
 import { analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
@@ -677,12 +682,42 @@ function parseRecommendations(
       };
 
       const normalized = normalizeRecommendationContract(parsed, criterionKey);
+      const initialIntegrity = checkSurfaceIntegrity(normalized.action);
+
+      let actionForOutput = normalized.action;
+      let integrity = initialIntegrity;
+
+      if (integrity.status === "REJECT") {
+        const repairedAction = repairSurfaceIntegrity(actionForOutput, integrity.reasons);
+        if (repairedAction) {
+          const repairedIntegrity = checkSurfaceIntegrity(repairedAction);
+          if (repairedIntegrity.status !== "REJECT") {
+            actionForOutput = repairedAction;
+            integrity = repairedIntegrity;
+          }
+        }
+      }
+
+      if (integrity.status === "REJECT") {
+        return null;
+      }
+
+      const flaggedExpectedImpact =
+        integrity.status === "FLAG"
+          ? annotateSurfaceIntegrityFlag(normalized.expected_impact, integrity.reasons)
+          : normalized.expected_impact;
 
       return {
         ...normalized,
-        action: clampRecommendationAction(normalized.action),
+        action: clampRecommendationAction(actionForOutput),
+        expected_impact: flaggedExpectedImpact,
       };
-    });
+    })
+    .filter(
+      (
+        recommendation,
+      ): recommendation is SynthesizedCriterion["recommendations"][number] => recommendation !== null,
+    );
 }
 
 function normalizeRecommendationContract(
