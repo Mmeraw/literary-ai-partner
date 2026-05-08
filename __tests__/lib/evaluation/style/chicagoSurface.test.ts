@@ -6,12 +6,17 @@ describe("normalizeChicagoSurfaceText", () => {
     expect(normalizeChicagoSurfaceText("Sentence one — sentence two")).toBe("Sentence one—sentence two");
   });
 
-  test("normalizes smart quotes and contraction apostrophes", () => {
-    const input = 'In the anchored moment "It\'s okay," I whispered.';
+  test("preserves quoted manuscript snippet byte-for-byte while normalizing surrounding prose", () => {
+    const input = 'The manuscript evidence "You think anyone\'s gonna believe it?" supports this claim -- but pacing lags.';
     const output = normalizeChicagoSurfaceText(input);
 
-    expect(output).toContain("“It’s okay,”");
-    expect(output).not.toContain("\"It's okay,\"");
+    expect(output).toContain('"You think anyone\'s gonna believe it?"');
+    expect(output).toBe('The manuscript evidence "You think anyone\'s gonna believe it?" supports this claim—but pacing lags.');
+  });
+
+  test("normalizes critic prose apostrophes outside quoted evidence", () => {
+    const output = normalizeChicagoSurfaceText("It's a strong report rationale.");
+    expect(output).toBe("It’s a strong report rationale.");
   });
 
   test("handles optional values safely", () => {

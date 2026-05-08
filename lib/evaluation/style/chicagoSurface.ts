@@ -3,38 +3,56 @@ const DOUBLE_HYPHEN_PATTERN = /\s+--\s+/g;
 const CONTRACTION_APOSTROPHE_PATTERN = /([A-Za-z])'([A-Za-z])/g;
 const MULTISPACE_PATTERN = /[ \t]{2,}/g;
 
-function smartenDoubleQuotes(text: string): string {
-  let out = "";
-  let open = true;
+function normalizeUnquotedSegment(text: string): string {
+  return text
+    .replace(DOUBLE_HYPHEN_PATTERN, " — ")
+    .replace(DASH_PATTERN, "—")
+    .replace(CONTRACTION_APOSTROPHE_PATTERN, "$1’$2")
+    .replace(MULTISPACE_PATTERN, " ")
+    .replace(/\s+([,.;:!?])/g, "$1");
+}
+
+function splitQuotedAndUnquoted(text: string): Array<{ quoted: boolean; value: string }> {
+  const segments: Array<{ quoted: boolean; value: string }> = [];
+  let current = "";
+  let inQuote = false;
+  let quoteCloser = "";
+
+  const flush = (quoted: boolean) => {
+    if (!current) return;
+    segments.push({ quoted, value: current });
+    current = "";
+  };
 
   for (let i = 0; i < text.length; i += 1) {
     const ch = text[i];
-    if (ch !== '"') {
-      out += ch;
+
+    if (!inQuote && (ch === '"' || ch === "“")) {
+      flush(false);
+      inQuote = true;
+      quoteCloser = ch === '"' ? '"' : "”";
+      current += ch;
       continue;
     }
 
-    const prev = i > 0 ? text[i - 1] : "";
-    const isLikelyOpening =
-      prev === "" ||
-      /[\s([\{—–-]/.test(prev);
-
-    if (isLikelyOpening) {
-      out += "“";
-      open = false;
+    if (inQuote) {
+      current += ch;
+      if (ch === quoteCloser) {
+        flush(true);
+        inQuote = false;
+        quoteCloser = "";
+      }
       continue;
     }
 
-    if (open) {
-      out += "“";
-      open = false;
-    } else {
-      out += "”";
-      open = true;
-    }
+    current += ch;
   }
 
-  return out;
+  if (current) {
+    flush(inQuote);
+  }
+
+  return segments;
 }
 
 /**
@@ -46,19 +64,9 @@ export function normalizeChicagoSurfaceText(input: string | null | undefined): s
   const trimmed = raw.trim();
   if (!trimmed) return "";
 
-  const normalizedDashes = trimmed
-    .replace(DOUBLE_HYPHEN_PATTERN, " — ")
-    .replace(DASH_PATTERN, "—");
+  const segmented = splitQuotedAndUnquoted(trimmed)
+    .map((segment) => (segment.quoted ? segment.value : normalizeUnquotedSegment(segment.value)))
+    .join("");
 
-  const normalizedApostrophes = normalizedDashes.replace(
-    CONTRACTION_APOSTROPHE_PATTERN,
-    "$1’$2",
-  );
-
-  const smartQuotes = smartenDoubleQuotes(normalizedApostrophes);
-
-  return smartQuotes
-    .replace(MULTISPACE_PATTERN, " ")
-    .replace(/\s+([,.;:!?])/g, "$1")
-    .trim();
+  return segmented.trim();
 }
