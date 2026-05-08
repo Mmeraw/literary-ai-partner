@@ -20,3 +20,6 @@ jobs:
 
       - name: Run canon authority guard
         run: bash scripts/verify-canon-authority.sh
+
+      - name: Smoke-test guard output contract
+        run: bash tests/canon-authority.smoke.sh
