@@ -709,15 +709,29 @@ function normalizeRecommendationContract(
   const specificFix = resolveSpecificFix(recommendation.specific_fix, action, hasAnchor, criterionKey);
   const readerEffect = resolveReaderEffect(recommendation.reader_effect, expectedImpact, hasAnchor, criterionKey);
 
+  const finalize = (
+    normalizedAction: string,
+    normalizedImpact: string,
+    normalizedAnchor: string,
+  ): SynthesizedCriterion["recommendations"][number] => ({
+    ...recommendation,
+    action: clampRecommendationAction(normalizedAction),
+    expected_impact: normalizedImpact,
+    anchor_snippet: normalizedAnchor,
+    mechanism,
+    specific_fix: specificFix,
+    reader_effect: readerEffect,
+  });
+
   if (hasSpecificFixMove && hasMechanismCause && hasReaderEffect) {
-    return { ...recommendation, action, expected_impact: expectedImpact, anchor_snippet: anchorSnippet, mechanism, specific_fix: specificFix, reader_effect: readerEffect };
+    return finalize(action, expectedImpact, anchorSnippet);
   }
 
   // For anchorless recs: do NOT repair action/expected_impact — no manuscript context
   // to anchor a repair. The triple fields are also not backfilled with static defaults
   // (handled above by hasAnchor=false). Gate sees the genuine generic content.
   if (anchorSnippet.length === 0) {
-    return { ...recommendation, action, expected_impact: expectedImpact, anchor_snippet: anchorSnippet, mechanism, specific_fix: specificFix, reader_effect: readerEffect };
+    return finalize(action, expectedImpact, anchorSnippet);
   }
 
   const intentFragment = extractIntentFragment(action);
@@ -726,15 +740,7 @@ function normalizeRecommendationContract(
     ? expectedImpact
     : buildCriterionAwareImpactRepair(criterionKey);
 
-  return {
-    ...recommendation,
-    action: repairedAction,
-    expected_impact: repairedImpact,
-    anchor_snippet: anchorSnippet,
-    mechanism,
-    specific_fix: specificFix,
-    reader_effect: readerEffect,
-  };
+  return finalize(repairedAction, repairedImpact, anchorSnippet);
 }
 
 /**

@@ -119,4 +119,64 @@ describe("Pass3 recommendation length contract", () => {
 
     expect(longRecFailure).toBeUndefined();
   });
+
+  test("7. backfilled recommendations are clamped", () => {
+    const passWithLongRecommendation = {
+      criteria: [
+        {
+          key: "character",
+          score_0_10: 7,
+          rationale: "Character rationale.",
+          evidence: [{ snippet: "opening scene", char_start: 0, char_end: 12 }],
+          recommendations: [
+            {
+              priority: "high",
+              action: makeLongAction().repeat(3),
+              expected_impact: "Improves clarity and engagement for the reader.",
+              anchor_snippet: "opening scene",
+              source_pass: 1,
+              issue_family: "character",
+              strategic_lever: "motivation",
+              revision_granularity: "scene",
+            },
+          ],
+        },
+      ],
+      model: "test",
+    };
+
+    const rawWithoutRecommendations = JSON.stringify({
+      criteria: [
+        {
+          key: "character",
+          final_score_0_10: 7,
+          final_rationale: "Valid rationale with mechanism.",
+          recommendations: [],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 70,
+        verdict: "revise",
+        one_paragraph_summary: "Summary.",
+        top_3_strengths: [],
+        top_3_risks: [],
+        submission_readiness: "close",
+      },
+    });
+
+    const result = parsePass3Response(
+      rawWithoutRecommendations,
+      passWithLongRecommendation as any,
+      basePass as any,
+    );
+
+    const action = characterAction(result);
+    expect(action.length).toBeLessThanOrEqual(300);
+
+    const gate = runQualityGate(result);
+    const longRecFailure = gate.checks.find(
+      (c) => c.error_code === "QG_LONG_REC" && !c.passed,
+    );
+    expect(longRecFailure).toBeUndefined();
+  });
 });
