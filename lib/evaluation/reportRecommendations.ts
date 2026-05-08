@@ -191,9 +191,6 @@ export function buildTopRecommendations(artifact: ArtifactLike | null | undefine
     .map((recommendation) => formatCrossCuttingRecommendation(recommendation))
     .filter((value): value is string => Boolean(value));
 
-  const hasQuickWins = quickWinItems.length > 0;
-  const hasStrategicRevisions = strategicRevisionItems.length > 0;
-
   const explicit = uniq([...quickWinItems, ...strategicRevisionItems]);
   if (explicit.length > 0) {
     return selectDiverseByOpening(explicit, maxItems);
