@@ -929,8 +929,14 @@ function buildCriterionAwareActionRepair(
       return `In the anchored moment "${anchor}", replace one expository exchange with two short turns plus a brief interruption line because exposition flattens speaker pressure; ${intentTail}.`;
     case "pacing":
       return `In the anchored moment "${anchor}", cut one reflective sentence and insert one immediate external action trigger because reflection stalls momentum; ${intentTail}.`;
+    case "proseControl":
+      return `At the passage beginning "${anchor}", rewrite one abstract descriptive sentence as a concrete sensory-action line because abstraction blunts the reader's felt experience; ${intentTail}.`;
+    case "narrativeClosure":
+      return `In the closing beat beginning "${anchor}", add one concrete consequence or image that pays off the opening promise because open-ended resolution leaves the contract unfulfilled; ${intentTail}.`;
+    case "marketability":
+      return `Starting from "${anchor}", sharpen one thematic statement into a market-legible hook by naming the specific reader experience delivered because vague positioning weakens discoverability; ${intentTail}.`;
     default:
-      return `In the anchored moment "${anchor}", replace one abstract sentence with a concrete line-level revision and insert one causal beat because abstraction diffuses consequence; ${intentTail}.`;
+      return `At the line "${anchor}", replace one abstract sentence with a concrete causal revision because abstraction diffuses consequence; ${intentTail}.`;
   }
 }
 

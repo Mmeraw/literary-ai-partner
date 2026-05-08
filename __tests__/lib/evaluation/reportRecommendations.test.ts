@@ -45,4 +45,52 @@ describe("buildTopRecommendations", () => {
       "Differentiate Malcolm and Frankie through distinct consequence paths. — This reduces repetitive profile rhythm.",
     ]);
   });
+
+  test("normalizes anchored-moment lead-in and seam artifacts for top list readability", () => {
+    const output = buildTopRecommendations({
+      recommendations: {
+        strategic_revisions: [
+          {
+            action:
+              'In the anchored moment "Characters are developed through their interactions", replace one abstract reaction line with a concrete decision beat and a because abstract phrasing blunts motivation; clarify internal motivations.',
+            why: "Improves action readability in summary surfaces.",
+          },
+        ],
+      },
+    });
+
+    expect(output).toEqual([
+      "replace one abstract reaction line with a concrete decision beat because abstract phrasing blunts motivation; clarify internal motivations. — Improves action readability in summary surfaces.",
+    ]);
+    expect(output[0]).not.toContain("In the anchored moment");
+    expect(output[0]).not.toContain("Strategic revision:");
+    expect(output[0]).not.toContain("and a because");
+  });
+
+  test("limits repetitive openings in top recommendations", () => {
+    const output = buildTopRecommendations({
+      criteria: [
+        {
+          recommendations: [
+            {
+              action: 'In the anchored moment "A", replace one abstract reaction line with a concrete decision beat and one contradiction.',
+              expected_impact: 'Improves character agency.',
+            },
+            {
+              action: 'In the anchored moment "B", replace one abstract reaction line with a concrete decision beat and one contradiction in a later scene.',
+              expected_impact: 'Improves motivation legibility.',
+            },
+            {
+              action: 'In the anchored moment "C", cut one reflective sentence and insert one immediate external action trigger.',
+              expected_impact: 'Improves momentum.',
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(output.length).toBe(2);
+    expect(output[0]).toMatch(/^replace one abstract reaction line/);
+    expect(output[1]).toMatch(/^cut one reflective sentence/);
+  });
 });
