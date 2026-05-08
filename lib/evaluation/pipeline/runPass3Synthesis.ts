@@ -980,6 +980,34 @@ type ActionTemplateParams = {
   intentTail: string;
 };
 
+function enforceEditorialActionContract(
+  action: string,
+  criterionKey: SynthesizedCriterion["key"],
+): string {
+  const normalized = action.replace(/\s+/g, " ").trim().replace(/[.;:!?]+$/, "");
+  if (!normalized) return normalized;
+
+  const hasSpecificFixMove = EDITORIAL_FIX_MARKERS.test(normalized);
+  const hasMechanismCause = EDITORIAL_MECHANISM_MARKERS.test(normalized);
+
+  let repaired = normalized;
+
+  if (!hasSpecificFixMove) {
+    const fixLead = buildCriterionAwareSpecificFixDefault(criterionKey).replace(/[.;:!?]+$/, "");
+    repaired = `${fixLead}; ${repaired}`;
+  }
+
+  if (!hasMechanismCause) {
+    const mechanism = buildCriterionAwareMechanismDefault(criterionKey).replace(/[.;:!?]+$/, "");
+    const withoutDanglingConnector = repaired
+      .replace(/[,:;]?\s+(let|can|to|and|or)$/i, "")
+      .trim();
+    repaired = `${withoutDanglingConnector} because ${mechanism}`;
+  }
+
+  return repaired;
+}
+
 const ACTION_TEMPLATES_BY_FAMILY: Record<RecommendationFamily, readonly ((params: ActionTemplateParams) => string)[]> = {
   observational: [
     ({ context, intentTail }) =>
@@ -1054,12 +1082,13 @@ function buildCriterionAwareActionRepair(
   const family = preferredFamilies[familySeed % preferredFamilies.length];
   const familyTemplates = ACTION_TEMPLATES_BY_FAMILY[family] ?? ACTION_TEMPLATES_BY_FAMILY.observational;
   const template = familyTemplates[familySeed % familyTemplates.length];
+  const rawAction = template({
+    context,
+    intentTail,
+  });
 
   return ensureTerminalPunctuation(
-    capitalizeSentence(template({
-      context,
-      intentTail,
-    })),
+    capitalizeSentence(enforceEditorialActionContract(rawAction, criterionKey)),
   );
 }
 

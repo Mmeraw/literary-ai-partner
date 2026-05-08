@@ -1,6 +1,10 @@
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass3Response } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
+import {
+  EDITORIAL_FIX_MARKERS,
+  EDITORIAL_MECHANISM_MARKERS,
+} from "@/lib/evaluation/pipeline/editorialRecommendationContract";
 import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
 
 export {};
@@ -610,13 +614,13 @@ describe("Pass 3 backfill quality", () => {
     expect(characterRec?.action.toLowerCase()).toContain("deepen character development");
     expect(characterRec?.action.toLowerCase()).toMatch(/several lines around|the current draft|rather than|instead of|pressure|readers|revise/);
 
-    expect(sceneRec?.action.toLowerCase()).toContain("streamline descriptive passages");
+    expect(sceneRec?.action.toLowerCase()).toMatch(/split|move|replace|rewrite|trim|tighten/);
     expect(sceneRec?.action.toLowerCase()).toMatch(/scene momentum|structural|scene level|causal|rather than|pressure|decision/);
 
     expect(dialogueRec?.action.toLowerCase()).toContain("inject more dynamic exchanges");
     expect(dialogueRec?.action.toLowerCase()).toMatch(/rather than|instead of|pressure|decision|interruption|turn/);
 
-    expect(pacingRec?.action.toLowerCase()).toContain("balance reflective passages");
+    expect(pacingRec?.action.toLowerCase()).toMatch(/cut|insert|replace|rewrite|trim|tighten/);
     expect(pacingRec?.action.toLowerCase()).toMatch(/scene momentum|structural|trigger|consequence|pressure/);
 
     const openings = [characterRec, sceneRec, dialogueRec, pacingRec]
@@ -743,6 +747,179 @@ describe("Pass 3 backfill quality", () => {
     const editorialCheck = gate.checks.find((c) => c.check_id === "recommendation_editorial_quality");
     expect(editorialCheck?.passed).toBe(false);
     expect(editorialCheck?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
+  });
+
+  test("repairs #359 rhetorical openings to satisfy editorial gate contract", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const raw = JSON.stringify({
+      criteria: [
+        {
+          key: "dialogue",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Dialogue rationale placeholder.",
+          evidence: [{ snippet: '"You think anyone\'s gonna believe it?" he asked.' }],
+          recommendations: [
+            {
+              priority: "medium",
+              action:
+                "Instead of resolving the moment in exposition at dialogue serves to reveal character motivations.",
+              expected_impact: "Increased character distinctiveness and narrative tension.",
+              anchor_snippet: "Dialogue serves to reveal character motivations and thematic elements.",
+              source_pass: 3,
+              issue_family: "dialogue",
+              strategic_lever: "dialogue_exposition_density",
+              revision_granularity: "beat",
+            },
+          ],
+        },
+        {
+          key: "pacing",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Pacing rationale placeholder.",
+          evidence: [{ snippet: "The pacing occasionally slows with detailed descriptions." }],
+          recommendations: [
+            {
+              priority: "medium",
+              action:
+                "Scene momentum drops near the pacing is generally effective, though some sections could tighten.",
+              expected_impact: "Improved pacing and sustained reader engagement.",
+              anchor_snippet: "The pacing is generally effective, though some sections could tighten.",
+              source_pass: 3,
+              issue_family: "pacing",
+              strategic_lever: "momentum_visibility",
+              revision_granularity: "scene",
+            },
+          ],
+        },
+        {
+          key: "proseControl",
+          craft_score: 7,
+          editorial_score: 7,
+          final_score_0_10: 7,
+          final_rationale: "Prose rationale placeholder.",
+          evidence: [{ snippet: "The prose is generally well-controlled, with moments of vivid imagery." }],
+          recommendations: [
+            {
+              priority: "medium",
+              action:
+                "The current draft surfaces pressure in the prose is generally well-controlled, with moments of vivid imagery.",
+              expected_impact: "Enhanced clarity and emotional impact.",
+              anchor_snippet: "The prose is generally well-controlled, with moments of vivid imagery.",
+              source_pass: 3,
+              issue_family: "line_level",
+              strategic_lever: "line_level_concreteness",
+              revision_granularity: "sentence",
+            },
+          ],
+        },
+      ],
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsed = parsePass3Response(raw, pass1, pass2, "o3");
+
+    for (const key of ["dialogue", "pacing", "proseControl"] as const) {
+      const action = parsed.criteria.find((c) => c.key === key)?.recommendations?.[0]?.action ?? "";
+      expect(action).toMatch(/(replace|cut|insert|add|split|move|rewrite|compress|sharpen|reorder|trim|tighten)/i);
+      expect(action).toMatch(/\b(because|since|so\s+that|when|by\s+\w+ing)\b/i);
+      expect(action).toMatch(/[.!?]$/);
+      expect(action.length).toBeGreaterThan(60);
+    }
+
+    const synthesisForGate = {
+      criteria: parsed.criteria.filter((c) => c.key === "dialogue" || c.key === "pacing" || c.key === "proseControl"),
+      overall: parsed.overall,
+      metadata: parsed.metadata,
+      partial_evaluation: false,
+    };
+
+    const gate = runQualityGate(synthesisForGate as any);
+    const editorialCheck = gate.checks.find((c) => c.check_id === "recommendation_editorial_quality");
+
+    expect(editorialCheck?.passed).toBe(true);
+    expect(editorialCheck?.error_code).toBeUndefined();
+  });
+
+  test("enforces editorial gate contract across all canonical criterion keys", () => {
+    const pass1 = makePass(1);
+    const pass2 = makePass(2);
+
+    const criteriaPayload = CRITERIA_KEYS.map((key) => ({
+      key,
+      craft_score: 7,
+      editorial_score: 7,
+      final_score_0_10: 7,
+      final_rationale: `${key} rationale placeholder.`,
+      evidence: [{ snippet: `Anchor evidence for ${key} in chapter transition.` }],
+      recommendations: [
+        {
+          priority: "medium",
+          action: `The current draft surfaces pressure in ${key} scenes and needs clearer execution at the turn.`,
+          expected_impact: "Improved reader clarity and engagement.",
+          anchor_snippet: `Anchor evidence for ${key} in chapter transition.`,
+          source_pass: 3,
+          issue_family: "scene_structure",
+          strategic_lever: "scene_goal_clarity",
+          revision_granularity: "scene",
+        },
+      ],
+    }));
+
+    const raw = JSON.stringify({
+      criteria: criteriaPayload,
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Test summary.",
+        top_3_strengths: ["voice", "concept", "character"],
+        top_3_risks: ["pacing", "tone", "dialogue"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "o3",
+        pass2_model: "o3",
+        pass3_model: "o3",
+      },
+    });
+
+    const parsed = parsePass3Response(raw, pass1, pass2, "o3");
+
+    for (const key of CRITERIA_KEYS) {
+      const action = parsed.criteria.find((c) => c.key === key)?.recommendations?.[0]?.action ?? "";
+      expect(action).toMatch(EDITORIAL_FIX_MARKERS);
+      expect(action).toMatch(EDITORIAL_MECHANISM_MARKERS);
+      expect(action.length).toBeGreaterThan(60);
+      expect(action).toMatch(/[.!?]$/);
+    }
+
+    const gate = runQualityGate({
+      criteria: parsed.criteria,
+      overall: parsed.overall,
+      metadata: parsed.metadata,
+      partial_evaluation: false,
+    } as any);
+    const editorialCheck = gate.checks.find((c) => c.check_id === "recommendation_editorial_quality");
+
+    expect(editorialCheck?.passed).toBe(true);
+    expect(editorialCheck?.error_code).toBeUndefined();
   });
 
   // ─────────────────────────────────────────────────────────────────────
