@@ -11,7 +11,10 @@ import {
   type CriterionKey,
 } from "@/schemas/criteria-keys";
 import { EvaluationPoller } from "@/components/EvaluationPoller";
-import { buildTopRecommendations } from "@/lib/evaluation/reportRecommendations";
+import {
+  buildTopRecommendations,
+  normalizeRecommendationActionForDisplay,
+} from "@/lib/evaluation/reportRecommendations";
 import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
 import {
   getCertifiedCriteriaSummary,
@@ -553,7 +556,7 @@ export default async function EvaluationReportPage({
                             <ul className="mt-2 space-y-2">
                               {c.recommendations.map((r, ri) => (
                                 <li key={ri} className="text-sm text-gray-700">
-                                  {r.action}
+                                  {normalizeRecommendationActionForDisplay(r.action)}
                                   {r.priority && (
                                     <span className={`ml-1 font-medium ${
                                       r.priority === "high" ? "text-red-600" :

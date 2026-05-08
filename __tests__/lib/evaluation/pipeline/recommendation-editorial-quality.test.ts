@@ -237,4 +237,48 @@ describe("qualityGate recommendation_editorial_quality", () => {
     expect(check?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
     expect(check?.details).toContain("duplicate editorial reasoning");
   });
+
+  it("passes former #359 failing rhetorical openings once repaired for mechanism+fix contract", () => {
+    const synthesis = makeSynthesis({
+      dialogue: {
+        recommendations: [
+          {
+            ...makeRecommendation("dialogue"),
+            action:
+              "replace one expository exchange with two short turns plus an interruption beat; instead of resolving the moment in exposition, anchor speaker pressure because attribution blur reduces tension.",
+            expected_impact:
+              "Gives the reader clearer speaker intent and stronger tension progression through the exchange.",
+          },
+        ],
+      },
+      pacing: {
+        recommendations: [
+          {
+            ...makeRecommendation("pacing"),
+            action:
+              "cut one reflective sentence and insert one immediate external trigger because momentum stalls when reflection resolves before consequence.",
+            expected_impact:
+              "Gives the reader stronger forward momentum and clearer consequence timing.",
+          },
+        ],
+      },
+      proseControl: {
+        recommendations: [
+          {
+            ...makeRecommendation("proseControl"),
+            action:
+              "rewrite one abstract sentence as a concrete sensory-action line because abstraction diffuses line-level consequence.",
+            expected_impact:
+              "Gives the reader sharper clarity and stronger emotional engagement at sentence level.",
+          },
+        ],
+      },
+    });
+
+    const result = runQualityGate(synthesis);
+    const check = result.checks.find((c) => c.check_id === "recommendation_editorial_quality");
+
+    expect(check?.passed).toBe(true);
+    expect(check?.error_code).toBeUndefined();
+  });
 });
