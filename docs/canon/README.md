@@ -1,71 +1,56 @@
-# docs/canon/ — Raw Canon Intake
+# RevisionGrade Canon
 
-Source material from Google Drive folder "RevisionGrade Core Canon" (~94 docs).
+`docs/canon/` is the only canon home for RevisionGrade.
 
-## Structure
-- `_raw/` — Original .docx/.xlsx (gitignored; source-of-record in Drive)
-- `_md/`  — markitdown-converted Markdown (committed, diffable, reviewable)
+## Directory roles
 
-## Status: UNREGISTERED
-None of this content is binding canon until it receives a Canon ID in
-`docs/doctrine/DOCTRINE_REGISTRY.md` and is assigned to a Volume/Section
-per Doctrine Registry v2.1 rules.
+| Path | Role | Production ingest |
+|---|---|---|
+| `docs/canon/registered/` | Binding production canon | Yes |
+| `docs/canon/intake/` | Unregistered candidate material | No, unless explicit `INTAKE_MODE=true` |
+| `docs/canon/archive/` | Provenance / superseded material | No |
 
-## Triage workflow
-1. Review each `.md` in `_md/`
-2. If it maps to existing doctrine/governance → move + register
-3. If still draft → leave here
-4. If obsolete → move to `archive/`
+## Policy
 
-## Regenerate
+- Production canon/RAG loading must target `docs/canon/registered/**` only by default.
+- `docs/canon/intake/**` is non-binding and may only be loaded in explicit audit/dev mode.
+- `docs/canon/archive/**` is provenance-only and excluded from production ingest.
+- Root `/canon` is retired and must not reappear.
+- No file may exist simultaneously in both `registered/` and `intake/`.
 
-`docs/canon/_raw/` is no longer in the repo (gitignored, removed 2026-05-02).
-To regenerate the canon Markdown corpus from your local backup of the source
-`.docx` originals (OneDrive / external disk / laptop):
+## PR0 migration rule
 
-```bash
-# From your local backup directory containing the .docx originals:
-mkdir -p docs/canon/_md
-for f in /path/to/local/backup/*.docx; do
-  markitdown "$f" > "docs/canon/_md/$(basename "${f%.docx}").md"
-done
+PR0 is structural only:
+- no doctrine rewriting
+- no semantic changes
+- no WAVE or Gate 15 reinterpretation
+- no evaluation prompt, recommendation generator, or Pass 3 synthesis changes
 
-# Then reload Supabase
-pnpm tsx scripts/load-canon.ts ./docs/canon
-```
+## Canon layer model (enforced by PR-0)
 
-Note: `docs/canon/_raw/` is gitignored. Any local working copy of `.docx`
-originals should stay outside the repo or under that gitignored path.
+- `intake/`
+	- drafts/proposals only
+	- never authoritative
 
-## Canon RAG Ingestion Policy
+- `registered/control/`
+	- registries/indexes/matrices only
+	- no long prose
 
-`docs/canon/_md/` is the **single source of truth** for the RevisionGrade RAG corpus. The ingestion loader (`scripts/load-canon.ts`) walks `docs/canon/` and embeds every `.md` file into Supabase (`canon_documents` + `canon_chunks`).
+- `registered/volumes/`
+	- authoritative canon/specification only
+	- exactly one owner per domain
 
-### Layout
+CI guard:
+`.github/workflows/canon-authority.yml`
+runs:
+`scripts/verify-canon-authority.sh`
 
-| Path                                  | Role                                               | In RAG corpus? |
-|---------------------------------------|----------------------------------------------------|:--------------:|
-| `docs/canon/_md/`                     | Canonical Markdown — embedded into Supabase       | ✅            |
-| `docs/canon/_raw/`                    | **Removed.** Gitignored to prevent return.        | ❌            |
-| `docs/doctrine/`, `docs/governance/`  | Code-adjacent registered specs                    | ❌            |
-| `docs/operations/`                    | Operational specs and runbooks                    | ❌            |
-| `docs/roadmap/`, `docs/prs/`          | Planning / PR-scoped working drafts               | ❌            |
-| `docs/operations/evidence/runs/**`    | Per-run pipeline evidence artifacts               | ❌            |
+Expected PR-0 behavior:
+- warnings are expected (including missing `canon_status` frontmatter on registered files)
+- only missing `docs/canon/AUTHORITY.md` is a hard fail in PR-0
 
-Original `.docx` source material lives outside the repo (OneDrive + external disk + laptop, 3-2-1 backup). To add a new document to the corpus, convert it to Markdown and place it under `docs/canon/_md/`.
-
-### Rules
-
-1. To make a document retrievable by the RAG layer, place its Markdown copy under `docs/canon/_md/`. Do not duplicate it elsewhere.
-2. `docs/canon/_raw/` is gitignored. A future accidental import will be excluded from version control.
-3. The loader uses `onConflict: 'filename'` for `canon_documents` and `(document_id, chunk_index)` UNIQUE for `canon_chunks`, so re-runs are idempotent at the document level.
-4. New corpus additions must be reviewed in PR. The integrity audit (`select count(*) from canon_documents` + `where path like '%/_raw/%'` checks) should be run after any reload.
-
-### Current state (verified 2026-05-02)
-
-- 95 documents
-- 563 chunks
-- 0 `_raw/` leaks
-- 0 null embeddings
-- All chunks under the IVFFlat vector index for semantic retrieval via `match_canon_chunks(...)`
-
+Escalation:
+- PR-0 = warnings/reporting only for legacy debt
+- PR-1 = inventory/classification
+- PR-2 = frontmatter normalization
+- PR-3 = hard-fail enforcement once remediation baseline exists

@@ -1,0 +1,25 @@
+name: canon-authority
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '**/*.md'
+      - 'scripts/verify-canon-authority.sh'
+      - '.github/workflows/canon-authority.yml'
+      - '.gitignore'
+  push:
+    branches:
+      - main
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run canon authority guard
+        run: bash scripts/verify-canon-authority.sh
+
+      - name: Smoke-test guard output contract
+        run: bash tests/canon-authority.smoke.sh
