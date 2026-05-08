@@ -121,7 +121,14 @@ export function normalizeRecommendationActionForDisplay(action: string): string 
   const trimmed = action.trim();
   if (!trimmed) return "";
 
-  const withoutFamilyPrefix = trimmed.replace(/^(quick win|strategic revision):\s*/i, "");
+  let withoutFamilyPrefix = trimmed;
+
+  // Remove leading bullet markers and recommendation family labels repeatedly,
+  // so surface rendering never shows "Quick win:" or "Strategic revision:".
+  const familyPrefixPattern = /^\s*[•*\-]?\s*(quick win|strategic revision)\s*:\s*/i;
+  while (familyPrefixPattern.test(withoutFamilyPrefix)) {
+    withoutFamilyPrefix = withoutFamilyPrefix.replace(familyPrefixPattern, "");
+  }
 
   // Avoid quintuplet-looking list items in the Top Recommendations surface
   // by removing repeated anchored-moment preamble.
@@ -133,7 +140,9 @@ export function normalizeRecommendationActionForDisplay(action: string): string 
     .replace(/^at the line\s+"[^"]+",\s*/i, "");
 
   // Repair soft seam artifact that can appear after clamp in summary surfaces.
-  return withoutAnchorLeadIn.replace(/\band\s+a\s+because\b/gi, "because");
+  return withoutAnchorLeadIn
+    .replace(/\band\s+a\s+because\b/gi, "because")
+    .trim();
 }
 
 function formatCrossCuttingRecommendation(

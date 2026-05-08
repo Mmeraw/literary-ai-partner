@@ -133,4 +133,17 @@ describe("normalizeRecommendationActionForDisplay", () => {
     expect(normalized).not.toContain("In the anchored moment");
     expect(normalized).not.toContain("Chapter 11");
   });
+
+  test("strips repeated family prefixes and leading bullet marker", () => {
+    const normalized = normalizeRecommendationActionForDisplay(
+      '• Strategic revision: Quick win: Strategic revision: In the anchored moment "Chapter 11 – Witness Turns to Record", cut one reflective sentence and insert one immediate external action trigger because reflection stalls momentum.',
+    );
+
+    expect(normalized).toBe(
+      "cut one reflective sentence and insert one immediate external action trigger because reflection stalls momentum.",
+    );
+    expect(normalized.toLowerCase()).not.toContain("strategic revision:");
+    expect(normalized.toLowerCase()).not.toContain("quick win:");
+    expect(normalized).not.toContain("In the anchored moment");
+  });
 });
