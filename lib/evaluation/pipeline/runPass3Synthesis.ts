@@ -42,6 +42,11 @@ import {
   EDITORIAL_MECHANISM_MARKERS,
   EDITORIAL_READER_EFFECT_MARKERS,
 } from "./editorialRecommendationContract";
+import {
+  annotateSurfaceIntegrityFlag,
+  checkSurfaceIntegrity,
+  repairSurfaceIntegrity,
+} from "./surfaceIntegrity";
 import { analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
@@ -597,13 +602,64 @@ function ensureTerminalPunctuation(text: string): string {
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
+/**
+ * Stranded connector pattern.
+ *
+ * Mirrors the surface-integrity REJECT rules in surfaceIntegrity.ts:
+ *   - unresolved_conjunction_tail (and|or|by)
+ *   - unresolved_mechanism_tail   (because|since|so|so that)
+ *
+ * If a clamp boundary lands on one of these connectors with no continuation,
+ * the rendered action would be a stranded fragment. Backing off one word at a
+ * time until the connector is no longer terminal restores a clean tail.
+ */
+const CLAMP_STRANDED_CONNECTOR_RE =
+  /\s+(?:and|or|by|because|since|so|so\s+that)$/i;
+
+/**
+ * Bounded backoff: drop trailing words until no connector is stranded at the
+ * tail. The iteration cap exists only to mistake-proof against pathological
+ * inputs; in practice 1–2 hops always suffice. Returns the original text if
+ * backoff would empty it.
+ *
+ * Punctuation tolerance: the input may already carry terminal punctuation
+ * (ensureTerminalPunctuation runs upstream in normalizeRecommendationContract
+ * before this clamp is applied). We strip trailing terminal punctuation before
+ * testing, matching the REJECT regexes in surfaceIntegrity which use `\s*\.$`.
+ * ensureTerminalPunctuation in finalizeClampedAction reapplies a single period
+ * after the backoff, so the round-trip is idempotent.
+ */
+function backoffStrandedConnectorClamp(text: string): string {
+  let out = text.replace(/[.!?]+\s*$/, "").trimEnd();
+  for (let i = 0; i < 4; i++) {
+    if (!CLAMP_STRANDED_CONNECTOR_RE.test(out)) return out;
+    const trimmed = out.replace(/\s+\S+$/, "").trim();
+    if (trimmed === out || trimmed.length === 0) return out;
+    out = trimmed;
+  }
+  return out;
+}
+
+/**
+ * Final clamp finalization. Every return path of clampRecommendationAction
+ * passes through this so no truncation can leave a stranded connector before
+ * terminal punctuation is applied.
+ *
+ * Mirrors surfaceIntegrity.ts::finalizeClampedAction. The two implementations
+ * are a witness pair: if either drifts, the post-clamp surface check in
+ * checkSurfaceIntegrity catches the divergence.
+ */
+function finalizeClampedAction(text: string): string {
+  return ensureTerminalPunctuation(backoffStrandedConnectorClamp(text));
+}
+
 function clampRecommendationAction(action: string): string {
   const normalized = action.replace(/\s+/g, " ").trim();
-  if (normalized.length <= 300) return ensureTerminalPunctuation(normalized);
+  if (normalized.length <= 300) return finalizeClampedAction(normalized);
 
   const mechanismMatch = normalized.match(/\b(because|since|so that)\b/i);
   if (!mechanismMatch || mechanismMatch.index === undefined) {
-    return ensureTerminalPunctuation(
+    return finalizeClampedAction(
       normalized.slice(0, 300).replace(/\s+\S*$/, "").trim(),
     );
   }
@@ -626,7 +682,7 @@ function clampRecommendationAction(action: string): string {
       : suffix;
 
   const clamped = `${safePrefix} ${safeSuffix}`.trim();
-  return ensureTerminalPunctuation(
+  return finalizeClampedAction(
     clamped.length <= 300
       ? clamped
       : clamped.slice(0, 300).replace(/\s+\S*$/, "").trim(),
@@ -676,13 +732,81 @@ function parseRecommendations(
         reader_effect: String(r["reader_effect"] ?? "").trim(),
       };
 
+      // Surface-integrity check on ORIGINAL action (before normalization/backfill).
+      //
+      // Contract (per #364 acceptance): the gate applies to all recommendations,
+      // anchored or anchorless. REJECT drops the recommendation; FLAG preserves
+      // it but annotates expected_impact so the surface defect is visible to
+      // downstream rendering and QA.
+      //
+      // Anchored recs additionally pass through the rhetorical-family repair
+      // layer below; anchorless recs return early (no manuscript context to
+      // anchor a repair). Both branches must honor REJECT/FLAG on the original.
+      const originalIntegrity = checkSurfaceIntegrity(parsed.action);
+      const originalIntegrityStatus = originalIntegrity.status;
+      if (originalIntegrityStatus === "REJECT") {
+        return null;
+      }
+
       const normalized = normalizeRecommendationContract(parsed, criterionKey);
+
+      if (normalized.anchor_snippet.trim().length === 0) {
+        const anchorlessExpectedImpact =
+          originalIntegrityStatus === "FLAG"
+            ? annotateSurfaceIntegrityFlag(normalized.expected_impact, originalIntegrity.reasons)
+            : normalized.expected_impact;
+        return {
+          ...normalized,
+          action: clampRecommendationAction(normalized.action),
+          expected_impact: anchorlessExpectedImpact,
+        };
+      }
+
+      // For anchored recommendations that passed the original integrity check:
+      // preserve the original FLAG status if present, or apply bounded repair
+      let actionForOutput = normalized.action;
+      let integrityStatus = originalIntegrityStatus;
+
+      if (integrityStatus === "ACCEPT") {
+        // Only re-check integrity on the normalized action if the original was ACCEPT
+        const normalizedIntegrity = checkSurfaceIntegrity(normalized.action);
+        if (normalizedIntegrity.status === "REJECT") {
+          const repairedAction = repairSurfaceIntegrity(actionForOutput, normalizedIntegrity.reasons);
+          if (repairedAction) {
+            const repairedIntegrity = checkSurfaceIntegrity(repairedAction);
+            if (repairedIntegrity.status !== "REJECT") {
+              actionForOutput = repairedAction;
+              integrityStatus = repairedIntegrity.status;
+            }
+          }
+        } else if (normalizedIntegrity.status === "FLAG") {
+          integrityStatus = "FLAG";
+        }
+      }
+
+      // Annotate if original or normalized action is FLAG
+      const annotationReasons: string[] = [];
+      if (originalIntegrityStatus === "FLAG" && integrityStatus !== "FLAG") {
+        // Original was FLAG; preserve that signal
+        annotationReasons.push("borderline_comparative_needs_noun_anchor");
+      }
+
+      const flaggedExpectedImpact =
+        integrityStatus === "FLAG" || annotationReasons.length > 0
+          ? annotateSurfaceIntegrityFlag(normalized.expected_impact, annotationReasons.length > 0 ? annotationReasons : ["flagged_in_original_action"])
+          : normalized.expected_impact;
 
       return {
         ...normalized,
-        action: clampRecommendationAction(normalized.action),
+        action: clampRecommendationAction(actionForOutput),
+        expected_impact: flaggedExpectedImpact,
       };
-    });
+    })
+    .filter(
+      (
+        recommendation,
+      ): recommendation is SynthesizedCriterion["recommendations"][number] => recommendation !== null,
+    );
 }
 
 function normalizeRecommendationContract(
@@ -715,7 +839,7 @@ function normalizeRecommendationContract(
     normalizedAnchor: string,
   ): SynthesizedCriterion["recommendations"][number] => ({
     ...recommendation,
-    action: clampRecommendationAction(normalizedAction),
+    action: ensureTerminalPunctuation(normalizedAction.trim()),
     expected_impact: normalizedImpact,
     anchor_snippet: normalizedAnchor,
     mechanism,
@@ -1274,7 +1398,11 @@ function backfillRecommendationsFromAxis(
           reader_effect: "",
         };
         // Run through normalizer so the specificity triple is populated/repaired
-        return normalizeRecommendationContract(base, criterionKey);
+        const normalized = normalizeRecommendationContract(base, criterionKey);
+        return {
+          ...normalized,
+          action: clampRecommendationAction(normalized.action),
+        };
       })
       .filter((r) => r.action.length > 0 && r.expected_impact.length > 0 && r.anchor_snippet.length > 0);
   };
