@@ -376,7 +376,7 @@ export default async function EvaluationReportPage({
             job.status === "running" ? "bg-blue-100 text-blue-800" :
             "bg-gray-100 text-gray-700"
           }`}>
-            {job.status === "complete" ? "✓ Complete" : job.status === "failed" ? "✗ Failed" : job.status === "running" ? "⟳ Running" : "Queued"}
+            {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : job.status === "running" ? "⟳ In progress" : "Waiting in queue"}
           </span>
           {job.created_at && (
             <span className="text-sm text-gray-600">

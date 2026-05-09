@@ -37,7 +37,7 @@ export function getProgressDisplay(
     return {
       label: stageLabel,
       valueLabel: `${percentage}%`,
-      helperText: "This page refreshes automatically while your evaluation is running.",
+      helperText: "This page refreshes automatically while your report is being prepared.",
       indeterminate: false,
       percentage,
     };
