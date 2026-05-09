@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: cpdr-001-canon-enforcement-placement
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # CPDR-001 — CANON ENFORCEMENT SYSTEM PLACEMENT
 
 Status: LOCKED — IMMUTABLE  

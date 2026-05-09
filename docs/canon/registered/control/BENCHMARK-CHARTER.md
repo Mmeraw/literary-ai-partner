@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: benchmark-charter
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # Benchmark Charter: Three Truth Cases
 
 **Status:** FROZEN  

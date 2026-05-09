@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: volumes-i-v-definitions-content-registry-view
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # VOLUMES I–V — DEFINITIONS AND CONTENT REGISTRY VIEW
 
 Status: CANONICAL — ACTIVE  

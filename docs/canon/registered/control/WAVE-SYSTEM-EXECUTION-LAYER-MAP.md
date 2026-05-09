@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: wave-system-execution-layer-map
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # WAVE SYSTEM EXECUTION LAYER MAP
 
 **Canon ID:** CTRL-WAVE-EXEC-LAYER-MAP-V10

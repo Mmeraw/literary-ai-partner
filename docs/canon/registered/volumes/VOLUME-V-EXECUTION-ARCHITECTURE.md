@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: volume-v-execution-architecture
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # VOLUME V — EXECUTION ARCHITECTURE & INDUSTRY INTERFACE
 
 Status: CANONICAL — ACTIVE  

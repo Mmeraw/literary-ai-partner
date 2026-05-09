@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: wave-31-lw
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # WAVE-31-LW: Chapter-Ending Pressure Continuity (Literary Dense Mode)
 
 **Canon ID:** WAVE-31-LW  

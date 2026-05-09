@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: volume-i-ii-merged-addendums-prose-enforcement
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # VOLUME I/II — MERGED ADDENDUMS: PROSE AUTHORITY & ENFORCEMENT CANON
 
 Status: CANONICAL — ACTIVE

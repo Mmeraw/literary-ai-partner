@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: criterion-observability-model
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # Criterion Observability & Signal Sufficiency Model
 
 > Canon Level: MANDATORY  

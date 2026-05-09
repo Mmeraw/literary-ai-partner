@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: volume-i-wave-revision-guide-canon
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # VOLUME I — WAVE REVISION GUIDE CANON
 
 Status: CANONICAL — ACTIVE  
