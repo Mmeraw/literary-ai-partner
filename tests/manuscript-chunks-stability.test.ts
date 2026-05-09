@@ -10,12 +10,14 @@
  */
 
 import { claimChunkForProcessing } from "@/lib/manuscripts/chunks";
-import { getEligibleChunksWithStuckRecovery } from "@/lib/manuscripts/chunks";
+import { getEligibleChunksWithStuckRecovery, getManuscriptChunks, upsertChunks } from "@/lib/manuscripts/chunks";
 import {
+  createTestManuscript,
   createTestManuscriptWithChunks,
   getChunkById,
   forceUpdateChunk,
 } from "./test-helpers/manuscript-factory";
+import { createHash, randomUUID } from "crypto";
 
 const hasSupabaseEnv =
   !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -344,5 +346,125 @@ describeOrSkip("Chunk Stability: Full Crash-Recovery Cycle (Integration)", () =>
     state = await getChunkById(chunk.id);
     expect(state?.status).toBe("done");
     expect(state?.result_json).toEqual({ success: true, attempt: 2 });
+  });
+});
+
+/**
+ * UPSERT CHUNKS (Atomic-RPC contract) — Issue #378
+ *
+ * Validates that upsertChunks() now goes through the
+ * `upsert_manuscript_chunks` Postgres RPC and is therefore:
+ *   - race-safe under concurrent retries on the same manuscript_id
+ *   - idempotent for repeated calls with the same input
+ *   - hash-aware (matching content_hash + job_id leaves rows untouched;
+ *     differing values reset processing state but preserve attempt_count)
+ *   - orphan-safe (chunks no longer in the new spec are deleted AFTER
+ *     the upsert, never before — so a partial failure cannot zero a manuscript)
+ */
+describeOrSkip("upsertChunks: Atomic RPC Contract (Issue #378)", () => {
+  function makeSpec(idx: number, content: string, hashSalt = "") {
+    const content_hash = createHash("sha256")
+      .update(`${idx}:${hashSalt}:${content}`)
+      .digest("hex");
+    return {
+      chunk_index: idx,
+      char_start: idx * 100,
+      char_end: idx * 100 + content.length,
+      overlap_chars: 0,
+      label: null as string | null,
+      content,
+      content_hash,
+    };
+  }
+
+  test("concurrent upserts on the same manuscript do not raise unique-violation", async () => {
+    const manuscriptId = await createTestManuscript({});
+    const jobId = randomUUID();
+    const specs = Array.from({ length: 8 }, (_, i) => makeSpec(i, `chunk ${i} content`));
+
+    // Race 5 parallel upserts of the SAME spec — under the old read-then-write impl,
+    // this would deterministically produce duplicate-key errors on concurrent inserts.
+    const results = await Promise.allSettled(
+      Array.from({ length: 5 }, () => upsertChunks(manuscriptId, specs, jobId))
+    );
+
+    const failures = results.filter((r) => r.status === "rejected");
+    expect(failures).toEqual([]); // No failures — RPC absorbs the race.
+
+    const persisted = await getManuscriptChunks(manuscriptId);
+    expect(persisted).toHaveLength(specs.length);
+    expect(persisted.map((c) => c.chunk_index).sort((a, b) => a - b))
+      .toEqual(specs.map((s) => s.chunk_index));
+  });
+
+  test("idempotent: calling twice with identical input is a no-op for matching rows", async () => {
+    const manuscriptId = await createTestManuscript({});
+    const jobId = randomUUID();
+    const specs = [makeSpec(0, "alpha"), makeSpec(1, "beta")];
+
+    await upsertChunks(manuscriptId, specs, jobId);
+
+    // Simulate Phase-2 having marked chunk 0 as done with result + attempts.
+    const after1 = await getManuscriptChunks(manuscriptId);
+    const chunk0 = after1.find((c) => c.chunk_index === 0)!;
+    await forceUpdateChunk(chunk0.id, {
+      status: "done",
+      result_json: { score: 99 },
+      attempt_count: 2,
+    });
+
+    // Second call with the SAME specs and SAME job_id must not touch the done row.
+    await upsertChunks(manuscriptId, specs, jobId);
+
+    const after2 = await getChunkById(chunk0.id);
+    expect(after2?.status).toBe("done");
+    expect(after2?.result_json).toEqual({ score: 99 });
+    expect(after2?.attempt_count).toBe(2);
+  });
+
+  test("content_hash change resets processing state but preserves attempt_count", async () => {
+    const manuscriptId = await createTestManuscript({});
+    const jobId = randomUUID();
+    await upsertChunks(manuscriptId, [makeSpec(0, "v1-content")], jobId);
+
+    const [chunk] = await getManuscriptChunks(manuscriptId);
+    await forceUpdateChunk(chunk.id, {
+      status: "done",
+      result_json: { score: 88 },
+      attempt_count: 1,
+    });
+
+    // New hash, same job_id => row must be refreshed.
+    await upsertChunks(
+      manuscriptId,
+      [makeSpec(0, "v2-content-different", "new")],
+      jobId
+    );
+
+    const reread = await getChunkById(chunk.id);
+    expect(reread?.status).toBe("pending");
+    expect(reread?.result_json).toBeNull();
+    expect(reread?.attempt_count).toBe(1); // intentionally preserved
+  });
+
+  test("orphans are deleted AFTER the upsert (never before)", async () => {
+    const manuscriptId = await createTestManuscript({});
+    const jobId = randomUUID();
+    await upsertChunks(
+      manuscriptId,
+      [makeSpec(0, "keep0"), makeSpec(1, "keep1"), makeSpec(2, "orphan")],
+      jobId
+    );
+    expect(await getManuscriptChunks(manuscriptId)).toHaveLength(3);
+
+    // Re-chunk: now only 0 and 1 exist; chunk_index=2 must be deleted.
+    await upsertChunks(
+      manuscriptId,
+      [makeSpec(0, "keep0"), makeSpec(1, "keep1")],
+      jobId
+    );
+
+    const after = await getManuscriptChunks(manuscriptId);
+    expect(after.map((c) => c.chunk_index).sort()).toEqual([0, 1]);
   });
 });
