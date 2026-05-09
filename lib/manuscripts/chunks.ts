@@ -280,11 +280,26 @@ export async function getChunk(
 }
 
 /**
- * Upsert chunks for a manuscript (idempotent)
+ * Upsert chunks for a manuscript (idempotent, race-safe).
  *
- * If a chunk with the same (manuscript_id, chunk_index) exists and has the
- * same content_hash, it's left unchanged. If the hash differs, content is
- * updated and status/results are reset.
+ * Backed by the `upsert_manuscript_chunks` Postgres RPC (see
+ * supabase/migrations/20260509035443_atomic_upsert_manuscript_chunks_rpc.sql).
+ * The RPC performs a single-statement INSERT … ON CONFLICT under the
+ * (manuscript_id, chunk_index) unique index, so concurrent retries on the
+ * same manuscript no longer produce duplicate-key violations.
+ *
+ * Semantics (preserved bit-for-bit from the prior read-then-write impl):
+ *   - New rows inserted with status='pending', attempt_count=0, NULL result_json/last_error/error.
+ *   - Rows whose content_hash AND job_id match are left UNTOUCHED entirely
+ *     (status, result_json, attempt_count, lease state — all preserved).
+ *   - Rows whose content_hash OR job_id differ are refreshed and processing
+ *     state is reset (status -> 'pending', result_json/last_error/error -> NULL).
+ *     attempt_count and lease fields are intentionally NOT touched here —
+ *     those belong to the lease/retry RPCs.
+ *
+ * Orphan deletion (chunk_index no longer in the new spec) stays application-side
+ * and runs AFTER the upsert. This guarantees that a partial failure never
+ * leaves a manuscript with zero chunks.
  *
  * @param jobId - Links chunks to the evaluation job that created them (for Phase-2 linkage)
  */
@@ -293,91 +308,47 @@ export async function upsertChunks(
   chunks: ChunkSpec[],
   jobId?: string
 ): Promise<void> {
-  const existing = await getManuscriptChunks(manuscriptId);
-  const existingMap = new Map(existing.map((c) => [c.chunk_index, c]));
+  // Build the JSON payload the RPC expects. Shape mirrors the manuscript_chunks
+  // input columns exactly so the RPC's jsonb_to_recordset projection works.
+  const payload = chunks.map((chunk) => ({
+    manuscript_id: manuscriptId,
+    chunk_index: chunk.chunk_index,
+    char_start: chunk.char_start,
+    char_end: chunk.char_end,
+    overlap_chars: chunk.overlap_chars ?? 0,
+    label: chunk.label ?? null,
+    content: chunk.content,
+    content_hash: chunk.content_hash,
+    job_id: jobId ?? null,
+  }));
 
-  const toInsert: any[] = [];
-  const toUpdate: any[] = [];
+  // Atomic upsert. No-op for matching (content_hash, job_id) rows; reset for the rest.
+  const { error: upsertError } = await supabase.rpc(
+    "upsert_manuscript_chunks",
+    { p_chunks: payload }
+  );
 
-  for (const chunk of chunks) {
-    const existingChunk = existingMap.get(chunk.chunk_index);
-
-    if (!existingChunk) {
-      // New chunk - insert
-      toInsert.push({
-        manuscript_id: manuscriptId,
-        chunk_index: chunk.chunk_index,
-        char_start: chunk.char_start,
-        char_end: chunk.char_end,
-        overlap_chars: chunk.overlap_chars,
-        label: chunk.label,
-        content: chunk.content,
-        content_hash: chunk.content_hash,
-        status: "pending",
-        job_id: jobId || null,  // Link to job for Phase-2 filtering
-      });
-    } else if (existingChunk.content_hash !== chunk.content_hash) {
-      // Content changed - update and reset status
-      toUpdate.push({
-        id: existingChunk.id,
-        manuscript_id: manuscriptId,
-        chunk_index: chunk.chunk_index,
-        char_start: chunk.char_start,
-        char_end: chunk.char_end,
-        overlap_chars: chunk.overlap_chars,
-        label: chunk.label,
-        content: chunk.content,
-        content_hash: chunk.content_hash,
-        status: "pending",
-        result_json: null,
-        error: null,
-        last_error: null,
-        job_id: jobId || null,  // Update job linkage
-      });
-    }
-    // else: hash matches, no change needed
+  if (upsertError) {
+    throw new Error(`Failed to upsert chunks: ${upsertError.message}`);
   }
 
-  // Delete chunks that no longer exist (if manuscript was re-chunked)
+  // Orphan deletion runs AFTER the upsert so a partial completion never zeros
+  // a manuscript's chunks. We compute the orphan set from the now-canonical
+  // post-upsert state — re-reading is intentional, not redundant.
   const newIndexes = new Set(chunks.map((c) => c.chunk_index));
-  const toDelete = existing
+  const post = await getManuscriptChunks(manuscriptId);
+  const orphanIds = post
     .filter((c) => !newIndexes.has(c.chunk_index))
     .map((c) => c.id);
 
-  // Execute operations
-  if (toInsert.length > 0) {
-    const { error } = await supabase
-      .from("manuscript_chunks")
-      .insert(toInsert);
-
-    if (error) {
-      throw new Error(`Failed to insert chunks: ${error.message}`);
-    }
-  }
-
-  if (toUpdate.length > 0) {
-    for (const chunk of toUpdate) {
-      const { error } = await supabase
-        .from("manuscript_chunks")
-        .update(chunk)
-        .eq("id", chunk.id);
-
-      if (error) {
-        throw new Error(
-          `Failed to update chunk ${chunk.id}: ${error.message}`
-        );
-      }
-    }
-  }
-
-  if (toDelete.length > 0) {
-    const { error } = await supabase
+  if (orphanIds.length > 0) {
+    const { error: deleteError } = await supabase
       .from("manuscript_chunks")
       .delete()
-      .in("id", toDelete);
+      .in("id", orphanIds);
 
-    if (error) {
-      throw new Error(`Failed to delete old chunks: ${error.message}`);
+    if (deleteError) {
+      throw new Error(`Failed to delete orphan chunks: ${deleteError.message}`);
     }
   }
 }
