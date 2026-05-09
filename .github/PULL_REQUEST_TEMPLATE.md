@@ -56,3 +56,12 @@ QG_<gate-id>: <description or "no QG_ behavior changes">
 ## Risks & Anomalies
 
 -
+
+## Architecture Alignment
+
+- alignment: pre-#384 mitigation | post-#384 architecture-aligned
+- mitigation_expiry:
+- dependent_architecture:
+- expected_revisit: yes | no
+- replay_ids_at_risk:
+- replay_ids_targeted:
