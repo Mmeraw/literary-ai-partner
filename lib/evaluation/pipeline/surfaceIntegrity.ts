@@ -20,17 +20,67 @@ function ensureTerminalPunctuation(text: string): string {
 }
 
 /**
+ * Stranded connector pattern.
+ *
+ * Mirrors the surface-integrity REJECT rules:
+ *   - unresolved_conjunction_tail (and|or|by)
+ *   - unresolved_mechanism_tail   (because|since|so|so that)
+ *
+ * If a clamp boundary lands on one of these connectors with no continuation,
+ * the rendered action would be a stranded fragment. Backing off one word at a
+ * time until the connector is no longer terminal restores a clean tail.
+ */
+const STRANDED_CONNECTOR_RE =
+  /\s+(?:and|or|by|because|since|so|so\s+that)$/i;
+
+/**
+ * Bounded backoff: drop trailing words until no connector is stranded at the
+ * tail. The iteration cap exists only to mistake-proof against pathological
+ * inputs; in practice 1–2 hops always suffice. Returns the original text if
+ * backoff would empty it (preserves a non-empty result for downstream
+ * punctuation finalization).
+ *
+ * Punctuation tolerance: the input may already carry terminal punctuation
+ * (because ensureTerminalPunctuation runs upstream in some paths). We strip
+ * trailing terminal punctuation before testing, matching the REJECT regexes
+ * in collectSurfaceDefects which use `\s*\.$`. ensureTerminalPunctuation in
+ * finalizeClampedAction reapplies a single period after the backoff, so the
+ * round-trip is idempotent.
+ */
+function backoffStrandedConnector(text: string): string {
+  let out = text.replace(/[.!?]+\s*$/, "").trimEnd();
+  for (let i = 0; i < 4; i++) {
+    if (!STRANDED_CONNECTOR_RE.test(out)) return out;
+    const trimmed = out.replace(/\s+\S+$/, "").trim();
+    if (trimmed === out || trimmed.length === 0) return out;
+    out = trimmed;
+  }
+  return out;
+}
+
+/**
+ * Final surface-finalization for any clamped action. Every return path of
+ * simulateRecommendationClamp passes through this so no truncation can leave
+ * a stranded connector before terminal punctuation is applied.
+ */
+function finalizeClampedAction(text: string): string {
+  return ensureTerminalPunctuation(backoffStrandedConnector(text));
+}
+
+/**
  * Mirrors runPass3Synthesis.ts::clampRecommendationAction.
  * This intentionally duplicates the clamp boundary so surface validation can
  * prove the final rendered action will still be valid after downstream clamp.
+ * The two implementations are a witness pair: if either drifts, the
+ * post-clamp surface check in checkSurfaceIntegrity catches the divergence.
  */
 function simulateRecommendationClamp(action: string): string {
   const normalized = normalizeText(action);
-  if (normalized.length <= ACTION_CLAMP_MAX_CHARS) return ensureTerminalPunctuation(normalized);
+  if (normalized.length <= ACTION_CLAMP_MAX_CHARS) return finalizeClampedAction(normalized);
 
   const mechanismMatch = normalized.match(/\b(because|since|so that)\b/i);
   if (!mechanismMatch || mechanismMatch.index === undefined) {
-    return ensureTerminalPunctuation(
+    return finalizeClampedAction(
       normalized.slice(0, ACTION_CLAMP_MAX_CHARS).replace(/\s+\S*$/, "").trim(),
     );
   }
@@ -50,7 +100,7 @@ function simulateRecommendationClamp(action: string): string {
       : suffix;
 
   const clamped = `${safePrefix} ${safeSuffix}`.trim();
-  return ensureTerminalPunctuation(
+  return finalizeClampedAction(
     clamped.length <= ACTION_CLAMP_MAX_CHARS
       ? clamped
       : clamped.slice(0, ACTION_CLAMP_MAX_CHARS).replace(/\s+\S*$/, "").trim(),

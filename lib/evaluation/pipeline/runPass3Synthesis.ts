@@ -602,13 +602,64 @@ function ensureTerminalPunctuation(text: string): string {
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
+/**
+ * Stranded connector pattern.
+ *
+ * Mirrors the surface-integrity REJECT rules in surfaceIntegrity.ts:
+ *   - unresolved_conjunction_tail (and|or|by)
+ *   - unresolved_mechanism_tail   (because|since|so|so that)
+ *
+ * If a clamp boundary lands on one of these connectors with no continuation,
+ * the rendered action would be a stranded fragment. Backing off one word at a
+ * time until the connector is no longer terminal restores a clean tail.
+ */
+const CLAMP_STRANDED_CONNECTOR_RE =
+  /\s+(?:and|or|by|because|since|so|so\s+that)$/i;
+
+/**
+ * Bounded backoff: drop trailing words until no connector is stranded at the
+ * tail. The iteration cap exists only to mistake-proof against pathological
+ * inputs; in practice 1–2 hops always suffice. Returns the original text if
+ * backoff would empty it.
+ *
+ * Punctuation tolerance: the input may already carry terminal punctuation
+ * (ensureTerminalPunctuation runs upstream in normalizeRecommendationContract
+ * before this clamp is applied). We strip trailing terminal punctuation before
+ * testing, matching the REJECT regexes in surfaceIntegrity which use `\s*\.$`.
+ * ensureTerminalPunctuation in finalizeClampedAction reapplies a single period
+ * after the backoff, so the round-trip is idempotent.
+ */
+function backoffStrandedConnectorClamp(text: string): string {
+  let out = text.replace(/[.!?]+\s*$/, "").trimEnd();
+  for (let i = 0; i < 4; i++) {
+    if (!CLAMP_STRANDED_CONNECTOR_RE.test(out)) return out;
+    const trimmed = out.replace(/\s+\S+$/, "").trim();
+    if (trimmed === out || trimmed.length === 0) return out;
+    out = trimmed;
+  }
+  return out;
+}
+
+/**
+ * Final clamp finalization. Every return path of clampRecommendationAction
+ * passes through this so no truncation can leave a stranded connector before
+ * terminal punctuation is applied.
+ *
+ * Mirrors surfaceIntegrity.ts::finalizeClampedAction. The two implementations
+ * are a witness pair: if either drifts, the post-clamp surface check in
+ * checkSurfaceIntegrity catches the divergence.
+ */
+function finalizeClampedAction(text: string): string {
+  return ensureTerminalPunctuation(backoffStrandedConnectorClamp(text));
+}
+
 function clampRecommendationAction(action: string): string {
   const normalized = action.replace(/\s+/g, " ").trim();
-  if (normalized.length <= 300) return ensureTerminalPunctuation(normalized);
+  if (normalized.length <= 300) return finalizeClampedAction(normalized);
 
   const mechanismMatch = normalized.match(/\b(because|since|so that)\b/i);
   if (!mechanismMatch || mechanismMatch.index === undefined) {
-    return ensureTerminalPunctuation(
+    return finalizeClampedAction(
       normalized.slice(0, 300).replace(/\s+\S*$/, "").trim(),
     );
   }
@@ -631,7 +682,7 @@ function clampRecommendationAction(action: string): string {
       : suffix;
 
   const clamped = `${safePrefix} ${safeSuffix}`.trim();
-  return ensureTerminalPunctuation(
+  return finalizeClampedAction(
     clamped.length <= 300
       ? clamped
       : clamped.slice(0, 300).replace(/\s+\S*$/, "").trim(),
@@ -681,27 +732,33 @@ function parseRecommendations(
         reader_effect: String(r["reader_effect"] ?? "").trim(),
       };
 
-      // Surface-integrity check on ORIGINAL action (before normalization/backfill)
-      // If the original action is REJECT, drop the recommendation entirely.
-      // If the original action is FLAG, preserve that status through normalization.
-      // Do NOT apply this gate to anchorless recommendations (they have a separate gate).
-      const hasAnchor = parsed.anchor_snippet.trim().length > 0;
-      let originalIntegrityStatus: "ACCEPT" | "FLAG" | "REJECT" = "ACCEPT";
-      
-      if (hasAnchor) {
-        const originalIntegrity = checkSurfaceIntegrity(parsed.action);
-        originalIntegrityStatus = originalIntegrity.status;
-        if (originalIntegrityStatus === "REJECT") {
-          return null;
-        }
+      // Surface-integrity check on ORIGINAL action (before normalization/backfill).
+      //
+      // Contract (per #364 acceptance): the gate applies to all recommendations,
+      // anchored or anchorless. REJECT drops the recommendation; FLAG preserves
+      // it but annotates expected_impact so the surface defect is visible to
+      // downstream rendering and QA.
+      //
+      // Anchored recs additionally pass through the rhetorical-family repair
+      // layer below; anchorless recs return early (no manuscript context to
+      // anchor a repair). Both branches must honor REJECT/FLAG on the original.
+      const originalIntegrity = checkSurfaceIntegrity(parsed.action);
+      const originalIntegrityStatus = originalIntegrity.status;
+      if (originalIntegrityStatus === "REJECT") {
+        return null;
       }
 
       const normalized = normalizeRecommendationContract(parsed, criterionKey);
 
       if (normalized.anchor_snippet.trim().length === 0) {
+        const anchorlessExpectedImpact =
+          originalIntegrityStatus === "FLAG"
+            ? annotateSurfaceIntegrityFlag(normalized.expected_impact, originalIntegrity.reasons)
+            : normalized.expected_impact;
         return {
           ...normalized,
           action: clampRecommendationAction(normalized.action),
+          expected_impact: anchorlessExpectedImpact,
         };
       }
 
