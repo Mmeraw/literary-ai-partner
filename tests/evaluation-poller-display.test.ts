@@ -16,7 +16,7 @@ describe("getProgressDisplay", () => {
     expect(getProgressDisplay({ status: "running", progress: 42 })).toEqual({
       label: "Building diagnosis",
       valueLabel: "42%",
-      helperText: "This page refreshes automatically while your evaluation is running.",
+      helperText: "This page refreshes automatically while your report is being prepared.",
       indeterminate: false,
       percentage: 42,
     });
