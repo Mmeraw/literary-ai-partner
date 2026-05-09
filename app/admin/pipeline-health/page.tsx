@@ -105,11 +105,10 @@ function fmtMs(ms: number | null) {
 }
 
 function fmtDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
 }
 
 function truncateStr(s: string | null, maxLen: number = 50): string {
