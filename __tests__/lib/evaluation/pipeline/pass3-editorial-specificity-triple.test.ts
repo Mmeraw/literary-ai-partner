@@ -210,6 +210,13 @@ describe("Pass 3 editorial specificity triple — schema enforcement", () => {
     // no reader-effect words in expected_impact). This is exactly the pattern that should
     // trigger QG_EDITORIAL_GENERIC_FEEDBACK. Verify that the normalizer does NOT fill in
     // static criterion-aware defaults — leaving the triple empty so the gate can fire.
+    //
+    // Note: the action below is deliberately generic (no fix marker, no mechanism
+    // connector, no reader-effect marker, no anchor) but does NOT match a surface-
+    // integrity REJECT class — it leads with "Make" rather than the bare-imperative
+    // verbs (Improve|Trim|Tighten) that surfaceIntegrity rejects. This isolates the
+    // editorial-specificity contract under test (static defaults must not mask
+    // genuinely-generic content) from the orthogonal #364 surface-integrity gate.
     const rawAnchorlessGeneric = JSON.stringify({
       criteria: [{
         key: "tone",
@@ -222,7 +229,7 @@ describe("Pass 3 editorial specificity triple — schema enforcement", () => {
           {
             priority: "medium",
             // No location, no fix verb, no mechanism connector, no reader-effect word
-            action: "Improve the tone throughout the manuscript.",
+            action: "Make the tone consistent throughout the manuscript.",
             expected_impact: "This will make the text better overall.",
             anchor_snippet: "", // anchorless
             source_pass: 3,
@@ -258,6 +265,6 @@ describe("Pass 3 editorial specificity triple — schema enforcement", () => {
     expect(toneRec?.specific_fix).toBe("");
     expect(toneRec?.reader_effect).toBe("");
     // The action must NOT have been repaired to a passing form (no anchor to repair from)
-    expect(toneRec?.action).toBe("Improve the tone throughout the manuscript.");
+    expect(toneRec?.action).toBe("Make the tone consistent throughout the manuscript.");
   });
 });
