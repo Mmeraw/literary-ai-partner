@@ -337,10 +337,10 @@ export function EvaluationPoller({
   }
 
   const statusLabel = {
-    queued: 'Queued',
-    running: 'Running',
-    complete: '✅ Complete',
-    failed: '❌ Failed',
+    queued: 'Waiting in queue',
+    running: 'In progress',
+    complete: '✅ Report ready',
+    failed: '⚠ Needs attention',
   }[job.status];
 
   const statusColor = {
