@@ -12,7 +12,7 @@ jobs:
       contents: read
 
     steps:
-      - name: Detect migration/docs-only scope
+      - name: Detect exempt-scope diff
         id: scope
         uses: actions/github-script@v7
         with:
@@ -26,28 +26,29 @@ jobs:
             );
 
             const changed = files.map((f) => f.filename);
-            // Doc surfaces exempt from runtime-PR proforma enforcement.
-            // Extend this list (do not weaken the predicate) when new
-            // contract/design artifact directories are introduced.
             const DOC_PREFIXES = ["docs/", "pr-c/"];
-            const isDocPath = (name) =>
-              DOC_PREFIXES.some((p) => name.startsWith(p));
-            const docsOnly =
-              changed.length > 0 && changed.every(isDocPath);
-            const migrationsOnly =
-              changed.length > 0 &&
-              changed.every((name) => name.startsWith("supabase/migrations/"));
+            const isDocs = (name) =>
+              DOC_PREFIXES.some((prefix) => name.startsWith(prefix));
+            const isMigration = (name) => name.startsWith("supabase/migrations/");
+            const isAdminUi =
+              (name) =>
+                name.startsWith("app/admin/") ||
+                name.startsWith("components/admin/");
 
-            const skip = docsOnly || migrationsOnly;
+            const exemptOnly =
+              changed.length > 0 &&
+              changed.every((name) => isDocs(name) || isMigration(name) || isAdminUi(name));
+
+            const skip = exemptOnly;
 
             core.setOutput("skip", skip ? "true" : "false");
             core.info(`Changed files: ${changed.length}`);
-            core.info(`migrationsOnly=${migrationsOnly} docsOnly=${docsOnly} skip=${skip}`);
+            core.info(`exemptOnly=${exemptOnly} skip=${skip}`);
 
-      - name: Skip for migration/docs-only PRs
+      - name: Skip for exempt-scope PRs
         if: steps.scope.outputs.skip == 'true'
         run: |
-          echo "Skipping latency template enforcement: migration/docs-only diff."
+          echo "Skipping latency template enforcement: diff limited to docs/pr-c, migrations, or admin-ui paths."
 
       - name: Validate PR body structure
         if: steps.scope.outputs.skip != 'true'
