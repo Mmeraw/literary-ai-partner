@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Revise — RevisionGrade</title>
+    <meta
+      name="description"
+      content="Revise is the human-guided execution layer of RevisionGrade. A governed repair queue for narrative revision — one operational truth at a time."
+    />
+    <meta property="og:title" content="Revise — RevisionGrade" />
+    <meta
+      property="og:description"
+      content="The governed execution layer for narrative revision. Evidence, symptom, cause, fix — one repair at a time."
+    />
+    <meta name="theme-color" content="#0b0a08" />
+    <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230b0a08'/><path d='M9 8 L9 24 M9 8 L18 8 Q23 8 23 13 Q23 17 19 18 L23 24 M9 16 L18 16' stroke='%23c9a861' stroke-width='2' fill='none' stroke-linecap='square'/></svg>" />
+    <link rel="preconnect" href="https://api.fontshare.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=switzer@300,400,500,600,700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="wrap header-wrap">
+        <a href="/" class="brand" aria-label="RevisionGrade home">
+          <svg
+            class="brand-mark"
+            width="28"
+            height="28"
+            viewBox="0 0 32 32"
+            fill="none"
+            aria-hidden="true"
+          >
+            <rect width="32" height="32" rx="2" fill="currentColor" opacity="0.06" />
+            <path
+              d="M9 8 L9 24 M9 8 L18 8 Q23 8 23 13 Q23 17 19 18 L23 24 M9 16 L18 16"
+              stroke="currentColor"
+              stroke-width="1.6"
+              fill="none"
+              stroke-linecap="square"
+            />
+          </svg>
+          <span class="brand-name">RevisionGrade<span class="tm">™</span></span>
+        </a>
+        <nav class="site-nav" aria-label="Primary">
+          <a href="#how">How it works</a>
+          <a href="#queue">The queue</a>
+          <a href="#contract">Contract</a>
+          <a href="#wave">Long-form</a>
+          <a href="https://revisiongrade.com" class="nav-cta">Sign in</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- HERO -->
+      <section class="hero">
+        <div class="wrap hero-wrap">
+          <div class="eyebrow">
+            <span class="dot"></span>
+            <span>Revise · Human-guided execution layer</span>
+          </div>
+          <h1 class="hero-title">
+            Revise is where<br />
+            <em>governed repair</em> happens —<br />
+            one opportunity at a time.
+          </h1>
+          <p class="hero-lede">
+            Evaluation diagnoses. <span class="thread">Trustpath</span> automates safely.
+            <strong>Revise</strong> is the operational surface in between: a queued, evidence-anchored
+            workspace where authors accept, reject, customize, or keep the original — line by line,
+            without losing voice.
+          </p>
+          <div class="hero-ctas">
+            <a class="btn btn-primary" href="#how">See how Revise works</a>
+            <a class="btn btn-ghost" href="#contract">Read the contract</a>
+          </div>
+
+          <dl class="hero-stats" aria-label="Operating principles">
+            <div>
+              <dt>Six-element note</dt>
+              <dd>Evidence · Symptom · Cause · Fix · Reader effect · Mistake-proofing</dd>
+            </div>
+            <div>
+              <dt>Governance</dt>
+              <dd>Fail-closed gates · deterministic queueing · audited transitions</dd>
+            </div>
+            <div>
+              <dt>Voice safety</dt>
+              <dd>Critic voice normalized · author voice preserved byte-for-byte</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="hero-marginalia" aria-hidden="true">
+          <div class="rule"></div>
+          <span class="caption">Revise · Layer II of the operating system</span>
+        </div>
+      </section>
+
+      <!-- THREE LAYERS -->
+      <section class="layers" id="layers">
+        <div class="wrap">
+          <header class="section-head">
+            <span class="kicker">The architecture</span>
+            <h2>Three layers, one primitive.</h2>
+            <p>
+              RevisionGrade is a governed narrative revision orchestration platform. Every layer
+              consumes the same operational unit: the
+              <code>RevisionOpportunity</code>.
+            </p>
+          </header>
+
+          <div class="layer-grid">
+            <article class="layer-card">
+              <header>
+                <span class="num">I.</span>
+                <h3>Evaluate</h3>
+                <span class="role">Diagnose · prioritize</span>
+              </header>
+              <p>
+                Intake, scoring, confidence, certification, top opportunities, and a clean handoff.
+                Not an infinite issue list — a triage board.
+              </p>
+            </article>
+
+            <article class="layer-card layer-card--accent">
+              <header>
+                <span class="num">II.</span>
+                <h3>Revise</h3>
+                <span class="role">Human-guided execution</span>
+              </header>
+              <p>
+                Queue-based issue resolution with options, diffs, and author control. One meaningful
+                problem at a time. Flashcard psychology, governance discipline.
+              </p>
+              <span class="here-tag">You are here</span>
+            </article>
+
+            <article class="layer-card">
+              <header>
+                <span class="num">III.</span>
+                <h3>Trustpath</h3>
+                <span class="role">Autonomous · governed</span>
+              </header>
+              <p>
+                Selective automated execution under explicit risk and safety contracts. Only the
+                opportunities that are demonstrably safe to apply.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- HOW IT WORKS / INTERACTIVE QUEUE -->
+      <section class="how" id="how">
+        <div class="wrap">
+          <header class="section-head section-head--wide">
+            <span class="kicker">How Revise works</span>
+            <h2>
+              A repair queue, not a report.<br />
+              <span class="muted">Progressive disclosure of one meaningful problem at a time.</span>
+            </h2>
+          </header>
+
+          <div class="workspace" role="region" aria-label="Revise workspace preview">
+            <!-- LEFT: Queue -->
+            <aside class="queue-panel" aria-label="Repair queue">
+              <header class="panel-head">
+                <h3>Repair Queue</h3>
+                <span class="badge-mono">7 queued</span>
+              </header>
+              <ul class="filters" aria-label="Filters">
+                <li><button type="button" class="chip is-active">All</button></li>
+                <li><button type="button" class="chip">Wave</button></li>
+                <li><button type="button" class="chip">Criterion</button></li>
+                <li><button type="button" class="chip">Severity</button></li>
+                <li><button type="button" class="chip">Chapter</button></li>
+              </ul>
+
+              <ol class="queue-list" id="queueList">
+                <li>
+                  <button type="button" class="queue-item is-active" data-id="1">
+                    <span class="qi-tags">
+                      <span class="tag tag-must">Must</span>
+                      <span class="tag tag-spine">Spine</span>
+                    </span>
+                    <span class="qi-title">Abstract phrasing weakens river-scene tension</span>
+                    <span class="qi-meta">Dialogue · Ch. 11 · evidence anchored</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="queue-item" data-id="2">
+                    <span class="qi-tags">
+                      <span class="tag tag-must">Must</span>
+                      <span class="tag tag-high">High</span>
+                    </span>
+                    <span class="qi-title">Internal monologue duplicates dialogue subtext</span>
+                    <span class="qi-meta">Pacing · Ch. 11</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="queue-item" data-id="3">
+                    <span class="qi-tags">
+                      <span class="tag tag-should">Should</span>
+                      <span class="tag tag-medium">Medium</span>
+                    </span>
+                    <span class="qi-title">Promise opened in Ch. 4 still unresolved at midpoint</span>
+                    <span class="qi-meta">Golden Spine · cross-chapter</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="queue-item" data-id="4">
+                    <span class="qi-tags">
+                      <span class="tag tag-should">Should</span>
+                      <span class="tag tag-medium">Medium</span>
+                    </span>
+                    <span class="qi-title">Pressure plateaus across chapters 12–14</span>
+                    <span class="qi-meta">Pacing valley · 3 chapters</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="queue-item" data-id="5">
+                    <span class="qi-tags">
+                      <span class="tag tag-could">Could</span>
+                      <span class="tag tag-local">Local</span>
+                    </span>
+                    <span class="qi-title">Filtered perception softens close-third POV</span>
+                    <span class="qi-meta">Voice · Ch. 11, p. 132</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="queue-item" data-id="6">
+                    <span class="qi-tags">
+                      <span class="tag tag-could">Could</span>
+                      <span class="tag tag-local">Local</span>
+                    </span>
+                    <span class="qi-title">Adverb stack thins on key reassurance line</span>
+                    <span class="qi-meta">Prose control · Ch. 11</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="queue-item is-deferred" data-id="7">
+                    <span class="qi-tags">
+                      <span class="tag tag-deferred">Deferred</span>
+                    </span>
+                    <span class="qi-title">Thematic propagation thin in Act II</span>
+                    <span class="qi-meta">WAVE · revisit at next pass</span>
+                  </button>
+                </li>
+              </ol>
+
+              <footer class="panel-foot">
+                <span>Accepted <strong>2</strong></span>
+                <span>Rejected <strong>1</strong></span>
+                <span>Custom <strong>0</strong></span>
+                <span>Pending <strong>4</strong></span>
+              </footer>
+            </aside>
+
+            <!-- RIGHT: Detail -->
+            <article class="detail-panel" aria-label="Opportunity detail" id="detail">
+              <header class="panel-head detail-head">
+                <div>
+                  <span class="crumb">Dialogue · Chapter 11 · river scene</span>
+                  <h3 id="detailTitle">Abstract phrasing weakens river-scene tension</h3>
+                </div>
+                <div class="detail-tags">
+                  <span class="tag tag-must">Must</span>
+                  <span class="tag tag-spine">Spine-critical</span>
+                  <span class="tag tag-conf">Moderate confidence</span>
+                </div>
+              </header>
+
+              <section class="evidence">
+                <h4>Evidence</h4>
+                <blockquote>
+                  <span class="quote-mark" aria-hidden="true">“</span>
+                  <span class="quoted-text">It’s okay,</span> I whispered. But even as I said it,
+                  I knew it wasn’t okay.
+                </blockquote>
+                <p class="anchor">char 1247–1330 · Chapter 11 · river scene</p>
+              </section>
+
+              <dl class="diagnosis">
+                <div>
+                  <dt>Symptom</dt>
+                  <dd>Emotional contradiction is stated directly instead of dramatized.</dd>
+                </div>
+                <div>
+                  <dt>Cause</dt>
+                  <dd>
+                    Internal realization duplicates what the dialogue already implies, flattening
+                    the moment into commentary.
+                  </dd>
+                </div>
+                <div>
+                  <dt>Fix direction</dt>
+                  <dd>Replace internal explanation with a physical hesitation or interruption beat.</dd>
+                </div>
+                <div>
+                  <dt>Reader effect</dt>
+                  <dd>Tension escalates instead of pausing for narrator gloss.</dd>
+                </div>
+                <div>
+                  <dt>Mistake-proofing</dt>
+                  <dd>
+                    Preserve the speaker’s voice and the dialogue’s rhythm. Do not introduce new
+                    information about the river or the listener’s reaction.
+                  </dd>
+                </div>
+              </dl>
+
+              <section class="options">
+                <h4>Three structurally distinct proposals</h4>
+
+                <article class="option" data-key="A">
+                  <header>
+                    <span class="opt-key">A</span>
+                    <span class="opt-mech">Action-beat substitution</span>
+                  </header>
+                  <pre class="proposal">“It’s okay,” I whispered.
+The lie caught halfway out.</pre>
+                  <p class="opt-rationale">
+                    Replaces internal gloss with a physical reaction; voice fingerprint preserved.
+                  </p>
+                </article>
+
+                <article class="option" data-key="B">
+                  <header>
+                    <span class="opt-key">B</span>
+                    <span class="opt-mech">Interruption beat</span>
+                  </header>
+                  <pre class="proposal">“It’s okay—”
+My voice cracked before I could finish.</pre>
+                  <p class="opt-rationale">
+                    Cuts the reassurance mid-line so the failure is heard, not narrated.
+                  </p>
+                </article>
+
+                <article class="option" data-key="C">
+                  <header>
+                    <span class="opt-key">C</span>
+                    <span class="opt-mech">Rendering shift</span>
+                  </header>
+                  <pre class="proposal">“It’s okay.”
+She looked at me long enough to know I didn’t believe it.</pre>
+                  <p class="opt-rationale">
+                    Lets the listener carry the contradiction; closes the scene with weight.
+                  </p>
+                </article>
+              </section>
+
+              <section class="actions" aria-label="Author controls">
+                <button class="btn btn-primary">Accept selected</button>
+                <button class="btn btn-ghost">Keep original</button>
+                <button class="btn btn-ghost">Reject all three</button>
+                <button class="btn btn-ghost">Write custom</button>
+              </section>
+
+              <footer class="voice-note">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M3 8.5 L6.5 12 L13 4.5" stroke="currentColor" stroke-width="1.5" />
+                </svg>
+                <span>
+                  Voice-preservation gate passed for all three. Quoted manuscript text remains
+                  byte-for-byte unchanged unless you accept a proposal.
+                </span>
+              </footer>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- SIX-ELEMENT NOTE -->
+      <section class="six">
+        <div class="wrap">
+          <header class="section-head">
+            <span class="kicker">The contract</span>
+            <h2>Every opportunity carries its own reasoning chain.</h2>
+            <p>
+              No commentary. No vague advice. Each <code>RevisionOpportunity</code> is a
+              machine-governable work order with six required elements.
+            </p>
+          </header>
+
+          <ol class="six-grid">
+            <li>
+              <span class="six-num">01</span>
+              <h3>Evidence</h3>
+              <p>Anchored text with character offsets — the exact span being addressed.</p>
+            </li>
+            <li>
+              <span class="six-num">02</span>
+              <h3>Symptom</h3>
+              <p>The observable problem in that text. What a reader would feel.</p>
+            </li>
+            <li>
+              <span class="six-num">03</span>
+              <h3>Cause</h3>
+              <p>The mechanism producing the symptom. Why it happens, not just that it does.</p>
+            </li>
+            <li>
+              <span class="six-num">04</span>
+              <h3>Fix direction</h3>
+              <p>A bounded revision move. Specific enough to act on without further interpretation.</p>
+            </li>
+            <li>
+              <span class="six-num">05</span>
+              <h3>Reader effect</h3>
+              <p>What measurably improves if the fix is applied.</p>
+            </li>
+            <li>
+              <span class="six-num">06</span>
+              <h3>Mistake-proofing</h3>
+              <p>What must be preserved or avoided so the fix introduces no new damage.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- WAVE / GOLDEN SPINE -->
+      <section class="wave" id="wave">
+        <div class="wrap wave-wrap">
+          <div class="wave-text">
+            <span class="kicker">Long-form mode</span>
+            <h2>
+              At <em>25,000 words</em>, the architecture becomes mandatory.
+            </h2>
+            <p class="lede">
+              An 84,000-word manuscript is not a stretched chapter. Above the threshold, Revise
+              switches to operating-system mode: <strong>WAVE</strong> intelligence and the
+              <strong>Golden Spine</strong> become contract-enforced surfaces, not optional metadata.
+            </p>
+
+            <ul class="wave-list">
+              <li>
+                <strong>Continuity chain.</strong> Promises opened, promises closed, threads still
+                live at the midpoint.
+              </li>
+              <li>
+                <strong>Pressure continuity.</strong> Where narrative tension plateaus across
+                chapter boundaries.
+              </li>
+              <li>
+                <strong>Pacing valleys.</strong> Scene density drops mapped to specific chapter
+                ranges.
+              </li>
+              <li>
+                <strong>Unresolved promises.</strong> Setups that have not yet paid off, with
+                evidence anchors.
+              </li>
+              <li>
+                <strong>Thematic propagation.</strong> How the manuscript’s motifs travel — or
+                don’t — through the second act.
+              </li>
+            </ul>
+
+            <p class="rule-quote">
+              <span aria-hidden="true">§</span> If <code>wordCount ≥ 25000</code> and the wave
+              surface is missing, the contract <strong>fails closed</strong>.
+            </p>
+          </div>
+
+          <aside class="spine-card" aria-label="Golden Spine preview">
+            <header>
+              <span class="badge-mono">Golden Spine</span>
+              <h3>84,000 words · Manuscript mode</h3>
+            </header>
+
+            <div class="spine">
+              <div class="spine-row">
+                <span class="spine-label">Continuity</span>
+                <div class="spine-bar"><span style="width: 78%"></span></div>
+                <span class="spine-val">strong</span>
+              </div>
+              <div class="spine-row">
+                <span class="spine-label">Pressure</span>
+                <div class="spine-bar"><span style="width: 42%" class="warn"></span></div>
+                <span class="spine-val warn-text">plateau Ch. 12–14</span>
+              </div>
+              <div class="spine-row">
+                <span class="spine-label">Pacing</span>
+                <div class="spine-bar"><span style="width: 56%" class="warn"></span></div>
+                <span class="spine-val warn-text">valley Ch. 13</span>
+              </div>
+              <div class="spine-row">
+                <span class="spine-label">Promises</span>
+                <div class="spine-bar"><span style="width: 71%"></span></div>
+                <span class="spine-val">3 unresolved</span>
+              </div>
+              <div class="spine-row">
+                <span class="spine-label">Thematic</span>
+                <div class="spine-bar"><span style="width: 64%"></span></div>
+                <span class="spine-val">propagating</span>
+              </div>
+            </div>
+
+            <footer class="spine-foot">
+              <span><strong>2</strong> spine-critical</span>
+              <span><strong>3</strong> high leverage</span>
+              <span><strong>2</strong> local</span>
+            </footer>
+          </aside>
+        </div>
+      </section>
+
+      <!-- CONTRACT -->
+      <section class="contract" id="contract">
+        <div class="wrap contract-wrap">
+          <header class="section-head">
+            <span class="kicker">RevisionOpportunity</span>
+            <h2>The first-class primitive.</h2>
+            <p>
+              Recommendations are commentary. Opportunities are work orders — bounded scope,
+              diagnosis, executable pathway, handoff semantics, machine governance.
+            </p>
+          </header>
+
+          <pre class="code"><span class="cmt">// EvaluationResultV2 — the seam between Evaluate, Revise, and Trustpath</span>
+<span class="kw">type</span> <span class="ty">RevisionOpportunity</span> = {
+  <span class="prop">id</span>: <span class="ty">string</span>;
+  <span class="prop">criterionKey</span>: <span class="ty">string</span>;
+  <span class="prop">title</span>: <span class="ty">string</span>;
+  <span class="prop">severity</span>: <span class="str">'must'</span> | <span class="str">'should'</span> | <span class="str">'could'</span>;
+  <span class="prop">leverage</span>: <span class="str">'spine-critical'</span> | <span class="str">'high'</span> | <span class="str">'medium'</span> | <span class="str">'local'</span>;
+  <span class="prop">confidenceRisk</span>: <span class="str">'low'</span> | <span class="str">'moderate'</span> | <span class="str">'high'</span>;
+  <span class="prop">evidence</span>: { <span class="prop">snippet</span>: <span class="ty">string</span>; <span class="prop">charStart</span>?: <span class="ty">number</span>; <span class="prop">charEnd</span>?: <span class="ty">number</span> };
+  <span class="prop">symptom</span>: <span class="ty">string</span>;
+  <span class="prop">cause</span>: <span class="ty">string</span>;
+  <span class="prop">fixDirection</span>: <span class="ty">string</span>;
+  <span class="prop">readerEffect</span>: <span class="ty">string</span>;
+  <span class="prop">mistakeProofing</span>: <span class="ty">string</span>;
+  <span class="prop">revisionOptions</span>?: <span class="ty">RevisionOption</span>[]; <span class="cmt">// up to three</span>
+  <span class="prop">handoffTarget</span>: <span class="str">'revise'</span> | <span class="str">'trustpath-review'</span> | <span class="str">'trustpath-safe'</span>;
+  <span class="prop">state</span>: <span class="ty">OpportunityState</span>; <span class="cmt">// pending → reviewing → accepted | customized | rejected | deferred</span>
+};</pre>
+
+          <div class="gates">
+            <article>
+              <h4>Fail-closed on missing fields</h4>
+              <p>
+                <code>QG_REVISION_OPPORTUNITY_REQUIRED_FIELDS</code> rejects any opportunity that
+                cannot stand on its own as a work order.
+              </p>
+            </article>
+            <article>
+              <h4>No semantic placeholders</h4>
+              <p>
+                <code>QG_REVISION_OPPORTUNITY_NON_DEGENERATE</code> rejects structurally complete
+                but semantically empty payloads. Generic causes don’t pass.
+              </p>
+            </article>
+            <article>
+              <h4>Deterministic queue</h4>
+              <p>
+                <code>QG_REVISE_QUEUE_DETERMINISM</code> guarantees that identical input always
+                yields identical ordering.
+              </p>
+            </article>
+            <article>
+              <h4>Lossless handoff</h4>
+              <p>
+                <code>QG_REVISE_HANDOFF_ID_FIDELITY</code> ensures every link from Evaluate lands
+                on the exact same opportunity in Revise.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- VOICE -->
+      <section class="voice">
+        <div class="wrap voice-wrap">
+          <p class="voice-line">
+            <span class="ampersand">&</span>
+            <span>
+              Critic voice <em>normalized</em>.<br />
+              Author voice <em>preserved, byte-for-byte</em>.
+            </span>
+          </p>
+          <p class="voice-foot">
+            Quoted manuscript text is never altered unless you accept a proposal. Voice fingerprints
+            — repetition, rhythm, intentional fragments — are protected at the renderer boundary.
+            Proof-mode discipline, not a stylistic suggestion.
+          </p>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="cta">
+        <div class="wrap cta-wrap">
+          <h2>
+            RevisionGrade is in private beta.<br />
+            <span class="muted">Revise is the next epic on the ladder.</span>
+          </h2>
+          <p>
+            The diagnostic spine is hardened. The primitive is canonical. The execution surface is
+            being built against governed contracts — not feature aspirations.
+          </p>
+          <div class="cta-actions">
+            <a class="btn btn-primary btn-lg" href="mailto:hello@revisiongrade.com?subject=Revise%20access"
+              >Request access</a
+            >
+            <a class="btn btn-ghost btn-lg" href="https://revisiongrade.com">Tester sign in</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-wrap">
+        <div class="footer-brand">
+          <span class="brand-name">RevisionGrade<span class="tm">™</span></span>
+          <span class="muted">A governed revision operating system.</span>
+        </div>
+        <nav aria-label="Footer">
+          <a href="#how">How it works</a>
+          <a href="#contract">Contract</a>
+          <a href="#wave">Long-form</a>
+          <a href="https://revisiongrade.com">Sign in</a>
+        </nav>
+        <p class="copy">© 2026 RevisionGrade. Publishing- &amp; Hollywood-Ready.</p>
+      </div>
+    </footer>
+
+    <script src="./script.js" defer></script>
+  <script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="transform:translate(-${scrollX}px,-${scrollY}px);transform-origin:top left">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script></body>
+</html>
