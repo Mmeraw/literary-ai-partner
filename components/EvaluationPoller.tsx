@@ -5,10 +5,15 @@ import { getProgressDisplay } from '@/components/evaluation-poller-display';
 import { useRouter } from 'next/navigation';
 
 // How many ms between each animated +1% tick on the display progress.
-// At 400ms/tick the bar takes ~40 s to traverse 0→100 at full speed,
-// but in practice it's capped by the actual backend value so it waits
-// at each real checkpoint until the pipeline advances.
+// At 400ms/tick the bar takes ~40 s to traverse 0→100 at full speed.
 const ANIMATION_TICK_MS = 400;
+
+// When the backend holds at a coarse checkpoint such as 33%, continue the
+// browser-only display slowly through safe non-terminal stages so the UI does
+// not appear frozen. Completion remains backend-gated and never renders 100%
+// until the job status is actually complete.
+const RUNNING_SOFT_CEILING = 90;
+const RUNNING_SOFT_FORWARD_TICK_MS = 1200;
 
 // Once the backend marks the job complete, keep animating the client-only
 // progress display to 100 instead of snapping. This lets users see the final
@@ -72,8 +77,8 @@ export function EvaluationPoller({
   const [nextPollDelay, setNextPollDelay] = useState(refreshInterval);
   const [pendingRedirectDelayMs, setPendingRedirectDelayMs] = useState<number | null>(null);
 
-  // Animated display progress: ticks toward real job.progress so the bar
-  // moves through every stage label even when the backend sends coarse jumps.
+  // Animated display progress: ticks through user-safe display stages while
+  // backend state remains authoritative for terminal completion/failure.
   const [displayProgress, setDisplayProgress] = useState<number>(getInitialDisplayProgress(initialJob));
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -88,13 +93,19 @@ export function EvaluationPoller({
   const redirectedRef = useRef(false);
 
   // Animate displayProgress toward the current display target, one tick at a time.
-  // Running jobs stop at the real backend checkpoint. Complete jobs continue to 100
-  // client-side so users do not see a 35% → 100% snap when the backend skips 66%.
+  // Running jobs can soft-forward past coarse backend checkpoints up to a safe
+  // non-terminal ceiling so the UI does not appear frozen at ~35%. Complete jobs
+  // continue to 100 client-side so users do not see a 35% → 100% snap.
   useEffect(() => {
     if (!job || job.status === 'failed') return;
 
-    const target = job.status === 'complete' ? 100 : job.progress;
-    const tickMs = job.status === 'complete' ? COMPLETE_ANIMATION_TICK_MS : ANIMATION_TICK_MS;
+    const target = job.status === 'complete' ? 100 : Math.max(job.progress, RUNNING_SOFT_CEILING);
+    const tickMs =
+      job.status === 'complete'
+        ? COMPLETE_ANIMATION_TICK_MS
+        : displayProgress >= job.progress
+          ? RUNNING_SOFT_FORWARD_TICK_MS
+          : ANIMATION_TICK_MS;
 
     const interval = setInterval(() => {
       setDisplayProgress((prev) => {
@@ -107,7 +118,7 @@ export function EvaluationPoller({
     }, tickMs);
 
     return () => clearInterval(interval);
-  }, [job]);
+  }, [displayProgress, job]);
 
   // For report pages that need a server refresh after completion, wait until the
   // client-side animation has reached 100. Otherwise the page refresh can replace
