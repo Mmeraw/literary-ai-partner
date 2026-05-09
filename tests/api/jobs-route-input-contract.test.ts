@@ -256,7 +256,7 @@ describe("POST /api/jobs input contract", () => {
     mockCreateJob.mockRejectedValue(
       new Error(
         'Failed to create job: duplicate key value violates unique constraint "uq_eval_jobs_active_phase1"',
-      ),
+      ) as never,
     );
 
     const req = new Request("https://example.test/api/jobs", {
