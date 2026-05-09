@@ -467,6 +467,10 @@ This section governs stage eligibility only; it does not define scoring algorith
 - Do not certify chunk-local criteria from sampled-window proxies when full chunk evidence is required by route.
 - Do not repurpose gate outputs to imply full-manuscript coverage absent matching `Chunks Analyzed` evidence.
 - Do not bypass gate routing via prompt-budget escalation.
+- Do not weaken `QG_EDITORIAL_GENERIC_FEEDBACK` or relax `unresolved_conjunction_tail` / `unresolved_mechanism_tail` to compensate for evidence-locality routing decisions made under PR-C.
+- Do not delete or soften the post-clamp surface check; it remains an independent governance witness regardless of map/reduce routing.
+- Do not collapse the witness pair `lib/evaluation/pipeline/surfaceIntegrity.ts` and `lib/evaluation/pipeline/runPass3Synthesis.ts` into a shared helper as part of map-reduce refactoring. They remain separate by canon.
+- Do not update existing test fixtures to mask map-reduce-introduced regressions; pre-PR-C fixtures freeze pre-PR-C truth and may only be extended additively (see §4.4).
 
 ### 7.7 Acceptance evidence for Section 7 (design-level)
 
