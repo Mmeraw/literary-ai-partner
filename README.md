@@ -29,6 +29,13 @@ Read first:
 - `docs/JOB_CONTRACT_v1.md` — canonical job status contract
 - `docs/CANONICAL_RUNTIME_OPERATIONS.md` — canonical runtime authority
 
+## Reliability doctrine
+
+The canonical reliability governance artifacts now live under `docs/reliability/`:
+
+- `docs/reliability/REVISIONGRADE_RELIABILITY_DOCTRINE_v1.md` — reliability kernel, architecture generations, coverage semantics, replay governance
+- `docs/reliability/README.md` — reliability index, program scaffolding, and incident ledger entry point
+
 ## What must be true before new feature work
 
 Before adding behavior to the evaluation pipeline, the system must prove:
