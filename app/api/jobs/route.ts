@@ -374,24 +374,41 @@ export async function POST(req: Request) {
     const details = err instanceof Error ? err.message : String(err);
     const looksLikeJsonParseError =
       err instanceof SyntaxError || /json/i.test(details);
+    const looksLikeDuplicateActiveJobConflict =
+      /duplicate key value violates unique constraint/i.test(details) &&
+      /uq_eval_jobs_active_phase1(_worktype)?/i.test(details);
 
     logger.error("Job creation error", {
       trace_id,
       request_id,
       event: "api.jobs.create.error",
       error: details,
-      error_type: looksLikeJsonParseError ? "client_json" : "system",
+      error_type: looksLikeJsonParseError
+        ? "client_json"
+        : looksLikeDuplicateActiveJobConflict
+        ? "active_job_conflict"
+        : "system",
     });
 
     console.error("POST /api/jobs error:", err);
     return NextResponse.json(
       {
         ok: false,
-        error: looksLikeJsonParseError ? "Invalid JSON body" : "Failed to create job",
+        error: looksLikeJsonParseError
+          ? "Invalid JSON body"
+          : looksLikeDuplicateActiveJobConflict
+          ? "An evaluation is already running or queued for this manuscript. Please wait for it to finish or use a different manuscript."
+          : "Failed to create job",
         details,
         trace_id,
       },
-      { status: looksLikeJsonParseError ? 400 : 500 }
+      {
+        status: looksLikeJsonParseError
+          ? 400
+          : looksLikeDuplicateActiveJobConflict
+          ? 409
+          : 500,
+      }
     );
   }
 }
