@@ -79,11 +79,11 @@ while IFS= read -r f; do
   if ! head -20 "$f" 2>/dev/null | grep -qE '^canon_status:\s*(authoritative|secondary|deprecated|draft|meta)'; then
     echo "MISSING canon_status: $f"
     warn_missing_frontmatter_count=$((warn_missing_frontmatter_count + 1))
+    fail=1
   fi
 done < <(find "$CONTROL" "$VOLUMES" -type f -name '*.md' 2>/dev/null || true)
 
-# TODO(PR-2): convert to fail=1 after classification baseline lands
-echo "WARN ONLY in PR-0. Hard enforcement deferred to PR-1."
+# Hard enforcement landed in PR-2a (all 26 registered files normalized in PR-2 #375).
 
 section "5. Non-authoritative zones claiming authority"
 forbidden='source of truth|canonical authority|binding canon|runtime ownership|authoritative canon'
