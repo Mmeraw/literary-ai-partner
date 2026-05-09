@@ -14,19 +14,20 @@ describe("getProgressDisplay", () => {
 
   test("shows determinate running progress with stage-safe wording", () => {
     expect(getProgressDisplay({ status: "running", progress: 42 })).toEqual({
-      label: "Building diagnosis",
-      valueLabel: "42%",
-      helperText: "This page refreshes automatically while your report is being prepared.",
+      label: "Reconciling passes",
+      valueLabel: "~46%",
+      helperText:
+        "Approximate progress based on completed pipeline stages. Stages: Preparing manuscript → Reading manuscript → Building diagnosis → Reconciling passes → Quality checks → Preparing report → Finalizing report.",
       indeterminate: false,
-      percentage: 42,
+      percentage: 46,
     });
   });
 
   test("maps running progress to non-revealing stages", () => {
     expect(getProgressDisplay({ status: "running", progress: 0 })?.label).toBe("Preparing manuscript");
-    expect(getProgressDisplay({ status: "running", progress: 25 })?.label).toBe("Reading manuscript");
-    expect(getProgressDisplay({ status: "running", progress: 45 })?.label).toBe("Building diagnosis");
-    expect(getProgressDisplay({ status: "running", progress: 65 })?.label).toBe("Reviewing for consistency");
+    expect(getProgressDisplay({ status: "running", progress: 25 })?.label).toBe("Building diagnosis");
+    expect(getProgressDisplay({ status: "running", progress: 45 })?.label).toBe("Reconciling passes");
+    expect(getProgressDisplay({ status: "running", progress: 65 })?.label).toBe("Quality checks");
     expect(getProgressDisplay({ status: "running", progress: 85 })?.label).toBe("Preparing report");
     expect(getProgressDisplay({ status: "running", progress: 100 })?.label).toBe("Report ready");
   });
