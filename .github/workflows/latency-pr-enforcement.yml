@@ -26,9 +26,14 @@ jobs:
             );
 
             const changed = files.map((f) => f.filename);
+            // Doc surfaces exempt from runtime-PR proforma enforcement.
+            // Extend this list (do not weaken the predicate) when new
+            // contract/design artifact directories are introduced.
+            const DOC_PREFIXES = ["docs/", "pr-c/"];
+            const isDocPath = (name) =>
+              DOC_PREFIXES.some((p) => name.startsWith(p));
             const docsOnly =
-              changed.length > 0 &&
-              changed.every((name) => name.startsWith("docs/"));
+              changed.length > 0 && changed.every(isDocPath);
             const migrationsOnly =
               changed.length > 0 &&
               changed.every((name) => name.startsWith("supabase/migrations/"));
