@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: wave-55-l
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # WAVE-55-L: Selective Authority Compression (Literary Horror Mode)
 
 **Canon ID:** WAVE-55-L  

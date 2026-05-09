@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: canon-iii-lessons-of-the-living-system
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # CANON III — LESSONS OF THE LIVING SYSTEM
 
 Status: CANONICAL — ACTIVE  

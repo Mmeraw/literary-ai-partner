@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: volume-iii-pipeline-api-json-schema
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # VOLUME III — PIPELINE API JSON SCHEMA FOR EVALUATION PIPELINE
 
 > **Status:** CANONICAL — ACTIVE  

@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: volume-vi-governance-frontend-visibility
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # VOLUME VI -- GOVERNANCE FRONT-END VISIBILITY (UI & WIREFRAMES)
 
 **Canon ID:** VOL-VI-UI-GOV-V10

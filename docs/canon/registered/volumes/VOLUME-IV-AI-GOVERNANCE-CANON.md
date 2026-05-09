@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: volume-iv-ai-governance-canon
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # VOLUME IV — AI GOVERNANCE CANON
 
 Status: CANONICAL — ACTIVE  

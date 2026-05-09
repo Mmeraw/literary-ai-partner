@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: lost-world-lessons-doctrine-addendum
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # LOST WORLD LESSONS -- DOCTRINE REGISTRY ADDENDUM
 
 **Canon ID:** CTRL-LWL-ADDENDUM-V10

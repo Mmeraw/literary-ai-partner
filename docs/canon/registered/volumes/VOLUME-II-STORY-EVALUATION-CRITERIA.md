@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: volume-ii-story-evaluation-criteria
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # VOLUME II — 13 STORY EVALUATION CRITERIA
 
 Status: CANONICAL — ACTIVE  

@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: revisiongrade-canon-assembly-matrix
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # REVISIONGRADE CANON — ASSEMBLY MATRIX (RCAM)
 
 Status: CANONICAL — ACTIVE  

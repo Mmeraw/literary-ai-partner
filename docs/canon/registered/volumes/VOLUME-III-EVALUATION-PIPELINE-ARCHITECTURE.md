@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: volume-iii-evaluation-pipeline-architecture
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # VOLUME III — EVALUATION PIPELINE ARCHITECTURE (PASS SYSTEM)
 
 Status: CANONICAL — ACTIVE

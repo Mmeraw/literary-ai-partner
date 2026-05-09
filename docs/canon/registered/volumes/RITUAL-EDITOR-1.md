@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: ritual-editor-1
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # RITUAL-EDITOR-1: Ritual-Aware Editor Layer
 
 **Canon ID:** RITUAL-EDITOR-1  

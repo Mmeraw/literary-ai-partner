@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: volume-ii-a-operational-schema
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # VOLUME II-A - OPERATIONAL SCHEMA
 
 **Machine-Operational Specification for RevisionGrade Evaluation, Routing, Scoring, and Audit Artifacts**

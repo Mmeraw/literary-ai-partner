@@ -1,3 +1,11 @@
+---
+canon_status: secondary
+domain: revisiongrade-canon-doctrine-registry
+supersedes: []
+superseded_by: null
+runtime_binding: false
+---
+
 # REVISIONGRADE CANON — DOCTRINE REGISTRY
 
 Status: CANONICAL — ACTIVE  
