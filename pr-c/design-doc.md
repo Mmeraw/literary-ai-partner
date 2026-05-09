@@ -404,6 +404,36 @@ What is **explicitly rejected** under this ratification:
 
 This ratification closes the §6.2 decision gate. §9.1 is updated accordingly.
 
+##### 6.2.R.1 — Step 1 persistence vocabulary ratification (PR #388)
+
+For PR-C Step 1 (additive persistence substrate), the following identifiers are
+ratified as canonical Step-1 persistence vocabulary for migration `#388`:
+
+- Table: `chunk_evidence`
+- Enum type: `chunk_evidence_status`
+- Enum values: `succeeded`, `failed`, `skipped`
+- Schema version literal: `chunk_evidence_v1`
+- Unique constraint: `chunk_evidence_identity_tuple_uniq`
+- Index names:
+  - `chunk_evidence_job_chunk_idx`
+  - `chunk_evidence_chunk_history_idx`
+  - `chunk_evidence_prompt_version_idx`
+- Binding identity-tuple columns:
+  - `job_id`
+  - `chunk_id`
+  - `content_hash`
+  - `pass_key`
+  - `prompt_version`
+- Required persisted fields:
+  - `status`
+  - `outcome`
+  - `model`
+  - `schema_version`
+  - `created_at`
+
+This ratification is schema/persistence vocabulary only. It does not authorize
+runtime consumption in this phase; Step 1 remains substrate-only.
+
 ### 6.3 If Path B is selected (required constraints)
 
 - Migration identifier must be assigned from the repository’s canonical migration sequence at implementation time.
@@ -607,7 +637,7 @@ _Original open question (preserved for chronology):_
 - Should PR-C use **Path A (no schema change)** or **Path B (additive/versioned schema expansion)** for chunk-level evidence persistence?
 - If Path B, what is the exact canonical migration identifier and review owner?
 
-_Resolution (2026-05-09):_ **Path B selected.** See §6.2.R for the ratification record and binding constraints. The exact canonical migration identifier and review owner remain reserved for implementation planning per §6.8.
+_Resolution (2026-05-09):_ **Path B selected.** See §6.2.R for the decision ratification and §6.2.R.1 for Step-1 persistence vocabulary ratification. The exact canonical migration identifier and review owner remain reserved for implementation planning per §6.8.
 
 ### 9.2 Artifact contract boundary
 
