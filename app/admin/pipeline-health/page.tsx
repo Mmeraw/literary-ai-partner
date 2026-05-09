@@ -112,6 +112,11 @@ function fmtDate(iso: string) {
   }
 }
 
+function truncateStr(s: string | null, maxLen: number = 50): string {
+  if (!s) return "—";
+  return s.length > maxLen ? s.substring(0, maxLen) + "…" : s;
+}
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -363,8 +368,11 @@ export default function PipelineHealthPage() {
                   {[
                     "Job ID",
                     "Manuscript",
+                    "Created",
+                    "Updated",
                     "Stage",
                     "Error Code",
+                    "Failure Detail",
                     "Phase",
                     "Phase Status",
                     "Words",
@@ -372,7 +380,6 @@ export default function PipelineHealthPage() {
                     "Chunks",
                     "Duration",
                     "Diagnostics",
-                    "Updated",
                   ].map((h) => (
                     <th
                       key={h}
@@ -388,7 +395,7 @@ export default function PipelineHealthPage() {
                   <tr key={job.jobId} className="hover:bg-gray-50">
                     <td className="px-3 py-2 font-mono text-xs">
                       <Link
-                        href={`/admin/jobs/${job.jobId}`}
+                        href={`/evaluate/${job.jobId}`}
                         className="text-blue-600 underline"
                       >
                         {job.jobId.slice(0, 8)}…
@@ -396,6 +403,12 @@ export default function PipelineHealthPage() {
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-700">
                       {job.manuscriptId ?? "—"}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                      {fmtDate(job.createdAt)}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                      {fmtDate(job.updatedAt)}
                     </td>
                     <td className="px-3 py-2 font-mono text-xs">{job.pipelineStage}</td>
                     <td className="px-3 py-2">
@@ -413,6 +426,11 @@ export default function PipelineHealthPage() {
                         <span className="text-gray-400 text-xs">—</span>
                       )}
                     </td>
+                    <td className="px-3 py-2 text-xs">
+                      <span title={job.lastError ?? "No detail available"}>
+                        {truncateStr(job.lastError)}
+                      </span>
+                    </td>
                     <td className="px-3 py-2 text-xs">{job.phase ?? "—"}</td>
                     <td className="px-3 py-2 text-xs">{job.phaseStatus ?? "—"}</td>
                     <td className="px-3 py-2 text-xs">
@@ -427,9 +445,6 @@ export default function PipelineHealthPage() {
                       <span className={diagBadge(job.diagnosticStatus)}>
                         {job.diagnosticStatus}
                       </span>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
-                      {fmtDate(job.updatedAt)}
                     </td>
                   </tr>
                 ))}
@@ -451,7 +466,7 @@ export default function PipelineHealthPage() {
           <table className="min-w-full text-sm border border-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {["Job ID", "Status", "Stage", "Error Code", "Diagnostics", "Duration", "Updated"].map(
+                {["Job ID", "Status", "Created", "Updated", "Stage", "Error Code", "Failure Detail", "Diagnostics", "Duration"].map(
                   (h) => (
                     <th
                       key={h}
@@ -468,7 +483,7 @@ export default function PipelineHealthPage() {
                 <tr key={job.jobId} className="hover:bg-gray-50">
                   <td className="px-3 py-2 font-mono text-xs">
                     <Link
-                      href={`/admin/jobs/${job.jobId}`}
+                      href={`/evaluate/${job.jobId}`}
                       className="text-blue-600 underline"
                     >
                       {job.jobId.slice(0, 8)}…
@@ -478,6 +493,12 @@ export default function PipelineHealthPage() {
                     <span className={statusBadge(String(job.status ?? ""))}>
                       {String(job.status ?? "")}
                     </span>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                    {fmtDate(job.createdAt)}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                    {fmtDate(job.updatedAt)}
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">{job.pipelineStage}</td>
                   <td className="px-3 py-2">
@@ -495,15 +516,17 @@ export default function PipelineHealthPage() {
                       <span className="text-gray-400 text-xs">—</span>
                     )}
                   </td>
+                  <td className="px-3 py-2 text-xs">
+                    <span title={job.lastError ?? "No detail available"}>
+                      {truncateStr(job.lastError)}
+                    </span>
+                  </td>
                   <td className="px-3 py-2">
                     <span className={diagBadge(job.diagnosticStatus)}>
                       {job.diagnosticStatus}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-xs">{fmtMs(job.durationMs)}</td>
-                  <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
-                    {fmtDate(job.updatedAt)}
-                  </td>
                 </tr>
               ))}
             </tbody>
