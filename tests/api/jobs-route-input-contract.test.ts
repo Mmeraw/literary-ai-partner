@@ -251,4 +251,29 @@ describe("POST /api/jobs input contract", () => {
     } finally {
     }
   });
+
+  test("returns 409 with actionable message when duplicate active job constraint is hit", async () => {
+    mockCreateJob.mockRejectedValue(
+      new Error(
+        'Failed to create job: duplicate key value violates unique constraint "uq_eval_jobs_active_phase1"',
+      ),
+    );
+
+    const req = new Request("https://example.test/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_id: 1003,
+        job_type: "evaluate_full",
+      }),
+    });
+
+    const response = await POST(req);
+    const json = (await response.json()) as { ok: boolean; error: string; trace_id: string };
+
+    expect(response.status).toBe(409);
+    expect(json.ok).toBe(false);
+    expect(json.error).toContain("already running or queued");
+    expect(typeof json.trace_id).toBe("string");
+  });
 });
