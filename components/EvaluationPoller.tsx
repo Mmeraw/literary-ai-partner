@@ -4,6 +4,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getProgressDisplay } from '@/components/evaluation-poller-display';
 import { useRouter } from 'next/navigation';
 
+// How many ms between each animated +1% tick on the display progress.
+// At 400ms/tick the bar takes ~40 s to traverse 0→100 at full speed,
+// but in practice it's capped by the actual backend value so it waits
+// at each real checkpoint until the pipeline advances.
+const ANIMATION_TICK_MS = 400;
+
+function getInitialDisplayProgress(job: JobState | null): number {
+  if (!job) return 0;
+  if (job.status === 'complete') return 100;
+  return 0;
+}
+
 /**
  * EvaluationPoller
  *
@@ -30,7 +42,7 @@ interface PollerProps {
   initialJob?: JobState | null;
   userId?: string;
   onComplete?: (job: JobState, isSuccess: boolean) => void;
-  refreshInterval?: number; // ms, default 1500
+  refreshInterval?: number; // ms, default 500
   redirectOnComplete?: boolean;
   redirectDelayMs?: number;
   refreshOnComplete?: boolean;
@@ -41,7 +53,7 @@ export function EvaluationPoller({
   initialJob = null,
   userId,
   onComplete,
-  refreshInterval = 1500,
+  refreshInterval = 500,
   redirectOnComplete = false,
   redirectDelayMs,
   refreshOnComplete = false,
@@ -55,6 +67,10 @@ export function EvaluationPoller({
   const [nextPollDelay, setNextPollDelay] = useState(refreshInterval);
   const [pendingRedirectDelayMs, setPendingRedirectDelayMs] = useState<number | null>(null);
 
+  // Animated display progress: ticks toward real job.progress so the bar
+  // moves through every stage label even when the backend sends coarse jumps.
+  const [displayProgress, setDisplayProgress] = useState<number>(getInitialDisplayProgress(initialJob));
+
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const redirectCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -65,15 +81,40 @@ export function EvaluationPoller({
   const networkErrorCountRef = useRef(0);
   const redirectedRef = useRef(false);
 
+  // Animate displayProgress toward the real backend target, one tick at a time.
+  // This ensures the progress bar passes through every stage label visibly.
+  useEffect(() => {
+    if (!job) return;
+    // On completion, jump immediately to 100 so the label snaps correctly.
+    if (job.status === 'complete') {
+      setDisplayProgress(100);
+      return;
+    }
+    if (job.status === 'failed') {
+      return;
+    }
+    const target = job.progress;
+    const interval = setInterval(() => {
+      setDisplayProgress((prev) => {
+        if (prev >= target) {
+          clearInterval(interval);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, ANIMATION_TICK_MS);
+    return () => clearInterval(interval);
+  }, [job]);
+
   const getAdaptiveDelay = useCallback(
     (unchangedCount: number, networkErrorCount: number) => {
       const base = refreshInterval;
       const unchangedDelayMultiplier =
-        unchangedCount >= 10 ? 6 : unchangedCount >= 5 ? 3 : unchangedCount >= 2 ? 2 : 1;
+        unchangedCount >= 10 ? 3 : unchangedCount >= 5 ? 2 : unchangedCount >= 2 ? 1.5 : 1;
       const networkDelayMultiplier = networkErrorCount >= 2 ? 2 : 1;
       // Keep completion visibility snappy: avoid long drift on unchanged snapshots.
       // This controls UI freshness, not backend pipeline runtime.
-      return Math.min(base * unchangedDelayMultiplier * networkDelayMultiplier, 4000);
+      return Math.min(base * unchangedDelayMultiplier * networkDelayMultiplier, 1500);
     },
     [refreshInterval]
   );
@@ -162,6 +203,7 @@ export function EvaluationPoller({
       const data = await res.json();
       if (data.ok && data.job) {
         const nextJob = data.job as JobState;
+        const previousJob = job;
 
         setJob((prev) => {
           const unchanged =
@@ -205,7 +247,17 @@ export function EvaluationPoller({
           return;
         }
 
-        scheduleNextPoll(getAdaptiveDelay(unchangedCountRef.current, networkErrorCountRef.current));
+        const progressChanged =
+          previousJob != null &&
+          previousJob.status === 'running' &&
+          nextJob.status === 'running' &&
+          previousJob.progress !== nextJob.progress;
+
+        scheduleNextPoll(
+          progressChanged
+            ? refreshInterval
+            : getAdaptiveDelay(unchangedCountRef.current, networkErrorCountRef.current)
+        );
       }
     } catch (err) {
       networkErrorCountRef.current += 1;
@@ -297,6 +349,7 @@ export function EvaluationPoller({
     setPollCount(0);
     setNextPollDelay(refreshInterval);
     setPendingRedirectDelayMs(null);
+    setDisplayProgress(getInitialDisplayProgress(initialJob));
     unchangedCountRef.current = 0;
     networkErrorCountRef.current = 0;
     redirectedRef.current = false;
@@ -364,7 +417,10 @@ export function EvaluationPoller({
 
                 {/* Progress Bar */}
         {(() => {
-          const pd = getProgressDisplay(job);
+          // Use the smoothly animated displayProgress so the bar traverses
+          // every stage label at a legible pace regardless of how coarse the
+          // backend progress checkpoints are.
+          const pd = getProgressDisplay({ status: job.status, progress: displayProgress });
           if (!pd) return null;
           return (
             <div className="space-y-2">

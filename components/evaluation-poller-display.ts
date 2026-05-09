@@ -8,12 +8,39 @@ export type ProgressDisplay = {
   percentage: number;
 } | null;
 
+const STAGE_ROADMAP =
+  "Stages: Preparing manuscript → Reading manuscript → Building diagnosis → Reconciling passes → Quality checks → Preparing report → Finalizing report.";
+
+function toApproxRunningPercentage(rawProgress: number): number {
+  // Negative or zero → clamp to 0.
+  if (rawProgress <= 0) return 0;
+  const raw = Math.min(100, rawProgress);
+  // Full completion reached.
+  if (raw >= 100) return 100;
+
+  // Approximation curve for coarse backend counters (e.g., 1/3, 2/3)
+  // 0..33   ->  5..35
+  // 33..66  -> 35..75
+  // 66..100 -> 75..99
+  if (raw <= 33) {
+    return Math.round(5 + (raw / 33) * 30);
+  }
+
+  if (raw <= 66) {
+    return Math.round(35 + ((raw - 33) / 33) * 40);
+  }
+
+  return Math.round(75 + ((raw - 66) / 34) * 24);
+}
+
 function getStageLabel(percentage: number): string {
   if (percentage >= 100) return "Report ready";
+  if (percentage >= 95) return "Finalizing report";
   if (percentage >= 80) return "Preparing report";
-  if (percentage >= 60) return "Reviewing for consistency";
-  if (percentage >= 40) return "Building diagnosis";
-  if (percentage >= 20) return "Reading manuscript";
+  if (percentage >= 65) return "Quality checks";
+  if (percentage >= 45) return "Reconciling passes";
+  if (percentage >= 25) return "Building diagnosis";
+  if (percentage >= 15) return "Reading manuscript";
   return "Preparing manuscript";
 }
 
@@ -31,13 +58,14 @@ export function getProgressDisplay(
   }
 
   if (job.status === "running") {
-    const percentage = Math.max(0, Math.min(100, job.progress));
+    const percentage = toApproxRunningPercentage(job.progress);
     const stageLabel = getStageLabel(percentage);
 
     return {
       label: stageLabel,
-      valueLabel: `${percentage}%`,
-      helperText: "This page refreshes automatically while your report is being prepared.",
+      valueLabel: `~${percentage}%`,
+      helperText:
+        `Approximate progress based on completed pipeline stages. ${STAGE_ROADMAP}`,
       indeterminate: false,
       percentage,
     };

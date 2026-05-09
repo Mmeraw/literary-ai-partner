@@ -378,18 +378,6 @@ export default async function EvaluationReportPage({
           }`}>
             {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : job.status === "running" ? "⟳ In progress" : "Waiting in queue"}
           </span>
-          {job.created_at && (
-            <span className="text-sm text-gray-600">
-              <span className="font-medium">Created:</span>{" "}
-              {new Date(job.created_at).toLocaleString()}
-            </span>
-          )}
-          {job.updated_at && (
-            <span className="text-sm text-gray-600">
-              <span className="font-medium">Updated:</span>{" "}
-              {new Date(job.updated_at).toLocaleString()}
-            </span>
-          )}
         </div>
       </div>
 
