@@ -10,6 +10,11 @@ import { useRouter } from 'next/navigation';
 // at each real checkpoint until the pipeline advances.
 const ANIMATION_TICK_MS = 400;
 
+// Once the backend marks the job complete, keep animating the client-only
+// progress display to 100 instead of snapping. This lets users see the final
+// stage labels even when the backend jumps directly from ~33% to complete.
+const COMPLETE_ANIMATION_TICK_MS = 200;
+
 function getInitialDisplayProgress(job: JobState | null): number {
   if (!job) return 0;
   if (job.status === 'complete') return 100;
@@ -76,35 +81,50 @@ export function EvaluationPoller({
   const redirectCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const redirectDeadlineRef = useRef<number | null>(null);
   const refreshedRef = useRef(false);
+  const completionRefreshArmedRef = useRef(false);
   const fetchJobRef = useRef<(() => Promise<void>) | null>(null);
   const unchangedCountRef = useRef(0);
   const networkErrorCountRef = useRef(0);
   const redirectedRef = useRef(false);
 
-  // Animate displayProgress toward the real backend target, one tick at a time.
-  // This ensures the progress bar passes through every stage label visibly.
+  // Animate displayProgress toward the current display target, one tick at a time.
+  // Running jobs stop at the real backend checkpoint. Complete jobs continue to 100
+  // client-side so users do not see a 35% → 100% snap when the backend skips 66%.
   useEffect(() => {
-    if (!job) return;
-    // On completion, jump immediately to 100 so the label snaps correctly.
-    if (job.status === 'complete') {
-      setDisplayProgress(100);
-      return;
-    }
-    if (job.status === 'failed') {
-      return;
-    }
-    const target = job.progress;
+    if (!job || job.status === 'failed') return;
+
+    const target = job.status === 'complete' ? 100 : job.progress;
+    const tickMs = job.status === 'complete' ? COMPLETE_ANIMATION_TICK_MS : ANIMATION_TICK_MS;
+
     const interval = setInterval(() => {
       setDisplayProgress((prev) => {
         if (prev >= target) {
           clearInterval(interval);
           return prev;
         }
-        return prev + 1;
+        return Math.min(prev + 1, target);
       });
-    }, ANIMATION_TICK_MS);
+    }, tickMs);
+
     return () => clearInterval(interval);
   }, [job]);
+
+  // For report pages that need a server refresh after completion, wait until the
+  // client-side animation has reached 100. Otherwise the page refresh can replace
+  // the in-progress card immediately and visually recreate the snap-to-complete bug.
+  useEffect(() => {
+    if (
+      completionRefreshArmedRef.current &&
+      job?.status === 'complete' &&
+      displayProgress >= 100 &&
+      refreshOnComplete &&
+      !refreshedRef.current
+    ) {
+      completionRefreshArmedRef.current = false;
+      refreshedRef.current = true;
+      router.refresh();
+    }
+  }, [displayProgress, job?.status, refreshOnComplete, router]);
 
   const getAdaptiveDelay = useCallback(
     (unchangedCount: number, networkErrorCount: number) => {
@@ -239,8 +259,7 @@ export function EvaluationPoller({
             refreshOnComplete &&
             !refreshedRef.current
           ) {
-            refreshedRef.current = true;
-            router.refresh();
+            completionRefreshArmedRef.current = true;
           }
 
           onComplete?.(data.job, data.job.status === 'complete');
@@ -350,6 +369,7 @@ export function EvaluationPoller({
     setNextPollDelay(refreshInterval);
     setPendingRedirectDelayMs(null);
     setDisplayProgress(getInitialDisplayProgress(initialJob));
+    completionRefreshArmedRef.current = false;
     unchangedCountRef.current = 0;
     networkErrorCountRef.current = 0;
     redirectedRef.current = false;
@@ -389,17 +409,19 @@ export function EvaluationPoller({
     );
   }
 
+  const isCompletingAnimation = job.status === 'complete' && displayProgress < 100;
+
   const statusLabel = {
     queued: 'Waiting in queue',
     running: 'In progress',
-    complete: '✅ Report ready',
+    complete: isCompletingAnimation ? 'In progress' : '✅ Report ready',
     failed: '⚠ Needs attention',
   }[job.status];
 
   const statusColor = {
     queued: 'text-gray-600',
     running: 'text-blue-600',
-    complete: 'text-green-600',
+    complete: isCompletingAnimation ? 'text-blue-600' : 'text-green-600',
     failed: 'text-red-600',
   }[job.status];
 
@@ -419,8 +441,11 @@ export function EvaluationPoller({
         {(() => {
           // Use the smoothly animated displayProgress so the bar traverses
           // every stage label at a legible pace regardless of how coarse the
-          // backend progress checkpoints are.
-          const pd = getProgressDisplay({ status: job.status, progress: displayProgress });
+          // backend progress checkpoints are. While completion animation is still
+          // in flight, render through the running-stage label map instead of the
+          // terminal complete display, which is intentionally fixed at 100%.
+          const displayStatus = isCompletingAnimation ? 'running' : job.status;
+          const pd = getProgressDisplay({ status: displayStatus, progress: displayProgress });
           if (!pd) return null;
           return (
             <div className="space-y-2">
@@ -477,7 +502,7 @@ export function EvaluationPoller({
         )}
 
         {/* Completion CTA before auto-redirect */}
-        {job.status === 'complete' && redirectOnComplete && !redirectedRef.current && (
+        {job.status === 'complete' && !isCompletingAnimation && redirectOnComplete && !redirectedRef.current && (
           <div className="p-3 bg-green-50 border border-green-200 rounded">
             <p className="text-sm text-green-800">
               Report ready.
