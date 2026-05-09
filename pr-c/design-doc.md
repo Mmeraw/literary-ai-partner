@@ -372,6 +372,38 @@ Before implementation, one of the following must be formally selected:
 
 No implicit middle state is permitted.
 
+#### 6.2.R — Ratification (2026-05-09)
+
+**Selected: Path B — additive/versioned schema change.**
+
+Ratifying authority: project owner.
+Ratification date: 2026-05-09.
+Ratification basis: project doctrine ("Quality first. Mistake-proofed. Complete. Scalable to 100,000 users. No dirty code. No leftovers that don't belong.") combined with the §0 / §1.6 cognition-substrate decision and the architectural implication recorded in `pr-c/baseline-6041-pre-prc.md` (Second Data Point — Hardened-QGv2 Counterpart).
+
+Reasoning (canonical):
+
+- Chunk-local evidence is a **first-class cognition artifact** under the §0 / §1.6 contract. It is not a derived intermediate representation; it is the substrate Pass 1 / Pass 2 will consume directly under PR-C.
+- First-class cognition artifacts deserve first-class persistence. Hiding them inside existing `evaluation_artifacts` columns or unstructured JSON blobs would create permanent schema debt and would violate the "no dirty code / no leftovers" doctrine line.
+- Path A would temporarily absorb chunk evidence into existing fields. That is the kind of decision teams make at hour 14 of a sprint and regret at month 6. It is rejected here for that reason, before the regret accumulates.
+- "Scalable to 100,000 users" requires queryable, indexable, versionable chunk-evidence shape. JSON-stuffing into legacy fields is not queryable at scale.
+- Path B aligns with the §4.3 artifact compatibility contract (additive or versioned only; destructive field replacement is non-compliant) and with the §5 idempotency contract (`(chunk_id, content_hash, prompt_version)` keying requires structured persistence to be auditable).
+
+What Path B implies (binding under this ratification):
+
+- New persisted shape for chunk-level evidence is **required**, not optional.
+- The shape must be additive: it must coexist with all pre-PR-C `evaluation_artifacts` records without rewriting them.
+- The shape must be versioned: each chunk-evidence record must carry an explicit version identifier so future evolution is traceable and reversible.
+- All §6.3 constraints (canonical identifiers only, legacy-readable transition, feature-flag-gated and reversible write-path changes) now bind.
+- Migration identifier and exact column/table layout remain reserved for implementation per §6.8 — Path B is the destination architecture, not a migration recipe.
+
+What is **explicitly rejected** under this ratification:
+
+- Hiding chunk evidence inside existing `evaluation_artifacts.result_json` (or any other existing JSON field) as the canonical persistence mechanism.
+- Treating chunk evidence as ephemeral compute-only state with no persisted shape.
+- Any "temporary Path A then later Path B" two-step that ships unversioned chunk evidence first and rationalizes it forward later.
+
+This ratification closes the §6.2 decision gate. §9.1 is updated accordingly.
+
 ### 6.3 If Path B is selected (required constraints)
 
 - Migration identifier must be assigned from the repository’s canonical migration sequence at implementation time.
@@ -570,8 +602,12 @@ These remain deferred until execution planning.
 
 ### 9.1 Schema decision
 
+_Original open question (preserved for chronology):_
+
 - Should PR-C use **Path A (no schema change)** or **Path B (additive/versioned schema expansion)** for chunk-level evidence persistence?
 - If Path B, what is the exact canonical migration identifier and review owner?
+
+_Resolution (2026-05-09):_ **Path B selected.** See §6.2.R for the ratification record and binding constraints. The exact canonical migration identifier and review owner remain reserved for implementation planning per §6.8.
 
 ### 9.2 Artifact contract boundary
 
@@ -585,8 +621,53 @@ These remain deferred until execution planning.
 
 ### 9.4 Gate policy clarifications
 
+_Original open questions (preserved for chronology):_
+
 - For dual-stage criteria (`tone`), what is the governance rule when map-stage signals conflict with reduce-stage arbitration?
 - What is the explicit certification posture when chunk evidence exists but cross-chunk consistency evidence is insufficient?
+
+#### 9.4.R — Resolution (2026-05-09): Reduce-Stage Arbitration Doctrine
+
+Ratifying authority: project owner.
+Ratification date: 2026-05-09.
+Empirical basis: the QGv2 firing pattern recorded in `pr-c/baseline-6041-pre-prc.md` (Second Data Point — job `842ec7ab-…`), which demonstrated that the system correctly refuses to certify when evidence locality and cross-chunk consistency are insufficient. The arbitration doctrine below is the canonical formalization of that observed posture.
+
+**Authority allocation (binding):**
+
+| Claim type | Authority |
+|---|---|
+| Local craft observations (chunk-local-first criteria per §2.3) | Map-stage |
+| Manuscript-scale synthesis (manuscript-scale reduce keys per §2.3) | Reduce-stage |
+| Conflicts between divergent map-stage signals | Reduce-stage adjudicates |
+| Final certification posture | Pass 4 / QGv2 |
+
+**Arbitration doctrine (must hold):**
+
+- Map-stage outputs are **evidence claims, not final manuscript truths**. A map-stage value alone never certifies a manuscript-scale criterion.
+- Reduce-stage arbitration has **authority over manuscript-scale synthesis** and **must**:
+  - preserve evidence tension where map-stage signals diverge across chunks,
+  - explain the divergence explicitly in arbitration output,
+  - downgrade or reconcile only when cross-chunk evidence supports the reconciliation,
+  - never erase disagreement to manufacture coherence.
+- For dual-stage criteria (e.g., `tone`): map-stage produces per-chunk consistency signals; reduce-stage arbitrates whether cross-chunk consistency holds. When map-stage signals conflict, reduce-stage **must surface the conflict** rather than collapse it to a single value.
+- When chunk evidence exists but cross-chunk consistency evidence is insufficient, reduce-stage **must withhold certification** for that criterion and emit `INSUFFICIENT_SIGNAL` (or the canonical equivalent) with the divergence preserved in the artifact.
+- Certification authority remains with **Pass 4 / QGv2**. Reduce-stage arbitration produces evidence-bound synthesis; QGv2 determines whether that synthesis is certifiable.
+
+**Forbidden under this doctrine (non-negotiable):**
+
+- Collapsing divergent map-stage signals into a single arbitration value without surfacing the divergence in the artifact.
+- Manufacturing coherence by selecting one map-stage signal and discarding others without explaining the discard rationale in arbitration output.
+- Treating map-stage majority vote as a substitute for reduce-stage arbitration on manuscript-scale criteria.
+- Using arbitration output to upgrade certification confidence beyond what the underlying chunk evidence supports.
+- Bypassing QGv2 certification authority via reduce-stage confidence claims.
+
+**Why this doctrine and not its alternative:**
+
+The alternative — "reduce-stage may erase disagreement to produce a clean number" — is exactly the bluffing posture the system rejected when QGv2 fired three gates simultaneously on job `842ec7ab` rather than emit a fabricated manuscript-scale score. Codifying disagreement-preservation as canon prevents future implementations (or future LLM collaborators without context) from reintroducing the bluffing posture under the guise of "cleaner output."
+
+The system is more trustworthy when it says "evidence distribution is inconsistent" than when it forces fake coherence. This is the doctrine implication of "the system refused to bluff."
+
+This ratification closes the §9.4 open question.
 
 ### 9.5 Baseline and comparison governance
 
