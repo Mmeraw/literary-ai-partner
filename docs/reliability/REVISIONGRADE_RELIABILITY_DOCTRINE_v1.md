@@ -1,5 +1,9 @@
 # RevisionGrade Reliability Doctrine v1
 
+Owner: RevisionGrade maintainers
+Last reviewed: 2026-05-09
+Doctrine version: v1
+
 ## Purpose
 
 This document defines the reliability kernel for RevisionGrade's governed evaluation system. It exists to prevent reliability drift, architecture ambiguity, silent regression, and semantic dishonesty as the evaluation system evolves.

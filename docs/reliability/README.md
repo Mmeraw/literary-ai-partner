@@ -18,6 +18,7 @@ Issue #384 is the architectural gateway from V1 to V2. Until post-#384 transitio
 - Replay governance: `replays/`
 - Failure taxonomy and morphology: `taxonomy/`
 - Coverage certification: `coverage/`
+- Incident ledger: `INCIDENT_LEDGER.md`
 - Provenance / trust graph: planned
 
 ## Review Policy
