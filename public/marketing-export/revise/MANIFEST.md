@@ -4,8 +4,7 @@
 
 - `index.html`
 - `style.css`
-- `landing.css`
-- `landing.js`
+- `script.js`
 - `README.md`
 
 ## Validation checklist
