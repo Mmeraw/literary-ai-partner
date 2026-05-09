@@ -86,22 +86,6 @@ Use these documents first:
 - `docs/JOB_CONTRACT_v1.md` — allowed job states only
 - `docs/QUICK_START.md` — local setup when you actually need to run the app
 
-## Reliability & Governance
-
-RevisionGrade operates under a formal reliability doctrine governing:
-
-- replay stability
-- coverage semantics
-- architecture generations
-- failure morphology
-- provenance
-- certification behavior
-
-See:
-
-- `docs/reliability/REVISIONGRADE_RELIABILITY_DOCTRINE_v1.md`
-- `docs/reliability/README.md`
-
 ## Local setup
 
 When local execution is needed:
