@@ -330,6 +330,12 @@ export type Pass3CriteriaCountByState = {
   missing_or_invalid: number;
 };
 
+export interface PacketProvenanceTelemetry {
+  packet_source: 'long_form_chunks_canonical' | 'short_form_initial_text';
+  packet_scope: 'criterion_comparison' | 'manuscript_summary' | 'divergence_packet';
+  packet_evidence_origin: 'chunk_canonical_window' | 'short_form_full_text';
+}
+
 export type ManuscriptChunkEvidence = {
   chunk_index: number;
   content: string;
@@ -340,6 +346,9 @@ export type Pass3ReducerTelemetry = {
   prompt_version: string;
   criteria_count_by_state: Pass3CriteriaCountByState;
   chunk_count: number;
+  packet_source: PacketProvenanceTelemetry['packet_source'];
+  packet_scope: PacketProvenanceTelemetry['packet_scope'];
+  packet_evidence_origin: PacketProvenanceTelemetry['packet_evidence_origin'];
   comparison_packet_chars: number;
   system_prompt_chars: number;
   user_prompt_chars: number;
