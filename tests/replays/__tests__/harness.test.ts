@@ -50,7 +50,7 @@ describe('Replay harness scaffold', () => {
       representation_compression_ratio: 0.04,
       compression_governance_state: 'observe',
       criteria_count_by_state: { soft_divergence: 0, hard_divergence: 0 },
-      criteria_with_zero_evidence: ['craft', 'voice'],
+      criteria_with_zero_evidence: ['sceneConstruction', 'voice'],
       evidence_count_by_criterion: { concept: 2 },
     };
 
@@ -90,7 +90,7 @@ describe('Replay harness scaffold', () => {
     it('contains: array membership', () => {
       expect(
         evaluateAssertion(
-          { field: 'criteria_with_zero_evidence', op: 'contains', value: 'craft' },
+          { field: 'criteria_with_zero_evidence', op: 'contains', value: 'sceneConstruction' },
           telemetry,
         ).passed,
       ).toBe(true);
