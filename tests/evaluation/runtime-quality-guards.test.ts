@@ -63,7 +63,6 @@ describe('Phase 1 seed-band divergence-collapse governance', () => {
           packet_source: 'long_form_chunks_canonical',
         });
         expect(['pass', 'warn', 'observe', null]).toContain(result.state);
-        // @ts-expect-error — proving hard_fail is not in the type union
         expect(result.state).not.toBe('hard_fail');
       }
     });

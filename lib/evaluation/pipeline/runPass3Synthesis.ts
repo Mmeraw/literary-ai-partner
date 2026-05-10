@@ -394,7 +394,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   });
 
   emitCompressionGovernanceSignal(governanceResult, {
-    jobId: opts.jobId || 'unknown',
+    jobId: opts.title || 'unknown',
     chunkCount: pass3ReducerTelemetry.chunk_count,
   });
 
