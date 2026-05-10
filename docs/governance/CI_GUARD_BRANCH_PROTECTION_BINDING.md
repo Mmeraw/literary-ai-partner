@@ -1,6 +1,7 @@
 # CI Guard Branch Protection Binding
 
 **Status**: PENDING ADMIN ACTION
+**Visibility**: [PROTECTED]
 **Repository**: Mmeraw/literary-ai-partner
 **Branch**: main
 **Required check target**: `CI Guard/ci-guard (pull_request)`
@@ -30,6 +31,16 @@ After binding, verify that `CI Guard/ci-guard (pull_request)` appears as a requi
 Until this check is required by branch protection, the guard exists but is not mechanically authoritative.
 
 Once required, CI Guard becomes merge-time boundary enforcement for protected/public separation.
+
+## Drift Condition
+
+If the configured required-check name diverges from the value recorded in this file, the repository is considered out of governance alignment until reconciled.
+
+Reconciliation requires either:
+- updating this file via governance PR to match the new platform state with documented rationale, or
+- restoring the platform state to match the value recorded here.
+
+Drift is itself a governance event and must be addressed before any further enforcement-lane work proceeds.
 
 ## Status Log
 
