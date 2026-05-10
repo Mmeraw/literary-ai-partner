@@ -10,6 +10,7 @@ import type {
   EscapeAnnotationPattern,
 } from "./types";
 import { validateRegistryContents } from "./schema";
+import { syntheticProofEntries } from "./categories/synthetic-proof";
 
 export type {
   BoundaryCrossingCategory,
@@ -23,10 +24,10 @@ export type {
 } from "./types";
 
 /**
- * At scaffold time, category files contain no entries.
+ * Category files are aggregated here.
  */
 function loadEntries(): ReadonlyArray<RegistryEntry> {
-  return Object.freeze([]);
+  return Object.freeze([...syntheticProofEntries]);
 }
 
 function buildConsumer(): ReadOnlyRegistryConsumer {
@@ -52,8 +53,22 @@ function buildConsumer(): ReadOnlyRegistryConsumer {
     auditLogShape: "ci-summary",
   });
 
+  const entriesByCategory = new Map<string, RegistryEntry>();
+  for (const entry of entries) {
+    entriesByCategory.set(entry.category, entry);
+  }
+
   return Object.freeze({
-    hasCategoryMatch(_candidate: string): RegistryQueryResult {
+    hasCategoryMatch(candidate: string): RegistryQueryResult {
+      const entry = entriesByCategory.get(candidate);
+      if (entry) {
+        return Object.freeze({
+          matched: true,
+          category: entry.category,
+          classificationDepth: entry.classificationDepth,
+        });
+      }
+
       return Object.freeze({
         matched: false,
         category: null,

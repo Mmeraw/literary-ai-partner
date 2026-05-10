@@ -1,0 +1,4 @@
+// synthetic proof fixture: validator-confirmed exception
+// @InternalOnly
+const syntheticRef = "ZXQ_SYNTHETIC_PROOF_TOKEN";
+export default syntheticRef;
