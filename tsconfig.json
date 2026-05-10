@@ -35,6 +35,7 @@
     "pages/**/*",
     "components/**/*",
     "lib/**/*",
+    "protected/**/*",
     "scripts/**/*",
     "tests/**/*",
     "middleware.ts",
