@@ -1,0 +1,3 @@
+[Manuscript fixture placeholder — replace with real long-form content
+in next commit. For scaffold testing, this file just needs to exist
+and be readable. Word count not yet enforced.]
