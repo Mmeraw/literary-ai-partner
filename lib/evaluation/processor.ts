@@ -142,6 +142,12 @@ type ChunkRoutingTelemetry = {
   verified_at?: string;
 }
 
+type FinalTextProvenance = {
+  final_text_source: 'long_form_post_chunk_canonical' | 'short_form_initial_text';
+  post_chunk_reresolved: boolean;
+  canonical_path_used: 'resolveManuscriptText.post_chunk_reconstruct' | 'resolveManuscriptText.initial';
+};
+
 export function getValidatedWorkerBatchSize(raw: unknown, fallback = 5): number {
   const parsed =
     typeof raw === 'number'
@@ -1743,6 +1749,11 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     }
 
     let manuscriptChunksForPipeline: ManuscriptChunkEvidence[] | undefined;
+    let finalTextProvenance: FinalTextProvenance = {
+      final_text_source: 'short_form_initial_text',
+      post_chunk_reresolved: false,
+      canonical_path_used: 'resolveManuscriptText.initial',
+    };
     if (chunkRouting.route === 'long_form') {
       const { text: canonicalPostChunkText, loadedChunks } = await resolveManuscriptText(supabase, {
         ...(manuscript as Manuscript),
@@ -1793,7 +1804,17 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         source: 'manuscript_chunks',
         chunk_count: manuscriptChunksForPipeline.length,
       };
+
+      finalTextProvenance = {
+        final_text_source: 'long_form_post_chunk_canonical',
+        post_chunk_reresolved: true,
+        canonical_path_used: 'resolveManuscriptText.post_chunk_reconstruct',
+      };
     }
+
+    progressState.final_text_source = finalTextProvenance.final_text_source;
+    progressState.post_chunk_reresolved = finalTextProvenance.post_chunk_reresolved;
+    progressState.canonical_path_used = finalTextProvenance.canonical_path_used;
 
     console.log('[Processor] chunk routing decision', {
       job_id: jobId,

@@ -306,6 +306,12 @@ describe("processEvaluationJob long-form chunk routing", () => {
     expect(ensureChunksCallOrder).toBeLessThan(runPipelineCallOrder);
 
     const runPipelineArgs = runPipelineMock.mock.calls[0]?.[0];
+    const expectedCanonicalPostChunkText = [
+      "Chunk 0 text",
+      "Chunk 1 text",
+      "Chunk 2 text",
+      "Chunk 3 text",
+    ].join("\n");
     expect(runPipelineArgs).toEqual(
       expect.objectContaining({
         manuscriptChunks: [
@@ -316,8 +322,7 @@ describe("processEvaluationJob long-form chunk routing", () => {
         ],
       }),
     );
-    expect(runPipelineArgs.manuscriptText).toContain("Chunk 0 text");
-    expect(runPipelineArgs.manuscriptText).toContain("Chunk 1 text");
+    expect(runPipelineArgs.manuscriptText).toBe(expectedCanonicalPostChunkText);
     expect(runPipelineArgs.manuscriptText).not.toBe(manuscriptContent);
 
     const persistCall = supabaseStub.rpcCalls.find(
@@ -326,6 +331,9 @@ describe("processEvaluationJob long-form chunk routing", () => {
     expect(persistCall).toBeDefined();
     expect(persistCall?.args?.p_progress).toEqual(
       expect.objectContaining({
+        final_text_source: "long_form_post_chunk_canonical",
+        post_chunk_reresolved: true,
+        canonical_path_used: "resolveManuscriptText.post_chunk_reconstruct",
         chunk_routing: expect.objectContaining({
           enabled: true,
           route: "long_form",
@@ -396,6 +404,9 @@ describe("processEvaluationJob long-form chunk routing", () => {
     );
     expect(persistCall).toBeDefined();
     expect(persistCall?.args?.p_progress).toMatchObject({
+      final_text_source: "short_form_initial_text",
+      post_chunk_reresolved: false,
+      canonical_path_used: "resolveManuscriptText.initial",
       chunk_routing: {
         enabled: true,
         route: "short_form",
