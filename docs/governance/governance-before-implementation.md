@@ -2,6 +2,14 @@
 
 **Status**: Canonical RevisionGrade engineering pattern (proven 4× as of 2026-05-09).
 
+## Document Visibility Classification
+
+This document is classified **[PROTECTED]**.
+
+It specifies the cognition-governance sequencing methodology: the meta-discipline that determines what gets locked, in what order, under what causal assumptions, with what disclosure posture, and under what enforcement boundary.
+
+Specific cycle internals, registry contents, ontology signatures, and implementation patterns are intentionally omitted or referenced by category only.
+
 ## What this is
 
 A repeatable two-phase PR workflow that separates **architectural contracts** from **runtime implementation**. The contract lands first, in a governance PR. Implementation lands second, against the locked contract.
@@ -93,6 +101,39 @@ For each major lane, maintain four artifacts in repo root:
 - **Telemetry as future work**: telemetry deferred is telemetry never built. The contract must require it land in the same PR as the runtime change.
 - **Premature hard-fail enforcement**: governance gates without distributional data block legitimate runs. Use observation phases first (see #293 Phase 1).
 - **Scope expansion mid-implementation**: open a follow-up governance PR instead.
+
+## Disclosure-audit cycle (required before lock)
+
+Every governance brief that touches protected architecture passes through this five-stage maturation cycle:
+
+1. **Initial doctrine** — first draft defines boundary, enforcement intent, and causal position.
+2. **Review pressure** — independent review tests scope, abstraction level, and disclosure posture.
+3. **Disclosure audit** — explicit pass for canon enumeration, ontology leakage, registry duplication, and architectural disclosure surface.
+4. **Abstraction tightening** — concrete identifiers become categories; structural examples become placeholders; implementation signatures move out of doctrine briefs.
+5. **Governance lock** — brief merges with clear [PROTECTED] posture and binary adjudication.
+
+The disclosure audit is non-optional. A governance brief that protects an ontology must not enumerate that ontology.
+
+Boundary ownership pattern:
+
+- The **brief** defines boundary doctrine.
+- The **registry** defines protected contents.
+- The **enforcement mechanism** reads the registry and applies the boundary.
+
+If a brief fails disclosure audit, it returns to stage 4 before lock.
+
+## Asymmetric disclosure principle
+
+RevisionGrade maintains deliberate asymmetry between operational and architectural intelligibility:
+
+- **Operationally inspectable**: users can understand outputs, explanations, revision rationale, consequences, and evidence.
+- **Architecturally irreducible**: users cannot reconstruct cognition topology, governance orchestration, ontology depth, internal abstraction layers, or canonical doctrine structures.
+
+This is not security theater. It is boundary integrity.
+
+The system can be sophisticated and explainable simultaneously because what is explained (outputs) and what is sophisticated (mechanism) are different surfaces.
+
+All future user-facing lanes inherit this asymmetry.
 
 ## Pattern naming convention
 
