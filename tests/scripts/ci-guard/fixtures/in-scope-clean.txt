@@ -1,0 +1,2 @@
+This user-facing content is clean and contains only normal prose tokens.
+No protected ontology entries are represented here.
