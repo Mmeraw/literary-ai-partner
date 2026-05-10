@@ -33,7 +33,7 @@ import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from "./promptInput";
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
-import { enforcePass3QualityGuards } from "@/lib/evaluation/governance/runtimeQualityGuards";
+import { enforcePass3QualityGuards, classifyCompressionGovernance, emitCompressionGovernanceSignal } from "@/lib/evaluation/governance/runtimeQualityGuards";
 import { normalizeIssueFamily, normalizeStrategicLever, normalizeRevisionGranularity } from "./recommendationSemantics";
 import { DIALOGUE_MECHANISM_MARKERS } from "./mechanismMarkers";
 import {
@@ -384,7 +384,22 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     system_prompt_chars: PASS3_SYSTEM_PROMPT.length,
     user_prompt_chars: userPrompt.length,
     max_output_tokens: getEvaluationRuntimeConfig().pass.pass3MaxTokens,
+    compression_governance_state: null, // Will be set by classifier below
   };
+
+  // Phase 1: seed-band divergence-collapse governance classifier
+  const governanceResult = classifyCompressionGovernance({
+    representation_compression_ratio: pass3ReducerTelemetry.representation_compression_ratio,
+    packet_source: pass3ReducerTelemetry.packet_source,
+  });
+
+  emitCompressionGovernanceSignal(governanceResult, {
+    jobId: opts.title || 'unknown',
+    chunkCount: pass3ReducerTelemetry.chunk_count,
+  });
+
+  // Update telemetry with governance state
+  pass3ReducerTelemetry.compression_governance_state = governanceResult.state;
 
   console.log("[Pass3][ReducerTelemetry]", pass3ReducerTelemetry);
   
