@@ -1,6 +1,6 @@
 # CI Guard Branch Protection Binding
 
-**Status**: PENDING ADMIN ACTION
+**Status**: BOUND / VERIFIED
 **Visibility**: [PROTECTED]
 **Repository**: Mmeraw/literary-ai-partner
 **Branch**: main
@@ -47,7 +47,9 @@ Drift is itself a governance event and must be addressed before any further enfo
 - 2026-05-10: CI Guard implemented in #423.
 - 2026-05-10: Exact required check name confirmed as `CI Guard/ci-guard (pull_request)`.
 - 2026-05-10: Admin binding pending.
+- 2026-05-10: Admin binding completed and verified.
 
 ## Refs
 
 Refs #416, #417, #418, #419, #420, #421, #422, #423
+- 2026-05-10: Admin binding completed and verified.
